@@ -76,7 +76,7 @@ export default function CheckoutPage() {
       customer_name: firstName + " " + lastName,
       customer_phone: phone,
       customer_email: email,
-      items: cart.map((i) => ({ name: i.name, qty: i.qty, price: i.price, variant: i.variant })),
+      items: cart.map((i) => ({ name: i.name, qty: i.qty, price: i.price, variant: i.variant, image: i.image })),
       total,
       status: "pending",
       payment_status: paymentMethod === "eft" ? "awaiting_payment" : "pending",

@@ -42,7 +42,7 @@ interface Product {
 interface Order {
   id: string; order_number: number; customer_name: string; customer_phone: string;
   customer_email: string;
-  items: { name: string; qty: number; price: number; variant?: string }[]; total: number;
+  items: { name: string; qty: number; price: number; variant?: string; image?: string }[]; total: number;
   status: string; payment_status: string; created_at: string;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string;
@@ -63,7 +63,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "products" | "orders" | "mystore" | "checkout">("overview");
+  const [tab, setTab] = useState<"overview" | "products" | "collections" | "orders" | "mystore" | "checkout">("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,6 +97,8 @@ export default function Dashboard() {
   const [newShipName, setNewShipName] = useState("");
   const [newShipPrice, setNewShipPrice] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [productSort, setProductSort] = useState("manual");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -106,7 +108,7 @@ export default function Dashboard() {
 
   useEffect(() => { checkAuth(); }, []);
 
-  const switchTab = (t: "overview" | "products" | "orders" | "mystore" | "checkout") => { setTab(t); setSidebarOpen(false); };
+  const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout") => { setTab(t); setSidebarOpen(false); };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -264,9 +266,9 @@ export default function Dashboard() {
             </div>
 
             <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {(["overview", "products", "orders", "mystore", "checkout"] as const).map((t) => (
-                <button key={t} onClick={() => switchTab(t)} style={{ width: "100%", padding: "12px 16px", background: tab === t ? "rgba(255,107,53,0.06)" : "transparent", border: tab === t ? "1px solid rgba(255,107,53,0.1)" : "1px solid transparent", borderRadius: 10, color: tab === t ? "#f5f5f5" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, fontWeight: tab === t ? 700 : 500, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", transition: "all 0.2s" }}>
-                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "orders" ? "Orders (" + orders.length + ")" : t === "mystore" ? "My Store" : "Checkout"}
+              {(["overview", "products", "collections", "orders", "mystore", "checkout"] as const).map((t) => (
+                <button key={t} onClick={() => { switchTab(t); if (t === "collections") setSelectedCollection(null); }} style={{ width: "100%", padding: "12px 16px", background: tab === t ? "rgba(255,107,53,0.06)" : "transparent", border: tab === t ? "1px solid rgba(255,107,53,0.1)" : "1px solid transparent", borderRadius: 10, color: tab === t ? "#f5f5f5" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, fontWeight: tab === t ? 700 : 500, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", transition: "all 0.2s" }}>
+                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "collections" ? "Collections (" + storeCollections.length + ")" : t === "orders" ? "Orders (" + orders.length + ")" : t === "mystore" ? "My Store" : "Checkout"}
                 </button>
               ))}
             </nav>
@@ -439,6 +441,114 @@ export default function Dashboard() {
             )}
           </div>)}
 
+          {/* COLLECTIONS */}
+          {tab === "collections" && (<div>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
+              <div>
+                <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Collections</h1>
+                <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 24 }}>Organize your products into collections for your storefront.</p>
+              </div>
+              {selectedCollection && <button onClick={() => setSelectedCollection(null)} style={{ padding: "10px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Collections</button>}
+            </div>
+
+            {selectedCollection ? (
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 900, textTransform: "uppercase" as const, marginBottom: 4 }}>{selectedCollection}</h2>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.25)", marginBottom: 20 }}>{products.filter((p) => p.category === selectedCollection && (p.status || "published") !== "trashed").length} products in this collection</p>
+
+                {/* SORT */}
+                <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const }}>
+                  {[{ k: "manual", l: "Manual" }, { k: "az", l: "A-Z" }, { k: "za", l: "Z-A" }, { k: "latest", l: "Latest" }, { k: "oldest", l: "Oldest" }, { k: "price-asc", l: "Price Low" }, { k: "price-desc", l: "Price High" }].map((s) => (
+                    <button key={s.k} onClick={() => setProductSort(s.k)} style={{ padding: "6px 14px", borderRadius: 100, background: productSort === s.k ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.02)", border: productSort === s.k ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: productSort === s.k ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{s.l}</button>
+                  ))}
+                </div>
+
+                {/* PRODUCTS IN COLLECTION */}
+                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 12, color: N }}>Products in Collection</h3>
+                {(() => {
+                  let inCollection = products.filter((p) => p.category === selectedCollection && (p.status || "published") !== "trashed");
+                  if (productSort === "az") inCollection.sort((a, b) => a.name.localeCompare(b.name));
+                  else if (productSort === "za") inCollection.sort((a, b) => b.name.localeCompare(a.name));
+                  else if (productSort === "latest") inCollection.sort((a, b) => -1);
+                  else if (productSort === "oldest") inCollection.sort((a, b) => 1);
+                  else if (productSort === "price-asc") inCollection.sort((a, b) => a.price - b.price);
+                  else if (productSort === "price-desc") inCollection.sort((a, b) => b.price - a.price);
+                  return inCollection.length === 0 ? (
+                    <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)", padding: "20px 0" }}>No products in this collection yet. Add some below.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 24 }}>
+                      {inCollection.map((p) => (
+                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
+                            <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>R{p.price}</div></div>
+                          </div>
+                          <button onClick={async () => { await supabase.from("products").update({ category: "" }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: "" } : x)); }} style={{ padding: "6px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* ADD PRODUCTS TO COLLECTION */}
+                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 12 }}>Add Products</h3>
+                {(() => {
+                  const available = products.filter((p) => p.category !== selectedCollection && (p.status || "published") !== "trashed");
+                  return available.length === 0 ? (
+                    <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>All products are already in this collection.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {available.map((p) => (
+                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.03)", borderRadius: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
+                            <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>{p.category ? "In: " + p.category : "No collection"}</div></div>
+                          </div>
+                          <button onClick={async () => { await supabase.from("products").update({ category: selectedCollection }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: selectedCollection! } : x)); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div>
+                {/* CREATE COLLECTION */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); } } }} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  <button onClick={() => { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
+                </div>
+
+                {/* COLLECTION LIST */}
+                {storeCollections.length === 0 ? (
+                  <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No collections yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Create your first collection to organize your products.</p></div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {storeCollections.map((col, i) => {
+                      const count = products.filter((p) => p.category === col && (p.status || "published") !== "trashed").length;
+                      const thumb = products.find((p) => p.category === col && p.image_url);
+                      return (
+                        <div key={i} onClick={() => setSelectedCollection(col)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            {thumb?.image_url ? <img src={thumb.image_url} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 16, color: "rgba(245,245,245,0.1)" }}>&#9633;</span></div>}
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 2 }}>{col}</div>
+                              <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>{count} product{count !== 1 ? "s" : ""}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "rgba(245,245,245,0.15)" }}>&rarr;</span>
+                            <button onClick={(e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>)}
+
           {/* ORDERS */}
           {tab === "orders" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
@@ -496,8 +606,9 @@ export default function Dashboard() {
                 <div style={{ padding: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16 }}>
                   <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16, color: N }}>Order Items</h3>
                   {(selectedOrder.items || []).map((item, i) => (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < selectedOrder.items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                      <div>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < selectedOrder.items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                      {item.image ? <img src={item.image} alt="" style={{ width: 44, height: 52, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} /> : <div style={{ width: 44, height: 52, borderRadius: 6, background: "rgba(255,255,255,0.04)", flexShrink: 0 }} />}
+                      <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 600 }}>{item.name}</div>
                         {item.variant && <div style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{item.variant}</div>}
                         <div style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>Qty: {item.qty}</div>
@@ -576,31 +687,6 @@ export default function Dashboard() {
                   <input ref={bannerInputRef} type="file" accept="image/*" onChange={handleBannerSelect} style={{ display: "none" }} />
                 </div>
               </div>
-            </div>
-
-            {/* COLLECTIONS */}
-            <div style={{ marginBottom: 40 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Collections</h3>
-              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Organize your products into collections. Customers can browse by collection on your store.</p>
-              
-              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" as const }}>
-                <input type="text" placeholder="e.g. Summer Drop, Essentials, New Arrivals" value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { setStoreCollections([...storeCollections, name]); setNewCollection(""); } } }} style={{ flex: 1, minWidth: 200, padding: "11px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                <button type="button" onClick={() => { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { setStoreCollections([...storeCollections, name]); setNewCollection(""); } }} style={{ padding: "11px 20px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 10, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>+ Add</button>
-              </div>
-
-              {storeCollections.length === 0 ? (
-                <p style={{ fontSize: 12, color: "rgba(245,245,245,0.15)", fontStyle: "italic" }}>No collections yet. Add one above.</p>
-              ) : (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
-                  {storeCollections.map((c, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "#f5f5f5" }}>{c}</span>
-                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginLeft: 2 }}>({products.filter((p) => p.category === c && (p.status || "published") !== "trashed").length})</span>
-                      <button type="button" onClick={() => setStoreCollections(storeCollections.filter((_, idx) => idx !== i))} style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(255,61,110,0.1)", border: "none", color: "#ff3d6e", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginLeft: 2 }}>&#10005;</button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div style={{ marginBottom: 40 }}>
