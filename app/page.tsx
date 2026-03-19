@@ -31,6 +31,15 @@ export default function Home() {
         @keyframes pulse { 0%,100% { opacity:0.6; transform:scale(1) } 50% { opacity:1; transform:scale(1.1) } }
         @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
         @keyframes fu { from { opacity:0; transform:translateY(24px) } to { opacity:1; transform:translateY(0) } }
+
+        @media (max-width: 768px) {
+          .nav-link-desktop { display: none !important; }
+          .hero-buttons { flex-direction: column !important; }
+          .hero-buttons a { width: 100% !important; text-align: center !important; }
+          .features-grid-3 { grid-template-columns: 1fr !important; }
+          .pricing-grid-3 { grid-template-columns: 1fr !important; }
+          .demo-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+        }
       `}</style>
 
       {/* AMBIENT FX */}
@@ -42,17 +51,17 @@ export default function Home() {
       {/* SCANLINES */}
       <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", opacity: 0.02, background: "repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.03) 1px, rgba(255,255,255,0.03) 2px)" }} />
 
-      <div style={{ position: "relative", zIndex: 2, maxWidth: 1200, margin: "0 auto", padding: "0 32px" }}>
+      <div style={{ position: "relative", zIndex: 2, maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
 
         {/* NAV */}
-        <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "12px 32px" }}>
+        <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "12px 24px" }}>
           <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 6px 12px 24px", background: "rgba(3,3,3,0.75)", backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 100 }}>
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const }}>
+            <a href="/" style={{ fontSize: 18, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, textDecoration: "none", color: "var(--text)" }}>
               CATALOG<span style={{ background: "var(--grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>STORE</span>
-            </div>
+            </a>
             <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
               {["Features", "Pricing", "Templates"].map((item) => (
-                <a key={item} href={"#" + item.toLowerCase()} style={{ textDecoration: "none", color: "var(--text-dim)", fontSize: 13, fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase" as const, transition: "color 0.3s" }}>{item}</a>
+                <a key={item} href={"#" + item.toLowerCase()} className="nav-link-desktop" style={{ textDecoration: "none", color: "var(--text-dim)", fontSize: 13, fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase" as const, transition: "color 0.3s" }}>{item}</a>
               ))}
               <a href="/signup" style={{ padding: "12px 28px", borderRadius: 100, border: "none", background: "var(--grad)", color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase" as const, textDecoration: "none", transition: "all 0.3s" }}>Get Started</a>
             </div>
@@ -67,7 +76,7 @@ export default function Home() {
               WhatsApp to storefront
             </div>
 
-            <h1 style={{ fontSize: "clamp(48px, 8vw, 96px)", fontWeight: 900, lineHeight: 0.95, letterSpacing: "-0.06em", textTransform: "uppercase" as const, marginBottom: 28, animation: loaded ? "fu 0.6s 0.1s ease both" : "none" }}>
+            <h1 style={{ fontSize: "clamp(42px, 8vw, 96px)", fontWeight: 900, lineHeight: 0.95, letterSpacing: "-0.06em", textTransform: "uppercase" as const, marginBottom: 28, animation: loaded ? "fu 0.6s 0.1s ease both" : "none" }}>
               Your catalog.<br />
               <span style={{ background: "var(--grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Amplified.</span>
             </h1>
@@ -76,7 +85,7 @@ export default function Home() {
               Turn your WhatsApp Business catalog into a branded, high-converting online store. Zero code. Zero friction.
             </p>
 
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", animation: loaded ? "fu 0.6s 0.3s ease both" : "none" }}>
+            <div className="hero-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", animation: loaded ? "fu 0.6s 0.3s ease both" : "none" }}>
               <a href="/signup" style={{ padding: "18px 48px", background: "var(--grad)", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", boxShadow: "0 0 40px rgba(255,107,53,0.2)", transition: "all 0.3s" }}>Launch Free</a>
               <a href="#features" style={{ padding: "18px 48px", background: "transparent", color: "var(--text)", border: "2px solid rgba(255,255,255,0.1)", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", transition: "all 0.3s" }}>See Demo</a>
             </div>
@@ -92,7 +101,7 @@ export default function Home() {
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
               <span style={{ flex: 1, textAlign: "center" as const, fontSize: 11, color: "var(--text-dim)", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" as const }}>yourstore.catalogstore.co.za</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3, padding: 3, minHeight: 360 }}>
+            <div className="demo-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3, padding: 3, minHeight: 360 }}>
               {[...Array(8)].map((_, i) => (
                 <div key={i} style={{ aspectRatio: "3/4", background: "linear-gradient(160deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005))", borderRadius: 4 }} />
               ))}
@@ -103,8 +112,8 @@ export default function Home() {
         {/* FEATURES */}
         <section id="features" style={{ padding: "100px 0" }}>
           <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.15em", color: "var(--neon)", fontWeight: 800, marginBottom: 16, textAlign: "center" as const }}>How It Works</div>
-          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(36px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 64 }}>Dead simple</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
+          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 64 }}>Dead simple</h2>
+          <div className="features-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
             {[
               { num: "01", title: "Import", desc: "Link your WhatsApp Business number. Your products, images, and prices appear in seconds.", radius: "20px 4px 4px 20px" },
               { num: "02", title: "Design", desc: "Pick a template. Set your colors. Upload your logo. Your store is uniquely yours.", radius: "4px" },
@@ -122,8 +131,8 @@ export default function Home() {
         {/* PRICING */}
         <section id="pricing" style={{ padding: "100px 0" }}>
           <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.15em", color: "var(--neon)", fontWeight: 800, marginBottom: 16, textAlign: "center" as const }}>Pricing</div>
-          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(36px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 64 }}>Pick your fuel</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
+          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 64 }}>Pick your fuel</h2>
+          <div className="pricing-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
             {[
               { name: "Starter", price: "Free", period: "Forever", features: ["15 Products", "1 Template", "WhatsApp Checkout", "CatalogStore Branding"], hot: false, btn: "Get Started", radius: "20px 4px 4px 20px" },
               { name: "Pro", price: "R149", period: "/month", features: ["Unlimited Products", "All Templates", "Card Payments", "Custom Domain"], hot: true, btn: "Start Free Trial", radius: "4px" },
@@ -154,9 +163,9 @@ export default function Home() {
 
         {/* CTA */}
         <section style={{ padding: "100px 0" }}>
-          <div style={{ textAlign: "center" as const, padding: "80px 40px", background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: 20, position: "relative" as const, overflow: "hidden" }}>
+          <div style={{ textAlign: "center" as const, padding: "80px 32px", background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: 20, position: "relative" as const, overflow: "hidden" }}>
             <div style={{ position: "absolute" as const, top: 0, left: 0, right: 0, height: 2, background: "var(--grad)", opacity: 0.3 }} />
-            <h2 style={{ fontSize: "clamp(36px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 16 }}>Stop sleeping on your catalog</h2>
+            <h2 style={{ fontSize: "clamp(28px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 16 }}>Stop sleeping on your catalog</h2>
             <p style={{ fontSize: 16, color: "var(--text-dim)", maxWidth: 440, margin: "0 auto 40px", lineHeight: 1.7, fontWeight: 400 }}>Hundreds of SA sellers are already live. Your customers are waiting.</p>
             <a href="/signup" style={{ display: "inline-block", padding: "18px 48px", background: "var(--grad)", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", boxShadow: "0 0 40px rgba(255,107,53,0.2)", transition: "all 0.3s" }}>Launch Your Store Free</a>
           </div>
