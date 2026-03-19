@@ -97,6 +97,7 @@ export default function Dashboard() {
   const [newShipName, setNewShipName] = useState("");
   const [newShipPrice, setNewShipPrice] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderSaved, setOrderSaved] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [productSort, setProductSort] = useState("manual");
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -515,8 +516,8 @@ export default function Dashboard() {
               <div>
                 {/* CREATE COLLECTION */}
                 <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); } } }} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                  <button onClick={() => { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
+                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); } } }} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  <button onClick={async () => { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
                 </div>
 
                 {/* COLLECTION LIST */}
@@ -538,7 +539,7 @@ export default function Dashboard() {
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <span style={{ fontSize: 12, color: "rgba(245,245,245,0.15)" }}>&rarr;</span>
-                            <button onClick={(e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                            <button onClick={async (e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                           </div>
                         </div>
                       );
@@ -565,16 +566,17 @@ export default function Dashboard() {
                   </div>
 
                   {/* STATUS CONTROLS */}
+                  {orderSaved && <div style={{ padding: "8px 16px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, marginBottom: 16, fontSize: 12, fontWeight: 700, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Changes saved</div>}
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Payment:</label>
                     {["awaiting_payment", "paid", "refunded"].map((s) => (
-                      <button key={s} onClick={async () => { await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id); const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,61,110,0.1)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff3d6e" : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s.replace("_", " ")}</button>
+                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id); if (error) { console.error("Update failed:", error); alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,61,110,0.1)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff3d6e" : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s.replace("_", " ")}</button>
                     ))}
                   </div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Status:</label>
                     {["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => (
-                      <button key={s} onClick={async () => { await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id); const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? (s === "delivered" ? "rgba(34,197,94,0.15)" : s === "cancelled" ? "rgba(255,61,110,0.1)" : s === "shipped" ? "rgba(37,99,235,0.1)" : s === "confirmed" || s === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.status === s ? (s === "delivered" ? "#22c55e" : s === "cancelled" ? "#ff3d6e" : s === "shipped" ? "#2563eb" : s === "confirmed" || s === "processing" ? N : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s}</button>
+                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id); if (error) { console.error("Update failed:", error); alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? (s === "delivered" ? "rgba(34,197,94,0.15)" : s === "cancelled" ? "rgba(255,61,110,0.1)" : s === "shipped" ? "rgba(37,99,235,0.1)" : s === "confirmed" || s === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.status === s ? (s === "delivered" ? "#22c55e" : s === "cancelled" ? "#ff3d6e" : s === "shipped" ? "#2563eb" : s === "confirmed" || s === "processing" ? N : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s}</button>
                     ))}
                   </div>
                 </div>
@@ -605,9 +607,11 @@ export default function Dashboard() {
                 {/* ORDER ITEMS */}
                 <div style={{ padding: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16 }}>
                   <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16, color: N }}>Order Items</h3>
-                  {(selectedOrder.items || []).map((item, i) => (
+                  {(selectedOrder.items || []).map((item, i) => {
+                    const img = item.image || products.find((p) => p.name === item.name)?.image_url;
+                    return (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < selectedOrder.items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                      {item.image ? <img src={item.image} alt="" style={{ width: 44, height: 52, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} /> : <div style={{ width: 44, height: 52, borderRadius: 6, background: "rgba(255,255,255,0.04)", flexShrink: 0 }} />}
+                      {img ? <img src={img} alt="" style={{ width: 44, height: 52, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} /> : <div style={{ width: 44, height: 52, borderRadius: 6, background: "rgba(255,255,255,0.04)", flexShrink: 0 }} />}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 600 }}>{item.name}</div>
                         {item.variant && <div style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{item.variant}</div>}
@@ -615,7 +619,8 @@ export default function Dashboard() {
                       </div>
                       <div style={{ fontSize: 15, fontWeight: 800 }}>R{(item.price * item.qty).toFixed(0)}</div>
                     </div>
-                  ))}
+                    );
+                  })}
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16, marginTop: 8 }}>
                     {selectedOrder.shipping_cost > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(245,245,245,0.25)", marginBottom: 6 }}><span>Shipping</span><span>R{selectedOrder.shipping_cost}</span></div>}
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 900 }}><span>Total</span><span>R{selectedOrder.total}</span></div>
