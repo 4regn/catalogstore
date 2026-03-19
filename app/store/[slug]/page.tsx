@@ -94,7 +94,7 @@ export default function StorePage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Jost:wght@300;400;500;600;700&display=swap');
         @keyframes mscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-        @media(max-width:768px){.sl-cols-g{grid-template-columns:1fr!important}.sl-pgrid{grid-template-columns:repeat(2,1fr)!important}.sl-story{grid-template-columns:1fr!important}.sl-trust{grid-template-columns:repeat(2,1fr)!important}.sl-polg{grid-template-columns:1fr!important}.sl-fttop{grid-template-columns:1fr!important}.sl-hero{height:70vh!important;min-height:400px!important}.sl-hnav{display:none!important}.sl-modal{flex-direction:column!important}}
+        @media(max-width:768px){.sl-cols-g{grid-template-columns:1fr!important}.sl-pgrid{grid-template-columns:repeat(2,1fr)!important}.sl-story{grid-template-columns:1fr!important}.sl-trust{grid-template-columns:repeat(2,1fr)!important}.sl-polg{grid-template-columns:1fr!important}.sl-fttop{grid-template-columns:1fr!important}.sl-hero{height:70vh!important;min-height:400px!important}.sl-hnav{display:none!important}.sl-modal{flex-direction:column!important}.sl-header-grid{display:flex!important;justify-content:space-between!important}.sl-logo-img{height:36px!important;max-width:120px!important}}
       `}</style>
       <div style={{ minHeight: "100vh", background: "#f6f3ef", fontFamily: "'Jost', sans-serif", color: "#2a2a2e" }}>
 
@@ -103,14 +103,14 @@ export default function StorePage() {
 
         {/* HEADER */}
         <header style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(246,243,239,0.92)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-          <div style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: 72 }}>
+          <div className="sl-header-grid" style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: 72 }}>
             <div className="sl-hnav" style={{ display: "flex", gap: 32 }}>
               <span style={{ color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Shop All</span>
               {cats.length > 2 && <span style={{ color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Collections</span>}
             </div>
             <div style={{ textAlign: "center" }}>
               {seller?.logo_url ? (
-                <img src={seller.logo_url} alt={seller.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
+                <img className="sl-logo-img" src={seller.logo_url} alt={seller.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
               ) : (
                 <div>
                   <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>{seller?.store_name}</div>

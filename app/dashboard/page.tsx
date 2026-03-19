@@ -606,14 +606,12 @@ export default function Dashboard() {
             </div>
             )}
 
-            {/* LIVE PREVIEW */}
+            {/* OPEN EDITOR */}
             {seller?.subdomain && (
             <div style={{ marginBottom: 40 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Live Preview</h3>
-              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Save changes first, then preview how your store looks.</p>
-              <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)", background: "#fff", height: 500 }}>
-                <iframe key={storeSaved ? Date.now() : "preview"} src={"/store/" + seller.subdomain} style={{ width: "100%", height: "100%", border: "none", transform: "scale(0.75)", transformOrigin: "top left", width: "133%", height: "133%" }} />
-              </div>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Visual Editor</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p>
+              <a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Store Editor &rarr;</a>
             </div>
             )}
 
