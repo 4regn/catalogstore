@@ -103,7 +103,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
 
-  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 2*1024*1024) { alert("Logo must be under 2MB"); return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
   const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); return; } setBannerFile(f); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
 
   const saveStoreSettings = async () => {
@@ -131,7 +131,7 @@ export default function Dashboard() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []); if (!files.length) return;
-    if (formImages.length + existingImages.length + files.length > 6) { alert("Maximum 6 images"); return; }
+    if (formImages.length + existingImages.length + files.length > 20) { alert("Maximum 20 images"); return; }
     const valid = files.filter((f) => { if (!f.type.startsWith("image/")) return false; if (f.size > 5*1024*1024) { alert(f.name + " too large"); return false; } return true; });
     setFormImages((p) => [...p, ...valid]);
     valid.forEach((file) => { const r = new FileReader(); r.onload = (ev) => setFormPreviews((p) => [...p, ev.target?.result as string]); r.readAsDataURL(file); });
@@ -342,11 +342,11 @@ export default function Dashboard() {
 
                 {/* Images */}
                 <div style={{ marginTop: 20 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Product Images (max 6)</label>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Product Images (max 20)</label>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, marginTop: 8 }}>
                     {existingImages.map((url, i) => (<div key={"e" + i} style={{ width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" as const, border: "1px solid rgba(255,255,255,0.08)" }}><img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /><button type="button" onClick={() => removeExistingImage(i)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>{i === 0 && formImages.length === 0 && <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>}</div>))}
                     {formPreviews.map((p, i) => (<div key={"n" + i} style={{ width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" as const, border: "1px solid rgba(255,255,255,0.08)" }}><img src={p} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /><button type="button" onClick={() => removeNewImage(i)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>{i === 0 && existingImages.length === 0 && <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>}</div>))}
-                    {totalImageSlots < 6 && (<button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2 }}><span style={{ fontSize: 20, color: "rgba(245,245,245,0.2)" }}>+</span><span style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Photo</span></button>)}
+                    {totalImageSlots < 20 && (<button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2 }}><span style={{ fontSize: 20, color: "rgba(245,245,245,0.2)" }}>+</span><span style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Photo</span></button>)}
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: "none" }} />
                   </div>
                 </div>
