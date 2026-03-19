@@ -30,7 +30,7 @@ interface Product {
   price: number;
   old_price: number | null;
   category: string;
-  image_url: string;
+  image_url: string | null;
   images: string[];
   variants: Variant[];
   in_stock: boolean;
