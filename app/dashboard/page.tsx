@@ -9,7 +9,7 @@ interface Variant { name: string; options: string[]; }
 interface Seller {
   id: string; email: string; store_name: string; whatsapp_number: string; subdomain: string;
   template: string; plan: string; primary_color: string; logo_url: string; banner_url: string;
-  tagline: string; description: string;
+  tagline: string; description: string; collections: string[];
 }
 
 interface Product {
@@ -61,6 +61,8 @@ export default function Dashboard() {
   const [storeColor, setStoreColor] = useState("#ff6b35");
   const [storeTagline, setStoreTagline] = useState("");
   const [storeDescription, setStoreDescription] = useState("");
+  const [storeCollections, setStoreCollections] = useState<string[]>([]);
+  const [newCollection, setNewCollection] = useState("");
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeSaved, setStoreSaved] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -78,7 +80,7 @@ export default function Dashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
     const { data: sd } = await supabase.from("sellers").select("*").eq("id", user.id).single();
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "clean-minimal"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "clean-minimal"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); }
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
     if (pd) setProducts(pd);
     const { data: od } = await supabase.from("orders").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
@@ -96,8 +98,8 @@ export default function Dashboard() {
     let logoUrl = seller.logo_url || ""; let bannerUrl = seller.banner_url || "";
     if (logoFile) { const ext = logoFile.name.split(".").pop(); const path = seller.id + "/logo." + ext; await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); logoUrl = data.publicUrl + "?t=" + Date.now(); }
     if (bannerFile) { const ext = bannerFile.name.split(".").pop(); const path = seller.id + "/banner." + ext; await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); bannerUrl = data.publicUrl + "?t=" + Date.now(); }
-    const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl }).eq("id", seller.id);
-    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); }
+    const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections }).eq("id", seller.id);
+    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); }
     setStoreSaving(false);
   };
 
@@ -304,12 +306,25 @@ export default function Dashboard() {
               <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", marginBottom: 16 }}>{editingId ? "Edit Product" : "New Product"}</h3>
               <form onSubmit={handleSubmit}>
                 <div className="form-grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                  {[{ l: "Product Name", p: "e.g. Oversized Graphic Tee", v: formName, fn: setFormName, req: true }, { l: "Price (Rands)", p: "e.g. 349", v: formPrice, fn: setFormPrice, req: true, t: "number" }, { l: "Category", p: "e.g. Tops", v: formCategory, fn: setFormCategory }].map((f, i) => (
-                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>{f.l}</label>
-                      <input type={f.t || "text"} placeholder={f.p} value={f.v} onChange={(e) => f.fn(e.target.value)} required={f.req} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                    </div>
-                  ))}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Product Name</label>
+                    <input type="text" placeholder="e.g. Oversized Graphic Tee" value={formName} onChange={(e) => setFormName(e.target.value)} required style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Price (Rands)</label>
+                    <input type="number" placeholder="e.g. 349" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} required style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Collection</label>
+                    {storeCollections.length > 0 ? (
+                      <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const }}>
+                        <option value="" style={{ background: "#080808" }}>No collection</option>
+                        {storeCollections.map((c) => (<option key={c} value={c} style={{ background: "#080808" }}>{c}</option>))}
+                      </select>
+                    ) : (
+                      <input type="text" placeholder="Create collections in My Store" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    )}
+                  </div>
                 </div>
 
                 {/* Images */}
@@ -460,6 +475,31 @@ export default function Dashboard() {
                   <input ref={bannerInputRef} type="file" accept="image/*" onChange={handleBannerSelect} style={{ display: "none" }} />
                 </div>
               </div>
+            </div>
+
+            {/* COLLECTIONS */}
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Collections</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Organize your products into collections. Customers can browse by collection on your store.</p>
+              
+              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" as const }}>
+                <input type="text" placeholder="e.g. Summer Drop, Essentials, New Arrivals" value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { setStoreCollections([...storeCollections, name]); setNewCollection(""); } } }} style={{ flex: 1, minWidth: 200, padding: "11px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                <button type="button" onClick={() => { const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { setStoreCollections([...storeCollections, name]); setNewCollection(""); } }} style={{ padding: "11px 20px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 10, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>+ Add</button>
+              </div>
+
+              {storeCollections.length === 0 ? (
+                <p style={{ fontSize: 12, color: "rgba(245,245,245,0.15)", fontStyle: "italic" }}>No collections yet. Add one above.</p>
+              ) : (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                  {storeCollections.map((c, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#f5f5f5" }}>{c}</span>
+                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginLeft: 2 }}>({products.filter((p) => p.category === c && (p.status || "published") !== "trashed").length})</span>
+                      <button type="button" onClick={() => setStoreCollections(storeCollections.filter((_, idx) => idx !== i))} style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(255,61,110,0.1)", border: "none", color: "#ff3d6e", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginLeft: 2 }}>&#10005;</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: 40 }}>
