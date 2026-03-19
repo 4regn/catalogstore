@@ -9,7 +9,7 @@ interface Seller {
   primary_color: string; logo_url: string; banner_url: string; tagline: string; description: string;
   collections: string[];
   social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
-  store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; show_newsletter: boolean; announcement: string };
+  store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; show_newsletter: boolean; announcement: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[] };
 }
 
 interface Variant { name: string; options: string[]; }
@@ -51,6 +51,9 @@ export default function StorePage() {
   const social = seller?.social_links || {};
   const accent = seller?.primary_color || "#9c7c62";
   const collections = seller?.collections || [];
+  const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery Over R500", "Designed in South Africa"];
+  const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
+  const policyItems = cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "All major cards accepted via Yoco. Also checkout through WhatsApp for a personal experience." }];
   const cats = ["All", ...collections.filter((c) => products.some((p) => p.category === c))];
   const filtered = activeCategory === "All" ? products : products.filter((p) => p.category === activeCategory);
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
@@ -107,10 +110,7 @@ export default function StorePage() {
             </div>
             <div style={{ textAlign: "center" }}>
               {seller?.logo_url ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                  <img src={seller.logo_url} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />
-                  <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase" }}>{seller?.store_name}</span>
-                </div>
+                <img src={seller.logo_url} alt={seller.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
               ) : (
                 <div>
                   <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>{seller?.store_name}</div>
@@ -129,12 +129,11 @@ export default function StorePage() {
         {cfg.show_marquee && (
           <div style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
             <div style={{ display: "inline-flex", animation: "mscroll 30s linear infinite" }}>
-              {[...Array(6)].map((_, i) => (
-                <span key={i} style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: "italic", color: "#8a8690", letterSpacing: "0.08em", padding: "0 40px" }}>
-                  {i % 3 === 0 ? (seller?.tagline || "Premium Collection") : i % 3 === 1 ? "Free Delivery Over R500" : "Designed in South Africa"}
-                  <em style={{ fontStyle: "normal", color: accent }}> &bull; </em>
+              {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
+                <span key={r + "-" + i} style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: "italic", color: "#8a8690", letterSpacing: "0.08em", padding: "0 40px" }}>
+                  {txt}<em style={{ fontStyle: "normal", color: accent }}> &bull; </em>
                 </span>
-              ))}
+              )))}
             </div>
           </div>
         )}
@@ -248,11 +247,11 @@ export default function StorePage() {
         {/* TRUST BAR */}
         {cfg.show_trust_bar && (
           <div className="sl-trust" style={{ padding: "60px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-            {[{ i: "\u2605", t: "Premium Quality", d: "Carefully sourced" }, { i: "\u2708", t: "Fast Delivery", d: "Nationwide shipping" }, { i: "\u21BA", t: "Easy Returns", d: "14-day policy" }, { i: "\u26A1", t: "Secure Payment", d: "Card & WhatsApp" }].map((item, i) => (
+            {trustItems.map((item, i) => (
               <div key={i} style={{ textAlign: "center", padding: 20 }}>
-                <div style={{ fontSize: 24, marginBottom: 12, color: accent }}>{item.i}</div>
-                <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{item.t}</div>
-                <div style={{ fontSize: 12, color: "#b5b1ac", fontWeight: 300 }}>{item.d}</div>
+                <div style={{ fontSize: 24, marginBottom: 12, color: accent }}>{item.icon}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: "#b5b1ac", fontWeight: 300 }}>{item.desc}</div>
               </div>
             ))}
           </div>
@@ -263,10 +262,10 @@ export default function StorePage() {
           <section className="sl-polg" style={{ padding: "80px 32px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, marginBottom: 40, letterSpacing: "0.02em" }}>Shipping & Policies</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, textAlign: "left" }}>
-              {[{ t: "Shipping", d: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { t: "Returns", d: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { t: "Payment", d: "All major cards accepted via Yoco. Also checkout through WhatsApp for a personal experience." }].map((p, i) => (
+              {policyItems.map((p, i) => (
                 <div key={i}>
-                  <h4 style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, color: accent }}>{p.t}</h4>
-                  <p style={{ fontSize: 13, lineHeight: 1.7, color: "#8a8690", fontWeight: 300 }}>{p.d}</p>
+                  <h4 style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, color: accent }}>{p.title}</h4>
+                  <p style={{ fontSize: 13, lineHeight: 1.7, color: "#8a8690", fontWeight: 300 }}>{p.desc}</p>
                 </div>
               ))}
             </div>

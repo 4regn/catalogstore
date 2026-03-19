@@ -14,6 +14,8 @@ interface StoreConfig {
   show_banner_text: boolean; show_marquee: boolean; show_collections: boolean;
   show_about: boolean; show_trust_bar: boolean; show_policies: boolean;
   show_newsletter: boolean; announcement: string;
+  marquee_texts: string[]; trust_items: { icon: string; title: string; desc: string }[];
+  policy_items: { title: string; desc: string }[];
 }
 
 interface Seller {
@@ -75,7 +77,7 @@ export default function Dashboard() {
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
-  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" });
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "â˜…", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "âœˆ", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "â†º", title: "Easy Returns", desc: "14-day policy" }, { icon: "âš¡", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }] });
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeSaved, setStoreSaved] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -93,7 +95,7 @@ export default function Dashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
     const { data: sd } = await supabase.from("sellers").select("*").eq("id", user.id).single();
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "clean-minimal"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); setStoreConfig(sd.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "clean-minimal"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }] }); }
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
     if (pd) setProducts(pd);
     const { data: od } = await supabase.from("orders").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
@@ -555,6 +557,65 @@ export default function Dashboard() {
               <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Shows at the very top of your store. Leave empty to hide.</p>
               <input type="text" placeholder="e.g. Free delivery on orders over R500" value={storeConfig.announcement} onChange={(e) => setStoreConfig({ ...storeConfig, announcement: e.target.value })} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
             </div>
+
+            {/* MARQUEE TEXTS */}
+            {storeConfig.show_marquee && (
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Ticker Messages</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Scrolling text shown below the header.</p>
+              {storeConfig.marquee_texts.map((txt, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <input type="text" value={txt} onChange={(e) => { const u = [...storeConfig.marquee_texts]; u[i] = e.target.value; setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ flex: 1, padding: "10px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  {storeConfig.marquee_texts.length > 1 && <button onClick={() => { const u = storeConfig.marquee_texts.filter((_, idx) => idx !== i); setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", color: "#ff3d6e", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>}
+                </div>
+              ))}
+              <button onClick={() => setStoreConfig({ ...storeConfig, marquee_texts: [...storeConfig.marquee_texts, ""] })} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Message</button>
+            </div>
+            )}
+
+            {/* TRUST BAR ITEMS */}
+            {storeConfig.show_trust_bar && (
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Trust Bar</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Icons shown below products (quality, delivery, etc).</p>
+              {storeConfig.trust_items.map((item, i) => (
+                <div key={i} style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, marginBottom: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <input type="text" value={item.icon} onChange={(e) => { const u = [...storeConfig.trust_items]; u[i] = { ...u[i], icon: e.target.value }; setStoreConfig({ ...storeConfig, trust_items: u }); }} style={{ width: 40, padding: "8px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#f5f5f5", fontSize: 16, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", textAlign: "center" as const }} />
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column" as const, gap: 6 }}>
+                    <input type="text" value={item.title} onChange={(e) => { const u = [...storeConfig.trust_items]; u[i] = { ...u[i], title: e.target.value }; setStoreConfig({ ...storeConfig, trust_items: u }); }} placeholder="Title" style={{ padding: "8px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    <input type="text" value={item.desc} onChange={(e) => { const u = [...storeConfig.trust_items]; u[i] = { ...u[i], desc: e.target.value }; setStoreConfig({ ...storeConfig, trust_items: u }); }} placeholder="Description" style={{ padding: "8px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  {storeConfig.trust_items.length > 1 && <button onClick={() => { const u = storeConfig.trust_items.filter((_, idx) => idx !== i); setStoreConfig({ ...storeConfig, trust_items: u }); }} style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer" }}>&times;</button>}
+                </div>
+              ))}
+              {storeConfig.trust_items.length < 6 && <button onClick={() => setStoreConfig({ ...storeConfig, trust_items: [...storeConfig.trust_items, { icon: "âœ¦", title: "", desc: "" }] })} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Item</button>}
+            </div>
+            )}
+
+            {/* POLICY ITEMS */}
+            {storeConfig.show_policies && (
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Shipping & Policies</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Edit your shipping, returns, and payment policy text.</p>
+              {storeConfig.policy_items.map((item, i) => (
+                <div key={i} style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, marginBottom: 8 }}>
+                  <input type="text" value={item.title} onChange={(e) => { const u = [...storeConfig.policy_items]; u[i] = { ...u[i], title: e.target.value }; setStoreConfig({ ...storeConfig, policy_items: u }); }} placeholder="e.g. Shipping" style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#f5f5f5", fontSize: 12, fontWeight: 700, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", marginBottom: 6, textTransform: "uppercase" as const, letterSpacing: "0.04em" }} />
+                  <textarea value={item.desc} onChange={(e) => { const u = [...storeConfig.policy_items]; u[i] = { ...u[i], desc: e.target.value }; setStoreConfig({ ...storeConfig, policy_items: u }); }} placeholder="Policy details..." rows={2} style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const }} />
+                </div>
+              ))}
+            </div>
+            )}
+
+            {/* LIVE PREVIEW */}
+            {seller?.subdomain && (
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Live Preview</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Save changes first, then preview how your store looks.</p>
+              <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)", background: "#fff", height: 500 }}>
+                <iframe key={storeSaved ? Date.now() : "preview"} src={"/store/" + seller.subdomain} style={{ width: "100%", height: "100%", border: "none", transform: "scale(0.75)", transformOrigin: "top left", width: "133%", height: "133%" }} />
+              </div>
+            </div>
+            )}
 
             {/* SOCIAL LINKS */}
             <div style={{ marginBottom: 40 }}>
