@@ -834,7 +834,7 @@ export default function Dashboard() {
               {checkoutConfig.delivery_enabled && (<>
                 {checkoutConfig.shipping_options.map((opt, i) => (
                   <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                    <span style={{ flex: 1, padding: "10px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, fontSize: 13, color: "#f5f5f5" }}>{opt.name} â€” <span style={{ color: N }}>R{opt.price}</span></span>
+                    <span style={{ flex: 1, padding: "10px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, fontSize: 13, color: "#f5f5f5" }}>{opt.name} - <span style={{ color: N }}>R{opt.price}</span></span>
                     <button onClick={() => setCheckoutConfig({ ...checkoutConfig, shipping_options: checkoutConfig.shipping_options.filter((_, idx) => idx !== i) })} style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 14, cursor: "pointer" }}>&times;</button>
                   </div>
                 ))}
