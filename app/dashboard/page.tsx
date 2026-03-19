@@ -15,6 +15,7 @@ interface Seller {
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
+  status: string;
 }
 
 interface Order {
@@ -40,6 +41,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "products" | "orders" | "mystore">("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -144,7 +147,7 @@ export default function Dashboard() {
       const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
       if (!error) setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv } : p));
     } else {
-      const { data, error } = await supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), category: formCategory, in_stock: true, variants: cv }).select().single();
+      const { data, error } = await supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), category: formCategory, in_stock: true, variants: cv, status: "published" }).select().single();
       if (error || !data) { setFormSaving(false); return; }
       let imageUrls: string[] = [];
       if (formImages.length > 0) { imageUrls = await uploadImages(user.id, data.id); await supabase.from("products").update({ images: imageUrls, image_url: imageUrls[0] || null }).eq("id", data.id); }
@@ -154,7 +157,11 @@ export default function Dashboard() {
   };
 
   const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); };
-  const deleteProduct = async (id: string) => { await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); };
+  const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); };
+  const restoreProduct = async (id: string) => { await supabase.from("products").update({ status: "published" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "published" } : p)); };
+  const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); };
+  const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); };
+  const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); };
 
   if (loading) return (
     <div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}>
@@ -164,9 +171,23 @@ export default function Dashboard() {
     </div>
   );
 
+  const publishedCount = products.filter((p) => p.status === "published" || !p.status).length;
+  const draftCount = products.filter((p) => p.status === "draft").length;
+  const trashedCount = products.filter((p) => p.status === "trashed").length;
+
   const todayOrders = orders.filter((o) => new Date(o.created_at).toDateString() === new Date().toDateString());
   const totalRevenue = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0);
   const totalImageSlots = existingImages.length + formImages.length;
+
+  const filteredProducts = products.filter((p) => {
+    const status = p.status || "published";
+    if (status !== productFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return p.name.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q);
+    }
+    return true;
+  });
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
@@ -211,7 +232,7 @@ export default function Dashboard() {
             <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {(["overview", "products", "orders", "mystore"] as const).map((t) => (
                 <button key={t} onClick={() => switchTab(t)} style={{ width: "100%", padding: "12px 16px", background: tab === t ? "rgba(255,107,53,0.06)" : "transparent", border: tab === t ? "1px solid rgba(255,107,53,0.1)" : "1px solid transparent", borderRadius: 10, color: tab === t ? "#f5f5f5" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, fontWeight: tab === t ? 700 : 500, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", transition: "all 0.2s" }}>
-                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + products.length + ")" : t === "orders" ? "Orders (" + orders.length + ")" : "My Store"}
+                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "orders" ? "Orders (" + orders.length + ")" : "My Store"}
                 </button>
               ))}
             </nav>
@@ -230,7 +251,7 @@ export default function Dashboard() {
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Welcome back, {seller?.store_name}</h1>
             <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 32 }}>Here is a quick look at your store.</p>
             <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 40 }}>
-              {[{ n: products.length, l: "Products" }, { n: orders.length, l: "Total Orders" }, { n: todayOrders.length, l: "Orders Today" }, { n: "R" + totalRevenue.toFixed(0), l: "Revenue", c: N }].map((s, i) => (
+              {[{ n: publishedCount, l: "Published" }, { n: orders.length, l: "Total Orders" }, { n: todayOrders.length, l: "Orders Today" }, { n: "R" + totalRevenue.toFixed(0), l: "Revenue", c: N }].map((s, i) => (
                 <div key={i} style={{ padding: "20px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 14 }}>
                   <div style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 900, letterSpacing: "-0.04em", marginBottom: 4, color: s.c || "#f5f5f5" }}>{s.n}</div>
                   <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>{s.l}</div>
@@ -250,9 +271,34 @@ export default function Dashboard() {
           {/* PRODUCTS */}
           {tab === "products" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
-              <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Products</h1><p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 24 }}>Manage the products in your store.</p></div>
-              <button onClick={() => { if (showForm) resetForm(); else { resetForm(); setShowForm(true); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>{showForm ? "Cancel" : "+ Add Product"}</button>
+              <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Products</h1><p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 16 }}>Manage the products in your store.</p></div>
+              <button onClick={() => { if (showForm) resetForm(); else { resetForm(); setShowForm(true); setProductFilter("published"); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>{showForm ? "Cancel" : "+ Add Product"}</button>
             </div>
+
+            {/* STATUS TABS */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" as const }}>
+              {([
+                { key: "published" as const, label: "Published", count: publishedCount },
+                { key: "draft" as const, label: "Drafts", count: draftCount },
+                { key: "trashed" as const, label: "Trash", count: trashedCount },
+              ]).map((f) => (
+                <button key={f.key} onClick={() => { setProductFilter(f.key); setSearchQuery(""); }} style={{ padding: "8px 16px", background: productFilter === f.key ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.02)", border: productFilter === f.key ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: productFilter === f.key ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", display: "flex", gap: 6, alignItems: "center" }}>
+                  {f.label} <span style={{ background: productFilter === f.key ? "rgba(255,107,53,0.15)" : "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: 100, fontSize: 10 }}>{f.count}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* SEARCH */}
+            <div style={{ marginBottom: 20 }}>
+              <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: "100%", maxWidth: 400, padding: "11px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+            </div>
+
+            {/* EMPTY TRASH BUTTON */}
+            {productFilter === "trashed" && trashedCount > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <button onClick={emptyTrash} style={{ padding: "8px 18px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 100, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Empty Trash</button>
+              </div>
+            )}
 
             {showForm && (<div style={{ padding: "24px 20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, marginBottom: 24 }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", marginBottom: 16 }}>{editingId ? "Edit Product" : "New Product"}</h3>
@@ -299,28 +345,46 @@ export default function Dashboard() {
               </form>
             </div>)}
 
-            {products.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No products yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Add your first product to get your store going.</p></div>
+            {filteredProducts.length === 0 ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>
+                  {productFilter === "trashed" ? "Trash is empty" : productFilter === "draft" ? "No drafts" : searchQuery ? "No results" : "No products yet"}
+                </p>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>
+                  {productFilter === "trashed" ? "Products you delete will appear here for recovery." : productFilter === "draft" ? "Draft products won't be visible to customers." : searchQuery ? "Try a different search term." : "Add your first product to get your store going."}
+                </p>
+              </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {products.map((product) => (
-                  <div key={product.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12 }} className="product-row-inner">
+                {filteredProducts.map((product) => (
+                  <div key={product.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, opacity: product.status === "trashed" ? 0.6 : 1 }} className="product-row-inner">
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
                       {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" as const, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 16, color: "rgba(245,245,245,0.1)" }}>&#9633;</span></div>}
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{product.name}</div>
                         <div style={{ display: "flex", gap: 10, fontSize: 10, color: "rgba(245,245,245,0.25)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600, flexWrap: "wrap" as const }}>
                           {product.category && <span>{product.category}</span>}
-                          <span style={{ color: product.in_stock ? N : "#ff3d6e" }}>{product.in_stock ? "In Stock" : "Sold Out"}</span>
+                          {product.status === "draft" && <span style={{ color: "#fbbf24" }}>Draft</span>}
+                          {product.status !== "trashed" && <span style={{ color: product.in_stock ? N : "#ff3d6e" }}>{product.in_stock ? "In Stock" : "Sold Out"}</span>}
                           {product.images?.length > 0 && <span>{product.images.length} photo{product.images.length !== 1 ? "s" : ""}</span>}
                         </div>
                       </div>
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em", whiteSpace: "nowrap" as const }}>R{product.price}</div>
-                    <div className="product-actions" style={{ display: "flex", gap: 6 }}>
-                      {[{ label: "Edit", color: N, fn: () => startEdit(product) }, { label: product.in_stock ? "Sold Out" : "In Stock", color: "rgba(245,245,245,0.4)", fn: () => toggleStock(product.id, product.in_stock) }, { label: "Delete", color: "#ff3d6e", fn: () => deleteProduct(product.id) }].map((a, i) => (
-                        <button key={i} onClick={a.fn} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: a.color, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{a.label}</button>
-                      ))}
+                    <div className="product-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+                      {productFilter === "trashed" ? (
+                        <>
+                          <button onClick={() => restoreProduct(product.id)} style={{ padding: "7px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Restore</button>
+                          <button onClick={() => deleteForever(product.id)} style={{ padding: "7px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Delete Forever</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(product)} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Edit</button>
+                          <button onClick={() => toggleDraft(product.id, product.status || "published")} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: product.status === "draft" ? "#fbbf24" : "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.status === "draft" ? "Publish" : "Draft"}</button>
+                          <button onClick={() => toggleStock(product.id, product.in_stock)} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.in_stock ? "Sold Out" : "In Stock"}</button>
+                          <button onClick={() => trashProduct(product.id)} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Trash</button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
