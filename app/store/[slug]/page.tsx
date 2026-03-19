@@ -16,6 +16,8 @@ interface Seller {
   tagline: string;
   description: string;
   collections: string[];
+  social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
+  store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; show_newsletter: boolean; announcement: string };
 }
 
 interface Variant { name: string; options: string[]; }
@@ -95,6 +97,8 @@ export default function StorePage() {
   };
 
   const t = getTheme(seller?.template || "clean-minimal", seller?.primary_color || "");
+  const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" };
+  const social = seller?.social_links || {};
   const categories = ["All", ...(seller?.collections || []).filter((c) => products.some((p) => p.category === c))];
   const filteredProducts = activeCategory === "All" ? products : products.filter((p) => p.category === activeCategory);
 
@@ -153,6 +157,11 @@ export default function StorePage() {
   return (
     <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Plus Jakarta Sans', sans-serif", color: t.text }}>
 
+      {/* ANNOUNCEMENT BAR */}
+      {cfg.announcement && (
+        <div style={{ background: t.accent, color: t.isDark ? "#050505" : "#fff", textAlign: "center" as const, padding: "10px 20px", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>{cfg.announcement}</div>
+      )}
+
       {/* HEADER */}
       <header style={{ position: "sticky", top: 0, background: t.headerBg, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderBottom: "1px solid " + t.border, zIndex: 100, padding: "0 24px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 68 }}>
@@ -173,10 +182,12 @@ export default function StorePage() {
         {seller?.banner_url ? (
           <div style={{ position: "relative", height: 320, overflow: "hidden" }}>
             <img src={seller.banner_url} alt="Banner" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            <div style={{ position: "absolute", inset: 0, background: t.isDark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 24px" }}>
-              <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 44, fontWeight: 700, letterSpacing: "-0.04em", color: "#fff", marginBottom: 12 }}>{seller?.store_name}</h2>
-              {seller?.tagline && <p style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", fontWeight: 400, letterSpacing: "0.03em" }}>{seller.tagline}</p>}
-            </div>
+            {cfg.show_banner_text && (
+              <div style={{ position: "absolute", inset: 0, background: t.isDark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 24px" }}>
+                <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 44, fontWeight: 700, letterSpacing: "-0.04em", color: "#fff", marginBottom: 12 }}>{seller?.store_name}</h2>
+                {seller?.tagline && <p style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", fontWeight: 400, letterSpacing: "0.03em" }}>{seller.tagline}</p>}
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ textAlign: "center", padding: "60px 24px 40px", maxWidth: 600, margin: "0 auto" }}>
@@ -190,8 +201,8 @@ export default function StorePage() {
         )}
       </section>
 
-      {/* ABOUT (if description exists) */}
-      {seller?.description && (
+      {/* ABOUT (if enabled and description exists) */}
+      {cfg.show_about && seller?.description && (
         <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 24px 0", textAlign: "center" }}>
           <p style={{ fontSize: 15, lineHeight: 1.8, color: t.textSoft }}>{seller.description}</p>
         </div>
@@ -271,11 +282,71 @@ export default function StorePage() {
         )}
       </section>
 
+      {/* TRUST BAR */}
+      {cfg.show_trust_bar && (
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "48px 24px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, borderTop: "1px solid " + t.border, borderBottom: "1px solid " + t.border }}>
+          {[{ i: "\u2605", t: "Premium Quality", d: "Carefully sourced" }, { i: "\u2708", t: "Fast Delivery", d: "Nationwide shipping" }, { i: "\u21BA", t: "Easy Returns", d: "14-day policy" }, { i: "\u26A1", t: "Secure Payment", d: "Card & WhatsApp" }].map((item, i) => (
+            <div key={i} style={{ textAlign: "center" as const, padding: 16 }}>
+              <div style={{ fontSize: 20, marginBottom: 8, color: t.accent }}>{item.i}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 4 }}>{item.t}</div>
+              <div style={{ fontSize: 11, color: t.textSoft }}>{item.d}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* POLICIES */}
+      {cfg.show_policies && (
+        <section style={{ maxWidth: 900, margin: "0 auto", padding: "60px 24px", textAlign: "center" as const }}>
+          <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 32 }}>Shipping & Policies</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, textAlign: "left" as const }}>
+            {[{ t: "Shipping", d: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { t: "Returns", d: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { t: "Payment", d: "All major cards accepted. You can also checkout via WhatsApp for a personal experience." }].map((p, i) => (
+              <div key={i} style={{ padding: 20, background: t.card, border: "1px solid " + t.border, borderRadius: t.radius }}>
+                <h4 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8, color: t.accent }}>{p.t}</h4>
+                <p style={{ fontSize: 13, lineHeight: 1.7, color: t.textSoft }}>{p.d}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* FOOTER */}
-      <footer style={{ textAlign: "center", padding: "40px 24px", borderTop: "1px solid " + t.border, background: t.footerBg }}>
-        <p style={{ fontSize: 13, color: t.textSoft }}>
-          {seller?.store_name} &mdash; Powered by <a href="/" style={{ color: t.accent, textDecoration: "none", fontWeight: 600 }}>CatalogStore</a>
-        </p>
+      <footer style={{ padding: "48px 24px 32px", borderTop: "1px solid " + t.border, background: t.footerBg }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap" as const, gap: 32, marginBottom: 32 }}>
+            <div style={{ maxWidth: 280 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                {seller?.logo_url && <img src={seller.logo_url} alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: "cover" }} />}
+                <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>{seller?.store_name}</span>
+              </div>
+              {seller?.description && <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6 }}>{seller.description.substring(0, 120)}{seller.description.length > 120 ? "..." : ""}</p>}
+            </div>
+            <div style={{ display: "flex", gap: 40, flexWrap: "wrap" as const }}>
+              <div>
+                <h5 style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" as const, marginBottom: 12, color: t.text }}>Shop</h5>
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  <span style={{ fontSize: 13, color: t.textSoft, cursor: "pointer" }}>All Products</span>
+                  {(seller?.collections || []).slice(0, 4).map((c) => <span key={c} style={{ fontSize: 13, color: t.textSoft, cursor: "pointer" }}>{c}</span>)}
+                </div>
+              </div>
+              {(social.instagram || social.tiktok || social.facebook || social.twitter) && (
+                <div>
+                  <h5 style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" as const, marginBottom: 12, color: t.text }}>Connect</h5>
+                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                    {social.instagram && <a href={social.instagram} target="_blank" style={{ fontSize: 13, color: t.textSoft, textDecoration: "none" }}>Instagram</a>}
+                    {social.tiktok && <a href={social.tiktok} target="_blank" style={{ fontSize: 13, color: t.textSoft, textDecoration: "none" }}>TikTok</a>}
+                    {social.facebook && <a href={social.facebook} target="_blank" style={{ fontSize: 13, color: t.textSoft, textDecoration: "none" }}>Facebook</a>}
+                    {social.twitter && <a href={social.twitter} target="_blank" style={{ fontSize: 13, color: t.textSoft, textDecoration: "none" }}>X / Twitter</a>}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24, borderTop: "1px solid " + t.border, flexWrap: "wrap" as const, gap: 12 }}>
+            <p style={{ fontSize: 11, color: t.textSoft }}>&copy; {new Date().getFullYear()} {seller?.store_name}</p>
+            <p style={{ fontSize: 10, color: t.textSoft, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>Powered by <a href="/" style={{ color: t.accent, textDecoration: "none", fontWeight: 700 }}>CatalogStore</a></p>
+          </div>
+        </div>
       </footer>
 
       {/* PRODUCT MODAL */}

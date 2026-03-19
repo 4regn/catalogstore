@@ -6,10 +6,21 @@ import { useRouter } from "next/navigation";
 
 interface Variant { name: string; options: string[]; }
 
+interface SocialLinks {
+  whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string;
+}
+
+interface StoreConfig {
+  show_banner_text: boolean; show_marquee: boolean; show_collections: boolean;
+  show_about: boolean; show_trust_bar: boolean; show_policies: boolean;
+  show_newsletter: boolean; announcement: string;
+}
+
 interface Seller {
   id: string; email: string; store_name: string; whatsapp_number: string; subdomain: string;
   template: string; plan: string; primary_color: string; logo_url: string; banner_url: string;
   tagline: string; description: string; collections: string[];
+  social_links: SocialLinks; store_config: StoreConfig;
 }
 
 interface Product {
@@ -63,6 +74,8 @@ export default function Dashboard() {
   const [storeDescription, setStoreDescription] = useState("");
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
+  const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" });
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeSaved, setStoreSaved] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -80,7 +93,7 @@ export default function Dashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
     const { data: sd } = await supabase.from("sellers").select("*").eq("id", user.id).single();
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "clean-minimal"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "clean-minimal"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); setStoreConfig(sd.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" }); }
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
     if (pd) setProducts(pd);
     const { data: od } = await supabase.from("orders").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
@@ -98,8 +111,8 @@ export default function Dashboard() {
     let logoUrl = seller.logo_url || ""; let bannerUrl = seller.banner_url || "";
     if (logoFile) { const ext = logoFile.name.split(".").pop(); const path = seller.id + "/logo." + ext; await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); logoUrl = data.publicUrl + "?t=" + Date.now(); }
     if (bannerFile) { const ext = bannerFile.name.split(".").pop(); const path = seller.id + "/banner." + ext; await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); bannerUrl = data.publicUrl + "?t=" + Date.now(); }
-    const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections }).eq("id", seller.id);
-    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); }
+    const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }).eq("id", seller.id);
+    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); }
     setStoreSaving(false);
   };
 
@@ -510,9 +523,62 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* SECTION VISIBILITY */}
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Section Visibility</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Toggle which sections appear on your store.</p>
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                {([
+                  { key: "show_banner_text" as const, label: "Banner Text Overlay", desc: "Show title and subtitle on your banner image" },
+                  { key: "show_marquee" as const, label: "Announcement Ticker", desc: "Scrolling marquee below header" },
+                  { key: "show_collections" as const, label: "Collections Section", desc: "Display collection cards on homepage" },
+                  { key: "show_about" as const, label: "About / Brand Story", desc: "Your brand story with image" },
+                  { key: "show_trust_bar" as const, label: "Trust Bar", desc: "Shipping, returns, quality, payment icons" },
+                  { key: "show_policies" as const, label: "Shipping & Policies", desc: "Detailed shipping, returns, and payment info" },
+                ]).map((item) => (
+                  <div key={item.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: "rgba(245,245,245,0.2)" }}>{item.desc}</div>
+                    </div>
+                    <button onClick={() => setStoreConfig({ ...storeConfig, [item.key]: !storeConfig[item.key] })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: storeConfig[item.key] ? N : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}>
+                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: storeConfig[item.key] ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ANNOUNCEMENT BAR */}
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Announcement Bar</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Shows at the very top of your store. Leave empty to hide.</p>
+              <input type="text" placeholder="e.g. Free delivery on orders over R500" value={storeConfig.announcement} onChange={(e) => setStoreConfig({ ...storeConfig, announcement: e.target.value })} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+            </div>
+
+            {/* SOCIAL LINKS */}
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Social Links</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Add your social media links. Leave empty to hide.</p>
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
+                {([
+                  { key: "instagram" as const, label: "Instagram", placeholder: "https://instagram.com/yourbrand" },
+                  { key: "tiktok" as const, label: "TikTok", placeholder: "https://tiktok.com/@yourbrand" },
+                  { key: "facebook" as const, label: "Facebook", placeholder: "https://facebook.com/yourbrand" },
+                  { key: "twitter" as const, label: "X / Twitter", placeholder: "https://x.com/yourbrand" },
+                ]).map((item) => (
+                  <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.08em", textTransform: "uppercase" as const, width: 80, flexShrink: 0 }}>{item.label}</label>
+                    <input type="url" placeholder={item.placeholder} value={socialLinks[item.key] || ""} onChange={(e) => setSocialLinks({ ...socialLinks, [item.key]: e.target.value })} style={{ flex: 1, padding: "11px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" as const }}>
               <button onClick={saveStoreSettings} disabled={storeSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: storeSaving ? "not-allowed" : "pointer", opacity: storeSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{storeSaving ? "Saving..." : "Save Changes"}</button>
               {storeSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
+              {seller?.subdomain && <a href={"/store/" + seller.subdomain} target="_blank" style={{ color: "rgba(245,245,245,0.3)", fontSize: 11, textDecoration: "underline", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Preview Store</a>}
             </div>
           </div>)}
 
