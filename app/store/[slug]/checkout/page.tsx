@@ -106,6 +106,8 @@ export default function CheckoutPage() {
           cell_number: phone,
           return_url: window.location.origin + "/store/" + slug + "?order=success",
           cancel_url: window.location.origin + "/store/" + slug + "?order=cancelled",
+          notify_url: window.location.origin + "/api/payfast/notify",
+          custom_str1: data.id,
         };
         Object.entries(fields).forEach(([k, v]) => { const input = document.createElement("input"); input.type = "hidden"; input.name = k; input.value = v; form.appendChild(input); });
         document.body.appendChild(form);

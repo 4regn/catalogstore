@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
@@ -22,7 +22,9 @@ interface CartItem { product: Product; qty: number; selectedVariants: { [key: st
 
 export default function StorePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const orderStatus = searchParams.get("order");
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,26 @@ export default function StorePage() {
 
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef" }}><p style={{ color: "#8a8690", fontSize: 15 }}>Loading store...</p></div>;
   if (notFound) return <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef" }}><h1 style={{ fontSize: 48, fontWeight: 300, color: "#2a2a2e", marginBottom: 8 }}>404</h1><p style={{ color: "#8a8690" }}>This store does not exist.</p></div>;
+
+  if (orderStatus === "success" || orderStatus === "cancelled") return (
+    <div style={{ minHeight: "100vh", background: "#f6f3ef", fontFamily: "'Jost', sans-serif", color: "#2a2a2e", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
+      <div style={{ maxWidth: 500, width: "100%", textAlign: "center" }}>
+        {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 44, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
+        {orderStatus === "success" ? (<>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Successful!</h1>
+          <p style={{ fontSize: 16, color: "#8a8690", lineHeight: 1.6, marginBottom: 8 }}>Thank you for your order. Your payment has been processed successfully.</p>
+          <p style={{ fontSize: 14, color: "#b5b1ac", marginBottom: 40 }}>You will receive a confirmation shortly.</p>
+        </>) : (<>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#ff3d6e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Cancelled</h1>
+          <p style={{ fontSize: 16, color: "#8a8690", lineHeight: 1.6, marginBottom: 8 }}>Your payment was not completed. No charges have been made.</p>
+          <p style={{ fontSize: 14, color: "#b5b1ac", marginBottom: 40 }}>You can try again or choose a different payment method.</p>
+        </>)}
+        <a href={"/store/" + slug} style={{ display: "inline-block", padding: "16px 40px", background: "#2a2a2e", color: "#f6f3ef", borderRadius: 100, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
+      </div>
+    </div>
+  );
 
   return (
     <>
