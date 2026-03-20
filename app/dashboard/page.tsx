@@ -31,6 +31,7 @@ interface Seller {
   template: string; plan: string; primary_color: string; logo_url: string; banner_url: string;
   tagline: string; description: string; collections: string[];
   social_links: SocialLinks; store_config: StoreConfig; checkout_config: CheckoutConfig;
+  subscription_status: string; subscription_plan: string; trial_ends_at: string; subscription_started_at: string;
 }
 
 interface Product {
