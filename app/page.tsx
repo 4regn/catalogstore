@@ -86,7 +86,7 @@ export default function Home() {
             </p>
 
             <div className="hero-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", animation: loaded ? "fu 0.6s 0.3s ease both" : "none" }}>
-              <a href="/signup" style={{ padding: "18px 48px", background: "var(--grad)", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", boxShadow: "0 0 40px rgba(255,107,53,0.2)", transition: "all 0.3s" }}>Launch Free</a>
+              <a href="/signup" style={{ padding: "18px 48px", background: "var(--grad)", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", boxShadow: "0 0 40px rgba(255,107,53,0.2)", transition: "all 0.3s" }}>Start Your Store</a>
               <a href="#features" style={{ padding: "18px 48px", background: "transparent", color: "var(--text)", border: "2px solid rgba(255,255,255,0.1)", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", transition: "all 0.3s" }}>See Demo</a>
             </div>
           </div>
@@ -131,29 +131,40 @@ export default function Home() {
         {/* PRICING */}
         <section id="pricing" style={{ padding: "100px 0" }}>
           <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.15em", color: "var(--neon)", fontWeight: 800, marginBottom: 16, textAlign: "center" as const }}>Pricing</div>
-          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 64 }}>Pick your fuel</h2>
-          <div className="pricing-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
+          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 20 }}>Pick your fuel</h2>
+          <p style={{ textAlign: "center" as const, fontSize: 14, color: "var(--text-dim)", marginBottom: 16 }}>7-day free trial on all plans. Cancel anytime.</p>
+          <div style={{ textAlign: "center" as const, marginBottom: 48 }}>
+            <span style={{ display: "inline-block", padding: "8px 24px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: "var(--neon)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Launch Promo - R49 First Month on Starter</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 3, maxWidth: 800, margin: "0 auto" }}>
             {[
-              { name: "Starter", price: "Free", period: "Forever", features: ["15 Products", "1 Template", "WhatsApp Checkout", "CatalogStore Branding"], hot: false, btn: "Get Started", radius: "20px 4px 4px 20px" },
-              { name: "Pro", price: "R149", period: "/month", features: ["Unlimited Products", "All Templates", "Card Payments", "Custom Domain"], hot: true, btn: "Start Free Trial", radius: "4px" },
-              { name: "Business", price: "R349", period: "/month", features: ["Everything in Pro", "Analytics", "Priority Support", "Multiple Stores"], hot: false, btn: "Contact Sales", radius: "4px 20px 20px 4px" },
+              { name: "Starter", price: "R49", fullPrice: "R99", period: "/mo", promo: "First month only, then R99/mo", features: ["15 Products", "5 Images Per Product", "5 Collections", "2 Templates", "Store Editor", "All Payment Methods", "WhatsApp Checkout", "Subdomain Included"], hot: false, btn: "Start with Starter", radius: "20px 4px 4px 20px" },
+              { name: "Pro", price: "R249", fullPrice: null, period: "/mo", promo: null, features: ["100 Products", "20 Images Per Product", "20 Collections", "All Templates (Current + Future)", "Custom Domain Support", "No 'Powered by CatalogStore'", "Priority Support", "Everything in Starter"], hot: true, btn: "Start with Pro", radius: "4px 20px 20px 4px" },
             ].map((plan) => (
-              <div key={plan.name} style={{ padding: "40px 28px", background: plan.hot ? "var(--neon-soft)" : "var(--glass)", border: plan.hot ? "1px solid rgba(255,107,53,0.12)" : "1px solid var(--glass-b)", borderRadius: plan.radius, transition: "all 0.3s" }}>
+              <div key={plan.name} style={{ padding: "40px 28px", background: plan.hot ? "var(--neon-soft)" : "var(--glass)", border: plan.hot ? "2px solid rgba(255,107,53,0.15)" : "1px solid var(--glass-b)", borderRadius: plan.radius, transition: "all 0.3s", position: "relative" as const }}>
+                {plan.hot && <div style={{ position: "absolute" as const, top: -12, left: "50%", transform: "translateX(-50%)", padding: "4px 20px", background: "var(--grad)", borderRadius: 100, fontSize: 9, fontWeight: 800, color: "#fff", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Most Popular</div>}
                 <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.12em", color: plan.hot ? "var(--neon)" : "var(--text-dim)", fontWeight: 800, marginBottom: 20 }}>{plan.name}</div>
-                <div style={{ fontSize: 52, fontWeight: 900, letterSpacing: "-0.05em", marginBottom: 4 }}>{plan.price}</div>
-                <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 32, fontWeight: 400 }}>{plan.period}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 52, fontWeight: 900, letterSpacing: "-0.05em" }}>{plan.price}</span>
+                  {plan.fullPrice && <span style={{ fontSize: 20, fontWeight: 900, textDecoration: "line-through", color: "var(--text-dim)" }}>{plan.fullPrice}</span>}
+                  <span style={{ fontSize: 13, color: "var(--text-dim)" }}>{plan.period}</span>
+                </div>
+                {plan.promo && <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 24 }}>{plan.promo}</div>}
+                {!plan.promo && <div style={{ height: 18, marginBottom: 24 }} />}
                 <ul style={{ listStyle: "none", marginBottom: 32 }}>
                   {plan.features.map((f) => (
-                    <li key={f} style={{ padding: "10px 0", fontSize: 13, color: "var(--text-dim)", borderBottom: "1px solid rgba(255,255,255,0.03)", fontWeight: 400, textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>{f}</li>
+                    <li key={f} style={{ padding: "10px 0", fontSize: 13, color: "var(--text-dim)", borderBottom: "1px solid rgba(255,255,255,0.03)", fontWeight: 400, display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ color: plan.hot ? "var(--neon)" : "#22c55e", fontSize: 12 }}>&#10003;</span>{f}
+                    </li>
                   ))}
                 </ul>
                 <a href="/signup" style={{
-                  display: "block", width: "100%", padding: 14, borderRadius: 100, textAlign: "center" as const, textDecoration: "none",
+                  display: "block", width: "100%", padding: 16, borderRadius: 100, textAlign: "center" as const, textDecoration: "none",
                   fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer",
                   textTransform: "uppercase" as const, letterSpacing: "0.06em", transition: "all 0.3s",
-                  background: plan.hot ? "var(--grad)" : "rgba(255,255,255,0.04)",
-                  border: plan.hot ? "none" : "1px solid var(--glass-b)",
-                  color: plan.hot ? "#fff" : "var(--text)",
+                  background: plan.hot ? "var(--grad)" : "#f5f5f5",
+                  border: "none",
+                  color: plan.hot ? "#fff" : "#030303",
                   boxShadow: plan.hot ? "0 0 30px rgba(255,107,53,0.15)" : "none",
                 }}>{plan.btn}</a>
               </div>
@@ -167,7 +178,7 @@ export default function Home() {
             <div style={{ position: "absolute" as const, top: 0, left: 0, right: 0, height: 2, background: "var(--grad)", opacity: 0.3 }} />
             <h2 style={{ fontSize: "clamp(28px, 5vw, 56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase" as const, marginBottom: 16 }}>Stop sleeping on your catalog</h2>
             <p style={{ fontSize: 16, color: "var(--text-dim)", maxWidth: 440, margin: "0 auto 40px", lineHeight: 1.7, fontWeight: 400 }}>Hundreds of SA sellers are already live. Your customers are waiting.</p>
-            <a href="/signup" style={{ display: "inline-block", padding: "18px 48px", background: "var(--grad)", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", boxShadow: "0 0 40px rgba(255,107,53,0.2)", transition: "all 0.3s" }}>Launch Your Store Free</a>
+            <a href="/signup" style={{ display: "inline-block", padding: "18px 48px", background: "var(--grad)", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, textDecoration: "none", boxShadow: "0 0 40px rgba(255,107,53,0.2)", transition: "all 0.3s" }}>Start Your Free Trial</a>
           </div>
         </section>
 
