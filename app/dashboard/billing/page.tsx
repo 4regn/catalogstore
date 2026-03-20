@@ -47,11 +47,11 @@ export default function BillingPage() {
 
     const form = document.createElement("form");
     form.method = "POST";
-    form.action = "https://sandbox.payfast.co.za/eng/process";
+    form.action = "https://www.payfast.co.za/eng/process";
 
     const fields: Record<string, string> = {
-      merchant_id: "10046938",
-      merchant_key: "fsOcOybxfglau",
+      merchant_id: "34217957",
+      merchant_key: "1worde5oycuks",
       amount: amount.toFixed(2),
       item_name: "CatalogStore " + plan.name + " Plan",
       item_description: plan.name + " monthly subscription",
