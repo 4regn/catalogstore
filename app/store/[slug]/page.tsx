@@ -36,6 +36,7 @@ export default function StorePage() {
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -44,6 +45,13 @@ export default function StorePage() {
     }
     loadStore();
   }, [slug]);
+
+  useEffect(() => {
+    if (!orderStatus) return;
+    const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
+    const redirect = setTimeout(() => { window.location.href = "/store/" + slug; }, 5000);
+    return () => { clearInterval(timer); clearTimeout(redirect); };
+  }, [orderStatus, slug]);
 
   const loadStore = async () => {
     const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
@@ -112,6 +120,7 @@ export default function StorePage() {
           <p style={{ fontSize: 14, color: "#b5b1ac", marginBottom: 40 }}>You can try again or choose a different payment method.</p>
         </>)}
         <a href={"/store/" + slug} style={{ display: "inline-block", padding: "16px 40px", background: "#2a2a2e", color: "#f6f3ef", borderRadius: 100, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
+        <p style={{ fontSize: 12, color: "#b5b1ac", marginTop: 16 }}>Redirecting in {countdown > 0 ? countdown : 0}s...</p>
       </div>
     </div>
   );
