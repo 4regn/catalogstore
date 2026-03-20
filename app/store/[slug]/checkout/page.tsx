@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../../lib/supabase";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -22,7 +22,6 @@ const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Li
 
 export default function CheckoutPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const [seller, setSeller] = useState<Seller | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -52,7 +51,7 @@ export default function CheckoutPage() {
   const load = async () => {
     const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
     if (sd) setSeller(sd);
-    try { const c = JSON.parse(atob(searchParams.get("cart") || "")); if (Array.isArray(c)) setCart(c); } catch {}
+    try { const p = new URLSearchParams(window.location.search); const c = JSON.parse(atob(p.get("cart") || "")); if (Array.isArray(c)) setCart(c); } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
     if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
     else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");

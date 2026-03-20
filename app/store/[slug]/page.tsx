@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
@@ -22,9 +22,8 @@ interface CartItem { product: Product; qty: number; selectedVariants: { [key: st
 
 export default function StorePage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const orderStatus = searchParams.get("order");
+  const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +37,13 @@ export default function StorePage() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => { loadStore(); }, [slug]);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      setOrderStatus(p.get("order"));
+    }
+    loadStore();
+  }, [slug]);
 
   const loadStore = async () => {
     const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
