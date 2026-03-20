@@ -38,11 +38,13 @@ export default function SignUp() {
 
     if (authData.user) {
       const subdomain = storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const trialEnd = new Date(); trialEnd.setDate(trialEnd.getDate() + 7);
       const { error: profileError } = await supabase.from("sellers").insert({
         id: authData.user.id, email, store_name: storeName, whatsapp_number: whatsapp, subdomain,
+        subscription_status: "trial", subscription_plan: "starter", trial_ends_at: trialEnd.toISOString(),
       });
       if (profileError) { setError(profileError.message); setLoading(false); return; }
-      router.push("/dashboard");
+      router.push("/dashboard/billing");
     }
     setLoading(false);
   };
