@@ -35,6 +35,8 @@ export default function AdminDashboard() {
   const [selectedSeller, setSelectedSeller] = useState<Seller | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [orderFilter, setOrderFilter] = useState("all");
+  const [showSellerProducts, setShowSellerProducts] = useState(false);
+  const [showSellerOrders, setShowSellerOrders] = useState(false);
 
   useEffect(() => { checkAdmin(); }, []);
 
@@ -152,7 +154,7 @@ export default function AdminDashboard() {
                 {sellers.slice(0, 5).map((s) => {
                   const stats = getSellerStats(s.id);
                   return (
-                    <div key={s.id} onClick={() => { setSelectedSeller(s); setTab("sellers"); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, cursor: "pointer", flexWrap: "wrap", gap: 12 }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
+                    <div key={s.id} onClick={() => { setSelectedSeller(s); setTab("sellers"); setShowSellerProducts(false); setShowSellerOrders(false); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, cursor: "pointer", flexWrap: "wrap", gap: 12 }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         {s.logo_url ? <img src={s.logo_url} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "contain" }} /> : <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 14, color: "rgba(245,245,245,0.1)" }}>{s.store_name?.charAt(0)}</span></div>}
                         <div>
@@ -169,24 +171,6 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
-              </div>
-
-              {/* RECENT ORDERS */}
-              <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 16 }}>Recent Orders</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {allOrders.slice(0, 5).map((o) => (
-                  <div key={o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, flexWrap: "wrap", gap: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" }}>Order #{o.order_number}</div>
-                      <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>{getSellerName(o.seller_id)} - {o.customer_name || "Customer"}</div>
-                    </div>
-                    <div style={{ fontSize: 16, fontWeight: 900 }}>R{o.total}</div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <span style={{ padding: "4px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase", background: o.payment_status === "paid" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: o.payment_status === "paid" ? "#22c55e" : "#fbbf24" }}>{o.payment_status?.replace("_", " ")}</span>
-                      <span style={{ padding: "4px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase", background: o.status === "delivered" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: o.status === "delivered" ? "#22c55e" : "#fbbf24" }}>{o.status}</span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           )}
@@ -243,7 +227,14 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* SELLER PRODUCTS */}
-                  <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Products</h3>
+                  <button onClick={() => setShowSellerProducts(!showSellerProducts)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, cursor: "pointer", marginBottom: showSellerProducts ? 8 : 32, fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", margin: 0, color: "#f5f5f5" }}>Products</h3>
+                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>({allProducts.filter((p) => p.seller_id === selectedSeller.id && (p.status || "published") !== "trashed").length})</span>
+                    </div>
+                    <span style={{ fontSize: 14, color: "rgba(245,245,245,0.3)", transition: "transform 0.2s", transform: showSellerProducts ? "rotate(180deg)" : "rotate(0)" }}>{"\u25BC"}</span>
+                  </button>
+                  {showSellerProducts && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 32 }}>
                     {allProducts.filter((p) => p.seller_id === selectedSeller.id && (p.status || "published") !== "trashed").map((p) => (
                       <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 10 }}>
@@ -256,9 +247,17 @@ export default function AdminDashboard() {
                     ))}
                     {allProducts.filter((p) => p.seller_id === selectedSeller.id && (p.status || "published") !== "trashed").length === 0 && <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)", padding: "20px 0" }}>No products</p>}
                   </div>
+                  )}
 
                   {/* SELLER ORDERS */}
-                  <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Orders</h3>
+                  <button onClick={() => setShowSellerOrders(!showSellerOrders)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, cursor: "pointer", marginBottom: showSellerOrders ? 8 : 0, fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", margin: 0, color: "#f5f5f5" }}>Orders</h3>
+                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>({allOrders.filter((o) => o.seller_id === selectedSeller.id).length})</span>
+                    </div>
+                    <span style={{ fontSize: 14, color: "rgba(245,245,245,0.3)", transition: "transform 0.2s", transform: showSellerOrders ? "rotate(180deg)" : "rotate(0)" }}>{"\u25BC"}</span>
+                  </button>
+                  {showSellerOrders && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {allOrders.filter((o) => o.seller_id === selectedSeller.id).map((o) => (
                       <div key={o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 10, flexWrap: "wrap", gap: 10 }}>
@@ -272,6 +271,7 @@ export default function AdminDashboard() {
                     ))}
                     {allOrders.filter((o) => o.seller_id === selectedSeller.id).length === 0 && <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)", padding: "20px 0" }}>No orders</p>}
                   </div>
+                  )}
                 </div>
               ) : (
                 <div>
@@ -284,7 +284,7 @@ export default function AdminDashboard() {
                     {filteredSellers.map((s) => {
                       const stats = getSellerStats(s.id);
                       return (
-                        <div key={s.id} onClick={() => setSelectedSeller(s)} className="admin-seller-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, cursor: "pointer", flexWrap: "wrap", gap: 12 }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
+                        <div key={s.id} onClick={() => { setSelectedSeller(s); setShowSellerProducts(false); setShowSellerOrders(false); }} className="admin-seller-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, cursor: "pointer", flexWrap: "wrap", gap: 12 }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             {s.logo_url ? <img src={s.logo_url} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "contain" }} /> : <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 16, fontWeight: 900, color: "rgba(245,245,245,0.1)" }}>{s.store_name?.charAt(0)}</span></div>}
                             <div>
