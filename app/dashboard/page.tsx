@@ -312,7 +312,7 @@ export default function Dashboard() {
             <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {(["overview", "products", "collections", "orders", "discounts", "mystore", "checkout"] as const).map((t) => (
                 <button key={t} onClick={() => { switchTab(t); if (t === "collections") setSelectedCollection(null); }} style={{ width: "100%", padding: "12px 16px", background: tab === t ? "rgba(255,107,53,0.06)" : "transparent", border: tab === t ? "1px solid rgba(255,107,53,0.1)" : "1px solid transparent", borderRadius: 10, color: tab === t ? "#f5f5f5" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, fontWeight: tab === t ? 700 : 500, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", transition: "all 0.2s" }}>
-                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "collections" ? "Collections (" + storeCollections.length + ")" : t === "orders" ? "Orders (" + orders.length + ")" : t === "discounts" ? "Discounts (" + discountCodes.length + ")" : t === "mystore" ? "My Store" : "Checkout"}
+                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "collections" ? "Collections (" + storeCollections.length + ")" : t === "orders" ? "Orders (" + orders.length + ")" : t === "discounts" ? "Discounts (" + discountCodes.length + ")" : t === "mystore" ? "Edit My Store" : "Checkout"}
                 </button>
               ))}
             </nav>
@@ -320,7 +320,10 @@ export default function Dashboard() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {seller?.subdomain && <a href={"/store/" + seller.subdomain} target="_blank" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 10, color: N, fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>View My Store</a>}
-            <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : "rgba(251,191,36,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : "1px solid rgba(251,191,36,0.12)", borderRadius: 10, color: seller?.subscription_status === "active" ? "#22c55e" : "#fbbf24", fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{seller?.subscription_status === "active" ? (seller?.subscription_plan || "starter") + " Plan" : seller?.subscription_status === "trial" ? "Free Trial" : "Subscribe"}</a>
+            <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : seller?.subscription_status === "trial" ? "rgba(251,191,36,0.06)" : "rgba(255,61,110,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : seller?.subscription_status === "trial" ? "1px solid rgba(251,191,36,0.12)" : "1px solid rgba(255,61,110,0.12)", borderRadius: 10, textDecoration: "none", textAlign: "center" as const }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: seller?.subscription_status === "active" ? "#22c55e" : seller?.subscription_status === "trial" ? "#fbbf24" : "#ff3d6e" }}>{seller?.subscription_status === "active" ? "Active Plan" : seller?.subscription_status === "trial" ? "Free Trial" : "Inactive"}</div>
+              <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{seller?.subscription_status === "active" ? "Click to view plan or upgrade" : seller?.subscription_status === "trial" ? "Click to choose a plan" : "Click to reactivate or upgrade"}</div>
+            </a>
             {seller?.email === "info@4regn.com" && <a href="/admin" style={{ display: "block", padding: "12px 16px", background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.12)", borderRadius: 10, color: "#8b5cf6", fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Admin Panel</a>}
             <button onClick={handleLogout} style={{ padding: "10px 16px", background: "transparent", border: "none", color: "rgba(245,245,245,0.25)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, cursor: "pointer", textAlign: "left" as const, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Log Out</button>
           </div>
@@ -354,7 +357,7 @@ export default function Dashboard() {
             </div>
             <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", marginBottom: 16 }}>Quick Actions</h3>
             <div className="actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-              {[{ icon: "+", label: "Add Product", fn: () => { switchTab("products"); resetForm(); setShowForm(true); } }, { icon: "\u2630", label: "View Orders", fn: () => switchTab("orders") }, { icon: "\u2699", label: "Customize", fn: () => switchTab("mystore") }].map((a, i) => (
+              {[{ icon: "+", label: "Add Product", fn: () => { switchTab("products"); resetForm(); setShowForm(true); } }, { icon: "\u2630", label: "View Orders", fn: () => switchTab("orders") }, { icon: "\u2699", label: "Edit My Store", fn: () => switchTab("mystore") }].map((a, i) => (
                 <button key={i} onClick={a.fn} style={{ padding: "20px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 14, color: "#f5f5f5", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
                   <span style={{ fontSize: 24 }}>{a.icon}</span><span>{a.label}</span>
                 </button>
@@ -414,7 +417,7 @@ export default function Dashboard() {
                         {storeCollections.map((c) => (<option key={c} value={c} style={{ background: "#080808" }}>{c}</option>))}
                       </select>
                     ) : (
-                      <input type="text" placeholder="Create collections in My Store" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                      <input type="text" placeholder="Create collections in Edit My Store" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
                     )}
                   </div>
                 </div>
@@ -894,7 +897,7 @@ export default function Dashboard() {
 
           {/* MY STORE */}
           {tab === "mystore" && (<div>
-            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>My Store</h1>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Edit My Store</h1>
             <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 32 }}>Customize how your store looks to customers.</p>
 
             <div style={{ marginBottom: 40 }}>
@@ -919,6 +922,15 @@ export default function Dashboard() {
                 <input type="color" value={storeColor} onChange={(e) => setStoreColor(e.target.value)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", cursor: "pointer", background: "transparent" }} />
               </div>
             </div>
+
+            {/* VISUAL EDITOR */}
+            {seller?.subdomain && (
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Visual Editor</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p>
+              <a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Store Editor &rarr;</a>
+            </div>
+            )}
 
             <div style={{ marginBottom: 40 }}>
               <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16 }}>Logo & Banner</h3>
@@ -1026,15 +1038,6 @@ export default function Dashboard() {
                   <textarea value={item.desc} onChange={(e) => { const u = [...storeConfig.policy_items]; u[i] = { ...u[i], desc: e.target.value }; setStoreConfig({ ...storeConfig, policy_items: u }); }} placeholder="Policy details..." rows={2} style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const }} />
                 </div>
               ))}
-            </div>
-            )}
-
-            {/* OPEN EDITOR */}
-            {seller?.subdomain && (
-            <div style={{ marginBottom: 40 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Visual Editor</h3>
-              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p>
-              <a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Store Editor &rarr;</a>
             </div>
             )}
 
