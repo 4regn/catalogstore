@@ -10,6 +10,7 @@ interface Seller {
   id: string; email: string; store_name: string; whatsapp_number: string; subdomain: string;
   template: string; plan: string; primary_color: string; logo_url: string; banner_url: string;
   tagline: string; description: string; collections: string[]; created_at: string;
+  subscription_status: string; subscription_plan: string; trial_ends_at: string;
 }
 
 interface Product {
@@ -167,7 +168,7 @@ export default function AdminDashboard() {
                         <span>{stats.orders} orders</span>
                         <span style={{ color: N }}>R{stats.revenue}</span>
                       </div>
-                      <span style={{ padding: "4px 12px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", background: "rgba(255,107,53,0.06)", color: N }}>{s.plan || "Free"}</span>
+                      <span style={{ padding: "4px 12px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", background: s.subscription_status === "active" ? "rgba(34,197,94,0.1)" : s.subscription_status === "trial" ? "rgba(251,191,36,0.08)" : "rgba(255,61,110,0.08)", color: s.subscription_status === "active" ? "#22c55e" : s.subscription_status === "trial" ? "#fbbf24" : "#ff3d6e" }}>{s.subscription_status === "active" ? (s.subscription_plan || "starter") : (s.subscription_status || "none")}</span>
                     </div>
                   );
                 })}
@@ -194,8 +195,8 @@ export default function AdminDashboard() {
                   {(() => {
                     const stats = getSellerStats(selectedSeller.id);
                     return (
-                      <div className="admin-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 32 }}>
-                        {[{ n: stats.products, l: "Products" }, { n: stats.orders, l: "Orders" }, { n: "R" + stats.revenue, l: "Revenue", c: N }, { n: selectedSeller.plan || "Free", l: "Plan" }].map((s, i) => (
+                      <div className="admin-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 32 }}>
+                        {[{ n: stats.products, l: "Products" }, { n: stats.orders, l: "Orders" }, { n: "R" + stats.revenue, l: "Revenue", c: N }, { n: selectedSeller.subscription_plan || "none", l: "Plan" }, { n: selectedSeller.subscription_status || "none", l: "Status", c: selectedSeller.subscription_status === "active" ? "#22c55e" : selectedSeller.subscription_status === "trial" ? "#fbbf24" : "#ff3d6e" }].map((s, i) => (
                           <div key={i} style={{ padding: "20px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 14 }}>
                             <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.04em", marginBottom: 4, color: s.c || "#f5f5f5" }}>{s.n}</div>
                             <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>{s.l}</div>
@@ -214,6 +215,7 @@ export default function AdminDashboard() {
                         <p><strong style={{ color: "#f5f5f5" }}>Template:</strong> {selectedSeller.template || "N/A"}</p>
                         <p><strong style={{ color: "#f5f5f5" }}>Tagline:</strong> {selectedSeller.tagline || "N/A"}</p>
                         <p><strong style={{ color: "#f5f5f5" }}>Joined:</strong> {new Date(selectedSeller.created_at).toLocaleDateString()}</p>
+                        {selectedSeller.trial_ends_at && <p><strong style={{ color: "#f5f5f5" }}>Trial Ends:</strong> {new Date(selectedSeller.trial_ends_at).toLocaleDateString()}</p>}
                         <p><strong style={{ color: "#f5f5f5" }}>Collections:</strong> {(selectedSeller.collections || []).join(", ") || "None"}</p>
                       </div>
                     </div>
@@ -297,7 +299,7 @@ export default function AdminDashboard() {
                             <span>{stats.products} products</span>
                             <span>{stats.orders} orders</span>
                             <span style={{ color: N, fontWeight: 700 }}>R{stats.revenue}</span>
-                            <span style={{ padding: "4px 12px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", background: "rgba(255,107,53,0.06)", color: N }}>{s.plan || "Free"}</span>
+                            <span style={{ padding: "4px 12px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", background: s.subscription_status === "active" ? "rgba(34,197,94,0.1)" : s.subscription_status === "trial" ? "rgba(251,191,36,0.08)" : "rgba(255,61,110,0.08)", color: s.subscription_status === "active" ? "#22c55e" : s.subscription_status === "trial" ? "#fbbf24" : "#ff3d6e" }}>{s.subscription_status === "active" ? (s.subscription_plan || "starter") : (s.subscription_status || "none")}</span>
                           </div>
                           <span style={{ fontSize: 10, color: "rgba(245,245,245,0.15)" }}>Joined {new Date(s.created_at).toLocaleDateString()}</span>
                         </div>

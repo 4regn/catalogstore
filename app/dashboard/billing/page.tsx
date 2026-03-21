@@ -204,6 +204,15 @@ export default function BillingPage() {
 
         <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>R1 card verification charge. 7-day free trial, then auto-billed monthly. Cancel anytime. Prices in ZAR.</p>
 
+        {/* CANCEL SUBSCRIPTION */}
+        {isActive && (
+          <div style={{ marginTop: 48, padding: "28px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, textAlign: "center" }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Cancel Subscription</h3>
+            <p style={{ fontSize: 13, color: "rgba(245,245,245,0.25)", marginBottom: 20, maxWidth: 400, margin: "0 auto 20px" }}>Your store will remain active until the end of your current billing period. After that, your store will go offline.</p>
+            <button onClick={async () => { if (!confirm("Are you sure you want to cancel your subscription? Your store will go offline at the end of your billing period.")) return; await supabase.from("sellers").update({ subscription_status: "expired" }).eq("id", seller.id); setSeller({ ...seller, subscription_status: "expired" }); }} style={{ padding: "12px 32px", background: "transparent", border: "1px solid rgba(255,61,110,0.2)", borderRadius: 100, color: "#ff3d6e", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>Cancel Subscription</button>
+          </div>
+        )}
+
       </div>
     </div>
   );
