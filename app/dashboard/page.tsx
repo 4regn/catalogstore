@@ -89,7 +89,7 @@ export default function Dashboard() {
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
-  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "â˜…", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "âœˆ", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "â†º", title: "Easy Returns", desc: "14-day policy" }, { icon: "âš¡", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }] });
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "★", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "✈", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "↺", title: "Easy Returns", desc: "14-day policy" }, { icon: "⚡", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }] });
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeSaved, setStoreSaved] = useState(false);
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [] });
@@ -209,6 +209,23 @@ export default function Dashboard() {
     </div>
   );
 
+  // Trial/subscription checks
+  const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
+  const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+  const isSubscribed = seller?.subscription_status === "active";
+  const isExpiredTrial = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date();
+  const isExpired = seller?.subscription_status === "expired" || isExpiredTrial;
+
+  // Lock dashboard if expired - redirect to billing
+  if (isExpired && typeof window !== "undefined") {
+    window.location.href = "/dashboard/billing";
+    return (
+      <div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+        <p style={{ color: "rgba(245,245,245,0.35)" }}>Redirecting to billing...</p>
+      </div>
+    );
+  }
+
   const publishedCount = products.filter((p) => p.status === "published" || !p.status).length;
   const draftCount = products.filter((p) => p.status === "draft").length;
   const trashedCount = products.filter((p) => p.status === "trashed").length;
@@ -290,6 +307,18 @@ export default function Dashboard() {
         </aside>
 
         <main className="main-content" style={{ flex: 1, marginLeft: 260, padding: "36px 40px" }}>
+
+          {/* TRIAL BANNER */}
+          {trialActive && !isSubscribed && (
+            <a href="/dashboard/billing" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 12, marginBottom: 24, textDecoration: "none", flexWrap: "wrap" as const, gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 14 }}>&#9203;</span>
+                <span style={{ fontSize: 13, color: "#fbbf24", fontWeight: 700 }}>{trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left on your free trial</span>
+                <span style={{ fontSize: 12, color: "rgba(245,245,245,0.35)" }}>- Subscribe now to keep your store live</span>
+              </div>
+              <span style={{ padding: "6px 16px", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: "#fbbf24", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Subscribe</span>
+            </a>
+          )}
 
           {/* OVERVIEW */}
           {tab === "overview" && (<div>
@@ -773,7 +802,7 @@ export default function Dashboard() {
                   {storeConfig.trust_items.length > 1 && <button onClick={() => { const u = storeConfig.trust_items.filter((_, idx) => idx !== i); setStoreConfig({ ...storeConfig, trust_items: u }); }} style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer" }}>&times;</button>}
                 </div>
               ))}
-              {storeConfig.trust_items.length < 6 && <button onClick={() => setStoreConfig({ ...storeConfig, trust_items: [...storeConfig.trust_items, { icon: "âœ¦", title: "", desc: "" }] })} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Item</button>}
+              {storeConfig.trust_items.length < 6 && <button onClick={() => setStoreConfig({ ...storeConfig, trust_items: [...storeConfig.trust_items, { icon: "✦", title: "", desc: "" }] })} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Item</button>}
             </div>
             )}
 

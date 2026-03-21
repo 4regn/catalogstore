@@ -43,7 +43,7 @@ export default function BillingPage() {
     if (!seller) return;
     setProcessing(true);
     const plan = PLANS.find((p) => p.id === planId)!;
-    const amount = (isPromo && plan.promoPrice) ? plan.promoPrice : plan.price;
+    const recurringAmount = (isPromo && plan.promoPrice) ? plan.promoPrice : plan.price;
 
     const form = document.createElement("form");
     form.method = "POST";
@@ -52,9 +52,9 @@ export default function BillingPage() {
     const fields: Record<string, string> = {
       merchant_id: "34217957",
       merchant_key: "1worde5oycuks",
-      amount: amount.toFixed(2),
-      item_name: "CatalogStore " + plan.name + " Plan",
-      item_description: plan.name + " monthly subscription",
+      amount: "1.00",
+      item_name: "CatalogStore " + plan.name + " - Card Verification",
+      item_description: "R1 verification. " + plan.name + " plan R" + recurringAmount + "/mo starts after 7-day trial.",
       name_first: seller.store_name,
       email_address: seller.email,
       m_payment_id: seller.id,
@@ -64,7 +64,7 @@ export default function BillingPage() {
       cancel_url: window.location.origin + "/dashboard/billing?status=cancelled",
       notify_url: window.location.origin + "/api/subscription/notify",
       subscription_type: "1",
-      recurring_amount: plan.price.toFixed(2),
+      recurring_amount: recurringAmount.toFixed(2),
       frequency: "3",
       cycles: "0",
     };
@@ -173,8 +173,12 @@ export default function BillingPage() {
                   <span style={{ fontSize: 13, color: "rgba(245,245,245,0.25)" }}>/mo</span>
                 </div>
 
+                {!isActive && <p style={{ fontSize: 11, color: "#22c55e", marginBottom: 4 }}>7-day free trial - R1 card verification</p>}
                 {isPromo && plan.promoPrice && !isActive && (
-                  <p style={{ fontSize: 11, color: N, marginBottom: 16 }}>First month only, then R{plan.price}/mo</p>
+                  <p style={{ fontSize: 11, color: N, marginBottom: 16 }}>Then R{plan.promoPrice}/mo first month, R{plan.price}/mo after</p>
+                )}
+                {(!isPromo || !plan.promoPrice) && !isActive && (
+                  <p style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Then R{plan.price}/mo after trial</p>
                 )}
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, flex: 1, marginTop: 16 }}>
@@ -191,14 +195,14 @@ export default function BillingPage() {
                 ) : isActive && plan.id === "starter" ? (
                   <div style={{ padding: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 700, color: "rgba(245,245,245,0.25)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Downgrade</div>
                 ) : (
-                  <button onClick={() => subscribePlan(plan.id)} disabled={processing} style={{ padding: "16px", background: plan.id === "pro" ? G : "#f5f5f5", color: plan.id === "pro" ? "#fff" : "#030303", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : "Start with " + plan.name}</button>
+                  <button onClick={() => subscribePlan(plan.id)} disabled={processing} style={{ padding: "16px", background: plan.id === "pro" ? G : "#f5f5f5", color: plan.id === "pro" ? "#fff" : "#030303", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : "Start 7-Day Free Trial"}</button>
                 )}
               </div>
             );
           })}
         </div>
 
-        <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>All plans include a 7-day free trial. Cancel anytime. Prices in ZAR.</p>
+        <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>R1 card verification charge. 7-day free trial, then auto-billed monthly. Cancel anytime. Prices in ZAR.</p>
 
       </div>
     </div>
