@@ -28,6 +28,9 @@ interface Order {
 export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [pinLocked, setPinLocked] = useState(true);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -93,6 +96,36 @@ export default function AdminDashboard() {
   );
 
   if (!authorized) return null;
+
+  if (pinLocked) return (
+    <div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif", padding: "40px 24px" }}>
+      <div style={{ maxWidth: 360, width: "100%", textAlign: "center" }}>
+        <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", fontSize: 24 }}>&#128274;</div>
+        <h1 style={{ fontSize: 24, fontWeight: 900, color: "#f5f5f5", textTransform: "uppercase", letterSpacing: "-0.02em", marginBottom: 8 }}>Admin Access</h1>
+        <p style={{ fontSize: 13, color: "rgba(245,245,245,0.35)", marginBottom: 32 }}>Enter your admin PIN to continue.</p>
+        <input
+          type="password"
+          value={pinInput}
+          onChange={(e) => { setPinInput(e.target.value); setPinError(false); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              if (pinInput === process.env.NEXT_PUBLIC_ADMIN_PIN) { setPinLocked(false); }
+              else { setPinError(true); setPinInput(""); }
+            }
+          }}
+          placeholder="Enter PIN"
+          autoFocus
+          style={{ width: "100%", padding: "16px 20px", background: "rgba(255,255,255,0.04)", border: pinError ? "2px solid #ff3d6e" : "1px solid rgba(255,255,255,0.08)", borderRadius: 12, color: "#f5f5f5", fontSize: 18, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", textAlign: "center", letterSpacing: "0.2em", fontWeight: 700, marginBottom: 12 }}
+        />
+        {pinError && <p style={{ fontSize: 12, color: "#ff3d6e", marginBottom: 12 }}>Incorrect PIN. Try again.</p>}
+        <button
+          onClick={() => { if (pinInput === process.env.NEXT_PUBLIC_ADMIN_PIN) { setPinLocked(false); } else { setPinError(true); setPinInput(""); } }}
+          style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg, #ff6b35, #ff4444)", color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}
+        >Unlock</button>
+        <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: "rgba(245,245,245,0.25)", fontSize: 12, cursor: "pointer", marginTop: 16, fontFamily: "'Schibsted Grotesk', sans-serif" }}>&larr; Back to Dashboard</button>
+      </div>
+    </div>
+  );
 
   return (
     <>
