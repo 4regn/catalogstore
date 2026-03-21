@@ -64,7 +64,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "products" | "collections" | "orders" | "mystore" | "checkout">("overview");
+  const [tab, setTab] = useState<"overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts">("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -101,6 +101,18 @@ export default function Dashboard() {
   const [orderSaved, setOrderSaved] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [productSort, setProductSort] = useState("manual");
+
+  // Discount codes
+  interface DiscountCode { id: string; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: boolean; expires_at: string | null; created_at: string; }
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [dcCode, setDcCode] = useState("");
+  const [dcType, setDcType] = useState("percentage");
+  const [dcValue, setDcValue] = useState("");
+  const [dcMinOrder, setDcMinOrder] = useState("");
+  const [dcMaxUses, setDcMaxUses] = useState("");
+  const [dcExpires, setDcExpires] = useState("");
+  const [dcSaving, setDcSaving] = useState(false);
+  const [showDcForm, setShowDcForm] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -110,7 +122,7 @@ export default function Dashboard() {
 
   useEffect(() => { checkAuth(); }, []);
 
-  const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout") => { setTab(t); setSidebarOpen(false); };
+  const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts") => { setTab(t); setSidebarOpen(false); };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -121,6 +133,8 @@ export default function Dashboard() {
     if (pd) setProducts(pd);
     const { data: od } = await supabase.from("orders").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
     if (od) setOrders(od);
+    const { data: dc } = await supabase.from("discount_codes").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
+    if (dc) setDiscountCodes(dc);
     setLoading(false);
   };
 
@@ -290,9 +304,9 @@ export default function Dashboard() {
             </div>
 
             <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {(["overview", "products", "collections", "orders", "mystore", "checkout"] as const).map((t) => (
+              {(["overview", "products", "collections", "orders", "discounts", "mystore", "checkout"] as const).map((t) => (
                 <button key={t} onClick={() => { switchTab(t); if (t === "collections") setSelectedCollection(null); }} style={{ width: "100%", padding: "12px 16px", background: tab === t ? "rgba(255,107,53,0.06)" : "transparent", border: tab === t ? "1px solid rgba(255,107,53,0.1)" : "1px solid transparent", borderRadius: 10, color: tab === t ? "#f5f5f5" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, fontWeight: tab === t ? 700 : 500, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", transition: "all 0.2s" }}>
-                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "collections" ? "Collections (" + storeCollections.length + ")" : t === "orders" ? "Orders (" + orders.length + ")" : t === "mystore" ? "My Store" : "Checkout"}
+                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "collections" ? "Collections (" + storeCollections.length + ")" : t === "orders" ? "Orders (" + orders.length + ")" : t === "discounts" ? "Discounts (" + discountCodes.length + ")" : t === "mystore" ? "My Store" : "Checkout"}
                 </button>
               ))}
             </nav>
@@ -676,6 +690,97 @@ export default function Dashboard() {
                     <div style={{ display: "flex", gap: 6 }}>
                       <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.payment_status === "paid" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: order.payment_status === "paid" ? "#22c55e" : "#fbbf24" }}>{order.payment_status?.replace("_", " ")}</span>
                       <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.status === "delivered" ? "rgba(34,197,94,0.1)" : order.status === "shipped" ? "rgba(37,99,235,0.1)" : order.status === "confirmed" || order.status === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.08)", color: order.status === "delivered" ? "#22c55e" : order.status === "shipped" ? "#2563eb" : order.status === "confirmed" || order.status === "processing" ? N : "#fbbf24" }}>{order.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>)}
+
+          {/* DISCOUNTS */}
+          {tab === "discounts" && (<div>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap" as const, gap: 12 }}>
+              <div>
+                <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Discount Codes</h1>
+                <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)" }}>Create promo codes your customers can use at checkout.</p>
+              </div>
+              <button onClick={() => { setShowDcForm(!showDcForm); if (showDcForm) { setDcCode(""); setDcValue(""); setDcMinOrder(""); setDcMaxUses(""); setDcExpires(""); setDcType("percentage"); } }} style={{ padding: "12px 24px", background: showDcForm ? "rgba(255,255,255,0.03)" : G, color: showDcForm ? "rgba(245,245,245,0.4)" : "#fff", border: showDcForm ? "1px solid rgba(255,255,255,0.06)" : "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{showDcForm ? "Cancel" : "+ New Code"}</button>
+            </div>
+
+            {showDcForm && (
+              <div style={{ padding: "28px 24px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Discount Code</label>
+                    <input type="text" value={dcCode} onChange={(e) => setDcCode(e.target.value.toUpperCase().replace(/\s/g, ""))} placeholder="e.g. WELCOME10" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 14, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", fontWeight: 700, letterSpacing: "0.04em" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Type</label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {[{ k: "percentage", l: "% Off" }, { k: "fixed", l: "R Off" }].map((t) => (
+                        <button key={t.k} onClick={() => setDcType(t.k)} style={{ flex: 1, padding: "12px", borderRadius: 10, background: dcType === t.k ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.03)", border: dcType === t.k ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: dcType === t.k ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{t.l}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Value</label>
+                    <input type="number" value={dcValue} onChange={(e) => setDcValue(e.target.value)} placeholder={dcType === "percentage" ? "e.g. 10" : "e.g. 50"} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Min Order (R)</label>
+                    <input type="number" value={dcMinOrder} onChange={(e) => setDcMinOrder(e.target.value)} placeholder="0" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Max Uses</label>
+                    <input type="number" value={dcMaxUses} onChange={(e) => setDcMaxUses(e.target.value)} placeholder="Unlimited" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Expires</label>
+                    <input type="date" value={dcExpires} onChange={(e) => setDcExpires(e.target.value)} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                </div>
+                <button onClick={async () => {
+                  if (!dcCode || !dcValue || !seller) return;
+                  setDcSaving(true);
+                  const { data, error } = await supabase.from("discount_codes").insert({
+                    seller_id: seller.id, code: dcCode.toUpperCase(), type: dcType,
+                    value: parseFloat(dcValue), min_order: parseFloat(dcMinOrder) || 0,
+                    max_uses: dcMaxUses ? parseInt(dcMaxUses) : null,
+                    expires_at: dcExpires ? new Date(dcExpires).toISOString() : null,
+                  }).select().single();
+                  if (data) { setDiscountCodes([data, ...discountCodes]); setShowDcForm(false); setDcCode(""); setDcValue(""); setDcMinOrder(""); setDcMaxUses(""); setDcExpires(""); setDcType("percentage"); }
+                  if (error) alert("Error: " + error.message);
+                  setDcSaving(false);
+                }} disabled={dcSaving || !dcCode || !dcValue} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: dcSaving ? "not-allowed" : "pointer", opacity: (dcSaving || !dcCode || !dcValue) ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{dcSaving ? "Creating..." : "Create Discount Code"}</button>
+              </div>
+            )}
+
+            {discountCodes.length === 0 && !showDcForm ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No discount codes yet</p>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Create your first code to start offering promotions.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {discountCodes.map((dc) => (
+                  <div key={dc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <div style={{ padding: "8px 16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontWeight: 800, fontSize: 14, letterSpacing: "0.06em", color: N }}>{dc.code}</div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>{dc.type === "percentage" ? dc.value + "% off" : "R" + dc.value + " off"}</div>
+                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>
+                          {dc.min_order > 0 ? "Min R" + dc.min_order + " " : ""}
+                          {dc.max_uses ? "Max " + dc.max_uses + " uses " : "Unlimited "}
+                          - Used {dc.used_count}x
+                          {dc.expires_at ? " - Expires " + new Date(dc.expires_at).toLocaleDateString() : ""}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button onClick={async () => { await supabase.from("discount_codes").update({ active: !dc.active }).eq("id", dc.id); setDiscountCodes(discountCodes.map((d) => d.id === dc.id ? { ...d, active: !d.active } : d)); }} style={{ padding: "6px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: dc.active ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", color: dc.active ? "#22c55e" : "rgba(245,245,245,0.25)" }}>{dc.active ? "Active" : "Disabled"}</button>
+                      <button onClick={async () => { if (!confirm("Delete this discount code?")) return; await supabase.from("discount_codes").delete().eq("id", dc.id); setDiscountCodes(discountCodes.filter((d) => d.id !== dc.id)); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                     </div>
                   </div>
                 ))}

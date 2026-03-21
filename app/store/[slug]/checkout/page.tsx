@@ -45,6 +45,10 @@ export default function CheckoutPage() {
   const [placing, setPlacing] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number } | null>(null);
+  const [discountError, setDiscountError] = useState("");
+  const [applyingDiscount, setApplyingDiscount] = useState(false);
 
   useEffect(() => { load(); }, [slug]);
 
@@ -62,8 +66,21 @@ export default function CheckoutPage() {
   const accent = seller?.primary_color || "#9c7c62";
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const shipping = fulfillment === "pickup" ? 0 : (cc.shipping_options?.[shippingOption]?.price || 0);
-  const total = subtotal + shipping;
+  const discountAmount = discountApplied ? (discountApplied.type === "percentage" ? subtotal * (discountApplied.value / 100) : discountApplied.value) : 0;
+  const total = Math.max(0, subtotal - discountAmount + shipping);
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
+
+  const applyDiscount = async () => {
+    if (!discountCode.trim() || !seller) return;
+    setApplyingDiscount(true); setDiscountError("");
+    const { data } = await supabase.from("discount_codes").select("*").eq("seller_id", seller.id).ilike("code", discountCode.trim()).eq("active", true).single();
+    if (!data) { setDiscountError("Invalid discount code"); setApplyingDiscount(false); return; }
+    if (data.expires_at && new Date(data.expires_at) < new Date()) { setDiscountError("This code has expired"); setApplyingDiscount(false); return; }
+    if (data.max_uses && data.used_count >= data.max_uses) { setDiscountError("This code has reached its usage limit"); setApplyingDiscount(false); return; }
+    if (data.min_order > 0 && subtotal < data.min_order) { setDiscountError("Minimum order of R" + data.min_order + " required"); setApplyingDiscount(false); return; }
+    setDiscountApplied({ code: data.code, type: data.type, value: data.value });
+    setApplyingDiscount(false);
+  };
 
   const placeOrder = async () => {
     if (!seller) return;
@@ -89,6 +106,12 @@ export default function CheckoutPage() {
     if (data) {
       setOrderNumber(data.order_number || data.id?.substring(0, 8));
       setOrderPlaced(true);
+
+      // Increment discount code usage
+      if (discountApplied && seller) {
+        const { data: dc } = await supabase.from("discount_codes").select("id, used_count").eq("seller_id", seller.id).ilike("code", discountApplied.code).single();
+        if (dc) await supabase.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
+      }
 
       if (paymentMethod === "payfast" && cc.payfast_merchant_id) {
         const form = document.createElement("form");
@@ -263,6 +286,29 @@ export default function CheckoutPage() {
             </div>
           )}
 
+          {/* DISCOUNT CODE */}
+          <div style={{ marginBottom: 32 }}>
+            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 400, marginBottom: 16 }}>Discount Code</h2>
+            {discountApplied ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "rgba(34,197,94,0.04)", border: "1px solid rgba(34,197,94,0.15)", borderRadius: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ color: "#22c55e", fontSize: 14 }}>&#10003;</span>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{discountApplied.code}</span>
+                  <span style={{ fontSize: 13, color: "#8a8690" }}>{discountApplied.type === "percentage" ? discountApplied.value + "% off" : "R" + discountApplied.value + " off"}</span>
+                </div>
+                <button onClick={() => { setDiscountApplied(null); setDiscountCode(""); }} style={{ background: "none", border: "none", color: "#8a8690", fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: "'Jost', sans-serif" }}>Remove</button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="text" value={discountCode} onChange={(e) => { setDiscountCode(e.target.value.toUpperCase()); setDiscountError(""); }} onKeyDown={(e) => { if (e.key === "Enter") applyDiscount(); }} placeholder="Enter discount code" style={{ flex: 1, padding: "14px 16px", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 12, fontSize: 14, fontFamily: "'Jost', sans-serif", outline: "none", background: "#fff", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }} />
+                  <button onClick={applyDiscount} disabled={applyingDiscount || !discountCode.trim()} style={{ padding: "14px 24px", background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 12, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, cursor: (applyingDiscount || !discountCode.trim()) ? "not-allowed" : "pointer", opacity: (applyingDiscount || !discountCode.trim()) ? 0.5 : 1, letterSpacing: "0.04em" }}>{applyingDiscount ? "..." : "Apply"}</button>
+                </div>
+                {discountError && <p style={{ fontSize: 12, color: "#e53e3e", marginTop: 8 }}>{discountError}</p>}
+              </div>
+            )}
+          </div>
+
           {/* PAYMENT */}
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 400, marginBottom: 8 }}>Payment</h2>
           <p style={{ fontSize: 13, color: "#8a8690", marginBottom: 16 }}>All transactions are secure and encrypted.</p>
@@ -326,6 +372,7 @@ export default function CheckoutPage() {
           ))}
           <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", paddingTop: 16, marginTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#8a8690" }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{subtotal.toFixed(0)}</span></div>
+            {discountApplied && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#8a8690" }}><span>Shipping</span><span>{shipping === 0 ? (fulfillment === "pickup" ? "Pickup" : "Free") : "R" + shipping}</span></div>
           </div>
           <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
