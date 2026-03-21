@@ -39,6 +39,7 @@ export default function StorePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [promoCountdown, setPromoCountdown] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(null);
+  const [promoDiscounts, setPromoDiscounts] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -63,31 +64,47 @@ export default function StorePage() {
     if (pd) setProducts(pd);
     const { data: dcs } = await supabase.from("discount_codes").select("*").eq("seller_id", sd.id).eq("active", true).eq("show_countdown", true).not("expires_at", "is", null);
     if (dcs && dcs.length > 0) {
-      const active = dcs.find((d: any) => new Date(d.expires_at) > new Date());
-      if (active) setPromoCountdown({ code: active.code, type: active.type, value: active.value, applies_to: active.applies_to || "cart", expires_at: active.expires_at, timeLeft: "" });
+      const activePromos = dcs.filter((d: any) => new Date(d.expires_at) > new Date()).map((d: any) => ({
+        code: d.code, type: d.type, value: d.value, applies_to: d.applies_to || "cart",
+        expires_at: d.expires_at, product_ids: d.product_ids || [], collection_names: d.collection_names || [], timeLeft: ""
+      }));
+      setPromoDiscounts(activePromos);
+      const storePromo = activePromos.find((d: any) => d.applies_to === "cart" || d.applies_to === "shipping");
+      if (storePromo) setPromoCountdown({ code: storePromo.code, type: storePromo.type, value: storePromo.value, applies_to: storePromo.applies_to, expires_at: storePromo.expires_at, timeLeft: "" });
     }
     setLoading(false);
   };
 
   // Promo countdown ticker
   useEffect(() => {
-    if (!promoCountdown?.expires_at) return;
+    if (promoDiscounts.length === 0 && !promoCountdown?.expires_at) return;
     const tick = () => {
       const now = new Date().getTime();
-      const end = new Date(promoCountdown.expires_at).getTime();
-      const diff = end - now;
-      if (diff <= 0) { setPromoCountdown(null); return; }
-      const d = Math.floor(diff / 86400000);
-      const h = Math.floor((diff % 86400000) / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      const tl = (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-      setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
+      if (promoCountdown?.expires_at) {
+        const diff = new Date(promoCountdown.expires_at).getTime() - now;
+        if (diff <= 0) { setPromoCountdown(null); }
+        else {
+          const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
+          const tl = (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+          setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
+        }
+      }
+      setPromoDiscounts((prev) => prev.map((p) => {
+        const diff = new Date(p.expires_at).getTime() - now;
+        if (diff <= 0) return { ...p, timeLeft: "EXPIRED" };
+        const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
+        return { ...p, timeLeft: (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") };
+      }).filter((p) => p.timeLeft !== "EXPIRED"));
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [promoCountdown?.expires_at]);
+  }, [promoDiscounts.length, promoCountdown?.expires_at]);
+
+  const getProductPromo = (productId: string) => promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId) && d.timeLeft);
+  const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName) && d.timeLeft);
 
   const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" };
   const social = seller?.social_links || {};
@@ -266,6 +283,12 @@ export default function StorePage() {
                     <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "32px 28px", background: "linear-gradient(180deg, transparent, rgba(42,42,46,0.5))" }}>
                       <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, color: "#fff", letterSpacing: "0.03em", marginBottom: 4 }}>{col}</div>
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{count} Piece{count !== 1 ? "s" : ""}</div>
+                      {(() => { const cp = getCollectionPromo(col); return cp ? (
+                        <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "rgba(42,42,46,0.7)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
+                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{cp.code} {cp.type === "percentage" ? cp.value + "%" : "R" + cp.value} OFF</span>
+                          <span style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{cp.timeLeft}</span>
+                        </div>
+                      ) : null; })()}
                     </div>
                   </div>
                 );
@@ -305,6 +328,12 @@ export default function StorePage() {
                     {product.old_price && (
                       <div style={{ position: "absolute", top: 12, left: 12, padding: "4px 12px", background: accent, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Sale</div>
                     )}
+                    {(() => { const pp = getProductPromo(product.id); return pp ? (
+                      <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(42,42,46,0.75)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
+                        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{pp.code} {pp.type === "percentage" ? pp.value + "%" : "R" + pp.value} OFF</span>
+                        <span style={{ fontSize: 12, color: "#fff", fontWeight: 700, letterSpacing: "0.04em" }}>{pp.timeLeft}</span>
+                      </div>
+                    ) : null; })()}
                   </div>
                   <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, marginBottom: 4, letterSpacing: "0.01em" }}>{product.name}</div>
                   {product.category && <div style={{ fontSize: 11, color: "#b5b1ac", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{product.category}</div>}

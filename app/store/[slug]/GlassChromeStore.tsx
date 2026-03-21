@@ -40,6 +40,7 @@ export default function GlassChromeStore() {
   const [countdown, setCountdown] = useState(5);
   const [openFooterInfo, setOpenFooterInfo] = useState<string | null>(null);
   const [promoCountdown, setPromoCountdown] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(null);
+  const [promoDiscounts, setPromoDiscounts] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -58,23 +59,38 @@ export default function GlassChromeStore() {
 
   // Promo countdown ticker
   useEffect(() => {
-    if (!promoCountdown?.expires_at) return;
+    if (promoDiscounts.length === 0 && !promoCountdown?.expires_at) return;
     const tick = () => {
       const now = new Date().getTime();
-      const end = new Date(promoCountdown.expires_at).getTime();
-      const diff = end - now;
-      if (diff <= 0) { setPromoCountdown(null); return; }
-      const d = Math.floor(diff / 86400000);
-      const h = Math.floor((diff % 86400000) / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      const tl = (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-      setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
+      // Update store-wide countdown
+      if (promoCountdown?.expires_at) {
+        const diff = new Date(promoCountdown.expires_at).getTime() - now;
+        if (diff <= 0) { setPromoCountdown(null); }
+        else {
+          const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
+          const tl = (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+          setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
+        }
+      }
+      // Update all product/collection countdowns
+      setPromoDiscounts((prev) => prev.map((p) => {
+        const diff = new Date(p.expires_at).getTime() - now;
+        if (diff <= 0) return { ...p, timeLeft: "EXPIRED" };
+        const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
+        return { ...p, timeLeft: (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") };
+      }).filter((p) => p.timeLeft !== "EXPIRED"));
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [promoCountdown?.expires_at]);
+  }, [promoDiscounts.length, promoCountdown?.expires_at]);
+
+  // Helper: get product promo if exists
+  const getProductPromo = (productId: string) => promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId) && d.timeLeft);
+  // Helper: get collection promo if exists
+  const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName) && d.timeLeft);
 
   const loadStore = async () => {
     const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
@@ -85,8 +101,13 @@ export default function GlassChromeStore() {
     // Load active countdown discounts
     const { data: dcs } = await supabase.from("discount_codes").select("*").eq("seller_id", sd.id).eq("active", true).eq("show_countdown", true).not("expires_at", "is", null);
     if (dcs && dcs.length > 0) {
-      const active = dcs.find((d: any) => new Date(d.expires_at) > new Date());
-      if (active) setPromoCountdown({ code: active.code, type: active.type, value: active.value, applies_to: active.applies_to || "cart", expires_at: active.expires_at, timeLeft: "" });
+      const activePromos = dcs.filter((d: any) => new Date(d.expires_at) > new Date()).map((d: any) => ({
+        code: d.code, type: d.type, value: d.value, applies_to: d.applies_to || "cart",
+        expires_at: d.expires_at, product_ids: d.product_ids || [], collection_names: d.collection_names || [], timeLeft: ""
+      }));
+      setPromoDiscounts(activePromos);
+      const storePromo = activePromos.find((d: any) => d.applies_to === "cart" || d.applies_to === "shipping");
+      if (storePromo) setPromoCountdown({ code: storePromo.code, type: storePromo.type, value: storePromo.value, applies_to: storePromo.applies_to, expires_at: storePromo.expires_at, timeLeft: "" });
     }
     setLoading(false);
   };
@@ -282,6 +303,12 @@ export default function GlassChromeStore() {
                     <div style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
                       <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.2em", color: "#fff", marginBottom: 4, textTransform: "uppercase" }}>{count} Piece{count !== 1 ? "s" : ""}</div>
                       <div style={{ fontFamily: display, fontSize: 24, letterSpacing: "0.05em" }}>{col}</div>
+                      {(() => { const cp = getCollectionPromo(col); return cp ? (
+                        <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)" }}>
+                          <span style={{ fontFamily: mono, fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{cp.code} {cp.type === "percentage" ? cp.value + "%" : "R" + cp.value} OFF</span>
+                          <span style={{ fontFamily: mono, fontSize: 11, color: "#fff", fontWeight: 700 }}>{cp.timeLeft}</span>
+                        </div>
+                      ) : null; })()}
                     </div>
                   </div>
                 );
@@ -314,6 +341,12 @@ export default function GlassChromeStore() {
                   <div style={{ aspectRatio: "3/4", overflow: "hidden", background: "#0f0f14", position: "relative" }}>
                     {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s", filter: "brightness(0.85)" }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg, #141418, #0c0c10)" }} />}
                     {product.old_price && <div style={{ position: "absolute", top: 12, left: 12, fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 4, background: "#fff", color: "#000", fontWeight: 600 }}>Sale</div>}
+                    {(() => { const pp = getProductPromo(product.id); return pp ? (
+                      <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(0,0,0,0.7)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <span style={{ fontFamily: mono, fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{pp.code} {pp.type === "percentage" ? pp.value + "%" : "R" + pp.value} OFF</span>
+                        <span style={{ fontFamily: mono, fontSize: 11, color: "#fff", fontWeight: 700, letterSpacing: "0.06em" }}>{pp.timeLeft}</span>
+                      </div>
+                    ) : null; })()}
                   </div>
                   <div style={{ padding: 16 }}>
                     {product.category && <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", color: "rgba(255,255,255,0.28)", textTransform: "uppercase", marginBottom: 5 }}>{product.category}</div>}
