@@ -39,6 +39,7 @@ export default function GlassChromeStore() {
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [openFooterInfo, setOpenFooterInfo] = useState<string | null>(null);
+  const [promoCountdown, setPromoCountdown] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -55,12 +56,38 @@ export default function GlassChromeStore() {
     return () => { clearInterval(timer); clearTimeout(redirect); };
   }, [orderStatus, slug]);
 
+  // Promo countdown ticker
+  useEffect(() => {
+    if (!promoCountdown?.expires_at) return;
+    const tick = () => {
+      const now = new Date().getTime();
+      const end = new Date(promoCountdown.expires_at).getTime();
+      const diff = end - now;
+      if (diff <= 0) { setPromoCountdown(null); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      const tl = (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [promoCountdown?.expires_at]);
+
   const loadStore = async () => {
     const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
     if (!sd) { setNotFound(true); setLoading(false); return; }
     setSeller(sd);
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", sd.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
     if (pd) setProducts(pd);
+    // Load active countdown discounts
+    const { data: dcs } = await supabase.from("discount_codes").select("*").eq("seller_id", sd.id).eq("active", true).eq("show_countdown", true).not("expires_at", "is", null);
+    if (dcs && dcs.length > 0) {
+      const active = dcs.find((d: any) => new Date(d.expires_at) > new Date());
+      if (active) setPromoCountdown({ code: active.code, type: active.type, value: active.value, applies_to: active.applies_to || "cart", expires_at: active.expires_at, timeLeft: "" });
+    }
     setLoading(false);
   };
 
@@ -188,6 +215,20 @@ export default function GlassChromeStore() {
             <button onClick={() => setShowCart(true)} style={{ background: P, border: "1px solid " + PB, color: "#f0f0f0", padding: "8px 18px", borderRadius: 6, fontFamily: body, fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer" }}>Cart ({cartCount})</button>
           </div>
         </header>
+
+        {/* PROMO COUNTDOWN */}
+        {promoCountdown && promoCountdown.timeLeft && (
+          <div style={{ background: "linear-gradient(90deg, rgba(255,107,53,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,107,53,0.08) 100%)", borderBottom: "1px solid rgba(255,107,53,0.12)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.15em", color: "rgba(255,255,255,0.5)", textTransform: "uppercase" }}>Limited offer</span>
+              <span style={{ fontFamily: body, fontSize: 14, fontWeight: 600, color: "#f0f0f0" }}>Use code <span style={{ padding: "3px 10px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, fontWeight: 800, letterSpacing: "0.06em", fontSize: 13, color: "#fff" }}>{promoCountdown.code}</span> for {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}{promoCountdown.applies_to !== "cart" ? " " + promoCountdown.applies_to : ""}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>Ends in</span>
+              <span style={{ fontFamily: mono, fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: "0.08em", background: "rgba(255,255,255,0.06)", padding: "4px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)" }}>{promoCountdown.timeLeft}</span>
+            </div>
+          </div>
+        )}
 
         {/* MARQUEE */}
         {cfg.show_marquee && (
