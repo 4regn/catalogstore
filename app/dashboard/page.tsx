@@ -103,7 +103,7 @@ export default function Dashboard() {
   const [productSort, setProductSort] = useState("manual");
 
   // Discount codes
-  interface DiscountCode { id: string; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: boolean; expires_at: string | null; created_at: string; }
+  interface DiscountCode { id: string; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: boolean; expires_at: string | null; created_at: string; applies_to: string; product_ids: string[]; collection_names: string[]; show_countdown: boolean; }
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [dcCode, setDcCode] = useState("");
   const [dcType, setDcType] = useState("percentage");
@@ -113,6 +113,12 @@ export default function Dashboard() {
   const [dcExpires, setDcExpires] = useState("");
   const [dcSaving, setDcSaving] = useState(false);
   const [showDcForm, setShowDcForm] = useState(false);
+  const [dcAppliesTo, setDcAppliesTo] = useState("cart");
+  const [dcProductIds, setDcProductIds] = useState<string[]>([]);
+  const [dcCollections, setDcCollections] = useState<string[]>([]);
+  const [dcShowCountdown, setDcShowCountdown] = useState(false);
+  const [dcEditId, setDcEditId] = useState<string | null>(null);
+  const [openDiscountCat, setOpenDiscountCat] = useState<string | null>("cart");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -702,11 +708,12 @@ export default function Dashboard() {
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap" as const, gap: 12 }}>
               <div>
                 <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Discount Codes</h1>
-                <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)" }}>Create promo codes your customers can use at checkout.</p>
+                <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)" }}>Create promo codes for cart, products, collections, or shipping.</p>
               </div>
-              <button onClick={() => { setShowDcForm(!showDcForm); if (showDcForm) { setDcCode(""); setDcValue(""); setDcMinOrder(""); setDcMaxUses(""); setDcExpires(""); setDcType("percentage"); } }} style={{ padding: "12px 24px", background: showDcForm ? "rgba(255,255,255,0.03)" : G, color: showDcForm ? "rgba(245,245,245,0.4)" : "#fff", border: showDcForm ? "1px solid rgba(255,255,255,0.06)" : "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{showDcForm ? "Cancel" : "+ New Code"}</button>
+              <button onClick={() => { if (showDcForm) { setShowDcForm(false); setDcEditId(null); } else { setDcCode(""); setDcValue(""); setDcMinOrder(""); setDcMaxUses(""); setDcExpires(""); setDcType("percentage"); setDcAppliesTo("cart"); setDcProductIds([]); setDcCollections([]); setDcShowCountdown(false); setDcEditId(null); setShowDcForm(true); } }} style={{ padding: "12px 24px", background: showDcForm ? "rgba(255,255,255,0.03)" : G, color: showDcForm ? "rgba(245,245,245,0.4)" : "#fff", border: showDcForm ? "1px solid rgba(255,255,255,0.06)" : "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{showDcForm ? "Cancel" : "+ New Code"}</button>
             </div>
 
+            {/* CREATE / EDIT FORM */}
             {showDcForm && (
               <div style={{ padding: "28px 24px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, marginBottom: 24 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -715,6 +722,16 @@ export default function Dashboard() {
                     <input type="text" value={dcCode} onChange={(e) => setDcCode(e.target.value.toUpperCase().replace(/\s/g, ""))} placeholder="e.g. WELCOME10" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 14, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", fontWeight: 700, letterSpacing: "0.04em" }} />
                   </div>
                   <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Applies To</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      {[{ k: "cart", l: "Cart" }, { k: "product", l: "Product" }, { k: "collection", l: "Collection" }, { k: "shipping", l: "Shipping" }].map((t) => (
+                        <button key={t.k} onClick={() => setDcAppliesTo(t.k)} style={{ padding: "10px", borderRadius: 8, background: dcAppliesTo === t.k ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.03)", border: dcAppliesTo === t.k ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: dcAppliesTo === t.k ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{t.l}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                  <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Type</label>
                     <div style={{ display: "flex", gap: 8 }}>
                       {[{ k: "percentage", l: "% Off" }, { k: "fixed", l: "R Off" }].map((t) => (
@@ -722,12 +739,12 @@ export default function Dashboard() {
                       ))}
                     </div>
                   </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Value</label>
                     <input type="number" value={dcValue} onChange={(e) => setDcValue(e.target.value)} placeholder={dcType === "percentage" ? "e.g. 10" : "e.g. 50"} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
                   </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Min Order (R)</label>
                     <input type="number" value={dcMinOrder} onChange={(e) => setDcMinOrder(e.target.value)} placeholder="0" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
@@ -741,49 +758,127 @@ export default function Dashboard() {
                     <input type="date" value={dcExpires} onChange={(e) => setDcExpires(e.target.value)} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
                   </div>
                 </div>
+
+                {/* PRODUCT SELECTOR */}
+                {dcAppliesTo === "product" && (
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 8, display: "block" }}>Select Products</label>
+                    <div style={{ maxHeight: 200, overflow: "auto", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, background: "rgba(255,255,255,0.02)" }}>
+                      {products.filter((p) => (p.status || "published") !== "trashed").map((p) => (
+                        <div key={p.id} onClick={() => setDcProductIds(dcProductIds.includes(p.id) ? dcProductIds.filter((x) => x !== p.id) : [...dcProductIds, p.id])} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.03)", background: dcProductIds.includes(p.id) ? "rgba(255,107,53,0.04)" : "transparent" }}>
+                          <div style={{ width: 18, height: 18, borderRadius: 4, border: dcProductIds.includes(p.id) ? "2px solid " + N : "1px solid rgba(255,255,255,0.12)", background: dcProductIds.includes(p.id) ? "rgba(255,107,53,0.15)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: N }}>{dcProductIds.includes(p.id) ? "\u2713" : ""}</div>
+                          {p.image_url ? <img src={p.image_url} alt="" style={{ width: 28, height: 28, borderRadius: 4, objectFit: "cover" }} /> : <div style={{ width: 28, height: 28, borderRadius: 4, background: "rgba(255,255,255,0.04)" }} />}
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</span>
+                          <span style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginLeft: "auto" }}>R{p.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {dcProductIds.length > 0 && <p style={{ fontSize: 11, color: N, marginTop: 6 }}>{dcProductIds.length} product{dcProductIds.length !== 1 ? "s" : ""} selected</p>}
+                  </div>
+                )}
+
+                {/* COLLECTION SELECTOR */}
+                {dcAppliesTo === "collection" && (
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 8, display: "block" }}>Select Collections</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      {storeCollections.map((col) => (
+                        <button key={col} onClick={() => setDcCollections(dcCollections.includes(col) ? dcCollections.filter((x) => x !== col) : [...dcCollections, col])} style={{ padding: "8px 16px", borderRadius: 100, background: dcCollections.includes(col) ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.03)", border: dcCollections.includes(col) ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: dcCollections.includes(col) ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{col}</button>
+                      ))}
+                    </div>
+                    {dcCollections.length > 0 && <p style={{ fontSize: 11, color: N, marginTop: 6 }}>{dcCollections.length} collection{dcCollections.length !== 1 ? "s" : ""} selected</p>}
+                  </div>
+                )}
+
+                {dcAppliesTo === "shipping" && (
+                  <div style={{ padding: "12px 16px", background: "rgba(251,191,36,0.04)", border: "1px solid rgba(251,191,36,0.1)", borderRadius: 10, marginBottom: 16, fontSize: 12, color: "#fbbf24" }}>Shipping discounts apply to delivery fees only. Discount cannot exceed the shipping cost.</div>
+                )}
+
+                {/* COUNTDOWN TOGGLE */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", marginBottom: 16 }}>
+                  <div><span style={{ fontSize: 13 }}>Show countdown timer on store</span><br /><span style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Display a countdown to expiry on product/collection pages</span></div>
+                  <button onClick={() => setDcShowCountdown(!dcShowCountdown)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: dcShowCountdown ? N : "rgba(255,255,255,0.08)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: dcShowCountdown ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
+                </div>
+
                 <button onClick={async () => {
                   if (!dcCode || !dcValue || !seller) return;
+                  if (dcAppliesTo === "product" && dcProductIds.length === 0) { alert("Please select at least one product"); return; }
+                  if (dcAppliesTo === "collection" && dcCollections.length === 0) { alert("Please select at least one collection"); return; }
                   setDcSaving(true);
-                  const { data, error } = await supabase.from("discount_codes").insert({
+                  const payload = {
                     seller_id: seller.id, code: dcCode.toUpperCase(), type: dcType,
                     value: parseFloat(dcValue), min_order: parseFloat(dcMinOrder) || 0,
                     max_uses: dcMaxUses ? parseInt(dcMaxUses) : null,
                     expires_at: dcExpires ? new Date(dcExpires).toISOString() : null,
-                  }).select().single();
-                  if (data) { setDiscountCodes([data, ...discountCodes]); setShowDcForm(false); setDcCode(""); setDcValue(""); setDcMinOrder(""); setDcMaxUses(""); setDcExpires(""); setDcType("percentage"); }
-                  if (error) alert("Error: " + error.message);
+                    applies_to: dcAppliesTo, product_ids: dcProductIds, collection_names: dcCollections,
+                    show_countdown: dcShowCountdown,
+                  };
+                  if (dcEditId) {
+                    const { error } = await supabase.from("discount_codes").update(payload).eq("id", dcEditId);
+                    if (!error) { setDiscountCodes(discountCodes.map((d) => d.id === dcEditId ? { ...d, ...payload } as DiscountCode : d)); setShowDcForm(false); setDcEditId(null); }
+                    else alert("Error: " + error.message);
+                  } else {
+                    const { data, error } = await supabase.from("discount_codes").insert(payload).select().single();
+                    if (data) { setDiscountCodes([data, ...discountCodes]); setShowDcForm(false); }
+                    if (error) alert("Error: " + error.message);
+                  }
                   setDcSaving(false);
-                }} disabled={dcSaving || !dcCode || !dcValue} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: dcSaving ? "not-allowed" : "pointer", opacity: (dcSaving || !dcCode || !dcValue) ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{dcSaving ? "Creating..." : "Create Discount Code"}</button>
+                }} disabled={dcSaving || !dcCode || !dcValue} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: dcSaving ? "not-allowed" : "pointer", opacity: (dcSaving || !dcCode || !dcValue) ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{dcSaving ? "Saving..." : dcEditId ? "Save Changes" : "Create Discount Code"}</button>
               </div>
             )}
 
-            {discountCodes.length === 0 && !showDcForm ? (
+            {/* COLLAPSIBLE CATEGORIES */}
+            {!showDcForm && discountCodes.length === 0 ? (
               <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}>
                 <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No discount codes yet</p>
                 <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Create your first code to start offering promotions.</p>
               </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {discountCodes.map((dc) => (
-                  <div key={dc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <div style={{ padding: "8px 16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontWeight: 800, fontSize: 14, letterSpacing: "0.06em", color: N }}>{dc.code}</div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700 }}>{dc.type === "percentage" ? dc.value + "% off" : "R" + dc.value + " off"}</div>
-                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>
-                          {dc.min_order > 0 ? "Min R" + dc.min_order + " " : ""}
-                          {dc.max_uses ? "Max " + dc.max_uses + " uses " : "Unlimited "}
-                          - Used {dc.used_count}x
-                          {dc.expires_at ? " - Expires " + new Date(dc.expires_at).toLocaleDateString() : ""}
+            ) : !showDcForm && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[{ key: "cart", label: "Cart / Order Discounts", desc: "Applies to entire cart total" }, { key: "product", label: "Product Discounts", desc: "Applies to specific products" }, { key: "collection", label: "Collection Discounts", desc: "Applies to product collections" }, { key: "shipping", label: "Shipping Discounts", desc: "Applies to delivery fees" }].map((cat) => {
+                  const catCodes = discountCodes.filter((dc) => (dc.applies_to || "cart") === cat.key);
+                  return (
+                    <div key={cat.key}>
+                      <button onClick={() => setOpenDiscountCat(openDiscountCat === cat.key ? null : cat.key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: openDiscountCat === cat.key ? "12px 12px 0 0" : 12, cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", margin: 0, color: "#f5f5f5" }}>{cat.label}</h3>
+                          <span style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>({catCodes.length})</span>
                         </div>
-                      </div>
+                        <span style={{ fontSize: 14, color: "rgba(245,245,245,0.3)", transition: "transform 0.2s", transform: openDiscountCat === cat.key ? "rotate(180deg)" : "rotate(0)" }}>{"\u25BC"}</span>
+                      </button>
+                      {openDiscountCat === cat.key && (
+                        <div style={{ border: "1px solid rgba(255,255,255,0.05)", borderTop: "none", borderRadius: "0 0 12px 12px", background: "rgba(255,255,255,0.01)" }}>
+                          {catCodes.length === 0 ? (
+                            <p style={{ padding: "20px 18px", fontSize: 12, color: "rgba(245,245,245,0.2)" }}>No {cat.label.toLowerCase()} created yet.</p>
+                          ) : catCodes.map((dc) => (
+                            <div key={dc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.03)", flexWrap: "wrap" as const, gap: 10 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <div style={{ padding: "6px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, fontWeight: 800, fontSize: 13, letterSpacing: "0.06em", color: N }}>{dc.code}</div>
+                                <div>
+                                  <div style={{ fontSize: 13, fontWeight: 700 }}>{dc.type === "percentage" ? dc.value + "% off" : "R" + dc.value + " off"}</div>
+                                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 2 }}>
+                                    {dc.min_order > 0 ? "Min R" + dc.min_order + " " : ""}
+                                    {dc.max_uses ? "Max " + dc.max_uses + " uses " : "Unlimited "}
+                                    - Used {dc.used_count}x
+                                    {dc.expires_at ? " - Exp " + new Date(dc.expires_at).toLocaleDateString() : ""}
+                                    {dc.product_ids?.length > 0 ? " - " + dc.product_ids.length + " products" : ""}
+                                    {dc.collection_names?.length > 0 ? " - " + dc.collection_names.join(", ") : ""}
+                                    {dc.show_countdown ? " - Countdown ON" : ""}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                <button onClick={() => { setDcEditId(dc.id); setDcCode(dc.code); setDcType(dc.type); setDcValue(String(dc.value)); setDcMinOrder(dc.min_order > 0 ? String(dc.min_order) : ""); setDcMaxUses(dc.max_uses ? String(dc.max_uses) : ""); setDcExpires(dc.expires_at ? dc.expires_at.split("T")[0] : ""); setDcAppliesTo(dc.applies_to || "cart"); setDcProductIds(dc.product_ids || []); setDcCollections(dc.collection_names || []); setDcShowCountdown(dc.show_countdown || false); setShowDcForm(true); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif" }}>Edit</button>
+                                <button onClick={async () => { await supabase.from("discount_codes").update({ active: !dc.active }).eq("id", dc.id); setDiscountCodes(discountCodes.map((d) => d.id === dc.id ? { ...d, active: !d.active } : d)); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: dc.active ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", color: dc.active ? "#22c55e" : "rgba(245,245,245,0.25)" }}>{dc.active ? "Active" : "Off"}</button>
+                                <button onClick={async () => { if (!confirm("Delete this discount code?")) return; await supabase.from("discount_codes").delete().eq("id", dc.id); setDiscountCodes(discountCodes.filter((d) => d.id !== dc.id)); }} style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <button onClick={async () => { await supabase.from("discount_codes").update({ active: !dc.active }).eq("id", dc.id); setDiscountCodes(discountCodes.map((d) => d.id === dc.id ? { ...d, active: !d.active } : d)); }} style={{ padding: "6px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: dc.active ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", color: dc.active ? "#22c55e" : "rgba(245,245,245,0.25)" }}>{dc.active ? "Active" : "Disabled"}</button>
-                      <button onClick={async () => { if (!confirm("Delete this discount code?")) return; await supabase.from("discount_codes").delete().eq("id", dc.id); setDiscountCodes(discountCodes.filter((d) => d.id !== dc.id)); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>)}
