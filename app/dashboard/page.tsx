@@ -732,26 +732,32 @@ export default function Dashboard() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Type</label>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {[{ k: "percentage", l: "% Off" }, { k: "fixed", l: "R Off" }].map((t) => (
-                        <button key={t.k} onClick={() => setDcType(t.k)} style={{ flex: 1, padding: "12px", borderRadius: 10, background: dcType === t.k ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.03)", border: dcType === t.k ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: dcType === t.k ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{t.l}</button>
-                      ))}
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Discount Amount</label>
+                    <div style={{ display: "flex", gap: 0, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, overflow: "hidden" }}>
+                      <div style={{ display: "flex" }}>
+                        {[{ k: "percentage", l: "%" }, { k: "fixed", l: "R" }].map((t) => (
+                          <button key={t.k} onClick={() => { setDcType(t.k); if (t.k === "percentage" && parseFloat(dcValue) > 100) setDcValue("100"); }} style={{ padding: "12px 16px", background: dcType === t.k ? "rgba(255,107,53,0.12)" : "rgba(255,255,255,0.03)", border: "none", borderRight: "1px solid rgba(255,255,255,0.06)", color: dcType === t.k ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>{t.l}</button>
+                        ))}
+                      </div>
+                      <input type="text" inputMode="numeric" value={dcValue} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); if (dcType === "percentage" && parseFloat(v) > 100) { setDcValue("100"); return; } setDcValue(v); }} placeholder={dcType === "percentage" ? "e.g. 10" : "e.g. 50"} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "none", color: "#f5f5f5", fontSize: 14, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", fontWeight: 600 }} />
                     </div>
+                    {dcType === "percentage" && <p style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 4 }}>Max 100%</p>}
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Value</label>
-                    <input type="number" value={dcValue} onChange={(e) => setDcValue(e.target.value)} placeholder={dcType === "percentage" ? "e.g. 10" : "e.g. 50"} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Preview</label>
+                    <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, fontSize: 16, fontWeight: 800, color: dcValue ? N : "rgba(245,245,245,0.15)" }}>
+                      {dcValue ? (dcType === "percentage" ? dcValue + "% OFF" : "R" + dcValue + " OFF") : "Set amount"}
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Min Order (R)</label>
-                    <input type="number" value={dcMinOrder} onChange={(e) => setDcMinOrder(e.target.value)} placeholder="0" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    <input type="text" inputMode="numeric" value={dcMinOrder} onChange={(e) => setDcMinOrder(e.target.value.replace(/[^0-9]/g, ""))} placeholder="0" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
                   </div>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Max Uses</label>
-                    <input type="number" value={dcMaxUses} onChange={(e) => setDcMaxUses(e.target.value)} placeholder="Unlimited" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    <input type="text" inputMode="numeric" value={dcMaxUses} onChange={(e) => setDcMaxUses(e.target.value.replace(/[^0-9]/g, ""))} placeholder="Unlimited" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
                   </div>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Expires</label>
@@ -802,6 +808,9 @@ export default function Dashboard() {
 
                 <button onClick={async () => {
                   if (!dcCode || !dcValue || !seller) return;
+                  if (dcType === "percentage" && parseFloat(dcValue) > 100) { alert("Percentage cannot exceed 100%"); return; }
+                  if (dcType === "percentage" && parseFloat(dcValue) <= 0) { alert("Discount must be greater than 0"); return; }
+                  if (dcType === "fixed" && parseFloat(dcValue) <= 0) { alert("Discount amount must be greater than R0"); return; }
                   if (dcAppliesTo === "product" && dcProductIds.length === 0) { alert("Please select at least one product"); return; }
                   if (dcAppliesTo === "collection" && dcCollections.length === 0) { alert("Please select at least one collection"); return; }
                   setDcSaving(true);

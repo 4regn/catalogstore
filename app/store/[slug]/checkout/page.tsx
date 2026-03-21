@@ -110,8 +110,8 @@ export default function CheckoutPage() {
   const applyDiscount = async () => {
     if (!discountCode.trim() || !seller) return;
     setApplyingDiscount(true); setDiscountError("");
-    const { data } = await supabase.from("discount_codes").select("*").eq("seller_id", seller.id).ilike("code", discountCode.trim()).eq("active", true).single();
-    if (!data) { setDiscountError("Invalid discount code"); setApplyingDiscount(false); return; }
+    const { data, error: dcErr } = await supabase.from("discount_codes").select("*").eq("seller_id", seller.id).eq("code", discountCode.trim().toUpperCase()).eq("active", true).single();
+    if (!data || dcErr) { setDiscountError("Invalid discount code"); setApplyingDiscount(false); return; }
     if (data.expires_at && new Date(data.expires_at) < new Date()) { setDiscountError("This code has expired"); setApplyingDiscount(false); return; }
     if (data.max_uses && data.used_count >= data.max_uses) { setDiscountError("This code has reached its usage limit"); setApplyingDiscount(false); return; }
     if (data.min_order > 0 && subtotal < data.min_order) { setDiscountError("Minimum order of R" + data.min_order + " required"); setApplyingDiscount(false); return; }
@@ -157,7 +157,7 @@ export default function CheckoutPage() {
 
       // Increment discount code usage
       if (discountApplied && seller) {
-        const { data: dc } = await supabase.from("discount_codes").select("id, used_count").eq("seller_id", seller.id).ilike("code", discountApplied.code).single();
+        const { data: dc } = await supabase.from("discount_codes").select("id, used_count").eq("seller_id", seller.id).eq("code", discountApplied.code.toUpperCase()).single();
         if (dc) await supabase.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
       }
 
