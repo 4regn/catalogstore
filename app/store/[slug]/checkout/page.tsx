@@ -25,6 +25,7 @@ export default function CheckoutPage() {
   const slug = params.slug as string;
   const [seller, setSeller] = useState<Seller | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [sellerProducts, setSellerProducts] = useState<{ id: string; name: string; category: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [email, setEmail] = useState("");
@@ -46,7 +47,7 @@ export default function CheckoutPage() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [discountCode, setDiscountCode] = useState("");
-  const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number } | null>(null);
+  const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
 
@@ -54,7 +55,11 @@ export default function CheckoutPage() {
 
   const load = async () => {
     const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
-    if (sd) setSeller(sd);
+    if (sd) {
+      setSeller(sd);
+      const { data: prods } = await supabase.from("products").select("id, name, category").eq("seller_id", sd.id);
+      if (prods) setSellerProducts(prods);
+    }
     try { const p = new URLSearchParams(window.location.search); const c = JSON.parse(atob(p.get("cart") || "")); if (Array.isArray(c)) setCart(c); } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
     if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
@@ -66,8 +71,40 @@ export default function CheckoutPage() {
   const accent = seller?.primary_color || "#9c7c62";
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const shipping = fulfillment === "pickup" ? 0 : (cc.shipping_options?.[shippingOption]?.price || 0);
-  const discountAmount = discountApplied ? (discountApplied.type === "percentage" ? subtotal * (discountApplied.value / 100) : discountApplied.value) : 0;
-  const total = Math.max(0, subtotal - discountAmount + shipping);
+
+  // Calculate discount based on type
+  const calcDiscount = () => {
+    if (!discountApplied) return 0;
+    const da = discountApplied;
+
+    if (da.applies_to === "cart") {
+      return da.type === "percentage" ? subtotal * (da.value / 100) : Math.min(da.value, subtotal);
+    }
+
+    if (da.applies_to === "product") {
+      // Match product IDs to names using sellerProducts lookup
+      const eligibleNames = sellerProducts.filter((p) => da.product_ids?.includes(p.id)).map((p) => p.name.toLowerCase());
+      const eligibleTotal = cart.filter((i) => eligibleNames.includes(i.name.toLowerCase())).reduce((s, i) => s + i.price * i.qty, 0);
+      return da.type === "percentage" ? eligibleTotal * (da.value / 100) : Math.min(da.value, eligibleTotal);
+    }
+
+    if (da.applies_to === "collection") {
+      // Match collection names to products, then match cart items
+      const eligibleNames = sellerProducts.filter((p) => da.collection_names?.includes(p.category)).map((p) => p.name.toLowerCase());
+      const eligibleTotal = cart.filter((i) => eligibleNames.includes(i.name.toLowerCase())).reduce((s, i) => s + i.price * i.qty, 0);
+      return da.type === "percentage" ? eligibleTotal * (da.value / 100) : Math.min(da.value, eligibleTotal);
+    }
+
+    if (da.applies_to === "shipping") {
+      const shippingDisc = da.type === "percentage" ? shipping * (da.value / 100) : Math.min(da.value, shipping);
+      return Math.min(shippingDisc, shipping); // Can never exceed shipping cost
+    }
+
+    return 0;
+  };
+  const discountAmount = calcDiscount();
+  const isShippingDiscount = discountApplied?.applies_to === "shipping";
+  const total = isShippingDiscount ? Math.max(0, subtotal + shipping - discountAmount) : Math.max(0, subtotal - discountAmount + shipping);
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
 
   const applyDiscount = async () => {
@@ -78,7 +115,18 @@ export default function CheckoutPage() {
     if (data.expires_at && new Date(data.expires_at) < new Date()) { setDiscountError("This code has expired"); setApplyingDiscount(false); return; }
     if (data.max_uses && data.used_count >= data.max_uses) { setDiscountError("This code has reached its usage limit"); setApplyingDiscount(false); return; }
     if (data.min_order > 0 && subtotal < data.min_order) { setDiscountError("Minimum order of R" + data.min_order + " required"); setApplyingDiscount(false); return; }
-    setDiscountApplied({ code: data.code, type: data.type, value: data.value });
+    if ((data.applies_to === "product") && data.product_ids?.length > 0) {
+      const eligibleNames = sellerProducts.filter((p) => data.product_ids.includes(p.id)).map((p) => p.name.toLowerCase());
+      const hasEligible = cart.some((i) => eligibleNames.includes(i.name.toLowerCase()));
+      if (!hasEligible) { setDiscountError("No eligible products in your cart for this code"); setApplyingDiscount(false); return; }
+    }
+    if ((data.applies_to === "collection") && data.collection_names?.length > 0) {
+      const eligibleNames = sellerProducts.filter((p) => data.collection_names.includes(p.category)).map((p) => p.name.toLowerCase());
+      const hasEligible = cart.some((i) => eligibleNames.includes(i.name.toLowerCase()));
+      if (!hasEligible) { setDiscountError("No products from eligible collections in your cart"); setApplyingDiscount(false); return; }
+    }
+    if (data.applies_to === "shipping" && shipping === 0) { setDiscountError("No shipping fee to discount"); setApplyingDiscount(false); return; }
+    setDiscountApplied({ code: data.code, type: data.type, value: data.value, applies_to: data.applies_to || "cart", product_ids: data.product_ids || [], collection_names: data.collection_names || [] });
     setApplyingDiscount(false);
   };
 
@@ -294,7 +342,7 @@ export default function CheckoutPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ color: "#22c55e", fontSize: 14 }}>&#10003;</span>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{discountApplied.code}</span>
-                  <span style={{ fontSize: 13, color: "#8a8690" }}>{discountApplied.type === "percentage" ? discountApplied.value + "% off" : "R" + discountApplied.value + " off"}</span>
+                  <span style={{ fontSize: 13, color: "#8a8690" }}>{discountApplied.type === "percentage" ? discountApplied.value + "% off" : "R" + discountApplied.value + " off"} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span>
                 </div>
                 <button onClick={() => { setDiscountApplied(null); setDiscountCode(""); }} style={{ background: "none", border: "none", color: "#8a8690", fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: "'Jost', sans-serif" }}>Remove</button>
               </div>
@@ -372,7 +420,7 @@ export default function CheckoutPage() {
           ))}
           <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", paddingTop: 16, marginTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#8a8690" }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{subtotal.toFixed(0)}</span></div>
-            {discountApplied && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
+            {discountApplied && discountAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#8a8690" }}><span>Shipping</span><span>{shipping === 0 ? (fulfillment === "pickup" ? "Pickup" : "Free") : "R" + shipping}</span></div>
           </div>
           <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
