@@ -160,8 +160,8 @@ export default function BillingPage() {
           {PLANS.map((plan) => {
             const isCurrent = isActive && seller?.subscription_plan === plan.id;
             return (
-              <div key={plan.id} style={{ padding: "32px 28px", background: plan.id === "pro" ? "rgba(255,107,53,0.03)" : "rgba(255,255,255,0.02)", border: plan.id === "pro" ? "2px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 20, position: "relative", display: "flex", flexDirection: "column" }}>
-                {plan.id === "pro" && <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", padding: "4px 20px", background: G, borderRadius: 100, fontSize: 9, fontWeight: 800, color: "#fff", letterSpacing: "0.1em", textTransform: "uppercase" }}>Most Popular</div>}
+              <div key={plan.id} style={{ padding: "32px 28px", background: plan.id === "pro" ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.02)", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 20, position: "relative", display: "flex", flexDirection: "column", opacity: plan.id === "pro" ? 0.5 : 1 }}>
+                {plan.id === "pro" && <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", padding: "4px 20px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 100, fontSize: 9, fontWeight: 800, color: "rgba(245,245,245,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Coming Soon</div>}
 
                 <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 16, color: plan.id === "pro" ? N : "rgba(245,245,245,0.5)" }}>{plan.name}</div>
 
@@ -198,7 +198,7 @@ export default function BillingPage() {
                 ) : isActive && plan.id === "starter" ? (
                   <div style={{ padding: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 700, color: "rgba(245,245,245,0.25)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Downgrade</div>
                 ) : (
-                  <button onClick={() => subscribePlan(plan.id)} disabled={processing} style={{ padding: "16px", background: plan.id === "pro" ? G : "#f5f5f5", color: plan.id === "pro" ? "#fff" : "#030303", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : plan.id === "starter" ? "Start 7-Day Free Trial" : "Start with Pro"}</button>
+                  <button onClick={() => { if (plan.id === "pro") return; subscribePlan(plan.id); }} disabled={processing || plan.id === "pro"} style={{ padding: "16px", background: plan.id === "pro" ? "rgba(255,255,255,0.05)" : "#f5f5f5", color: plan.id === "pro" ? "rgba(245,245,245,0.25)" : "#030303", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.08)" : "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: plan.id === "pro" ? "not-allowed" : processing ? "not-allowed" : "pointer", opacity: (processing && plan.id !== "pro") ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{plan.id === "pro" ? "Coming Soon" : processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : "Start 7-Day Free Trial"}</button>
                 )}
               </div>
             );

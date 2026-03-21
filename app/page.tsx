@@ -123,11 +123,12 @@ export default function Home() {
           </div>
           <div className="pricing-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 3, maxWidth: 800, margin: "0 auto" }}>
             {[
-              { name: "Starter", price: "R49", fullPrice: "R99", period: "/mo", promo: "First month only, then R99/mo", features: ["15 Products", "5 Images Per Product", "5 Collections", "2 Templates", "Store Editor", "All Payment Methods", "WhatsApp Checkout", "Subdomain Included"], hot: false, btn: "Start with Starter", radius: "20px 4px 4px 20px" },
-              { name: "Pro", price: "R249", fullPrice: null, period: "/mo", promo: null, features: ["100 Products", "20 Images Per Product", "20 Collections", "All Templates (Current + Future)", "Custom Domain Support", "No 'Powered by CatalogStore'", "Priority Support", "Everything in Starter"], hot: true, btn: "Start with Pro", radius: "4px 20px 20px 4px" },
+              { name: "Starter", price: "R49", fullPrice: "R99", period: "/mo", promo: "First month only, then R99/mo", features: ["15 Products", "5 Images Per Product", "5 Collections", "2 Templates", "Store Editor", "All Payment Methods", "WhatsApp Checkout", "Subdomain Included"], hot: false, locked: false, btn: "Start with Starter", radius: "20px 4px 4px 20px" },
+              { name: "Pro", price: "R249", fullPrice: null, period: "/mo", promo: null, features: ["100 Products", "20 Images Per Product", "20 Collections", "All Templates (Current + Future)", "Custom Domain Support", "No 'Powered by CatalogStore'", "Priority Support", "Everything in Starter"], hot: false, locked: true, btn: "Coming Soon", radius: "4px 20px 20px 4px" },
             ].map((plan) => (
-              <div key={plan.name} style={{ padding: "40px 28px", background: plan.hot ? "var(--neon-soft)" : "var(--glass)", border: plan.hot ? "2px solid rgba(255,107,53,0.15)" : "1px solid var(--glass-b)", borderRadius: plan.radius, position: "relative" as const, display: "flex", flexDirection: "column" }}>
+              <div key={plan.name} style={{ padding: "40px 28px", background: plan.hot ? "var(--neon-soft)" : "var(--glass)", border: plan.hot ? "2px solid rgba(255,107,53,0.15)" : "1px solid var(--glass-b)", borderRadius: plan.radius, position: "relative" as const, display: "flex", flexDirection: "column", opacity: plan.locked ? 0.45 : 1 }}>
                 {plan.hot && <div style={{ position: "absolute" as const, top: -12, left: "50%", transform: "translateX(-50%)", padding: "4px 20px", background: "var(--grad)", borderRadius: 100, fontSize: 9, fontWeight: 800, color: "#fff", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Most Popular</div>}
+                {plan.locked && <div style={{ position: "absolute" as const, top: -12, left: "50%", transform: "translateX(-50%)", padding: "4px 20px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 100, fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Coming Soon</div>}
                 <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.12em", color: plan.hot ? "var(--neon)" : "var(--text-dim)", fontWeight: 800, marginBottom: 20 }}>{plan.name}</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
                   <span style={{ fontSize: 52, fontWeight: 900, letterSpacing: "-0.05em" }}>{plan.price}</span>
@@ -143,12 +144,14 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <a href="/signup" style={{
+                <a href={plan.locked ? "#" : "/signup"} onClick={(e) => { if (plan.locked) e.preventDefault(); }} style={{
                   display: "block", width: "100%", padding: 16, borderRadius: 100, textAlign: "center" as const, textDecoration: "none",
                   fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" as const,
-                  background: plan.hot ? "var(--grad)" : "#f5f5f5",
-                  color: plan.hot ? "#fff" : "#030303",
+                  background: plan.locked ? "rgba(255,255,255,0.04)" : plan.hot ? "var(--grad)" : "#f5f5f5",
+                  color: plan.locked ? "rgba(255,255,255,0.25)" : plan.hot ? "#fff" : "#030303",
+                  border: plan.locked ? "1px solid rgba(255,255,255,0.08)" : "none",
                   boxShadow: plan.hot ? "0 0 30px rgba(255,107,53,0.15)" : "none",
+                  cursor: plan.locked ? "not-allowed" : "pointer",
                 }}>{plan.btn}</a>
               </div>
             ))}
