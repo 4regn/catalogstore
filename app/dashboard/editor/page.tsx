@@ -22,7 +22,7 @@ interface Product {
   image_url: string | null; images: string[]; in_stock: boolean;
 }
 
-const DEFAULTS: StoreConfig = { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "â˜…", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "âœˆ", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "â†º", title: "Easy Returns", desc: "14-day policy" }, { icon: "âš¡", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }] };
+const DEFAULTS: StoreConfig = { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "★", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "✈", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "↺", title: "Easy Returns", desc: "14-day policy" }, { icon: "⚡", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }] };
 
 type Section = "visibility" | "branding" | "announcement" | "marquee" | "trust" | "policies" | "social" | "info";
 
@@ -33,6 +33,7 @@ export default function StoreEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
   const [activeSection, setActiveSection] = useState<Section>("visibility");
   const [mobileMode, setMobileMode] = useState<"edit" | "preview">("preview");
 
@@ -77,7 +78,7 @@ export default function StoreEditor() {
     await supabase.from("sellers").update({ tagline, description, primary_color: primaryColor, logo_url: logoUrl, banner_url: bannerUrl, social_links: social, store_config: fullCfg }).eq("id", seller.id);
     setSeller({ ...seller, tagline, description, primary_color: primaryColor, logo_url: logoUrl, banner_url: bannerUrl, social_links: social, store_config: fullCfg });
     setLogoFile(null); setBannerFile(null); setLogoPreview(logoUrl); setBannerPreview(bannerUrl);
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 3000);
+    setSaving(false); setSaved(true); setPreviewKey((k) => k + 1); setTimeout(() => setSaved(false), 3000);
   };
 
   const editSection = (s: Section) => { setActiveSection(s); setMobileMode("edit"); };
@@ -172,7 +173,7 @@ export default function StoreEditor() {
               {cfg.trust_items.length > 1 && <button onClick={() => setCfg({ ...cfg, trust_items: cfg.trust_items.filter((_,idx) => idx !== i) })} style={{ width: 24, height: 24, borderRadius: 6, background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>&times;</button>}
             </div>
           </div>))}
-          {cfg.trust_items.length < 6 && <button onClick={() => setCfg({ ...cfg, trust_items: [...cfg.trust_items, { icon: "âœ¦", title: "", desc: "" }] })} style={{ padding: "6px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif" }}>+ Add Item</button>}
+          {cfg.trust_items.length < 6 && <button onClick={() => setCfg({ ...cfg, trust_items: [...cfg.trust_items, { icon: "✦", title: "", desc: "" }] })} style={{ padding: "6px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif" }}>+ Add Item</button>}
         </div>)}
 
         {activeSection === "policies" && (<div>
@@ -198,142 +199,17 @@ export default function StoreEditor() {
   );
 
   const previewPanel = (
-    <div style={{ background: "#f6f3ef", fontFamily: "'Jost', sans-serif", color: "#2a2a2e", minHeight: "100%" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Jost:wght@300;400;500;600;700&display=swap');@keyframes mscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}.edit-badge{opacity:0;transition:opacity 0.2s}div:hover>.edit-badge{opacity:1}`}</style>
-
-      {/* ANNOUNCEMENT */}
-      <Editable section="announcement" visible={!!announcement}>
-        <div style={{ background: "#2a2a2e", color: "#f6f3ef", textAlign: "center", padding: "10px 20px", fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase" }}>{announcement || "Your announcement here"}</div>
-      </Editable>
-
-      {/* HEADER */}
-      <Editable section="branding">
-        <div style={{ background: "rgba(246,243,239,0.92)", borderBottom: "1px solid rgba(0,0,0,0.06)", padding: "0 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
-            <div />
-            {logoSrc ? <img src={logoSrc} alt="" style={{ height: 40, maxWidth: 140, objectFit: "contain" }} /> : <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>{seller?.store_name}</span>}
-            <span style={{ fontSize: 13, color: "#8a8690" }}>Bag</span>
-          </div>
-        </div>
-      </Editable>
-
-      {/* MARQUEE */}
-      <Editable section="marquee" visible={cfg.show_marquee}>
-        <div style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-          <div style={{ display: "inline-flex", animation: "mscroll 30s linear infinite" }}>
-            {[...Array(2)].map((_, r) => cfg.marquee_texts.map((txt, i) => (
-              <span key={r + "-" + i} style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: "italic", color: "#8a8690", letterSpacing: "0.08em", padding: "0 40px" }}>{txt || "..."} <em style={{ fontStyle: "normal", color: accent }}>&bull;</em></span>
-            )))}
-          </div>
-        </div>
-      </Editable>
-
-      {/* HERO */}
-      <Editable section="branding">
-        <div style={{ position: "relative", height: bannerSrc ? 400 : "auto", overflow: "hidden" }}>
-          {bannerSrc ? (
-            <>
-              <img src={bannerSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
-              {cfg.show_banner_text && (
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 30%, rgba(42,42,46,0.4))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "0 24px 48px", textAlign: "center" }}>
-                  {tagline && <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)", marginBottom: 12 }}>{tagline}</div>}
-                  <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 48, fontWeight: 300, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.1, marginBottom: 16 }}>{seller?.store_name}</h1>
-                  <div style={{ padding: "14px 40px", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 100, color: "#fff", fontSize: 11, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>Shop the Collection</div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ textAlign: "center", padding: "60px 24px 40px" }}>
-              <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 48, fontWeight: 300, letterSpacing: "0.04em", marginBottom: 8 }}>{seller?.store_name}</h1>
-              {tagline && <p style={{ fontSize: 14, color: "#8a8690", letterSpacing: "0.1em", textTransform: "uppercase" }}>{tagline}</p>}
-            </div>
-          )}
-        </div>
-      </Editable>
-
-      {/* COLLECTIONS */}
-      <Editable section="visibility" visible={cfg.show_collections && collections.length > 0}>
-        <div style={{ padding: "60px 24px", maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "#b5b1ac", marginBottom: 8, textAlign: "center" }}>Curated For You</div>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, textAlign: "center", marginBottom: 32 }}>Shop by Collection</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(collections.length, 3) + ", 1fr)", gap: 12 }}>
-            {collections.slice(0, 3).map((col, i) => {
-              const img = products.find((p) => p.category === col && p.image_url);
-              return <div key={col} style={{ position: "relative", aspectRatio: "3/4", borderRadius: 14, overflow: "hidden", background: "#d4c5b5" }}>
-                {img?.image_url && <img src={img.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "24px 20px", background: "linear-gradient(transparent, rgba(42,42,46,0.5))" }}>
-                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: "#fff" }}>{col}</div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{products.filter((p) => p.category === col).length} pieces</div>
-                </div>
-              </div>;
-            })}
-          </div>
-        </div>
-      </Editable>
-
-      {/* PRODUCTS */}
-      <div style={{ padding: "60px 24px", maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "#b5b1ac", marginBottom: 8, textAlign: "center" }}>The Collection</div>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, textAlign: "center", marginBottom: 32 }}>All Products</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          {products.slice(0, 6).map((p) => (
-            <div key={p.id}>
-              <div style={{ aspectRatio: "3/4", borderRadius: 14, overflow: "hidden", background: "#e0d5ca", marginBottom: 10 }}>
-                {p.image_url && <img src={p.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-              </div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, marginBottom: 2 }}>{p.name}</div>
-              <div style={{ fontSize: 13, color: accent, fontWeight: 500 }}>R{p.price}</div>
-            </div>
-          ))}
-        </div>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <iframe
+        key={previewKey}
+        src={"/store/" + seller?.subdomain}
+        style={{ width: "100%", height: "100%", border: "none" }}
+        title="Store Preview"
+      />
+      <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 8 }}>
+        <button onClick={() => setPreviewKey((k) => k + 1)} style={{ padding: "6px 14px", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 100, color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif", letterSpacing: "0.06em", textTransform: "uppercase" }}>Refresh</button>
+        <a href={"/store/" + seller?.subdomain} target="_blank" style={{ padding: "6px 14px", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 100, color: "#fff", fontSize: 10, fontWeight: 700, textDecoration: "none", fontFamily: "'Schibsted Grotesk', sans-serif", letterSpacing: "0.06em", textTransform: "uppercase" }}>Open</a>
       </div>
-
-      {/* ABOUT */}
-      <Editable section="info" visible={cfg.show_about && !!description}>
-        <div style={{ padding: "60px 24px", maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, alignItems: "center" }}>
-          <div style={{ aspectRatio: "4/5", borderRadius: 14, overflow: "hidden", background: "#d4c5b5" }}>
-            {bannerSrc && <img src={bannerSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-          </div>
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "#b5b1ac", marginBottom: 8 }}>Our Story</div>
-            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, marginBottom: 16, lineHeight: 1.2 }}>About {seller?.store_name}</h2>
-            <p style={{ fontSize: 14, lineHeight: 1.8, color: "#8a8690", fontWeight: 300 }}>{description}</p>
-          </div>
-        </div>
-      </Editable>
-
-      {/* TRUST BAR */}
-      <Editable section="trust" visible={cfg.show_trust_bar}>
-        <div style={{ padding: "48px 24px", maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(" + cfg.trust_items.length + ", 1fr)", gap: 16, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-          {cfg.trust_items.map((item, i) => (
-            <div key={i} style={{ textAlign: "center", padding: 16 }}>
-              <div style={{ fontSize: 22, marginBottom: 8, color: accent }}>{item.icon}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{item.title}</div>
-              <div style={{ fontSize: 11, color: "#b5b1ac" }}>{item.desc}</div>
-            </div>
-          ))}
-        </div>
-      </Editable>
-
-      {/* POLICIES */}
-      <Editable section="policies" visible={cfg.show_policies}>
-        <div style={{ padding: "60px 24px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, marginBottom: 32 }}>Shipping & Policies</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cfg.policy_items.length + ", 1fr)", gap: 24, textAlign: "left" }}>
-            {cfg.policy_items.map((p, i) => (
-              <div key={i}><h4 style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8, color: accent }}>{p.title}</h4><p style={{ fontSize: 12, lineHeight: 1.7, color: "#8a8690" }}>{p.desc}</p></div>
-            ))}
-          </div>
-        </div>
-      </Editable>
-
-      {/* FOOTER */}
-      <Editable section="social">
-        <div style={{ background: "#2a2a2e", color: "#f6f3ef", padding: "40px 24px 24px", textAlign: "center" }}>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>{seller?.store_name}</div>
-          <p style={{ fontSize: 11, color: "rgba(246,243,239,0.3)" }}>Powered by CatalogStore</p>
-        </div>
-      </Editable>
     </div>
   );
 
@@ -377,7 +253,7 @@ export default function StoreEditor() {
           )}
 
           {/* PREVIEW */}
-          <div className="editor-preview" style={{ flex: 1, overflow: "auto", background: "#f6f3ef" }}>
+          <div className="editor-preview" style={{ flex: 1, overflow: "auto", background: "#111" }}>
             {/* Mobile: hide preview when in edit mode */}
             <style>{`@media(max-width:900px){.editor-preview{display:${mobileMode === "preview" ? "block" : "none"}!important}.mobile-edit-show{display:${mobileMode === "edit" ? "flex" : "none"}!important}}`}</style>
             {previewPanel}

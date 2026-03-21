@@ -38,6 +38,7 @@ export default function GlassChromeStore() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(5);
+  const [openFooterInfo, setOpenFooterInfo] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -347,7 +348,6 @@ export default function GlassChromeStore() {
                 {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 36, objectFit: "contain", marginBottom: 16 }} /> : <div style={{ fontFamily: display, fontSize: 36, letterSpacing: "0.08em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 16, textTransform: "uppercase" }}>{seller?.store_name}</div>}
                 {seller?.description && <p style={{ fontSize: 13, color: "rgba(255,255,255,0.28)", fontWeight: 300, maxWidth: 220, lineHeight: 1.7, marginBottom: 28 }}>{seller.description.substring(0, 120)}{seller.description.length > 120 ? "..." : ""}</p>}
                 <div style={{ display: "flex", gap: 12 }}>
-                  {seller?.whatsapp_number && <a href={waLink} target="_blank" style={{ width: 36, height: 36, border: "1px solid " + PB, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", fontFamily: mono, fontSize: 11, letterSpacing: "0.05em", textDecoration: "none" }}>WA</a>}
                   {social.instagram && <a href={social.instagram} target="_blank" style={{ width: 36, height: 36, border: "1px solid " + PB, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", fontFamily: mono, fontSize: 11, textDecoration: "none" }}>IG</a>}
                   {social.tiktok && <a href={social.tiktok} target="_blank" style={{ width: 36, height: 36, border: "1px solid " + PB, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", fontFamily: mono, fontSize: 11, textDecoration: "none" }}>TK</a>}
                   {social.facebook && <a href={social.facebook} target="_blank" style={{ width: 36, height: 36, border: "1px solid " + PB, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", fontFamily: mono, fontSize: 11, textDecoration: "none" }}>FB</a>}
@@ -359,7 +359,22 @@ export default function GlassChromeStore() {
               </div>
               <div>
                 <h5 style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 600, marginBottom: 20 }}>Info</h5>
-                {["About", "Shipping", "Returns", "Contact"].map((l) => <div key={l} style={{ fontSize: 13, color: "rgba(255,255,255,0.28)", marginBottom: 12, fontWeight: 300, cursor: "pointer" }}>{l}</div>)}
+                {[
+                  { key: "about", label: "About", content: seller?.description || "No description yet." },
+                  { key: "shipping", label: "Shipping", content: policyItems.find((p) => p.title.toLowerCase() === "shipping")?.desc || "Contact us for shipping info." },
+                  { key: "returns", label: "Returns", content: policyItems.find((p) => p.title.toLowerCase() === "returns")?.desc || "Contact us for return info." },
+                  { key: "contact", label: "Contact", content: (seller?.whatsapp_number ? "WhatsApp: " + seller.whatsapp_number : "") + (social.instagram ? "\nInstagram: " + social.instagram : "") },
+                ].map((item) => (
+                  <div key={item.key} style={{ marginBottom: 4 }}>
+                    <button onClick={() => setOpenFooterInfo(openFooterInfo === item.key ? null : item.key)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontFamily: body, color: openFooterInfo === item.key ? "#f0f0f0" : "rgba(255,255,255,0.28)", fontSize: 13, fontWeight: openFooterInfo === item.key ? 500 : 300, textAlign: "left" as const }}>
+                      {item.label}
+                      <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", transition: "transform 0.2s", transform: openFooterInfo === item.key ? "rotate(180deg)" : "rotate(0)" }}>{"\u25BC"}</span>
+                    </button>
+                    {openFooterInfo === item.key && (
+                      <div style={{ padding: "8px 0 16px", fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.7, fontWeight: 300, whiteSpace: "pre-wrap" as const }}>{item.content}</div>
+                    )}
+                  </div>
+                ))}
               </div>
               {(social.instagram || social.tiktok || social.facebook || seller?.whatsapp_number) && (
                 <div>
