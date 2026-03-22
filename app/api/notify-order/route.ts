@@ -19,6 +19,9 @@ export async function POST(req: NextRequest) {
 
     if (!seller || !order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    // Verify order belongs to seller
+    if (order.seller_id !== sellerId) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
     const items = (order.items || []).map((i: any) => `${i.name} x${i.qty} — R${(i.price * i.qty).toFixed(0)}${i.variant ? " (" + i.variant + ")" : ""}`).join("\n");
     const orderSummary = `New Order #${order.order_number}\n\nCustomer: ${order.customer_name}\nEmail: ${order.customer_email || "N/A"}\nPhone: ${order.customer_phone || "N/A"}\n\nItems:\n${items}\n\nShipping: R${order.shipping_cost || 0}\nTotal: R${order.total}\n\nPayment: ${order.payment_method?.toUpperCase() || "N/A"}\nFulfillment: ${order.fulfillment_method || "delivery"}${order.shipping_address ? "\nAddress: " + order.shipping_address.address + ", " + order.shipping_address.city + ", " + order.shipping_address.province : ""}`;
 

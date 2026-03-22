@@ -12,11 +12,14 @@ export async function POST(req: NextRequest) {
     if (!orderId || !slug) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
     // Get seller checkout config server-side (never exposed to client)
-    const { data: seller } = await supabase.from("sellers").select("checkout_config, store_name").eq("subdomain", slug).single();
+    const { data: seller } = await supabase.from("sellers").select("id, checkout_config, store_name").eq("subdomain", slug).single();
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
 
     const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    // Verify order belongs to this seller
+    if (order.seller_id !== seller.id) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const cartEncoded = Buffer.from(JSON.stringify(order.items || [])).toString("base64");
 

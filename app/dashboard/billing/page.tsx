@@ -40,43 +40,21 @@ export default function BillingPage() {
   const isExpired = seller?.subscription_status === "expired" || (seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date());
   const needsVerification = trialActive && !seller?.payfast_subscription_token;
 
-  const subscribePlan = (planId: string) => {
+  const subscribePlan = async (planId: string) => {
     if (!seller) return;
     setProcessing(true);
-    const plan = PLANS.find((p) => p.id === planId)!;
-    const recurringAmount = (isPromo && plan.promoPrice) ? plan.promoPrice : plan.price;
-
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = "https://www.payfast.co.za/eng/process";
-
-    const fields: Record<string, string> = {
-      merchant_id: "34217957",
-      merchant_key: "1worde5oycuks",
-      amount: planId === "starter" ? "1.00" : recurringAmount.toFixed(2),
-      item_name: planId === "starter" ? "CatalogStore " + plan.name + " - Card Verification" : "CatalogStore " + plan.name + " Plan",
-      item_description: planId === "starter" ? "R1 verification. " + plan.name + " plan R" + recurringAmount + "/mo starts after 7-day trial." : plan.name + " plan - R" + recurringAmount + "/mo",
-      name_first: seller.store_name,
-      email_address: seller.email,
-      m_payment_id: seller.id,
-      custom_str1: seller.id,
-      custom_str2: planId,
-      return_url: window.location.origin + "/dashboard/billing?status=success&plan=" + planId,
-      cancel_url: window.location.origin + "/dashboard/billing?status=cancelled",
-      notify_url: window.location.origin + "/api/subscription/notify",
-      subscription_type: "1",
-      recurring_amount: recurringAmount.toFixed(2),
-      frequency: "3",
-      cycles: "0",
-    };
-
-    Object.entries(fields).forEach(([k, v]) => {
-      const input = document.createElement("input");
-      input.type = "hidden"; input.name = k; input.value = v;
-      form.appendChild(input);
+    const res = await fetch("/api/billing-redirect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sellerId: seller.id, planId, returnOrigin: window.location.origin }),
     });
-    document.body.appendChild(form);
-    form.submit();
+    if (res.ok) {
+      const html = await res.text();
+      document.open(); document.write(html); document.close();
+    } else {
+      alert("Error connecting to payment. Please try again.");
+      setProcessing(false);
+    }
   };
 
   useEffect(() => {
