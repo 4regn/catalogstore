@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -7,6 +8,9 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  const ip = getClientIP(req);
+  const rl = rateLimit("seller-pub:" + ip, 30, 60);
+  if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   const slug = req.nextUrl.searchParams.get("slug");
   if (!slug) return NextResponse.json({ error: "Missing slug" }, { status: 400 });
 

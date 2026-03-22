@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -8,6 +9,9 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIP(req);
+    const rl = rateLimit("billing:" + ip, 5, 60);
+    if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     const { sellerId, planId, returnOrigin } = await req.json();
     if (!sellerId || !planId) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
