@@ -98,6 +98,7 @@ export default function Dashboard() {
   const [newShipPrice, setNewShipPrice] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
+  const [orderFilter, setOrderFilter] = useState<"all" | "abandoned">("all");
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [productSort, setProductSort] = useState("manual");
 
@@ -294,6 +295,8 @@ export default function Dashboard() {
   const totalRevenue = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0);
   // Hide PayFast orders that weren't paid (abandoned checkouts)
   const visibleOrders = orders.filter((o) => !(o.payment_method === "payfast" && o.payment_status === "pending"));
+  const abandonedOrders = orders.filter((o) => o.payment_method === "payfast" && o.payment_status === "pending");
+  const displayedOrders = orderFilter === "abandoned" ? abandonedOrders : visibleOrders;
   const totalImageSlots = existingImages.length + formImages.length;
 
   const filteredProducts = products.filter((p) => {
@@ -682,9 +685,16 @@ export default function Dashboard() {
           {/* ORDERS */}
           {tab === "orders" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
-              <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Orders</h1><p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 32 }}>Track and manage incoming orders.</p></div>
+              <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Orders</h1><p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 16 }}>Track and manage incoming orders.</p></div>
               {selectedOrder && <button onClick={() => setSelectedOrder(null)} style={{ padding: "10px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Orders</button>}
             </div>
+
+            {!selectedOrder && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+                <button onClick={() => setOrderFilter("all")} style={{ padding: "8px 20px", borderRadius: 100, background: orderFilter === "all" ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.02)", border: orderFilter === "all" ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: orderFilter === "all" ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Orders ({visibleOrders.length})</button>
+                <button onClick={() => setOrderFilter("abandoned")} style={{ padding: "8px 20px", borderRadius: 100, background: orderFilter === "abandoned" ? "rgba(255,61,110,0.06)" : "rgba(255,255,255,0.02)", border: orderFilter === "abandoned" ? "1px solid rgba(255,61,110,0.12)" : "1px solid rgba(255,255,255,0.06)", color: orderFilter === "abandoned" ? "#ff3d6e" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Abandoned ({abandonedOrders.length})</button>
+              </div>
+            )}
 
             {selectedOrder ? (
               <div>
@@ -757,17 +767,21 @@ export default function Dashboard() {
                   <div style={{ marginTop: 12, fontSize: 11, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Payment: {selectedOrder.payment_method || "N/A"}</div>
                 </div>
               </div>
-            ) : visibleOrders.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No orders yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Orders will appear here when customers buy from your store.</p></div>
+            ) : displayedOrders.length === 0 ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>{orderFilter === "abandoned" ? "No abandoned checkouts" : "No orders yet"}</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>{orderFilter === "abandoned" ? "Abandoned PayFast checkouts will appear here." : "Orders will appear here when customers buy from your store."}</p></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {visibleOrders.map((order) => (
+                {displayedOrders.map((order) => (
                   <div key={order.id} onClick={() => setSelectedOrder(order)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
                     <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const }}>Order #{order.order_number}</div><div style={{ display: "flex", gap: 10, fontSize: 10, color: "rgba(245,245,245,0.25)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}><span>{order.customer_name || "Customer"}</span><span>{new Date(order.created_at).toLocaleDateString()}</span></div></div>
                     <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em" }}>R{order.total}</div>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.payment_status === "paid" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: order.payment_status === "paid" ? "#22c55e" : "#fbbf24" }}>{order.payment_status?.replace("_", " ")}</span>
-                      <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.status === "delivered" ? "rgba(34,197,94,0.1)" : order.status === "shipped" ? "rgba(37,99,235,0.1)" : order.status === "confirmed" || order.status === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.08)", color: order.status === "delivered" ? "#22c55e" : order.status === "shipped" ? "#2563eb" : order.status === "confirmed" || order.status === "processing" ? N : "#fbbf24" }}>{order.status}</span>
+                      {orderFilter === "abandoned" ? (
+                        <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: "rgba(255,61,110,0.08)", color: "#ff3d6e" }}>Abandoned</span>
+                      ) : (<>
+                        <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.payment_status === "paid" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: order.payment_status === "paid" ? "#22c55e" : "#fbbf24" }}>{order.payment_status?.replace("_", " ")}</span>
+                        <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.status === "delivered" ? "rgba(34,197,94,0.1)" : order.status === "shipped" ? "rgba(37,99,235,0.1)" : order.status === "confirmed" || order.status === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.08)", color: order.status === "delivered" ? "#22c55e" : order.status === "shipped" ? "#2563eb" : order.status === "confirmed" || order.status === "processing" ? N : "#fbbf24" }}>{order.status}</span>
+                      </>)}
                     </div>
                   </div>
                 ))}
