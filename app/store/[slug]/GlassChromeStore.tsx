@@ -13,7 +13,7 @@ interface Seller {
   subscription_status?: string; trial_ends_at?: string;
 }
 
-interface Variant { name: string; options: string[]; }
+interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean; description: string;
@@ -498,7 +498,7 @@ export default function GlassChromeStore() {
                           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 8, fontFamily: mono, letterSpacing: "0.1em", textTransform: "uppercase" }}>{v.name}: <strong style={{ color: "#f0f0f0" }}>{selectedVariants[v.name]}</strong></p>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                             {v.options.map((opt) => (
-                              <button key={opt} onClick={() => setSelectedVariants({ ...selectedVariants, [v.name]: opt })} style={{ padding: "10px 20px", border: selectedVariants[v.name] === opt ? "1px solid #fff" : "1px solid " + PB, borderRadius: 6, background: selectedVariants[v.name] === opt ? "rgba(255,255,255,0.08)" : "transparent", fontFamily: body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: "#f0f0f0" }}>{opt}</button>
+                              <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "10px 20px", border: selectedVariants[v.name] === opt ? "1px solid #fff" : "1px solid " + PB, borderRadius: 6, background: selectedVariants[v.name] === opt ? "rgba(255,255,255,0.08)" : "transparent", fontFamily: body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: "#f0f0f0" }}>{opt}</button>
                             ))}
                           </div>
                         </div>

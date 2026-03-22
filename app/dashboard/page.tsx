@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 
-interface Variant { name: string; options: string[]; }
+interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 
 interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string;
@@ -191,7 +191,7 @@ export default function Dashboard() {
     return urls;
   };
 
-  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()) })).filter((x) => x.options.length > 0);
+  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {} })).filter((x) => x.options.length > 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setFormSaving(true); setUploadProgress("");
@@ -217,6 +217,18 @@ export default function Dashboard() {
   const restoreProduct = async (id: string) => { await supabase.from("products").update({ status: "published" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "published" } : p)); };
   const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); };
   const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); };
+  const reorderProduct = async (id: string, direction: "up" | "down") => {
+    const publishedList = products.filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const idx = publishedList.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= publishedList.length) return;
+    const a = publishedList[idx]; const b = publishedList[swapIdx];
+    const aOrder = a.sort_order ?? idx; const bOrder = b.sort_order ?? swapIdx;
+    await supabase.from("products").update({ sort_order: bOrder }).eq("id", a.id);
+    await supabase.from("products").update({ sort_order: aOrder }).eq("id", b.id);
+    setProducts(products.map((p) => p.id === a.id ? { ...p, sort_order: bOrder } : p.id === b.id ? { ...p, sort_order: aOrder } : p));
+  };
   const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); };
 
   if (loading) return (
@@ -260,7 +272,7 @@ export default function Dashboard() {
       return p.name.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q);
     }
     return true;
-  });
+  }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
@@ -444,6 +456,29 @@ export default function Dashboard() {
                       {v.options.map((o, oi) => (<div key={oi} style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden" }}><input type="text" placeholder="e.g. Large" value={o} onChange={(e) => updateVariantOption(vi, oi, e.target.value)} style={{ width: 80, padding: "8px 10px", background: "transparent", border: "none", color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{v.options.length > 1 && <button type="button" onClick={() => removeVariantOption(vi, oi)} style={{ padding: 8, background: "transparent", border: "none", borderLeft: "1px solid rgba(255,255,255,0.06)", color: "rgba(245,245,245,0.2)", fontSize: 10, cursor: "pointer" }}>&#10005;</button>}</div>))}
                       <button type="button" onClick={() => addVariantOption(vi)} style={{ padding: "8px 12px", background: "transparent", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(245,245,245,0.25)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
                     </div>
+                    {/* Image-to-variant linking */}
+                    {(existingImages.length > 0 || formPreviews.length > 0) && v.options.some((o) => o.trim()) && (
+                      <div style={{ marginTop: 12, padding: "12px", background: "rgba(255,255,255,0.02)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.04)" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 8 }}>Assign images to {v.name} options</div>
+                        <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
+                          {v.options.filter((o) => o.trim()).map((opt, oi) => {
+                            const allImgs = [...existingImages, ...formPreviews];
+                            const currentImg = v.images?.[opt] || "";
+                            return (
+                              <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 12, color: "rgba(245,245,245,0.5)", minWidth: 60, fontWeight: 600 }}>{opt}</span>
+                                <div style={{ display: "flex", gap: 4, flex: 1, overflowX: "auto" as const }}>
+                                  <div onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = ""; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, border: !currentImg ? "2px solid " + N : "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 8, color: "rgba(245,245,245,0.25)" }}>None</div>
+                                  {allImgs.map((img, imgIdx) => (
+                                    <img key={imgIdx} src={img} alt="" onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = img; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" as const, cursor: "pointer", border: currentImg === img ? "2px solid " + N : "1px solid rgba(255,255,255,0.08)", flexShrink: 0, opacity: currentImg === img ? 1 : 0.5 }} />
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>))}
                   {formVariants.length > 0 && (<div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" as const }}>{PRESET_VARIANTS.filter((p) => !formVariants.some((v) => v.name.toLowerCase() === p.name.toLowerCase())).map((p) => (<button key={p.name} type="button" onClick={() => addPresetVariant(p)} style={{ padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ {p.name}</button>))}<button type="button" onClick={addVariant} style={{ padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Custom</button></div>)}
                 </div>
@@ -479,7 +514,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em", whiteSpace: "nowrap" as const }}>R{product.price}</div>
-                    <div className="product-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+                    <div className="product-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, alignItems: "center" }}>
                       {productFilter === "trashed" ? (
                         <>
                           <button onClick={() => restoreProduct(product.id)} style={{ padding: "7px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Restore</button>
@@ -487,6 +522,10 @@ export default function Dashboard() {
                         </>
                       ) : (
                         <>
+                          <div style={{ display: "flex", flexDirection: "column" as const, gap: 2 }}>
+                            <button onClick={() => reorderProduct(product.id, "up")} style={{ width: 22, height: 18, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 4, color: "rgba(245,245,245,0.3)", fontSize: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u25B2"}</button>
+                            <button onClick={() => reorderProduct(product.id, "down")} style={{ width: 22, height: 18, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 4, color: "rgba(245,245,245,0.3)", fontSize: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u25BC"}</button>
+                          </div>
                           <button onClick={() => startEdit(product)} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Edit</button>
                           <button onClick={() => toggleDraft(product.id, product.status || "published")} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: product.status === "draft" ? "#fbbf24" : "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.status === "draft" ? "Publish" : "Draft"}</button>
                           <button onClick={() => toggleStock(product.id, product.in_stock)} style={{ padding: "7px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.in_stock ? "Sold Out" : "In Stock"}</button>
