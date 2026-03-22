@@ -63,7 +63,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts">("overview");
+  const [tab, setTab] = useState<"overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned">("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,7 +98,6 @@ export default function Dashboard() {
   const [newShipPrice, setNewShipPrice] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
-  const [orderFilter, setOrderFilter] = useState<"all" | "abandoned">("all");
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [productSort, setProductSort] = useState("manual");
 
@@ -128,7 +127,7 @@ export default function Dashboard() {
 
   useEffect(() => { checkAuth(); }, []);
 
-  const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts") => { setTab(t); setSidebarOpen(false); };
+  const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned") => { setTab(t); setSidebarOpen(false); };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -296,7 +295,6 @@ export default function Dashboard() {
   // Hide PayFast orders that weren't paid (abandoned checkouts)
   const visibleOrders = orders.filter((o) => !(o.payment_method === "payfast" && o.payment_status === "pending"));
   const abandonedOrders = orders.filter((o) => o.payment_method === "payfast" && o.payment_status === "pending");
-  const displayedOrders = orderFilter === "abandoned" ? abandonedOrders : visibleOrders;
   const totalImageSlots = existingImages.length + formImages.length;
 
   const filteredProducts = products.filter((p) => {
@@ -355,9 +353,9 @@ export default function Dashboard() {
             </div>
 
             <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {(["overview", "products", "collections", "orders", "discounts", "mystore", "checkout"] as const).map((t) => (
+              {(["overview", "products", "collections", "orders", "abandoned", "discounts", "mystore", "checkout"] as const).map((t) => (
                 <button key={t} onClick={() => { switchTab(t); if (t === "collections") setSelectedCollection(null); }} style={{ width: "100%", padding: "12px 16px", background: tab === t ? "rgba(255,107,53,0.06)" : "transparent", border: tab === t ? "1px solid rgba(255,107,53,0.1)" : "1px solid transparent", borderRadius: 10, color: tab === t ? "#f5f5f5" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, fontWeight: tab === t ? 700 : 500, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", transition: "all 0.2s" }}>
-                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "collections" ? "Collections (" + storeCollections.length + ")" : t === "orders" ? "Orders (" + visibleOrders.length + ")" : t === "discounts" ? "Discounts (" + discountCodes.length + ")" : t === "mystore" ? "Edit My Store" : "Checkout"}
+                  {t === "overview" ? "Overview" : t === "products" ? "Products (" + publishedCount + ")" : t === "collections" ? "Collections (" + storeCollections.length + ")" : t === "orders" ? "Orders (" + visibleOrders.length + ")" : t === "abandoned" ? "Abandoned (" + abandonedOrders.length + ")" : t === "discounts" ? "Discounts (" + discountCodes.length + ")" : t === "mystore" ? "Edit My Store" : "Checkout"}
                 </button>
               ))}
             </nav>
@@ -689,11 +687,8 @@ export default function Dashboard() {
               {selectedOrder && <button onClick={() => setSelectedOrder(null)} style={{ padding: "10px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Orders</button>}
             </div>
 
-            {!selectedOrder && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-                <button onClick={() => setOrderFilter("all")} style={{ padding: "8px 20px", borderRadius: 100, background: orderFilter === "all" ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.02)", border: orderFilter === "all" ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: orderFilter === "all" ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Orders ({visibleOrders.length})</button>
-                <button onClick={() => setOrderFilter("abandoned")} style={{ padding: "8px 20px", borderRadius: 100, background: orderFilter === "abandoned" ? "rgba(255,61,110,0.06)" : "rgba(255,255,255,0.02)", border: orderFilter === "abandoned" ? "1px solid rgba(255,61,110,0.12)" : "1px solid rgba(255,255,255,0.06)", color: orderFilter === "abandoned" ? "#ff3d6e" : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Abandoned ({abandonedOrders.length})</button>
-              </div>
+            {!selectedOrder && visibleOrders.length > 0 && (
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.2)", marginBottom: 16 }}>{visibleOrders.length} order{visibleOrders.length !== 1 ? "s" : ""}</p>
             )}
 
             {selectedOrder ? (
@@ -767,21 +762,53 @@ export default function Dashboard() {
                   <div style={{ marginTop: 12, fontSize: 11, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Payment: {selectedOrder.payment_method || "N/A"}</div>
                 </div>
               </div>
-            ) : displayedOrders.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>{orderFilter === "abandoned" ? "No abandoned checkouts" : "No orders yet"}</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>{orderFilter === "abandoned" ? "Abandoned PayFast checkouts will appear here." : "Orders will appear here when customers buy from your store."}</p></div>
+            ) : visibleOrders.length === 0 ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No orders yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Orders will appear here when customers buy from your store.</p></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {displayedOrders.map((order) => (
+                {visibleOrders.map((order) => (
                   <div key={order.id} onClick={() => setSelectedOrder(order)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
                     <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const }}>Order #{order.order_number}</div><div style={{ display: "flex", gap: 10, fontSize: 10, color: "rgba(245,245,245,0.25)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}><span>{order.customer_name || "Customer"}</span><span>{new Date(order.created_at).toLocaleDateString()}</span></div></div>
                     <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em" }}>R{order.total}</div>
                     <div style={{ display: "flex", gap: 6 }}>
-                      {orderFilter === "abandoned" ? (
-                        <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: "rgba(255,61,110,0.08)", color: "#ff3d6e" }}>Abandoned</span>
-                      ) : (<>
                         <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.payment_status === "paid" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: order.payment_status === "paid" ? "#22c55e" : "#fbbf24" }}>{order.payment_status?.replace("_", " ")}</span>
                         <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.status === "delivered" ? "rgba(34,197,94,0.1)" : order.status === "shipped" ? "rgba(37,99,235,0.1)" : order.status === "confirmed" || order.status === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.08)", color: order.status === "delivered" ? "#22c55e" : order.status === "shipped" ? "#2563eb" : order.status === "confirmed" || order.status === "processing" ? N : "#fbbf24" }}>{order.status}</span>
-                      </>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>)}
+
+          {/* ABANDONED */}
+          {tab === "abandoned" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Abandoned Checkouts</h1>
+            <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 24 }}>Customers who started PayFast checkout but didn't complete payment.</p>
+
+            {abandonedOrders.length === 0 ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No abandoned checkouts</p>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>When customers leave without paying, they'll show up here.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {abandonedOrders.map((order) => (
+                  <div key={order.id} style={{ padding: "16px 18px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 12, marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>#{order.order_number} - {order.customer_name || "Unknown"}</div>
+                        <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{order.customer_email} {order.customer_phone ? " / " + order.customer_phone : ""}</div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 16, fontWeight: 900 }}>R{order.total}</span>
+                        <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: "rgba(255,61,110,0.08)", color: "#ff3d6e" }}>Abandoned</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, fontSize: 11, color: "rgba(245,245,245,0.2)" }}>
+                      {(order.items || []).map((item, i) => (
+                        <span key={i} style={{ padding: "4px 10px", background: "rgba(255,255,255,0.03)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.04)" }}>{item.name} x{item.qty}</span>
+                      ))}
+                      <span style={{ marginLeft: "auto" }}>{new Date(order.created_at).toLocaleString()}</span>
                     </div>
                   </div>
                 ))}
