@@ -37,7 +37,7 @@ interface Seller {
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
-  status: string;
+  status: string; sort_order: number;
 }
 
 interface Order {
