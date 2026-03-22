@@ -39,7 +39,7 @@ interface Seller {
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
-  status: string; sort_order: number;
+  status: string; sort_order: number; description: string; created_at: string;
 }
 
 interface Order {
@@ -70,6 +70,15 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [showForm, setShowForm] = useState(false);
+  const [quickAdd, setQuickAdd] = useState(false);
+  const [qaName, setQaName] = useState("");
+  const [qaPrice, setQaPrice] = useState("");
+  const [qaCategory, setQaCategory] = useState("");
+  const [qaImage, setQaImage] = useState<File | null>(null);
+  const [qaPreview, setQaPreview] = useState("");
+  const [qaSaving, setQaSaving] = useState(false);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvResult, setCsvResult] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formPrice, setFormPrice] = useState("");
@@ -99,6 +108,7 @@ export default function Dashboard() {
   const [newShipPrice, setNewShipPrice] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
+  const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [productSort, setProductSort] = useState("manual");
 
@@ -142,6 +152,18 @@ export default function Dashboard() {
     const { data: dc } = await supabase.from("discount_codes").select("*").eq("seller_id", user.id).order("created_at", { ascending: false });
     if (dc) setDiscountCodes(dc);
     setLoading(false);
+
+    // Subscribe to real-time order notifications
+    const channel = supabase.channel("orders-" + user.id).on("postgres_changes", { event: "INSERT", schema: "public", table: "orders", filter: "seller_id=eq." + user.id }, (payload: any) => {
+      const newOrder = payload.new;
+      setOrders((prev) => [newOrder, ...prev]);
+      setOrderNotification({ order_number: newOrder.order_number || newOrder.id?.substring(0, 8), customer_name: newOrder.customer_name || "Customer", total: newOrder.total, id: newOrder.id });
+      // Play notification sound
+      try { const ctx = new AudioContext(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 880; gain.gain.value = 0.15; osc.start(); osc.stop(ctx.currentTime + 0.15); setTimeout(() => { const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain(); osc2.connect(gain2); gain2.connect(ctx.destination); osc2.frequency.value = 1100; gain2.gain.value = 0.15; osc2.start(); osc2.stop(ctx.currentTime + 0.2); }, 180); } catch {}
+      setTimeout(() => setOrderNotification(null), 10000);
+    }).subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
@@ -315,6 +337,59 @@ export default function Dashboard() {
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
 
   const planLimits = seller?.subscription_plan === "pro" ? { products: 100, images: 20, collections: 20 } : { products: 15, images: 5, collections: 5 };
+  const quickAddSave = async () => {
+    if (!qaName || !qaPrice || !seller) return;
+    setQaSaving(true);
+    let imageUrl = "";
+    if (qaImage) {
+      const ext = qaImage.name.split(".").pop(); const path = seller.id + "/" + Date.now() + "." + ext;
+      const { error: ue } = await supabase.storage.from("product-images").upload(path, qaImage);
+      if (!ue) imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+    }
+    const { data, error } = await supabase.from("products").insert({
+      seller_id: seller.id, name: qaName, price: parseFloat(qaPrice), category: qaCategory || null,
+      in_stock: true, status: "published", image_url: imageUrl || null, images: imageUrl ? [imageUrl] : [],
+      variants: [], sort_order: products.length,
+    }).select().single();
+    if (data) setProducts([data, ...products]);
+    if (error) alert("Error: " + error.message);
+    setQaName(""); setQaPrice(""); setQaCategory(""); setQaImage(null); setQaPreview(""); setQaSaving(false);
+  };
+
+  const handleCsvUpload = async (file: File) => {
+    if (!seller) return;
+    setCsvUploading(true); setCsvResult("");
+    const text = await file.text();
+    const lines = text.split("\n").filter((l) => l.trim());
+    if (lines.length < 2) { setCsvResult("CSV must have a header row and at least one product."); setCsvUploading(false); return; }
+    const header = lines[0].toLowerCase().split(",").map((h) => h.trim().replace(/"/g, ""));
+    const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
+    const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
+    const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
+    const descIdx = header.findIndex((h) => h === "description" || h === "desc");
+    const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
+    if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); setCsvUploading(false); return; }
+    let added = 0; let errors = 0;
+    const remaining = planLimits.products - (publishedCount + draftCount);
+    for (let i = 1; i < lines.length && added < remaining; i++) {
+      const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
+      if (!name || isNaN(price)) { errors++; continue; }
+      const category = catIdx >= 0 ? cols[catIdx] || null : null;
+      const description = descIdx >= 0 ? cols[descIdx] || "" : "";
+      const oldPrice = oldPriceIdx >= 0 && cols[oldPriceIdx] ? parseFloat(cols[oldPriceIdx]) : null;
+      const { data, error } = await supabase.from("products").insert({
+        seller_id: seller.id, name, price, old_price: oldPrice, category, description,
+        in_stock: true, status: "published", variants: [], sort_order: products.length + added,
+      }).select().single();
+      if (data) { added++; setProducts((prev) => [data, ...prev]); }
+      else errors++;
+    }
+    const skipped = Math.max(0, lines.length - 1 - remaining);
+    setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + (errors > 0 ? ", " + errors + " failed" : "") + (skipped > 0 ? ", " + skipped + " skipped (plan limit)" : "") + ".");
+    setCsvUploading(false);
+  };
+
   const canAddProduct = publishedCount + draftCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;
@@ -325,7 +400,23 @@ export default function Dashboard() {
         @media (min-width: 769px) { .mobile-topbar { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } }
         @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
         @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes slideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
+
+      {/* ORDER NOTIFICATION TOAST */}
+      {orderNotification && (
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999, animation: "slideIn 0.3s ease", width: "90%", maxWidth: 420 }}>
+          <div onClick={() => { setTab("orders"); setOrderNotification(null); }} style={{ padding: "16px 20px", background: "linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 16, backdropFilter: "blur(20px)", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(34,197,94,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 20 }}>&#128176;</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", color: "#22c55e", marginBottom: 2 }}>New Order!</div>
+              <div style={{ fontSize: 12, color: "rgba(245,245,245,0.6)" }}>#{orderNotification.order_number} — {orderNotification.customer_name}</div>
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: "#22c55e", whiteSpace: "nowrap" as const }}>R{orderNotification.total}</div>
+            <button onClick={(e) => { e.stopPropagation(); setOrderNotification(null); }} style={{ background: "none", border: "none", color: "rgba(245,245,245,0.3)", fontSize: 18, cursor: "pointer", padding: 4 }}>&times;</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ minHeight: "100vh", background: "#030303", display: "flex", fontFamily: "'Schibsted Grotesk', sans-serif", color: "#f5f5f5" }}>
 
@@ -416,8 +507,54 @@ export default function Dashboard() {
           {tab === "products" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Products</h1><p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 16 }}>Manage the products in your store.</p></div>
-              <button onClick={() => { if (!canAddProduct) { alert("You've reached your plan limit of " + planLimits.products + " products. Upgrade to Pro for more."); return; } if (showForm) resetForm(); else { resetForm(); setShowForm(true); setProductFilter("published"); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>{showForm ? "Cancel" : "+ Add Product"}</button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                <button onClick={() => { if (!canAddProduct) { alert("You've reached your plan limit of " + planLimits.products + " products. Upgrade to Pro for more."); return; } setQuickAdd(false); if (showForm) resetForm(); else { resetForm(); setShowForm(true); setProductFilter("published"); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>{showForm ? "Cancel" : "+ Add Product"}</button>
+                <button onClick={() => { if (!canAddProduct) { alert("Plan limit reached."); return; } setShowForm(false); setQuickAdd(!quickAdd); }} style={{ padding: "12px 18px", background: quickAdd ? "rgba(255,255,255,0.03)" : "rgba(34,197,94,0.06)", border: quickAdd ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(34,197,94,0.12)", borderRadius: 100, color: quickAdd ? "rgba(245,245,245,0.4)" : "#22c55e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{quickAdd ? "Close" : "Quick Add"}</button>
+                <label style={{ padding: "12px 18px", background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.12)", borderRadius: 100, color: "#2563eb", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  {csvUploading ? "Importing..." : "Import CSV"}
+                  <input type="file" accept=".csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsvUpload(f); e.target.value = ""; }} style={{ display: "none" }} />
+                </label>
+              </div>
             </div>
+
+            {/* CSV RESULT */}
+            {csvResult && (
+              <div style={{ padding: "14px 18px", background: "rgba(37,99,235,0.04)", border: "1px solid rgba(37,99,235,0.12)", borderRadius: 12, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "#2563eb", fontWeight: 600 }}>{csvResult}</span>
+                <button onClick={() => setCsvResult("")} style={{ background: "none", border: "none", color: "rgba(245,245,245,0.3)", cursor: "pointer", fontSize: 14 }}>&times;</button>
+              </div>
+            )}
+
+            {/* QUICK ADD */}
+            {quickAdd && (
+              <div style={{ padding: "20px", background: "rgba(34,197,94,0.02)", border: "1px solid rgba(34,197,94,0.08)", borderRadius: 16, marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" as const }}>
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 4, display: "block" }}>Name</label>
+                    <input type="text" value={qaName} onChange={(e) => setQaName(e.target.value)} placeholder="Product name" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div style={{ width: 100 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 4, display: "block" }}>Price (R)</label>
+                    <input type="text" inputMode="numeric" value={qaPrice} onChange={(e) => setQaPrice(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="299" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div style={{ width: 120 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 4, display: "block" }}>Collection</label>
+                    <select value={qaCategory} onChange={(e) => setQaCategory(e.target.value)} style={{ width: "100%", padding: "12px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }}>
+                      <option value="" style={{ background: "#0a0a0a" }}>None</option>
+                      {storeCollections.map((c) => <option key={c} value={c} style={{ background: "#0a0a0a" }}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 48, height: 48, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", overflow: "hidden" }}>
+                      {qaPreview ? <img src={qaPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 18, color: "rgba(245,245,245,0.15)" }}>+</span>}
+                      <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; setQaImage(f); const r = new FileReader(); r.onload = (ev) => setQaPreview(ev.target?.result as string); r.readAsDataURL(f); }} style={{ display: "none" }} />
+                    </label>
+                  </div>
+                  <button onClick={quickAddSave} disabled={qaSaving || !qaName || !qaPrice} style={{ padding: "12px 24px", background: "#22c55e", color: "#fff", border: "none", borderRadius: 10, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: (qaSaving || !qaName || !qaPrice) ? "not-allowed" : "pointer", opacity: (qaSaving || !qaName || !qaPrice) ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{qaSaving ? "..." : "Save"}</button>
+                </div>
+                <p style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 8 }}>Quick add saves instantly. Edit details later.</p>
+              </div>
+            )}
 
             {/* STATUS TABS */}
             <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" as const }}>

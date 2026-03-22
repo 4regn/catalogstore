@@ -183,6 +183,9 @@ export default function CheckoutPage() {
       setOrderNumber(data.order_number || data.id?.substring(0, 8));
       setOrderPlaced(true);
 
+      // Send notification to seller (non-blocking)
+      fetch("/api/notify-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: data.id, sellerId: seller.id }) }).catch(() => {});
+
       // Increment discount code usage
       if (discountApplied && seller) {
         const { data: dc } = await supabase.from("discount_codes").select("id, used_count").eq("seller_id", seller.id).eq("code", discountApplied.code.toUpperCase()).single();
