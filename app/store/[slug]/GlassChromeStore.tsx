@@ -17,6 +17,7 @@ interface Variant { name: string; options: string[]; images?: { [option: string]
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean; description: string;
+  sort_order: number; created_at: string;
 }
 
 interface CartItem { product: Product; qty: number; selectedVariants: { [key: string]: string }; }
@@ -30,6 +31,7 @@ export default function GlassChromeStore() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [productSort, setProductSort] = useState("default");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
@@ -119,7 +121,17 @@ export default function GlassChromeStore() {
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Every piece quality-checked" }, { icon: "\u2708", title: "Fast Shipping", desc: "Nationwide 2-5 days" }, { icon: "\u21BA", title: "Easy Returns", desc: "30-day return policy" }, { icon: "\u26A1", title: "Secure Payments", desc: "Card, EFT & WhatsApp" }];
   const policyItems = cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard R65 nationwide. Free over R599. Express available." }, { title: "Returns", desc: "30-day returns on unworn items in original packaging." }, { title: "Payment", desc: "Visa, Mastercard, EFT. All transactions SSL secured." }];
   const cats = ["All", ...collections.filter((c) => products.some((p) => p.category === c))];
-  const filtered = activeCategory === "All" ? products : products.filter((p) => p.category === activeCategory);
+  const filtered = (() => {
+    let list = activeCategory === "All" ? [...products] : products.filter((p) => p.category === activeCategory);
+    if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
+    else if (productSort === "latest") list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    else if (productSort === "oldest") list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    else if (productSort === "price-low") list.sort((a, b) => a.price - b.price);
+    else if (productSort === "price-high") list.sort((a, b) => b.price - a.price);
+    else list.sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+    return list;
+  })();
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
   const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
@@ -325,12 +337,24 @@ export default function GlassChromeStore() {
           <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 50 }}>All Products</h2>
 
           {cats.length > 2 && (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 36 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
               {cats.map((cat) => (
                 <button key={cat} onClick={() => setActiveCategory(cat)} style={{ background: activeCategory === cat ? "rgba(255,255,255,0.08)" : P, border: activeCategory === cat ? "1px solid #fff" : "1px solid " + PB, color: activeCategory === cat ? "#fff" : "rgba(255,255,255,0.5)", padding: "8px 18px", borderRadius: 100, fontFamily: body, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer" }}>{cat}</button>
               ))}
             </div>
           )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 28 }}>
+            <select value={productSort} onChange={(e) => setProductSort(e.target.value)} style={{ padding: "8px 16px", background: P, border: "1px solid " + PB, borderRadius: 8, color: "rgba(255,255,255,0.5)", fontFamily: body, fontSize: 11, letterSpacing: "0.06em", cursor: "pointer", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.3)'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 32 }}>
+              <option value="default" style={{ background: "#0b0b0f" }}>Default</option>
+              <option value="latest" style={{ background: "#0b0b0f" }}>Latest</option>
+              <option value="oldest" style={{ background: "#0b0b0f" }}>Oldest</option>
+              <option value="az" style={{ background: "#0b0b0f" }}>A — Z</option>
+              <option value="za" style={{ background: "#0b0b0f" }}>Z — A</option>
+              <option value="price-low" style={{ background: "#0b0b0f" }}>Price: Low to High</option>
+              <option value="price-high" style={{ background: "#0b0b0f" }}>Price: High to Low</option>
+            </select>
+          </div>
 
           {filtered.length === 0 ? (
             <div style={{ textAlign: "center", padding: "80px 20px", color: "rgba(255,255,255,0.4)" }}><p style={{ fontFamily: display, fontSize: 28 }}>NO PRODUCTS YET</p><p style={{ fontSize: 14, marginTop: 8 }}>Check back soon.</p></div>

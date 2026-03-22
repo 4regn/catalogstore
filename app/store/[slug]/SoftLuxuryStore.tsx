@@ -17,6 +17,7 @@ interface Variant { name: string; options: string[]; images?: { [option: string]
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean; description: string;
+  sort_order: number; created_at: string;
 }
 
 interface CartItem { product: Product; qty: number; selectedVariants: { [key: string]: string }; }
@@ -30,6 +31,7 @@ export default function StorePage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [productSort, setProductSort] = useState("default");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
@@ -114,7 +116,17 @@ export default function StorePage() {
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
   const policyItems = cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "All major cards accepted via Yoco. Also checkout through WhatsApp for a personal experience." }];
   const cats = ["All", ...collections.filter((c) => products.some((p) => p.category === c))];
-  const filtered = activeCategory === "All" ? products : products.filter((p) => p.category === activeCategory);
+  const filtered = (() => {
+    let list = activeCategory === "All" ? [...products] : products.filter((p) => p.category === activeCategory);
+    if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
+    else if (productSort === "latest") list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    else if (productSort === "oldest") list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    else if (productSort === "price-low") list.sort((a, b) => a.price - b.price);
+    else if (productSort === "price-high") list.sort((a, b) => b.price - a.price);
+    else list.sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+    return list;
+  })();
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
   const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
@@ -303,12 +315,24 @@ export default function StorePage() {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>All Products</h2>
 
           {cats.length > 2 && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 48, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               {cats.map((cat) => (
                 <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "10px 28px", borderRadius: 100, background: activeCategory === cat ? "#2a2a2e" : "transparent", border: activeCategory === cat ? "1px solid #2a2a2e" : "1px solid rgba(0,0,0,0.06)", fontFamily: "'Jost', sans-serif", fontSize: 12, color: activeCategory === cat ? "#f6f3ef" : "#8a8690", cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.3s" }}>{cat}</button>
               ))}
             </div>
           )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 32 }}>
+            <select value={productSort} onChange={(e) => setProductSort(e.target.value)} style={{ padding: "8px 16px", background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, color: "#8a8690", fontFamily: "'Jost', sans-serif", fontSize: 12, letterSpacing: "0.04em", cursor: "pointer", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(0,0,0,0.2)'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 32 }}>
+              <option value="default">Default</option>
+              <option value="latest">Latest</option>
+              <option value="oldest">Oldest</option>
+              <option value="az">A — Z</option>
+              <option value="za">Z — A</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+            </select>
+          </div>
 
           {filtered.length === 0 ? (
             <div style={{ textAlign: "center", padding: "80px 20px", color: "#8a8690" }}>

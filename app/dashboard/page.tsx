@@ -218,17 +218,46 @@ export default function Dashboard() {
   const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); };
   const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); };
   const reorderProduct = async (id: string, direction: "up" | "down") => {
-    const publishedList = products.filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-    const idx = publishedList.findIndex((p) => p.id === id);
+    const list = [...products].filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+    const idx = list.findIndex((p) => p.id === id);
     if (idx < 0) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= publishedList.length) return;
-    const a = publishedList[idx]; const b = publishedList[swapIdx];
-    const aOrder = a.sort_order ?? idx; const bOrder = b.sort_order ?? swapIdx;
-    await supabase.from("products").update({ sort_order: bOrder }).eq("id", a.id);
-    await supabase.from("products").update({ sort_order: aOrder }).eq("id", b.id);
-    setProducts(products.map((p) => p.id === a.id ? { ...p, sort_order: bOrder } : p.id === b.id ? { ...p, sort_order: aOrder } : p));
+    if (swapIdx < 0 || swapIdx >= list.length) return;
+    // Assign proper sort orders to all items first if needed
+    const updates = list.map((p, i) => ({ ...p, sort_order: i }));
+    const a = updates[idx]; const b = updates[swapIdx];
+    // Swap
+    updates[idx] = { ...b, sort_order: idx };
+    updates[swapIdx] = { ...a, sort_order: swapIdx };
+    // Save both to DB
+    await Promise.all([
+      supabase.from("products").update({ sort_order: swapIdx }).eq("id", a.id),
+      supabase.from("products").update({ sort_order: idx }).eq("id", b.id),
+    ]);
+    setProducts(products.map((p) => {
+      if (p.id === a.id) return { ...p, sort_order: swapIdx };
+      if (p.id === b.id) return { ...p, sort_order: idx };
+      return p;
+    }));
   };
+  // Initialize sort orders for products that don't have them
+  const initSortOrders = async () => {
+    const unordered = products.filter((p) => p.sort_order === null || p.sort_order === undefined);
+    if (unordered.length > 0) {
+      const maxOrder = Math.max(0, ...products.filter((p) => p.sort_order !== null && p.sort_order !== undefined).map((p) => p.sort_order));
+      for (let i = 0; i < unordered.length; i++) {
+        await supabase.from("products").update({ sort_order: maxOrder + i + 1 }).eq("id", unordered[i].id);
+      }
+      setProducts(products.map((p, idx) => {
+        if (p.sort_order === null || p.sort_order === undefined) {
+          const uIdx = unordered.findIndex((u) => u.id === p.id);
+          return { ...p, sort_order: maxOrder + uIdx + 1 };
+        }
+        return p;
+      }));
+    }
+  };
+  useEffect(() => { if (products.length > 0 && seller) initSortOrders(); }, [products.length > 0 && seller?.id]);
   const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); };
 
   if (loading) return (
