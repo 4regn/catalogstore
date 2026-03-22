@@ -51,7 +51,7 @@ export default function Home() {
           .pricing-grid-2 { gap: 3px !important; }
           .pricing-grid-2 > div { padding: 24px 16px !important; }
           .pricing-grid-2 .price-num { font-size: 36px !important; }
-          .demo-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+          .tpl-grid { gap: 8px !important; }
           .pain-grid-2 { grid-template-columns: 1fr !important; }
           .sleep-flex { flex-direction: column !important; }
         }
@@ -161,17 +161,40 @@ export default function Home() {
         {/* TEMPLATES PREVIEW */}
         <section id="templates" style={{ padding: "60px 0 100px" }}>
           <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.15em", color: "var(--neon)", fontWeight: 800, marginBottom: 16, textAlign: "center" as const }}>Templates</div>
-          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 48 }}>Choose your look</h2>
-          <div style={{ background: "var(--glass)", backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)", border: "1px solid var(--glass-b)", borderRadius: 20, padding: 4, boxShadow: "0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,107,53,0.03)", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-              <span style={{ flex: 1, textAlign: "center" as const, fontSize: 11, color: "var(--text-dim)", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" as const }}>yourstore.catalogstore.co.za</span>
+          <h2 style={{ textAlign: "center" as const, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 64 }}>Choose your look</h2>
+
+          {/* GLASS CHROME */}
+          <div style={{ marginBottom: 80 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, paddingBottom: 20, borderBottom: "1px solid var(--glass-b)", flexWrap: "wrap" as const, gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "var(--neon)", fontWeight: 800, marginBottom: 6 }}>Theme 01</div>
+                <h3 style={{ fontSize: "clamp(24px, 4vw, 36px)", fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.03em" }}>Glass Chrome</h3>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-dim)", maxWidth: 280 }}>Dark futuristic theme with chrome metallic accents. How your store would look.</p>
             </div>
-            <div className="demo-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3, padding: 3, minHeight: 360 }}>
-              {[...Array(8)].map((_, i) => (
-                <div key={i} style={{ aspectRatio: "3/4", background: "linear-gradient(160deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005))", borderRadius: 4 }} />
+            <div className="tpl-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {["/templates/gc-hero.jpeg", "/templates/gc-collections.jpeg", "/templates/gc-products.jpeg", "/templates/gc-product-detail.jpeg"].map((src, i) => (
+                <div key={i} style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--glass-b)", background: "#0a0a0e", transition: "transform 0.4s, border-color 0.4s" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = ""; }}>
+                  <img src={src} alt="" style={{ width: "100%", display: "block" }} loading="lazy" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* SOFT LUXURY */}
+          <div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, paddingBottom: 20, borderBottom: "1px solid var(--glass-b)", flexWrap: "wrap" as const, gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "var(--neon)", fontWeight: 800, marginBottom: 6 }}>Theme 02</div>
+                <h3 style={{ fontSize: "clamp(24px, 4vw, 36px)", fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.03em" }}>Soft Luxury</h3>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-dim)", maxWidth: 280 }}>Warm cream tones with elegant serif typography. How your store would look.</p>
+            </div>
+            <div className="tpl-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {["/templates/sl-hero.jpeg", "/templates/sl-collections.jpeg", "/templates/sl-products.jpeg", "/templates/sl-product-detail.jpeg"].map((src, i) => (
+                <div key={i} style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--glass-b)", background: "#f6f3ef", transition: "transform 0.4s, border-color 0.4s" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = ""; }}>
+                  <img src={src} alt="" style={{ width: "100%", display: "block" }} loading="lazy" />
+                </div>
               ))}
             </div>
           </div>
