@@ -572,7 +572,7 @@ export default function GlassChromeStore() {
                       <span style={{ fontFamily: display, fontSize: 28 }}>R{cartTotal}</span>
                     </div>
                     <button onClick={() => { const encoded = btoa(JSON.stringify(cart.map(i => ({ name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })))); window.location.href = "/store/" + slug + "/checkout?cart=" + encoded; }} style={{ width: "100%", padding: 16, background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
-                    <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 16, background: "#25d366", color: "#fff", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>
+                    {(seller?.checkout_config as any)?.whatsapp_checkout_enabled !== false && <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 16, background: "#25d366", color: "#fff", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>}
                     <p style={{ textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.28)", marginTop: 12, fontFamily: mono, letterSpacing: "0.08em", textTransform: "uppercase" }}>Secure checkout</p>
                   </div>
                 </>
