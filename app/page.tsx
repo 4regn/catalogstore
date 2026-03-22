@@ -316,7 +316,7 @@ export default function Home() {
         </section>
 
         {/* FOOTER */}
-        <footer style={{ padding: "48px 0", borderTop: "1px solid var(--glass-b)" }}>
+        <footer style={{ padding: "48px 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Logo size={22} />
