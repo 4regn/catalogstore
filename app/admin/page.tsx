@@ -109,7 +109,7 @@ export default function AdminDashboard() {
           onChange={(e) => { setPinInput(e.target.value); setPinError(false); }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              if (pinInput === process.env.NEXT_PUBLIC_ADMIN_PIN) { setPinLocked(false); }
+              if (e.key === "Enter") { fetch("/api/verify-admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: pinInput }) }).then(r => { if (r.ok) setPinLocked(false); else { setPinError(true); setPinInput(""); } }); }
               else { setPinError(true); setPinInput(""); }
             }
           }}
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
         />
         {pinError && <p style={{ fontSize: 12, color: "#ff3d6e", marginBottom: 12 }}>Incorrect PIN. Try again.</p>}
         <button
-          onClick={() => { if (pinInput === process.env.NEXT_PUBLIC_ADMIN_PIN) { setPinLocked(false); } else { setPinError(true); setPinInput(""); } }}
+          onClick={() => { fetch("/api/verify-admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: pinInput }) }).then(r => { if (r.ok) setPinLocked(false); else { setPinError(true); setPinInput(""); } }); }}
           style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg, #ff6b35, #ff4444)", color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}
         >Unlock</button>
         <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: "rgba(245,245,245,0.25)", fontSize: 12, cursor: "pointer", marginTop: 16, fontFamily: "'Schibsted Grotesk', sans-serif" }}>&larr; Back to Dashboard</button>

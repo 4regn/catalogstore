@@ -60,7 +60,7 @@ export default function StorePage() {
   }, [orderStatus, slug]);
 
   const loadStore = async () => {
-    const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
+    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
     if (!sd) { setNotFound(true); setLoading(false); return; }
     setSeller(sd);
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", sd.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });

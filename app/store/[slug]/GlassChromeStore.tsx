@@ -11,7 +11,7 @@ interface Seller {
   social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
   store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; show_newsletter: boolean; announcement: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[] };
   checkout_config?: { whatsapp_checkout_enabled?: boolean };
-  subscription_status?: string; trial_ends_at?: string;
+  subscription_status?: string; trial_ends_at?: string; payfast_subscription_token?: string;
 }
 
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
@@ -96,7 +96,7 @@ export default function GlassChromeStore() {
   const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName) && d.timeLeft);
 
   const loadStore = async () => {
-    const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
+    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
     if (!sd) { setNotFound(true); setLoading(false); return; }
     setSeller(sd);
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", sd.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
