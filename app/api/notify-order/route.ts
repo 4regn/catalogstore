@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
                 </div>
                 <div style="padding: 32px 28px;">
                   <div style="text-align: center; margin-bottom: 28px;">
-                    <div style="width: 56px; height: 56px; border-radius: 50%; background: #e8f5e9; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 24px;">&#10003;</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto 16px;"><tr><td style="width: 64px; height: 64px; border-radius: 50%; background: #22c55e; text-align: center; vertical-align: middle; font-size: 28px; color: #fff; box-shadow: 0 0 20px rgba(34,197,94,0.4), 0 0 40px rgba(34,197,94,0.15);">&#10003;</td></tr></table>
                     <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #2a2a2e;">Order Confirmed!</h1>
                     <p style="margin: 8px 0 0; color: #8a8690; font-size: 14px;">Thank you for your order, ${order.customer_name}.</p>
                     <p style="margin: 4px 0 0; color: #8a8690; font-size: 13px;">Order #${order.order_number}</p>
