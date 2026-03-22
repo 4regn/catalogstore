@@ -50,6 +50,7 @@ export default function CheckoutPage() {
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
+  const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string } | null>(null);
 
   useEffect(() => { load(); }, [slug]);
 
@@ -60,7 +61,14 @@ export default function CheckoutPage() {
       const { data: prods } = await supabase.from("products").select("id, name, category").eq("seller_id", sd.id);
       if (prods) setSellerProducts(prods);
     }
-    try { const p = new URLSearchParams(window.location.search); const c = JSON.parse(atob(p.get("cart") || "")); if (Array.isArray(c)) setCart(c); } catch {}
+    const p = new URLSearchParams(window.location.search);
+    // Check if returning from PayFast payment
+    const paidId = p.get("paid");
+    if (paidId) {
+      const { data: order } = await supabase.from("orders").select("*").eq("id", paidId).single();
+      if (order) { setPaidOrder(order); setLoading(false); return; }
+    }
+    try { const c = JSON.parse(atob(p.get("cart") || "")); if (Array.isArray(c)) setCart(c); } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
     if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
     else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");
@@ -75,7 +83,7 @@ export default function CheckoutPage() {
     inputBg: "rgba(255,255,255,0.04)", inputBorder: "rgba(255,255,255,0.1)", inputText: "#f0f0f0",
     btnBg: "#fff", btnText: "#000", btnRadius: "6px",
     headFont: "'Bebas Neue', sans-serif", bodyFont: "'DM Sans', sans-serif",
-    selectBg: "rgba(156,124,98,0.08)", eftBg: "rgba(255,255,255,0.03)",
+    selectBg: "rgba(34,197,94,0.08)", eftBg: "rgba(255,255,255,0.03)",
     fonts: "@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');",
     summaryBg: "rgba(255,255,255,0.02)", summaryBorder: "rgba(255,255,255,0.06)",
     badgeBg: "rgba(255,255,255,0.06)", badgeText: "#fff",
@@ -194,8 +202,8 @@ export default function CheckoutPage() {
           name_last: lastName,
           email_address: email,
           cell_number: phone,
-          return_url: window.location.origin + "/store/" + slug + "?order=success",
-          cancel_url: window.location.origin + "/store/" + slug + "?order=cancelled",
+          return_url: window.location.origin + "/store/" + slug + "/checkout?paid=" + data.id,
+          cancel_url: window.location.origin + "/store/" + slug + "/checkout?cart=" + btoa(JSON.stringify(cart)),
           notify_url: window.location.origin + "/api/payfast/notify",
           custom_str1: data.id,
         };
@@ -209,6 +217,40 @@ export default function CheckoutPage() {
   };
 
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.bodyFont, background: T.bg }}><p style={{ color: T.muted }}>Loading checkout...</p></div>;
+
+  // PayFast payment success confirmation
+  if (paidOrder) return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: T.bodyFont, color: T.text }}>
+      <style>{T.fonts + `body,html{background:${T.bg};margin:0}`}</style>
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "60px 24px" }}>
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 40, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(34,197,94,0.12)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
+          <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
+        </div>
+        <div style={{ background: T.card, borderRadius: 16, padding: 28, marginBottom: 24, border: "1px solid " + T.border }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Order Confirmed</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.8, color: T.muted, marginBottom: 20 }}>Thank you {paidOrder.customer_name}! Your payment has been received and your order is being processed. You'll receive updates via email.</p>
+          <div style={{ borderTop: "1px solid " + T.border, paddingTop: 16 }}>
+            {(paidOrder.items || []).map((item: any, i: number) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 14 }}>
+                <span style={{ color: T.text }}>{item.name} x{item.qty}{item.variant ? " (" + item.variant + ")" : ""}</span>
+                <span style={{ fontWeight: 700 }}>R{(item.price * item.qty).toFixed(0)}</span>
+              </div>
+            ))}
+            <div style={{ borderTop: "1px solid " + T.border, paddingTop: 12, marginTop: 8, display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 900 }}>
+              <span>Total</span>
+              <span>R{paidOrder.total}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <a href={"/store/" + slug} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Continue Shopping</a>
+        </div>
+      </div>
+    </div>
+  );
 
   if (orderPlaced && paymentMethod === "eft") return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: T.bodyFont, color: T.text }}>
@@ -289,13 +331,13 @@ export default function CheckoutPage() {
               <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden" }}>
                 {cc.delivery_enabled && (
                   <div onClick={() => setFulfillment("delivery")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, background: fulfillment === "delivery" ? T.selectBg : T.card, borderBottom: cc.pickup_enabled ? "1px solid " + T.summaryBorder : "none" }}>
-                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: fulfillment === "delivery" ? "6px solid " + accent : "2px solid " + T.muted }} />
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: fulfillment === "delivery" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                     <span style={{ fontSize: 14, fontWeight: fulfillment === "delivery" ? 600 : 400 }}>Delivery</span>
                   </div>
                 )}
                 {cc.pickup_enabled && (
                   <div onClick={() => setFulfillment("pickup")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, background: fulfillment === "pickup" ? T.selectBg : T.card }}>
-                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: fulfillment === "pickup" ? "6px solid " + accent : "2px solid " + T.muted }} />
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: fulfillment === "pickup" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                     <div><span style={{ fontSize: 14, fontWeight: fulfillment === "pickup" ? 600 : 400 }}>Pickup</span>{cc.pickup_address && <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{cc.pickup_address}</div>}</div>
                   </div>
                 )}
@@ -344,7 +386,7 @@ export default function CheckoutPage() {
                 {cc.shipping_options.map((opt: { name: string; price: number }, i: number) => (
                   <div key={i} onClick={() => setShippingOption(i)} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: shippingOption === i ? T.selectBg : T.card, borderBottom: i < cc.shipping_options.length - 1 ? "1px solid " + T.summaryBorder : "none" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: "50%", border: shippingOption === i ? "6px solid " + accent : "2px solid " + T.muted }} />
+                      <div style={{ width: 20, height: 20, borderRadius: "50%", border: shippingOption === i ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                       <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{opt.name}</span>
                     </div>
                     <span style={{ fontSize: 14, fontWeight: 600 }}>{opt.price === 0 ? "Free" : "R" + opt.price}</span>
@@ -385,13 +427,16 @@ export default function CheckoutPage() {
               <div>
                 <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "payfast" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "payfast" ? "6px solid " + accent : "2px solid " + T.muted }} />
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "payfast" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                     <span style={{ fontSize: 14, fontWeight: paymentMethod === "payfast" ? 600 : 400 }}>PayFast</span>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <span style={{ padding: "2px 6px", border: "1px solid " + T.border, borderRadius: 4, fontSize: 10, fontWeight: 700, color: T.text }}>VISA</span>
-                    <span style={{ padding: "2px 6px", border: "1px solid " + T.border, borderRadius: 4, fontSize: 10, fontWeight: 700, color: T.text }}>MC</span>
-                    <span style={{ padding: "2px 6px", border: "1px solid " + T.border, borderRadius: 4, fontSize: 10, fontWeight: 700, color: T.text }}>EFT</span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ padding: "3px 6px", background: isGC ? "rgba(255,255,255,0.06)" : "#fff", border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><svg width="28" height="10" viewBox="0 0 48 16"><path d="M17.4 1l-3.7 14h-3L14.4 1h3zm15.8 9l1.6-4.4.9 4.4h-2.5zm2.8 5l.5-2.2h3.1l.3 2.2h2.6L40.3 1h-2.9c-.7 0-1.2.4-1.4 1L31.7 15h3l.6-1.7h3.6l.3 1.7h2.8zM28.3 10.2c0 3.4 3 5 5.3 5 1.7 0 2.5-.3 3.7-.8l-.6-2.4c-1 .4-2 .7-3.2.7-1.7 0-2.8-.8-2.8-2.2 0-2.6 2.4-3 4.1-3 .7 0 1.5.1 2.1.3l.6-2.4C36.5 5 35.4 4.8 34 4.8c-3.5 0-5.7 2-5.7 5.4zM20.3 5c-1.1 0-2 .5-2.6 1.3l0-1H15v10h3V9.6c.4-1.5 1.3-2.2 2.2-2.2.4 0 .7 0 1 .1l.5-2.4c-.3-.1-.8-.1-1.4-.1z" fill="#1434CB"/></svg></span>
+                      <span style={{ padding: "3px 6px", background: isGC ? "rgba(255,255,255,0.06)" : "#fff", border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><svg width="24" height="16" viewBox="0 0 24 16"><circle cx="9" cy="8" r="7" fill="#EB001B"/><circle cx="15" cy="8" r="7" fill="#F79E1B"/><path d="M12 2.4a7 7 0 010 11.2A7 7 0 0012 2.4z" fill="#FF5F00"/></svg></span>
+                      <span style={{ padding: "3px 8px", background: isGC ? "rgba(255,255,255,0.06)" : "#fff", border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><svg width="20" height="12" viewBox="0 0 20 12" fill={isGC ? "#fff" : "#000"}><path d="M3.8 11.8c-.4.1-.9.2-1.4.2C.9 12 0 11.2 0 9.8c0-1 .6-1.7 1.6-2-.7-.3-1.1-.9-1.1-1.6C.5 5 1.4 4.2 2.8 4.2c.4 0 .8 0 1.2.2l-.3 1c-.3-.1-.6-.2-1-.2-.6 0-1 .3-1 .8s.4.8 1.1.8h.3l-.2.9h-.2c-.8 0-1.2.4-1.2 1s.4 1 1.1 1c.4 0 .7-.1 1-.2l.2 1.1zm3.5-4.4h-1l-.7 2.8c-.1.3-.1.5-.1.7 0 .4.2.6.6.6.2 0 .4 0 .6-.1l-.2 1c-.3.1-.6.2-1 .2-.9 0-1.4-.5-1.4-1.3 0-.3 0-.6.1-1l.8-2.9h-.6l.2-1h.7l.3-1.2 1.4-.4-.4 1.6h1.1l-.4 1zm5.2-1c-.5 0-1 .3-1.3.8l.2-.7h-1.2l-1 4.5c-.1.3-.1.6-.1.8 0 .7.4 1.1 1.1 1.1.3 0 .6-.1.9-.2L11 11.6h.1c.1 0 .2 0 .3-.1l.7-3.2c.3-.6.7-.9 1.1-.9.4 0 .5.2.5.5 0 .2 0 .4-.1.6l-.6 2.4c-.1.2-.1.4-.1.6 0 .6.3 1 .9 1 .3 0 .6-.1.8-.2l.2-1c-.1 0-.2.1-.3.1-.2 0-.3-.1-.3-.3 0-.1 0-.3.1-.5l.5-2.2c.1-.3.1-.6.1-.9 0-.8-.5-1.2-1.2-1.2zm5.5.4l-.3 1.1c-.3-.2-.7-.3-1.1-.3-1.1 0-2 1-2 2.3 0 .9.5 1.5 1.3 1.5.4 0 .8-.1 1.1-.3l-.2 1.1c-.4.2-.8.2-1.3.2-1.4 0-2.3-1-2.3-2.4 0-2 1.3-3.4 3.1-3.4.6 0 1.1.1 1.5.3z"/></svg></span>
+                      <span style={{ width: 20, height: 20, borderRadius: 4, border: "1px solid " + T.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: T.muted, fontWeight: 700 }}>+</span>
+                    </div>
                   </div>
                 </div>
                 {paymentMethod === "payfast" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to PayFast to complete your payment.</div>}
@@ -400,7 +445,7 @@ export default function CheckoutPage() {
             {cc.eft_enabled && (
               <div>
                 <div onClick={() => setPaymentMethod("eft")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, background: paymentMethod === "eft" ? T.selectBg : T.card }}>
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "eft" ? "6px solid " + accent : "2px solid " + T.muted }} />
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "eft" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                   <span style={{ fontSize: 14, fontWeight: paymentMethod === "eft" ? 600 : 400 }}>EFT / Direct Deposit</span>
                 </div>
                 {paymentMethod === "eft" && (
