@@ -10,7 +10,7 @@ interface Seller {
   checkout_config: {
     eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
     eft_branch_code: string; eft_account_type: string; eft_instructions: string;
-    payfast_enabled: boolean; payfast_merchant_id: string; payfast_merchant_key: string;
+    payfast_enabled: boolean;
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     shipping_options: { name: string; price: number }[];
   };
@@ -55,7 +55,9 @@ export default function CheckoutPage() {
   useEffect(() => { load(); }, [slug]);
 
   const load = async () => {
-    const { data: sd } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
+    // Fetch seller data through safe API (strips merchant keys)
+    const sellerRes = await fetch("/api/seller-public?slug=" + slug);
+    const sd = sellerRes.ok ? await sellerRes.json() : null;
     if (sd) {
       setSeller(sd);
       const { data: prods } = await supabase.from("products").select("id, name, category").eq("seller_id", sd.id);
@@ -67,6 +69,12 @@ export default function CheckoutPage() {
     if (paidId) {
       const { data: order } = await supabase.from("orders").select("*").eq("id", paidId).single();
       if (order) { setPaidOrder(order); setLoading(false); return; }
+    }
+    // Handle cancelled PayFast payment - reload cart from order
+    const cancelledParam = p.get("cancelled");
+    if (cancelledParam === "1") {
+      // Show a message that payment was cancelled
+      alert("Payment was cancelled. You can try again.");
     }
     try { const c = JSON.parse(atob(p.get("cart") || "")); if (Array.isArray(c)) setCart(c); } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
@@ -192,27 +200,15 @@ export default function CheckoutPage() {
         if (dc) await supabase.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
       }
 
-      if (paymentMethod === "payfast" && cc.payfast_merchant_id) {
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = "https://www.payfast.co.za/eng/process";
-        const fields: Record<string, string> = {
-          merchant_id: cc.payfast_merchant_id,
-          merchant_key: cc.payfast_merchant_key,
-          amount: total.toFixed(2),
-          item_name: "Order from " + seller.store_name,
-          name_first: firstName,
-          name_last: lastName,
-          email_address: email,
-          cell_number: phone,
-          return_url: window.location.origin + "/store/" + slug + "/checkout?paid=" + data.id,
-          cancel_url: window.location.origin + "/store/" + slug + "/checkout?cart=" + btoa(JSON.stringify(cart)),
-          notify_url: window.location.origin + "/api/payfast/notify",
-          custom_str1: data.id,
-        };
-        Object.entries(fields).forEach(([k, v]) => { const input = document.createElement("input"); input.type = "hidden"; input.name = k; input.value = v; form.appendChild(input); });
-        document.body.appendChild(form);
-        form.submit();
+      if (paymentMethod === "payfast" && cc.payfast_enabled) {
+        // Redirect through server-side route (merchant keys never exposed to browser)
+        const res = await fetch("/api/payfast-redirect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: data.id, slug, firstName, lastName, email, phone, returnOrigin: window.location.origin }),
+        });
+        const html = await res.text();
+        document.open(); document.write(html); document.close();
         return;
       }
     }
