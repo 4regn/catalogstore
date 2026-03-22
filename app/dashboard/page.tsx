@@ -33,6 +33,7 @@ interface Seller {
   tagline: string; description: string; collections: string[];
   social_links: SocialLinks; store_config: StoreConfig; checkout_config: CheckoutConfig;
   subscription_status: string; subscription_plan: string; trial_ends_at: string; subscription_started_at: string;
+  payfast_subscription_token: string | null;
 }
 
 interface Product {
@@ -275,13 +276,16 @@ export default function Dashboard() {
   const isSubscribed = seller?.subscription_status === "active";
   const isExpiredTrial = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date();
   const isExpired = seller?.subscription_status === "expired" || isExpiredTrial;
+  const hasVerifiedCard = !!seller?.payfast_subscription_token || seller?.subscription_status === "active";
+  const isAdmin = seller?.email === "info@4regn.com";
+  const needsCardVerification = trialActive && !hasVerifiedCard && !isAdmin;
 
-  // Lock dashboard if expired - redirect to billing
-  if (isExpired && typeof window !== "undefined") {
+  // Lock dashboard if expired or unverified trial - redirect to billing
+  if ((isExpired || needsCardVerification) && typeof window !== "undefined") {
     window.location.href = "/dashboard/billing";
     return (
       <div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}>
-        <p style={{ color: "rgba(245,245,245,0.35)" }}>Redirecting to billing...</p>
+        <p style={{ color: "rgba(245,245,245,0.35)" }}>{needsCardVerification ? "Please verify your card to continue..." : "Redirecting to billing..."}</p>
       </div>
     );
   }

@@ -38,6 +38,7 @@ export default function BillingPage() {
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const isActive = seller?.subscription_status === "active";
   const isExpired = seller?.subscription_status === "expired" || (seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date());
+  const needsVerification = trialActive && !seller?.payfast_subscription_token;
 
   const subscribePlan = (planId: string) => {
     if (!seller) return;
@@ -113,16 +114,16 @@ export default function BillingPage() {
         <a href="/dashboard" style={{ fontSize: 14, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", textDecoration: "none", color: "#f5f5f5" }}>
           CATALOG<span style={{ background: G, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>STORE</span>
         </a>
-        <a href="/dashboard" style={{ fontSize: 11, color: "rgba(245,245,245,0.4)", textDecoration: "none", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>&larr; Back to Dashboard</a>
+        {needsVerification ? <span style={{ fontSize: 11, color: "rgba(245,245,245,0.15)", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>Verify card to continue</span> : <a href="/dashboard" style={{ fontSize: 11, color: "rgba(245,245,245,0.4)", textDecoration: "none", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>&larr; Back to Dashboard</a>}
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px 80px" }}>
 
         <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", textAlign: "center", marginBottom: 8 }}>
-          {isActive ? "Manage Subscription" : "Choose Your Plan"}
+          {needsVerification ? "Verify Your Card" : isActive ? "Manage Subscription" : "Choose Your Plan"}
         </h1>
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
-          {trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your trial has expired. Choose a plan to continue." : "Start selling online in minutes"}
+          {needsVerification ? "Verify your card with R1 to start your 7-day free trial and unlock your dashboard." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your trial has expired. Choose a plan to continue." : "Start selling online in minutes"}
         </p>
 
         {isPromo && !isActive && (
