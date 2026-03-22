@@ -70,7 +70,63 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Build WhatsApp notification URL (stored for dashboard to use)
+    // 2. Send confirmation email to CUSTOMER
+    if (resendKey && order.customer_email) {
+      try {
+        const storeUrl = `https://catalogstore.co.za/store/${seller.subdomain}`;
+        const accent = seller.primary_color || "#ff6b35";
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: process.env.RESEND_FROM_EMAIL || `${seller.store_name} <orders@catalogstore.co.za>`,
+            to: [order.customer_email],
+            subject: `Order Confirmed — #${order.order_number}`,
+            html: `
+              <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #fafafa; border-radius: 12px; overflow: hidden;">
+                <div style="padding: 28px; background: #fff; text-align: center; border-bottom: 1px solid #eee;">
+                  ${seller.logo_url ? `<img src="${seller.logo_url}" alt="${seller.store_name}" style="height: 40px; margin-bottom: 16px;" />` : `<h2 style="margin: 0 0 8px; font-size: 22px; font-weight: 300; letter-spacing: 0.06em; text-transform: uppercase;">${seller.store_name}</h2>`}
+                </div>
+                <div style="padding: 32px 28px;">
+                  <div style="text-align: center; margin-bottom: 28px;">
+                    <div style="width: 56px; height: 56px; border-radius: 50%; background: #e8f5e9; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 24px;">&#10003;</div>
+                    <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #2a2a2e;">Order Confirmed!</h1>
+                    <p style="margin: 8px 0 0; color: #8a8690; font-size: 14px;">Thank you for your order, ${order.customer_name}.</p>
+                    <p style="margin: 4px 0 0; color: #8a8690; font-size: 13px;">Order #${order.order_number}</p>
+                  </div>
+                  <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eee; margin-bottom: 16px;">
+                    <h3 style="font-size: 12px; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;">Order Details</h3>
+                    ${(order.items || []).map((i: any) => `<div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #2a2a2e;"><span>${i.name} x${i.qty}${i.variant ? " <span style='color:#8a8690'>(" + i.variant + ")</span>" : ""}</span><span style="font-weight: 600;">R${(i.price * i.qty).toFixed(0)}</span></div>`).join("")}
+                    ${order.shipping_cost > 0 ? `<div style="display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; color: #8a8690;"><span>Shipping</span><span>R${order.shipping_cost}</span></div>` : ""}
+                    <div style="display: flex; justify-content: space-between; padding: 14px 0 0; border-top: 2px solid #eee; margin-top: 4px; font-size: 18px; font-weight: 700; color: #2a2a2e;"><span>Total</span><span>R${order.total}</span></div>
+                  </div>
+                  ${order.fulfillment_method === "delivery" && order.shipping_address ? `
+                  <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eee; margin-bottom: 16px;">
+                    <h3 style="font-size: 12px; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 8px;">Delivery Address</h3>
+                    <p style="margin: 0; font-size: 14px; color: #2a2a2e; line-height: 1.6;">${order.shipping_address.address}${order.shipping_address.apartment ? ", " + order.shipping_address.apartment : ""}<br/>${order.shipping_address.city}, ${order.shipping_address.province}<br/>${order.shipping_address.postal_code || ""}</p>
+                  </div>` : ""}
+                  ${order.payment_method === "eft" ? `
+                  <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eee; margin-bottom: 16px;">
+                    <h3 style="font-size: 12px; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 8px;">Payment: EFT / Direct Deposit</h3>
+                    <p style="margin: 0; font-size: 13px; color: #8a8690;">Please complete your payment using the banking details provided at checkout. Reference your order number <strong>#${order.order_number}</strong>.</p>
+                  </div>` : `
+                  <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eee; margin-bottom: 16px;">
+                    <h3 style="font-size: 12px; color: #22c55e; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 8px;">Payment Received</h3>
+                    <p style="margin: 0; font-size: 13px; color: #8a8690;">Your payment via PayFast has been received. Your order is being processed.</p>
+                  </div>`}
+                  <a href="${storeUrl}" style="display: block; text-align: center; padding: 16px; background: #2a2a2e; color: #fff; border-radius: 100px; text-decoration: none; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;">Continue Shopping</a>
+                  ${seller.whatsapp_number ? `<p style="text-align: center; margin-top: 16px; font-size: 13px; color: #8a8690;">Questions? WhatsApp us at ${seller.whatsapp_number}</p>` : ""}
+                </div>
+              </div>
+            `,
+          }),
+        });
+      } catch (custErr) {
+        console.error("Customer email failed:", custErr);
+      }
+    }
+
+    // 3. Build WhatsApp notification URL (stored for dashboard to use)
     let whatsappUrl = "";
     if (seller.whatsapp_number) {
       const waNumber = seller.whatsapp_number.replace(/\D/g, "").replace(/^0/, "27");
