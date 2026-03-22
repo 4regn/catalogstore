@@ -83,7 +83,7 @@ export default function SignUp() {
 
             <div style={s.field}>
               <label style={s.label}>WHATSAPP NUMBER</label>
-              <input type="tel" placeholder="e.g. 0678577919" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} required style={s.input} />
+              <input type="tel" placeholder="e.g. 0671234567" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} required style={s.input} />
             </div>
 
             <div style={s.field}>

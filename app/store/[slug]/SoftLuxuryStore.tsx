@@ -211,7 +211,7 @@ export default function StorePage() {
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 24 }}>
               <button onClick={() => setShowSearch(true)} style={{ background: "none", border: "none", color: "#8a8690", fontSize: 13, letterSpacing: "0.04em", cursor: "pointer", fontFamily: "'Jost', sans-serif" }}>Search</button>
-              <button onClick={() => setShowCart(true)} style={{ background: "none", border: "none", color: "#8a8690", fontSize: 13, cursor: "pointer", fontFamily: "'Jost', sans-serif", display: "flex", alignItems: "center", gap: 6 }}>Bag {cartCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: accent, color: "#fff", fontSize: 9, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}</button>
+              <button onClick={() => setShowCart(true)} style={{ background: "none", border: "none", color: "#8a8690", fontSize: 13, cursor: "pointer", fontFamily: "'Jost', sans-serif", display: "flex", alignItems: "center", gap: 6 }}>Cart {cartCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: accent, color: "#fff", fontSize: 9, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}</button>
             </div>
           </div>
         </header>
@@ -460,7 +460,7 @@ export default function StorePage() {
                       ))}
                     </div>
                   )}
-                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "18px 32px", background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Bag &mdash; R{selectedProduct.price}</button>
+                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "18px 32px", background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; R{selectedProduct.price}</button>
                 </div>
               </div>
             </div>
@@ -472,11 +472,11 @@ export default function StorePage() {
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setShowCart(false)}>
             <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, maxWidth: "90vw", background: "#f6f3ef", display: "flex", flexDirection: "column", boxShadow: "-8px 0 40px rgba(0,0,0,0.08)" }} onClick={(e) => e.stopPropagation()}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 28px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 400 }}>Your Bag ({cartCount})</h3>
+                <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 400 }}>Your Cart ({cartCount})</h3>
                 <button onClick={() => setShowCart(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#8a8690" }}>&times;</button>
               </div>
               {cart.length === 0 ? (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><p style={{ color: "#8a8690" }}>Your bag is empty</p></div>
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><p style={{ color: "#8a8690" }}>Your cart is empty</p></div>
               ) : (
                 <>
                   <div style={{ flex: 1, overflow: "auto", padding: "24px 28px" }}>
