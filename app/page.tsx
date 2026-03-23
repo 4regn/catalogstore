@@ -316,8 +316,6 @@ export default function HomePage() {
       <div id="cs-cursor" ref={cursorRef} />
       <div id="cs-cursor-ring" ref={cursorRingRef} />
 
-      {/* SCROLL INDICATOR */}
-      </div>
 
       {/* AMBIENT ORBS */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
