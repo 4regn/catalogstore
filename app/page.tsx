@@ -137,6 +137,7 @@ export default function HomePage() {
   const [previewBrandColor, setPreviewBrandColor] = useState("#ff6b35");
   const [previewBrandDesc, setPreviewBrandDesc] = useState("");
   const [previewBrandName, setPreviewBrandName] = useState("");
+  const [previewCategory, setPreviewCategory] = useState("");
   const [previewBanner, setPreviewBanner] = useState<{dataUrl:string;base64:string;mediaType:string}|null>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -242,6 +243,7 @@ export default function HomePage() {
           brandColor: previewBrandColor,
           brandDescription: previewBrandDesc,
           brandName: previewBrandName,
+          storeCategory: previewCategory,
           bannerImage: previewBanner ? { base64: previewBanner.base64, mediaType: previewBanner.mediaType } : null,
         }),
       });
@@ -267,154 +269,227 @@ export default function HomePage() {
     setPreviewBrandColor("#ff6b35");
     setPreviewBrandDesc("");
     setPreviewBrandName("");
+    setPreviewCategory("");
     setPreviewBanner(null);
   }, []);
 
   const buildGCStore = useCallback(() => {
     if (!previewStore) return "";
     const bc = previewStore.brandColor || previewBrandColor || "#ff6b35";
-    const products = previewStore.products.slice(0, 6);
+    const products = previewStore.products.slice(0, 10);
     const collections = previewStore.collections || [];
     const heroImg = previewBanner?.dataUrl ?? previewProducts[0]?.dataUrl ?? "";
     const logoImg = previewLogo ?? "";
+    const storeName = previewStore.storeName;
 
-    const cards = (prods: typeof products, imgs: typeof previewProducts) => prods.map((p, i) =>
-      `<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);overflow:hidden;cursor:pointer;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
-        <div style="aspect-ratio:3/4;overflow:hidden;background:#111118">${imgs[i]?`<img src="${imgs[i].dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:`<div style="width:100%;height:100%;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}</div>
-        <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.04)">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:rgba(255,255,255,0.75);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-          <div style="font-size:12px;font-weight:800;color:${bc}">${p.price}</div>
-        </div>
-      </div>`
-    ).join("");
-
-    const collectionCards = collections.map(col => {
-      const colImgs = col.productIndexes.map((idx: number) => previewProducts[idx]).filter(Boolean);
-      const coverImg = colImgs[0]?.dataUrl ?? "";
-      return `<div style="position:relative;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,0.06)">
-        <div style="aspect-ratio:4/3;overflow:hidden;background:#111118">${coverImg?`<img src="${coverImg}" style="width:100%;height:100%;object-fit:cover;opacity:0.7">`:`<div style="width:100%;height:100%;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}</div>
-        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.8) 0%,transparent 60%)"></div>
-        <div style="position:absolute;bottom:0;left:0;padding:14px 16px">
-          <div style="font-size:8px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px">${col.productIndexes.length} PIECES</div>
-          <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#fff">${col.name}</div>
-        </div>
-      </div>`;
+    // 2-col product grid (matching real Glass Chrome template)
+    const productCards = products.map((p, i) => {
+      const img = previewProducts[i];
+      return `
+        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);overflow:hidden;cursor:pointer;transition:transform 0.3s,border-color 0.3s" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(255,255,255,0.12)'" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='rgba(255,255,255,0.06)'">
+          <div style="aspect-ratio:3/4;overflow:hidden;background:#0d0d12;position:relative">
+            ${img ? `<img src="${img.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.4s" onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}
+          </div>
+          <div style="padding:12px 14px;border-top:1px solid rgba(255,255,255,0.04)">
+            <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:rgba(255,255,255,0.3);margin-bottom:4px">${p.category || "Product"}</div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:rgba(255,255,255,0.85);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div style="font-size:14px;font-weight:800;color:${bc}">${p.price}</div>
+          </div>
+        </div>`;
     }).join("");
 
-    const ticker = ["Free Delivery Over R500","New Arrivals Weekly","Secure Checkout","South African Brand","Free Delivery Over R500","New Arrivals Weekly","Secure Checkout","South African Brand"]
-      .map(t=>`<span style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:4px;height:4px;border-radius:50%;background:${bc};flex-shrink:0"></span>${t}</span>`).join("");
+    // Collection cards
+    const collectionCards = collections.map((col, ci) => {
+      const firstIdx = col.productIndexes[0] ?? 0;
+      const coverImg = previewProducts[firstIdx]?.dataUrl ?? "";
+      return `
+        <div style="position:relative;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,0.06);aspect-ratio:4/3" onmouseover="this.style.borderColor='rgba(255,255,255,0.15)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)'">
+          <div style="position:absolute;inset:0;background:#0d0d12">
+            ${coverImg ? `<img src="${coverImg}" style="width:100%;height:100%;object-fit:cover;opacity:0.6;display:block">` : ""}
+          </div>
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.85) 0%,transparent 55%)"></div>
+          <div style="position:absolute;bottom:0;left:0;padding:14px 16px">
+            <div style="font-size:8px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px">${col.productIndexes.length} PIECE${col.productIndexes.length > 1 ? "S" : ""}</div>
+            <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:#fff">${col.name}</div>
+          </div>
+        </div>`;
+    }).join("");
 
-    const collectionsSection = collections.length > 0 ? `
+    const ticker = ["Free Delivery Over R500","New Arrivals","Secure Checkout","South African Brand",
+                    "Free Delivery Over R500","New Arrivals","Secure Checkout","South African Brand"]
+      .map(t => `<span style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);padding:0 28px;display:inline-flex;align-items:center;gap:12px"><span style="width:4px;height:4px;border-radius:50%;background:${bc};flex-shrink:0;display:inline-block"></span>${t}</span>`).join("");
+
+    const collectionsHtml = collections.length > 0 ? `
       <div style="padding:20px 16px 0">
-        <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:14px">/ 01 Collections</div>
+        <div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:14px">/ 01 &nbsp; COLLECTIONS</div>
         <div style="display:grid;grid-template-columns:repeat(${Math.min(collections.length, 3)},1fr);gap:8px">${collectionCards}</div>
       </div>` : "";
 
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;700;800;900&display=swap" rel="stylesheet">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#08080c;color:#f0f0f0;font-family:'Schibsted Grotesk',sans-serif}@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}</style>
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#08080c;color:#f0f0f0;font-family:'Schibsted Grotesk',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#08080c}::-webkit-scrollbar-thumb{background:${bc};border-radius:2px}
+  @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+</style>
 </head><body>
-<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(8,8,12,0.95);position:sticky;top:0;z-index:10;backdrop-filter:blur(20px)">
-  <div style="display:flex;align-items:center;gap:10px">${logoImg?`<img src="${logoImg}" style="width:30px;height:30px;object-fit:contain;border-radius:6px">`:""}<span style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em">${previewStore.storeName}</span></div>
-  <div style="display:flex;gap:14px;align-items:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35)">
-    <span>Shop</span><span>Collections</span>
-    <span style="padding:8px 16px;border-radius:100px;background:${bc};color:#fff">Cart (0)</span>
+
+<!-- NAV -->
+<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(8,8,12,0.96);position:sticky;top:0;z-index:50;backdrop-filter:blur(20px)">
+  <div style="display:flex;align-items:center;gap:10px">
+    ${logoImg ? `<img src="${logoImg}" style="width:32px;height:32px;object-fit:contain;border-radius:7px">` : ""}
+    <span style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em;color:#f0f0f0">${storeName}</span>
+  </div>
+  <div style="display:flex;gap:14px;align-items:center">
+    <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35)">Shop</span>
+    <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35)">Collections</span>
+    <span style="padding:8px 18px;border-radius:100px;background:${bc};color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em">Cart (0)</span>
   </div>
 </div>
+
+<!-- HERO -->
 <div style="position:relative;height:300px;overflow:hidden;display:flex;align-items:flex-end">
-  ${heroImg?`<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.6">`:`<div style="position:absolute;inset:0;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}
-  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,12,0.97) 0%,rgba(8,8,12,0.2) 55%,transparent 100%)"></div>
-  <div style="position:relative;padding:20px 20px 24px;z-index:1">
-    <div style="font-size:9px;color:${bc};opacity:0.8;text-transform:uppercase;letter-spacing:0.2em;font-weight:700;margin-bottom:6px">— ${previewStore.tagline}</div>
-    <div style="font-size:32px;font-weight:900;text-transform:uppercase;letter-spacing:-0.04em;line-height:1">${previewStore.storeName}</div>
-    <div style="display:inline-block;margin-top:14px;padding:10px 22px;border-radius:100px;background:${bc};color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em">Shop the Collection</div>
+  ${heroImg ? `<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.65">` : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,#0d0d12,#1a1a24)"></div>`}
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,12,1) 0%,rgba(8,8,12,0.4) 40%,transparent 100%)"></div>
+  <div style="position:relative;padding:24px 20px;z-index:1">
+    <div style="font-size:9px;color:${bc};text-transform:uppercase;letter-spacing:0.2em;font-weight:700;margin-bottom:8px">— ${previewStore.tagline}</div>
+    <div style="font-size:clamp(26px,6vw,38px);font-weight:900;text-transform:uppercase;letter-spacing:-0.04em;line-height:1;color:#fff">${storeName}</div>
+    <div style="display:inline-block;margin-top:16px;padding:11px 24px;border-radius:100px;background:${bc};color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer">Shop the Collection</div>
   </div>
 </div>
-<div style="overflow:hidden;border-top:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);padding:10px 0">
-  <div style="display:flex;white-space:nowrap;animation:marquee 14s linear infinite">${ticker}</div>
+
+<!-- TICKER -->
+<div style="overflow:hidden;border-top:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);padding:10px 0;background:rgba(255,255,255,0.01)">
+  <div style="display:flex;white-space:nowrap;animation:marquee 16s linear infinite">${ticker}</div>
 </div>
-${collectionsSection}
+
+<!-- COLLECTIONS -->
+${collectionsHtml}
+
+<!-- ALL PRODUCTS -->
 <div style="padding:20px 16px">
-  <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:14px">/ 02 All Products</div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px">${cards(products, previewProducts)}</div>
+  <div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:14px">/ ${collections.length > 0 ? "02" : "01"} &nbsp; ALL PRODUCTS</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:3px">${productCards}</div>
 </div>
-<div style="padding:20px;border-top:1px solid rgba(255,255,255,0.04);text-align:center;font-size:9px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:0.1em">
-  © 2026 ${previewStore.storeName} · Powered by CatalogStore
+
+<!-- FOOTER -->
+<div style="padding:20px 16px;border-top:1px solid rgba(255,255,255,0.04);text-align:center;font-size:9px;color:rgba(255,255,255,0.18);text-transform:uppercase;letter-spacing:0.12em;margin-top:8px">
+  © 2026 ${storeName} &nbsp;·&nbsp; Powered by CatalogStore
 </div>
+
 </body></html>`;
-  }, [previewStore, previewProducts, previewLogo, previewBrandColor]);
+  }, [previewStore, previewProducts, previewLogo, previewBanner, previewBrandColor]);
 
   const buildSLStore = useCallback(() => {
     if (!previewStore) return "";
     const bc = previewStore.brandColor || previewBrandColor || "#9c7c62";
-    const products = previewStore.products.slice(0, 6);
+    const products = previewStore.products.slice(0, 10);
     const collections = previewStore.collections || [];
     const heroImg = previewBanner?.dataUrl ?? previewProducts[0]?.dataUrl ?? "";
     const logoImg = previewLogo ?? "";
+    const storeName = previewStore.storeName;
 
-    const cards = (prods: typeof products, imgs: typeof previewProducts) => prods.map((p, i) =>
-      `<div style="background:#fff;overflow:hidden;cursor:pointer;transition:box-shadow 0.3s" onmouseover="this.style.boxShadow='0 8px 30px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
-        <div style="aspect-ratio:3/4;overflow:hidden;background:#f0ebe4">${imgs[i]?`<img src="${imgs[i].dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:`<div style="width:100%;height:100%;background:#ede8e2"></div>`}</div>
-        <div style="padding:10px 12px;border-top:1px solid rgba(0,0,0,0.04)">
-          <div style="font-size:11px;font-weight:300;letter-spacing:0.04em;color:rgba(42,42,46,0.65);margin-bottom:3px;font-family:'Georgia',serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-          <div style="font-size:12px;font-weight:600;color:${bc};font-family:sans-serif">${p.price}</div>
-        </div>
-      </div>`
-    ).join("");
-
-    const collectionCards = collections.map(col => {
-      const colImgs = col.productIndexes.map((idx: number) => previewProducts[idx]).filter(Boolean);
-      const coverImg = colImgs[0]?.dataUrl ?? "";
-      return `<div style="background:#fff;border-radius:12px;overflow:hidden;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
-        <div style="aspect-ratio:4/3;overflow:hidden;background:#f0ebe4">${coverImg?`<img src="${coverImg}" style="width:100%;height:100%;object-fit:cover">`:`<div style="width:100%;height:100%;background:#e8e2da"></div>`}</div>
-        <div style="padding:14px 16px">
-          <div style="font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.4);margin-bottom:4px">${col.productIndexes.length} pieces</div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:300;letter-spacing:0.04em;font-style:italic;color:#2a2a2e">${col.name}</div>
-        </div>
-      </div>`;
+    // 2-col product grid (matching real Soft Luxury template)
+    const productCards = products.map((p, i) => {
+      const img = previewProducts[i];
+      return `
+        <div style="background:#fff;overflow:hidden;cursor:pointer;transition:box-shadow 0.3s" onmouseover="this.style.boxShadow='0 8px 32px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
+          <div style="aspect-ratio:3/4;overflow:hidden;background:#f0ebe4;position:relative">
+            ${img ? `<img src="${img.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s" onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">` : `<div style="width:100%;height:100%;background:#ede8e2"></div>`}
+          </div>
+          <div style="padding:12px 14px;border-top:1px solid rgba(0,0,0,0.05)">
+            <div style="font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:rgba(42,42,46,0.35);margin-bottom:4px;font-family:sans-serif">${p.category || "Product"}</div>
+            <div style="font-size:12px;font-weight:300;letter-spacing:0.03em;color:rgba(42,42,46,0.7);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Georgia',serif;font-style:italic">${p.name}</div>
+            <div style="font-size:13px;font-weight:600;color:${bc};font-family:sans-serif">${p.price}</div>
+          </div>
+        </div>`;
     }).join("");
 
-    const ticker = ["Free Delivery Over R500","Curated Collections","Secure Checkout","Proudly South African","Free Delivery Over R500","Curated Collections","Secure Checkout","Proudly South African"]
-      .map(t=>`<span style="font-size:9px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;color:rgba(42,42,46,0.3);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:3px;height:3px;border-radius:50%;background:${bc};flex-shrink:0"></span>${t}</span>`).join("");
+    // Collection cards
+    const collectionCards = collections.map((col) => {
+      const firstIdx = col.productIndexes[0] ?? 0;
+      const coverImg = previewProducts[firstIdx]?.dataUrl ?? "";
+      return `
+        <div style="background:#fff;border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow 0.3s;box-shadow:0 2px 12px rgba(0,0,0,0.05)" onmouseover="this.style.boxShadow='0 8px 32px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='0 2px 12px rgba(0,0,0,0.05)'">
+          <div style="aspect-ratio:4/3;overflow:hidden;background:#f0ebe4">
+            ${coverImg ? `<img src="${coverImg}" style="width:100%;height:100%;object-fit:cover;display:block">` : `<div style="width:100%;height:100%;background:#ede8e2"></div>`}
+          </div>
+          <div style="padding:14px 16px">
+            <div style="font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.35);margin-bottom:5px;font-family:sans-serif">${col.productIndexes.length} piece${col.productIndexes.length > 1 ? "s" : ""}</div>
+            <div style="font-family:'Georgia',serif;font-size:15px;font-weight:300;letter-spacing:0.04em;font-style:italic;color:#2a2a2e">${col.name}</div>
+          </div>
+        </div>`;
+    }).join("");
 
-    const collectionsSection = collections.length > 0 ? `
+    const ticker = ["Free Delivery Over R500","Curated Collections","Secure Checkout","Proudly South African",
+                    "Free Delivery Over R500","Curated Collections","Secure Checkout","Proudly South African"]
+      .map(t => `<span style="font-size:9px;font-weight:400;letter-spacing:0.18em;text-transform:uppercase;color:rgba(42,42,46,0.3);padding:0 28px;display:inline-flex;align-items:center;gap:12px"><span style="width:3px;height:3px;border-radius:50%;background:${bc};flex-shrink:0;display:inline-block"></span>${t}</span>`).join("");
+
+    const collectionsHtml = collections.length > 0 ? `
       <div style="padding:20px 20px 0">
-        <div style="font-size:12px;font-weight:300;letter-spacing:0.08em;color:rgba(42,42,46,0.4);margin-bottom:14px;font-family:'Cormorant Garamond',serif;font-style:italic">Curated for You</div>
+        <div style="font-size:9px;font-weight:400;letter-spacing:0.16em;text-transform:uppercase;color:rgba(42,42,46,0.35);margin-bottom:16px;font-family:sans-serif">Curated for You</div>
         <div style="display:grid;grid-template-columns:repeat(${Math.min(collections.length, 3)},1fr);gap:10px">${collectionCards}</div>
       </div>` : "";
 
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f6f3ef;color:#2a2a2e;font-family:'Jost',sans-serif}@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}</style>
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#f6f3ef;color:#2a2a2e;font-family:'Jost',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#f6f3ef}::-webkit-scrollbar-thumb{background:${bc};border-radius:2px}
+  @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+</style>
 </head><body>
-<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(0,0,0,0.06);background:rgba(246,243,239,0.95);position:sticky;top:0;z-index:10;backdrop-filter:blur(20px)">
-  <div style="display:flex;align-items:center;gap:10px">${logoImg?`<img src="${logoImg}" style="width:28px;height:28px;object-fit:contain;border-radius:4px">`:""}<span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;letter-spacing:0.1em;text-transform:uppercase">${previewStore.storeName}</span></div>
-  <div style="display:flex;gap:16px;align-items:center;font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.4)">
-    <span>Shop</span><span>Collections</span><span>Search</span><span style="color:${bc}">Bag (0)</span>
+
+<!-- NAV -->
+<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid rgba(0,0,0,0.06);background:rgba(246,243,239,0.96);position:sticky;top:0;z-index:50;backdrop-filter:blur(20px)">
+  <div style="display:flex;align-items:center;gap:10px">
+    ${logoImg ? `<img src="${logoImg}" style="width:30px;height:30px;object-fit:contain;border-radius:4px">` : ""}
+    <span style="font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:400;letter-spacing:0.1em;text-transform:uppercase;color:#2a2a2e">${storeName}</span>
+  </div>
+  <div style="display:flex;gap:18px;align-items:center">
+    <span style="font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.4)">Shop</span>
+    <span style="font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.4)">Collections</span>
+    <span style="font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.4)">Search</span>
+    <span style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:${bc}">Bag (0)</span>
   </div>
 </div>
+
+<!-- HERO -->
 <div style="position:relative;height:300px;overflow:hidden;display:flex;align-items:flex-end">
-  ${heroImg?`<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:`<div style="position:absolute;inset:0;background:#e8e2da"></div>`}
-  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(246,243,239,0.97) 0%,rgba(246,243,239,0.15) 55%,transparent 100%)"></div>
-  <div style="position:relative;padding:20px 20px 24px;z-index:1">
-    <div style="font-size:9px;color:rgba(42,42,46,0.4);text-transform:uppercase;letter-spacing:0.2em;font-weight:400;margin-bottom:6px">${previewStore.tagline}</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:300;letter-spacing:0.04em;line-height:1;font-style:italic;color:#2a2a2e">${previewStore.storeName}</div>
-    <div style="display:inline-block;margin-top:14px;padding:10px 24px;border:1px solid ${bc};color:${bc};font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.14em">Shop the Collection →</div>
+  ${heroImg ? `<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : `<div style="position:absolute;inset:0;background:#e8e2da"></div>`}
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(246,243,239,0.97) 0%,rgba(246,243,239,0.2) 50%,transparent 100%)"></div>
+  <div style="position:relative;padding:24px 24px;z-index:1">
+    <div style="font-size:9px;color:rgba(42,42,46,0.4);text-transform:uppercase;letter-spacing:0.2em;font-weight:400;margin-bottom:8px;font-family:sans-serif">${previewStore.tagline}</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:clamp(28px,6vw,40px);font-weight:300;letter-spacing:0.04em;line-height:1;font-style:italic;color:#2a2a2e">${storeName}</div>
+    <div style="display:inline-block;margin-top:16px;padding:11px 26px;border:1px solid ${bc};color:${bc};font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.14em;cursor:pointer;font-family:sans-serif;transition:background 0.2s" onmouseover="this.style.background='${bc}';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='${bc}'">Shop the Collection →</div>
   </div>
 </div>
-<div style="overflow:hidden;border-top:1px solid rgba(0,0,0,0.05);border-bottom:1px solid rgba(0,0,0,0.05);padding:9px 0">
-  <div style="display:flex;white-space:nowrap;animation:marquee 14s linear infinite">${ticker}</div>
+
+<!-- TICKER -->
+<div style="overflow:hidden;border-top:1px solid rgba(0,0,0,0.05);border-bottom:1px solid rgba(0,0,0,0.05);padding:9px 0;background:rgba(0,0,0,0.01)">
+  <div style="display:flex;white-space:nowrap;animation:marquee 16s linear infinite">${ticker}</div>
 </div>
-${collectionsSection}
+
+<!-- COLLECTIONS -->
+${collectionsHtml}
+
+<!-- ALL PRODUCTS -->
 <div style="padding:20px 20px">
-  <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;letter-spacing:0.06em;color:rgba(42,42,46,0.45);margin-bottom:14px;font-style:italic">All Products</div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px">${cards(products, previewProducts)}</div>
+  <div style="font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:300;letter-spacing:0.06em;color:rgba(42,42,46,0.45);margin-bottom:16px;font-style:italic">All Products</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:3px">${productCards}</div>
 </div>
-<div style="padding:20px;border-top:1px solid rgba(0,0,0,0.05);text-align:center;font-size:9px;color:rgba(42,42,46,0.25);text-transform:uppercase;letter-spacing:0.12em">
-  © 2026 ${previewStore.storeName} · Powered by CatalogStore
+
+<!-- FOOTER -->
+<div style="padding:20px 24px;border-top:1px solid rgba(0,0,0,0.05);text-align:center;font-size:9px;color:rgba(42,42,46,0.25);text-transform:uppercase;letter-spacing:0.12em;margin-top:8px;font-family:sans-serif">
+  © 2026 ${storeName} &nbsp;·&nbsp; Powered by CatalogStore
 </div>
+
 </body></html>`;
-  }, [previewStore, previewProducts, previewLogo, previewBrandColor]);
+  }, [previewStore, previewProducts, previewLogo, previewBanner, previewBrandColor]);
 
   return (
     <>
@@ -767,6 +842,22 @@ ${collectionsSection}
                           onFocus={e => e.target.style.borderColor = "rgba(255,107,53,0.4)"}
                           onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.08)"}
                         />
+                      </div>
+
+                      {/* STORE CATEGORY */}
+                      <div style={{ marginBottom: 28 }}>
+                        <div className="preview-upload-title">Store Category</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                          {["Fashion & Clothing","Sneakers & Footwear","Accessories","Beauty & Skincare","Food & Drinks","Home & Living","Art & Prints","Other"].map(cat => (
+                            <div
+                              key={cat}
+                              onClick={() => setPreviewCategory(cat)}
+                              style={{ padding: "8px 12px", borderRadius: 8, border: previewCategory === cat ? `1px solid ${previewBrandColor}` : "1px solid rgba(255,255,255,0.07)", background: previewCategory === cat ? `${previewBrandColor}18` : "rgba(255,255,255,0.02)", cursor: "pointer", fontSize: 10, fontWeight: 600, color: previewCategory === cat ? "var(--text)" : "var(--text-muted)", transition: "all 0.2s", textAlign: "center" as const }}
+                            >
+                              {cat}
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
                       {/* TEMPLATE */}

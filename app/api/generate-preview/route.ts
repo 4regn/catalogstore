@@ -1,199 +1,150 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Rate limit: max 10 preview generations per IP per hour
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + 60 * 60 * 1000 });
-    return true;
-  }
+  if (!entry || now > entry.resetAt) { rateLimitMap.set(ip, { count: 1, resetAt: now + 60 * 60 * 1000 }); return true; }
   if (entry.count >= 10) return false;
   entry.count++;
   return true;
 }
 
 export async function POST(req: NextRequest) {
-  // ── AUTH CHECK ───────────────────────────────────────────
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Preview service not configured." },
-      { status: 503 }
-    );
-  }
+  if (!apiKey) return NextResponse.json({ error: "Preview service not configured." }, { status: 503 });
 
-  // ── RATE LIMIT ───────────────────────────────────────────
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    req.headers.get("x-real-ip") ??
-    "unknown";
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? "unknown";
+  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many previews. Try again later." }, { status: 429 });
 
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json(
-      { error: "Too many previews generated. Please try again later." },
-      { status: 429 }
-    );
-  }
-
-  // ── PARSE BODY ───────────────────────────────────────────
   let body: {
     images: { base64: string; mediaType: string }[];
     template: string;
+    brandColor?: string;
+    brandDescription?: string;
+    brandName?: string;
+    storeCategory?: string;
+    bannerImage?: { base64: string; mediaType: string } | null;
   };
 
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-  }
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
 
-  const { images, template } = body;
+  const { images, brandColor, brandDescription, brandName, storeCategory, bannerImage } = body;
 
-  if (!images || !Array.isArray(images) || images.length < 4) {
-    return NextResponse.json(
-      { error: "Please upload at least 4 product photos." },
-      { status: 400 }
-    );
-  }
+  if (!images || !Array.isArray(images) || images.length < 4)
+    return NextResponse.json({ error: "Please upload at least 4 product photos." }, { status: 400 });
+  if (images.length > 10)
+    return NextResponse.json({ error: "Maximum 10 photos allowed." }, { status: 400 });
 
-  if (images.length > 10) {
-    return NextResponse.json(
-      { error: "Maximum 10 product photos allowed." },
-      { status: 400 }
-    );
-  }
-
-  // ── VALIDATE IMAGE TYPES ─────────────────────────────────
-  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+  const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
   for (const img of images) {
-    if (!allowedTypes.includes(img.mediaType)) {
-      return NextResponse.json(
-        { error: "Only JPEG, PNG, WebP, or GIF images are allowed." },
-        { status: 400 }
-      );
-    }
-    // Basic size check — base64 of 5MB = ~6.8M chars
-    if (img.base64.length > 7_000_000) {
-      return NextResponse.json(
-        { error: "One or more images are too large. Max 5MB per image." },
-        { status: 400 }
-      );
-    }
+    if (!allowed.includes(img.mediaType)) return NextResponse.json({ error: "Only JPEG, PNG, WebP or GIF allowed." }, { status: 400 });
+    if (img.base64.length > 7_000_000) return NextResponse.json({ error: "Images too large. Max 5MB each." }, { status: 400 });
   }
 
-  // ── BUILD MESSAGE FOR CLAUDE ─────────────────────────────
-  // Send up to 6 images to keep token usage reasonable
+  const bannerContent = bannerImage ? [{
+    type: "image" as const,
+    source: { type: "base64" as const, media_type: bannerImage.mediaType as "image/jpeg"|"image/png"|"image/webp"|"image/gif", data: bannerImage.base64 },
+  }] : [];
+
   const imageContent = images.slice(0, 6).map((img) => ({
     type: "image" as const,
-    source: {
-      type: "base64" as const,
-      media_type: img.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-      data: img.base64,
-    },
+    source: { type: "base64" as const, media_type: img.mediaType as "image/jpeg"|"image/png"|"image/webp"|"image/gif", data: img.base64 },
   }));
 
-  const prompt = `You are helping a South African seller create a professional online store on CatalogStore.
+  const accentColor = brandColor ?? "#ff6b35";
 
-I am showing you ${Math.min(images.length, 6)} product photos. Analyse them carefully — look at the style, colours, quality, and type of products.
+  const prompt = `You are helping a South African seller build a store preview on CatalogStore.
 
-Return ONLY a valid JSON object with NO markdown formatting, NO code blocks, NO explanation. Just raw JSON:
+${bannerImage ? "The FIRST image is the store banner/cover photo. The remaining images are product photos." : "All images are product photos."}
+
+SELLER INFO:
+- Brand name: ${brandName ? `"${brandName}" — USE THIS EXACT NAME. Do not add any words to it.` : "Not provided — generate a short punchy name from the products."}
+- Store category: ${storeCategory || "Not specified — infer from products"}
+- Brand accent color: ${accentColor}
+- Brand description: ${brandDescription || "Not provided — infer from products"}
+
+Analyse each product photo carefully. Look at the style, quality, and type of each product.
+
+Return ONLY raw JSON — no markdown, no code blocks, no extra text:
 
 {
-  "storeName": "SHORT PUNCHY NAME IN CAPS (2-3 words max)",
-  "tagline": "Compelling tagline under 8 words",
-  "storeSlug": "lowercase-hyphenated-store-name",
+  "storeName": "${brandName ? brandName : "SHORT PUNCHY NAME IN CAPS (2-3 words max)"}",
+  "tagline": "Compelling tagline under 8 words that matches the brand vibe",
+  "storeSlug": "${brandName ? brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : "lowercase-hyphenated-name"}",
+  "brandColor": "${accentColor}",
   "products": [
     {
-      "name": "Product name (2-4 words)",
-      "price": "RXX (realistic South African rand price based on the product type and quality)"
+      "name": "Product name (2-4 words, based on what you see in the photo)",
+      "price": "RXX (realistic South African rand price for this type of product)",
+      "category": "Exact visual category e.g. Tees, Jackets, Caps, Sneakers, Dresses, Accessories, Hoodies"
     }
   ],
-  "insight1": { "label": "Style", "value": "One sentence about the aesthetic vibe of these products" },
-  "insight2": { "label": "Target Market", "value": "One sentence about who would buy these" },
-  "insight3": { "label": "Tip", "value": "One actionable tip to maximise sales for this type of product" }
+  "collections": [
+    {
+      "name": "Collection name (the category name)",
+      "productIndexes": [0, 1]
+    }
+  ],
+  "insight1": { "label": "Style", "value": "One sentence about the aesthetic vibe" },
+  "insight2": { "label": "Target Market", "value": "One sentence about who buys these" },
+  "insight3": { "label": "Tip", "value": "One actionable sales tip for this product type in South Africa" }
 }
 
-Rules:
-- Generate exactly ${Math.min(images.length, 6)} products, one per photo in order
-- Store name and tagline should feel authentic — South African flavour if the products suit it
-- Prices should be realistic for the South African market based on what you see
-- Keep all values concise`;
+STRICT RULES:
+- storeName must be EXACTLY "${brandName || "a short generated name"}" — no additions, no changes
+- storeSlug must be derived ONLY from the brand name
+- Generate exactly ${Math.min(images.length, 6)} products (one per product photo, in order${bannerImage ? " — skip the first banner image" : ""})
+- Group products into collections by visual category — if you see tees AND jackets, make 2 separate collections
+- productIndexes are 0-based indexes into the products array
+- brandColor must be exactly: "${accentColor}"
+- Prices must be realistic for the South African market based on the product type and quality`;
 
-  // ── CALL ANTHROPIC API (server-side only) ────────────────
   try {
-    const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,           // ← API key only ever used here, server-side
-        "anthropic-version": "2023-06-01",
-      },
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: "claude-opus-4-5-20251101",
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: [
-              ...imageContent,
-              { type: "text", text: prompt },
-            ],
-          },
-        ],
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1200,
+        messages: [{ role: "user", content: [...bannerContent, ...imageContent, { type: "text", text: prompt }] }],
       }),
     });
 
-    if (!anthropicResponse.ok) {
-      const err = await anthropicResponse.text();
-      console.error("Anthropic API error:", err);
-      return NextResponse.json(
-        { error: "AI service temporarily unavailable. Please try again." },
-        { status: 502 }
-      );
+    if (!res.ok) {
+      console.error("Anthropic error:", await res.text());
+      return NextResponse.json({ error: "AI service unavailable. Please try again." }, { status: 502 });
     }
 
-    const anthropicData = await anthropicResponse.json();
-    const rawText = anthropicData.content?.[0]?.text ?? "";
-
-    // Strip any accidental markdown fences
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const data = await res.json();
+    const raw = (data.content?.[0]?.text ?? "").replace(/```json|```/g, "").trim();
 
     let storeData;
-    try {
-      storeData = JSON.parse(cleaned);
-    } catch {
-      console.error("Failed to parse AI response:", cleaned);
-      return NextResponse.json(
-        { error: "AI returned an unexpected response. Please try again." },
-        { status: 500 }
-      );
+    try { storeData = JSON.parse(raw); }
+    catch { return NextResponse.json({ error: "AI returned unexpected response. Try again." }, { status: 500 }); }
+
+    if (!storeData.storeName || !storeData.tagline || !storeData.storeSlug || !Array.isArray(storeData.products) || !storeData.products.length)
+      return NextResponse.json({ error: "AI returned incomplete data. Try again." }, { status: 500 });
+
+    // Safety net — force exact brand name if provided
+    if (brandName && brandName.trim()) {
+      storeData.storeName = brandName.trim().toUpperCase();
+      storeData.storeSlug = brandName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     }
 
-    // ── VALIDATE RESPONSE SHAPE ──────────────────────────────
-    if (
-      !storeData.storeName ||
-      !storeData.tagline ||
-      !storeData.storeSlug ||
-      !Array.isArray(storeData.products) ||
-      storeData.products.length === 0
-    ) {
-      return NextResponse.json(
-        { error: "AI returned incomplete data. Please try again." },
-        { status: 500 }
-      );
+    // Ensure brandColor is correct
+    storeData.brandColor = accentColor;
+
+    // Ensure collections exists
+    if (!Array.isArray(storeData.collections) || !storeData.collections.length) {
+      storeData.collections = [{ name: "All Products", productIndexes: storeData.products.map((_: unknown, i: number) => i) }];
     }
 
-    // Return only the AI-generated data — no keys, no internals
     return NextResponse.json({ success: true, data: storeData });
 
   } catch (err) {
-    console.error("Generate preview error:", err);
-    return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
-      { status: 500 }
-    );
+    console.error("Preview error:", err);
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 }
