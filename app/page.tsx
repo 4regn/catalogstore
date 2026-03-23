@@ -140,6 +140,7 @@ export default function HomePage() {
   const [previewCategory, setPreviewCategory] = useState("");
   const [previewBanner, setPreviewBanner] = useState<{dataUrl:string;base64:string;mediaType:string}|null>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const previewPanelRef = useRef<HTMLDivElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
@@ -230,6 +231,10 @@ export default function HomePage() {
     setPreviewError(null);
     setPreviewStage("loading");
     setPreviewLoadStep(0);
+    // Scroll the preview panel into view so seller sees the progress
+    setTimeout(() => {
+      previewPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
     ["Analysing your product photos...","Generating product names & prices...","Crafting your store name & tagline...","Building your storefront...","Almost done..."].forEach((_,i) => {
       setTimeout(() => setPreviewLoadStep(i), i * 1600);
     });
@@ -901,7 +906,7 @@ ${collectionsHtml}
             </svg>
           </button>
 
-          <div className="preview-panel" style={{ maxHeight: previewOpen ? 2400 : 0 }}>
+          <div ref={previewPanelRef} className="preview-panel" style={{ maxHeight: previewOpen ? 2400 : 0 }}>
             <div style={{ paddingTop: 32 }}>
 
               {/* UPLOAD STAGE */}
@@ -1081,6 +1086,40 @@ ${collectionsHtml}
                         <span style={{ fontSize: 10, color: previewProducts.length >= 4 ? "#22c55e" : "var(--text-muted)" }}>
                           {previewProducts.length < 4 ? `${4 - previewProducts.length} more photo${4 - previewProducts.length > 1 ? "s" : ""} needed` : `${previewProducts.length} photos ready`}
                         </span>
+                      </div>
+                      {/* BRAND DESCRIPTION */}
+                      <div style={{ marginTop: 24 }}>
+                        <div className="preview-upload-title">
+                          Tell Us About Your Brand
+                          <span style={{ fontSize: 9, fontWeight: 500, textTransform: "none" as const, letterSpacing: 0, color: "var(--text-muted)" }}>(optional)</span>
+                        </div>
+                        <textarea
+                          value={previewBrandDesc}
+                          onChange={e => setPreviewBrandDesc(e.target.value)}
+                          placeholder={`e.g. "South African streetwear brand making premium quality tees and jackets for the bold."`}
+                          maxLength={150}
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: 10,
+                            padding: "10px 14px",
+                            color: "var(--text)",
+                            fontSize: 12,
+                            fontFamily: "'Schibsted Grotesk', sans-serif",
+                            resize: "none",
+                            outline: "none",
+                            lineHeight: 1.7,
+                            transition: "border-color 0.2s",
+                          }}
+                          onFocus={e => e.target.style.borderColor = "rgba(255,107,53,0.4)"}
+                          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.08)"}
+                        />
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                          <span style={{ fontSize: 9, color: "var(--text-muted)" }}>Helps AI name products and write your tagline accurately</span>
+                          <span style={{ fontSize: 9, color: previewBrandDesc.length >= 130 ? "var(--neon)" : "var(--text-muted)", fontFamily: "monospace" }}>{previewBrandDesc.length}/150</span>
+                        </div>
                       </div>
                     </div>
                   </div>
