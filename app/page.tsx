@@ -125,7 +125,6 @@ export default function HomePage() {
   const cursorRef = useRef<HTMLDivElement>(null);
   const cursorRingRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [scrollIndicatorHidden, setScrollIndicatorHidden] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const ringRef = useRef({ x: 0, y: 0 });
@@ -167,7 +166,6 @@ export default function HomePage() {
   useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 60);
-      setScrollIndicatorHidden(window.scrollY > 100);
     };
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
@@ -212,7 +210,6 @@ export default function HomePage() {
         @keyframes orb-drift2{0%{transform:translate(0,0) scale(1)}33%{transform:translate(-30px,40px) scale(1.08)}66%{transform:translate(50px,-20px) scale(0.92)}100%{transform:translate(0,0) scale(1)}}
         @keyframes orb-drift3{0%{transform:translate(0,0)}50%{transform:translate(20px,30px)}100%{transform:translate(0,0)}}
         @keyframes badge-shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-        @keyframes scroll-line{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
         @keyframes fu{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
 
         .fu1{animation:fu 0.8s cubic-bezier(0.16,1,0.3,1) both}
@@ -291,9 +288,6 @@ export default function HomePage() {
         .faq-open .faq-icon{transform:rotate(45deg);background:var(--neon-soft);border-color:rgba(255,107,53,0.3);color:var(--neon)}
         .faq-open{border-color:rgba(255,107,53,0.2)!important}
 
-        .scroll-indicator{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:10;pointer-events:none;animation:fu 1s 1.2s both;transition:opacity 0.4s}
-        .scroll-indicator.hidden{opacity:0}
-        .scroll-line{width:1px;height:48px;background:linear-gradient(to bottom,var(--neon),transparent);animation:scroll-line 2s infinite}
 
         .social-link{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;transition:color 0.2s}
         .social-link:hover{color:var(--neon)}
@@ -323,9 +317,6 @@ export default function HomePage() {
       <div id="cs-cursor-ring" ref={cursorRingRef} />
 
       {/* SCROLL INDICATOR */}
-      <div className={`scroll-indicator${scrollIndicatorHidden ? " hidden" : ""}`}>
-        <span style={{ fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)" }}>Scroll</span>
-        <div className="scroll-line" />
       </div>
 
       {/* AMBIENT ORBS */}
