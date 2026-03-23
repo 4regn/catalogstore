@@ -554,7 +554,7 @@ export default function HomePage() {
               const isOpen = openFaq === i;
               const radius = i === 0 ? "20px 20px 4px 4px" : i === FAQS.length - 1 ? "4px 4px 20px 20px" : "4px";
               return (
-                <div key={i} className={`reveal${isOpen ? " faq-open" : ""}`} style={{ background: "var(--glass)", border: "1px solid var(--glass-b)", overflow: "hidden", borderRadius: radius, transition: "border-color 0.3s" }}>
+                <div key={i} className={isOpen ? "faq-open" : ""} style={{ background: "var(--glass)", border: "1px solid var(--glass-b)", overflow: "hidden", borderRadius: radius, transition: "border-color 0.3s" }}>
                   <button onClick={() => setOpenFaq(isOpen ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 28px", background: "none", border: "none", fontFamily: "'Schibsted Grotesk',sans-serif", color: "var(--text)", textAlign: "left", cursor: "none" }}>
                     <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em" }}>{faq.q}</span>
                     <div className="faq-icon">+</div>
