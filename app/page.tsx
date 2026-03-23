@@ -409,7 +409,7 @@ ${collectionsHtml}
 <!-- ABOUT SECTION -->
 <div style="margin:8px 16px;padding:24px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px">
   <div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:12px">About ${storeName}</div>
-  <p style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.8;font-weight:400">${brandDescription || previewStore.tagline + ". Shop our latest collection and experience quality South African streetwear delivered to your door."}</p>
+  <p style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.8;font-weight:400">${previewBrandDesc || previewStore.tagline + ". Shop our latest collection and experience quality South African streetwear delivered to your door."}</p>
 </div>
 
 <!-- FOOTER -->
@@ -434,7 +434,7 @@ ${collectionsHtml}
 </div>
 
 </body></html>`;
-  }, [previewStore, previewProducts, previewLogo, previewBanner, previewBrandColor]);
+  }, [previewStore, previewProducts, previewLogo, previewBanner, previewBrandColor, previewBrandDesc]);
 
   const buildSLStore = useCallback(() => {
     if (!previewStore) return "";
@@ -572,7 +572,7 @@ ${collectionsHtml}
 <!-- ABOUT SECTION -->
 <div style="margin:8px 20px;padding:28px 24px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.04)">
   <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;font-style:italic;letter-spacing:0.04em;color:rgba(42,42,46,0.6);margin-bottom:12px">About ${storeName}</div>
-  <p style="font-size:12px;color:rgba(42,42,46,0.5);line-height:1.9;font-weight:300">${brandDescription || previewStore.tagline + ". We create thoughtfully designed pieces for the modern wardrobe. Free delivery over R500 across South Africa."}</p>
+  <p style="font-size:12px;color:rgba(42,42,46,0.5);line-height:1.9;font-weight:300">${previewBrandDesc || previewStore.tagline + ". We create thoughtfully designed pieces for the modern wardrobe. Free delivery over R500 across South Africa."}</p>
 </div>
 
 <!-- FOOTER -->
@@ -597,7 +597,7 @@ ${collectionsHtml}
 </div>
 
 </body></html>`;
-  }, [previewStore, previewProducts, previewLogo, previewBanner, previewBrandColor]);
+  }, [previewStore, previewProducts, previewLogo, previewBanner, previewBrandColor, previewBrandDesc]);
 
   return (
     <>
