@@ -282,18 +282,25 @@ export default function HomePage() {
     const logoImg = previewLogo ?? "";
     const storeName = previewStore.storeName;
 
-    // 2-col product grid (matching real Glass Chrome template)
+    // 2-col product grid with SALE pills on first 2 products
     const productCards = products.map((p, i) => {
       const img = previewProducts[i];
+      const onSale = i < 2;
+      const priceNum = parseInt(p.price.replace(/[^0-9]/g, "")) || 300;
+      const originalPrice = onSale ? "R" + Math.round(priceNum / 0.8) : "";
       return `
         <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);overflow:hidden;cursor:pointer;transition:transform 0.3s,border-color 0.3s" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(255,255,255,0.12)'" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='rgba(255,255,255,0.06)'">
           <div style="aspect-ratio:3/4;overflow:hidden;background:#0d0d12;position:relative">
             ${img ? `<img src="${img.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.4s" onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}
+            ${onSale ? `<div style="position:absolute;top:8px;left:8px;background:${bc};color:#fff;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;padding:3px 8px;border-radius:4px">Sale</div>` : ""}
           </div>
           <div style="padding:12px 14px;border-top:1px solid rgba(255,255,255,0.04)">
             <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:rgba(255,255,255,0.3);margin-bottom:4px">${p.category || "Product"}</div>
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:rgba(255,255,255,0.85);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-            <div style="font-size:14px;font-weight:800;color:${bc}">${p.price}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="font-size:14px;font-weight:800;color:${bc}">${p.price}</div>
+              ${onSale ? `<div style="font-size:11px;font-weight:500;color:rgba(255,255,255,0.25);text-decoration:line-through">${originalPrice}</div>` : ""}
+            </div>
           </div>
         </div>`;
     }).join("");
@@ -334,7 +341,32 @@ export default function HomePage() {
   ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#08080c}::-webkit-scrollbar-thumb{background:${bc};border-radius:2px}
   @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 </style>
+<script>
+  (function() {
+    var total = 12 * 3600 - 1;
+    function tick() {
+      var h = Math.floor(total / 3600);
+      var m = Math.floor((total % 3600) / 60);
+      var s = total % 60;
+      var el = document.getElementById("gc-timer");
+      if (el) el.textContent = (h<10?"0"+h:h) + ":" + (m<10?"0"+m:m) + ":" + (s<10?"0"+s:s);
+      if (total > 0) { total--; setTimeout(tick, 1000); }
+    }
+    document.addEventListener("DOMContentLoaded", tick);
+    setTimeout(tick, 100);
+  })();
+</script>
 </head><body>
+
+<!-- DISCOUNT BANNER -->
+<div style="background:rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.06);padding:10px 20px;text-align:center">
+  <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.04em;margin-bottom:4px">
+    LIMITED OFFER &nbsp;·&nbsp; Use code <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);padding:2px 10px;border-radius:5px;font-weight:800;color:#fff;letter-spacing:0.08em">WELCOME20</span> for <span style="color:${bc};font-weight:800">20% off</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:0.08em">
+    ENDS IN <span id="gc-timer" style="font-family:monospace;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);padding:3px 12px;border-radius:6px;letter-spacing:0.12em">11:59:59</span>
+  </div>
+</div>
 
 <!-- NAV -->
 <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(8,8,12,0.96);position:sticky;top:0;z-index:50;backdrop-filter:blur(20px)">
@@ -374,9 +406,31 @@ ${collectionsHtml}
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:3px">${productCards}</div>
 </div>
 
+<!-- ABOUT SECTION -->
+<div style="margin:8px 16px;padding:24px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px">
+  <div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:12px">About ${storeName}</div>
+  <p style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.8;font-weight:400">${brandDescription || previewStore.tagline + ". Shop our latest collection and experience quality South African streetwear delivered to your door."}</p>
+</div>
+
 <!-- FOOTER -->
-<div style="padding:20px 16px;border-top:1px solid rgba(255,255,255,0.04);text-align:center;font-size:9px;color:rgba(255,255,255,0.18);text-transform:uppercase;letter-spacing:0.12em;margin-top:8px">
-  © 2026 ${storeName} &nbsp;·&nbsp; Powered by CatalogStore
+<div style="padding:24px 16px 16px;border-top:1px solid rgba(255,255,255,0.05);margin-top:12px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div>
+      <div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.25);margin-bottom:10px">Shop</div>
+      ${collections.map(c => `<div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:6px;cursor:pointer;transition:color 0.2s" onmouseover="this.style.color='rgba(255,255,255,0.7)'" onmouseout="this.style.color='rgba(255,255,255,0.35)'">${c.name}</div>`).join("")}
+      <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:6px;cursor:pointer;transition:color 0.2s" onmouseover="this.style.color='rgba(255,255,255,0.7)'" onmouseout="this.style.color='rgba(255,255,255,0.35)'">All Products</div>
+    </div>
+    <div>
+      <div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.14em;color:rgba(255,255,255,0.25);margin-bottom:10px">Info</div>
+      ${["Shipping Policy","Returns & Exchanges","Privacy Policy","Contact Us"].map(p => `<div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:6px;cursor:pointer;transition:color 0.2s" onmouseover="this.style.color='rgba(255,255,255,0.7)'" onmouseout="this.style.color='rgba(255,255,255,0.35)'">${p}</div>`).join("")}
+    </div>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:16px">
+    ${["IG","TT","FB","WA"].map(s => `<div style="width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:9px;font-weight:700;color:rgba(255,255,255,0.3);transition:all 0.2s" onmouseover="this.style.borderColor='${bc}';this.style.color='${bc}'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.color='rgba(255,255,255,0.3)'">${s}</div>`).join("")}
+  </div>
+  <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,0.04);text-align:center;font-size:9px;color:rgba(255,255,255,0.15);text-transform:uppercase;letter-spacing:0.12em">
+    © 2026 ${storeName} &nbsp;·&nbsp; Powered by CatalogStore
+  </div>
 </div>
 
 </body></html>`;
@@ -391,18 +445,25 @@ ${collectionsHtml}
     const logoImg = previewLogo ?? "";
     const storeName = previewStore.storeName;
 
-    // 2-col product grid (matching real Soft Luxury template)
+    // 2-col product grid with SALE pills on first 2 products
     const productCards = products.map((p, i) => {
       const img = previewProducts[i];
+      const onSale = i < 2;
+      const priceNum = parseInt(p.price.replace(/[^0-9]/g, "")) || 300;
+      const originalPrice = onSale ? "R" + Math.round(priceNum / 0.8) : "";
       return `
         <div style="background:#fff;overflow:hidden;cursor:pointer;transition:box-shadow 0.3s" onmouseover="this.style.boxShadow='0 8px 32px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
           <div style="aspect-ratio:3/4;overflow:hidden;background:#f0ebe4;position:relative">
             ${img ? `<img src="${img.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s" onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">` : `<div style="width:100%;height:100%;background:#ede8e2"></div>`}
+            ${onSale ? `<div style="position:absolute;top:8px;left:8px;background:${bc};color:#fff;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:3px 8px;border-radius:3px;font-family:sans-serif">Sale</div>` : ""}
           </div>
           <div style="padding:12px 14px;border-top:1px solid rgba(0,0,0,0.05)">
             <div style="font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:rgba(42,42,46,0.35);margin-bottom:4px;font-family:sans-serif">${p.category || "Product"}</div>
             <div style="font-size:12px;font-weight:300;letter-spacing:0.03em;color:rgba(42,42,46,0.7);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Georgia',serif;font-style:italic">${p.name}</div>
-            <div style="font-size:13px;font-weight:600;color:${bc};font-family:sans-serif">${p.price}</div>
+            <div style="display:flex;align-items:center;gap:8px;font-family:sans-serif">
+              <div style="font-size:13px;font-weight:600;color:${bc}">${p.price}</div>
+              ${onSale ? `<div style="font-size:11px;font-weight:400;color:rgba(42,42,46,0.3);text-decoration:line-through">${originalPrice}</div>` : ""}
+            </div>
           </div>
         </div>`;
     }).join("");
@@ -442,7 +503,32 @@ ${collectionsHtml}
   ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#f6f3ef}::-webkit-scrollbar-thumb{background:${bc};border-radius:2px}
   @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 </style>
+<script>
+  (function() {
+    var total = 12 * 3600 - 1;
+    function tick() {
+      var h = Math.floor(total / 3600);
+      var m = Math.floor((total % 3600) / 60);
+      var s = total % 60;
+      var el = document.getElementById("sl-timer");
+      if (el) el.textContent = (h<10?"0"+h:h) + ":" + (m<10?"0"+m:m) + ":" + (s<10?"0"+s:s);
+      if (total > 0) { total--; setTimeout(tick, 1000); }
+    }
+    document.addEventListener("DOMContentLoaded", tick);
+    setTimeout(tick, 100);
+  })();
+</script>
 </head><body>
+
+<!-- DISCOUNT BANNER -->
+<div style="background:rgba(42,42,46,0.04);border-bottom:1px solid rgba(0,0,0,0.06);padding:10px 20px;text-align:center;font-family:sans-serif">
+  <div style="font-size:11px;font-weight:400;color:rgba(42,42,46,0.6);letter-spacing:0.06em;margin-bottom:4px">
+    Limited Offer &nbsp;·&nbsp; Use code <span style="background:rgba(42,42,46,0.06);border:1px solid rgba(42,42,46,0.12);padding:2px 10px;border-radius:4px;font-weight:700;color:#2a2a2e;letter-spacing:0.08em">WELCOME20</span> for <span style="color:${bc};font-weight:700">20% off</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:9px;color:rgba(42,42,46,0.35);letter-spacing:0.1em;text-transform:uppercase">
+    Ends in <span id="sl-timer" style="font-family:monospace;font-size:13px;font-weight:600;color:#2a2a2e;background:rgba(42,42,46,0.06);border:1px solid rgba(42,42,46,0.1);padding:3px 12px;border-radius:5px;letter-spacing:0.1em">11:59:59</span>
+  </div>
+</div>
 
 <!-- NAV -->
 <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid rgba(0,0,0,0.06);background:rgba(246,243,239,0.96);position:sticky;top:0;z-index:50;backdrop-filter:blur(20px)">
@@ -483,9 +569,31 @@ ${collectionsHtml}
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:3px">${productCards}</div>
 </div>
 
+<!-- ABOUT SECTION -->
+<div style="margin:8px 20px;padding:28px 24px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.04)">
+  <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;font-style:italic;letter-spacing:0.04em;color:rgba(42,42,46,0.6);margin-bottom:12px">About ${storeName}</div>
+  <p style="font-size:12px;color:rgba(42,42,46,0.5);line-height:1.9;font-weight:300">${brandDescription || previewStore.tagline + ". We create thoughtfully designed pieces for the modern wardrobe. Free delivery over R500 across South Africa."}</p>
+</div>
+
 <!-- FOOTER -->
-<div style="padding:20px 24px;border-top:1px solid rgba(0,0,0,0.05);text-align:center;font-size:9px;color:rgba(42,42,46,0.25);text-transform:uppercase;letter-spacing:0.12em;margin-top:8px;font-family:sans-serif">
-  © 2026 ${storeName} &nbsp;·&nbsp; Powered by CatalogStore
+<div style="padding:28px 24px 16px;border-top:1px solid rgba(0,0,0,0.05);margin-top:16px;font-family:sans-serif">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+    <div>
+      <div style="font-size:8px;font-weight:500;text-transform:uppercase;letter-spacing:0.14em;color:rgba(42,42,46,0.3);margin-bottom:10px">Shop</div>
+      ${collections.map(c => `<div style="font-size:10px;color:rgba(42,42,46,0.4);margin-bottom:7px;cursor:pointer;font-weight:300;transition:color 0.2s" onmouseover="this.style.color='rgba(42,42,46,0.8)'" onmouseout="this.style.color='rgba(42,42,46,0.4)'">${c.name}</div>`).join("")}
+      <div style="font-size:10px;color:rgba(42,42,46,0.4);margin-bottom:7px;cursor:pointer;font-weight:300;transition:color 0.2s" onmouseover="this.style.color='rgba(42,42,46,0.8)'" onmouseout="this.style.color='rgba(42,42,46,0.4)'">All Products</div>
+    </div>
+    <div>
+      <div style="font-size:8px;font-weight:500;text-transform:uppercase;letter-spacing:0.14em;color:rgba(42,42,46,0.3);margin-bottom:10px">Info</div>
+      ${["Shipping Policy","Returns & Exchanges","Privacy Policy","Contact Us"].map(p => `<div style="font-size:10px;color:rgba(42,42,46,0.4);margin-bottom:7px;cursor:pointer;font-weight:300;transition:color 0.2s" onmouseover="this.style.color='rgba(42,42,46,0.8)'" onmouseout="this.style.color='rgba(42,42,46,0.4)'">${p}</div>`).join("")}
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:20px">
+    ${["IG","TT","FB","WA"].map(s => `<div style="width:32px;height:32px;border-radius:8px;border:1px solid rgba(42,42,46,0.1);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:9px;font-weight:600;color:rgba(42,42,46,0.3);transition:all 0.2s" onmouseover="this.style.borderColor='${bc}';this.style.color='${bc}'" onmouseout="this.style.borderColor='rgba(42,42,46,0.1)';this.style.color='rgba(42,42,46,0.3)'">${s}</div>`).join("")}
+  </div>
+  <div style="padding-top:14px;border-top:1px solid rgba(0,0,0,0.05);text-align:center;font-size:9px;color:rgba(42,42,46,0.2);text-transform:uppercase;letter-spacing:0.12em">
+    © 2026 ${storeName} &nbsp;·&nbsp; Powered by CatalogStore
+  </div>
 </div>
 
 </body></html>`;
@@ -857,6 +965,39 @@ ${collectionsHtml}
                               {cat}
                             </div>
                           ))}
+                        </div>
+                      </div>
+
+                      {/* BRAND COLOUR */}
+                      <div style={{ marginBottom: 28 }}>
+                        <div className="preview-upload-title">Brand Colour</div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                          {["#ff6b35","#ff3d6e","#6c63ff","#22c55e","#0ea5e9","#f59e0b","#ec4899","#e11d48","#000000","#ffffff"].map(c => (
+                            <div
+                              key={c}
+                              onClick={() => setPreviewBrandColor(c)}
+                              style={{
+                                width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", flexShrink: 0,
+                                border: previewBrandColor === c ? "3px solid rgba(255,255,255,0.9)" : "2px solid rgba(255,255,255,0.1)",
+                                boxShadow: previewBrandColor === c ? `0 0 0 2px ${c}` : "none",
+                                transition: "all 0.2s",
+                              }}
+                            />
+                          ))}
+                          <div style={{ position: "relative", width: 26, height: 26, flexShrink: 0 }}>
+                            <input
+                              type="color"
+                              value={previewBrandColor}
+                              onChange={e => setPreviewBrandColor(e.target.value)}
+                              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)", cursor: "pointer", opacity: 0 }}
+                              title="Custom colour"
+                            />
+                            <div style={{ width: 26, height: 26, borderRadius: "50%", background: "conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", border: "2px solid rgba(255,255,255,0.15)", cursor: "pointer" }} />
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 14, height: 14, borderRadius: "50%", background: previewBrandColor, border: "1px solid rgba(255,255,255,0.15)", flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600, fontFamily: "monospace" }}>{previewBrandColor}</span>
                         </div>
                       </div>
 
