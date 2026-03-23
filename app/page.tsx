@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -126,6 +126,16 @@ export default function HomePage() {
   const cursorRingRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewStage, setPreviewStage] = useState<"upload"|"loading"|"preview">("upload");
+  const [previewLogo, setPreviewLogo] = useState<string|null>(null);
+  const [previewProducts, setPreviewProducts] = useState<{dataUrl:string;base64:string;mediaType:string}[]>([]);
+  const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl">("gc");
+  const [previewStore, setPreviewStore] = useState<{storeName:string;tagline:string;storeSlug:string;products:{name:string;price:string}[];insight1:{label:string;value:string};insight2:{label:string;value:string};insight3:{label:string;value:string}}|null>(null);
+  const [previewError, setPreviewError] = useState<string|null>(null);
+  const [previewLoadStep, setPreviewLoadStep] = useState(0);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const productInputRef = useRef<HTMLInputElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const ringRef = useRef({ x: 0, y: 0 });
 
@@ -180,6 +190,92 @@ export default function HomePage() {
     document.querySelectorAll(".reveal,.reveal-left,.reveal-right,.reveal-scale,.stagger-children").forEach(el => obs.observe(el));
     return () => obs.disconnect();
   }, []);
+
+
+  // ── PREVIEW HELPERS ──────────────────────────────────────
+  const readFile = (file: File): Promise<{dataUrl:string;base64:string;mediaType:string}> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        resolve({ dataUrl, base64: dataUrl.split(",")[1], mediaType: file.type });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleLogoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const img = await readFile(file);
+    setPreviewLogo(img.dataUrl);
+  }, []);
+
+  const handleProductUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const remaining = 10 - previewProducts.length;
+    const newImgs = await Promise.all(files.slice(0, remaining).map(readFile));
+    setPreviewProducts(prev => [...prev, ...newImgs]);
+    e.target.value = "";
+  }, [previewProducts.length]);
+
+  const runPreview = useCallback(async () => {
+    setPreviewError(null);
+    setPreviewStage("loading");
+    setPreviewLoadStep(0);
+    ["Analysing your product photos...","Generating product names & prices...","Crafting your store name & tagline...","Building your storefront...","Almost done..."].forEach((_,i) => {
+      setTimeout(() => setPreviewLoadStep(i), i * 1600);
+    });
+    try {
+      const res = await fetch("/api/generate-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: previewProducts.map(p => ({ base64: p.base64, mediaType: p.mediaType })),
+          template: previewTemplate,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Something went wrong.");
+      await new Promise(r => setTimeout(r, 800));
+      setPreviewStore(json.data);
+      setPreviewStage("preview");
+    } catch (err: unknown) {
+      setPreviewError(err instanceof Error ? err.message : "Something went wrong.");
+      setPreviewStage("upload");
+    }
+  }, [previewProducts, previewTemplate]);
+
+  const resetPreview = useCallback(() => {
+    setPreviewStage("upload");
+    setPreviewLogo(null);
+    setPreviewProducts([]);
+    setPreviewTemplate("gc");
+    setPreviewStore(null);
+    setPreviewError(null);
+    setPreviewLoadStep(0);
+  }, []);
+
+  const buildGCStore = useCallback(() => {
+    if (!previewStore) return "";
+    const products = previewStore.products.slice(0, 6);
+    const heroImg = previewProducts[0]?.dataUrl ?? "";
+    const logoImg = previewLogo ?? "";
+    const cards = products.map((p,i) => `<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);overflow:hidden;cursor:pointer;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'"><div style="aspect-ratio:3/4;overflow:hidden;background:#111118">${previewProducts[i]?`<img src="${previewProducts[i].dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:`<div style="width:100%;height:100%;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}</div><div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.04)"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:rgba(255,255,255,0.75);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div><div style="font-size:12px;font-weight:800;color:#ff6b35">${p.price}</div></div></div>`).join("");
+    const ticker = ["Free Delivery Over R500","New Arrivals Weekly","Secure Checkout","South African Brand","Free Delivery Over R500","New Arrivals Weekly","Secure Checkout","South African Brand"].map(t=>`<span style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:4px;height:4px;border-radius:50%;background:#ff6b35;flex-shrink:0"></span>${t}</span>`).join("");
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;700;800;900&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#08080c;color:#f0f0f0;font-family:'Schibsted Grotesk',sans-serif}@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(8,8,12,0.95);position:sticky;top:0;z-index:10;backdrop-filter:blur(20px)"><div style="display:flex;align-items:center;gap:10px">${logoImg?`<img src="${logoImg}" style="width:30px;height:30px;object-fit:contain;border-radius:6px">`:""}<span style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em">${previewStore.storeName}</span></div><div style="display:flex;gap:14px;align-items:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35)"><span>Shop</span><span>Collections</span><span style="padding:8px 16px;border-radius:100px;background:linear-gradient(135deg,#ff6b35,#ff3d6e);color:#fff">Cart (0)</span></div></div><div style="position:relative;height:280px;overflow:hidden;display:flex;align-items:flex-end">${heroImg?`<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.55">`:`<div style="position:absolute;inset:0;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,12,0.97) 0%,rgba(8,8,12,0.3) 55%,transparent 100%)"></div><div style="position:relative;padding:20px 20px 24px;z-index:1"><div style="font-size:9px;color:rgba(255,107,53,0.7);text-transform:uppercase;letter-spacing:0.2em;font-weight:700;margin-bottom:6px">— ${previewStore.tagline}</div><div style="font-size:32px;font-weight:900;text-transform:uppercase;letter-spacing:-0.04em;line-height:1">${previewStore.storeName}</div><div style="display:inline-block;margin-top:14px;padding:10px 22px;border-radius:100px;background:linear-gradient(135deg,#ff6b35,#ff3d6e);color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em">Shop the Collection</div></div></div><div style="overflow:hidden;border-top:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);padding:10px 0"><div style="display:flex;white-space:nowrap;animation:marquee 14s linear infinite">${ticker}</div></div><div style="padding:20px 16px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:14px">All Products</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px">${cards}</div></div><div style="padding:20px;border-top:1px solid rgba(255,255,255,0.04);text-align:center;font-size:9px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:0.1em">© 2026 ${previewStore.storeName} · Powered by CatalogStore</div></body></html>`;
+  }, [previewStore, previewProducts, previewLogo]);
+
+  const buildSLStore = useCallback(() => {
+    if (!previewStore) return "";
+    const products = previewStore.products.slice(0, 6);
+    const heroImg = previewProducts[0]?.dataUrl ?? "";
+    const logoImg = previewLogo ?? "";
+    const cards = products.map((p,i) => `<div style="background:#fff;overflow:hidden;cursor:pointer;transition:box-shadow 0.3s" onmouseover="this.style.boxShadow='0 8px 30px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'"><div style="aspect-ratio:3/4;overflow:hidden;background:#f0ebe4">${previewProducts[i]?`<img src="${previewProducts[i].dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:`<div style="width:100%;height:100%;background:#ede8e2"></div>`}</div><div style="padding:10px 12px;border-top:1px solid rgba(0,0,0,0.04)"><div style="font-size:11px;font-weight:300;letter-spacing:0.04em;color:rgba(42,42,46,0.65);margin-bottom:3px;font-family:'Georgia',serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div><div style="font-size:12px;font-weight:600;color:#9c7c62;font-family:sans-serif">${p.price}</div></div></div>`).join("");
+    const ticker = ["Free Delivery Over R500","Curated Collections","Secure Checkout","Proudly South African","Free Delivery Over R500","Curated Collections","Secure Checkout","Proudly South African"].map(t=>`<span style="font-size:9px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;color:rgba(42,42,46,0.3);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:3px;height:3px;border-radius:50%;background:#9c7c62;flex-shrink:0"></span>${t}</span>`).join("");
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f6f3ef;color:#2a2a2e;font-family:'Jost',sans-serif}@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(0,0,0,0.06);background:rgba(246,243,239,0.95);position:sticky;top:0;z-index:10;backdrop-filter:blur(20px)"><div style="display:flex;align-items:center;gap:10px">${logoImg?`<img src="${logoImg}" style="width:28px;height:28px;object-fit:contain;border-radius:4px">`:""}<span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;letter-spacing:0.1em;text-transform:uppercase">${previewStore.storeName}</span></div><div style="display:flex;gap:16px;align-items:center;font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.4)"><span>Shop</span><span>Collections</span><span>Bag (0)</span></div></div><div style="position:relative;height:280px;overflow:hidden;display:flex;align-items:flex-end">${heroImg?`<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:`<div style="position:absolute;inset:0;background:#e8e2da"></div>`}<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(246,243,239,0.97) 0%,rgba(246,243,239,0.15) 55%,transparent 100%)"></div><div style="position:relative;padding:20px 20px 24px;z-index:1"><div style="font-size:9px;color:rgba(42,42,46,0.4);text-transform:uppercase;letter-spacing:0.2em;font-weight:400;margin-bottom:6px">${previewStore.tagline}</div><div style="font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:300;letter-spacing:0.04em;line-height:1;font-style:italic;color:#2a2a2e">${previewStore.storeName}</div><div style="display:inline-block;margin-top:14px;padding:10px 24px;border:1px solid rgba(42,42,46,0.25);color:#2a2a2e;font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.14em">Shop the Collection →</div></div></div><div style="overflow:hidden;border-top:1px solid rgba(0,0,0,0.05);border-bottom:1px solid rgba(0,0,0,0.05);padding:9px 0"><div style="display:flex;white-space:nowrap;animation:marquee 14s linear infinite">${ticker}</div></div><div style="padding:20px 16px"><div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:300;letter-spacing:0.06em;color:rgba(42,42,46,0.45);margin-bottom:14px;font-style:italic">All Products</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px">${cards}</div></div><div style="padding:20px;border-top:1px solid rgba(0,0,0,0.05);text-align:center;font-size:9px;color:rgba(42,42,46,0.25);text-transform:uppercase;letter-spacing:0.12em">© 2026 ${previewStore.storeName} · Powered by CatalogStore</div></body></html>`;
+  }, [previewStore, previewProducts, previewLogo]);
 
   return (
     <>
@@ -296,6 +392,27 @@ export default function HomePage() {
         .nav-link:hover{color:var(--text)}
         .nav-link:hover::after{width:100%}
 
+
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .preview-toggle{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;padding:20px;background:rgba(255,107,53,0.04);border:1px solid rgba(255,107,53,0.12);border-radius:16px;cursor:pointer;font-family:'Schibsted Grotesk',sans-serif;color:var(--neon);font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;transition:background 0.3s,border-color 0.3s;margin-top:48px}
+        .preview-toggle:hover{background:rgba(255,107,53,0.08);border-color:rgba(255,107,53,0.25)}
+        .preview-panel{overflow:hidden;transition:max-height 0.6s cubic-bezier(0.16,1,0.3,1)}
+        .preview-upload-title{font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:var(--neon);font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+        .preview-upload-title::after{content:'';flex:1;height:1px;background:rgba(255,107,53,0.15)}
+        .preview-tpl-option{border-radius:12px;border:2px solid var(--glass-b);cursor:pointer;overflow:hidden;transition:border-color 0.3s,box-shadow 0.3s}
+        .preview-tpl-option:hover{border-color:rgba(255,107,53,0.3)}
+        .preview-tpl-option.selected{border-color:var(--neon);box-shadow:0 0 0 1px var(--neon),0 4px 24px rgba(255,107,53,0.15)}
+        .preview-slot{aspect-ratio:3/4;border-radius:10px;border:2px dashed rgba(255,255,255,0.07);background:rgba(255,255,255,0.01);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color 0.3s,background 0.3s;position:relative;overflow:hidden}
+        .preview-slot:hover{border-color:rgba(255,107,53,0.3);background:rgba(255,107,53,0.04)}
+        .preview-slot.filled{border-style:solid;border-color:rgba(255,107,53,0.2)}
+        .preview-gen-btn{width:100%;padding:18px;border-radius:100px;background:var(--grad);color:#fff;border:none;font-family:'Schibsted Grotesk',sans-serif;font-size:13px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s,filter 0.2s,opacity 0.2s;box-shadow:0 0 40px rgba(255,107,53,0.2);margin-top:28px}
+        .preview-gen-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 0 60px rgba(255,107,53,0.4);filter:brightness(1.08)}
+        .preview-gen-btn:disabled{opacity:0.35;cursor:not-allowed}
+        .preview-loading-step{font-size:11px;display:flex;align-items:center;gap:10px;padding:10px 18px;background:var(--glass);border-radius:100px;border:1px solid var(--glass-b);transition:color 0.4s,opacity 0.4s}
+        .preview-browser-bar{background:rgba(6,6,10,0.98);padding:12px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.04)}
+        .preview-insight{background:var(--glass);border:1px solid var(--glass-b);border-radius:12px;padding:16px 18px;transition:border-color 0.3s}
+        .preview-insight:hover{border-color:rgba(255,107,53,0.2)}
+        @media(max-width:768px){.preview-two-col{grid-template-columns:1fr!important}.preview-product-grid{grid-template-columns:repeat(3,1fr)!important}.preview-insights{grid-template-columns:1fr!important}}
         @media (max-width:768px){
           .nav-link{display:none}.nav-link.show-mobile{display:block}
           .hero-buttons{flex-direction:column!important}
@@ -393,6 +510,7 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* AI STORE PREVIEW */}
         {/* PRICING */}
         <section id="pricing" style={{ padding: "120px 0 100px" }}>
           <div className="section-label reveal">Pricing</div>
@@ -468,6 +586,202 @@ export default function HomePage() {
             </div>
           ))}
         </section>
+
+
+        {/* AI STORE PREVIEW — collapsible under Choose Your Look */}
+        <div style={{ marginTop: 0, marginBottom: 80 }}>
+          <button
+            className="preview-toggle"
+            onClick={() => setPreviewOpen(o => !o)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            {previewOpen ? "Close AI Store Preview" : "✦ See Your Store Come to Life — AI Preview"}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: previewOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s", flexShrink: 0 }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <div className="preview-panel" style={{ maxHeight: previewOpen ? 2400 : 0 }}>
+            <div style={{ paddingTop: 32 }}>
+
+              {/* UPLOAD STAGE */}
+              {previewStage === "upload" && (
+                <div style={{ background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: 20, padding: "40px 36px", position: "relative", overflow: "hidden" }}>
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)" }} />
+
+                  <div className="preview-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 36 }}>
+
+                    {/* LEFT */}
+                    <div>
+                      {/* LOGO */}
+                      <div style={{ marginBottom: 32 }}>
+                        <div className="preview-upload-title">Your Logo</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                          <div
+                            onClick={() => logoInputRef.current?.click()}
+                            style={{ width: 100, height: 100, borderRadius: 14, flexShrink: 0, border: previewLogo ? "2px solid rgba(255,107,53,0.4)" : "2px dashed rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", overflow: "hidden", position: "relative", background: previewLogo ? "transparent" : "rgba(255,107,53,0.02)", transition: "border-color 0.3s" }}
+                          >
+                            {previewLogo
+                              ? <img src={previewLogo} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }} />
+                              : <>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                                <span style={{ fontSize: 9, color: "var(--text-muted)", textAlign: "center", lineHeight: 1.5, fontWeight: 600 }}>Click to<br/>upload</span>
+                              </>
+                            }
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.8 }}>
+                            PNG or SVG with transparent background works best.<br/>
+                            <span style={{ color: previewLogo ? "#22c55e" : "var(--text-muted)" }}>{previewLogo ? "✓ Logo uploaded" : "Required"}</span>
+                          </div>
+                        </div>
+                        <input ref={logoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} />
+                      </div>
+
+                      {/* TEMPLATE */}
+                      <div>
+                        <div className="preview-upload-title">Choose Template</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          {(["gc","sl"] as const).map(id => {
+                            const isGc = id === "gc";
+                            const sel = previewTemplate === id;
+                            return (
+                              <div key={id} className={`preview-tpl-option${sel ? " selected" : ""}`} onClick={() => setPreviewTemplate(id)} style={{ position: "relative" }}>
+                                {sel && <div style={{ position: "absolute", top: 7, right: 7, width: 18, height: 18, borderRadius: "50%", background: "var(--neon)", color: "#fff", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✓</div>}
+                                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", background: isGc ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" : "linear-gradient(135deg,#f0ebe4,#e8e2da)", fontSize: isGc ? 8 : 11, color: isGc ? "rgba(255,255,255,0.25)" : "rgba(42,42,46,0.3)", fontFamily: isGc ? "'Schibsted Grotesk',sans-serif" : "Georgia,serif", letterSpacing: isGc ? "0.12em" : "0.04em", fontStyle: isGc ? "normal" : "italic", textTransform: isGc ? "uppercase" : "none", borderBottom: isGc ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.06)" }}>
+                                  {isGc ? "GLASS CHROME" : "Soft Luxury"}
+                                </div>
+                                <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.02)" }}>
+                                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>{isGc ? "Glass Chrome" : "Soft Luxury"}</div>
+                                  <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{isGc ? "Dark, futuristic, chrome" : "Warm cream, elegant"}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT — PRODUCTS */}
+                    <div>
+                      <div className="preview-upload-title">
+                        Product Photos
+                        <span style={{ fontSize: 9, fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "var(--text-muted)" }}>({previewProducts.length}/10)</span>
+                      </div>
+                      <div className="preview-product-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 7 }}>
+                        {Array.from({ length: 10 }).map((_, i) => {
+                          const img = previewProducts[i];
+                          const isAdd = i === previewProducts.length && i < 10;
+                          return (
+                            <div key={i} className={`preview-slot${img ? " filled" : ""}`} onClick={!img ? () => productInputRef.current?.click() : undefined}>
+                              {img ? (
+                                <>
+                                  <img src={img.dataUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                                  <button onClick={e => { e.stopPropagation(); setPreviewProducts(prev => prev.filter((_,j) => j !== i)); }} style={{ position: "absolute", top: 3, right: 3, width: 18, height: 18, borderRadius: "50%", background: "rgba(0,0,0,0.75)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, lineHeight: 1, fontFamily: "sans-serif" }}>×</button>
+                                </>
+                              ) : isAdd ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              ) : (
+                                <span style={{ fontSize: 8, color: "rgba(255,255,255,0.1)", fontWeight: 700 }}>{i+1}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <input ref={productInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleProductUpload} />
+                      <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 10, lineHeight: 1.7 }}>Upload 4–10 product photos. AI will name them, suggest prices, and build your store automatically.</p>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: previewProducts.length >= 4 ? "#22c55e" : "rgba(255,255,255,0.15)", flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, color: previewProducts.length >= 4 ? "#22c55e" : "var(--text-muted)" }}>
+                          {previewProducts.length < 4 ? `${4 - previewProducts.length} more photo${4 - previewProducts.length > 1 ? "s" : ""} needed` : `${previewProducts.length} photos ready`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {previewError && (
+                    <div style={{ marginTop: 20, padding: "12px 18px", borderRadius: 10, background: "rgba(255,61,110,0.08)", border: "1px solid rgba(255,61,110,0.2)", fontSize: 12, color: "#ff3d6e" }}>{previewError}</div>
+                  )}
+
+                  <button className="preview-gen-btn" onClick={runPreview} disabled={!previewLogo || previewProducts.length < 4}>
+                    ✦ Generate My Store Preview
+                  </button>
+                  <p style={{ textAlign: "center", fontSize: 10, color: "var(--text-muted)", marginTop: 12 }}>Takes ~10 seconds · Free · No account needed</p>
+                </div>
+              )}
+
+              {/* LOADING STAGE */}
+              {previewStage === "loading" && (
+                <div style={{ textAlign: "center", padding: "60px 40px", background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: 20 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", border: "2px solid var(--glass-b)", borderTopColor: "var(--neon)", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
+                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Building your store...</div>
+                  <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 32 }}>AI is analysing your photos and crafting your storefront</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 300, margin: "0 auto" }}>
+                    {["Analysing your product photos...","Generating product names & prices...","Crafting your store name & tagline...","Building your storefront...","Almost done..."].map((step, i) => (
+                      <div key={i} className="preview-loading-step" style={{ opacity: i <= previewLoadStep ? 1 : 0.2, color: i < previewLoadStep ? "#22c55e" : i === previewLoadStep ? "var(--text)" : "var(--text-muted)" }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor", flexShrink: 0 }} />
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PREVIEW STAGE */}
+              {previewStage === "preview" && previewStore && (
+                <div>
+                  {/* HEADER */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 16px", borderRadius: 100, background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", fontSize: 10, color: "#22c55e", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      Your Store Preview is Ready
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={resetPreview} style={{ padding: "9px 18px", borderRadius: 100, background: "var(--glass)", border: "1px solid var(--glass-b)", color: "var(--text-dim)", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", fontFamily: "'Schibsted Grotesk',sans-serif" }}>Try Again</button>
+                      <Link href="/signup" style={{ padding: "9px 18px", borderRadius: 100, background: "var(--grad)", color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", textDecoration: "none" }}>Claim This Store →</Link>
+                    </div>
+                  </div>
+
+                  {/* BROWSER FRAME */}
+                  <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--glass-b)", boxShadow: "0 32px 80px rgba(0,0,0,0.5)", position: "relative" }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)", zIndex: 1 }} />
+                    <div className="preview-browser-bar">
+                      <div style={{ display: "flex", gap: 5 }}>
+                        {["#ff5f57","#ffbd2e","#28c840"].map(c => <div key={c} style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />)}
+                      </div>
+                      <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 5, padding: "4px 12px", fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>
+                        {previewStore.storeSlug}.catalogstore.co.za
+                      </div>
+                    </div>
+                    <iframe srcDoc={previewTemplate === "gc" ? buildGCStore() : buildSLStore()} style={{ width: "100%", height: 620, border: "none", display: "block" }} title="Store Preview" />
+                  </div>
+
+                  {/* INSIGHTS */}
+                  <div className="preview-insights" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 12 }}>
+                    {[previewStore.insight1, previewStore.insight2, previewStore.insight3].map((ins, i) => (
+                      <div key={i} className="preview-insight">
+                        <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--neon)", fontWeight: 800, marginBottom: 6 }}>{ins.label}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-dim)", lineHeight: 1.6 }}>{ins.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* CTA */}
+                  <div style={{ marginTop: 16, padding: "36px 32px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 16, textAlign: "center", position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 0%,rgba(255,107,53,0.1) 0%,transparent 60%)", pointerEvents: "none" }} />
+                    <h3 style={{ fontSize: "clamp(18px,2.5vw,26px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.03em", marginBottom: 10, position: "relative" }}>Ready to go live?</h3>
+                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 24, position: "relative" }}>Start your 7-day free trial — no credit card needed.</p>
+                    <Link href="/signup" style={{ display: "inline-block", padding: "16px 40px", borderRadius: 100, background: "var(--grad)", color: "#fff", fontFamily: "'Schibsted Grotesk',sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", textDecoration: "none", boxShadow: "0 0 32px rgba(255,107,53,0.25)", position: "relative" }}>
+                      Start Free Trial — R49 First Month
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
 
         {/* PAIN */}
         <section style={{ padding: "80px 0" }}>
