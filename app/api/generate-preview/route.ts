@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const DAILY_LIMIT = 10;
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-function checkRateLimit(ip: string): boolean {
+
+function checkRateLimit(key: string): { allowed: boolean; remaining: number; resetsIn: number } {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) { rateLimitMap.set(ip, { count: 1, resetAt: now + 60 * 60 * 1000 }); return true; }
-  if (entry.count >= 10) return false;
+  const resetAt = now + 24 * 60 * 60 * 1000; // 24 hours
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt });
+    return { allowed: true, remaining: DAILY_LIMIT - 1, resetsIn: 24 * 60 * 60 };
+  }
+
+  if (entry.count >= DAILY_LIMIT) {
+    const resetsIn = Math.ceil((entry.resetAt - now) / 1000);
+    return { allowed: false, remaining: 0, resetsIn };
+  }
+
   entry.count++;
-  return true;
+  return { allowed: true, remaining: DAILY_LIMIT - entry.count, resetsIn: Math.ceil((entry.resetAt - now) / 1000) };
 }
 
 export async function POST(req: NextRequest) {
@@ -15,7 +27,26 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: "Preview service not configured." }, { status: 503 });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? "unknown";
-  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many previews. Try again later." }, { status: 429 });
+  const fingerprint = req.headers.get("x-device-fingerprint") ?? null;
+
+  // Check both IP and device fingerprint — whichever hits the limit first blocks
+  const ipResult = checkRateLimit(`ip:${ip}`);
+  const fpResult = fingerprint ? checkRateLimit(`fp:${fingerprint}`) : { allowed: true, remaining: DAILY_LIMIT, resetsIn: 0 };
+
+  if (!ipResult.allowed || !fpResult.allowed) {
+    const result = !ipResult.allowed ? ipResult : fpResult;
+    const hours = Math.floor(result.resetsIn / 3600);
+    const mins = Math.floor((result.resetsIn % 3600) / 60);
+    return NextResponse.json({
+      error: `Daily limit reached. You've used all ${DAILY_LIMIT} free previews for today.`,
+      resetsIn: result.resetsIn,
+      resetsMessage: `Resets in ${hours}h ${mins}m`,
+      limitReached: true,
+    }, { status: 429 });
+  }
+
+  // Return remaining count with the response
+  const remaining = Math.min(ipResult.remaining, fpResult.remaining);
 
   let body: {
     images: { base64: string; mediaType: string }[];
@@ -87,6 +118,7 @@ Return ONLY raw JSON — no markdown, no code blocks, no extra text:
       "productIndexes": [0, 1]
     }
   ],
+  "aboutText": "2-3 sentences of polished brand copy written like a real brand — do NOT copy the description verbatim, rewrite it in a compelling, professional tone as if it appears on the brand's website",
   "insight1": { "label": "Style", "value": "One sentence about the aesthetic vibe" },
   "insight2": { "label": "Target Market", "value": "One sentence about who buys these" },
   "insight3": { "label": "Tip", "value": "One actionable sales tip for this product type in South Africa" }
@@ -99,6 +131,7 @@ STRICT RULES:
 - Group products into collections by visual category — if you see tees AND jackets, make 2 separate collections
 - productIndexes are 0-based indexes into the products array
 - brandColor must be exactly: "${accentColor}"
+- aboutText must be rewritten as polished brand copy — never copy the seller description word for word
 - Prices must be realistic for the South African market based on the product type and quality`;
 
   try {
@@ -141,7 +174,7 @@ STRICT RULES:
       storeData.collections = [{ name: "All Products", productIndexes: storeData.products.map((_: unknown, i: number) => i) }];
     }
 
-    return NextResponse.json({ success: true, data: storeData });
+    return NextResponse.json({ success: true, data: storeData, remaining, dailyLimit: DAILY_LIMIT });
 
   } catch (err) {
     console.error("Preview error:", err);

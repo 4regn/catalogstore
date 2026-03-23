@@ -131,9 +131,11 @@ export default function HomePage() {
   const [previewLogo, setPreviewLogo] = useState<string|null>(null);
   const [previewProducts, setPreviewProducts] = useState<{dataUrl:string;base64:string;mediaType:string}[]>([]);
   const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl">("gc");
-  const [previewStore, setPreviewStore] = useState<{storeName:string;tagline:string;storeSlug:string;brandColor:string;products:{name:string;price:string;category:string}[];collections:{name:string;productIndexes:number[]}[];insight1:{label:string;value:string};insight2:{label:string;value:string};insight3:{label:string;value:string}}|null>(null);
+  const [previewStore, setPreviewStore] = useState<{storeName:string;tagline:string;storeSlug:string;brandColor:string;products:{name:string;price:string;category:string}[];collections:{name:string;productIndexes:number[]}[];aboutText?:string;insight1:{label:string;value:string};insight2:{label:string;value:string};insight3:{label:string;value:string}}|null>(null);
   const [previewError, setPreviewError] = useState<string|null>(null);
   const [previewLoadStep, setPreviewLoadStep] = useState(0);
+  const [previewsRemaining, setPreviewsRemaining] = useState<number|null>(null);
+  const [previewLimitMsg, setPreviewLimitMsg] = useState<string|null>(null);
   const [previewBrandColor, setPreviewBrandColor] = useState("#ff6b35");
   const [previewBrandDesc, setPreviewBrandDesc] = useState("");
   const [previewBrandName, setPreviewBrandName] = useState("");
@@ -229,19 +231,30 @@ export default function HomePage() {
 
   const runPreview = useCallback(async () => {
     setPreviewError(null);
+    setPreviewLimitMsg(null);
     setPreviewStage("loading");
     setPreviewLoadStep(0);
     // Scroll the preview panel into view so seller sees the progress
     setTimeout(() => {
       previewPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
+
+    // Generate or retrieve device fingerprint from localStorage
+    let fingerprint = "";
+    try {
+      fingerprint = localStorage.getItem("cs_fp") ?? "";
+      if (!fingerprint) {
+        fingerprint = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem("cs_fp", fingerprint);
+      }
+    } catch { /* localStorage unavailable (private browsing) — fallback to IP only */ }
     ["Analysing your product photos...","Generating product names & prices...","Crafting your store name & tagline...","Building your storefront...","Almost done..."].forEach((_,i) => {
       setTimeout(() => setPreviewLoadStep(i), i * 1600);
     });
     try {
       const res = await fetch("/api/generate-preview", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(fingerprint ? { "x-device-fingerprint": fingerprint } : {}) },
         body: JSON.stringify({
           images: previewProducts.map(p => ({ base64: p.base64, mediaType: p.mediaType })),
           template: previewTemplate,
@@ -253,7 +266,19 @@ export default function HomePage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error ?? "Something went wrong.");
+
+      // Update remaining count on every response
+      if (typeof json.remaining === "number") setPreviewsRemaining(json.remaining);
+
+      if (!res.ok || !json.success) {
+        if (json.limitReached) {
+          setPreviewLimitMsg(json.resetsMessage ?? "Try again tomorrow");
+          setPreviewStage("upload");
+          return;
+        }
+        throw new Error(json.error ?? "Something went wrong.");
+      }
+
       await new Promise(r => setTimeout(r, 800));
       setPreviewStore(json.data);
       setPreviewStage("preview");
@@ -276,6 +301,7 @@ export default function HomePage() {
     setPreviewBrandName("");
     setPreviewCategory("");
     setPreviewBanner(null);
+    setPreviewLimitMsg(null);
   }, []);
 
   const buildGCStore = useCallback(() => {
@@ -414,7 +440,7 @@ ${collectionsHtml}
 <!-- ABOUT SECTION -->
 <div style="margin:8px 16px;padding:24px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px">
   <div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.25);margin-bottom:12px">About ${storeName}</div>
-  <p style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.8;font-weight:400">${previewBrandDesc || previewStore.tagline + ". Shop our latest collection and experience quality South African streetwear delivered to your door."}</p>
+  <p style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.8;font-weight:400">${previewStore.aboutText || previewStore.tagline + ". Shop our latest collection and experience quality South African streetwear delivered to your door."}</p>
 </div>
 
 <!-- FOOTER -->
@@ -577,7 +603,7 @@ ${collectionsHtml}
 <!-- ABOUT SECTION -->
 <div style="margin:8px 20px;padding:28px 24px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.04)">
   <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;font-style:italic;letter-spacing:0.04em;color:rgba(42,42,46,0.6);margin-bottom:12px">About ${storeName}</div>
-  <p style="font-size:12px;color:rgba(42,42,46,0.5);line-height:1.9;font-weight:300">${previewBrandDesc || previewStore.tagline + ". We create thoughtfully designed pieces for the modern wardrobe. Free delivery over R500 across South Africa."}</p>
+  <p style="font-size:12px;color:rgba(42,42,46,0.5);line-height:1.9;font-weight:300">${previewStore.aboutText || previewStore.tagline + ". We create thoughtfully designed pieces for the modern wardrobe. Free delivery over R500 across South Africa."}</p>
 </div>
 
 <!-- FOOTER -->
@@ -1128,10 +1154,29 @@ ${collectionsHtml}
                     <div style={{ marginTop: 20, padding: "12px 18px", borderRadius: 10, background: "rgba(255,61,110,0.08)", border: "1px solid rgba(255,61,110,0.2)", fontSize: 12, color: "#ff3d6e" }}>{previewError}</div>
                   )}
 
-                  <button className="preview-gen-btn" onClick={runPreview} disabled={!previewLogo || previewProducts.length < 4}>
+                  {/* LIMIT MESSAGE */}
+                  {previewLimitMsg && (
+                    <div style={{ marginTop: 20, padding: "14px 20px", borderRadius: 12, background: "rgba(255,61,110,0.08)", border: "1px solid rgba(255,61,110,0.2)", textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#ff3d6e", marginBottom: 4 }}>Daily limit reached</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>You&apos;ve used all 10 free previews for today. {previewLimitMsg}</div>
+                    </div>
+                  )}
+
+                  <button className="preview-gen-btn" onClick={runPreview} disabled={!previewLogo || previewProducts.length < 4 || !!previewLimitMsg}>
                     ✦ Generate My Store Preview
                   </button>
-                  <p style={{ textAlign: "center", fontSize: 10, color: "var(--text-muted)", marginTop: 12 }}>Takes ~10 seconds · Free · No account needed</p>
+
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
+                    <p style={{ fontSize: 10, color: "var(--text-muted)" }}>Takes ~10 seconds · Free · No account needed</p>
+                    {previewsRemaining !== null && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {Array.from({ length: 10 }).map((_, i) => (
+                          <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i < previewsRemaining ? "var(--neon)" : "rgba(255,255,255,0.1)", transition: "background 0.3s" }} />
+                        ))}
+                        <span style={{ fontSize: 9, color: "var(--text-muted)", marginLeft: 4 }}>{previewsRemaining}/10 left today</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
