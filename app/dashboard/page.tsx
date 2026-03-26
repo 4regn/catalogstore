@@ -188,10 +188,14 @@ export default function Dashboard() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []); if (!files.length) return;
-    if (formImages.length + existingImages.length + files.length > maxImages) { alert("Maximum " + maxImages + " images on your plan. Upgrade to Pro for more."); return; }
-    const valid = files.filter((f) => { if (!f.type.startsWith("image/")) return false; if (f.size > 5*1024*1024) { alert(f.name + " too large"); return false; } return true; });
-    setFormImages((p) => [...p, ...valid]);
-    valid.forEach((file) => { const r = new FileReader(); r.onload = (ev) => setFormPreviews((p) => [...p, ev.target?.result as string]); r.readAsDataURL(file); });
+    e.target.value = ""; // reset input so same files can be re-selected if needed
+    const slotsLeft = maxImages - formImages.length - existingImages.length;
+    if (slotsLeft <= 0) { alert("You've reached the maximum of " + maxImages + " photos."); return; }
+    const valid = files.filter((f) => { if (!f.type.startsWith("image/")) return false; if (f.size > 5*1024*1024) { alert(f.name + " is too large (max 5MB)"); return false; } return true; });
+    const toAdd = valid.slice(0, slotsLeft); // only take what fits
+    if (valid.length > slotsLeft) alert("Only " + slotsLeft + " slot" + (slotsLeft !== 1 ? "s" : "") + " left — added the first " + slotsLeft + " photo" + (slotsLeft !== 1 ? "s" : "") + ".");
+    setFormImages((p) => [...p, ...toAdd]);
+    toAdd.forEach((file) => { const r = new FileReader(); r.onload = (ev) => setFormPreviews((p) => [...p, ev.target?.result as string]); r.readAsDataURL(file); });
   };
   const removeNewImage = (i: number) => { setFormImages((p) => p.filter((_, idx) => idx !== i)); setFormPreviews((p) => p.filter((_, idx) => idx !== i)); };
   const removeExistingImage = (i: number) => setExistingImages((p) => p.filter((_, idx) => idx !== i));
