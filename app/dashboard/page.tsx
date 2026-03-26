@@ -88,7 +88,7 @@ export default function Dashboard() {
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formComparePrice, setFormComparePrice] = useState("");
-  const [formComparePrice, setFormComparePrice] = useState("");
+
   const [formSaving, setFormSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
