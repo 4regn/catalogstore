@@ -607,7 +607,7 @@ export default function CrownStore() {
                         {v.options.map(opt => (
                           <button key={opt} className={`crown-len-btn${selectedVariants[v.name] === opt ? " active" : ""}`}
                             onClick={() => { setSelectedVariants(prev => ({ ...prev, [v.name]: opt })); setVariantError(false); }}
-                            style={{ minWidth: 52, padding: "9px 14px", background: "none", border: `1px solid ${selectedVariants[v.name] === opt ? gold : border}`, color: selectedVariants[v.name] === opt ? goldLight : textMuted, fontFamily: "'Didact Gothic', sans-serif", fontSize: 12, cursor: "pointer", transition: "all 0.2s", background: selectedVariants[v.name] === opt ? "rgba(196,162,101,0.12)" : "none" }}>
+                            style={{ minWidth: 52, padding: "9px 14px", background: selectedVariants[v.name] === opt ? "rgba(196,162,101,0.12)" : "none", border: `1px solid ${selectedVariants[v.name] === opt ? gold : border}`, color: selectedVariants[v.name] === opt ? goldLight : textMuted, fontFamily: "'Didact Gothic', sans-serif", fontSize: 12, cursor: "pointer", transition: "all 0.2s" }}>
                             {opt}
                           </button>
                         ))}
