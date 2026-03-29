@@ -557,8 +557,6 @@ export default function GlassChromeStore() {
         </footer>
         </EditSection>
 
-</footer>
-
         {/* PRODUCT MODAL */}
         {selectedProduct && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }} onClick={closeProduct}>

@@ -518,8 +518,6 @@ export default function StorePage() {
         </footer>
         </EditSection>
 
-</footer>
-
         {/* PRODUCT MODAL */}
         {selectedProduct && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={closeProduct}>
