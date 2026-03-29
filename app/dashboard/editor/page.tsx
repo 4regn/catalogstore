@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
   tagline: string; description: string; logo_url: string; banner_url: string;
-  whatsapp_number: string; primary_color: string;
+  whatsapp_number: string; primary_color: string; collections: string[];
   store_config: {
     announcement?: string;
     trust_items?: { icon: string; title: string; desc: string }[];
