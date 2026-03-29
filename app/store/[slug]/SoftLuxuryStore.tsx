@@ -340,6 +340,7 @@ export default function StorePage() {
 
         {/* COLLECTIONS */}
         {cfg.show_collections && collections.length > 0 && (
+          <EditSection id="collections">
           <section style={{ padding: "80px 32px", maxWidth: 1340, margin: "0 auto" }}>
             <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "#b5b1ac", marginBottom: 12, textAlign: "center" }}>Curated For You</div>
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>Shop by Collection</h2>
@@ -369,6 +370,7 @@ export default function StorePage() {
               })}
             </div>
           </section>
+          </EditSection>
         )}
 
         {/* PRODUCTS */}
@@ -466,6 +468,7 @@ export default function StorePage() {
 
         {/* POLICIES */}
         {cfg.show_policies && (
+          <EditSection id="policies">
           <section className="sl-polg" style={{ padding: "80px 32px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, marginBottom: 40, letterSpacing: "0.02em" }}>Shipping & Policies</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, textAlign: "left" }}>
@@ -477,9 +480,11 @@ export default function StorePage() {
               ))}
             </div>
           </section>
+          </EditSection>
         )}
 
         {/* FOOTER */}
+        <EditSection id="footer">
         <footer style={{ background: "#2a2a2e", color: "#f6f3ef", padding: "60px 32px 40px" }}>
           <div style={{ maxWidth: 1340, margin: "0 auto" }}>
             <div className="sl-fttop" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 40, marginBottom: 48 }}>
@@ -511,6 +516,9 @@ export default function StorePage() {
             </div>
           </div>
         </footer>
+        </EditSection>
+
+</footer>
 
         {/* PRODUCT MODAL */}
         {selectedProduct && (

@@ -15,6 +15,8 @@ interface StoreConfig {
   show_trust_bar?: boolean;
   show_policies?: boolean;
   show_about?: boolean;
+  trust_items?: { icon: string; title: string; desc: string }[];
+  policy_items?: { title: string; desc: string }[];
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -57,6 +59,8 @@ export default function CrownStore() {
   const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
   const [liveTestimonial, setLiveTestimonial]   = useState<string | null>(null);
   const [liveCtaHeadline, setLiveCtaHeadline]   = useState<string | null>(null);
+  const [liveCtaSubtext, setLiveCtaSubtext]     = useState<string | null>(null);
+  const [liveAboutTitle, setLiveAboutTitle]     = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
@@ -119,6 +123,8 @@ export default function CrownStore() {
       if (e.data.trustItems     !== undefined) setLiveTrustItems(e.data.trustItems);
       if (e.data.testimonialText !== undefined) setLiveTestimonial(e.data.testimonialText);
       if (e.data.ctaHeadline    !== undefined) setLiveCtaHeadline(e.data.ctaHeadline);
+      if (e.data.ctaSubtext     !== undefined) setLiveCtaSubtext(e.data.ctaSubtext);
+      if (e.data.aboutTitle     !== undefined) setLiveAboutTitle(e.data.aboutTitle);
       if (e.data.logoUrl        !== undefined) setLiveLogoUrl(e.data.logoUrl);
     };
     window.addEventListener("message", handler);
@@ -301,7 +307,16 @@ export default function CrownStore() {
   const displayTrustItems   = liveTrustItems   ?? null;
   const displayTestimonial  = liveTestimonial  ?? "I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.";
   const displayCtaHeadline  = liveCtaHeadline  ?? "Your next look starts here";
+  const displayCtaSubtext   = liveCtaSubtext   ?? "{displayCtaSubtext}";
+  const displayAboutTitle   = liveAboutTitle   ?? "Hair that moves with you.";
   const displayLogoUrl      = liveLogoUrl      ?? s.logo_url;
+  const defaultTrustItems   = [
+    { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
+    { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
+    { icon: "◆", title: "Easy Returns", desc: "14-day returns on unopened items" },
+    { icon: "◆", title: "Real Support", desc: "WhatsApp us — we actually reply" },
+  ];
+  const activeTrustItems    = liveTrustItems ?? (config.trust_items?.length ? config.trust_items : defaultTrustItems);
 
   /* Edit mode: section wrapper — adds hover outline + click handler */
   const EditSection = ({
@@ -605,12 +620,7 @@ export default function CrownStore() {
           <EditSection id="trust">
             <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
               <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", padding: "0 48px" }}>
-                {(displayTrustItems || [
-                  { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
-                  { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
-                  { icon: "◆", title: "Easy Returns", desc: "14-day returns on unopened items" },
-                  { icon: "◆", title: "Real Support", desc: "WhatsApp us — we actually reply" },
-                ]).map((t, i) => (
+                {activeTrustItems.map((t, i) => (
                   <div key={i} style={{ padding: "40px 32px", borderRight: i < 3 ? `1px solid ${border}` : "none" }}>
                     <div style={{ fontSize: 14, color: gold, marginBottom: 10, opacity: 0.7 }}>{t.icon}</div>
                     <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, fontWeight: 300, color: cream, marginBottom: 6 }}>{t.title}</div>
@@ -629,7 +639,7 @@ export default function CrownStore() {
               <div style={{ maxWidth: 700, margin: "0 auto", textAlign: "center" }}>
                 <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Our Story</div>
                 <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,60px)", fontWeight: 300, color: cream, lineHeight: 1, marginBottom: 24, letterSpacing: "-0.01em" }}>
-                  Hair that <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>moves</em> with you.
+                  {displayAboutTitle}
                 </h2>
                 <p style={{ fontSize: 14, lineHeight: 2, color: textSecondary }}>{displayDescription || s.description}</p>
               </div>
@@ -639,6 +649,7 @@ export default function CrownStore() {
 
         {/* ── COLLECTIONS ── */}
         {categories.filter(c => c !== "All").length > 1 && (
+          <EditSection id="collections">
           <section style={{ background: bgDeep, padding: "100px 48px" }}>
             <div style={{ maxWidth: 1300, margin: "0 auto" }}>
               <div style={{ textAlign: "center", marginBottom: 64 }}>
@@ -672,6 +683,7 @@ export default function CrownStore() {
               </div>
             </div>
           </section>
+          </EditSection>
         )}
 
         {/* ── PROMISE ── */}
@@ -721,31 +733,6 @@ export default function CrownStore() {
           </div>
         </section>
 
-        {/* ── TESTIMONIALS ── */}
-        <EditSection id="testimonials">
-        <section style={{ background: bgDeep, padding: "100px 48px", textAlign: "center" }}>
-          <div style={{ maxWidth: 700, margin: "0 auto" }}>
-            <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 16 }}>What They Say</div>
-            <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(28px,4vw,44px)", fontWeight: 300, color: cream, marginBottom: 56, lineHeight: 1.1 }}>
-              Words from our <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>queens</em>
-            </h2>
-            <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 100, color: gold, opacity: 0.12, lineHeight: 0.4, marginBottom: -16, userSelect: "none" }}>"</div>
-            <p style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(20px,2.5vw,28px)", fontWeight: 300, lineHeight: 1.7, color: "rgba(240,220,200,0.85)", fontStyle: "italic", marginBottom: 36 }}>
-              {displayTestimonial}
-            </p>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
-              <div style={{ width: 44, height: 44, borderRadius: "50%", background: bgCard, border: `1px solid ${border}`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {products[0]?.image_url ? <img src={products[0].image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} /> : <span style={{ color: textMuted }}>◆</span>}
-              </div>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, fontWeight: 400, color: cream }}>Thandi M.</div>
-                <div style={{ fontSize: 10, letterSpacing: "0.08em", color: textMuted }}>Johannesburg, SA</div>
-              </div>
-            </div>
-          </div>
-        </section>
-        </EditSection>
-
         {/* ── CTA BANNER ── */}
         <EditSection id="cta">
         <section style={{ padding: "140px 48px", textAlign: "center", position: "relative", overflow: "hidden",
@@ -758,7 +745,7 @@ export default function CrownStore() {
               {displayCtaHeadline} <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}></em>
             </h2>
             <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, margin: "0 auto 40px" }}>
-              Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.
+              {displayCtaSubtext}
             </p>
             <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
               style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "18px 48px", background: gold, color: bgDeep, border: "none", fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.3s" }}>
@@ -770,6 +757,7 @@ export default function CrownStore() {
 
         {/* ── POLICIES ── */}
         {config.show_policies !== false && (
+          <EditSection id="policies">
           <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
             <div style={{ maxWidth: 1300, margin: "0 auto", padding: "48px 48px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 40 }}>
               {[
@@ -784,9 +772,11 @@ export default function CrownStore() {
               ))}
             </div>
           </div>
+          </EditSection>
         )}
 
         {/* ── FOOTER ── */}
+        <EditSection id="footer">
         <footer style={{ background: bgDeep, borderTop: `1px solid ${border}`, padding: "60px 48px 32px" }}>
           <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 60, marginBottom: 40 }}>
             <div>
@@ -814,6 +804,7 @@ export default function CrownStore() {
             <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: gold, textDecoration: "none" }}>Powered by CatalogStore</a>
           </div>
         </footer>
+        </EditSection>
 
         {/* ── WHATSAPP FLOAT ── */}
         <a href={`https://wa.me/${(s.whatsapp_number || "").replace(/\D/g, "")}`} target="_blank" rel="noreferrer"

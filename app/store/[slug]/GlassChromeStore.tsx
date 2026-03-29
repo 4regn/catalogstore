@@ -357,6 +357,7 @@ export default function GlassChromeStore() {
 
         {/* COLLECTIONS */}
         {cfg.show_collections && collections.length > 0 && (
+          <EditSection id="collections">
           <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
             <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 10 }}>/ 01</p>
             <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 50 }}>Collections</h2>
@@ -383,6 +384,7 @@ export default function GlassChromeStore() {
               })}
             </div>
           </section>
+          </EditSection>
         )}
 
         <div style={{ height: 1, background: PB }} />
@@ -481,6 +483,7 @@ export default function GlassChromeStore() {
 
         {/* POLICIES */}
         {cfg.show_policies && (
+          <EditSection id="policies">
           <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
             <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 10 }}>/ 04</p>
             <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 50 }}>Shipping & Policies</h2>
@@ -494,11 +497,13 @@ export default function GlassChromeStore() {
               ))}
             </div>
           </section>
+          </EditSection>
         )}
 
         <div style={{ height: 1, background: PB }} />
 
         {/* FOOTER */}
+        <EditSection id="footer">
         <footer style={{ background: "#0b0b0f", borderTop: "1px solid " + PB, padding: "70px 30px 30px" }}>
           <div style={{ maxWidth: 1280, margin: "0 auto" }}>
             <div className="gc-fgrid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 60, marginBottom: 60 }}>
@@ -550,6 +555,9 @@ export default function GlassChromeStore() {
             </div>
           </div>
         </footer>
+        </EditSection>
+
+</footer>
 
         {/* PRODUCT MODAL */}
         {selectedProduct && (
