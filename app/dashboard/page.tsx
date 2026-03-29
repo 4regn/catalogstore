@@ -54,6 +54,7 @@ interface Order {
 const TEMPLATES = [
   { id: "soft-luxury", name: "Soft Luxury", desc: "Warm cream tones with elegant serif typography", colors: { bg: "#f6f3ef", card: "#ffffff", text: "#2a2a2e" } },
   { id: "glass-futuristic", name: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents", colors: { bg: "#030305", card: "#0b0b0f", text: "#f0f0f0" } },
+  { id: "crown", name: "Crown", desc: "Dark luxury hair store — gold accents, editorial typography", colors: { bg: "#0a0908", card: "#1a1816", text: "#f0e6d3" } },
 ];
 
 const COLOR_PRESETS = ["#ff6b35", "#ff3d6e", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
