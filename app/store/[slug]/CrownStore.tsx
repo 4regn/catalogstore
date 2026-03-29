@@ -623,16 +623,18 @@ export default function CrownStore() {
         )}
 
         {/* ── ABOUT ── */}
-        {config.show_about !== false && s.description && (
-          <section style={{ background: "#0e0c0a", padding: "100px 48px" }}>
-            <div style={{ maxWidth: 700, margin: "0 auto", textAlign: "center" }}>
-              <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Our Story</div>
-              <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,60px)", fontWeight: 300, color: cream, lineHeight: 1, marginBottom: 24, letterSpacing: "-0.01em" }}>
-                Hair that <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>moves</em> with you.
-              </h2>
-              <p style={{ fontSize: 14, lineHeight: 2, color: textSecondary }}>{s.description}</p>
-            </div>
-          </section>
+        {config.show_about !== false && (displayDescription || s.description) && (
+          <EditSection id="about">
+            <section style={{ background: "#0e0c0a", padding: "100px 48px" }}>
+              <div style={{ maxWidth: 700, margin: "0 auto", textAlign: "center" }}>
+                <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Our Story</div>
+                <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,60px)", fontWeight: 300, color: cream, lineHeight: 1, marginBottom: 24, letterSpacing: "-0.01em" }}>
+                  Hair that <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>moves</em> with you.
+                </h2>
+                <p style={{ fontSize: 14, lineHeight: 2, color: textSecondary }}>{displayDescription || s.description}</p>
+              </div>
+            </section>
+          </EditSection>
         )}
 
         {/* ── COLLECTIONS ── */}
@@ -720,6 +722,7 @@ export default function CrownStore() {
         </section>
 
         {/* ── TESTIMONIALS ── */}
+        <EditSection id="testimonials">
         <section style={{ background: bgDeep, padding: "100px 48px", textAlign: "center" }}>
           <div style={{ maxWidth: 700, margin: "0 auto" }}>
             <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 16 }}>What They Say</div>
@@ -728,7 +731,7 @@ export default function CrownStore() {
             </h2>
             <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 100, color: gold, opacity: 0.12, lineHeight: 0.4, marginBottom: -16, userSelect: "none" }}>"</div>
             <p style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(20px,2.5vw,28px)", fontWeight: 300, lineHeight: 1.7, color: "rgba(240,220,200,0.85)", fontStyle: "italic", marginBottom: 36 }}>
-              I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.
+              {displayTestimonial}
             </p>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: bgCard, border: `1px solid ${border}`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -741,8 +744,10 @@ export default function CrownStore() {
             </div>
           </div>
         </section>
+        </EditSection>
 
         {/* ── CTA BANNER ── */}
+        <EditSection id="cta">
         <section style={{ padding: "140px 48px", textAlign: "center", position: "relative", overflow: "hidden",
           background: s.logo_url
             ? `linear-gradient(rgba(10,9,8,0.82),rgba(10,9,8,0.82)) center/cover, url(${s.logo_url}) center/cover no-repeat`
@@ -750,7 +755,7 @@ export default function CrownStore() {
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Ready?</div>
             <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, color: cream, lineHeight: 1.05, marginBottom: 20, letterSpacing: "-0.01em" }}>
-              Your next look<br />starts <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>here</em>
+              {displayCtaHeadline} <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}></em>
             </h2>
             <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, margin: "0 auto 40px" }}>
               Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.
@@ -761,6 +766,7 @@ export default function CrownStore() {
             </button>
           </div>
         </section>
+        </EditSection>
 
         {/* ── POLICIES ── */}
         {config.show_policies !== false && (

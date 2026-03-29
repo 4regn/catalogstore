@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
@@ -25,7 +25,18 @@ interface CartItem { product: Product; qty: number; selectedVariants: { [key: st
 
 export default function GlassChromeStore() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const isEditMode = searchParams.get("editMode") === "true";
+
+  /* Live edit overrides from postMessage */
+  const [liveTagline, setLiveTagline]           = useState<string | null>(null);
+  const [liveDescription, setLiveDescription]   = useState<string | null>(null);
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
+  const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
+  const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
+  const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
+
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,12 +71,26 @@ export default function GlassChromeStore() {
     return () => { clearInterval(timer); clearTimeout(redirect); };
   }, [orderStatus, slug]);
 
+  /* Listen for live updates from editor */
+  useEffect(() => {
+    if (!isEditMode) return;
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== "LIVE_UPDATE") return;
+      if (e.data.tagline      !== undefined) setLiveTagline(e.data.tagline);
+      if (e.data.description  !== undefined) setLiveDescription(e.data.description);
+      if (e.data.announcement !== undefined) setLiveAnnouncement(e.data.announcement);
+      if (e.data.trustItems   !== undefined) setLiveTrustItems(e.data.trustItems);
+      if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [isEditMode]);
+
   // Promo countdown ticker
   useEffect(() => {
     if (promoDiscounts.length === 0 && !promoCountdown?.expires_at) return;
     const tick = () => {
       const now = new Date().getTime();
-      // Update store-wide countdown
       if (promoCountdown?.expires_at) {
         const diff = new Date(promoCountdown.expires_at).getTime() - now;
         if (diff <= 0) { setPromoCountdown(null); }
@@ -76,7 +101,6 @@ export default function GlassChromeStore() {
           setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
         }
       }
-      // Update all product/collection countdowns
       setPromoDiscounts((prev) => prev.map((p) => {
         const diff = new Date(p.expires_at).getTime() - now;
         if (diff <= 0) return { ...p, timeLeft: "EXPIRED" };
@@ -90,9 +114,7 @@ export default function GlassChromeStore() {
     return () => clearInterval(interval);
   }, [promoDiscounts.length, promoCountdown?.expires_at]);
 
-  // Helper: get product promo if exists
   const getProductPromo = (productId: string) => promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId) && d.timeLeft);
-  // Helper: get collection promo if exists
   const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName) && d.timeLeft);
 
   const loadStore = async () => {
@@ -101,7 +123,6 @@ export default function GlassChromeStore() {
     setSeller(sd);
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", sd.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
     if (pd) setProducts(pd);
-    // Load active countdown discounts
     const { data: dcs } = await supabase.from("discount_codes").select("*").eq("seller_id", sd.id).eq("active", true).eq("show_countdown", true).not("expires_at", "is", null);
     if (dcs && dcs.length > 0) {
       const activePromos = dcs.filter((d: any) => new Date(d.expires_at) > new Date()).map((d: any) => ({
@@ -113,6 +134,7 @@ export default function GlassChromeStore() {
       if (storePromo) setPromoCountdown({ code: storePromo.code, type: storePromo.type, value: storePromo.value, applies_to: storePromo.applies_to, expires_at: storePromo.expires_at, timeLeft: "" });
     }
     setLoading(false);
+    if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
   };
 
   const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" };
@@ -170,6 +192,35 @@ export default function GlassChromeStore() {
   const mono = "'Share Tech Mono', monospace";
   const display = "'Bebas Neue', sans-serif";
   const body = "'DM Sans', sans-serif";
+  const accentColor = "#00e5ff";
+
+  /* Live overrides */
+  const displayTagline     = liveTagline     ?? seller?.tagline     ?? "";
+  const displayDescription = liveDescription ?? seller?.description ?? "";
+  const displayAnnouncement = liveAnnouncement ?? cfg.announcement ?? "";
+  const displayTrustItems  = liveTrustItems  ?? trustItems;
+  const displayLogoUrl     = liveLogoUrl     ?? seller?.logo_url    ?? "";
+
+  /* Edit mode section wrapper */
+  const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
+    if (!isEditMode) return <div style={style}>{children}</div>;
+    const isHovered = hoveredSection === id;
+    return (
+      <div
+        onMouseEnter={() => setHoveredSection(id)}
+        onMouseLeave={() => setHoveredSection(null)}
+        onClick={() => window.parent.postMessage({ type: "SECTION_CLICK", section: id }, "*")}
+        style={{ position: "relative", outline: isHovered ? `2px solid ${accentColor}` : "2px solid transparent", outlineOffset: -2, cursor: "pointer", transition: "outline-color 0.2s", ...style }}
+      >
+        {isHovered && (
+          <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", background: accentColor, color: "#000", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 12px", borderRadius: 100, zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
+            ✏️ Click to edit
+          </div>
+        )}
+        {children}
+      </div>
+    );
+  };
 
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: body, background: "#030305" }}><p style={{ color: "rgba(255,255,255,0.4)", fontFamily: mono, fontSize: 12, letterSpacing: "0.15em", textTransform: "uppercase" }}>Loading store...</p></div>;
   if (notFound) return <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: body, background: "#030305" }}><h1 style={{ fontFamily: display, fontSize: 96, background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 8 }}>404</h1><p style={{ color: "rgba(255,255,255,0.4)" }}>This store does not exist.</p></div>;
@@ -225,17 +276,19 @@ export default function GlassChromeStore() {
         <div style={{ position: "relative", zIndex: 2 }}>
 
         {/* ANNOUNCEMENT */}
-        {cfg.announcement && (
-          <div style={{ background: "#030305", borderBottom: "1px solid " + PB, padding: "10px 20px", textAlign: "center", fontFamily: mono, fontSize: 11, letterSpacing: "0.15em", color: "rgba(255,255,255,0.5)", overflow: "hidden", position: "relative" }}>
-            <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: "slideBar 18s linear infinite" }}>{cfg.announcement}</span>
-          </div>
+        {displayAnnouncement && (
+          <EditSection id="announcement">
+            <div style={{ background: "#030305", borderBottom: "1px solid " + PB, padding: "10px 20px", textAlign: "center", fontFamily: mono, fontSize: 11, letterSpacing: "0.15em", color: "rgba(255,255,255,0.5)", overflow: "hidden", position: "relative" }}>
+              <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: "slideBar 18s linear infinite" }}>{displayAnnouncement}</span>
+            </div>
+          </EditSection>
         )}
 
         {/* HEADER */}
         <header style={{ position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 30px", height: 64, background: "rgba(3,3,5,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid " + PB }}>
           <div>
-            {seller?.logo_url ? (
-              <img src={seller.logo_url} alt={seller.store_name} style={{ height: 36, maxWidth: 140, objectFit: "contain" }} />
+            {displayLogoUrl ? (
+              <img src={displayLogoUrl} alt={seller?.store_name} style={{ height: 36, maxWidth: 140, objectFit: "contain" }} />
             ) : (
               <span style={{ fontFamily: display, fontSize: 26, letterSpacing: "0.08em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{seller?.store_name}</span>
             )}
@@ -278,27 +331,29 @@ export default function GlassChromeStore() {
         )}
 
         {/* HERO */}
-        <section className="gc-hero" style={{ position: "relative", height: seller?.banner_url ? "100vh" : "auto", minHeight: seller?.banner_url ? 600 : "auto", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
-          {seller?.banner_url ? (
-            <>
-              <img src={seller.banner_url} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.35) saturate(0.7)" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(3,3,5,0.92) 0%, rgba(3,3,5,0.4) 50%, rgba(3,3,5,0.15) 100%)" }} />
-              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)" }} />
-              {cfg.show_banner_text && (
-                <div style={{ position: "relative", zIndex: 2, padding: "0 40px 70px", maxWidth: 900 }}>
-                  {seller?.tagline && <p style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.25em", color: "#fff", marginBottom: 18, textTransform: "uppercase" }}>- {seller.tagline}</p>}
-                  <h1 style={{ fontFamily: display, fontSize: "clamp(56px, 10vw, 144px)", lineHeight: 0.92, letterSpacing: "0.02em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 24, textTransform: "uppercase" }}>{seller?.store_name}</h1>
-                  <a href="#products" style={{ display: "inline-flex", padding: "14px 32px", borderRadius: 6, background: "#fff", color: "#000", fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Collection</a>
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ textAlign: "center", padding: "100px 40px 80px", width: "100%" }}>
-              <h1 style={{ fontFamily: display, fontSize: "clamp(48px, 10vw, 120px)", lineHeight: 0.92, background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>{seller?.store_name}</h1>
-              {seller?.tagline && <p style={{ fontFamily: mono, fontSize: 12, color: "rgba(255,255,255,0.5)", letterSpacing: "0.15em", textTransform: "uppercase", marginTop: 16 }}>{seller.tagline}</p>}
-            </div>
-          )}
-        </section>
+        <EditSection id="hero">
+          <section className="gc-hero" style={{ position: "relative", height: (displayLogoUrl || seller?.banner_url) ? "100vh" : "auto", minHeight: (displayLogoUrl || seller?.banner_url) ? 600 : "auto", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
+            {seller?.banner_url ? (
+              <>
+                <img src={seller.banner_url} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.35) saturate(0.7)" }} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(3,3,5,0.92) 0%, rgba(3,3,5,0.4) 50%, rgba(3,3,5,0.15) 100%)" }} />
+                <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)" }} />
+                {cfg.show_banner_text && (
+                  <div style={{ position: "relative", zIndex: 2, padding: "0 40px 70px", maxWidth: 900 }}>
+                    {displayTagline && <p style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.25em", color: "#fff", marginBottom: 18, textTransform: "uppercase" }}>- {displayTagline}</p>}
+                    <h1 style={{ fontFamily: display, fontSize: "clamp(56px, 10vw, 144px)", lineHeight: 0.92, letterSpacing: "0.02em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 24, textTransform: "uppercase" }}>{seller?.store_name}</h1>
+                    <a href="#products" style={{ display: "inline-flex", padding: "14px 32px", borderRadius: 6, background: "#fff", color: "#000", fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Collection</a>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: "100px 40px 80px", width: "100%" }}>
+                <h1 style={{ fontFamily: display, fontSize: "clamp(48px, 10vw, 120px)", lineHeight: 0.92, background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>{seller?.store_name}</h1>
+                {displayTagline && <p style={{ fontFamily: mono, fontSize: 12, color: "rgba(255,255,255,0.5)", letterSpacing: "0.15em", textTransform: "uppercase", marginTop: 16 }}>{displayTagline}</p>}
+              </div>
+            )}
+          </section>
+        </EditSection>
 
         {/* COLLECTIONS */}
         {cfg.show_collections && collections.length > 0 && (
@@ -390,34 +445,38 @@ export default function GlassChromeStore() {
         <div style={{ height: 1, background: PB }} />
 
         {/* ABOUT */}
-        {cfg.show_about && seller?.description && (
-          <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
-            <div className="gc-about" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
-              <div style={{ position: "relative", aspectRatio: "4/5", borderRadius: 20, overflow: "hidden", background: "#0b0b0f", border: "1px solid " + PB }}>
-                {seller?.banner_url && <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} />}
+        {cfg.show_about && (displayDescription || seller?.description) && (
+          <EditSection id="about">
+            <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
+              <div className="gc-about" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
+                <div style={{ position: "relative", aspectRatio: "4/5", borderRadius: 20, overflow: "hidden", background: "#0b0b0f", border: "1px solid " + PB }}>
+                  {seller?.banner_url && <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} />}
+                </div>
+                <div>
+                  <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 14 }}>/ 03 - About</p>
+                  <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 20, lineHeight: 1 }}>About {seller?.store_name}</h2>
+                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.85, fontWeight: 300, maxWidth: 440 }}>{displayDescription || seller?.description}</p>
+                </div>
               </div>
-              <div>
-                <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 14 }}>/ 03 - About</p>
-                <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 20, lineHeight: 1 }}>About {seller?.store_name}</h2>
-                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.85, fontWeight: 300, maxWidth: 440 }}>{seller.description}</p>
-              </div>
-            </div>
-          </section>
+            </section>
+          </EditSection>
         )}
 
         {/* TRUST BAR */}
         {cfg.show_trust_bar && (
-          <div style={{ background: "#0b0b0f", borderTop: "1px solid " + PB, borderBottom: "1px solid " + PB, padding: "40px 30px" }}>
-            <div className="gc-trust" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, maxWidth: 1280, margin: "0 auto" }}>
-              {trustItems.map((item, i) => (
-                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 12, padding: "24px 16px", borderRadius: 12, border: "1px solid transparent", transition: "border-color 0.35s, background 0.35s" }}>
-                  <div style={{ fontSize: 24, color: "#fff" }}>{item.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{item.title}</div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", fontWeight: 300 }}>{item.desc}</div>
-                </div>
-              ))}
+          <EditSection id="trust">
+            <div style={{ background: "#0b0b0f", borderTop: "1px solid " + PB, borderBottom: "1px solid " + PB, padding: "40px 30px" }}>
+              <div className="gc-trust" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, maxWidth: 1280, margin: "0 auto" }}>
+                {displayTrustItems.map((item, i) => (
+                  <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 12, padding: "24px 16px", borderRadius: 12, border: "1px solid transparent", transition: "border-color 0.35s, background 0.35s" }}>
+                    <div style={{ fontSize: 24, color: "#fff" }}>{item.icon}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{item.title}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", fontWeight: 300 }}>{item.desc}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </EditSection>
         )}
 
         {/* POLICIES */}
@@ -444,8 +503,8 @@ export default function GlassChromeStore() {
           <div style={{ maxWidth: 1280, margin: "0 auto" }}>
             <div className="gc-fgrid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 60, marginBottom: 60 }}>
               <div>
-                {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 36, objectFit: "contain", marginBottom: 16 }} /> : <div style={{ fontFamily: display, fontSize: 36, letterSpacing: "0.08em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 16, textTransform: "uppercase" }}>{seller?.store_name}</div>}
-                {seller?.description && <p style={{ fontSize: 13, color: "rgba(255,255,255,0.28)", fontWeight: 300, maxWidth: 220, lineHeight: 1.7, marginBottom: 28 }}>{seller.description.substring(0, 120)}{seller.description.length > 120 ? "..." : ""}</p>}
+                {displayLogoUrl ? <img src={displayLogoUrl} alt="" style={{ height: 36, objectFit: "contain", marginBottom: 16 }} /> : <div style={{ fontFamily: display, fontSize: 36, letterSpacing: "0.08em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 16, textTransform: "uppercase" }}>{seller?.store_name}</div>}
+                {(displayDescription || seller?.description) && <p style={{ fontSize: 13, color: "rgba(255,255,255,0.28)", fontWeight: 300, maxWidth: 220, lineHeight: 1.7, marginBottom: 28 }}>{(displayDescription || seller?.description || "").substring(0, 120)}...</p>}
                 <div style={{ display: "flex", gap: 12 }}>
                   {social.instagram && <a href={social.instagram} target="_blank" style={{ width: 36, height: 36, border: "1px solid " + PB, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", textDecoration: "none" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>}
                   {social.tiktok && <a href={social.tiktok} target="_blank" style={{ width: 36, height: 36, border: "1px solid " + PB, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)", textDecoration: "none" }}><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg></a>}
@@ -459,7 +518,7 @@ export default function GlassChromeStore() {
               <div>
                 <h5 style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 600, marginBottom: 20 }}>Info</h5>
                 {[
-                  { key: "about", label: "About", content: seller?.description || "No description yet." },
+                  { key: "about", label: "About", content: displayDescription || seller?.description || "No description yet." },
                   { key: "shipping", label: "Shipping", content: policyItems.find((p) => p.title.toLowerCase() === "shipping")?.desc || "Contact us for shipping info." },
                   { key: "returns", label: "Returns", content: policyItems.find((p) => p.title.toLowerCase() === "returns")?.desc || "Contact us for return info." },
                   { key: "contact", label: "Contact", content: (seller?.whatsapp_number ? "WhatsApp: " + seller.whatsapp_number : "") + (social.instagram ? "\nInstagram: " + social.instagram : "") },

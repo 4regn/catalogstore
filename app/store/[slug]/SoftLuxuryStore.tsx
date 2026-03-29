@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
@@ -25,7 +25,18 @@ interface CartItem { product: Product; qty: number; selectedVariants: { [key: st
 
 export default function StorePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const isEditMode = searchParams.get("editMode") === "true";
+
+  /* Live edit overrides from postMessage */
+  const [liveTagline, setLiveTagline]           = useState<string | null>(null);
+  const [liveDescription, setLiveDescription]   = useState<string | null>(null);
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
+  const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
+  const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
+  const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
+
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -59,6 +70,21 @@ export default function StorePage() {
     return () => { clearInterval(timer); clearTimeout(redirect); };
   }, [orderStatus, slug]);
 
+  /* Listen for live updates from editor */
+  useEffect(() => {
+    if (!isEditMode) return;
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== "LIVE_UPDATE") return;
+      if (e.data.tagline      !== undefined) setLiveTagline(e.data.tagline);
+      if (e.data.description  !== undefined) setLiveDescription(e.data.description);
+      if (e.data.announcement !== undefined) setLiveAnnouncement(e.data.announcement);
+      if (e.data.trustItems   !== undefined) setLiveTrustItems(e.data.trustItems);
+      if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [isEditMode]);
+
   const loadStore = async () => {
     const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
     if (!sd) { setNotFound(true); setLoading(false); return; }
@@ -76,6 +102,7 @@ export default function StorePage() {
       if (storePromo) setPromoCountdown({ code: storePromo.code, type: storePromo.type, value: storePromo.value, applies_to: storePromo.applies_to, expires_at: storePromo.expires_at, timeLeft: "" });
     }
     setLoading(false);
+    if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
   };
 
   // Promo countdown ticker
@@ -158,6 +185,35 @@ export default function StorePage() {
 
   const waLink = seller?.whatsapp_number ? "https://wa.me/" + (seller.whatsapp_number.startsWith("0") ? "27" + seller.whatsapp_number.substring(1) : seller.whatsapp_number).replace(/\D/g, "") : "#";
 
+  /* Live overrides */
+  const displayTagline      = liveTagline      ?? seller?.tagline      ?? "";
+  const displayDescription  = liveDescription  ?? seller?.description  ?? "";
+  const displayAnnouncement = liveAnnouncement ?? cfg.announcement     ?? "";
+  const displayTrustItems   = liveTrustItems   ?? trustItems;
+  const displayLogoUrl      = liveLogoUrl      ?? seller?.logo_url     ?? "";
+  const accentColor         = "#9c7c62";
+
+  /* Edit mode section wrapper */
+  const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
+    if (!isEditMode) return <div style={style}>{children}</div>;
+    const isHovered = hoveredSection === id;
+    return (
+      <div
+        onMouseEnter={() => setHoveredSection(id)}
+        onMouseLeave={() => setHoveredSection(null)}
+        onClick={() => window.parent.postMessage({ type: "SECTION_CLICK", section: id }, "*")}
+        style={{ position: "relative", outline: isHovered ? `2px solid ${accentColor}` : "2px solid transparent", outlineOffset: -2, cursor: "pointer", transition: "outline-color 0.2s", ...style }}
+      >
+        {isHovered && (
+          <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", background: accentColor, color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 12px", borderRadius: 100, zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+            ✏️ Click to edit
+          </div>
+        )}
+        {children}
+      </div>
+    );
+  };
+
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef" }}><p style={{ color: "#8a8690", fontSize: 15 }}>Loading store...</p></div>;
   if (notFound) return <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef" }}><h1 style={{ fontSize: 48, fontWeight: 300, color: "#2a2a2e", marginBottom: 8 }}>404</h1><p style={{ color: "#8a8690" }}>This store does not exist.</p></div>;
 
@@ -165,8 +221,7 @@ export default function StorePage() {
   if (storeInactive && !orderStatus) return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef", padding: "40px 24px", textAlign: "center" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Jost:wght@300;400;500;600;700&display=swap');`}</style>
-      {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
-      <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(0,0,0,0.04)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#b5b1ac" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      {displayLogoUrl ? <img src={displayLogoUrl} alt="" style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
       <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 400, color: "#2a2a2e", marginBottom: 12 }}>Store Temporarily Unavailable</h1>
       <p style={{ fontSize: 15, color: "#8a8690", maxWidth: 400, lineHeight: 1.6 }}>This store is currently inactive. Please check back soon or contact the seller directly.</p>
     </div>
@@ -175,7 +230,7 @@ export default function StorePage() {
   if (orderStatus === "success" || orderStatus === "cancelled") return (
     <div style={{ minHeight: "100vh", background: "#f6f3ef", fontFamily: "'Jost', sans-serif", color: "#2a2a2e", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
       <div style={{ maxWidth: 500, width: "100%", textAlign: "center" }}>
-        {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 44, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
+        {displayLogoUrl ? <img src={displayLogoUrl} alt="" style={{ height: 44, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
         {orderStatus === "success" ? (<>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
           <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Successful!</h1>
@@ -203,7 +258,11 @@ export default function StorePage() {
       <div style={{ minHeight: "100vh", background: "#f6f3ef", fontFamily: "'Jost', sans-serif", color: "#2a2a2e" }}>
 
         {/* ANNOUNCEMENT */}
-        {cfg.announcement && <div style={{ background: "#2a2a2e", color: "#f6f3ef", textAlign: "center", padding: "10px 20px", fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase" }}>{cfg.announcement}</div>}
+        {displayAnnouncement && (
+          <EditSection id="announcement">
+            <div style={{ background: "#2a2a2e", color: "#f6f3ef", textAlign: "center", padding: "10px 20px", fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase" }}>{displayAnnouncement}</div>
+          </EditSection>
+        )}
 
         {/* HEADER */}
         <header style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(246,243,239,0.92)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
@@ -213,12 +272,12 @@ export default function StorePage() {
               {cats.length > 2 && <span style={{ color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Collections</span>}
             </div>
             <div style={{ textAlign: "center" }}>
-              {seller?.logo_url ? (
-                <img className="sl-logo-img" src={seller.logo_url} alt={seller.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
+              {displayLogoUrl ? (
+                <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
               ) : (
                 <div>
                   <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>{seller?.store_name}</div>
-                  {seller?.tagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#b5b1ac", textTransform: "uppercase", marginTop: -2 }}>{seller.tagline}</div>}
+                  {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#b5b1ac", textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
                 </div>
               )}
             </div>
@@ -257,25 +316,27 @@ export default function StorePage() {
         )}
 
         {/* HERO */}
-        <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
-          {seller?.banner_url ? (
-            <>
-              <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
-              {cfg.show_banner_text && (
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(42,42,46,0) 30%, rgba(42,42,46,0.4) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "0 40px 80px", textAlign: "center" }}>
-                  {seller?.tagline && <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)", marginBottom: 16 }}>{seller.tagline}</div>}
-                  <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 72px)", fontWeight: 300, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.1, marginBottom: 20 }}>{seller?.store_name}</h1>
-                  <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 100, color: "#fff", fontSize: 12, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Collection &rarr;</a>
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
-              <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, letterSpacing: "0.04em", marginBottom: 12 }}>{seller?.store_name}</h1>
-              {seller?.tagline && <p style={{ fontSize: 14, color: "#8a8690", letterSpacing: "0.1em", textTransform: "uppercase" }}>{seller.tagline}</p>}
-            </div>
-          )}
-        </section>
+        <EditSection id="hero">
+          <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
+            {seller?.banner_url ? (
+              <>
+                <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
+                {cfg.show_banner_text && (
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(42,42,46,0) 30%, rgba(42,42,46,0.4) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "0 40px 80px", textAlign: "center" }}>
+                    {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)", marginBottom: 16 }}>{displayTagline}</div>}
+                    <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 72px)", fontWeight: 300, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.1, marginBottom: 20 }}>{seller?.store_name}</h1>
+                    <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 100, color: "#fff", fontSize: 12, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Collection &rarr;</a>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
+                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, letterSpacing: "0.04em", marginBottom: 12 }}>{seller?.store_name}</h1>
+                {displayTagline && <p style={{ fontSize: 14, color: "#8a8690", letterSpacing: "0.1em", textTransform: "uppercase" }}>{displayTagline}</p>}
+              </div>
+            )}
+          </section>
+        </EditSection>
 
         {/* COLLECTIONS */}
         {cfg.show_collections && collections.length > 0 && (
@@ -372,31 +433,35 @@ export default function StorePage() {
           )}
         </section>
 
-        {/* ABOUT / BRAND STORY */}
-        {cfg.show_about && seller?.description && (
-          <section className="sl-story" style={{ padding: "100px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center" }}>
-            <div style={{ aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", background: "linear-gradient(145deg, #d4c5b5, #c0b0a0)" }}>
-              {seller?.banner_url && <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-            </div>
-            <div>
-              <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "#b5b1ac", marginBottom: 12 }}>Our Story</div>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 3.5vw, 42px)", fontWeight: 300, letterSpacing: "0.02em", marginBottom: 24, lineHeight: 1.2 }}>About {seller?.store_name}</h2>
-              <p style={{ fontSize: 15, lineHeight: 1.85, color: "#8a8690", fontWeight: 300, maxWidth: 440 }}>{seller.description}</p>
-            </div>
-          </section>
+        {/* ABOUT */}
+        {cfg.show_about && (displayDescription || seller?.description) && (
+          <EditSection id="about">
+            <section className="sl-story" style={{ padding: "100px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center" }}>
+              <div style={{ aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", background: "linear-gradient(145deg, #d4c5b5, #c0b0a0)" }}>
+                {seller?.banner_url && <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+              </div>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "#b5b1ac", marginBottom: 12 }}>Our Story</div>
+                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 3.5vw, 42px)", fontWeight: 300, letterSpacing: "0.02em", marginBottom: 24, lineHeight: 1.2 }}>About {seller?.store_name}</h2>
+                <p style={{ fontSize: 15, lineHeight: 1.85, color: "#8a8690", fontWeight: 300, maxWidth: 440 }}>{displayDescription || seller?.description}</p>
+              </div>
+            </section>
+          </EditSection>
         )}
 
         {/* TRUST BAR */}
         {cfg.show_trust_bar && (
-          <div className="sl-trust" style={{ padding: "60px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-            {trustItems.map((item, i) => (
-              <div key={i} style={{ textAlign: "center", padding: 20 }}>
-                <div style={{ fontSize: 24, marginBottom: 12, color: accent }}>{item.icon}</div>
-                <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{item.title}</div>
-                <div style={{ fontSize: 12, color: "#b5b1ac", fontWeight: 300 }}>{item.desc}</div>
-              </div>
-            ))}
-          </div>
+          <EditSection id="trust">
+            <div className="sl-trust" style={{ padding: "60px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+              {displayTrustItems.map((item, i) => (
+                <div key={i} style={{ textAlign: "center", padding: 20 }}>
+                  <div style={{ fontSize: 24, marginBottom: 12, color: accent }}>{item.icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{item.title}</div>
+                  <div style={{ fontSize: 12, color: "#b5b1ac", fontWeight: 300 }}>{item.desc}</div>
+                </div>
+              ))}
+            </div>
+          </EditSection>
         )}
 
         {/* POLICIES */}
@@ -420,7 +485,7 @@ export default function StorePage() {
             <div className="sl-fttop" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 40, marginBottom: 48 }}>
               <div>
                 <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>{seller?.store_name}</div>
-                {seller?.description && <p style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", lineHeight: 1.7, fontWeight: 300, maxWidth: 280 }}>{seller.description.substring(0, 120)}{(seller.description.length > 120) ? "..." : ""}</p>}
+                {(displayDescription || seller?.description) && <p style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", lineHeight: 1.7, fontWeight: 300, maxWidth: 280 }}>{(displayDescription || seller?.description || "").substring(0, 120)}...</p>}
               </div>
               <div>
                 <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Shop</h5>
