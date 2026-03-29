@@ -13,17 +13,27 @@ interface Seller {
     announcement?: string;
     trust_items?: { icon: string; title: string; desc: string }[];
     policy_items?: { title: string; desc: string }[];
+    hero_subtext?: string;
+    circle_title?: string;
+    circle_subtitle?: string;
+    products_label?: string;
+    products_heading?: string;
+    about_label?: string;
+    about_title?: string;
+    coll_label?: string;
+    coll_subtitle?: string;
   };
 }
 
 type ActiveSection =
-  | "announcement" | "hero" | "products" | "collections"
+  | "announcement" | "hero" | "circle" | "products" | "collections"
   | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
   | null;
 
 const SECTION_LABELS: Record<string, string> = {
   announcement: "📢 Announcement Bar",
   hero:         "🏠 Hero Section",
+  circle:       "⭕ Browse by Category",
   products:     "🛍 Products",
   collections:  "📂 Collections",
   promise:      "💎 Our Promise",
@@ -52,7 +62,18 @@ export default function StoreEditor() {
   const [announcement, setAnnouncement] = useState("");
   const [trustItems, setTrustItems]     = useState<{ icon: string; title: string; desc: string }[]>([]);
   const [testimonialText, setTestimonialText] = useState("I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.");
-  const [ctaHeadline, setCtaHeadline]   = useState("Your next look starts here");
+  const [ctaHeadline, setCtaHeadline]         = useState("Your next look starts here");
+  const [ctaSubtext, setCtaSubtext]           = useState("Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.");
+  const [aboutTitle, setAboutTitle]           = useState("");
+  const [heroSubtext, setHeroSubtext]         = useState("Premium Hair Collection · SA Delivered");
+  const [circleTitle, setCircleTitle]         = useState("Shop by Texture");
+  const [circleSubtitle, setCircleSubtitle]   = useState("Find your signature look");
+  const [productsLabel, setProductsLabel]     = useState("The Edit");
+  const [productsHeading, setProductsHeading] = useState("Latest arrivals");
+  const [aboutLabel, setAboutLabel]           = useState("Our Story");
+  const [collLabel, setCollLabel]             = useState("Featured Collections");
+  const [collSubtitle, setCollSubtitle]       = useState("Find your signature look");
+  const [collOrder, setCollOrder]             = useState<string[]>([]);
   const [logoFile, setLogoFile]         = useState<File | null>(null);
   const [logoPreview, setLogoPreview]   = useState("");
 
@@ -73,6 +94,16 @@ export default function StoreEditor() {
         { icon: "◆", title: "Easy Returns", desc: "14-day returns on unopened items" },
         { icon: "◆", title: "Real Support", desc: "WhatsApp us — we actually reply" },
       ]);
+      setCollOrder(s.collections || []);
+      if (s.store_config?.hero_subtext) setHeroSubtext(s.store_config.hero_subtext);
+      if (s.store_config?.circle_title) setCircleTitle(s.store_config.circle_title);
+      if (s.store_config?.circle_subtitle) setCircleSubtitle(s.store_config.circle_subtitle);
+      if (s.store_config?.products_label) setProductsLabel(s.store_config.products_label);
+      if (s.store_config?.products_heading) setProductsHeading(s.store_config.products_heading);
+      if (s.store_config?.about_label) setAboutLabel(s.store_config.about_label);
+      if (s.store_config?.about_title) setAboutTitle(s.store_config.about_title);
+      if (s.store_config?.coll_label) setCollLabel(s.store_config.coll_label);
+      if (s.store_config?.coll_subtitle) setCollSubtitle(s.store_config.coll_subtitle);
       setLogoPreview(s.logo_url || "");
       setLoading(false);
     })();
@@ -105,6 +136,17 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ trustItems }); }, [trustItems]);
   useEffect(() => { postUpdate({ testimonialText }); }, [testimonialText]);
   useEffect(() => { postUpdate({ ctaHeadline }); }, [ctaHeadline]);
+  useEffect(() => { postUpdate({ ctaSubtext }); }, [ctaSubtext]);
+  useEffect(() => { postUpdate({ aboutTitle }); }, [aboutTitle]);
+  useEffect(() => { postUpdate({ heroSubtext }); }, [heroSubtext]);
+  useEffect(() => { postUpdate({ circleTitle }); }, [circleTitle]);
+  useEffect(() => { postUpdate({ circleSubtitle }); }, [circleSubtitle]);
+  useEffect(() => { postUpdate({ productsLabel }); }, [productsLabel]);
+  useEffect(() => { postUpdate({ productsHeading }); }, [productsHeading]);
+  useEffect(() => { postUpdate({ aboutLabel }); }, [aboutLabel]);
+  useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
+  useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
+  useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview]);
 
   /* ─── SAVE ─── */
@@ -121,10 +163,20 @@ export default function StoreEditor() {
     }
     await supabase.from("sellers").update({
       tagline, description, logo_url: logoUrl,
+      collections: collOrder.length > 0 ? collOrder : seller.collections,
       store_config: {
         ...seller.store_config,
         announcement,
         trust_items: trustItems,
+        hero_subtext: heroSubtext,
+        circle_title: circleTitle,
+        circle_subtitle: circleSubtitle,
+        products_label: productsLabel,
+        products_heading: productsHeading,
+        about_label: aboutLabel,
+        about_title: aboutTitle,
+        coll_label: collLabel,
+        coll_subtitle: collSubtitle,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -315,11 +367,33 @@ export default function StoreEditor() {
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 5 }}>The big text on your homepage. 5–8 words works best.</div>
                 </div>
                 <div>
+                  <label style={labelStyle}>Hero Subtext</label>
+                  <input value={heroSubtext} onChange={e => setHeroSubtext(e.target.value)}
+                    placeholder="e.g. Premium Hair Collection · SA Delivered"
+                    style={inputStyle} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Small uppercase text above the main headline. Leave empty to hide.</div>
+                </div>
+                <div>
                   <label style={labelStyle}>Subtitle</label>
                   <textarea value={description} onChange={e => setDescription(e.target.value)}
                     rows={3} placeholder="Short description under the headline..."
                     style={{ ...inputStyle, resize: "vertical" }} />
                 </div>
+              </div>
+            )}
+
+            {/* CIRCLE STRIP */}
+            {activeSection === "circle" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={labelStyle}>Section Title</label>
+                <input value={circleTitle} onChange={e => setCircleTitle(e.target.value)}
+                  placeholder="e.g. Shop by Texture"
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase label above the circles. Leave empty to hide.</div>
+                <label style={labelStyle}>Section Subtitle</label>
+                <input value={circleSubtitle} onChange={e => setCircleSubtitle(e.target.value)}
+                  placeholder="e.g. Find your signature look"
+                  style={inputStyle} />
               </div>
             )}
 
@@ -339,17 +413,53 @@ export default function StoreEditor() {
 
             {/* COLLECTIONS */}
             {activeSection === "collections" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Collections come from your products</div>
-                  <div style={{ fontSize: 12, color: "rgba(245,245,245,0.3)", lineHeight: 1.6 }}>The collections on your store are automatically generated from the categories you set on your products. To add a new collection, go to Products and set a category on your items.</div>
-                </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={labelStyle}>Section Label</label>
+                <input value={collLabel} onChange={e => setCollLabel(e.target.value)}
+                  placeholder="e.g. Featured Collections"
+                  style={inputStyle} />
+                <label style={labelStyle}>Section Subtitle</label>
+                <input value={collSubtitle} onChange={e => setCollSubtitle(e.target.value)}
+                  placeholder="e.g. Find your signature look"
+                  style={inputStyle} />
+                <label style={labelStyle}>Collection Order</label>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 6 }}>Drag to reorder how collections appear on your store.</div>
+                {collOrder.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {collOrder.map((col, i) => (
+                      <div key={col} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }}>
+                        <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 14, cursor: "grab" }}>⠿</span>
+                        <span style={{ flex: 1, fontSize: 13 }}>{col}</span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <button onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i-1], u[i]] = [u[i], u[i-1]]; setCollOrder(u); }}
+                            style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>▲</button>
+                          <button onClick={() => { if (i === collOrder.length-1) return; const u = [...collOrder]; [u[i], u[i+1]] = [u[i+1], u[i]]; setCollOrder(u); }}
+                            style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>▼</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.3)" }}>
+                    Collections come from your product categories. Add products with categories in the dashboard first.
+                  </div>
+                )}
               </div>
             )}
 
             {/* ABOUT */}
             {activeSection === "about" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={labelStyle}>Section Label</label>
+                <input value={aboutLabel} onChange={e => setAboutLabel(e.target.value)}
+                  placeholder="e.g. Our Story"
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase text above the heading. Leave empty to hide.</div>
+                <label style={labelStyle}>Section Heading</label>
+                <input value={aboutTitle} onChange={e => setAboutTitle(e.target.value)}
+                  placeholder="e.g. Hair that moves with you."
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Leave empty to show no heading.</div>
                 <label style={labelStyle}>Brand Story / About Text</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)}
                   rows={5} placeholder="Tell your customers who you are, what you sell, and why they should trust you..."
@@ -360,16 +470,25 @@ export default function StoreEditor() {
 
             {/* TRUST BAR */}
             {activeSection === "trust" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <label style={labelStyle}>Trust Bar Items</label>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Click an icon to pick it. Leave title empty to hide an item.</div>
                 {trustItems.map((item, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input value={item.icon} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], icon: e.target.value }; setTrustItems(u); }}
-                      style={{ ...inputStyle, width: 44, textAlign: "center", fontSize: 18, padding: "8px" }} />
-                    <input value={item.title} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], title: e.target.value }; setTrustItems(u); }}
-                      placeholder="Title" style={{ ...inputStyle, flex: 1 }} />
-                    <input value={item.desc} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], desc: e.target.value }; setTrustItems(u); }}
-                      placeholder="Description" style={{ ...inputStyle, flex: 2 }} />
+                  <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {["◆","★","✦","♦","⚡","✈","↩","🔒","📦","💳","🚚","⭐","✓","♻","🛡","💎","🤝","⏱"].map(ico => (
+                        <button key={ico} onClick={() => { const u = [...trustItems]; u[i] = { ...u[i], icon: ico }; setTrustItems(u); }}
+                          style={{ width: 32, height: 32, borderRadius: 6, border: item.icon === ico ? "2px solid #c4a265" : "1px solid rgba(255,255,255,0.1)", background: item.icon === ico ? "rgba(196,162,101,0.12)" : "rgba(255,255,255,0.04)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {ico}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input value={item.title} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], title: e.target.value }; setTrustItems(u); }}
+                        placeholder="Title" style={{ ...inputStyle, flex: 1 }} />
+                      <input value={item.desc} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], desc: e.target.value }; setTrustItems(u); }}
+                        placeholder="Description" style={{ ...inputStyle, flex: 2 }} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -393,7 +512,12 @@ export default function StoreEditor() {
                 <input value={ctaHeadline} onChange={e => setCtaHeadline(e.target.value)}
                   placeholder="e.g. Your next look starts here"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>The big text in the full-width banner near the bottom of the page.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big text in the full-width banner near the bottom of the page.</div>
+                <label style={labelStyle}>CTA Subtext</label>
+                <textarea value={ctaSubtext} onChange={e => setCtaSubtext(e.target.value)}
+                  rows={3} placeholder="e.g. Browse our full collection..."
+                  style={{ ...inputStyle, resize: "vertical" }} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>The smaller descriptive text below the headline.</div>
               </div>
             )}
 

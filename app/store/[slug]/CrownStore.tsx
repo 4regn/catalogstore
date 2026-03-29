@@ -17,6 +17,15 @@ interface StoreConfig {
   show_about?: boolean;
   trust_items?: { icon: string; title: string; desc: string }[];
   policy_items?: { title: string; desc: string }[];
+  hero_subtext?: string;
+  circle_title?: string;
+  circle_subtitle?: string;
+  products_label?: string;
+  products_heading?: string;
+  about_label?: string;
+  about_title?: string;
+  coll_label?: string;
+  coll_subtitle?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -58,10 +67,19 @@ export default function CrownStore() {
   const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
   const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
   const [liveTestimonial, setLiveTestimonial]   = useState<string | null>(null);
-  const [liveCtaHeadline, setLiveCtaHeadline]   = useState<string | null>(null);
-  const [liveCtaSubtext, setLiveCtaSubtext]     = useState<string | null>(null);
-  const [liveAboutTitle, setLiveAboutTitle]     = useState<string | null>(null);
-  const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
+  const [liveCtaHeadline, setLiveCtaHeadline]         = useState<string | null>(null);
+  const [liveCtaSubtext, setLiveCtaSubtext]           = useState<string | null>(null);
+  const [liveAboutTitle, setLiveAboutTitle]           = useState<string | null>(null);
+  const [liveHeroSubtext, setLiveHeroSubtext]         = useState<string | null>(null);
+  const [liveCircleTitle, setLiveCircleTitle]         = useState<string | null>(null);
+  const [liveCircleSubtitle, setLiveCircleSubtitle]   = useState<string | null>(null);
+  const [liveProductsLabel, setLiveProductsLabel]     = useState<string | null>(null);
+  const [liveProductsHeading, setLiveProductsHeading] = useState<string | null>(null);
+  const [liveAboutLabel, setLiveAboutLabel]           = useState<string | null>(null);
+  const [liveCollLabel, setLiveCollLabel]             = useState<string | null>(null);
+  const [liveCollSubtitle, setLiveCollSubtitle]       = useState<string | null>(null);
+  const [liveCollOrder, setLiveCollOrder]             = useState<string[] | null>(null);
+  const [liveLogoUrl, setLiveLogoUrl]                 = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
   /* ui state */
@@ -122,10 +140,19 @@ export default function CrownStore() {
       if (e.data.announcement   !== undefined) setLiveAnnouncement(e.data.announcement);
       if (e.data.trustItems     !== undefined) setLiveTrustItems(e.data.trustItems);
       if (e.data.testimonialText !== undefined) setLiveTestimonial(e.data.testimonialText);
-      if (e.data.ctaHeadline    !== undefined) setLiveCtaHeadline(e.data.ctaHeadline);
-      if (e.data.ctaSubtext     !== undefined) setLiveCtaSubtext(e.data.ctaSubtext);
-      if (e.data.aboutTitle     !== undefined) setLiveAboutTitle(e.data.aboutTitle);
-      if (e.data.logoUrl        !== undefined) setLiveLogoUrl(e.data.logoUrl);
+      if (e.data.ctaHeadline     !== undefined) setLiveCtaHeadline(e.data.ctaHeadline);
+      if (e.data.ctaSubtext      !== undefined) setLiveCtaSubtext(e.data.ctaSubtext);
+      if (e.data.aboutTitle      !== undefined) setLiveAboutTitle(e.data.aboutTitle);
+      if (e.data.heroSubtext     !== undefined) setLiveHeroSubtext(e.data.heroSubtext);
+      if (e.data.circleTitle     !== undefined) setLiveCircleTitle(e.data.circleTitle);
+      if (e.data.circleSubtitle  !== undefined) setLiveCircleSubtitle(e.data.circleSubtitle);
+      if (e.data.productsLabel   !== undefined) setLiveProductsLabel(e.data.productsLabel);
+      if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
+      if (e.data.aboutLabel      !== undefined) setLiveAboutLabel(e.data.aboutLabel);
+      if (e.data.collLabel       !== undefined) setLiveCollLabel(e.data.collLabel);
+      if (e.data.collSubtitle    !== undefined) setLiveCollSubtitle(e.data.collSubtitle);
+      if (e.data.collOrder       !== undefined) setLiveCollOrder(e.data.collOrder);
+      if (e.data.logoUrl         !== undefined) setLiveLogoUrl(e.data.logoUrl);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -307,9 +334,19 @@ export default function CrownStore() {
   const displayTrustItems   = liveTrustItems   ?? null;
   const displayTestimonial  = liveTestimonial  ?? "I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.";
   const displayCtaHeadline  = liveCtaHeadline  ?? "Your next look starts here";
-  const displayCtaSubtext   = liveCtaSubtext   ?? "{displayCtaSubtext}";
-  const displayAboutTitle   = liveAboutTitle   ?? "Hair that moves with you.";
-  const displayLogoUrl      = liveLogoUrl      ?? s.logo_url;
+  const displayCtaSubtext      = liveCtaSubtext      ?? "Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.";
+  const displayAboutTitle      = liveAboutTitle      ?? "";
+  const displayHeroSubtext     = liveHeroSubtext     ?? config.hero_subtext     ?? "Premium Hair Collection · SA Delivered";
+  const displayCircleTitle     = liveCircleTitle     ?? config.circle_title     ?? "Shop by Texture";
+  const displayCircleSubtitle  = liveCircleSubtitle  ?? config.circle_subtitle  ?? "Find your signature look";
+  const displayProductsLabel   = liveProductsLabel   ?? config.products_label   ?? "The Edit";
+  const displayProductsHeading = liveProductsHeading ?? config.products_heading ?? "Latest arrivals";
+  const displayAboutLabel      = liveAboutLabel      ?? config.about_label      ?? "Our Story";
+  const displayCollLabel       = liveCollLabel       ?? config.coll_label       ?? "Featured Collections";
+  const displayCollSubtitle    = liveCollSubtitle    ?? config.coll_subtitle    ?? "Find your signature look";
+  const rawCats                = categories.filter(c => c !== "All");
+  const orderedCats            = liveCollOrder ? liveCollOrder.filter(c => rawCats.includes(c)).concat(rawCats.filter(c => !liveCollOrder!.includes(c))) : rawCats;
+  const displayLogoUrl         = liveLogoUrl         ?? s.logo_url;
   const defaultTrustItems   = [
     { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
     { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
@@ -488,7 +525,7 @@ export default function CrownStore() {
 
           <div style={{ position: "relative", zIndex: 2, padding: "0 48px 80px", maxWidth: 700, animation: "fadeUp 1s ease 0.3s both" }}>
             <div style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", color: gold, marginBottom: 24 }}>
-              Premium Hair Collection · SA Delivered
+              {displayHeroSubtext}
             </div>
             <h1 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(52px,7vw,96px)", fontWeight: 300, lineHeight: 0.9, letterSpacing: "-0.01em", color: cream, marginBottom: 24 }}>
               {displayTagline ? displayTagline.split(" ").map((word, i, arr) =>
@@ -524,12 +561,13 @@ export default function CrownStore() {
         )}
 
         {/* ── CIRCLE STRIP ── */}
-        {categories.filter(c => c !== "All").length > 0 && (
+        {orderedCats.length > 0 && (
+          <EditSection id="circle">
           <div style={{ padding: "72px 0", background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, textAlign: "center", overflow: "hidden" }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>Shop by Texture</div>
-            <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, color: textSecondary, fontWeight: 300, marginBottom: 44 }}>Find your signature look</div>
+            {displayCircleTitle && <div style={{ fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>{displayCircleTitle}</div>}
+            {displayCircleSubtitle && <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, color: textSecondary, fontWeight: 300, marginBottom: 44 }}>{displayCircleSubtitle}</div>}
             <div style={{ display: "flex", gap: 40, overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none" as const, padding: "0 48px 16px", justifyContent: "center", flexWrap: "wrap" }}>
-              {categories.filter(c => c !== "All").slice(0, 6).map((cat, i) => (
+              {orderedCats.slice(0, 6).map((cat, i) => (
                 <div key={i} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, cursor: "pointer", flexShrink: 0 }}>
                   <div style={{ width: 160, height: 160, borderRadius: "50%", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.4s, box-shadow 0.4s", boxShadow: activeCategory === cat ? `0 0 40px rgba(196,162,101,0.15)` : "none", borderColor: activeCategory === cat ? gold : border }}>
@@ -544,17 +582,19 @@ export default function CrownStore() {
               ))}
             </div>
           </div>
+          </EditSection>
         )}
 
         {/* ── PRODUCTS ── */}
         <section id="products" style={{ padding: "100px 48px", background: bgDeep }}>
           {/* Header */}
+          <EditSection id="products">
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 56, paddingBottom: 24, borderBottom: `1px solid ${border}`, flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 72, fontWeight: 300, color: "rgba(196,162,101,0.06)", lineHeight: 1, marginBottom: -12, letterSpacing: "-0.02em" }}>{filtered.length}</div>
-              <div style={{ fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: gold, marginBottom: 6 }}>The Edit</div>
+              <div style={{ fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: gold, marginBottom: 6 }}>{displayProductsLabel}</div>
               <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(28px,4vw,44px)", fontWeight: 300, color: cream, letterSpacing: "-0.01em" }}>
-                Latest <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>arrivals</em>
+                {displayProductsHeading}
               </h2>
             </div>
             {/* Category filter */}
@@ -568,6 +608,7 @@ export default function CrownStore() {
               ))}
             </div>
           </div>
+          </EditSection>
 
           {/* Grid */}
           {filtered.length === 0 ? (
@@ -637,10 +678,12 @@ export default function CrownStore() {
           <EditSection id="about">
             <section style={{ background: "#0e0c0a", padding: "100px 48px" }}>
               <div style={{ maxWidth: 700, margin: "0 auto", textAlign: "center" }}>
-                <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Our Story</div>
-                <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,60px)", fontWeight: 300, color: cream, lineHeight: 1, marginBottom: 24, letterSpacing: "-0.01em" }}>
-                  {displayAboutTitle}
-                </h2>
+                {displayAboutLabel && <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>{displayAboutLabel}</div>}
+                {displayAboutTitle && (
+                  <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,60px)", fontWeight: 300, color: cream, lineHeight: 1, marginBottom: 24, letterSpacing: "-0.01em" }}>
+                    {displayAboutTitle}
+                  </h2>
+                )}
                 <p style={{ fontSize: 14, lineHeight: 2, color: textSecondary }}>{displayDescription || s.description}</p>
               </div>
             </section>
@@ -653,13 +696,15 @@ export default function CrownStore() {
           <section style={{ background: bgDeep, padding: "100px 48px" }}>
             <div style={{ maxWidth: 1300, margin: "0 auto" }}>
               <div style={{ textAlign: "center", marginBottom: 64 }}>
-                <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 14 }}>Featured Collections</div>
-                <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(32px,4.5vw,52px)", fontWeight: 300, color: cream, lineHeight: 1.1 }}>
-                  Find your <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>signature</em> look
-                </h2>
+                <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 14 }}>{displayCollLabel}</div>
+                {displayCollSubtitle && (
+                  <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(32px,4.5vw,52px)", fontWeight: 300, color: cream, lineHeight: 1.1 }}>
+                    {displayCollSubtitle}
+                  </h2>
+                )}
               </div>
               <div className="collections-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(categories.filter(c => c !== "All").length, 4)}, 1fr)`, gap: 28 }}>
-                {categories.filter(c => c !== "All").slice(0, 4).map((cat, i) => {
+                {orderedCats.slice(0, 4).map((cat, i) => {
                   const catImg = products.find(p => p.category === cat)?.image_url;
                   const catCount = products.filter(p => p.category === cat).length;
                   return (
