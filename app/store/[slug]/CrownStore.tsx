@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 /* ─── TYPES ─────────────────────────────────────────────── */
 interface SocialLinks {
@@ -41,12 +41,24 @@ const FREE_SHIP = 800;
 
 export default function CrownStore() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const isEditMode = searchParams.get("editMode") === "true";
 
   const [seller, setSeller]     = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading]   = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  /* live edit overrides — updated via postMessage from editor */
+  const [liveTagline, setLiveTagline]           = useState<string | null>(null);
+  const [liveDescription, setLiveDescription]   = useState<string | null>(null);
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
+  const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
+  const [liveTestimonial, setLiveTestimonial]   = useState<string | null>(null);
+  const [liveCtaHeadline, setLiveCtaHeadline]   = useState<string | null>(null);
+  const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
+  const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
   /* ui state */
   const [activeCategory, setActiveCategory] = useState("All");
@@ -75,6 +87,7 @@ export default function CrownStore() {
   /* nav scroll */
   const [scrolled, setScrolled] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const lastScrollY = useRef(0);
 
   /* ─── LOAD ─── */
@@ -90,8 +103,27 @@ export default function CrownStore() {
         .order("sort_order", { ascending: true });
       setProducts(p || []);
       setLoading(false);
+      /* Tell the parent editor we're ready */
+      if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
     })();
   }, [slug]);
+
+  /* Listen for live updates from the editor */
+  useEffect(() => {
+    if (!isEditMode) return;
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== "LIVE_UPDATE") return;
+      if (e.data.tagline        !== undefined) setLiveTagline(e.data.tagline);
+      if (e.data.description    !== undefined) setLiveDescription(e.data.description);
+      if (e.data.announcement   !== undefined) setLiveAnnouncement(e.data.announcement);
+      if (e.data.trustItems     !== undefined) setLiveTrustItems(e.data.trustItems);
+      if (e.data.testimonialText !== undefined) setLiveTestimonial(e.data.testimonialText);
+      if (e.data.ctaHeadline    !== undefined) setLiveCtaHeadline(e.data.ctaHeadline);
+      if (e.data.logoUrl        !== undefined) setLiveLogoUrl(e.data.logoUrl);
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [isEditMode]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -106,9 +138,9 @@ export default function CrownStore() {
 
   /* lock body scroll when overlays open */
   useEffect(() => {
-    document.body.style.overflow = (cartOpen || checkoutOpen || !!selectedProduct) ? "hidden" : "";
+    document.body.style.overflow = (cartOpen || checkoutOpen || !!selectedProduct || mobileNavOpen) ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [cartOpen, checkoutOpen, selectedProduct]);
+  }, [cartOpen, checkoutOpen, selectedProduct, mobileNavOpen]);
 
   /* ─── DERIVED ─── */
   const categories = ["All", ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
@@ -262,6 +294,59 @@ export default function CrownStore() {
   const textMuted = "rgba(240,230,211,0.35)";
   const border = "rgba(196,162,101,0.1)";
 
+  /* Apply live overrides */
+  const displayTagline      = liveTagline      ?? s.tagline;
+  const displayDescription  = liveDescription  ?? s.description;
+  const displayAnnouncement = liveAnnouncement ?? config.announcement;
+  const displayTrustItems   = liveTrustItems   ?? null;
+  const displayTestimonial  = liveTestimonial  ?? "I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.";
+  const displayCtaHeadline  = liveCtaHeadline  ?? "Your next look starts here";
+  const displayLogoUrl      = liveLogoUrl      ?? s.logo_url;
+
+  /* Edit mode: section wrapper — adds hover outline + click handler */
+  const EditSection = ({
+    id, children, style,
+  }: {
+    id: string;
+    children: React.ReactNode;
+    style?: React.CSSProperties;
+  }) => {
+    if (!isEditMode) return <>{children}</>;
+    const isHovered = hoveredSection === id;
+    return (
+      <div
+        onMouseEnter={() => setHoveredSection(id)}
+        onMouseLeave={() => setHoveredSection(null)}
+        onClick={(e) => {
+          e.stopPropagation();
+          window.parent.postMessage({ type: "SECTION_CLICK", section: id }, "*");
+        }}
+        style={{
+          position: "relative",
+          outline: isHovered ? `2px solid ${gold}` : "2px solid transparent",
+          outlineOffset: -2,
+          cursor: "pointer",
+          transition: "outline-color 0.2s",
+          ...style,
+        }}
+      >
+        {isHovered && (
+          <div style={{
+            position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
+            background: gold, color: bgDeep,
+            fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+            padding: "4px 12px", borderRadius: 100,
+            zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          }}>
+            ✏️ Click to edit
+          </div>
+        )}
+        {children}
+      </div>
+    );
+  };
+
   return (
     <>
       <style>{`
@@ -273,6 +358,7 @@ export default function CrownStore() {
         @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
         @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
         @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+        @keyframes scrollPulse{0%,100%{opacity:0.3;transform:scaleY(0.6);transform-origin:top}50%{opacity:1;transform:scaleY(1)}}
         .crown-fade{animation:fadeUp 0.6s ease forwards}
         .crown-prod-img img{transition:transform 0.7s cubic-bezier(0.16,1,0.3,1)}
         .crown-prod-card:hover .crown-prod-img img{transform:scale(1.05)}
@@ -289,20 +375,32 @@ export default function CrownStore() {
           .crown-prod-grid{grid-template-columns:1fr 1fr!important}
           .crown-modal-grid{grid-template-columns:1fr!important}
           .crown-nav-links{display:none!important}
+          .crown-hamburger{display:flex!important}
           .crown-checkout-grid{grid-template-columns:1fr!important}
         }
         @media(max-width:480px){
           .crown-prod-grid{grid-template-columns:1fr!important}
         }
+        .crown-hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:4px;z-index:1002}
+        .crown-hamburger span{display:block;width:24px;height:1px;background:#f0e6d3;transition:all 0.4s cubic-bezier(0.16,1,0.3,1);transform-origin:center}
+        .crown-hamburger.open span:nth-child(1){transform:translateY(6px) rotate(45deg)}
+        .crown-hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
+        .crown-hamburger.open span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+        .crown-mobile-nav{position:fixed;inset:0;background:rgba(10,9,8,0.97);backdrop-filter:blur(20px);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:36px;opacity:0;pointer-events:none;transition:opacity 0.4s}
+        .crown-mobile-nav.open{opacity:1;pointer-events:all}
+        .crown-mobile-nav a,.crown-mobile-nav button{font-family:'Cormorant Garant',serif;font-size:36px;font-weight:300;letter-spacing:4px;text-transform:uppercase;color:#f0e6d3;background:none;border:none;cursor:pointer;text-decoration:none;transition:color 0.3s}
+        .crown-mobile-nav a:hover,.crown-mobile-nav button:hover{color:#d4b88a}
       `}</style>
 
       <div style={{ fontFamily: "'Didact Gothic', sans-serif", background: bgDeep, color: cream, minHeight: "100vh", overflowX: "hidden" }}>
 
         {/* ── ANNOUNCEMENT BAR ── */}
-        {config.show_announcement !== false && (
-          <div style={{ background: gold, color: bgDeep, textAlign: "center", padding: "10px 20px", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase" }}>
-            {config.announcement || `Free shipping on orders over ${fmt(FREE_SHIP)} · 100% Human Hair · SA Nationwide`}
-          </div>
+        {(config.show_announcement !== false) && (displayAnnouncement || config.announcement) && (
+          <EditSection id="announcement">
+            <div style={{ background: gold, color: bgDeep, textAlign: "center", padding: "10px 20px", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+              {displayAnnouncement || `Free shipping on orders over ${fmt(FREE_SHIP)} · 100% Human Hair · SA Nationwide`}
+            </div>
+          </EditSection>
         )}
 
         {/* ── NAV ── */}
@@ -327,6 +425,7 @@ export default function CrownStore() {
               </button>
             ))}
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <button onClick={() => setCartOpen(true)} style={{
             display: "flex", alignItems: "center", gap: 10,
             background: "none", border: `1px solid rgba(196,162,101,0.3)`,
@@ -340,14 +439,30 @@ export default function CrownStore() {
             Cart
             <span style={{ background: gold, color: bgDeep, width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{cartCount}</span>
           </button>
+          <button className={`crown-hamburger${mobileNavOpen ? " open" : ""}`} onClick={() => setMobileNavOpen(o => !o)}>
+            <span /><span /><span />
+          </button>
+          </div>
         </nav>
 
+        {/* ── MOBILE NAV ── */}
+        <div className={`crown-mobile-nav${mobileNavOpen ? " open" : ""}`}>
+          {categories.filter(c => c !== "All").map(cat => (
+            <button key={cat} onClick={() => { setActiveCategory(cat); setMobileNavOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}>
+              {cat}
+            </button>
+          ))}
+          <button onClick={() => { setMobileNavOpen(false); setCartOpen(true); }} style={{ fontSize: 14, letterSpacing: "0.14em", border: `1px solid rgba(196,162,101,0.3)`, padding: "12px 32px", color: goldLight, marginTop: 16 }}>
+            Cart ({cartCount})
+          </button>
+        </div>
+
         {/* ── HERO ── */}
-        <section style={{ position: "relative", minHeight: "90vh", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
+        <EditSection id="hero" style={{ position: "relative", minHeight: "90vh", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
           {/* Background image */}
           <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-            {s.logo_url ? (
-              <img src={s.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
+            {displayLogoUrl ? (
+              <img src={displayLogoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
             ) : (
               <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg, ${bgElevated} 0%, #1e1a16 100%)` }} />
             )}
@@ -361,19 +476,24 @@ export default function CrownStore() {
               Premium Hair Collection · SA Delivered
             </div>
             <h1 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(52px,7vw,96px)", fontWeight: 300, lineHeight: 0.9, letterSpacing: "-0.01em", color: cream, marginBottom: 24 }}>
-              {s.tagline ? s.tagline.split(" ").map((word, i, arr) =>
+              {displayTagline ? displayTagline.split(" ").map((word, i, arr) =>
                 i === Math.floor(arr.length / 2) ? <><em key={i} style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight, display: "block" }}>{word}</em></> : <span key={i}>{word} </span>
               ) : <><span>Wear your </span><em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight, display: "block" }}>crown</em><span>with confidence.</span></>}
             </h1>
-            {s.description && (
-              <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, marginBottom: 40 }}>{s.description}</p>
+            {displayDescription && (
+              <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, marginBottom: 40 }}>{displayDescription}</p>
             )}
             <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
               style={{ display: "inline-flex", alignItems: "center", gap: 14, padding: "16px 42px", background: "transparent", border: `1px solid ${gold}`, color: goldLight, fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.4s" }}>
               Explore Collection <span>→</span>
             </button>
           </div>
-        </section>
+          {/* Scroll indicator */}
+          <div style={{ position: "absolute", bottom: 40, right: 48, zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, opacity: 0.6 }}>
+            <span style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: textMuted, writingMode: "vertical-rl" as const }}>Scroll</span>
+            <div style={{ width: 1, height: 60, background: `linear-gradient(to bottom, ${gold}, transparent)`, animation: "scrollPulse 2s ease-in-out infinite" }} />
+          </div>
+        </EditSection>
 
         {/* ── TEXTURE TICKER ── */}
         {categories.filter(c => c !== "All").length > 0 && (
@@ -383,6 +503,29 @@ export default function CrownStore() {
                 <span key={i} style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, color: "rgba(240,230,211,0.18)", padding: "0 28px", letterSpacing: "0.06em" }}>
                   {cat} <span style={{ color: gold, fontSize: 10 }}>✦</span>
                 </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── CIRCLE STRIP ── */}
+        {categories.filter(c => c !== "All").length > 0 && (
+          <div style={{ padding: "72px 0", background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, textAlign: "center", overflow: "hidden" }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>Shop by Texture</div>
+            <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, color: textSecondary, fontWeight: 300, marginBottom: 44 }}>Find your signature look</div>
+            <div style={{ display: "flex", gap: 40, overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none" as const, padding: "0 48px 16px", justifyContent: "center", flexWrap: "wrap" }}>
+              {categories.filter(c => c !== "All").slice(0, 6).map((cat, i) => (
+                <div key={i} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, cursor: "pointer", flexShrink: 0 }}>
+                  <div style={{ width: 160, height: 160, borderRadius: "50%", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.4s, box-shadow 0.4s", boxShadow: activeCategory === cat ? `0 0 40px rgba(196,162,101,0.15)` : "none", borderColor: activeCategory === cat ? gold : border }}>
+                    {products.find(p => p.category === cat)?.image_url ? (
+                      <img src={products.find(p => p.category === cat)!.image_url} alt={cat} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.6s ease" }} />
+                    ) : (
+                      <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, color: textMuted }}>◆</span>
+                    )}
+                  </div>
+                  <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 400, color: activeCategory === cat ? goldLight : cream, transition: "color 0.3s" }}>{cat}</div>
+                </div>
               ))}
             </div>
           </div>
@@ -459,22 +602,24 @@ export default function CrownStore() {
 
         {/* ── TRUST BAR ── */}
         {config.show_trust_bar !== false && (
-          <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
-            <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", padding: "0 48px" }}>
-              {[
-                { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
-                { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
-                { icon: "◆", title: "Easy Returns", desc: "14-day returns on unopened items" },
-                { icon: "◆", title: "Real Support", desc: "WhatsApp us — we actually reply" },
-              ].map((t, i) => (
-                <div key={i} style={{ padding: "40px 32px", borderRight: i < 3 ? `1px solid ${border}` : "none" }}>
-                  <div style={{ fontSize: 14, color: gold, marginBottom: 10, opacity: 0.7 }}>{t.icon}</div>
-                  <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, fontWeight: 300, color: cream, marginBottom: 6 }}>{t.title}</div>
-                  <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.6 }}>{t.desc}</div>
-                </div>
-              ))}
+          <EditSection id="trust">
+            <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
+              <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", padding: "0 48px" }}>
+                {(displayTrustItems || [
+                  { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
+                  { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
+                  { icon: "◆", title: "Easy Returns", desc: "14-day returns on unopened items" },
+                  { icon: "◆", title: "Real Support", desc: "WhatsApp us — we actually reply" },
+                ]).map((t, i) => (
+                  <div key={i} style={{ padding: "40px 32px", borderRight: i < 3 ? `1px solid ${border}` : "none" }}>
+                    <div style={{ fontSize: 14, color: gold, marginBottom: 10, opacity: 0.7 }}>{t.icon}</div>
+                    <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, fontWeight: 300, color: cream, marginBottom: 6 }}>{t.title}</div>
+                    <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.6 }}>{t.desc}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </EditSection>
         )}
 
         {/* ── ABOUT ── */}
@@ -489,6 +634,133 @@ export default function CrownStore() {
             </div>
           </section>
         )}
+
+        {/* ── COLLECTIONS ── */}
+        {categories.filter(c => c !== "All").length > 1 && (
+          <section style={{ background: bgDeep, padding: "100px 48px" }}>
+            <div style={{ maxWidth: 1300, margin: "0 auto" }}>
+              <div style={{ textAlign: "center", marginBottom: 64 }}>
+                <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 14 }}>Featured Collections</div>
+                <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(32px,4.5vw,52px)", fontWeight: 300, color: cream, lineHeight: 1.1 }}>
+                  Find your <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>signature</em> look
+                </h2>
+              </div>
+              <div className="collections-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(categories.filter(c => c !== "All").length, 4)}, 1fr)`, gap: 28 }}>
+                {categories.filter(c => c !== "All").slice(0, 4).map((cat, i) => {
+                  const catImg = products.find(p => p.category === cat)?.image_url;
+                  const catCount = products.filter(p => p.category === cat).length;
+                  return (
+                    <div key={i} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                      style={{ cursor: "pointer", position: "relative" }}>
+                      <div style={{ width: "100%", aspectRatio: "3/4", borderRadius: "200px 200px 12px 12px", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, transition: "border-color 0.4s" }}>
+                        {catImg ? (
+                          <img src={catImg} alt={cat} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.8s ease" }} />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, fontSize: 32 }}>◆</div>
+                        )}
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 50%, rgba(10,9,8,0.7) 100%)", borderRadius: "200px 200px 12px 12px" }} />
+                      </div>
+                      <div style={{ textAlign: "center", paddingTop: 20 }}>
+                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 400, color: cream, marginBottom: 4, transition: "color 0.3s" }}>{cat}</div>
+                        <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: textMuted }}>{catCount} {catCount === 1 ? "product" : "products"}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── PROMISE ── */}
+        <section style={{ background: bgElevated, padding: "100px 48px", overflow: "hidden" }}>
+          <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 16 }}>Our Promise</div>
+              <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(32px,4vw,52px)", fontWeight: 300, color: cream, lineHeight: 1.1, marginBottom: 48 }}>
+                Built on <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>trust</em>,<br />delivered with care
+              </h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+                {[
+                  { num: "01", title: "100% Human Hair", desc: "Every bundle sourced from a single donor — unprocessed, naturally aligned from root to tip." },
+                  { num: "02", title: "Ethically Sourced", desc: "We partner directly with suppliers who prioritize fair trade practices at every step." },
+                  { num: "03", title: "Colour & Heat Friendly", desc: "Bleach it, curl it, straighten it. Our hair holds up to styling without losing its bounce." },
+                  { num: "04", title: "Nationwide Delivery", desc: "Fast, tracked shipping to every corner of South Africa. Order today, slay by the weekend." },
+                ].map(v => (
+                  <div key={v.num} style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+                    <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 30, fontWeight: 300, color: gold, opacity: 0.4, lineHeight: 1, minWidth: 36 }}>{v.num}</span>
+                    <div>
+                      <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 400, color: cream, marginBottom: 6 }}>{v.title}</div>
+                      <div style={{ fontSize: 13, lineHeight: 1.7, color: textSecondary }}>{v.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Mosaic */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 8, height: 560 }}>
+              {[
+                { radius: "80px 8px 8px 8px", label: "Quality" },
+                { radius: "8px 80px 8px 8px", label: "Texture" },
+                { radius: "8px 8px 8px 80px", label: "Volume" },
+                { radius: "8px 8px 80px 8px", label: "Shine" },
+              ].map((cell, i) => {
+                const img = products[i]?.image_url;
+                return (
+                  <div key={i} style={{ overflow: "hidden", borderRadius: cell.radius, position: "relative", background: bgCard }}>
+                    {img ? <img src={img} alt={cell.label} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.8)", transition: "transform 0.8s ease" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted }}>◆</div>}
+                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, background: "linear-gradient(transparent, rgba(10,9,8,0.8))" }}>
+                      <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: gold }}>{cell.label}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── TESTIMONIALS ── */}
+        <section style={{ background: bgDeep, padding: "100px 48px", textAlign: "center" }}>
+          <div style={{ maxWidth: 700, margin: "0 auto" }}>
+            <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 16 }}>What They Say</div>
+            <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(28px,4vw,44px)", fontWeight: 300, color: cream, marginBottom: 56, lineHeight: 1.1 }}>
+              Words from our <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>queens</em>
+            </h2>
+            <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 100, color: gold, opacity: 0.12, lineHeight: 0.4, marginBottom: -16, userSelect: "none" }}>"</div>
+            <p style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(20px,2.5vw,28px)", fontWeight: 300, lineHeight: 1.7, color: "rgba(240,220,200,0.85)", fontStyle: "italic", marginBottom: 36 }}>
+              I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: bgCard, border: `1px solid ${border}`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {products[0]?.image_url ? <img src={products[0].image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} /> : <span style={{ color: textMuted }}>◆</span>}
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, fontWeight: 400, color: cream }}>Thandi M.</div>
+                <div style={{ fontSize: 10, letterSpacing: "0.08em", color: textMuted }}>Johannesburg, SA</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA BANNER ── */}
+        <section style={{ padding: "140px 48px", textAlign: "center", position: "relative", overflow: "hidden",
+          background: s.logo_url
+            ? `linear-gradient(rgba(10,9,8,0.82),rgba(10,9,8,0.82)) center/cover, url(${s.logo_url}) center/cover no-repeat`
+            : `linear-gradient(135deg, ${bgElevated} 0%, #1e1a16 100%)` }}>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Ready?</div>
+            <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, color: cream, lineHeight: 1.05, marginBottom: 20, letterSpacing: "-0.01em" }}>
+              Your next look<br />starts <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>here</em>
+            </h2>
+            <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, margin: "0 auto 40px" }}>
+              Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.
+            </p>
+            <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
+              style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "18px 48px", background: gold, color: bgDeep, border: "none", fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.3s" }}>
+              Shop Now →
+            </button>
+          </div>
+        </section>
 
         {/* ── POLICIES ── */}
         {config.show_policies !== false && (
