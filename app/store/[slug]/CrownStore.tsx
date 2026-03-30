@@ -26,6 +26,20 @@ interface StoreConfig {
   about_title?: string;
   coll_label?: string;
   coll_subtitle?: string;
+  ticker_texts?: string[];
+  ticker_speed?: number;
+  bg_color?: string;
+  hero_text_color?: string;
+  circle_text_color?: string;
+  products_text_color?: string;
+  about_text_color?: string;
+  coll_text_color?: string;
+  cta_text_color?: string;
+  trust_text_color?: string;
+  footer_text_color?: string;
+  promise_title?: string;
+  promise_items?: { num: string; title: string; desc: string }[];
+  promise_images?: (string | null)[];
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -80,6 +94,19 @@ export default function CrownStore() {
   const [liveCollSubtitle, setLiveCollSubtitle]       = useState<string | null>(null);
   const [liveCollOrder, setLiveCollOrder]             = useState<string[] | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]                 = useState<string | null>(null);
+  const [liveTicker, setLiveTicker]                   = useState<string[] | null>(null);
+  const [liveTickerSpeed, setLiveTickerSpeed]         = useState<number | null>(null);
+  const [liveBgColor, setLiveBgColor]                 = useState<string | null>(null);
+  const [liveHeroTextColor, setLiveHeroTextColor]     = useState<string | null>(null);
+  const [liveCircleTextColor, setLiveCircleTextColor] = useState<string | null>(null);
+  const [liveProdTextColor, setLiveProdTextColor]     = useState<string | null>(null);
+  const [liveAboutTextColor, setLiveAboutTextColor]   = useState<string | null>(null);
+  const [liveCollTextColor, setLiveCollTextColor]     = useState<string | null>(null);
+  const [liveCtaTextColor, setLiveCtaTextColor]       = useState<string | null>(null);
+  const [liveTrustTextColor, setLiveTrustTextColor]   = useState<string | null>(null);
+  const [livePromiseTitle, setLivePromiseTitle]       = useState<string | null>(null);
+  const [livePromiseItems, setLivePromiseItems]       = useState<{num:string;title:string;desc:string}[] | null>(null);
+  const [livePromiseImages, setLivePromiseImages]     = useState<(string|null)[] | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
   /* ui state */
@@ -152,7 +179,20 @@ export default function CrownStore() {
       if (e.data.collLabel       !== undefined) setLiveCollLabel(e.data.collLabel);
       if (e.data.collSubtitle    !== undefined) setLiveCollSubtitle(e.data.collSubtitle);
       if (e.data.collOrder       !== undefined) setLiveCollOrder(e.data.collOrder);
-      if (e.data.logoUrl         !== undefined) setLiveLogoUrl(e.data.logoUrl);
+      if (e.data.logoUrl          !== undefined) setLiveLogoUrl(e.data.logoUrl);
+      if (e.data.ticker           !== undefined) setLiveTicker(e.data.ticker);
+      if (e.data.tickerSpeed      !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
+      if (e.data.bgColor          !== undefined) setLiveBgColor(e.data.bgColor);
+      if (e.data.heroTextColor    !== undefined) setLiveHeroTextColor(e.data.heroTextColor);
+      if (e.data.circleTextColor  !== undefined) setLiveCircleTextColor(e.data.circleTextColor);
+      if (e.data.prodTextColor    !== undefined) setLiveProdTextColor(e.data.prodTextColor);
+      if (e.data.aboutTextColor   !== undefined) setLiveAboutTextColor(e.data.aboutTextColor);
+      if (e.data.collTextColor    !== undefined) setLiveCollTextColor(e.data.collTextColor);
+      if (e.data.ctaTextColor     !== undefined) setLiveCtaTextColor(e.data.ctaTextColor);
+      if (e.data.trustTextColor   !== undefined) setLiveTrustTextColor(e.data.trustTextColor);
+      if (e.data.promiseTitle     !== undefined) setLivePromiseTitle(e.data.promiseTitle);
+      if (e.data.promiseItems     !== undefined) setLivePromiseItems(e.data.promiseItems);
+      if (e.data.promiseImages    !== undefined) setLivePromiseImages(e.data.promiseImages);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -347,6 +387,31 @@ export default function CrownStore() {
   const rawCats                = categories.filter(c => c !== "All");
   const orderedCats            = liveCollOrder ? liveCollOrder.filter(c => rawCats.includes(c)).concat(rawCats.filter(c => !liveCollOrder!.includes(c))) : rawCats;
   const displayLogoUrl         = liveLogoUrl         ?? s.logo_url;
+
+  /* Ticker */
+  const defaultTicker   = ["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"];
+  const displayTicker   = liveTicker      ?? config.ticker_texts  ?? defaultTicker;
+  const tickerDuration  = liveTickerSpeed ?? config.ticker_speed  ?? 20;
+
+  /* Background & text colors */
+  const displayBgColor        = liveBgColor        ?? config.bg_color          ?? bgDeep;
+  const heroTextColor         = liveHeroTextColor  ?? config.hero_text_color   ?? cream;
+  const circleTextColor       = liveCircleTextColor ?? config.circle_text_color ?? cream;
+  const prodTextColor         = liveProdTextColor  ?? config.products_text_color ?? cream;
+  const aboutTextColor        = liveAboutTextColor ?? config.about_text_color   ?? cream;
+  const collTextColor         = liveCollTextColor  ?? config.coll_text_color    ?? cream;
+  const ctaTextColor          = liveCtaTextColor   ?? config.cta_text_color     ?? cream;
+  const trustTextColor        = liveTrustTextColor ?? config.trust_text_color   ?? cream;
+
+  const defaultPromiseItems = [
+    { num: "01", title: "Quality Materials", desc: "Every product carefully sourced and quality-checked before it ships to you." },
+    { num: "02", title: "Fast Dispatch",      desc: "Orders placed before 1PM are dispatched same day. Nationwide delivery." },
+    { num: "03", title: "Easy Returns",       desc: "Not happy? Return unopened items within 14 days — no questions asked." },
+    { num: "04", title: "Secure Payment",     desc: "Pay safely via card, EFT, or WhatsApp. Your details are always protected." },
+  ];
+  const displayPromiseTitle  = livePromiseTitle  ?? config.promise_title  ?? "Built on trust, delivered with care";
+  const displayPromiseItems  = livePromiseItems  ?? (config.promise_items?.length ? config.promise_items : defaultPromiseItems);
+  const displayPromiseImages = livePromiseImages ?? config.promise_images ?? [null, null, null, null];
   const defaultTrustItems   = [
     { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
     { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
@@ -431,7 +496,7 @@ export default function CrownStore() {
           .crown-checkout-grid{grid-template-columns:1fr!important}
         }
         @media(max-width:480px){
-          .crown-prod-grid{grid-template-columns:1fr!important}
+          .crown-prod-grid{grid-template-columns:1fr 1fr!important}
         }
         .crown-hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:4px;z-index:1002}
         .crown-hamburger span{display:block;width:24px;height:1px;background:#f0e6d3;transition:all 0.4s cubic-bezier(0.16,1,0.3,1);transform-origin:center}
@@ -444,7 +509,7 @@ export default function CrownStore() {
         .crown-mobile-nav a:hover,.crown-mobile-nav button:hover{color:#d4b88a}
       `}</style>
 
-      <div style={{ fontFamily: "'Didact Gothic', sans-serif", background: bgDeep, color: cream, minHeight: "100vh", overflowX: "hidden" }}>
+      <div style={{ fontFamily: "'Didact Gothic', sans-serif", background: displayBgColor, color: cream, minHeight: "100vh", overflowX: "hidden" }}>
 
         {/* ── ANNOUNCEMENT BAR ── */}
         {(config.show_announcement !== false) && (displayAnnouncement || config.announcement) && (
@@ -466,8 +531,12 @@ export default function CrownStore() {
           transition: "all 0.4s ease",
           transform: navVisible ? "translateY(0)" : "translateY(-100%)",
         }}>
-          <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 26, fontWeight: 300, letterSpacing: "0.18em", textTransform: "uppercase", color: cream }}>
-            {s.store_name || "Crown"}
+          <div style={{ cursor: isEditMode ? "pointer" : "default" }}
+            onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "hero" }, "*") : undefined}>
+            {displayLogoUrl
+              ? <img src={displayLogoUrl} alt={s.store_name} style={{ height: 40, maxWidth: 160, objectFit: "contain" }} />
+              : <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 26, fontWeight: 300, letterSpacing: "0.18em", textTransform: "uppercase", color: cream }}>{s.store_name || "Crown"}</div>
+            }
           </div>
           <div className="crown-nav-links" style={{ display: "flex", gap: 40 }}>
             {categories.filter(c => c !== "All").slice(0, 5).map(cat => (
@@ -527,7 +596,7 @@ export default function CrownStore() {
             <div style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", color: gold, marginBottom: 24 }}>
               {displayHeroSubtext}
             </div>
-            <h1 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(52px,7vw,96px)", fontWeight: 300, lineHeight: 0.9, letterSpacing: "-0.01em", color: cream, marginBottom: 24 }}>
+            <h1 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(52px,7vw,96px)", fontWeight: 300, lineHeight: 0.9, letterSpacing: "-0.01em", color: heroTextColor, marginBottom: 24 }}>
               {displayTagline ? displayTagline.split(" ").map((word, i, arr) =>
                 i === Math.floor(arr.length / 2) ? <><em key={i} style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight, display: "block" }}>{word}</em></> : <span key={i}>{word} </span>
               ) : <><span>Wear your </span><em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight, display: "block" }}>crown</em><span>with confidence.</span></>}
@@ -547,17 +616,20 @@ export default function CrownStore() {
           </div>
         </EditSection>
 
-        {/* ── TEXTURE TICKER ── */}
-        {categories.filter(c => c !== "All").length > 0 && (
-          <div style={{ background: bgDeep, overflow: "hidden", padding: "14px 0", borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
-            <div style={{ display: "inline-flex", animation: "ticker 20s linear infinite", whiteSpace: "nowrap" }}>
-              {[...categories.filter(c => c !== "All"), ...categories.filter(c => c !== "All")].map((cat, i) => (
-                <span key={i} style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, color: "rgba(240,230,211,0.18)", padding: "0 28px", letterSpacing: "0.06em" }}>
-                  {cat} <span style={{ color: gold, fontSize: 10 }}>✦</span>
+        {/* ── PROMO TICKER ── */}
+        {displayTicker.length > 0 && (
+          <EditSection id="ticker">
+          <div style={{ background: bgElevated, overflow: "hidden", padding: "13px 0", borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
+            <style>{`@keyframes promo-ticker { from { transform: translateX(0) } to { transform: translateX(-50%) } }`}</style>
+            <div style={{ display: "inline-flex", animation: `promo-ticker ${tickerDuration}s linear infinite`, whiteSpace: "nowrap" }}>
+              {[...displayTicker, ...displayTicker].map((txt, i) => (
+                <span key={i} style={{ fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, color: "rgba(240,230,211,0.5)", padding: "0 40px", letterSpacing: "0.18em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 20 }}>
+                  {txt} <span style={{ color: gold, fontSize: 8 }}>✦</span>
                 </span>
               ))}
             </div>
           </div>
+          </EditSection>
         )}
 
         {/* ── CIRCLE STRIP ── */}
@@ -566,11 +638,11 @@ export default function CrownStore() {
           <div style={{ padding: "72px 0", background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, textAlign: "center", overflow: "hidden" }}>
             {displayCircleTitle && <div style={{ fontSize: 10, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>{displayCircleTitle}</div>}
             {displayCircleSubtitle && <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, color: textSecondary, fontWeight: 300, marginBottom: 44 }}>{displayCircleSubtitle}</div>}
-            <div style={{ display: "flex", gap: 40, overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none" as const, padding: "0 48px 16px", justifyContent: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 48, overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none" as const, WebkitOverflowScrolling: "touch" as any, padding: "0 48px 24px", justifyContent: "flex-start" }}>
               {orderedCats.slice(0, 6).map((cat, i) => (
                 <div key={i} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, cursor: "pointer", flexShrink: 0 }}>
-                  <div style={{ width: 160, height: 160, borderRadius: "50%", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.4s, box-shadow 0.4s", boxShadow: activeCategory === cat ? `0 0 40px rgba(196,162,101,0.15)` : "none", borderColor: activeCategory === cat ? gold : border }}>
+                  <div style={{ width: 180, height: 180, borderRadius: "50%", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.4s, box-shadow 0.4s", boxShadow: activeCategory === cat ? `0 0 40px rgba(196,162,101,0.15)` : "none", borderColor: activeCategory === cat ? gold : border }}>
                     {products.find(p => p.category === cat)?.image_url ? (
                       <img src={products.find(p => p.category === cat)!.image_url} alt={cat} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.6s ease" }} />
                     ) : (
@@ -680,7 +752,7 @@ export default function CrownStore() {
               <div style={{ maxWidth: 700, margin: "0 auto", textAlign: "center" }}>
                 {displayAboutLabel && <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>{displayAboutLabel}</div>}
                 {displayAboutTitle && (
-                  <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,60px)", fontWeight: 300, color: cream, lineHeight: 1, marginBottom: 24, letterSpacing: "-0.01em" }}>
+                  <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,60px)", fontWeight: 300, color: aboutTextColor, lineHeight: 1, marginBottom: 24, letterSpacing: "-0.01em" }}>
                     {displayAboutTitle}
                   </h2>
                 )}
@@ -698,7 +770,7 @@ export default function CrownStore() {
               <div style={{ textAlign: "center", marginBottom: 64 }}>
                 <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 14 }}>{displayCollLabel}</div>
                 {displayCollSubtitle && (
-                  <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(32px,4.5vw,52px)", fontWeight: 300, color: cream, lineHeight: 1.1 }}>
+                  <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(32px,4.5vw,52px)", fontWeight: 300, color: collTextColor, lineHeight: 1.1 }}>
                     {displayCollSubtitle}
                   </h2>
                 )}
@@ -719,7 +791,7 @@ export default function CrownStore() {
                         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 50%, rgba(10,9,8,0.7) 100%)", borderRadius: "200px 200px 12px 12px" }} />
                       </div>
                       <div style={{ textAlign: "center", paddingTop: 20 }}>
-                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 400, color: cream, marginBottom: 4, transition: "color 0.3s" }}>{cat}</div>
+                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 400, color: collTextColor, marginBottom: 4, transition: "color 0.3s" }}>{cat}</div>
                         <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: textMuted }}>{catCount} {catCount === 1 ? "product" : "products"}</div>
                       </div>
                     </div>
@@ -732,51 +804,45 @@ export default function CrownStore() {
         )}
 
         {/* ── PROMISE ── */}
+        <EditSection id="promise">
         <section style={{ background: bgElevated, padding: "100px 48px", overflow: "hidden" }}>
-          <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 16 }}>Our Promise</div>
-              <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(32px,4vw,52px)", fontWeight: 300, color: cream, lineHeight: 1.1, marginBottom: 48 }}>
-                Built on <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}>trust</em>,<br />delivered with care
-              </h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-                {[
-                  { num: "01", title: "100% Human Hair", desc: "Every bundle sourced from a single donor — unprocessed, naturally aligned from root to tip." },
-                  { num: "02", title: "Ethically Sourced", desc: "We partner directly with suppliers who prioritize fair trade practices at every step." },
-                  { num: "03", title: "Colour & Heat Friendly", desc: "Bleach it, curl it, straighten it. Our hair holds up to styling without losing its bounce." },
-                  { num: "04", title: "Nationwide Delivery", desc: "Fast, tracked shipping to every corner of South Africa. Order today, slay by the weekend." },
-                ].map(v => (
-                  <div key={v.num} style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ maxWidth: 900, margin: "0 auto" }}>
+            <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 16, textAlign: "center" }}>Our Promise</div>
+            <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(28px,4vw,48px)", fontWeight: 300, color: cream, lineHeight: 1.1, marginBottom: 64, textAlign: "center", letterSpacing: "-0.01em" }}>
+              {displayPromiseTitle}
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {displayPromiseItems.map((v, i) => (
+                <div key={v.num} className="crown-promise-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                  {/* Text side */}
+                  <div style={{ padding: "48px 40px 48px 0", borderBottom: i < displayPromiseItems.length-1 ? `1px solid ${border}` : "none", display: "flex", gap: 20, alignItems: "flex-start" }}>
                     <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 30, fontWeight: 300, color: gold, opacity: 0.4, lineHeight: 1, minWidth: 36 }}>{v.num}</span>
                     <div>
-                      <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 400, color: cream, marginBottom: 6 }}>{v.title}</div>
+                      <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 400, color: cream, marginBottom: 8 }}>{v.title}</div>
                       <div style={{ fontSize: 13, lineHeight: 1.7, color: textSecondary }}>{v.desc}</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            {/* Mosaic */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 8, height: 560 }}>
-              {[
-                { radius: "80px 8px 8px 8px", label: "Quality" },
-                { radius: "8px 80px 8px 8px", label: "Texture" },
-                { radius: "8px 8px 8px 80px", label: "Volume" },
-                { radius: "8px 8px 80px 8px", label: "Shine" },
-              ].map((cell, i) => {
-                const img = products[i]?.image_url;
-                return (
-                  <div key={i} style={{ overflow: "hidden", borderRadius: cell.radius, position: "relative", background: bgCard }}>
-                    {img ? <img src={img} alt={cell.label} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.8)", transition: "transform 0.8s ease" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted }}>◆</div>}
-                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, background: "linear-gradient(transparent, rgba(10,9,8,0.8))" }}>
-                      <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: gold }}>{cell.label}</span>
-                    </div>
+                  {/* Image side */}
+                  <div style={{ padding: "24px 0 24px 40px", borderBottom: i < displayPromiseItems.length-1 ? `1px solid ${border}` : "none", borderLeft: `1px solid ${border}` }}>
+                    {(() => {
+                      const imgSrc = displayPromiseImages[i] || products[i]?.image_url;
+                      const radii = ["80px 8px 8px 8px","8px 80px 8px 8px","8px 8px 8px 80px","8px 8px 80px 8px"];
+                      return (
+                        <div style={{ width: "100%", aspectRatio: "4/3", borderRadius: radii[i % 4], overflow: "hidden", background: bgCard }}>
+                          {imgSrc
+                            ? <img src={imgSrc} alt={v.title} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)" }} />
+                            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, fontSize: 32 }}>◆</div>
+                          }
+                        </div>
+                      );
+                    })()}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
         </section>
+        </EditSection>
 
         {/* ── CTA BANNER ── */}
         <EditSection id="cta">
@@ -786,7 +852,7 @@ export default function CrownStore() {
             : `linear-gradient(135deg, ${bgElevated} 0%, #1e1a16 100%)` }}>
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Ready?</div>
-            <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, color: cream, lineHeight: 1.05, marginBottom: 20, letterSpacing: "-0.01em" }}>
+            <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, color: ctaTextColor, lineHeight: 1.05, marginBottom: 20, letterSpacing: "-0.01em" }}>
               {displayCtaHeadline} <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}></em>
             </h2>
             <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, margin: "0 auto 40px" }}>
@@ -805,11 +871,11 @@ export default function CrownStore() {
           <EditSection id="policies">
           <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
             <div style={{ maxWidth: 1300, margin: "0 auto", padding: "48px 48px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 40 }}>
-              {[
+              {(config.policy_items?.length ? config.policy_items : [
                 { title: "Shipping", desc: `Free delivery on orders over ${fmt(FREE_SHIP)}. Standard 2–4 business days nationwide. Tracked and insured.` },
                 { title: "Returns", desc: "14-day returns on all unopened products in original packaging. Quality issue? We replace — no questions asked." },
                 { title: "Payment", desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome." },
-              ].map((pol, i) => (
+              ]).map((pol, i) => (
                 <div key={i} style={{ paddingLeft: i > 0 ? 40 : 0, borderLeft: i > 0 ? `1px solid ${border}` : "none" }}>
                   <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 300, color: cream, marginBottom: 10 }}>{pol.title}</div>
                   <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.9 }}>{pol.desc}</div>
@@ -825,8 +891,11 @@ export default function CrownStore() {
         <footer style={{ background: bgDeep, borderTop: `1px solid ${border}`, padding: "60px 48px 32px" }}>
           <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 60, marginBottom: 40 }}>
             <div>
-              <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 300, letterSpacing: "0.14em", textTransform: "uppercase", color: cream, marginBottom: 14 }}>{s.store_name}</div>
-              <div style={{ fontSize: 13, color: textMuted, lineHeight: 1.8, maxWidth: 240 }}>Premium hair extensions and wigs. Delivered across South Africa.</div>
+              {displayLogoUrl
+                ? <img src={displayLogoUrl} alt={s.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain", marginBottom: 14 }} />
+                : <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 300, letterSpacing: "0.14em", textTransform: "uppercase", color: cream, marginBottom: 14 }}>{s.store_name}</div>
+              }
+              <div style={{ fontSize: 13, color: textMuted, lineHeight: 1.8, maxWidth: 240 }}>{displayTagline || s.tagline || ""}</div>
             </div>
             <div>
               <div style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: gold, marginBottom: 16 }}>Shop</div>

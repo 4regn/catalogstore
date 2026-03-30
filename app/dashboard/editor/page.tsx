@@ -22,20 +22,35 @@ interface Seller {
     about_title?: string;
     coll_label?: string;
     coll_subtitle?: string;
+    ticker_texts?: string[];
+    ticker_speed?: number;
+    bg_color?: string;
+    hero_text_color?: string;
+    circle_text_color?: string;
+    products_text_color?: string;
+    about_text_color?: string;
+    coll_text_color?: string;
+    cta_text_color?: string;
+    trust_text_color?: string;
+    promise_title?: string;
+    promise_items?: { num: string; title: string; desc: string }[];
+    promise_images?: (string | null)[];
   };
 }
 
 type ActiveSection =
-  | "announcement" | "hero" | "circle" | "products" | "collections"
-  | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
+  | "announcement" | "hero" | "ticker" | "circle" | "products" | "collections"
+  | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
   | null;
 
 const SECTION_LABELS: Record<string, string> = {
   announcement: "📢 Announcement Bar",
   hero:         "🏠 Hero Section",
+  ticker:       "📣 Promo Ticker",
   circle:       "⭕ Browse by Category",
   products:     "🛍 Products",
   collections:  "📂 Collections",
+  policies:     "📋 Shipping & Policies",
   promise:      "💎 Our Promise",
   about:        "📖 About / Story",
   testimonials: "💬 Testimonials",
@@ -74,6 +89,25 @@ export default function StoreEditor() {
   const [collLabel, setCollLabel]             = useState("Featured Collections");
   const [collSubtitle, setCollSubtitle]       = useState("Find your signature look");
   const [collOrder, setCollOrder]             = useState<string[]>([]);
+  const [tickerTexts, setTickerTexts]         = useState<string[]>(["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"]);
+  const [tickerSpeed, setTickerSpeed]         = useState(20);
+  const [bgColor, setBgColor]                 = useState("#0a0908");
+  const [heroTextColor, setHeroTextColor]     = useState("#f0e6d3");
+  const [circleTextColor, setCircleTextColor] = useState("#f0e6d3");
+  const [prodTextColor, setProdTextColor]     = useState("#f0e6d3");
+  const [aboutTextColor, setAboutTextColor]   = useState("#f0e6d3");
+  const [collTextColor, setCollTextColor]     = useState("#f0e6d3");
+  const [ctaTextColor, setCtaTextColor]       = useState("#f0e6d3");
+  const [trustTextColor, setTrustTextColor]     = useState("#f0e6d3");
+  const [promiseTitle, setPromiseTitle]         = useState("Built on trust, delivered with care");
+  const [promiseItems, setPromiseItems]         = useState([
+    { num: "01", title: "Quality Materials", desc: "Every product carefully sourced and quality-checked before it ships to you." },
+    { num: "02", title: "Fast Dispatch",      desc: "Orders placed before 1PM are dispatched same day. Nationwide delivery." },
+    { num: "03", title: "Easy Returns",       desc: "Not happy? Return unopened items within 14 days — no questions asked." },
+    { num: "04", title: "Secure Payment",     desc: "Pay safely via card, EFT, or WhatsApp. Your details are always protected." },
+  ]);
+  const [promiseImages, setPromiseImages]       = useState<(string|null)[]>([null,null,null,null]);
+  const promiseImgRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const [logoFile, setLogoFile]         = useState<File | null>(null);
   const [logoPreview, setLogoPreview]   = useState("");
 
@@ -104,6 +138,19 @@ export default function StoreEditor() {
       if (s.store_config?.about_title) setAboutTitle(s.store_config.about_title);
       if (s.store_config?.coll_label) setCollLabel(s.store_config.coll_label);
       if (s.store_config?.coll_subtitle) setCollSubtitle(s.store_config.coll_subtitle);
+      if (s.store_config?.ticker_texts?.length) setTickerTexts(s.store_config.ticker_texts);
+      if (s.store_config?.ticker_speed) setTickerSpeed(s.store_config.ticker_speed);
+      if (s.store_config?.bg_color) setBgColor(s.store_config.bg_color);
+      if (s.store_config?.hero_text_color) setHeroTextColor(s.store_config.hero_text_color);
+      if (s.store_config?.circle_text_color) setCircleTextColor(s.store_config.circle_text_color);
+      if (s.store_config?.products_text_color) setProdTextColor(s.store_config.products_text_color);
+      if (s.store_config?.about_text_color) setAboutTextColor(s.store_config.about_text_color);
+      if (s.store_config?.coll_text_color) setCollTextColor(s.store_config.coll_text_color);
+      if (s.store_config?.cta_text_color) setCtaTextColor(s.store_config.cta_text_color);
+      if (s.store_config?.trust_text_color) setTrustTextColor(s.store_config.trust_text_color);
+      if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
+      if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
+      if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
       setLogoPreview(s.logo_url || "");
       setLoading(false);
     })();
@@ -147,6 +194,19 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
   useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
+  useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
+  useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed]);
+  useEffect(() => { postUpdate({ bgColor }); }, [bgColor]);
+  useEffect(() => { postUpdate({ heroTextColor }); }, [heroTextColor]);
+  useEffect(() => { postUpdate({ circleTextColor }); }, [circleTextColor]);
+  useEffect(() => { postUpdate({ prodTextColor }); }, [prodTextColor]);
+  useEffect(() => { postUpdate({ aboutTextColor }); }, [aboutTextColor]);
+  useEffect(() => { postUpdate({ collTextColor }); }, [collTextColor]);
+  useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor]);
+  useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor]);
+  useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
+  useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems]);
+  useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages]);
   useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview]);
 
   /* ─── SAVE ─── */
@@ -177,6 +237,19 @@ export default function StoreEditor() {
         about_title: aboutTitle,
         coll_label: collLabel,
         coll_subtitle: collSubtitle,
+          ticker_texts: tickerTexts,
+          ticker_speed: tickerSpeed,
+          bg_color: bgColor,
+          hero_text_color: heroTextColor,
+          circle_text_color: circleTextColor,
+          products_text_color: prodTextColor,
+          about_text_color: aboutTextColor,
+          coll_text_color: collTextColor,
+          cta_text_color: ctaTextColor,
+          trust_text_color: trustTextColor,
+          promise_title: promiseTitle,
+          promise_items: promiseItems,
+          promise_images: promiseImages,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -382,6 +455,50 @@ export default function StoreEditor() {
               </div>
             )}
 
+            {/* PROMO TICKER */}
+            {activeSection === "ticker" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={labelStyle}>Promo Messages</label>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>These scroll across the top of your store. One message per line.</div>
+                {tickerTexts.map((txt, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8 }}>
+                    <input value={txt}
+                      onChange={e => { const u = [...tickerTexts]; u[i] = e.target.value; setTickerTexts(u); }}
+                      placeholder="e.g. FREE DELIVERY OVER R500"
+                      style={{ ...inputStyle, flex: 1 }} />
+                    {tickerTexts.length > 1 && (
+                      <button onClick={() => setTickerTexts(tickerTexts.filter((_, j) => j !== i))}
+                        style={{ width: 32, height: 38, background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 14 }}>×</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => setTickerTexts([...tickerTexts, ""])}
+                  style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, color: "rgba(245,245,245,0.4)", cursor: "pointer", fontSize: 12 }}>
+                  + Add message
+                </button>
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ ...labelStyle, display: "flex", justifyContent: "space-between" }}>
+                    <span>Scroll Speed</span>
+                    <span style={{ color: "rgba(245,245,245,0.4)" }}>{tickerSpeed}s</span>
+                  </label>
+                  <input type="range" min={8} max={60} value={tickerSpeed} onChange={e => setTickerSpeed(Number(e.target.value))}
+                    style={{ width: "100%", marginTop: 6, accentColor: "#c4a265" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>
+                    <span>Fast</span><span>Slow</span>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: 6 }}>Suggested</label>
+                  {["FREE DELIVERY ON ORDERS OVER R500", "UP TO 50% OFF ON SELECTED ITEMS", "NEW ARRIVALS JUST DROPPED", "LIMITED STOCK — ORDER NOW"].map(preset => (
+                    <button key={preset} onClick={() => { if (!tickerTexts.includes(preset)) setTickerTexts([...tickerTexts, preset]); }}
+                      style={{ display: "block", width: "100%", marginBottom: 4, padding: "7px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6, color: "rgba(245,245,245,0.4)", cursor: "pointer", fontSize: 10, textAlign: "left", letterSpacing: "0.04em" }}>
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* CIRCLE STRIP */}
             {activeSection === "circle" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -427,8 +544,21 @@ export default function StoreEditor() {
                 {collOrder.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {collOrder.map((col, i) => (
-                      <div key={col} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }}>
-                        <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 14, cursor: "grab" }}>⠿</span>
+                      <div key={col}
+                        draggable
+                        onDragStart={e => { e.dataTransfer.setData("text/plain", String(i)); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => {
+                          e.preventDefault();
+                          const from = Number(e.dataTransfer.getData("text/plain"));
+                          if (from === i) return;
+                          const u = [...collOrder];
+                          const [item] = u.splice(from, 1);
+                          u.splice(i, 0, item);
+                          setCollOrder(u);
+                        }}
+                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, cursor: "grab", userSelect: "none" }}>
+                        <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 14 }}>⠿</span>
                         <span style={{ flex: 1, fontSize: 13 }}>{col}</span>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                           <button onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i-1], u[i]] = [u[i], u[i-1]]; setCollOrder(u); }}
@@ -523,24 +653,110 @@ export default function StoreEditor() {
 
             {/* PROMISE */}
             {activeSection === "promise" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Our Promise Section</div>
-                  <div style={{ fontSize: 12, color: "rgba(245,245,245,0.3)", lineHeight: 1.6 }}>This section shows your brand values — 100% Human Hair, Ethically Sourced, etc. It's fixed for now but will be editable in the next update.</div>
-                </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={labelStyle}>Section Heading</label>
+                <input value={promiseTitle} onChange={e => setPromiseTitle(e.target.value)}
+                  placeholder="e.g. Built on trust, delivered with care"
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big heading at the top of this section.</div>
+                <label style={labelStyle}>Promise Items</label>
+                {promiseItems.map((item, i) => (
+                  <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>Item {i+1}</div>
+                    <input value={item.title}
+                      onChange={e => { const u = [...promiseItems]; u[i] = { ...u[i], title: e.target.value }; setPromiseItems(u); }}
+                      placeholder="e.g. Quality Materials"
+                      style={{ ...inputStyle, marginBottom: 4 }} />
+                    <textarea value={item.desc}
+                      onChange={e => { const u = [...promiseItems]; u[i] = { ...u[i], desc: e.target.value }; setPromiseItems(u); }}
+                      placeholder="Short description..." rows={2}
+                      style={{ ...inputStyle, resize: "vertical" }} />
+                    <div>
+                      <label style={{ ...labelStyle, marginBottom: 4 }}>Section Image</label>
+                      <div onClick={() => promiseImgRefs[i].current?.click()}
+                        style={{ width: "100%", height: 72, borderRadius: 8, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                        {promiseImages[i]
+                          ? <img src={promiseImages[i]!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)" }}>Click to upload image</div>
+                        }
+                      </div>
+                      <input ref={promiseImgRefs[i]} type="file" accept="image/*"
+                        onChange={async e => {
+                          const f = e.target.files?.[0]; if (!f || !seller) return;
+                          const ext = f.name.split(".").pop();
+                          const path = `${seller.id}/promise_${i}.${ext}`;
+                          const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                          if (!error) {
+                            const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                            const u = [...promiseImages]; u[i] = data.publicUrl + "?t=" + Date.now();
+                            setPromiseImages(u);
+                          }
+                        }}
+                        style={{ display: "none" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* POLICIES */}
+            {activeSection === "policies" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={labelStyle}>Shipping & Policies</label>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
+                {(seller?.store_config?.policy_items || [
+                  { title: "Shipping", desc: "" },
+                  { title: "Returns",  desc: "" },
+                  { title: "Payment",  desc: "" },
+                ]).map((pol, i) => {
+                  const policyItems = seller?.store_config?.policy_items || [
+                    { title: "Shipping", desc: "Free delivery on orders over R500. Standard 2–4 days nationwide." },
+                    { title: "Returns",  desc: "14-day returns on all unopened products in original packaging." },
+                    { title: "Payment",  desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome." },
+                  ];
+                  return (
+                    <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <input
+                        defaultValue={policyItems[i]?.title || pol.title}
+                        onBlur={async e => {
+                          if (!seller) return;
+                          const items = [...(seller.store_config?.policy_items || policyItems)];
+                          items[i] = { ...items[i], title: e.target.value };
+                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
+                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
+                        }}
+                        placeholder="e.g. Shipping"
+                        style={{ ...inputStyle, fontWeight: 700 }} />
+                      <textarea
+                        defaultValue={policyItems[i]?.desc || pol.desc}
+                        onBlur={async e => {
+                          if (!seller) return;
+                          const items = [...(seller.store_config?.policy_items || policyItems)];
+                          items[i] = { ...items[i], desc: e.target.value };
+                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
+                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
+                        }}
+                        placeholder="Description..."
+                        rows={3}
+                        style={{ ...inputStyle, resize: "vertical" }} />
+                    </div>
+                  );
+                })}
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Changes save automatically when you click out of a field.</div>
               </div>
             )}
 
             {/* FOOTER */}
             {activeSection === "footer" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div>
-                  <label style={labelStyle}>Store Tagline (Footer)</label>
-                  <input value={tagline} onChange={e => setTagline(e.target.value)}
-                    placeholder="e.g. Premium hair delivered across SA"
-                    style={inputStyle} />
+                <label style={labelStyle}>Footer Tagline</label>
+                <input value={tagline} onChange={e => setTagline(e.target.value)}
+                  placeholder="e.g. Premium quality. Delivered across SA."
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>The short line under your name/logo in the footer.</div>
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  Your logo (if uploaded) will show automatically in the footer. Social links are managed in Dashboard → My Store.
                 </div>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Social links are edited in the dashboard My Store settings.</div>
               </div>
             )}
 
