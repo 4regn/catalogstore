@@ -112,6 +112,8 @@ export default function CrownStore() {
   const [livePromiseItems, setLivePromiseItems]       = useState<{num:string;title:string;desc:string}[] | null>(null);
   const [livePromiseImages, setLivePromiseImages]     = useState<(string|null)[] | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
+  const [promoCountdown, setPromoCountdown]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(null);
+  const [promoDiscounts, setPromoDiscounts]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>([]);
 
   /* ui state */
   const [activeCategory, setActiveCategory] = useState("All");
@@ -155,11 +157,52 @@ export default function CrownStore() {
         .eq("seller_id", s.id).eq("in_stock", true)
         .order("sort_order", { ascending: true });
       setProducts(p || []);
+      const { data: dcs } = await supabase.from("discount_codes").select("*").eq("seller_id", s.id).eq("active", true).eq("show_countdown", true).not("expires_at", "is", null);
+      if (dcs && dcs.length > 0) {
+        const activePromos = dcs.filter((d: any) => new Date(d.expires_at) > new Date()).map((d: any) => ({
+          code: d.code, type: d.type, value: d.value, applies_to: d.applies_to || "cart",
+          expires_at: d.expires_at, product_ids: d.product_ids || [], collection_names: d.collection_names || [], timeLeft: ""
+        }));
+        setPromoDiscounts(activePromos);
+        const storePromo = activePromos.find((d: any) => d.applies_to === "cart" || d.applies_to === "shipping");
+        if (storePromo) setPromoCountdown({ code: storePromo.code, type: storePromo.type, value: storePromo.value, applies_to: storePromo.applies_to, expires_at: storePromo.expires_at, timeLeft: "" });
+      }
       setLoading(false);
       /* Tell the parent editor we're ready */
       if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
     })();
   }, [slug]);
+
+  /* Promo countdown ticker */
+  useEffect(() => {
+    if (promoDiscounts.length === 0 && !promoCountdown?.expires_at) return;
+    const tick = () => {
+      const now = new Date().getTime();
+      if (promoCountdown?.expires_at) {
+        const diff = new Date(promoCountdown.expires_at).getTime() - now;
+        if (diff <= 0) { setPromoCountdown(null); }
+        else {
+          const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
+          const tl = (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+          setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
+        }
+      }
+      setPromoDiscounts((prev) => prev.map((p) => {
+        const diff = new Date(p.expires_at).getTime() - now;
+        if (diff <= 0) return { ...p, timeLeft: "EXPIRED" };
+        const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
+        return { ...p, timeLeft: (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") };
+      }).filter((p) => p.timeLeft !== "EXPIRED"));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [promoDiscounts.length, promoCountdown?.expires_at]);
+
+  const getProductPromo = (productId: string) => promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
+  const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName));
 
   /* Listen for live updates from the editor */
   useEffect(() => {
@@ -528,6 +571,24 @@ export default function CrownStore() {
               {displayAnnouncement || `Free shipping on orders over ${fmt(FREE_SHIP)} · 100% Human Hair · SA Nationwide`}
             </div>
           </EditSection>
+        )}
+
+        {/* ── PROMO COUNTDOWN ── */}
+        {promoCountdown && promoCountdown.timeLeft && (
+          <div style={{ background: `linear-gradient(90deg, rgba(196,162,101,0.08) 0%, rgba(196,162,101,0.04) 50%, rgba(196,162,101,0.08) 100%)`, borderBottom: `1px solid rgba(196,162,101,0.15)`, padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: "'Didact Gothic', sans-serif", fontSize: 9, letterSpacing: "0.2em", color: "rgba(196,162,101,0.6)", textTransform: "uppercase" }}>Limited offer</span>
+              <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 15, fontWeight: 400, color: cream }}>
+                Use code{" "}
+                <span style={{ padding: "2px 10px", background: "rgba(196,162,101,0.1)", border: `1px solid rgba(196,162,101,0.25)`, borderRadius: 3, fontWeight: 600, letterSpacing: "0.08em", fontSize: 13, color: gold, fontFamily: "'Didact Gothic', sans-serif" }}>{promoCountdown.code}</span>
+                {" "}for {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}{promoCountdown.applies_to !== "cart" ? " on " + promoCountdown.applies_to : ""}
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: "'Didact Gothic', sans-serif", fontSize: 9, letterSpacing: "0.14em", color: "rgba(196,162,101,0.5)", textTransform: "uppercase" }}>Ends in</span>
+              <span style={{ fontFamily: "'Didact Gothic', sans-serif", fontSize: 15, fontWeight: 700, color: cream, letterSpacing: "0.1em", background: "rgba(196,162,101,0.08)", padding: "3px 12px", borderRadius: 4, border: `1px solid rgba(196,162,101,0.15)` }}>{promoCountdown.timeLeft}</span>
+            </div>
+          </div>
         )}
 
         {/* ── NAV ── */}
