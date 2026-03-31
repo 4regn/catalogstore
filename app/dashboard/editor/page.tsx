@@ -115,6 +115,7 @@ export default function StoreEditor() {
   const [logoFile, setLogoFile]         = useState<File | null>(null);
   const [logoPreview, setLogoPreview]   = useState("");
   const [heroImagePreview, setHeroImagePreview] = useState("");
+  const [heroImageUrl, setHeroImageUrl]           = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
 
   /* ─── LOAD ─── */
@@ -159,7 +160,8 @@ export default function StoreEditor() {
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
       if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
       setLogoPreview(s.logo_url || "");
-      setHeroImagePreview(s.store_config?.hero_image || ""); // never falls back to logo
+      setHeroImagePreview(s.store_config?.hero_image || "");
+      setHeroImageUrl(s.store_config?.hero_image || "");
       setLoading(false);
     })();
   }, []);
@@ -257,7 +259,7 @@ export default function StoreEditor() {
           coll_text_color: collTextColor,
           cta_text_color: ctaTextColor,
           trust_text_color: trustTextColor,
-          hero_image: heroImagePreview || undefined,
+          hero_image: heroImageUrl || heroImagePreview || undefined,
           promise_label: promiseLabel,
           promise_title: promiseTitle,
           promise_items: promiseItems,
@@ -458,21 +460,33 @@ export default function StoreEditor() {
                 <div>
                   <label style={labelStyle}>Hero Background Image</label>
                   <div onClick={() => heroImageRef.current?.click()}
-                    style={{ width: "100%", height: 100, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {heroImagePreview
                       ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 20, opacity: 0.3 }}>🖼</div><div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Click to upload hero image</div></div>
+                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload hero image</div></div>
                     }
                   </div>
                   <input ref={heroImageRef} type="file" accept="image/*"
                     onChange={async e => {
                       const f = e.target.files?.[0]; if (!f || !seller) return;
+                      // Show preview immediately from local file
+                      const reader = new FileReader();
+                      reader.onload = ev => {
+                        const localUrl = ev.target?.result as string;
+                        setHeroImagePreview(localUrl);
+                        postUpdate({ heroImage: localUrl });
+                      };
+                      reader.readAsDataURL(f);
+                      // Also upload to storage for persistence
                       const ext = f.name.split(".").pop();
                       const path = `${seller.id}/hero_image.${ext}`;
                       const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
                       if (!error) {
                         const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                        setHeroImagePreview(data.publicUrl + "?t=" + Date.now());
+                        const finalUrl = data.publicUrl + "?t=" + Date.now();
+                        setHeroImagePreview(finalUrl);
+                        setHeroImageUrl(finalUrl);
+                        postUpdate({ heroImage: finalUrl });
                       }
                     }}
                     style={{ display: "none" }} />
