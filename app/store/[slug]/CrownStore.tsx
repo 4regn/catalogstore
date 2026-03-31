@@ -663,7 +663,7 @@ export default function CrownStore() {
           {/* Gold vertical rule */}
           <div style={{ position: "absolute", top: "20%", bottom: "20%", left: "50%", width: 1, background: `linear-gradient(to bottom, transparent, rgba(196,162,101,0.2), transparent)`, zIndex: 1 }} />
 
-          <div style={{ position: "relative", zIndex: 2, padding: "0 48px 80px", maxWidth: 700, animation: "fadeUp 1s ease 0.3s both" }}>
+          <div style={{ position: "relative", zIndex: 2, padding: "0 48px 80px", maxWidth: 700 }}>
             <div style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", color: gold, marginBottom: 24 }}>
               {displayHeroSubtext}
             </div>
