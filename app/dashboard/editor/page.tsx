@@ -102,6 +102,7 @@ export default function StoreEditor() {
   const [collTextColor, setCollTextColor]     = useState("#f0e6d3");
   const [ctaTextColor, setCtaTextColor]       = useState("#f0e6d3");
   const [trustTextColor, setTrustTextColor]     = useState("#f0e6d3");
+  const [footerTextColor, setFooterTextColor]   = useState("#f0e6d3");
   const [promiseLabel, setPromiseLabel]         = useState("Our Promise");
   const [promiseTitle, setPromiseTitle]         = useState("Built on trust, delivered with care");
   const [promiseItems, setPromiseItems]         = useState([
@@ -155,6 +156,7 @@ export default function StoreEditor() {
       if (s.store_config?.coll_text_color) setCollTextColor(s.store_config.coll_text_color);
       if (s.store_config?.cta_text_color) setCtaTextColor(s.store_config.cta_text_color);
       if (s.store_config?.trust_text_color) setTrustTextColor(s.store_config.trust_text_color);
+      if (s.store_config?.footer_text_color) setFooterTextColor(s.store_config.footer_text_color);
       if (s.store_config?.promise_label) setPromiseLabel(s.store_config.promise_label);
       if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
@@ -215,6 +217,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ collTextColor }); }, [collTextColor]);
   useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor]);
   useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor]);
+  useEffect(() => { postUpdate({ footerTextColor }); }, [footerTextColor]);
   useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel]);
   useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
   useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems]);
@@ -259,6 +262,7 @@ export default function StoreEditor() {
           coll_text_color: collTextColor,
           cta_text_color: ctaTextColor,
           trust_text_color: trustTextColor,
+          footer_text_color: footerTextColor,
           hero_image: heroImageUrl || heroImagePreview || undefined,
           promise_label: promiseLabel,
           promise_title: promiseTitle,
@@ -512,6 +516,19 @@ export default function StoreEditor() {
                     rows={3} placeholder="Short description under the headline..."
                     style={{ ...inputStyle, resize: "vertical" }} />
                 </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
+                    <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
               </div>
             )}
 
@@ -571,6 +588,20 @@ export default function StoreEditor() {
                 <input value={circleSubtitle} onChange={e => setCircleSubtitle(e.target.value)}
                   placeholder="e.g. Find your signature look"
                   style={inputStyle} />
+
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: circleTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={circleTextColor} onChange={e => setCircleTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{circleTextColor}</span>
+                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
               </div>
             )}
 
@@ -589,6 +620,19 @@ export default function StoreEditor() {
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big heading above your products grid.</div>
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
                   To add or edit products, go to your <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: G, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0 }}>Dashboard →</button>
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: prodTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={prodTextColor} onChange={e => setProdTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{prodTextColor}</span>
+                    <button onClick={() => setProdTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
                 </div>
               </div>
             )}
@@ -639,6 +683,32 @@ export default function StoreEditor() {
                     Collections come from your product categories. Add products with categories in the dashboard first.
                   </div>
                 )}
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: circleTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={circleTextColor} onChange={e => setCircleTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{circleTextColor}</span>
+                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: collTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={collTextColor} onChange={e => setCollTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{collTextColor}</span>
+                    <button onClick={() => setCollTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
               </div>
             )}
 
@@ -660,6 +730,20 @@ export default function StoreEditor() {
                   rows={5} placeholder="Tell your customers who you are, what you sell, and why they should trust you..."
                   style={{ ...inputStyle, resize: "vertical" }} />
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>This shows in the About section. Be genuine — 2 to 4 sentences is enough.</div>
+
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: aboutTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={aboutTextColor} onChange={e => setAboutTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{aboutTextColor}</span>
+                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
               </div>
             )}
 
@@ -686,6 +770,20 @@ export default function StoreEditor() {
                     </div>
                   </div>
                 ))}
+
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: trustTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={trustTextColor} onChange={e => setTrustTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{trustTextColor}</span>
+                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
               </div>
             )}
 
@@ -713,6 +811,45 @@ export default function StoreEditor() {
                   rows={3} placeholder="e.g. Browse our full collection..."
                   style={{ ...inputStyle, resize: "vertical" }} />
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>The smaller descriptive text below the headline.</div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: aboutTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={aboutTextColor} onChange={e => setAboutTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{aboutTextColor}</span>
+                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: trustTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={trustTextColor} onChange={e => setTrustTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{trustTextColor}</span>
+                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: ctaTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={ctaTextColor} onChange={e => setCtaTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{ctaTextColor}</span>
+                    <button onClick={() => setCtaTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
               </div>
             )}
 
@@ -826,6 +963,29 @@ export default function StoreEditor() {
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>The short line under your name/logo in the footer.</div>
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
                   Your logo (if uploaded) will show automatically in the footer. Social links are managed in Dashboard → My Store.
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Colors</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: footerTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={footerTextColor} onChange={e => setFooterTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{footerTextColor}</span>
+                    <button onClick={() => setFooterTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Page Background</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: bgColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{bgColor}</span>
+                    <button onClick={() => setBgColor("#0a0908")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
                 </div>
               </div>
             )}
