@@ -542,9 +542,9 @@ export default function CrownStore() {
           transform: navVisible ? "translateY(0)" : "translateY(-100%)",
         }}>
           <div style={{ cursor: isEditMode ? "pointer" : "default" }}
-            onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "hero" }, "*") : undefined}>
-            {displayLogoUrl
-              ? <img src={displayLogoUrl} alt={s.store_name} style={{ height: 40, maxWidth: 160, objectFit: "contain" }} />
+            onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*") : undefined}>
+            {(liveLogoUrl || s.logo_url)
+              ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} style={{ height: 40, maxWidth: 160, objectFit: "contain" }} />
               : <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 26, fontWeight: 300, letterSpacing: "0.18em", textTransform: "uppercase", color: cream }}>{s.store_name || "Crown"}</div>
             }
           </div>
@@ -905,8 +905,8 @@ export default function CrownStore() {
         <footer style={{ background: bgDeep, borderTop: `1px solid ${border}`, padding: "60px 48px 32px" }}>
           <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 60, marginBottom: 40 }}>
             <div>
-              {s.logo_url
-                ? <img src={s.logo_url} alt={s.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain", marginBottom: 14 }} />
+              {(liveLogoUrl || s.logo_url)
+                ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain", marginBottom: 14 }} />
                 : <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 300, letterSpacing: "0.14em", textTransform: "uppercase", color: cream, marginBottom: 14 }}>{s.store_name}</div>
               }
               <div style={{ fontSize: 13, color: textMuted, lineHeight: 1.8, maxWidth: 240 }}>{displayTagline || s.tagline || ""}</div>

@@ -41,12 +41,13 @@ interface Seller {
 }
 
 type ActiveSection =
-  | "announcement" | "hero" | "ticker" | "circle" | "products" | "collections"
+  | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
   | null;
 
 const SECTION_LABELS: Record<string, string> = {
   announcement: "📢 Announcement Bar",
+  logo:         "🏷 Store Logo",
   hero:         "🏠 Hero Section",
   ticker:       "📣 Promo Ticker",
   circle:       "⭕ Browse by Category",
@@ -429,21 +430,31 @@ export default function StoreEditor() {
               </div>
             )}
 
+            {/* LOGO */}
+            {activeSection === "logo" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={labelStyle}>Store Logo</label>
+                <div onClick={() => logoRef.current?.click()}
+                  style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {logoPreview
+                    ? <img src={logoPreview} alt="" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
+                    : <div style={{ textAlign: "center" }}><div style={{ fontSize: 32, opacity: 0.25 }}>🏷</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.3)", marginTop: 6 }}>Click to upload your logo</div></div>
+                  }
+                </div>
+                <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Your logo shows in the top-left nav and the footer. If you leave it empty your store name will appear there instead.</div>
+                {logoPreview && (
+                  <button onClick={() => { setLogoPreview(""); setLogoFile(null); }}
+                    style={{ padding: "8px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 11 }}>
+                    Remove logo
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* HERO */}
             {activeSection === "hero" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div>
-                  <label style={labelStyle}>Store Logo (Nav & Footer)</label>
-                  <div onClick={() => logoRef.current?.click()}
-                    style={{ width: "100%", height: 80, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                    {logoPreview
-                      ? <img src={logoPreview} alt="" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 20, opacity: 0.3 }}>🏷</div><div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Click to upload logo</div></div>
-                    }
-                  </div>
-                  <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Shows in the top-left nav and footer.</div>
-                </div>
                 <div>
                   <label style={labelStyle}>Hero Background Image</label>
                   <div onClick={() => heroImageRef.current?.click()}
