@@ -35,6 +35,8 @@ interface Seller {
     promise_title?: string;
     promise_items?: { num: string; title: string; desc: string }[];
     promise_images?: (string | null)[];
+    promise_label?: string;
+    hero_image?: string;
   };
 }
 
@@ -99,6 +101,7 @@ export default function StoreEditor() {
   const [collTextColor, setCollTextColor]     = useState("#f0e6d3");
   const [ctaTextColor, setCtaTextColor]       = useState("#f0e6d3");
   const [trustTextColor, setTrustTextColor]     = useState("#f0e6d3");
+  const [promiseLabel, setPromiseLabel]         = useState("Our Promise");
   const [promiseTitle, setPromiseTitle]         = useState("Built on trust, delivered with care");
   const [promiseItems, setPromiseItems]         = useState([
     { num: "01", title: "Quality Materials", desc: "Every product carefully sourced and quality-checked before it ships to you." },
@@ -110,6 +113,8 @@ export default function StoreEditor() {
   const promiseImgRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const [logoFile, setLogoFile]         = useState<File | null>(null);
   const [logoPreview, setLogoPreview]   = useState("");
+  const [heroImagePreview, setHeroImagePreview] = useState("");
+  const heroImageRef = useRef<HTMLInputElement>(null);
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -148,10 +153,12 @@ export default function StoreEditor() {
       if (s.store_config?.coll_text_color) setCollTextColor(s.store_config.coll_text_color);
       if (s.store_config?.cta_text_color) setCtaTextColor(s.store_config.cta_text_color);
       if (s.store_config?.trust_text_color) setTrustTextColor(s.store_config.trust_text_color);
+      if (s.store_config?.promise_label) setPromiseLabel(s.store_config.promise_label);
       if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
       if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
       setLogoPreview(s.logo_url || "");
+      setHeroImagePreview(s.store_config?.hero_image || "");
       setLoading(false);
     })();
   }, []);
@@ -194,6 +201,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
   useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
+  useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
   useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed]);
   useEffect(() => { postUpdate({ bgColor }); }, [bgColor]);
@@ -204,6 +212,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ collTextColor }); }, [collTextColor]);
   useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor]);
   useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor]);
+  useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel]);
   useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
   useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems]);
   useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages]);
@@ -247,6 +256,8 @@ export default function StoreEditor() {
           coll_text_color: collTextColor,
           cta_text_color: ctaTextColor,
           trust_text_color: trustTextColor,
+          hero_image: heroImagePreview || undefined,
+          promise_label: promiseLabel,
           promise_title: promiseTitle,
           promise_items: promiseItems,
           promise_images: promiseImages,
@@ -422,15 +433,39 @@ export default function StoreEditor() {
             {activeSection === "hero" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
-                  <label style={labelStyle}>Hero Image</label>
+                  <label style={labelStyle}>Store Logo (Nav & Footer)</label>
                   <div onClick={() => logoRef.current?.click()}
-                    style={{ width: "100%", height: 100, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}>
+                    style={{ width: "100%", height: 80, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {logoPreview
-                      ? <img src={logoPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, opacity: 0.3 }}>🖼</div><div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Click to upload hero image</div></div>
+                      ? <img src={logoPreview} alt="" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
+                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 20, opacity: 0.3 }}>🏷</div><div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Click to upload logo</div></div>
                     }
                   </div>
                   <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Shows in the top-left nav and footer.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Hero Background Image</label>
+                  <div onClick={() => heroImageRef.current?.click()}
+                    style={{ width: "100%", height: 100, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroImagePreview
+                      ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 20, opacity: 0.3 }}>🖼</div><div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Click to upload hero image</div></div>
+                    }
+                  </div>
+                  <input ref={heroImageRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_image.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) {
+                        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                        setHeroImagePreview(data.publicUrl + "?t=" + Date.now());
+                      }
+                    }}
+                    style={{ display: "none" }} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage. Different from your logo.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Tagline (Hero Headline)</label>
@@ -516,14 +551,19 @@ export default function StoreEditor() {
 
             {/* PRODUCTS */}
             {activeSection === "products" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ padding: "14px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Add or edit products</div>
-                  <div style={{ fontSize: 12, color: "rgba(245,245,245,0.3)", lineHeight: 1.6, marginBottom: 12 }}>Products are managed from your main dashboard. Click below to go there.</div>
-                  <button onClick={() => router.push("/dashboard")}
-                    style={{ padding: "9px 18px", background: G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                    Go to Products →
-                  </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={labelStyle}>Section Label</label>
+                <input value={productsLabel} onChange={e => setProductsLabel(e.target.value)}
+                  placeholder="e.g. The Edit"
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase text above the heading.</div>
+                <label style={labelStyle}>Section Heading</label>
+                <input value={productsHeading} onChange={e => setProductsHeading(e.target.value)}
+                  placeholder="e.g. Latest arrivals"
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big heading above your products grid.</div>
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  To add or edit products, go to your <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: G, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0 }}>Dashboard →</button>
                 </div>
               </div>
             )}
@@ -654,6 +694,11 @@ export default function StoreEditor() {
             {/* PROMISE */}
             {activeSection === "promise" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={labelStyle}>Section Label</label>
+                <input value={promiseLabel} onChange={e => setPromiseLabel(e.target.value)}
+                  placeholder="e.g. Our Promise"
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase text above the heading. Leave empty to hide.</div>
                 <label style={labelStyle}>Section Heading</label>
                 <input value={promiseTitle} onChange={e => setPromiseTitle(e.target.value)}
                   placeholder="e.g. Built on trust, delivered with care"
