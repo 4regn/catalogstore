@@ -515,6 +515,31 @@ export default function CrownStore() {
     );
   };
 
+  const TrustAccordion = ({ items, gold, border, cream, textSecondary }: { items: { icon: string; title: string; desc: string }[]; gold: string; border: string; cream: string; textSecondary: string }) => {
+    const [openIndex, setOpenIndex] = useState<number | null>(null);
+    return (
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "8px 32px" }}>
+        {items.map((t, i) => (
+          <div key={i} style={{ borderBottom: i < items.length - 1 ? `1px solid ${border}` : "none" }}>
+            <button onClick={() => setOpenIndex(openIndex === i ? null : i)}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0", background: "none", border: "none", cursor: "pointer", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span style={{ opacity: 0.75, flexShrink: 0 }}><TrustIcon id={t.icon} /></span>
+                <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, fontWeight: 300, color: cream, textAlign: "left" }}>{t.title}</span>
+              </div>
+              <span style={{ color: gold, fontSize: 18, opacity: 0.5, flexShrink: 0, display: "inline-block", transform: openIndex === i ? "rotate(45deg)" : "rotate(0deg)", transition: "transform 0.3s" }}>+</span>
+            </button>
+            {openIndex === i && (
+              <div style={{ paddingBottom: 20, paddingLeft: 38, fontSize: 13, color: textSecondary, lineHeight: 1.8, maxWidth: 560 }}>
+                {t.desc}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const TrustIcon = ({ id }: { id: string }) => {
     const s = { width: 22, height: 22, stroke: gold, fill: "none", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
     const icons: Record<string, React.ReactNode> = {
@@ -661,7 +686,14 @@ export default function CrownStore() {
         </nav>
 
         {/* ── MOBILE NAV ── */}
-        <div className={`crown-mobile-nav${mobileNavOpen ? " open" : ""}`}>
+        <div className={`crown-mobile-nav${mobileNavOpen ? " open" : ""}`} onClick={e => { if (e.target === e.currentTarget) setMobileNavOpen(false); }}>
+          {/* Close button */}
+          <button onClick={() => setMobileNavOpen(false)}
+            style={{ position: "absolute", top: 28, right: 28, background: "none", border: "none", cursor: "pointer", color: cream, opacity: 0.6, lineHeight: 1, padding: 8 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
           {categories.filter(c => c !== "All").map(cat => (
             <button key={cat} onClick={() => { setActiveCategory(cat); setMobileNavOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}>
               {cat}
@@ -826,15 +858,7 @@ export default function CrownStore() {
         {config.show_trust_bar !== false && (
           <EditSection id="trust">
             <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
-              <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", padding: "0 48px" }}>
-                {activeTrustItems.map((t, i) => (
-                  <div key={i} style={{ padding: "40px 32px", borderRight: i < 3 ? `1px solid ${border}` : "none" }}>
-                    <div style={{ marginBottom: 16, opacity: 0.8 }}><TrustIcon id={t.icon} /></div>
-                    <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, fontWeight: 300, color: cream, marginBottom: 6 }}>{t.title}</div>
-                    <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.6 }}>{t.desc}</div>
-                  </div>
-                ))}
-              </div>
+              <TrustAccordion items={activeTrustItems.filter(t => t.title)} gold={gold} border={border} cream={cream} textSecondary={textSecondary} />
             </div>
           </EditSection>
         )}
