@@ -158,7 +158,7 @@ export default function StoreEditor() {
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
       if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
       setLogoPreview(s.logo_url || "");
-      setHeroImagePreview(s.store_config?.hero_image || "");
+      setHeroImagePreview(s.store_config?.hero_image || ""); // never falls back to logo
       setLoading(false);
     })();
   }, []);

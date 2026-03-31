@@ -592,8 +592,8 @@ export default function CrownStore() {
         <EditSection id="hero" style={{ position: "relative", minHeight: "90vh", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
           {/* Background image */}
           <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-            {displayLogoUrl ? (
-              <img src={displayLogoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
+            {displayHeroImage ? (
+              <img src={displayHeroImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
             ) : (
               <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg, ${bgElevated} 0%, #1e1a16 100%)` }} />
             )}
