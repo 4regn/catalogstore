@@ -130,7 +130,7 @@ export default function HomePage() {
   const [previewStage, setPreviewStage] = useState<"upload"|"loading"|"preview">("upload");
   const [previewLogo, setPreviewLogo] = useState<string|null>(null);
   const [previewProducts, setPreviewProducts] = useState<{dataUrl:string;base64:string;mediaType:string}[]>([]);
-  const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl">("gc");
+  const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl"|"crown">("gc");
   const [previewStore, setPreviewStore] = useState<{storeName:string;tagline:string;storeSlug:string;brandColor:string;products:{name:string;price:string;category:string}[];collections:{name:string;productIndexes:number[]}[];aboutText?:string;insight1:{label:string;value:string};insight2:{label:string;value:string};insight3:{label:string;value:string}}|null>(null);
   const [previewError, setPreviewError] = useState<string|null>(null);
   const [previewLoadStep, setPreviewLoadStep] = useState(0);
@@ -630,6 +630,204 @@ ${collectionsHtml}
 </body></html>`;
   }, [previewStore, previewProducts, previewLogo, previewBanner, previewBrandColor, previewBrandDesc]);
 
+  const buildCrownStore = useCallback(() => {
+    if (!previewStore) return "";
+    const products = previewStore.products.slice(0, 10);
+    const collections = previewStore.collections || [];
+    const heroImg = previewBanner?.dataUrl ?? previewProducts[0]?.dataUrl ?? "";
+    const logoImg = previewLogo ?? "";
+    const storeName = previewStore.storeName;
+    const tagline = previewStore.tagline || "";
+    const aboutText = previewStore.aboutText || "";
+
+    // Crown theme colors (fixed — brand color not used for bg)
+    const gold = "#c4a265";
+    const goldLight = "#d4b88a";
+    const cream = "#f0e6d3";
+    const bgDeep = "#0a0908";
+    const bgElevated = "#141210";
+    const bgCard = "#1a1816";
+    const border = "rgba(196,162,101,0.1)";
+    const textSec = "rgba(240,230,211,0.6)";
+
+    // Product cards — 2-col grid, Crown style
+    const productCards = products.map((p, i) => {
+      const img = previewProducts[i];
+      const onSale = i < 2;
+      const priceNum = parseInt(p.price.replace(/[^0-9]/g, "")) || 300;
+      const origPrice = onSale ? "R" + Math.round(priceNum / 0.82) : "";
+      return \`
+        <div style="background:\${bgCard};border:1px solid \${border};overflow:hidden;cursor:pointer;position:relative">
+          \${onSale ? \`<div style="position:absolute;top:10px;left:10px;background:\${gold};color:\${bgDeep};font-size:8px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:3px 8px;z-index:2">SALE</div>\` : ""}
+          <div style="aspect-ratio:3/4;overflow:hidden;background:\${bgCard}">
+            \${img ? \`<img src="\${img.dataUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(0.88)">\` : \`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:\${gold};font-size:24px;font-family:Georgia,serif">◆</div>\`}
+          </div>
+          <div style="padding:14px 12px;border-top:1px solid \${border}">
+            <div style="font-size:8px;letter-spacing:0.2em;text-transform:uppercase;color:\${gold};margin-bottom:4px;opacity:0.7">\${p.category}</div>
+            <div style="font-family:Georgia,serif;font-size:13px;font-weight:400;color:\${cream};margin-bottom:8px;line-height:1.3">\${p.name}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="font-family:Georgia,serif;font-size:14px;color:\${gold}">\${p.price}</div>
+              \${onSale ? \`<div style="font-size:11px;color:rgba(240,230,211,0.3);text-decoration:line-through">\${origPrice}</div>\` : ""}
+            </div>
+          </div>
+        </div>\`;
+    }).join("");
+
+    // Circle strip — one circle per collection using first product image
+    const circleItems = collections.slice(0, 5).map((col, ci) => {
+      const firstIdx = col.productIndexes[0] ?? ci;
+      const img = previewProducts[firstIdx]?.dataUrl ?? "";
+      return \`
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;flex-shrink:0;cursor:pointer">
+          <div style="width:80px;height:80px;border-radius:50%;overflow:hidden;border:1px solid \${border};background:\${bgCard}">
+            \${img ? \`<img src="\${img}" style="width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(0.85)">\` : \`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:\${gold};font-size:16px">◆</div>\`}
+          </div>
+          <div style="font-family:Georgia,serif;font-size:11px;font-weight:400;color:\${cream}">\${col.name}</div>
+        </div>\`;
+    }).join("");
+
+    // Trust accordion items (static defaults)
+    const trustItems = [
+      { icon: "shield", title: "Quality Guaranteed", desc: "Every item is quality-checked before it ships to you." },
+      { icon: "truck",  title: "Fast Delivery",      desc: "Nationwide delivery. Tracked and insured." },
+      { icon: "refresh",title: "Easy Returns",       desc: "14-day returns on unopened items. No questions asked." },
+      { icon: "lock",   title: "Secure Payment",     desc: "Pay via card, EFT, or WhatsApp. Always safe." },
+    ];
+    const trustRows = trustItems.map((t, i) => \`
+      <div style="border-bottom:\${i < trustItems.length - 1 ? \`1px solid \${border}\` : "none"}">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 0;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:14px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="\${gold}" stroke-width="1.5" stroke-linecap="round" opacity="0.75">
+              \${t.icon === "shield" ? '<path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/>' :
+                t.icon === "truck" ? '<rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>' :
+                t.icon === "refresh" ? '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>' :
+                '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>'}
+            </svg>
+            <span style="font-family:Georgia,serif;font-size:14px;font-weight:300;color:\${cream}">\${t.title}</span>
+          </div>
+          <span style="color:\${gold};font-size:16px;opacity:0.5">+</span>
+        </div>
+        <div style="padding-bottom:14px;padding-left:32px;font-size:11px;color:\${textSec};line-height:1.8">\${t.desc}</div>
+      </div>\`).join("");
+
+    // Collections grid
+    const collGrid = collections.slice(0, 4).map((col, ci) => {
+      const firstIdx = col.productIndexes[0] ?? ci;
+      const img = previewProducts[firstIdx]?.dataUrl ?? "";
+      return \`
+        <div style="position:relative;border-radius:120px 120px 8px 8px;overflow:hidden;cursor:pointer;border:1px solid \${border};aspect-ratio:3/4;background:\${bgCard}">
+          \${img ? \`<img src="\${img}" style="width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(0.8)">\` : ""}
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,rgba(10,9,8,0.75) 100%)"></div>
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:16px;text-align:center">
+            <div style="font-family:Georgia,serif;font-size:13px;color:\${cream};">\${col.name}</div>
+          </div>
+        </div>\`;
+    }).join("");
+
+    return \`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;1,300;1,400&family=Playfair+Display:ital,wght@1,400&family=Didact+Gothic&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:\${bgDeep};color:\${cream};font-family:'Didact Gothic',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:\${bgDeep}}::-webkit-scrollbar-thumb{background:\${gold};border-radius:2px}
+  @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+</style>
+</head><body>
+
+<!-- PROMO TICKER -->
+<div style="background:\${bgElevated};overflow:hidden;padding:11px 0;border-bottom:1px solid \${border}">
+  <div style="display:flex;white-space:nowrap;animation:ticker 18s linear infinite">
+    \${["FREE DELIVERY ON ORDERS OVER R800","NEW ARRIVALS JUST DROPPED","PREMIUM QUALITY GUARANTEED","FREE DELIVERY ON ORDERS OVER R800","NEW ARRIVALS JUST DROPPED","PREMIUM QUALITY GUARANTEED"]
+      .map(t => \`<span style="font-family:'Didact Gothic',sans-serif;font-size:9px;color:rgba(240,230,211,0.45);padding:0 36px;letter-spacing:0.2em;text-transform:uppercase;display:inline-flex;align-items:center;gap:20px">\${t} <span style="color:\${gold};font-size:7px">✦</span></span>\`).join("")}
+  </div>
+</div>
+
+<!-- NAV -->
+<nav style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid \${border}">
+  <div>
+    \${logoImg ? \`<img src="\${logoImg}" style="height:32px;max-width:120px;object-fit:contain">\` : \`<div style="font-family:'Cormorant Garant',serif;font-size:20px;font-weight:300;letter-spacing:0.18em;text-transform:uppercase;color:\${cream}">\${storeName}</div>\`}
+  </div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:\${textSec}">Shop</span>
+    <span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:\${textSec}">Collections</span>
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 16px;border:1px solid rgba(196,162,101,0.3)">
+      <span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:\${goldLight}">Cart</span>
+      <span style="background:\${gold};color:\${bgDeep};width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700">0</span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div style="position:relative;min-height:320px;display:flex;align-items:flex-end;overflow:hidden">
+  \${heroImg ? \`<img src="\${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(0.6)">\` : \`<div style="position:absolute;inset:0;background:linear-gradient(135deg,\${bgElevated} 0%,#1e1a16 100%)"></div>\`}
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(10,9,8,0.92) 0%,rgba(10,9,8,0.35) 60%,rgba(10,9,8,0.05) 100%)"></div>
+  <div style="position:relative;z-index:2;padding:0 20px 28px">
+    <div style="font-size:8px;letter-spacing:0.3em;text-transform:uppercase;color:\${gold};margin-bottom:16px;opacity:0.85">Premium Collection · SA Delivered</div>
+    <h1 style="font-family:'Cormorant Garant',serif;font-size:clamp(32px,8vw,52px);font-weight:300;line-height:0.95;color:\${cream};margin-bottom:20px;letter-spacing:-0.01em">\${tagline || storeName}</h1>
+    <div style="display:inline-flex;align-items:center;gap:12px;padding:13px 28px;border:1px solid \${gold};color:\${goldLight};font-size:9px;letter-spacing:0.18em;text-transform:uppercase;cursor:pointer">
+      Explore Collection <span>→</span>
+    </div>
+  </div>
+</div>
+
+<!-- CIRCLE STRIP -->
+\${circleItems ? \`
+<div style="padding:32px 0;background:\${bgElevated};border-top:1px solid \${border};border-bottom:1px solid \${border};text-align:center">
+  <div style="font-size:8px;letter-spacing:0.28em;text-transform:uppercase;color:\${gold};margin-bottom:8px;opacity:0.7">Shop by Collection</div>
+  <div style="font-size:12px;font-family:'Cormorant Garant',serif;color:\${textSec};margin-bottom:24px">Find your signature look</div>
+  <div style="display:flex;gap:24px;overflow-x:auto;padding:0 20px;justify-content:\${collections.length <= 3 ? "center" : "flex-start"};scrollbar-width:none">
+    \${circleItems}
+  </div>
+</div>\` : ""}
+
+<!-- PRODUCTS -->
+<div style="padding:28px 16px;background:\${bgDeep}">
+  <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid \${border}">
+    <div style="font-size:8px;letter-spacing:0.24em;text-transform:uppercase;color:\${gold};margin-bottom:4px">The Edit</div>
+    <div style="font-family:'Cormorant Garant',serif;font-size:22px;font-weight:300;color:\${cream}">Latest <em style="font-family:'Playfair Display',serif;font-style:italic;color:\${goldLight}">arrivals</em></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:2px">\${productCards}</div>
+</div>
+
+<!-- TRUST BAR -->
+<div style="background:\${bgElevated};border-top:1px solid \${border};border-bottom:1px solid \${border};padding:8px 20px">
+  \${trustRows}
+</div>
+
+<!-- ABOUT -->
+\${aboutText ? \`
+<div style="padding:32px 20px;background:#0e0c0a;text-align:center">
+  <div style="font-size:8px;letter-spacing:0.28em;text-transform:uppercase;color:\${gold};margin-bottom:12px;opacity:0.7">Our Story</div>
+  <p style="font-family:'Cormorant Garant',serif;font-size:14px;font-weight:300;line-height:1.9;color:\${textSec};max-width:560px;margin:0 auto">\${aboutText}</p>
+</div>\` : ""}
+
+<!-- COLLECTIONS GRID -->
+\${collections.length > 1 ? \`
+<div style="padding:28px 16px;background:\${bgDeep}">
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:8px;letter-spacing:0.28em;text-transform:uppercase;color:\${gold};margin-bottom:8px;opacity:0.7">Featured Collections</div>
+    <div style="font-family:'Cormorant Garant',serif;font-size:18px;font-weight:300;color:\${cream}">Find your <em style="font-family:'Playfair Display',serif;font-style:italic;color:\${goldLight}">signature</em> look</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(\${Math.min(collections.length,2)},1fr);gap:12px">\${collGrid}</div>
+</div>\` : ""}
+
+<!-- FOOTER -->
+<footer style="background:\${bgDeep};border-top:1px solid \${border};padding:28px 20px">
+  <div style="margin-bottom:20px">
+    \${logoImg ? \`<img src="\${logoImg}" style="height:28px;max-width:100px;object-fit:contain;margin-bottom:10px">\` : \`<div style="font-family:'Cormorant Garant',serif;font-size:16px;font-weight:300;letter-spacing:0.14em;text-transform:uppercase;color:\${cream};margin-bottom:10px">\${storeName}</div>\`}
+    <div style="font-size:11px;color:rgba(240,230,211,0.3);line-height:1.8">\${tagline}</div>
+  </div>
+  <div style="padding-top:16px;border-top:1px solid \${border};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <span style="font-size:9px;color:rgba(240,230,211,0.2);letter-spacing:0.06em">© \${storeName}</span>
+    <a style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:\${gold};text-decoration:none">Powered by CatalogStore</a>
+  </div>
+</footer>
+
+</body></html>\`;
+  }, [previewStore, previewProducts, previewBanner, previewLogo]);
+
+
   return (
     <>
       <style>{`
@@ -1038,16 +1236,22 @@ ${collectionsHtml}
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                           {(["gc","sl"] as const).map(id => {
                             const isGc = id === "gc";
+                            const isCrown = id === "crown";
                             const sel = previewTemplate === id;
+                            const tplBg = isGc ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" : isCrown ? "linear-gradient(135deg,#0a0908,#1a1612)" : "linear-gradient(135deg,#f0ebe4,#e8e2da)";
+                            const tplColor = isGc ? "rgba(255,255,255,0.25)" : isCrown ? "rgba(196,162,101,0.6)" : "rgba(42,42,46,0.3)";
+                            const tplFont = isGc ? "'Schibsted Grotesk',sans-serif" : isCrown ? "'Georgia',serif" : "Georgia,serif";
+                            const tplLabel = isGc ? "GLASS CHROME" : isCrown ? "Crown" : "Soft Luxury";
+                            const tplDesc = isGc ? "Dark, futuristic, chrome" : isCrown ? "Dark luxury, gold accents" : "Warm cream, elegant";
                             return (
                               <div key={id} className={`preview-tpl-option${sel ? " selected" : ""}`} onClick={() => setPreviewTemplate(id)} style={{ position: "relative" }}>
                                 {sel && <div style={{ position: "absolute", top: 7, right: 7, width: 18, height: 18, borderRadius: "50%", background: "var(--neon)", color: "#fff", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✓</div>}
-                                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", background: isGc ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" : "linear-gradient(135deg,#f0ebe4,#e8e2da)", fontSize: isGc ? 8 : 11, color: isGc ? "rgba(255,255,255,0.25)" : "rgba(42,42,46,0.3)", fontFamily: isGc ? "'Schibsted Grotesk',sans-serif" : "Georgia,serif", letterSpacing: isGc ? "0.12em" : "0.04em", fontStyle: isGc ? "normal" : "italic", textTransform: isGc ? "uppercase" : "none", borderBottom: isGc ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.06)" }}>
-                                  {isGc ? "GLASS CHROME" : "Soft Luxury"}
+                                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", background: tplBg, fontSize: isCrown ? 14 : isGc ? 8 : 11, color: tplColor, fontFamily: tplFont, letterSpacing: isCrown ? "0.18em" : isGc ? "0.12em" : "0.04em", fontStyle: isCrown ? "italic" : "normal", borderBottom: `1px solid ${isCrown ? "rgba(196,162,101,0.1)" : isGc ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                                  {tplLabel}
                                 </div>
                                 <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.02)" }}>
-                                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>{isGc ? "Glass Chrome" : "Soft Luxury"}</div>
-                                  <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{isGc ? "Dark, futuristic, chrome" : "Warm cream, elegant"}</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>{tplLabel}</div>
+                                  <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{tplDesc}</div>
                                 </div>
                               </div>
                             );
@@ -1223,7 +1427,7 @@ ${collectionsHtml}
                         {previewStore.storeSlug}.catalogstore.co.za
                       </div>
                     </div>
-                    <iframe srcDoc={previewTemplate === "gc" ? buildGCStore() : buildSLStore()} style={{ width: "100%", height: 620, border: "none", display: "block" }} title="Store Preview" />
+                    <iframe srcDoc={previewTemplate === "gc" ? buildGCStore() : previewTemplate === "sl" ? buildSLStore() : buildCrownStore()} style={{ width: "100%", height: 620, border: "none", display: "block" }} title="Store Preview" />
                   </div>
 
                   {/* INSIGHTS */}

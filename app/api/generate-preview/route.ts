@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   if (images.length > 10)
     return NextResponse.json({ error: "Maximum 10 photos allowed." }, { status: 400 });
 
-  const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+  const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"];
   for (const img of images) {
     if (!allowed.includes(img.mediaType)) return NextResponse.json({ error: "Only JPEG, PNG, WebP or GIF allowed." }, { status: 400 });
     if (img.base64.length > 7_000_000) return NextResponse.json({ error: "Images too large. Max 5MB each." }, { status: 400 });
@@ -76,8 +76,11 @@ export async function POST(req: NextRequest) {
 
   const bannerContent = bannerImage ? [{
     type: "image" as const,
-    source: { type: "base64" as const, media_type: bannerImage.mediaType as "image/jpeg"|"image/png"|"image/webp"|"image/gif", data: bannerImage.base64 },
+    source: { type: "base64" as const, media_type: normalizeType(bannerImage.mediaType) as "image/jpeg"|"image/png"|"image/webp"|"image/gif", data: bannerImage.base64 },
   }] : [];
+
+  // Normalize HEIC/HEIF to jpeg for Anthropic API compatibility
+  const normalizeType = (t: string) => (t === "image/heic" || t === "image/heif") ? "image/jpeg" : t;
 
   const imageContent = images.slice(0, 6).map((img) => ({
     type: "image" as const,
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
 
   const accentColor = brandColor ?? "#ff6b35";
 
+  const isCrown = body.template === "crown";
   const prompt = `You are helping a South African seller build a store preview on CatalogStore.
 
 ${bannerImage ? "The FIRST image is the store banner/cover photo. The remaining images are product photos." : "All images are product photos."}
@@ -102,7 +106,7 @@ Return ONLY raw JSON — no markdown, no code blocks, no extra text:
 
 {
   "storeName": "${brandName ? brandName : "SHORT PUNCHY NAME IN CAPS (2-3 words max)"}",
-  "tagline": "Compelling tagline under 8 words that matches the brand vibe",
+  "tagline": "${isCrown ? "Elegant, poetic tagline under 6 words — think luxury editorial, e.g. Wear your crown. or Built for the bold." : "Compelling tagline under 8 words that matches the brand vibe"}",
   "storeSlug": "${brandName ? brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : "lowercase-hyphenated-name"}",
   "brandColor": "${accentColor}",
   "products": [
@@ -118,7 +122,7 @@ Return ONLY raw JSON — no markdown, no code blocks, no extra text:
       "productIndexes": [0, 1]
     }
   ],
-  "aboutText": "2-3 sentences of polished brand copy written like a real brand — do NOT copy the description verbatim, rewrite it in a compelling, professional tone as if it appears on the brand's website",
+  "aboutText": "${isCrown ? "2-3 sentences of refined, editorial brand copy. Sophisticated tone — think luxury brand website. Do NOT use the description verbatim. No hype, no exclamation marks. Example: 'Built for those who believe in the art of dressing well. Every piece is sourced with intention and worn with purpose.'" : "2-3 sentences of polished brand copy written like a real brand — do NOT copy the description verbatim, rewrite it in a compelling, professional tone"}",
   "insight1": { "label": "Style", "value": "One sentence about the aesthetic vibe" },
   "insight2": { "label": "Target Market", "value": "One sentence about who buys these" },
   "insight3": { "label": "Tip", "value": "One actionable sales tip for this product type in South Africa" }
