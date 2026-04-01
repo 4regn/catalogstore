@@ -74,13 +74,13 @@ export async function POST(req: NextRequest) {
     if (img.base64.length > 7_000_000) return NextResponse.json({ error: "Images too large. Max 5MB each." }, { status: 400 });
   }
 
+  // Normalize HEIC/HEIF to jpeg for Anthropic API compatibility
+  const normalizeType = (t: string) => (t === "image/heic" || t === "image/heif") ? "image/jpeg" : t;
+
   const bannerContent = bannerImage ? [{
     type: "image" as const,
     source: { type: "base64" as const, media_type: normalizeType(bannerImage.mediaType) as "image/jpeg"|"image/png"|"image/webp"|"image/gif", data: bannerImage.base64 },
   }] : [];
-
-  // Normalize HEIC/HEIF to jpeg for Anthropic API compatibility
-  const normalizeType = (t: string) => (t === "image/heic" || t === "image/heif") ? "image/jpeg" : t;
 
   const imageContent = images.slice(0, 6).map((img) => ({
     type: "image" as const,
