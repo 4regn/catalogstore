@@ -61,9 +61,7 @@ export async function GET(req: NextRequest) {
         status,
         sellers (
           id,
-          email,
-          store_name,
-          slug
+          email
         )
       `
       )
