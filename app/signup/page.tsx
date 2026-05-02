@@ -44,6 +44,18 @@ export default function SignUp() {
         subscription_status: "trial", subscription_plan: "starter", trial_ends_at: trialEnd.toISOString(),
       });
       if (profileError) { setError(profileError.message); setLoading(false); return; }
+
+      // Attribute affiliate referral if a `?ref=` cookie was captured. Fire-and-forget —
+      // never block signup or surface errors here. The route is idempotent and silently
+      // no-ops when there's no cookie.
+      try {
+        await fetch("/api/affiliate/attribute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sellerId: authData.user.id }),
+        });
+      } catch {}
+
       router.push("/dashboard/billing");
     }
     setLoading(false);
