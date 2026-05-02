@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
+import AffiliateRefTracker from "./components/AffiliateRefTracker";
 
 export const metadata: Metadata = {
   title: "CatalogStore - From Catalog to Checkout, in Minutes",
@@ -28,6 +29,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <AffiliateRefTracker />
         {children}
         <Analytics />
       </body>
