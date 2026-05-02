@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: false, // requires verification before withdrawal
+      email_confirm: true, // auto-confirm — gate withdrawals separately via affiliates.email_verified
       user_metadata: { full_name: fullName, role: "affiliate" },
     });
 
