@@ -17,7 +17,7 @@ const supabase = createClient(
  *
  * - Renders nothing if no cookie or invalid slug
  * - Renders nothing while loading (no flash)
- * - Sticky at top so it stays visible while scrolling
+ * - Sits at top of page (scrolls with content, not sticky — intentional)
  * - Dismissible (sets a session-only flag so it doesn't reappear during the same session)
  */
 export default function AffiliateReferralBanner() {
