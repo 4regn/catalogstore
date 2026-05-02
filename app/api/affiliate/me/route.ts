@@ -11,7 +11,7 @@ const supabaseAdmin = createClient(
 export async function GET(req: NextRequest) {
   try {
     // ─── 1. Get auth token from cookies ──────────────────
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const accessToken =
       cookieStore.get("sb-access-token")?.value ||
       req.headers.get("authorization")?.replace("Bearer ", "");
