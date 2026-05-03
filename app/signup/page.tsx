@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -11,6 +11,10 @@ export default function SignUp() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [storeName, setStoreName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [refCode, setRefCode] = useState("");
+  const [refLocked, setRefLocked] = useState(false);
+  const [refAffiliateName, setRefAffiliateName] = useState<string | null>(null);
+  const [refLookupTimer, setRefLookupTimer] = useState<NodeJS.Timeout | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,6 +29,51 @@ export default function SignUp() {
 
   const allChecksPassed = Object.values(passwordChecks).every(Boolean);
   const passwordsMatch = password === confirmPassword && confirmPassword !== "";
+
+  // Read affiliate cookie on mount and pre-fill the referral code field
+  useEffect(() => {
+    try {
+      const cookieRow = document.cookie
+        .split(";")
+        .map((c) => c.trim())
+        .find((c) => c.startsWith("affiliate_ref="));
+      if (!cookieRow) return;
+      const slug = cookieRow.split("=")[1];
+      if (!slug) return;
+      setRefCode(slug);
+      setRefLocked(true);
+      lookupAffiliate(slug);
+    } catch {}
+  }, []);
+
+  async function lookupAffiliate(slug: string) {
+    if (!slug || slug.length < 2) {
+      setRefAffiliateName(null);
+      return;
+    }
+    const cleaned = slug.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!cleaned) {
+      setRefAffiliateName(null);
+      return;
+    }
+    const { data } = await supabase
+      .from("affiliate_public_profile")
+      .select("full_name")
+      .eq("slug", cleaned)
+      .maybeSingle();
+    setRefAffiliateName(data?.full_name || null);
+  }
+
+  function handleRefCodeChange(value: string) {
+    const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+    setRefCode(cleaned);
+    setRefAffiliateName(null);
+    if (refLookupTimer) clearTimeout(refLookupTimer);
+    if (cleaned.length >= 2) {
+      const t = setTimeout(() => lookupAffiliate(cleaned), 400);
+      setRefLookupTimer(t);
+    }
+  }
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,9 +94,17 @@ export default function SignUp() {
       });
       if (profileError) { setError(profileError.message); setLoading(false); return; }
 
-      // Attribute affiliate referral if a `?ref=` cookie was captured. Fire-and-forget —
-      // never block signup or surface errors here. The route is idempotent and silently
-      // no-ops when there's no cookie.
+      // If user typed a ref code, set it as the cookie before attribution.
+      // This unifies the two attribution paths (link click vs typed code).
+      if (refCode) {
+        const expires = new Date();
+        expires.setDate(expires.getDate() + 30);
+        const isProd = window.location.hostname.includes("catalogstore.co.za");
+        const domain = isProd ? "; domain=.catalogstore.co.za" : "";
+        document.cookie = `affiliate_ref=${refCode}; expires=${expires.toUTCString()}; path=/; SameSite=Lax${domain}`;
+      }
+
+      // Attribute affiliate referral. Fire-and-forget — never block signup.
       try {
         await fetch("/api/affiliate/attribute", {
           method: "POST",
@@ -96,6 +153,80 @@ export default function SignUp() {
             <div style={s.field}>
               <label style={s.label}>WHATSAPP NUMBER</label>
               <input type="tel" placeholder="e.g. 0671234567" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} required style={s.input} />
+            </div>
+
+            <div style={s.field}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label style={s.label}>REFERRAL CODE (OPTIONAL)</label>
+                {refLocked && (
+                  <button
+                    type="button"
+                    onClick={() => { setRefLocked(false); }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#ff6b35",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder="Enter a code to credit your referrer"
+                  value={refCode}
+                  onChange={(e) => handleRefCodeChange(e.target.value)}
+                  disabled={refLocked}
+                  style={{
+                    ...s.input,
+                    paddingRight: refAffiliateName ? 36 : 14,
+                    opacity: refLocked ? 0.7 : 1,
+                  }}
+                />
+                {refAffiliateName && (
+                  <div style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: "rgba(34,197,94,0.15)",
+                    border: "1px solid rgba(34,197,94,0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#22c55e",
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}>✓</div>
+                )}
+              </div>
+              {refAffiliateName && (
+                <div style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: "#22c55e",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Referred by {refAffiliateName}
+                </div>
+              )}
             </div>
 
             <div style={s.field}>
