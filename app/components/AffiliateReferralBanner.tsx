@@ -12,28 +12,28 @@ const supabase = createClient(
  * AffiliateReferralBanner
  *
  * Reads the `affiliate_ref` cookie (set by AffiliateRefTracker), looks up the
- * affiliate's public name from the `affiliate_public_profile` view, and shows
- * a thin neutral banner: "Referred by [Name]".
+ * affiliate's public name, and shows a polished banner: "Referred by [Name]".
  *
- * - Renders nothing if no cookie or invalid slug
- * - Renders nothing while loading (no flash)
  * - Sits at top of page (scrolls with content, not sticky — intentional)
- * - Dismissible (sets a session-only flag so it doesn't reappear during the same session)
+ * - Solid dark background with orange accent for high contrast
+ * - Clear typographic hierarchy: small uppercase label + bold name
+ * - Dismissible with session-storage memory
+ * - Renders nothing if no cookie or invalid slug
  */
 export default function AffiliateReferralBanner() {
   const [name, setName] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     try {
-      // Check session dismissal flag first
       const wasDismissed = sessionStorage.getItem("affiliate_banner_dismissed");
       if (wasDismissed === "1") {
         setDismissed(true);
         return;
       }
 
-      // Read cookie
       const cookieRow = document.cookie
         .split(";")
         .map((c) => c.trim())
@@ -43,7 +43,6 @@ export default function AffiliateReferralBanner() {
       const slug = cookieRow.split("=")[1];
       if (!slug) return;
 
-      // Look up the affiliate's public name (slug + full_name only — view is locked down)
       supabase
         .from("affiliate_public_profile")
         .select("full_name")
@@ -53,7 +52,7 @@ export default function AffiliateReferralBanner() {
           if (error || !data?.full_name) return;
           setName(data.full_name);
         });
-    } catch (e) {
+    } catch {
       // silently fail
     }
   }, []);
@@ -65,20 +64,50 @@ export default function AffiliateReferralBanner() {
     setDismissed(true);
   }
 
-  if (!name || dismissed) return null;
+  if (!mounted || !name || dismissed) return null;
 
   return (
     <div style={styles.banner}>
       <div style={styles.inner}>
-        <span style={styles.dot} />
-        <span style={styles.label}>Referred by</span>
-        <span style={styles.name}>{name}</span>
+        <div style={styles.iconWrap}>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={styles.icon}
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+
+        <div style={styles.text}>
+          <span style={styles.label}>Referred by</span>
+          <span style={styles.name}>{name}</span>
+        </div>
+
         <button
           onClick={dismiss}
           style={styles.close}
           aria-label="Dismiss"
         >
-          ×
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ width: 14, height: 14 }}
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
     </div>
@@ -89,59 +118,74 @@ const styles: Record<string, React.CSSProperties> = {
   banner: {
     position: "relative",
     zIndex: 60,
-    background:
-      "linear-gradient(90deg,rgba(255,107,53,0.08) 0%,rgba(255,61,110,0.08) 100%)",
-    borderBottom: "1px solid rgba(255,107,53,0.18)",
+    background: "#0e0e14",
+    borderBottom: "1px solid rgba(255,107,53,0.2)",
     fontFamily: "'Schibsted Grotesk', sans-serif",
+    boxShadow: "0 1px 0 rgba(255,107,53,0.05)",
   },
   inner: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: "8px 36px 8px 16px",
-    fontSize: 12,
-    color: "rgba(245,245,245,0.85)",
-    position: "relative",
+    gap: 12,
+    padding: "10px 16px",
     maxWidth: 1200,
     margin: "0 auto",
-    flexWrap: "wrap",
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: "50%",
-    background: "linear-gradient(135deg,#ff6b35,#ff3d6e)",
-    boxShadow: "0 0 8px rgba(255,107,53,0.6)",
+  iconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    background:
+      "linear-gradient(135deg,rgba(255,107,53,0.15),rgba(255,61,110,0.15))",
+    border: "1px solid rgba(255,107,53,0.25)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
+    color: "#ff6b35",
+  },
+  icon: {
+    width: 14,
+    height: 14,
+  },
+  text: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: 1,
+    minWidth: 0,
   },
   label: {
-    fontSize: 10,
-    letterSpacing: "0.18em",
+    fontSize: 9,
+    letterSpacing: "0.22em",
     textTransform: "uppercase",
-    fontWeight: 600,
-    color: "rgba(245,245,245,0.5)",
+    fontWeight: 700,
+    color: "#ff6b35",
+    lineHeight: 1,
   },
   name: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 700,
-    background: "linear-gradient(135deg,#ff6b35,#ff3d6e)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
+    color: "#f5f5f5",
     letterSpacing: "-0.01em",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   close: {
-    position: "absolute",
-    right: 10,
-    top: "50%",
-    transform: "translateY(-50%)",
-    background: "transparent",
-    border: "none",
-    color: "rgba(245,245,245,0.4)",
-    fontSize: 18,
+    width: 26,
+    height: 26,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    color: "rgba(245,245,245,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     cursor: "pointer",
-    padding: "0 6px",
-    lineHeight: 1,
+    padding: 0,
+    flexShrink: 0,
     fontFamily: "inherit",
   },
 };
