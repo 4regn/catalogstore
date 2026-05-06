@@ -123,7 +123,9 @@ export default function StoreEditor() {
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // getSession() is local; getUser() validates against Supabase (extra round-trip).
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) { router.push("/login"); return; }
       const { data: s } = await supabase.from("sellers").select("*").eq("email", user.email).single();
       if (!s) { router.push("/dashboard"); return; }
