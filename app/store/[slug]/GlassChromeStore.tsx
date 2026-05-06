@@ -23,7 +23,28 @@ interface Product {
 
 interface CartItem { product: Product; qty: number; selectedVariants: { [key: string]: string }; }
 
-export default function GlassChromeStore() {
+interface StorePageProps {
+  initialSeller?: Seller;
+  initialProducts?: Product[];
+  initialDiscountCodes?: any[];
+}
+
+const buildInitialPromos = (dcs: any[] | undefined) => {
+  if (!dcs || dcs.length === 0) return { discounts: [] as any[], countdown: null as any };
+  const active = dcs
+    .filter((d: any) => new Date(d.expires_at) > new Date())
+    .map((d: any) => ({
+      code: d.code, type: d.type, value: d.value, applies_to: d.applies_to || "cart",
+      expires_at: d.expires_at, product_ids: d.product_ids || [], collection_names: d.collection_names || [], timeLeft: ""
+    }));
+  const storePromo = active.find((d: any) => d.applies_to === "cart" || d.applies_to === "shipping");
+  return {
+    discounts: active,
+    countdown: storePromo ? { code: storePromo.code, type: storePromo.type, value: storePromo.value, applies_to: storePromo.applies_to, expires_at: storePromo.expires_at, timeLeft: "" } : null,
+  };
+};
+
+export default function GlassChromeStore({ initialSeller, initialProducts, initialDiscountCodes }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
@@ -38,9 +59,9 @@ export default function GlassChromeStore() {
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
-  const [seller, setSeller] = useState<Seller | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
+  const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
+  const [loading, setLoading] = useState(!initialSeller);
   const [notFound, setNotFound] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
   const [productSort, setProductSort] = useState("default");
@@ -53,13 +74,17 @@ export default function GlassChromeStore() {
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [openFooterInfo, setOpenFooterInfo] = useState<string | null>(null);
-  const [promoCountdown, setPromoCountdown] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(null);
-  const [promoDiscounts, setPromoDiscounts] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>([]);
+  const [promoCountdown, setPromoCountdown] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(() => buildInitialPromos(initialDiscountCodes).countdown);
+  const [promoDiscounts, setPromoDiscounts] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>(() => buildInitialPromos(initialDiscountCodes).discounts);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search);
       setOrderStatus(p.get("order"));
+    }
+    if (initialSeller) {
+      if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
+      return;
     }
     loadStore();
   }, [slug]);

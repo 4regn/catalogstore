@@ -61,16 +61,34 @@ const fmt = (n: number) => "R " + n.toLocaleString("en-ZA");
 const pad = (n: number) => String(n).padStart(2, "0");
 const slugify = (s: string) => s.toLowerCase().split(" — ")[0].split(" ")[0];
 
-export default function HeirloomStore() {
+interface StorePageProps {
+  initialSeller?: Seller;
+  initialProducts?: Product[];
+  initialDiscountCodes?: any[];
+}
+
+const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[]; countdown: PromoDiscount | null } => {
+  if (!dcs || dcs.length === 0) return { discounts: [], countdown: null };
+  const active = dcs
+    .filter((d: any) => new Date(d.expires_at) > new Date())
+    .map((d: any) => ({
+      code: d.code, type: d.type, value: d.value, applies_to: d.applies_to || "cart",
+      expires_at: d.expires_at, product_ids: d.product_ids || [], collection_names: d.collection_names || [], timeLeft: ""
+    })) as PromoDiscount[];
+  const storePromo = active.find((d) => d.applies_to === "cart" || d.applies_to === "shipping");
+  return { discounts: active, countdown: storePromo ? { ...storePromo, timeLeft: "" } : null };
+};
+
+export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
 
   /* ─── DATA ─── */
-  const [seller, setSeller] = useState<Seller | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
+  const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
+  const [loading, setLoading] = useState(!initialSeller);
   const [notFound, setNotFound] = useState(false);
 
   /* ─── LIVE EDIT ─── */
@@ -86,8 +104,8 @@ export default function HeirloomStore() {
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
   /* ─── PROMO ─── */
-  const [promoCountdown, setPromoCountdown] = useState<PromoDiscount | null>(null);
-  const [promoDiscounts, setPromoDiscounts] = useState<PromoDiscount[]>([]);
+  const [promoCountdown, setPromoCountdown] = useState<PromoDiscount | null>(() => buildInitialPromos(initialDiscountCodes).countdown);
+  const [promoDiscounts, setPromoDiscounts] = useState<PromoDiscount[]>(() => buildInitialPromos(initialDiscountCodes).discounts);
   const [decoTimer, setDecoTimer] = useState({ h: 4, m: 22, s: 15 });
 
   /* ─── UI ─── */
@@ -109,6 +127,10 @@ export default function HeirloomStore() {
 
   /* ─── LOAD ─── */
   useEffect(() => {
+    if (initialSeller) {
+      if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
+      return;
+    }
     (async () => {
       const { data: s } = await supabase
         .from("sellers").select("*").eq("subdomain", slug).single();
