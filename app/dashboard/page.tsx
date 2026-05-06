@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import { revalidateStore } from "../actions/revalidate-store";
 
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 
@@ -176,6 +177,11 @@ export default function Dashboard() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
 
+  const revalidateMyStore = () => {
+    const sub = seller?.subdomain;
+    if (sub) void revalidateStore(sub).catch(() => {});
+  };
+
   const loadMoreOrders = async () => {
     if (!seller || loadingMoreOrders) return;
     setLoadingMoreOrders(true);
@@ -197,7 +203,7 @@ export default function Dashboard() {
     if (logoFile) { const ext = logoFile.name.split(".").pop(); const path = seller.id + "/logo." + ext; await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); logoUrl = data.publicUrl + "?t=" + Date.now(); }
     if (bannerFile) { const ext = bannerFile.name.split(".").pop(); const path = seller.id + "/banner." + ext; await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); bannerUrl = data.publicUrl + "?t=" + Date.now(); }
     const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }).eq("id", seller.id);
-    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); }
+    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); revalidateMyStore(); }
     setStoreSaving(false);
   };
 
@@ -254,7 +260,7 @@ export default function Dashboard() {
       let allImages = [...existingImages];
       if (formImages.length > 0) { const newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
       const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv } : p));
+      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
@@ -266,15 +272,16 @@ export default function Dashboard() {
       if (error || !data) { setFormSaving(false); return; }
       if (uploadedUrls.length > 0) { await supabase.from("products").update({ images: uploadedUrls, image_url: uploadedUrls[0] }).eq("id", data.id); }
       setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
+      revalidateMyStore();
     }
     resetForm(); setFormSaving(false);
   };
 
-  const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); };
-  const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); };
-  const restoreProduct = async (id: string) => { await supabase.from("products").update({ status: "published" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "published" } : p)); };
-  const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); };
-  const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); };
+  const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); revalidateMyStore(); };
+  const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); revalidateMyStore(); };
+  const restoreProduct = async (id: string) => { await supabase.from("products").update({ status: "published" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "published" } : p)); revalidateMyStore(); };
+  const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); revalidateMyStore(); };
+  const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); revalidateMyStore(); };
   const reorderProduct = async (id: string, direction: "up" | "down") => {
     const list = [...products].filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
     const idx = list.findIndex((p) => p.id === id); if (idx < 0) return;
@@ -285,6 +292,7 @@ export default function Dashboard() {
     updates[idx] = { ...b, sort_order: idx }; updates[swapIdx] = { ...a, sort_order: swapIdx };
     await Promise.all([supabase.from("products").update({ sort_order: swapIdx }).eq("id", a.id), supabase.from("products").update({ sort_order: idx }).eq("id", b.id)]);
     setProducts(products.map((p) => { if (p.id === a.id) return { ...p, sort_order: swapIdx }; if (p.id === b.id) return { ...p, sort_order: idx }; return p; }));
+    revalidateMyStore();
   };
   const initSortOrders = async () => {
     const unordered = products.filter((p) => p.sort_order === null || p.sort_order === undefined);
@@ -295,7 +303,7 @@ export default function Dashboard() {
     }
   };
   useEffect(() => { if (products.length > 0 && seller) initSortOrders(); }, [products.length > 0 && seller?.id]);
-  const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); };
+  const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); revalidateMyStore(); };
 
   const handleCsvUpload = async (file: File) => {
     if (!seller) return;
@@ -328,6 +336,7 @@ export default function Dashboard() {
     const skipped = Math.max(0, lines.length - 1 - remaining);
     setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + (errors > 0 ? ", " + errors + " failed" : "") + (skipped > 0 ? ", " + skipped + " skipped (plan limit)" : "") + ".");
     setCsvUploading(false);
+    if (added > 0) revalidateMyStore();
   };
 
   if (loading) return (
@@ -590,6 +599,7 @@ export default function Dashboard() {
                           setSeller({ ...seller, collections: updated });
                           setFormCategory(name);
                           e.currentTarget.value = "";
+                          revalidateMyStore();
                         }}
                       />
                       <button type="button" onClick={async () => {
@@ -602,6 +612,7 @@ export default function Dashboard() {
                         setSeller({ ...seller, collections: updated });
                         setFormCategory(name);
                         if (input) input.value = "";
+                        revalidateMyStore();
                       }} style={{ padding: "9px 14px", background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>+ Create</button>
                     </div>
                   )}
@@ -688,7 +699,7 @@ export default function Dashboard() {
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>R{p.price}</div></div>
                           </div>
-                          <button onClick={async () => { await supabase.from("products").update({ category: "" }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: "" } : x)); }} style={{ padding: "6px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                          <button onClick={async () => { await supabase.from("products").update({ category: "" }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: "" } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
                         </div>
                       ))}
                     </div>
@@ -705,7 +716,7 @@ export default function Dashboard() {
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>{p.category ? "In: " + p.category : "No collection"}</div></div>
                           </div>
-                          <button onClick={async () => { await supabase.from("products").update({ category: selectedCollection }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: selectedCollection! } : x)); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
+                          <button onClick={async () => { await supabase.from("products").update({ category: selectedCollection }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: selectedCollection! } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
                         </div>
                       ))}
                     </div>
@@ -715,8 +726,8 @@ export default function Dashboard() {
             ) : (
               <div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); } } }} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                  <button onClick={async () => { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
+                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } } }} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  <button onClick={async () => { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
                 </div>
                 {storeCollections.length === 0 ? (
                   <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No collections yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Create your first collection to organize your products.</p></div>
@@ -733,7 +744,7 @@ export default function Dashboard() {
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <span style={{ fontSize: 12, color: "rgba(245,245,245,0.15)" }}>&rarr;</span>
-                            <button onClick={async (e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                            <button onClick={async (e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                           </div>
                         </div>
                       );
@@ -892,8 +903,8 @@ export default function Dashboard() {
                   if (dcAppliesTo === "collection" && dcCollections.length === 0) { alert("Please select at least one collection"); return; }
                   setDcSaving(true);
                   const payload = { seller_id: seller.id, code: dcCode.toUpperCase(), type: dcType, value: parseFloat(dcValue), min_order: parseFloat(dcMinOrder) || 0, max_uses: dcMaxUses ? parseInt(dcMaxUses) : null, expires_at: dcExpires ? new Date(dcExpires).toISOString() : null, applies_to: dcAppliesTo, product_ids: dcProductIds, collection_names: dcCollections, show_countdown: dcShowCountdown };
-                  if (dcEditId) { const { error } = await supabase.from("discount_codes").update(payload).eq("id", dcEditId); if (!error) { setDiscountCodes(discountCodes.map((d) => d.id === dcEditId ? { ...d, ...payload } as DiscountCode : d)); setShowDcForm(false); setDcEditId(null); } else alert("Error: " + error.message); }
-                  else { const { data, error } = await supabase.from("discount_codes").insert(payload).select().single(); if (data) { setDiscountCodes([data, ...discountCodes]); setShowDcForm(false); } if (error) alert("Error: " + error.message); }
+                  if (dcEditId) { const { error } = await supabase.from("discount_codes").update(payload).eq("id", dcEditId); if (!error) { setDiscountCodes(discountCodes.map((d) => d.id === dcEditId ? { ...d, ...payload } as DiscountCode : d)); setShowDcForm(false); setDcEditId(null); revalidateMyStore(); } else alert("Error: " + error.message); }
+                  else { const { data, error } = await supabase.from("discount_codes").insert(payload).select().single(); if (data) { setDiscountCodes([data, ...discountCodes]); setShowDcForm(false); revalidateMyStore(); } if (error) alert("Error: " + error.message); }
                   setDcSaving(false);
                 }} disabled={dcSaving || !dcCode || !dcValue} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: dcSaving ? "not-allowed" : "pointer", opacity: (dcSaving || !dcCode || !dcValue) ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{dcSaving ? "Saving..." : dcEditId ? "Save Changes" : "Create Discount Code"}</button>
               </div>
@@ -920,8 +931,8 @@ export default function Dashboard() {
                               </div>
                               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                                 <button onClick={() => { setDcEditId(dc.id); setDcCode(dc.code); setDcType(dc.type); setDcValue(String(dc.value)); setDcMinOrder(dc.min_order > 0 ? String(dc.min_order) : ""); setDcMaxUses(dc.max_uses ? String(dc.max_uses) : ""); setDcExpires(dc.expires_at ? dc.expires_at.split("T")[0] : ""); setDcAppliesTo(dc.applies_to || "cart"); setDcProductIds(dc.product_ids || []); setDcCollections(dc.collection_names || []); setDcShowCountdown(dc.show_countdown || false); setShowDcForm(true); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif" }}>Edit</button>
-                                <button onClick={async () => { await supabase.from("discount_codes").update({ active: !dc.active }).eq("id", dc.id); setDiscountCodes(discountCodes.map((d) => d.id === dc.id ? { ...d, active: !d.active } : d)); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: dc.active ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", color: dc.active ? "#22c55e" : "rgba(245,245,245,0.25)" }}>{dc.active ? "Active" : "Off"}</button>
-                                <button onClick={async () => { if (!confirm("Delete this code?")) return; await supabase.from("discount_codes").delete().eq("id", dc.id); setDiscountCodes(discountCodes.filter((d) => d.id !== dc.id)); }} style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                                <button onClick={async () => { await supabase.from("discount_codes").update({ active: !dc.active }).eq("id", dc.id); setDiscountCodes(discountCodes.map((d) => d.id === dc.id ? { ...d, active: !d.active } : d)); revalidateMyStore(); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: dc.active ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", color: dc.active ? "#22c55e" : "rgba(245,245,245,0.25)" }}>{dc.active ? "Active" : "Off"}</button>
+                                <button onClick={async () => { if (!confirm("Delete this code?")) return; await supabase.from("discount_codes").delete().eq("id", dc.id); setDiscountCodes(discountCodes.filter((d) => d.id !== dc.id)); revalidateMyStore(); }} style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                               </div>
                             </div>
                           ))}
@@ -1045,7 +1056,7 @@ export default function Dashboard() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><div><h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>WhatsApp Checkout</h3><p style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Allow customers to place orders via WhatsApp message</p></div><button onClick={() => setCheckoutConfig({ ...checkoutConfig, whatsapp_checkout_enabled: !checkoutConfig.whatsapp_checkout_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.whatsapp_checkout_enabled ? "#25d366" : "rgba(255,255,255,0.08)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.whatsapp_checkout_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={async () => { if (!seller) return; setCheckoutSaving(true); setCheckoutSaved(false); await supabase.from("sellers").update({ checkout_config: checkoutConfig }).eq("id", seller.id); setSeller({ ...seller, checkout_config: checkoutConfig }); setCheckoutSaving(false); setCheckoutSaved(true); setTimeout(() => setCheckoutSaved(false), 3000); }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
+              <button onClick={async () => { if (!seller) return; setCheckoutSaving(true); setCheckoutSaved(false); await supabase.from("sellers").update({ checkout_config: checkoutConfig }).eq("id", seller.id); setSeller({ ...seller, checkout_config: checkoutConfig }); setCheckoutSaving(false); setCheckoutSaved(true); setTimeout(() => setCheckoutSaved(false), 3000); revalidateMyStore(); }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
               {checkoutSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
             </div>
           </div>)}
