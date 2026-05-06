@@ -51,6 +51,14 @@ interface Order {
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string;
 }
 
+const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_plan, trial_ends_at, subscription_started_at, payfast_subscription_token";
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
+const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
+const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown";
+const PRODUCTS_LIMIT = 500;
+const ORDERS_LIMIT = 100;
+const DISCOUNTS_LIMIT = 100;
+
 const TEMPLATES = [
   { id: "soft-luxury", name: "Soft Luxury", desc: "Warm cream tones with elegant serif typography", colors: { bg: "#f6f3ef", card: "#ffffff", text: "#2a2a2e" } },
   { id: "glass-futuristic", name: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents", colors: { bg: "#030305", card: "#0b0b0f", text: "#f0f0f0" } },
@@ -105,6 +113,8 @@ export default function Dashboard() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
+  const [hasMoreOrders, setHasMoreOrders] = useState(false);
+  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [productSort, setProductSort] = useState("manual");
 
@@ -138,16 +148,19 @@ export default function Dashboard() {
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
-    const { data: sd } = await supabase.from("sellers").select("*").eq("id", user.id).single();
+    const { data: sd } = await supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single();
     if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }] }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
-    // Fetch products, orders, discounts in parallel
+    // Fetch products, orders, discounts in parallel — capped to keep dashboard snappy
     const [pdResult, odResult, dcResult] = await Promise.all([
-      supabase.from("products").select("*").eq("seller_id", user.id).order("sort_order", { ascending: true }),
-      supabase.from("orders").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("discount_codes").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("products").select(PRODUCT_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }).limit(PRODUCTS_LIMIT),
+      supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT),
+      supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
     ]);
     if (pdResult.data) setProducts(pdResult.data);
-    if (odResult.data) setOrders(odResult.data);
+    if (odResult.data) {
+      setOrders(odResult.data);
+      setHasMoreOrders(odResult.data.length >= ORDERS_LIMIT);
+    }
     if (dcResult.data) setDiscountCodes(dcResult.data);
     setLoading(false);
 
@@ -162,6 +175,19 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
+
+  const loadMoreOrders = async () => {
+    if (!seller || loadingMoreOrders) return;
+    setLoadingMoreOrders(true);
+    const { data } = await supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", seller.id).order("created_at", { ascending: false }).range(orders.length, orders.length + ORDERS_LIMIT - 1);
+    if (data && data.length > 0) {
+      setOrders((prev) => [...prev, ...data]);
+      setHasMoreOrders(data.length >= ORDERS_LIMIT);
+    } else {
+      setHasMoreOrders(false);
+    }
+    setLoadingMoreOrders(false);
+  };
   const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
   const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); return; } setBannerFile(f); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
 
@@ -791,6 +817,9 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+                {hasMoreOrders && (
+                  <button onClick={loadMoreOrders} disabled={loadingMoreOrders} style={{ marginTop: 12, padding: "12px 20px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, color: "#f5f5f5", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: loadingMoreOrders ? "not-allowed" : "pointer", opacity: loadingMoreOrders ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em", alignSelf: "center" }}>{loadingMoreOrders ? "Loading…" : "Load more orders"}</button>
+                )}
               </div>
             )}
           </div>)}
