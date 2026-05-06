@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 const SoftLuxury  = dynamic(() => import("./SoftLuxuryStore"),  { ssr: false });
 const GlassChrome = dynamic(() => import("./GlassChromeStore"), { ssr: false });
 const Crown       = dynamic(() => import("./CrownStore"),       { ssr: false });
+const Heirloom    = dynamic(() => import("./HeirloomStore"),    { ssr: false });
 
 export default function StoreRouter() {
   const params = useParams();
@@ -35,5 +36,6 @@ export default function StoreRouter() {
 
   if (template === "crown") return <Crown />;
   if (template === "glass-futuristic" || template === "glass-chrome") return <GlassChrome />;
+  if (template === "heirloom") return <Heirloom />;
   return <SoftLuxury />;
 }
