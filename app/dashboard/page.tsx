@@ -256,13 +256,35 @@ export default function Dashboard() {
 
   const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {} })).filter((x) => x.options.length > 0);
 
+  // The variant-image picker shows existing URLs alongside FileReader base64 previews of newly added files.
+  // If the seller picks a fresh-upload preview, that base64 must be remapped to the eventual Storage URL
+  // before save, otherwise we persist megabytes of base64 into the row. Any base64 we can't map (stale
+  // entry from a previous bug, or whose upload failed) is dropped — never persist data: URLs.
+  const remapVariantImages = (variants: Variant[], previewToUrl: Map<string, string>): Variant[] =>
+    variants.map((v) => {
+      if (!v.images) return v;
+      const next: { [k: string]: string } = {};
+      for (const [opt, img] of Object.entries(v.images)) {
+        if (typeof img !== "string" || !img) continue;
+        if (img.startsWith("data:")) {
+          const url = previewToUrl.get(img);
+          if (url) next[opt] = url;
+        } else {
+          next[opt] = img;
+        }
+      }
+      return { ...v, images: next };
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setFormSaving(true); setUploadProgress("");
     const { data: { user } } = await supabase.auth.getUser(); if (!user) return;
-    const cv = cleanVariants(formVariants);
     if (editingId) {
       let allImages = [...existingImages];
-      if (formImages.length > 0) { const newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
+      let newUrls: string[] = [];
+      if (formImages.length > 0) { newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
+      const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, newUrls[i] || ""] as [string, string]));
+      const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
       if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
     } else {
@@ -270,11 +292,16 @@ export default function Dashboard() {
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, in_stock: true, variants: cv, status: "published", images: [], image_url: null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
       ]);
       const { data, error } = insertResult;
       if (error || !data) { setFormSaving(false); return; }
-      if (uploadedUrls.length > 0) { await supabase.from("products").update({ images: uploadedUrls, image_url: uploadedUrls[0] }).eq("id", data.id); }
+      const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, uploadedUrls[i] || ""] as [string, string]));
+      const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
+      const followUp: Record<string, unknown> = {};
+      if (uploadedUrls.length > 0) { followUp.images = uploadedUrls; followUp.image_url = uploadedUrls[0] || null; }
+      if (cv.length > 0) { followUp.variants = cv; }
+      if (Object.keys(followUp).length > 0) { await supabase.from("products").update(followUp).eq("id", data.id); }
       setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
       revalidateMyStore();
     }
