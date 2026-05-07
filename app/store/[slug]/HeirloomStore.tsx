@@ -460,7 +460,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-bag{font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:var(--ink);border:none;border-bottom:1px solid var(--ink);padding:0 0 1px;background:none;cursor:pointer;font-family:var(--sans)}
 .hl-bag:hover{opacity:0.5}
 .hl-bag-count{display:inline-block;margin-left:4px;font-weight:700}
-.hl-burger{display:none;background:none;border:none;cursor:pointer;width:24px;height:24px;flex-direction:column;justify-content:space-between;padding:5px 0}
+.hl-burger{display:flex;background:none;border:none;cursor:pointer;width:24px;height:24px;flex-direction:column;justify-content:space-between;padding:5px 0}
 .hl-burger span{display:block;width:100%;height:1px;background:var(--ink);transition:0.3s}
 
 .hl-hero{position:relative;width:100%;height:100vh;min-height:640px;border-bottom:1px solid var(--rule);overflow:hidden;display:flex;align-items:flex-end;background:radial-gradient(ellipse at 75% 30%,rgba(90,80,70,0.4) 0%,transparent 60%),linear-gradient(180deg,#1a1715 0%,#0d0b0a 100%)}
@@ -562,19 +562,19 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-nl-form input::placeholder{color:#aaa;font-weight:300}
 .hl-nl-form button{background:none;border:none;cursor:pointer;font-family:var(--sans);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--ink);padding:14px 0 14px 24px}
 
-.hl-foot{background:var(--ink);color:#aaa;padding:80px 48px 32px}
+.hl-foot{background:#fff;color:var(--dim);padding:80px 48px 32px;border-top:1px solid var(--rule)}
 .hl-foot-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:64px;max-width:1400px;margin:0 auto 64px}
-.hl-foot-brand{font-family:var(--serif);font-style:italic;font-size:30px;color:#fff;letter-spacing:1px;line-height:1;margin-bottom:14px}
-.hl-foot-tag{font-size:13px;color:#888;line-height:1.6;font-weight:300;max-width:280px;margin-bottom:24px}
+.hl-foot-brand{font-family:var(--serif);font-style:italic;font-size:30px;color:var(--ink);letter-spacing:1px;line-height:1;margin-bottom:14px}
+.hl-foot-tag{font-size:13px;color:var(--dim);line-height:1.6;font-weight:300;max-width:280px;margin-bottom:24px}
 .hl-foot-soc{display:flex;gap:16px;flex-wrap:wrap}
-.hl-foot-soc a{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;text-decoration:none;border-bottom:1px solid #444;padding-bottom:2px;transition:color 0.2s}
-.hl-foot-soc a:hover{color:#fff}
-.hl-foot-col h4{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#fff;margin-bottom:18px;font-weight:500}
+.hl-foot-soc a{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:2px;transition:color 0.2s}
+.hl-foot-soc a:hover{color:var(--ink);border-color:var(--ink)}
+.hl-foot-col h4{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:18px;font-weight:500}
 .hl-foot-col ul{list-style:none;margin:0;padding:0}
 .hl-foot-col li{margin-bottom:10px}
-.hl-foot-col a{color:#888;font-size:13px;text-decoration:none;transition:color 0.2s}
-.hl-foot-col a:hover{color:#fff}
-.hl-foot-bot{max-width:1400px;margin:0 auto;padding-top:32px;border-top:1px solid #2a2a2a;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;font-size:11px;color:#666;letter-spacing:1px}
+.hl-foot-col a{color:var(--ink);font-size:13px;font-weight:300;text-decoration:none;transition:color 0.2s}
+.hl-foot-col a:hover{color:var(--dim)}
+.hl-foot-bot{max-width:1400px;margin:0 auto;padding-top:32px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;font-size:11px;color:var(--dim);letter-spacing:1px}
 
 .hl-mm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:998;opacity:0;pointer-events:none;transition:opacity 0.3s}
 .hl-mm-overlay.open{opacity:1;pointer-events:all}
@@ -658,8 +658,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
 @media (max-width:900px){
   .hl-nav{padding:0 20px;grid-template-columns:auto 1fr auto;height:56px}
-  .hl-nav-left,.hl-nav-right-links{display:none}
-  .hl-burger{display:flex;order:1}
+  .hl-nav-right-links{display:none}
+  .hl-burger{order:1}
   .hl-logo{font-size:22px;text-align:center;order:2}
   .hl-nav-right{order:3;gap:12px}
   .hl-hero-left{padding:0 28px 48px}
@@ -855,11 +855,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         <nav className="hl-nav">
           <div className="hl-nav-left">
             <button className="hl-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu"><span /><span /><span /></button>
-            {allCategories.slice(0, 3).map((cat) => (
-              <button key={cat} className="hl-link" onClick={() => { setActiveCategory(cat); document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" }); }}>
-                {cat === "All" ? "Shop" : cat}
-              </button>
-            ))}
           </div>
           <a href={`/store/${slug}`} className="hl-logo">
             {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
