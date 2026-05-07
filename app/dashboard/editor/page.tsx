@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
+import { revalidateStore } from "../../actions/revalidate-store";
 
 /* ─── TYPES ─── */
 interface Seller {
@@ -122,7 +123,9 @@ export default function StoreEditor() {
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // getSession() is local; getUser() validates against Supabase (extra round-trip).
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) { router.push("/login"); return; }
       const { data: s } = await supabase.from("sellers").select("*").eq("email", user.email).single();
       if (!s) { router.push("/dashboard"); return; }
@@ -273,6 +276,7 @@ export default function StoreEditor() {
     setSaved(true);
     setSaving(false);
     setTimeout(() => setSaved(false), 3000);
+    if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
   };
 
   /* ─── LOGO UPLOAD ─── */
@@ -949,6 +953,7 @@ export default function StoreEditor() {
                           items[i] = { ...items[i], title: e.target.value };
                           await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
                           setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
+                          if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
                         }}
                         placeholder="e.g. Shipping"
                         style={{ ...inputStyle, fontWeight: 700 }} />
@@ -960,6 +965,7 @@ export default function StoreEditor() {
                           items[i] = { ...items[i], desc: e.target.value };
                           await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
                           setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
+                          if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
                         }}
                         placeholder="Description..."
                         rows={3}
