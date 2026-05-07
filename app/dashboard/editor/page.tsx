@@ -127,7 +127,9 @@ export default function StoreEditor() {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user) { router.push("/login"); return; }
-      const { data: s } = await supabase.from("sellers").select("*").eq("email", user.email).single();
+      // Explicit columns — only what the editor actually uses. Skipping the bigger
+      // checkout_config / subscription_* / payfast_* fields keeps this row small.
+      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, store_config").eq("email", user.email).single();
       if (!s) { router.push("/dashboard"); return; }
       setSeller(s);
       setTagline(s.tagline || "");
