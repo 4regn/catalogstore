@@ -287,9 +287,18 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   };
 
   /* ─── CHECKOUT (redirect to existing route) ─── */
+  // Checkout page reads cart from a base64-encoded `?cart=` URL param, not sessionStorage.
+  // Match the encoding the other templates already use so checkout receives our items.
   const goToCheckout = () => {
-    sessionStorage.setItem("heirloom_cart_" + slug, JSON.stringify(cart));
-    window.location.href = `/store/${slug}/checkout`;
+    const payload = cart.map((i) => ({
+      name: i.product.name,
+      price: i.product.price,
+      qty: i.qty,
+      variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
+      image: i.product.image_url || "",
+    }));
+    const encoded = btoa(JSON.stringify(payload));
+    window.location.href = `/store/${slug}/checkout?cart=${encoded}`;
   };
 
   /* ─── WHATSAPP ORDER ─── */
@@ -643,8 +652,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-pdp-actions{margin-top:auto;padding-top:32px;display:flex;flex-direction:column;gap:10px}
 .hl-pdp-add{background:var(--ink);color:#fff;border:none;padding:18px;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s}
 .hl-pdp-add:hover{opacity:0.85}
-.hl-pdp-wa{background:none;border:1px solid var(--rule);padding:14px;font-family:var(--sans);font-size:10px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;color:var(--ink);text-align:center;text-decoration:none;display:block}
-.hl-pdp-wa:hover{border-color:var(--ink)}
+.hl-pdp-wa{display:block;padding:8px 0 0;font-family:var(--sans);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-align:center;text-decoration:underline;text-underline-offset:3px;cursor:pointer;background:none;border:none;width:100%}
+.hl-pdp-wa:hover{color:var(--ink)}
 .hl-pdp-err{color:#7a3a3a;font-size:11px;letter-spacing:1px;margin-top:8px}
 
 @media (max-width:900px){
@@ -762,7 +771,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               </div>
               <p className="hl-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>
               <button className="hl-cart-checkout" onClick={goToCheckout}>Checkout</button>
-              <button className="hl-cart-wa" onClick={orderViaWhatsApp}>Order via WhatsApp</button>
               <button className="hl-cart-cont" onClick={() => setCartOpen(false)}>Continue Browsing</button>
             </div>
           )}
@@ -968,15 +976,13 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                         {!p.image_url && <span className="hl-p-mark">{slugify(p.name)}.</span>}
                       </div>
                     </div>
-                    <a
+                    <button
                       className="hl-pwa"
-                      href={productWaLink(p)}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openProduct(p); }}
                     >
-                      WhatsApp Us
-                    </a>
+                      Add to Bag
+                    </button>
                     <div className="hl-pinfo">
                       <div className="hl-pcat">{p.category}</div>
                       <div className="hl-pname">{p.name}</div>
