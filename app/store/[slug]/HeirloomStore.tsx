@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
@@ -124,9 +124,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
-  // Image lightbox: when set, renders a full-screen overlay of the image so customers can
-  // pinch-zoom and inspect details. Tap outside or X to close.
-  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+  // Lightbox gallery: when set, full-screen overlay shows the product's images and lets the
+  // customer swipe / tap arrows / press arrow keys to browse, and pinch-zoom natively.
+  const [lightbox, setLightbox] = useState<{ imgs: string[]; index: number } | null>(null);
   const [selectedVariants, setSelectedVariants] = useState<{ [k: string]: string }>({});
   const [localQty, setLocalQty] = useState(1);
   const [variantError, setVariantError] = useState(false);
@@ -264,13 +264,20 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
   /* ─── BODY SCROLL LOCK ─── */
   useEffect(() => {
-    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen || !!lightboxImg) ? "hidden" : "";
-    if (!lightboxImg) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxImg(null); };
+    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen || !!lightbox) ? "hidden" : "";
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+      else if (e.key === "ArrowLeft" && lightbox.imgs.length > 1) {
+        setLightbox((s) => s ? { ...s, index: (s.index - 1 + s.imgs.length) % s.imgs.length } : s);
+      } else if (e.key === "ArrowRight" && lightbox.imgs.length > 1) {
+        setLightbox((s) => s ? { ...s, index: (s.index + 1) % s.imgs.length } : s);
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     return () => { document.body.style.overflow = ""; };
-  }, [cartOpen, selectedProduct, mobileNavOpen, lightboxImg]);
+  }, [cartOpen, selectedProduct, mobileNavOpen, lightbox]);
 
   /* ─── CART OPS ─── */
   const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
@@ -663,12 +670,26 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:32px;gap:8px;border-right:1px solid var(--rule)}
 .hl-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#fafafa;cursor:zoom-in;overflow:hidden;width:100%;max-width:100%;border-radius:2px}
 .hl-pdp-main-mark{font-family:var(--serif);font-style:italic;font-size:48px;color:rgba(255,255,255,0.2);letter-spacing:-1px}
-.hl-pdp-zoom-hint{position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.85);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:var(--ink);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:6px 10px;border-radius:2px;pointer-events:none;font-weight:500}
-.hl-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:16px;animation:hl-lb-fade 0.2s ease-out}
+.hl-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px;animation:hl-lb-fade 0.2s ease-out}
 @keyframes hl-lb-fade{from{opacity:0}to{opacity:1}}
-.hl-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-touch-callout:default;-webkit-user-select:none;user-select:none}
-.hl-lb-close{position:fixed;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background 0.2s}
-.hl-lb-close:hover{background:rgba(255,255,255,0.2)}
+.hl-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pan-y pinch-zoom}
+.hl-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-touch-callout:default;-webkit-user-select:none;user-select:none;pointer-events:none}
+.hl-lb-close{position:fixed;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.08);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background 0.2s;font-family:var(--sans);font-weight:300}
+.hl-lb-close:hover{background:rgba(255,255,255,0.18)}
+.hl-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,0.06);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background 0.2s,opacity 0.2s;line-height:0;font-family:Georgia,serif;padding-bottom:4px}
+.hl-lb-nav:hover{background:rgba(255,255,255,0.16)}
+.hl-lb-prev{left:18px}
+.hl-lb-next{right:18px}
+.hl-lb-dots{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:100px;background:rgba(255,255,255,0.06);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.hl-lb-dot{width:6px;height:6px;border-radius:50%;border:none;padding:0;background:rgba(255,255,255,0.35);cursor:pointer;transition:background 0.2s,transform 0.2s}
+.hl-lb-dot:hover{background:rgba(255,255,255,0.6)}
+.hl-lb-dot.active{background:#fff;transform:scale(1.3)}
+@media (max-width:600px){
+  .hl-lb-nav{width:40px;height:40px;font-size:22px}
+  .hl-lb-prev{left:8px}
+  .hl-lb-next{right:8px}
+  .hl-lb-close{top:12px;right:12px;width:40px;height:40px}
+}
 .hl-pdp-thumbs{display:flex;gap:8px;flex-wrap:wrap}
 .hl-pdp-thumb{width:64px;height:64px;border:1px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;background:none;background-size:cover;background-position:center;padding:0}
 .hl-pdp-thumb.active{border-color:var(--ink)}
@@ -844,14 +865,13 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     <div
                       className={"hl-pdp-main " + (mainImg ? "" : fallbackPattern)}
                       style={mainImg ? { backgroundImage: `url("${mainImg}")` } : {}}
-                      role={mainImg ? "button" : undefined}
-                      tabIndex={mainImg ? 0 : undefined}
-                      onClick={() => mainImg && setLightboxImg(mainImg)}
-                      onKeyDown={(e) => { if (mainImg && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLightboxImg(mainImg); } }}
-                      aria-label={mainImg ? "Tap to zoom" : undefined}
+                      role={allImgs.length > 0 ? "button" : undefined}
+                      tabIndex={allImgs.length > 0 ? 0 : undefined}
+                      onClick={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
+                      onKeyDown={(e) => { if (allImgs.length > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLightbox({ imgs: allImgs, index: activeImg }); } }}
+                      aria-label={allImgs.length > 0 ? "View images" : undefined}
                     >
                       {!mainImg && <span className="hl-pdp-main-mark">{slugify(p.name)}.</span>}
-                      {mainImg && <span className="hl-pdp-zoom-hint">↗ Tap to zoom</span>}
                     </div>
                     {allImgs.length > 1 && (
                       <div className="hl-pdp-thumbs">
@@ -904,24 +924,15 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           })()}
         </aside>
 
-        {/* IMAGE LIGHTBOX — tap main PDP image to open; pinch to zoom natively. */}
-        {lightboxImg && (
-          <div className="hl-lb" onClick={() => setLightboxImg(null)} role="dialog" aria-modal="true" aria-label="Image zoom">
-            <button
-              className="hl-lb-close"
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setLightboxImg(null); }}
-              aria-label="Close zoom"
-            >
-              ✕
-            </button>
-            <img
-              src={lightboxImg}
-              alt=""
-              className="hl-lb-img"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
+        {/* IMAGE LIGHTBOX GALLERY — tap main PDP image to open. Swipe / arrow keys / arrow
+            buttons to browse. Pinch to zoom natively. */}
+        {lightbox && (
+          <LightboxGallery
+            imgs={lightbox.imgs}
+            index={lightbox.index}
+            onClose={() => setLightbox(null)}
+            onIndex={(i) => setLightbox((s) => s ? { ...s, index: i } : s)}
+          />
         )}
 
         {/* NAV */}
@@ -1223,5 +1234,87 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         </EditSection>
       </div>
     </>
+  );
+}
+
+// Full-screen image gallery overlay used by the PDP. No tap-to-zoom badge — the affordance
+// is just that the image is tappable. Once open, customers swipe left/right (mobile) or
+// click the side arrows / press arrow keys (desktop) to browse all the product's images.
+// Pinch-to-zoom is left to the browser since the image is a plain <img> with object-fit:
+// contain — works natively on iOS/Android.
+function LightboxGallery({ imgs, index, onClose, onIndex }: {
+  imgs: string[];
+  index: number;
+  onClose: () => void;
+  onIndex: (i: number) => void;
+}) {
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  const onTouchStart = (e: ReactTouchEvent) => setTouchStartX(e.touches[0].clientX);
+  const onTouchEnd = (e: ReactTouchEvent) => {
+    if (touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    setTouchStartX(null);
+    if (Math.abs(dx) < 40) return; // ignore taps and tiny moves
+    if (dx < 0 && index < imgs.length - 1) onIndex(index + 1);
+    else if (dx > 0 && index > 0) onIndex(index - 1);
+  };
+
+  return (
+    <div className="hl-lb" onClick={onClose} role="dialog" aria-modal="true" aria-label="Product images">
+      <button
+        className="hl-lb-close"
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        aria-label="Close"
+      >
+        ✕
+      </button>
+
+      <div
+        className="hl-lb-stage"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <img src={imgs[index]} alt="" className="hl-lb-img" draggable={false} />
+      </div>
+
+      {imgs.length > 1 && (
+        <>
+          {index > 0 && (
+            <button
+              className="hl-lb-nav hl-lb-prev"
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onIndex(index - 1); }}
+              aria-label="Previous image"
+            >
+              ‹
+            </button>
+          )}
+          {index < imgs.length - 1 && (
+            <button
+              className="hl-lb-nav hl-lb-next"
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onIndex(index + 1); }}
+              aria-label="Next image"
+            >
+              ›
+            </button>
+          )}
+          <div className="hl-lb-dots" onClick={(e) => e.stopPropagation()}>
+            {imgs.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                className={"hl-lb-dot" + (i === index ? " active" : "")}
+                onClick={() => onIndex(i)}
+                aria-label={`Image ${i + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
