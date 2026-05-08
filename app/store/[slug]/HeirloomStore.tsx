@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
+import { useState, useEffect, useRef, useTransition, type TouchEvent as ReactTouchEvent } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
@@ -94,6 +94,11 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  // Wrap router.push so we can show a progress bar at the top of the page during the
+  // server-rendered collection / home navigations (otherwise the page just silently
+  // reloads, which feels broken to customers used to traditional sites).
+  const [isNavigating, startNavigation] = useTransition();
+  const navigate = (path: string) => startNavigation(() => router.push(path));
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
 
@@ -327,29 +332,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     window.location.href = `/store/${slug}/checkout?cart=${encoded}`;
   };
 
-  /* ─── WHATSAPP ORDER ─── */
-  const orderViaWhatsApp = () => {
-    if (!seller) return;
-    const lines = cart.map((i) => {
-      const vars = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(", ");
-      return `• ${i.product.name}${vars ? ` (${vars})` : ""} × ${i.qty} — ${fmt(i.product.price * i.qty)}`;
-    }).join("\n");
-    const total = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
-    const msg = `Hi! I'd like to order from ${seller.store_name}:\n\n${lines}\n\nTotal: ${fmt(total)}`;
-    const number = (seller.whatsapp_number || "").replace(/\D/g, "");
-    window.open(`https://wa.me/${number}?text=${encodeURIComponent(msg)}`, "_blank");
-  };
-
-  const productWaLink = (p: Product) => {
-    if (!seller) return "#";
-    const number = (seller.whatsapp_number || "").replace(/\D/g, "");
-    const msg = `Hi! I'm interested in the ${p.name} (${fmt(p.price)})`;
-    return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`;
-  };
-
   /* ─── DERIVED ─── */
   const allCategories = ["All", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
   const categoryList = allCategories.filter((c) => c !== "All").slice(0, 4);
+  // Hamburger menu sourced from the seller's full collections list so it stays consistent
+  // across home and collection pages (where `products` only contains one collection).
+  const menuCategories = ["All", ...((seller?.collections || []).filter(Boolean))];
   // In collection view, the URL pins us to one collection. The server already filtered the
   // products for us (handles both named collections and the special "all" slug), so we just
   // render whatever it sent. The in-page activeCategory filter only applies on the home page.
@@ -487,8 +475,11 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-nav-right{display:flex;justify-content:flex-end;align-items:center;gap:24px}
 .hl-link{font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:var(--dim);transition:color 0.2s;background:none;border:none;cursor:pointer;font-family:var(--sans)}
 .hl-link:hover{color:var(--ink)}
-.hl-logo{font-family:var(--serif);font-style:italic;font-size:26px;letter-spacing:1px;color:var(--ink);text-decoration:none;line-height:1}
+.hl-logo{font-family:var(--serif);font-style:italic;font-size:26px;letter-spacing:1px;color:var(--ink);text-decoration:none;line-height:1;justify-self:center}
 .hl-logo img{height:32px;width:auto;display:block}
+.hl-progress{position:fixed;top:0;left:0;right:0;height:2px;z-index:200;background:transparent;overflow:hidden;pointer-events:none}
+.hl-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:30%;background:linear-gradient(90deg,transparent 0%,var(--ink) 50%,transparent 100%);animation:hl-progress 1s ease-in-out infinite}
+@keyframes hl-progress{from{transform:translateX(-100%)}to{transform:translateX(450%)}}
 .hl-bag{font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:var(--ink);border:none;border-bottom:1px solid var(--ink);padding:0 0 1px;background:none;cursor:pointer;font-family:var(--sans)}
 .hl-bag:hover{opacity:0.5}
 .hl-bag-count{display:inline-block;margin-left:4px;font-weight:700}
@@ -709,8 +700,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-pdp-actions{margin-top:auto;padding-top:32px;display:flex;flex-direction:column;gap:10px}
 .hl-pdp-add{background:var(--ink);color:#fff;border:none;padding:18px;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s}
 .hl-pdp-add:hover{opacity:0.85}
-.hl-pdp-wa{display:block;padding:8px 0 0;font-family:var(--sans);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-align:center;text-decoration:underline;text-underline-offset:3px;cursor:pointer;background:none;border:none;width:100%}
-.hl-pdp-wa:hover{color:var(--ink)}
 .hl-pdp-err{color:#7a3a3a;font-size:11px;letter-spacing:1px;margin-top:8px}
 
 @media (max-width:900px){
@@ -746,6 +735,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       `}</style>
 
       <div className="hl-root">
+        {/* TOP PROGRESS BAR — visible while a server-rendered navigation is in flight. */}
+        {isNavigating && <div className="hl-progress" aria-hidden="true" />}
         {/* TICKER */}
         {(displayTicker.length > 0) && (
           <div className="hl-ticker">
@@ -770,7 +761,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             <button className="hl-mm-close" onClick={() => setMobileNavOpen(false)}>✕</button>
           </div>
           <nav>
-            {allCategories.map((cat) => (
+            {menuCategories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => {
@@ -778,7 +769,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   // Both "All" and named collections go to /c/<slug>. The home page is the
                   // marketing landing (hero + categories grid + flash sale + newsletter);
                   // the All Products view is its own focused page.
-                  router.push(`/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
+                  navigate(`/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
                 }}
               >
                 {cat === "All" ? "All Products" : cat}
@@ -915,7 +906,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                       <button className="hl-pdp-add" onClick={handleAddToCart}>
                         Add to Bag — {fmt(p.price * localQty)}
                       </button>
-                      <a className="hl-pdp-wa" href={productWaLink(p)} target="_blank" rel="noreferrer">Ask About This Piece</a>
                     </div>
                   </div>
                 </div>
@@ -1005,7 +995,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               onClick={() => {
                 // Use browser-native back if there's history; otherwise fall back to the landing page.
                 if (typeof window !== "undefined" && window.history.length > 1) router.back();
-                else router.push(`/store/${slug}`);
+                else navigate(`/store/${slug}`);
               }}
             >
               ← Back
@@ -1030,7 +1020,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   <button
                     key={cat}
                     className="hl-cat-item"
-                    onClick={() => router.push(`/store/${slug}/c/${collectionSlug(cat)}`)}
+                    onClick={() => navigate(`/store/${slug}/c/${collectionSlug(cat)}`)}
                   >
                     <div className="hl-cat-img">
                       <div
@@ -1188,13 +1178,13 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               <div className="hl-foot-col">
                 <h4>Shop</h4>
                 <ul>
-                  {allCategories.slice(0, 4).map((cat) => {
+                  {menuCategories.slice(0, 5).map((cat) => {
                     const target = `/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`;
                     return (
                     <li key={cat}>
                       <a
                         href={target}
-                        onClick={(e) => { e.preventDefault(); router.push(target); }}
+                        onClick={(e) => { e.preventDefault(); navigate(target); }}
                       >
                         {cat === "All" ? "All Products" : cat}
                       </a>
