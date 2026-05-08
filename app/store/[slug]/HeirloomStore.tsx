@@ -336,9 +336,13 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   /* ─── DERIVED ─── */
   const allCategories = ["All", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
   const categoryList = allCategories.filter((c) => c !== "All").slice(0, 4);
-  // In collection view, the URL pins us to one collection; ignore the in-page activeCategory filter.
+  // In collection view, the URL pins us to one collection. The server already filtered the
+  // products for us (handles both named collections and the special "all" slug), so we just
+  // render whatever it sent. The in-page activeCategory filter only applies on the home page.
   const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
-  const filtered = effectiveCategory === "All" ? products : products.filter((p) => p.category === effectiveCategory);
+  const filtered = isCollectionView
+    ? products
+    : (activeCategory === "All" ? products : products.filter((p) => p.category === activeCategory));
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? 800;
@@ -474,7 +478,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-bag{font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:var(--ink);border:none;border-bottom:1px solid var(--ink);padding:0 0 1px;background:none;cursor:pointer;font-family:var(--sans)}
 .hl-bag:hover{opacity:0.5}
 .hl-bag-count{display:inline-block;margin-left:4px;font-weight:700}
-.hl-burger{display:none;background:none;border:none;cursor:pointer;width:24px;height:24px;flex-direction:column;justify-content:space-between;padding:5px 0}
+.hl-burger{display:flex;background:none;border:none;cursor:pointer;width:24px;height:24px;flex-direction:column;justify-content:space-between;padding:5px 0}
 .hl-burger span{display:block;width:100%;height:1px;background:var(--ink);transition:0.3s}
 
 .hl-hero{position:relative;width:100%;height:100vh;min-height:640px;border-bottom:1px solid var(--rule);overflow:hidden;display:flex;align-items:flex-end;background:radial-gradient(ellipse at 75% 30%,rgba(90,80,70,0.4) 0%,transparent 60%),linear-gradient(180deg,#1a1715 0%,#0d0b0a 100%)}
@@ -510,7 +514,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-rule-right:hover{opacity:0.5}
 
 .hl-coll-header{padding:64px 48px 48px;border-bottom:1px solid var(--rule);background:#fff;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
-.hl-coll-back{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:2px;transition:color 0.2s,border-color 0.2s}
+.hl-coll-back{display:inline-block;background:none;border:none;border-bottom:1px solid var(--rule);padding:0 0 2px;font-family:var(--sans);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;cursor:pointer;transition:color 0.2s,border-color 0.2s}
 .hl-coll-back:hover{color:var(--ink);border-color:var(--ink)}
 .hl-coll-title{font-family:var(--serif);font-size:clamp(36px,5vw,64px);font-weight:400;color:var(--ink);line-height:1;margin:8px 0 4px;letter-spacing:-0.01em}
 .hl-coll-count{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
@@ -677,8 +681,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
 @media (max-width:900px){
   .hl-nav{padding:0 20px;grid-template-columns:auto 1fr auto;height:56px}
-  .hl-nav-left,.hl-nav-right-links{display:none}
-  .hl-burger{display:flex;order:1}
+  .hl-nav-right-links{display:none}
+  .hl-burger{order:1}
   .hl-logo{font-size:22px;text-align:center;order:2}
   .hl-nav-right{order:3;gap:12px}
   .hl-hero-left{padding:0 28px 48px}
@@ -735,12 +739,13 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 key={cat}
                 onClick={() => {
                   setMobileNavOpen(false);
-                  // "All" = back to landing; named collections = /c/<slug>.
-                  if (cat === "All") router.push(`/store/${slug}`);
-                  else router.push(`/store/${slug}/c/${collectionSlug(cat)}`);
+                  // Both "All" and named collections go to /c/<slug>. The home page is the
+                  // marketing landing (hero + categories grid + flash sale + newsletter);
+                  // the All Products view is its own focused page.
+                  router.push(`/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
                 }}
               >
-                {cat === "All" ? "Shop All" : cat}
+                {cat === "All" ? "All Products" : cat}
               </button>
             ))}
             <button onClick={() => { setMobileNavOpen(false); setCartOpen(true); }}>
@@ -882,18 +887,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         <nav className="hl-nav">
           <div className="hl-nav-left">
             <button className="hl-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu"><span /><span /><span /></button>
-            {allCategories.slice(0, 3).map((cat) => (
-              <button
-                key={cat}
-                className="hl-link"
-                onClick={() => {
-                  if (cat === "All") router.push(`/store/${slug}`);
-                  else router.push(`/store/${slug}/c/${collectionSlug(cat)}`);
-                }}
-              >
-                {cat === "All" ? "Shop" : cat}
-              </button>
-            ))}
           </div>
           <a href={`/store/${slug}`} className="hl-logo">
             {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
@@ -954,7 +947,17 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         {/* COLLECTION HEADER — only on collection page */}
         {isCollectionView && (
           <div className="hl-coll-header">
-            <a href={`/store/${slug}`} className="hl-coll-back">← All Products</a>
+            <button
+              type="button"
+              className="hl-coll-back"
+              onClick={() => {
+                // Use browser-native back if there's history; otherwise fall back to the landing page.
+                if (typeof window !== "undefined" && window.history.length > 1) router.back();
+                else router.push(`/store/${slug}`);
+              }}
+            >
+              ← Back
+            </button>
             <h1 className="hl-coll-title">{collectionName}</h1>
             <div className="hl-coll-count">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</div>
           </div>
@@ -1133,16 +1136,19 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               <div className="hl-foot-col">
                 <h4>Shop</h4>
                 <ul>
-                  {allCategories.slice(0, 4).map((cat) => (
+                  {allCategories.slice(0, 4).map((cat) => {
+                    const target = `/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`;
+                    return (
                     <li key={cat}>
                       <a
-                        href={cat === "All" ? `/store/${slug}` : `/store/${slug}/c/${collectionSlug(cat)}`}
-                        onClick={(e) => { e.preventDefault(); router.push(cat === "All" ? `/store/${slug}` : `/store/${slug}/c/${collectionSlug(cat)}`); }}
+                        href={target}
+                        onClick={(e) => { e.preventDefault(); router.push(target); }}
                       >
-                        {cat === "All" ? "All Pieces" : cat}
+                        {cat === "All" ? "All Products" : cat}
                       </a>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </div>
               <div className="hl-foot-col">

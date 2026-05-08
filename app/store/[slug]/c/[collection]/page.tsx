@@ -37,21 +37,44 @@ export default async function CollectionPage({
   // Only Heirloom renders collection pages. Other templates send the visitor home.
   if (seller.template !== "heirloom") redirect(`/store/${slug}`);
 
-  // Resolve the URL slug back to the seller's actual collection name (e.g. "rare-finds" -> "Rare Finds").
-  const collections: string[] = Array.isArray(seller.collections) ? seller.collections : [];
-  const matched = collections.find((c) => slugify(c) === collection.toLowerCase());
-  if (!matched) notFound();
+  // Special-case "all": render every published in-stock product without a category filter.
+  const isAll = collection.toLowerCase() === "all";
+
+  // For named collections, accept the URL slug if it matches EITHER the seller's explicit
+  // collections list OR a category that's actually used on a product. The dashboard doesn't
+  // always sync product.category back into seller.collections (e.g. CSV import), so checking
+  // both prevents 404s on collections the seller can clearly see in their menu.
+  let matched: string | null = null;
+  if (!isAll) {
+    const collections: string[] = Array.isArray(seller.collections) ? seller.collections : [];
+    matched = collections.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
+
+    if (!matched) {
+      const { data: distinctCats } = await supabaseAdmin
+        .from("products")
+        .select("category")
+        .eq("seller_id", seller.id)
+        .eq("in_stock", true)
+        .eq("status", "published")
+        .not("category", "is", null);
+      const cats = Array.from(new Set((distinctCats ?? []).map((r: { category: string }) => r.category).filter(Boolean)));
+      matched = cats.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
+    }
+
+    if (!matched) notFound();
+  }
 
   // Pull only the products in this collection — saves bytes vs. loading all and filtering client-side.
+  const productsQuery = supabaseAdmin
+    .from("products")
+    .select(PRODUCT_COLUMNS)
+    .eq("seller_id", seller.id)
+    .eq("in_stock", true)
+    .eq("status", "published")
+    .order("sort_order", { ascending: true });
+
   const [productsRes, discountsRes] = await Promise.all([
-    supabaseAdmin
-      .from("products")
-      .select(PRODUCT_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("category", matched)
-      .eq("in_stock", true)
-      .eq("status", "published")
-      .order("sort_order", { ascending: true }),
+    isAll ? productsQuery : productsQuery.eq("category", matched!),
     supabaseAdmin
       .from("discount_codes")
       .select(DISCOUNT_COLUMNS)
@@ -67,7 +90,7 @@ export default async function CollectionPage({
       initialProducts={productsRes.data ?? []}
       initialDiscountCodes={discountsRes.data ?? []}
       mode="collection"
-      collectionName={matched}
+      collectionName={isAll ? "All Products" : matched!}
     />
   );
 }
