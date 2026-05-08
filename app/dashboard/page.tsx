@@ -88,6 +88,7 @@ export default function Dashboard() {
   const [formPrice, setFormPrice] = useState("");
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
+  const [formDescription, setFormDescription] = useState("");
   const [formImages, setFormImages] = useState<File[]>([]);
   const [formPreviews, setFormPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -211,8 +212,8 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
 
   const addVariant = () => setFormVariants([...formVariants, { name: "", options: [""] }]);
   const removeVariant = (i: number) => setFormVariants(formVariants.filter((_, idx) => idx !== i));
@@ -285,14 +286,14 @@ export default function Dashboard() {
       if (formImages.length > 0) { newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, newUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
       ]);
       const { data, error } = insertResult;
       if (error || !data) { setFormSaving(false); return; }
@@ -649,8 +650,20 @@ export default function Dashboard() {
                   )}
                 </div>
 
+                {/* 6. DESCRIPTION */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 8 }}>Description (optional)</label>
+                  <textarea
+                    placeholder="Tell shoppers about this piece — fabric, fit, story, anything that helps them decide."
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    rows={5}
+                    style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const, lineHeight: 1.5 }}
+                  />
+                </div>
+
                 {uploadProgress && <div style={{ marginTop: 12, fontSize: 12, color: N }}>{uploadProgress}</div>}
-                {/* 6. SAVE */}
+                {/* 7. SAVE */}
                 <button type="submit" disabled={formSaving} style={{ width: "100%", padding: "14px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: formSaving ? "not-allowed" : "pointer", opacity: formSaving ? 0.6 : 1, marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{formSaving ? "Saving..." : editingId ? "Save Changes" : "Save Product"}</button>
               </form>
             </div>)}
