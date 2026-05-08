@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
 /* ─── TYPES ─────────────────────────────────────────────── */
 interface SocialLinks {
@@ -61,10 +61,20 @@ const fmt = (n: number) => "R " + n.toLocaleString("en-ZA");
 const pad = (n: number) => String(n).padStart(2, "0");
 const slugify = (s: string) => s.toLowerCase().split(" — ")[0].split(" ")[0];
 
+// URL-safe slug for collection names. "Rare Finds" -> "rare-finds", "Under R1000" -> "under-r1000".
+// Used to build collection-page URLs from collection display names.
+export const collectionSlug = (name: string) =>
+  name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
 interface StorePageProps {
   initialSeller?: Seller;
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
+  // When mode === "collection" the page renders just nav/footer/cart shell + a single
+  // collection's products. The hero, categories grid, flash sale and newsletter sections
+  // are skipped because they belong on the landing page.
+  mode?: "home" | "collection";
+  collectionName?: string;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[]; countdown: PromoDiscount | null } => {
@@ -79,9 +89,11 @@ const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[
   return { discounts: active, countdown: storePromo ? { ...storePromo, timeLeft: "" } : null };
 };
 
-export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes }: StorePageProps = {}) {
+export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes, mode = "home", collectionName }: StorePageProps = {}) {
+  const isCollectionView = mode === "collection";
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
 
@@ -324,7 +336,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   /* ─── DERIVED ─── */
   const allCategories = ["All", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
   const categoryList = allCategories.filter((c) => c !== "All").slice(0, 4);
-  const filtered = activeCategory === "All" ? products : products.filter((p) => p.category === activeCategory);
+  // In collection view, the URL pins us to one collection; ignore the in-page activeCategory filter.
+  const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
+  const filtered = effectiveCategory === "All" ? products : products.filter((p) => p.category === effectiveCategory);
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? 800;
@@ -495,6 +509,11 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-rule-right{font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:var(--ink);border:none;border-bottom:1px solid var(--ink);padding:0 0 1px;background:none;cursor:pointer;font-family:var(--sans)}
 .hl-rule-right:hover{opacity:0.5}
 
+.hl-coll-header{padding:64px 48px 48px;border-bottom:1px solid var(--rule);background:#fff;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.hl-coll-back{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:2px;transition:color 0.2s,border-color 0.2s}
+.hl-coll-back:hover{color:var(--ink);border-color:var(--ink)}
+.hl-coll-title{font-family:var(--serif);font-size:clamp(36px,5vw,64px);font-weight:400;color:var(--ink);line-height:1;margin:8px 0 4px;letter-spacing:-0.01em}
+.hl-coll-count{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
 .hl-cat-row{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);background:#fff}
 .hl-cat-item{position:relative;overflow:hidden;border-right:1px solid var(--rule);text-decoration:none;color:var(--ink);display:block;cursor:pointer;background:none;border-top:none;border-bottom:none;border-left:none;font-family:var(--sans);text-align:left;padding:0;width:100%}
 .hl-cat-item:last-child{border-right:none}
@@ -712,7 +731,15 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           </div>
           <nav>
             {allCategories.map((cat) => (
-              <button key={cat} onClick={() => { setActiveCategory(cat); setMobileNavOpen(false); document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" }); }}>
+              <button
+                key={cat}
+                onClick={() => {
+                  setMobileNavOpen(false);
+                  // "All" = back to landing; named collections = /c/<slug>.
+                  if (cat === "All") router.push(`/store/${slug}`);
+                  else router.push(`/store/${slug}/c/${collectionSlug(cat)}`);
+                }}
+              >
                 {cat === "All" ? "Shop All" : cat}
               </button>
             ))}
@@ -856,7 +883,14 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           <div className="hl-nav-left">
             <button className="hl-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu"><span /><span /><span /></button>
             {allCategories.slice(0, 3).map((cat) => (
-              <button key={cat} className="hl-link" onClick={() => { setActiveCategory(cat); document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" }); }}>
+              <button
+                key={cat}
+                className="hl-link"
+                onClick={() => {
+                  if (cat === "All") router.push(`/store/${slug}`);
+                  else router.push(`/store/${slug}/c/${collectionSlug(cat)}`);
+                }}
+              >
                 {cat === "All" ? "Shop" : cat}
               </button>
             ))}
@@ -871,7 +905,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           </div>
         </nav>
 
-        {/* HERO */}
+        {/* HERO — only on landing page */}
+        {!isCollectionView && (
         <EditSection id="hero">
           <section
             className={"hl-hero" + (displayHeroImage ? " has-img" : "")}
@@ -914,9 +949,19 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             )}
           </section>
         </EditSection>
+        )}
 
-        {/* CATEGORIES */}
-        {categoryList.length > 0 && (
+        {/* COLLECTION HEADER — only on collection page */}
+        {isCollectionView && (
+          <div className="hl-coll-header">
+            <a href={`/store/${slug}`} className="hl-coll-back">← All Products</a>
+            <h1 className="hl-coll-title">{collectionName}</h1>
+            <div className="hl-coll-count">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</div>
+          </div>
+        )}
+
+        {/* CATEGORIES — only on landing page */}
+        {!isCollectionView && categoryList.length > 0 && (
           <EditSection id="categories">
             <div className="hl-rule">
               <span className="hl-rule-left">Categories</span>
@@ -930,7 +975,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   <button
                     key={cat}
                     className="hl-cat-item"
-                    onClick={() => { setActiveCategory(cat); document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" }); }}
+                    onClick={() => router.push(`/store/${slug}/c/${collectionSlug(cat)}`)}
                   >
                     <div className="hl-cat-img">
                       <div
@@ -954,7 +999,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         {/* PRODUCTS */}
         <div id="hl-products">
           <div className="hl-rule">
-            <span className="hl-rule-left">{activeCategory === "All" ? "Latest Arrivals" : activeCategory}</span>
+            <span className="hl-rule-left">{effectiveCategory === "All" ? "Latest Arrivals" : effectiveCategory}</span>
             <button className="hl-rule-right">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</button>
           </div>
           <EditSection id="products">
@@ -1000,8 +1045,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           </EditSection>
         </div>
 
-        {/* FLASH SALE */}
-        {showFlash && flashSaleProducts.length > 0 && (
+        {/* FLASH SALE — only on landing page */}
+        {!isCollectionView && showFlash && flashSaleProducts.length > 0 && (
           <EditSection id="flash">
             <div className="hl-flash">
               <div className="hl-flash-h">
@@ -1053,8 +1098,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           </EditSection>
         )}
 
-        {/* NEWSLETTER */}
-        {showNewsletter && (
+        {/* NEWSLETTER — only on landing page */}
+        {!isCollectionView && showNewsletter && (
           <EditSection id="newsletter">
             <section className="hl-newsletter">
               <div className="hl-nl-lbl">{nlLabel}</div>
@@ -1090,7 +1135,10 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 <ul>
                   {allCategories.slice(0, 4).map((cat) => (
                     <li key={cat}>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setActiveCategory(cat); document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" }); }}>
+                      <a
+                        href={cat === "All" ? `/store/${slug}` : `/store/${slug}/c/${collectionSlug(cat)}`}
+                        onClick={(e) => { e.preventDefault(); router.push(cat === "All" ? `/store/${slug}` : `/store/${slug}/c/${collectionSlug(cat)}`); }}
+                      >
                         {cat === "All" ? "All Pieces" : cat}
                       </a>
                     </li>
