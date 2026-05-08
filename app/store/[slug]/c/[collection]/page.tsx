@@ -1,0 +1,96 @@
+import { notFound, redirect } from "next/navigation";
+import dynamic from "next/dynamic";
+import { supabaseAdmin } from "../../../../../lib/supabase-admin";
+
+export const revalidate = 60;
+
+// Heirloom is the only template that supports dedicated collection pages today.
+// If a seller on another template ends up here (e.g. someone shared a deep link),
+// fall back to the main storefront so they don't see a broken page.
+const Heirloom = dynamic(() => import("../../HeirloomStore"));
+
+const SELLER_COLUMNS =
+  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, trial_ends_at, payfast_subscription_token";
+const PRODUCT_COLUMNS =
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status";
+const DISCOUNT_COLUMNS =
+  "code, type, value, applies_to, expires_at, product_ids, collection_names";
+
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+export default async function CollectionPage({
+  params,
+}: {
+  params: Promise<{ slug: string; collection: string }>;
+}) {
+  const { slug, collection } = await params;
+
+  const { data: seller } = await supabaseAdmin
+    .from("sellers")
+    .select(SELLER_COLUMNS)
+    .eq("subdomain", slug)
+    .maybeSingle();
+
+  if (!seller) notFound();
+
+  // Only Heirloom renders collection pages. Other templates send the visitor home.
+  if (seller.template !== "heirloom") redirect(`/store/${slug}`);
+
+  // Special-case "all": render every published in-stock product without a category filter.
+  const isAll = collection.toLowerCase() === "all";
+
+  // For named collections, accept the URL slug if it matches EITHER the seller's explicit
+  // collections list OR a category that's actually used on a product. The dashboard doesn't
+  // always sync product.category back into seller.collections (e.g. CSV import), so checking
+  // both prevents 404s on collections the seller can clearly see in their menu.
+  let matched: string | null = null;
+  if (!isAll) {
+    const collections: string[] = Array.isArray(seller.collections) ? seller.collections : [];
+    matched = collections.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
+
+    if (!matched) {
+      const { data: distinctCats } = await supabaseAdmin
+        .from("products")
+        .select("category")
+        .eq("seller_id", seller.id)
+        .eq("in_stock", true)
+        .eq("status", "published")
+        .not("category", "is", null);
+      const cats = Array.from(new Set((distinctCats ?? []).map((r: { category: string }) => r.category).filter(Boolean)));
+      matched = cats.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
+    }
+
+    if (!matched) notFound();
+  }
+
+  // Pull only the products in this collection — saves bytes vs. loading all and filtering client-side.
+  const productsQuery = supabaseAdmin
+    .from("products")
+    .select(PRODUCT_COLUMNS)
+    .eq("seller_id", seller.id)
+    .eq("in_stock", true)
+    .eq("status", "published")
+    .order("sort_order", { ascending: true });
+
+  const [productsRes, discountsRes] = await Promise.all([
+    isAll ? productsQuery : productsQuery.eq("category", matched!),
+    supabaseAdmin
+      .from("discount_codes")
+      .select(DISCOUNT_COLUMNS)
+      .eq("seller_id", seller.id)
+      .eq("active", true)
+      .eq("show_countdown", true)
+      .not("expires_at", "is", null),
+  ]);
+
+  return (
+    <Heirloom
+      initialSeller={seller}
+      initialProducts={productsRes.data ?? []}
+      initialDiscountCodes={discountsRes.data ?? []}
+      mode="collection"
+      collectionName={isAll ? "All Products" : matched!}
+    />
+  );
+}
