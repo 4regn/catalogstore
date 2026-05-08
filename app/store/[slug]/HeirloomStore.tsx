@@ -124,6 +124,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
+  // Image lightbox: when set, renders a full-screen overlay of the image so customers can
+  // pinch-zoom and inspect details. Tap outside or X to close.
+  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   const [selectedVariants, setSelectedVariants] = useState<{ [k: string]: string }>({});
   const [localQty, setLocalQty] = useState(1);
   const [variantError, setVariantError] = useState(false);
@@ -261,9 +264,13 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
   /* ─── BODY SCROLL LOCK ─── */
   useEffect(() => {
-    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen) ? "hidden" : "";
+    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen || !!lightboxImg) ? "hidden" : "";
+    if (!lightboxImg) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxImg(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
     return () => { document.body.style.overflow = ""; };
-  }, [cartOpen, selectedProduct, mobileNavOpen]);
+  }, [cartOpen, selectedProduct, mobileNavOpen, lightboxImg]);
 
   /* ─── CART OPS ─── */
   const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
@@ -653,9 +660,15 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-pdp-bread{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
 .hl-pdp-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink)}
 .hl-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1}
-.hl-pdp-gal{background:var(--mid);min-height:600px;display:flex;flex-direction:column;padding:32px;gap:8px}
-.hl-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-size:cover;background-position:center}
+.hl-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:32px;gap:8px;border-right:1px solid var(--rule)}
+.hl-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#fafafa;cursor:zoom-in;overflow:hidden;width:100%;max-width:100%;border-radius:2px}
 .hl-pdp-main-mark{font-family:var(--serif);font-style:italic;font-size:48px;color:rgba(255,255,255,0.2);letter-spacing:-1px}
+.hl-pdp-zoom-hint{position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.85);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:var(--ink);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:6px 10px;border-radius:2px;pointer-events:none;font-weight:500}
+.hl-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:16px;animation:hl-lb-fade 0.2s ease-out}
+@keyframes hl-lb-fade{from{opacity:0}to{opacity:1}}
+.hl-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-touch-callout:default;-webkit-user-select:none;user-select:none}
+.hl-lb-close{position:fixed;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background 0.2s}
+.hl-lb-close:hover{background:rgba(255,255,255,0.2)}
 .hl-pdp-thumbs{display:flex;gap:8px;flex-wrap:wrap}
 .hl-pdp-thumb{width:64px;height:64px;border:1px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;background:none;background-size:cover;background-position:center;padding:0}
 .hl-pdp-thumb.active{border-color:var(--ink)}
@@ -703,6 +716,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   .hl-foot{padding:64px 28px 32px}
   .hl-foot-grid{grid-template-columns:1fr;gap:40px}
   .hl-pdp-grid{grid-template-columns:1fr}
+  .hl-pdp-gal{min-height:auto;padding:16px;border-right:none;border-bottom:1px solid var(--rule)}
+  .hl-pdp-main{aspect-ratio:1;flex:0 0 auto;width:100%;height:auto}
   .hl-pdp-info{padding:32px 28px}
   .hl-pdp-name{font-size:30px}
   .hl-cart{width:100vw}
@@ -829,8 +844,14 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     <div
                       className={"hl-pdp-main " + (mainImg ? "" : fallbackPattern)}
                       style={mainImg ? { backgroundImage: `url("${mainImg}")` } : {}}
+                      role={mainImg ? "button" : undefined}
+                      tabIndex={mainImg ? 0 : undefined}
+                      onClick={() => mainImg && setLightboxImg(mainImg)}
+                      onKeyDown={(e) => { if (mainImg && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLightboxImg(mainImg); } }}
+                      aria-label={mainImg ? "Tap to zoom" : undefined}
                     >
                       {!mainImg && <span className="hl-pdp-main-mark">{slugify(p.name)}.</span>}
+                      {mainImg && <span className="hl-pdp-zoom-hint">↗ Tap to zoom</span>}
                     </div>
                     {allImgs.length > 1 && (
                       <div className="hl-pdp-thumbs">
@@ -882,6 +903,26 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             );
           })()}
         </aside>
+
+        {/* IMAGE LIGHTBOX — tap main PDP image to open; pinch to zoom natively. */}
+        {lightboxImg && (
+          <div className="hl-lb" onClick={() => setLightboxImg(null)} role="dialog" aria-modal="true" aria-label="Image zoom">
+            <button
+              className="hl-lb-close"
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightboxImg(null); }}
+              aria-label="Close zoom"
+            >
+              ✕
+            </button>
+            <img
+              src={lightboxImg}
+              alt=""
+              className="hl-lb-img"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
 
         {/* NAV */}
         <nav className="hl-nav">
