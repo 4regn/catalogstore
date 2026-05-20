@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition, type TouchEvent as ReactTouchEvent } from "react";
+import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
@@ -457,7 +458,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-root *,.hl-root *::before,.hl-root *::after{box-sizing:border-box}
 .hl-root{
   --ink:#111010;--paper:#fff;--mid:#f2f0ed;--warm:#ebe6e0;
-  --dim:#777;--rule:#e0dbd5;
+  --dim:#595959;--rule:#e0dbd5;
   --serif:'DM Serif Display',Georgia,serif;
   --sans:'DM Sans',sans-serif;
   --display:'Bebas Neue',sans-serif;
@@ -528,7 +529,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-cat-item:last-child{border-right:none}
 .hl-cat-img{width:100%;aspect-ratio:3/4;display:block;position:relative;overflow:hidden;background:var(--mid)}
 .hl-cat-img-inner{position:absolute;inset:0;transition:transform 0.6s cubic-bezier(0.16,1,0.3,1);display:flex;align-items:flex-end;justify-content:flex-start;padding:22px;background-size:cover;background-position:center}
-.hl-cat-item:hover .hl-cat-img-inner{transform:scale(1.05)}
+.hl-cat-item:hover .hl-cat-img-inner,.hl-cat-item:hover .hl-cat-img > img{transform:scale(1.05)}
+.hl-cat-img > img{transition:transform 0.6s cubic-bezier(0.16,1,0.3,1)}
 .hl-cat-mark{font-family:var(--serif);font-style:italic;font-size:46px;line-height:1;color:rgba(255,255,255,0.18);letter-spacing:-1px}
 .hl-pat-1{background:linear-gradient(160deg,#3a342f 0%,#1f1c19 70%)}
 .hl-pat-2{background:linear-gradient(160deg,#d8d2ca 0%,#b8b0a4 100%)}
@@ -545,7 +547,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-pcard:nth-last-child(-n+4){border-bottom:none}
 .hl-pimg{aspect-ratio:1;overflow:hidden;position:relative;background:var(--mid);display:flex;align-items:center;justify-content:center}
 .hl-pimg-inner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transition:transform 0.6s cubic-bezier(0.16,1,0.3,1);background-size:cover;background-position:center}
-.hl-pcard:hover .hl-pimg-inner{transform:scale(1.06)}
+.hl-pcard:hover .hl-pimg-inner,.hl-pcard:hover .hl-pimg-img{transform:scale(1.06)}
 .hl-pat-5{background:linear-gradient(135deg,#dad4ca 0%,#b8b0a4 100%)}
 .hl-pat-6{background:linear-gradient(140deg,#2c2724 0%,#161311 100%)}
 .hl-pat-7{background:linear-gradient(145deg,#a89b8b 0%,#7a6e5e 100%)}
@@ -574,7 +576,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-flash-card:last-child{border-right:none}
 .hl-flash-img{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:var(--mid)}
 .hl-flash-img-inner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transition:transform 0.5s cubic-bezier(0.16,1,0.3,1);background-size:cover;background-position:center}
-.hl-flash-card:hover .hl-flash-img-inner{transform:scale(1.04)}
+.hl-flash-card:hover .hl-flash-img-inner,.hl-flash-card:hover .hl-flash-img-img{transform:scale(1.04)}
+.hl-flash-img-img{transition:transform 0.5s cubic-bezier(0.16,1,0.3,1)}
 .hl-flash-info{padding:22px 26px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center;background:#fff}
 .hl-flash-name{font-family:var(--serif);font-size:16px;line-height:1.3}
 .hl-flash-prices{text-align:right}
@@ -946,7 +949,19 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           <section
             className={"hl-hero" + (displayHeroImage ? " has-img" : "")}
           >
-            {displayHeroImage && <div className="hl-hero-bgimg" style={{ backgroundImage: `url("${displayHeroImage}")` }} />}
+            {displayHeroImage && (
+              <div className="hl-hero-bgimg">
+                <Image
+                  src={displayHeroImage}
+                  alt=""
+                  fill
+                  priority
+                  sizes="100vw"
+                  quality={75}
+                  style={{ objectFit: "cover", objectPosition: "center" }}
+                />
+              </div>
+            )}
             <div className="hl-hero-overlay" />
             <div className="hl-hero-left">
               <div className="hl-hero-index">{displayHeroIndex}</div>
@@ -1023,12 +1038,19 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     onClick={() => navigate(`/store/${slug}/c/${collectionSlug(cat)}`)}
                   >
                     <div className="hl-cat-img">
-                      <div
-                        className={"hl-cat-img-inner " + (img ? "" : pat)}
-                        style={img ? { backgroundImage: `url("${img}")` } : {}}
-                      >
-                        {!img && <span className="hl-cat-mark">{cat.toLowerCase()}.</span>}
-                      </div>
+                      {img ? (
+                        <Image
+                          src={img}
+                          alt={cat}
+                          fill
+                          sizes="(max-width: 900px) 50vw, 25vw"
+                          style={{ objectFit: "cover", objectPosition: "center" }}
+                        />
+                      ) : (
+                        <div className={"hl-cat-img-inner " + pat}>
+                          <span className="hl-cat-mark">{cat.toLowerCase()}.</span>
+                        </div>
+                      )}
                     </div>
                     <div className="hl-cat-foot">
                       <span className="hl-cat-name">{cat}</span>
@@ -1059,12 +1081,21 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     {!promo && onSale && <span className="hl-ptag low">Sale</span>}
                     {!promo && !onSale && idx === 0 && <span className="hl-ptag">New</span>}
                     <div className="hl-pimg">
-                      <div
-                        className={"hl-pimg-inner " + (p.image_url ? "" : fallbackPat)}
-                        style={p.image_url ? { backgroundImage: `url("${p.image_url}")` } : {}}
-                      >
-                        {!p.image_url && <span className="hl-p-mark">{slugify(p.name)}.</span>}
-                      </div>
+                      {p.image_url ? (
+                        <Image
+                          src={p.image_url}
+                          alt={p.name}
+                          fill
+                          sizes="(max-width: 600px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                          loading="lazy"
+                          style={{ objectFit: "cover", objectPosition: "center", transition: "transform 0.6s cubic-bezier(0.16,1,0.3,1)" }}
+                          className="hl-pimg-img"
+                        />
+                      ) : (
+                        <div className={"hl-pimg-inner " + fallbackPat}>
+                          <span className="hl-p-mark">{slugify(p.name)}.</span>
+                        </div>
+                      )}
                     </div>
                     <button
                       className="hl-pwa"
@@ -1119,12 +1150,21 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   return (
                     <button key={p.id} className="hl-flash-card" onClick={() => openProduct(p)}>
                       <div className="hl-flash-img">
-                        <div
-                          className={"hl-flash-img-inner " + (p.image_url ? "" : pat)}
-                          style={p.image_url ? { backgroundImage: `url("${p.image_url}")` } : {}}
-                        >
-                          {!p.image_url && <span className="hl-p-mark">{slugify(p.name)}.</span>}
-                        </div>
+                        {p.image_url ? (
+                          <Image
+                            src={p.image_url}
+                            alt={p.name}
+                            fill
+                            sizes="(max-width: 600px) 100vw, 33vw"
+                            loading="lazy"
+                            style={{ objectFit: "cover", objectPosition: "center" }}
+                            className="hl-flash-img-img"
+                          />
+                        ) : (
+                          <div className={"hl-flash-img-inner " + pat}>
+                            <span className="hl-p-mark">{slugify(p.name)}.</span>
+                          </div>
+                        )}
                       </div>
                       <div className="hl-flash-info">
                         <div className="hl-flash-name">{p.name}</div>
