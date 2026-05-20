@@ -957,7 +957,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   fill
                   priority
                   sizes="100vw"
-                  quality={85}
+                  quality={75}
                   style={{ objectFit: "cover", objectPosition: "center" }}
                 />
               </div>
@@ -1087,7 +1087,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                           alt={p.name}
                           fill
                           sizes="(max-width: 600px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                          loading={idx < 4 ? "eager" : "lazy"}
+                          loading="lazy"
                           style={{ objectFit: "cover", objectPosition: "center", transition: "transform 0.6s cubic-bezier(0.16,1,0.3,1)" }}
                           className="hl-pimg-img"
                         />
