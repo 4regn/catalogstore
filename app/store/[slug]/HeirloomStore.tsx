@@ -955,7 +955,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   src={displayHeroImage}
                   alt=""
                   fill
-                  priority
                   sizes="100vw"
                   quality={75}
                   style={{ objectFit: "cover", objectPosition: "center" }}
