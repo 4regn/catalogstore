@@ -86,6 +86,7 @@ export default function CheckoutPage() {
   const cc = seller?.checkout_config || {} as any;
   const accent = seller?.primary_color || "#9c7c62";
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
+  const isHL = seller?.template === "heirloom";
   const T = isGC ? {
     bg: "#030305", card: "#0b0b0f", text: "#f0f0f0", muted: "rgba(255,255,255,0.4)", border: "rgba(255,255,255,0.08)",
     inputBg: "rgba(255,255,255,0.04)", inputBorder: "rgba(255,255,255,0.1)", inputText: "#f0f0f0",
@@ -95,6 +96,19 @@ export default function CheckoutPage() {
     fonts: "@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');",
     summaryBg: "rgba(255,255,255,0.02)", summaryBorder: "rgba(255,255,255,0.06)",
     badgeBg: "rgba(255,255,255,0.06)", badgeText: "#fff",
+    stickyBg: "rgba(3,3,5,0.95)", emptyImg: "rgba(255,255,255,0.04)", payCardBg: "rgba(255,255,255,0.06)",
+  } : isHL ? {
+    // Heirloom: white paper + ink type, serif headlines (DM Serif Display), sans body (DM Sans),
+    // hairline borders matching the storefront's --rule/--ink/--dim system.
+    bg: "#fff", card: "#fff", text: "#111010", muted: "#595959", border: "#e0dbd5",
+    inputBg: "#fff", inputBorder: "#e0dbd5", inputText: "#111010",
+    btnBg: "#111010", btnText: "#fff", btnRadius: "0",
+    headFont: "'DM Serif Display', Georgia, serif", bodyFont: "'DM Sans', sans-serif",
+    selectBg: "#f7f5f2", eftBg: "#f7f5f2",
+    fonts: "@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap');",
+    summaryBg: "#fff", summaryBorder: "#e0dbd5",
+    badgeBg: "#111010", badgeText: "#fff",
+    stickyBg: "rgba(255,255,255,0.95)", emptyImg: "#f2f0ed", payCardBg: "#fff",
   } : {
     bg: "#f6f3ef", card: "#fff", text: "#2a2a2e", muted: "#8a8690", border: "rgba(0,0,0,0.12)",
     inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: "#2a2a2e",
@@ -104,6 +118,7 @@ export default function CheckoutPage() {
     fonts: "@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Jost:wght@300;400;500;600;700&display=swap');",
     summaryBg: "rgba(0,0,0,0.015)", summaryBorder: "rgba(0,0,0,0.06)",
     badgeBg: "#8a8690", badgeText: "#fff",
+    stickyBg: "rgba(246,243,239,0.95)", emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const shipping = fulfillment === "pickup" ? 0 : (cc.shipping_options?.[shippingOption]?.price || 0);
@@ -225,7 +240,7 @@ export default function CheckoutPage() {
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 40, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(34,197,94,0.12)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-          <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
+          <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
           <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
         </div>
         <div style={{ background: T.card, borderRadius: 16, padding: 28, marginBottom: 24, border: "1px solid " + T.border }}>
@@ -284,7 +299,7 @@ export default function CheckoutPage() {
       <style>{T.fonts + `body,html{background:${T.bg};margin:0}` + (isGC ? `input::placeholder,select{color:rgba(255,255,255,0.3)!important}option{background:#0b0b0f;color:#f0f0f0}` : ``) + `@media(max-width:768px){.ck-grid{grid-template-columns:1fr!important}.ck-summary{position:static!important;border-left:none!important;padding-top:0!important}}`}</style>
 
       {/* HEADER */}
-      <div style={{ borderBottom: "1px solid " + T.summaryBorder, padding: "16px 24px", background: isGC ? "rgba(3,3,5,0.95)" : "rgba(246,243,239,0.95)", backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 10 }}>
+      <div style={{ borderBottom: "1px solid " + T.summaryBorder, padding: "16px 24px", background: T.stickyBg, backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <a href={"/store/" + slug} style={{ textDecoration: "none" }}>
             {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 36, objectFit: "contain" }} /> : <span style={{ fontFamily: T.headFont, fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", color: T.text }}>{seller?.store_name}</span>}
@@ -302,7 +317,7 @@ export default function CheckoutPage() {
             {cart.map((item, i) => (
               <div key={i} style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center" }}>
                 <div style={{ position: "relative" }}>
-                  {item.image ? <img src={item.image} alt="" style={{ width: 56, height: 68, borderRadius: 8, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 56, height: 68, borderRadius: 8, background: isGC ? "rgba(255,255,255,0.04)" : "#e0d5ca" }} />}
+                  {item.image ? <img src={item.image} alt="" style={{ width: 56, height: 68, borderRadius: 8, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 56, height: 68, borderRadius: 8, background: T.emptyImg }} />}
                   <span style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: T.badgeBg, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.qty}</span>
                 </div>
                 <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{item.name}</div>{item.variant && <div style={{ fontSize: 12, color: T.muted }}>{item.variant}</div>}</div>
@@ -431,9 +446,9 @@ export default function CheckoutPage() {
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                      <span style={{ padding: "2px 4px", background: isGC ? "rgba(255,255,255,0.06)" : "#fff", border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, objectFit: "contain" }} /></span>
-                      <span style={{ padding: "2px 4px", background: isGC ? "rgba(255,255,255,0.06)" : "#fff", border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, objectFit: "contain" }} /></span>
-                      <span style={{ padding: "2px 4px", background: isGC ? "rgba(255,255,255,0.06)" : "#fff", border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 16, objectFit: "contain" }} /></span>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, objectFit: "contain" }} /></span>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, objectFit: "contain" }} /></span>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 16, objectFit: "contain" }} /></span>
                       <span style={{ width: 22, height: 22, borderRadius: 4, border: "1px solid " + T.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: T.muted, fontWeight: 700 }}>+</span>
                     </div>
                   </div>
@@ -475,7 +490,7 @@ export default function CheckoutPage() {
           {cart.map((item, i) => (
             <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "center" }}>
               <div style={{ position: "relative" }}>
-                {item.image ? <img src={item.image} alt="" style={{ width: 60, height: 72, borderRadius: 10, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 60, height: 72, borderRadius: 10, background: isGC ? "rgba(255,255,255,0.04)" : "#e0d5ca" }} />}
+                {item.image ? <img src={item.image} alt="" style={{ width: 60, height: 72, borderRadius: 10, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 60, height: 72, borderRadius: 10, background: T.emptyImg }} />}
                 <span style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: T.badgeBg, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.qty}</span>
               </div>
               <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{item.name}</div>{item.variant && <div style={{ fontSize: 12, color: T.muted }}>{item.variant}</div>}</div>
