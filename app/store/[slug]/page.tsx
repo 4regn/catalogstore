@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
+import StoreUnavailable from "./StoreUnavailable";
 
 export const revalidate = 60;
 
@@ -10,7 +11,7 @@ const Crown       = dynamic(() => import("./CrownStore"));
 const Heirloom    = dynamic(() => import("./HeirloomStore"));
 
 const SELLER_COLUMNS =
-  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, trial_ends_at, payfast_subscription_token";
+  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status";
 const DISCOUNT_COLUMNS =
@@ -26,6 +27,12 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     .maybeSingle();
 
   if (!seller) notFound();
+
+  // Frozen store -- subscription expired or seller cancelled. Render a clean
+  // "unavailable" page with the seller's contact info so customers can reach out.
+  if (seller.subscription_status === "expired" || seller.subscription_status === "cancelled") {
+    return <StoreUnavailable seller={seller} />;
+  }
 
   const [productsRes, discountsRes] = await Promise.all([
     supabaseAdmin
