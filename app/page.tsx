@@ -1028,18 +1028,18 @@ ${collections.length > 1 ? `
               Launch Promo — R49 First Month
             </div>
             <h1 className="fu2" style={{ fontSize: "clamp(46px,9vw,104px)", fontWeight: 900, lineHeight: 0.92, letterSpacing: "-0.06em", textTransform: "uppercase", marginBottom: 32 }}>
-              Your catalog.<br /><span className="shimmer-text">Amplified.</span>
+              Built for <span className="shimmer-text">South African sellers.</span>
             </h1>
-            <p className="fu3" style={{ fontSize: 17, lineHeight: 1.85, color: "var(--text-dim)", maxWidth: 500, margin: "0 auto 52px", fontWeight: 400 }}>
-              Build a professional online store in minutes. Accept payments automatically. Make money while you sleep. No coding required.
+            <p className="fu3" style={{ fontSize: 17, lineHeight: 1.85, color: "var(--text-dim)", maxWidth: 560, margin: "0 auto 52px", fontWeight: 400 }}>
+              Open a beautiful online store in minutes. Take orders on WhatsApp or with cards via PayFast. R99/month — zero commission on every sale.
             </p>
             <div className="fu4 hero-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
               <Link href="/signup" className="glow-btn">Start Your Free Trial</Link>
               <a href="#features" className="outline-btn">Learn More</a>
             </div>
-            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>7-day free trial · Cancel anytime · No credit card risk</p>
+            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>7-day free trial · Cancel anytime · No credit card needed</p>
             <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap" }}>
-              {[{ val: "R49", label: "First Month" }, { val: "7", label: "Day Free Trial" }, { val: "0%", label: "Commission" }].map((stat, i) => (
+              {[{ val: "R49", label: "First Month" }, { val: "0%", label: "Commission" }, { val: "WhatsApp", label: "+ Card Checkout" }].map((stat, i) => (
                 <div key={i} style={{ display: "flex", gap: 48, alignItems: "center" }}>
                   {i > 0 && <div style={{ width: 1, height: 40, background: "var(--glass-b)" }} />}
                   <div style={{ textAlign: "center" }}>
@@ -1048,6 +1048,17 @@ ${collections.length > 1 ? `
                   </div>
                 </div>
               ))}
+            </div>
+            {/* TRUST SIGNALS — sits just below the hero stats. SA-specific positioning,
+                no competitor mention, reinforces who the platform is for and that it's legit. */}
+            <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 28, marginTop: 36, flexWrap: "wrap", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 600 }}>
+              <span>🇿🇦 Made in South Africa</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>PayFast Secured</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>WhatsApp Native</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>ZAR Pricing</span>
             </div>
           </div>
         </section>
