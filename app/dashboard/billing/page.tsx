@@ -4,17 +4,31 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 
+// Pre-launch: one plan, everything currently buildable. Keeping the 'starter' id so
+// existing sellers' subscription_plan = 'starter' rows keep matching. When we add a
+// Pro tier back, append it here.
 const PLANS = [
   {
-    id: "starter", name: "Starter", price: 99, promoPrice: 49,
-    features: ["15 products", "5 images per product", "5 collections", "2 templates", "Store editor", "All payment methods", "WhatsApp checkout", "Subdomain included"],
-    limits: { products: 15, images: 5, collections: 5, templates: 2 }
+    id: "starter",
+    name: "Catalogstore",
+    price: 149,
+    promoPrice: 49,
+    features: [
+      "Up to 20 products",
+      "5 photos per product",
+      "Up to 10 collections",
+      "All 4 store templates",
+      "Personal onboarding — we set you up 1-on-1",
+      "Custom domain support — we help you connect it",
+      "No 'Powered by CatalogStore' badge",
+      "Free subdomain (yourstore.catalogstore.co.za)",
+      "Visual store editor",
+      "Card, EFT, Apple Pay, WhatsApp checkout",
+      "Order notifications by email",
+      "Cancel anytime",
+    ],
+    limits: { products: 20, images: 5, collections: 10, templates: 4 },
   },
-  {
-    id: "pro", name: "Pro", price: 249, promoPrice: null,
-    features: ["100 products", "20 images per product", "20 collections", "All templates (current + future)", "Custom domain support", "No 'Powered by CatalogStore'", "Priority support", "Everything in Starter"],
-    limits: { products: 100, images: 20, collections: 20, templates: 99 }
-  }
 ];
 
 export default function BillingPage() {
@@ -101,12 +115,12 @@ export default function BillingPage() {
           {needsVerification ? "Verify Your Card" : isActive ? "Manage Subscription" : "Choose Your Plan"}
         </h1>
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
-          {needsVerification ? "Verify your card with R1 to start your 7-day free trial and unlock your dashboard." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your trial has expired. Choose a plan to continue." : "Start selling online in minutes"}
+          {needsVerification ? "Connect your card to start your 7-day free trial and unlock your dashboard. No charge today." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your trial has expired. Continue to keep your store live." : "Start selling online in minutes"}
         </p>
 
         {isPromo && !isActive && (
           <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <span style={{ display: "inline-block", padding: "8px 24px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: N, letterSpacing: "0.08em", textTransform: "uppercase" }}>Launch Promo - R49 First Month on Starter</span>
+            <span style={{ display: "inline-block", padding: "8px 24px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: N, letterSpacing: "0.08em", textTransform: "uppercase" }}>Launch Promo — R49 First Month</span>
           </div>
         )}
 

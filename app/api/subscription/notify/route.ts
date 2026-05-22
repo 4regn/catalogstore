@@ -44,8 +44,8 @@ export async function POST(req: NextRequest) {
 
     if (paymentStatus === "COMPLETE") {
 
-      // Work out which charge this is based on amount
-      // R49 = first month after trial, R99+ = recurring
+      // Work out which charge this is based on amount.
+      // R49 = first promotional month after trial; anything higher = the recurring R149.
       const isFirstCharge = amountGross <= 49;
       const nextBillingDate = new Date();
       nextBillingDate.setDate(nextBillingDate.getDate() + 30);
@@ -59,14 +59,14 @@ export async function POST(req: NextRequest) {
         trial_ends_at: null, // Clear trial once active
       }).eq("id", sellerId);
 
-      // If this was the R49 first charge, update PayFast subscription
-      // to charge R99 from next cycle using their API
+      // If this was the R49 first charge, update the PayFast subscription so that from
+      // the next cycle onwards we charge the full recurring R149/mo.
       if (isFirstCharge && token && planId === "starter") {
         try {
           const merchantId = process.env.PAYFAST_MERCHANT_ID!;
           const merchantKey = process.env.PAYFAST_MERCHANT_KEY!;
 
-          // Update the subscription recurring amount to R99
+          // Update the subscription recurring amount to R149.
           await fetch(`https://api.payfast.co.za/subscriptions/${token}/update`, {
             method: "PUT",
             headers: {
@@ -79,12 +79,12 @@ export async function POST(req: NextRequest) {
               cycles: 0,
               frequency: 3,
               run_date: nextBillingDate.toISOString().split("T")[0],
-              amount: 9900, // R99 in cents
+              amount: 14900, // R149 in cents
             }),
           });
         } catch (updateErr) {
-          // Log but don't fail — seller is still activated
-          console.error("Failed to update subscription to R99:", updateErr);
+          // Log but don't fail — seller is still activated, we'll catch up later.
+          console.error("Failed to update subscription to R149:", updateErr);
         }
       }
 

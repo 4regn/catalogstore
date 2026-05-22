@@ -351,7 +351,10 @@ export default function Dashboard() {
     const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
     if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); setCsvUploading(false); return; }
     let added = 0; let errors = 0;
-    const planLimitsLocal = seller?.subscription_plan === "pro" ? { products: 100 } : { products: 15 };
+    // Pre-launch: one plan with 20 products. Was tier-gated (15 starter / 100 pro);
+    // collapsed but kept low to protect storage + perf costs on the current tier.
+    // When a Pro tier ships, that's where higher product counts unlock.
+    const planLimitsLocal = { products: 20 };
     const publishedLocal = products.filter((p) => p.status === "published" || !p.status).length;
     const draftLocal = products.filter((p) => p.status === "draft").length;
     const remaining = planLimitsLocal.products - (publishedLocal + draftLocal);
@@ -405,7 +408,10 @@ export default function Dashboard() {
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
-  const planLimits = seller?.subscription_plan === "pro" ? { products: 100, images: 20, collections: 20 } : { products: 15, images: 5, collections: 5 };
+  // Pre-launch: one plan, deliberate limits matching the landing page promise.
+  // 20 products + 5 photos each caps storage cost; 10 collections is generous-enough
+  // organisation. Higher counts unlock on a future Pro tier.
+  const planLimits = { products: 20, images: 5, collections: 10 };
   const canAddProduct = publishedCount + draftCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;

@@ -18,17 +18,16 @@ function rateLimit(ip: string): boolean {
   return true;
 }
 
+// Pre-launch: a single tier with everything included. Keeping the 'starter' key for
+// backwards-compat with any existing references; the marketing page now calls it
+// 'Catalogstore Plan'. Pro tier removed -- the Pro features got merged into Starter
+// (all templates, custom domain support, no 'Powered by CatalogStore' badge, personal
+// onboarding). When we have proof we can sell, we can add a higher tier back.
 const PLANS: Record<string, { name: string; firstAmount: number; recurringAmount: number; trialDays: number }> = {
   starter: {
-    name: "Starter",
-    firstAmount: 49.00,      // R49 after 7-day trial
-    recurringAmount: 99.00,  // R99 every month after
-    trialDays: 7,
-  },
-  pro: {
-    name: "Pro",
-    firstAmount: 249.00,     // R249 after 7-day trial
-    recurringAmount: 249.00, // R249 every month after
+    name: "Catalogstore",
+    firstAmount: 49.00,      // R49 promotional first month after 7-day trial
+    recurringAmount: 149.00, // R149/mo recurring after first month
     trialDays: 7,
   },
 };
@@ -80,9 +79,7 @@ export async function POST(req: NextRequest) {
       amount: "0.00",
 
       item_name: `CatalogStore ${plan.name} Plan`,
-      item_description: planId === "starter"
-        ? `7-day free trial, then R49 first month, then R99/month. Cancel anytime.`
-        : `7-day free trial, then R249/month. Cancel anytime.`,
+      item_description: `7-day free trial, then R49 first month, then R149/month. Cancel anytime.`,
 
       name_first: seller.store_name || "Seller",
       email_address: seller.email,
@@ -94,7 +91,8 @@ export async function POST(req: NextRequest) {
       cancel_url: `${origin}/dashboard/billing?status=cancelled`,
       notify_url: `${origin}/api/subscription/notify`,
 
-      // Subscription settings — 7-day trial then R49, then R99
+      // Subscription settings — 7-day trial, R49 first charge, then we PUT the
+      // subscription to R149 via the notify webhook after the first payment lands.
       subscription_type: "1",                              // Recurring subscription
       recurring_amount: plan.firstAmount.toFixed(2),       // R49 first charge after trial
       frequency: "3",                                      // Monthly
