@@ -13,13 +13,15 @@ const TICKER_ITEMS = [
   "Make Money While You Sleep", "Zero Coding Required",
 ];
 
-// One plan, everything included -- the pre-launch positioning. No Pro upsell yet,
-// because we have to prove we can sell at all before we can sell premium.
+// One plan, everything currently buildable -- a Pro tier comes later as the real upsell
+// once there's more to upsell to (more products beyond 20, new templates beyond the
+// current 4). Limits here are deliberate: 20 products keeps storage + perf costs
+// predictable on the current tier; sellers who outgrow them upgrade.
 const PLAN_FEATURES = [
-  "Up to 100 products",
-  "20 images per product",
-  "20 collections",
-  "All 4 templates included",
+  "Up to 20 products",
+  "5 photos per product",
+  "Up to 10 collections",
+  "All 4 store templates",
   "Personal onboarding — we set you up 1-on-1",
   "Custom domain support — we help you connect it",
   "No 'Powered by CatalogStore' badge",
@@ -1131,6 +1133,12 @@ ${collections.length > 1 ? `
                 7 days free · No credit card needed · Cancel anytime
               </div>
             </div>
+            {/* GROWTH HINT — signals to sellers that there's a roadmap so they don't worry
+                about hitting the limits later. Not a 'Coming Soon' card because Pro isn't
+                built; just a soft acknowledgement that we're expanding. */}
+            <p className="reveal" style={{ textAlign: "center", marginTop: 32, fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", letterSpacing: "0.02em" }}>
+              Outgrowing the limits? A higher tier with more products and new templates is coming. Early sellers get grandfathered pricing.
+            </p>
           </div>
         </section>
 

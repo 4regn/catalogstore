@@ -351,10 +351,10 @@ export default function Dashboard() {
     const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
     if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); setCsvUploading(false); return; }
     let added = 0; let errors = 0;
-    // Pre-launch: one plan, generous limits. Was gated by subscription_plan === 'pro'
-    // (15 vs 100) but we collapsed tiers -- everyone gets the higher limit until we
-    // have a reason to differentiate again.
-    const planLimitsLocal = { products: 100 };
+    // Pre-launch: one plan with 20 products. Was tier-gated (15 starter / 100 pro);
+    // collapsed but kept low to protect storage + perf costs on the current tier.
+    // When a Pro tier ships, that's where higher product counts unlock.
+    const planLimitsLocal = { products: 20 };
     const publishedLocal = products.filter((p) => p.status === "published" || !p.status).length;
     const draftLocal = products.filter((p) => p.status === "draft").length;
     const remaining = planLimitsLocal.products - (publishedLocal + draftLocal);
@@ -408,9 +408,10 @@ export default function Dashboard() {
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
-  // Pre-launch: one plan, generous limits. Was tier-gated; collapsed to a single
-  // set that matches what the landing page promises (100 / 20 / 20).
-  const planLimits = { products: 100, images: 20, collections: 20 };
+  // Pre-launch: one plan, deliberate limits matching the landing page promise.
+  // 20 products + 5 photos each caps storage cost; 10 collections is generous-enough
+  // organisation. Higher counts unlock on a future Pro tier.
+  const planLimits = { products: 20, images: 5, collections: 10 };
   const canAddProduct = publishedCount + draftCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;
