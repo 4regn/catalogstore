@@ -33,7 +33,7 @@ interface Seller {
   template: string; plan: string; primary_color: string; logo_url: string; banner_url: string;
   tagline: string; description: string; collections: string[];
   social_links: SocialLinks; store_config: StoreConfig; checkout_config: CheckoutConfig;
-  subscription_status: string; subscription_plan: string; trial_ends_at: string; subscription_started_at: string;
+  subscription_status: string; subscription_plan: string; subscription_grace_until: string | null; trial_ends_at: string; subscription_started_at: string;
   payfast_subscription_token: string | null;
 }
 
@@ -52,7 +52,7 @@ interface Order {
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string;
 }
 
-const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_plan, trial_ends_at, subscription_started_at, payfast_subscription_token";
+const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token";
 const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
 const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown";
@@ -466,9 +466,9 @@ export default function Dashboard() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {seller?.subdomain && <a href={"/store/" + seller.subdomain} target="_blank" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 10, color: N, fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>View My Store</a>}
-            <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : seller?.subscription_status === "trial" ? "rgba(251,191,36,0.06)" : "rgba(255,61,110,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : seller?.subscription_status === "trial" ? "1px solid rgba(251,191,36,0.12)" : "1px solid rgba(255,61,110,0.12)", borderRadius: 10, textDecoration: "none", textAlign: "center" as const }}>
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: seller?.subscription_status === "active" ? "#22c55e" : seller?.subscription_status === "trial" ? "#fbbf24" : "#ff3d6e" }}>{seller?.subscription_status === "active" ? "Active Plan" : seller?.subscription_status === "trial" ? "Free Trial" : "Inactive"}</div>
-              <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{seller?.subscription_status === "active" ? "Click to view plan or upgrade" : seller?.subscription_status === "trial" ? "Click to choose a plan" : "Click to reactivate or upgrade"}</div>
+            <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : seller?.subscription_status === "trial" ? "rgba(251,191,36,0.06)" : seller?.subscription_status === "past_due" ? "rgba(251,191,36,0.1)" : "rgba(255,61,110,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : seller?.subscription_status === "trial" ? "1px solid rgba(251,191,36,0.12)" : seller?.subscription_status === "past_due" ? "1px solid rgba(251,191,36,0.3)" : "1px solid rgba(255,61,110,0.12)", borderRadius: 10, textDecoration: "none", textAlign: "center" as const }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: seller?.subscription_status === "active" ? "#22c55e" : seller?.subscription_status === "trial" ? "#fbbf24" : seller?.subscription_status === "past_due" ? "#fbbf24" : "#ff3d6e" }}>{seller?.subscription_status === "active" ? "Active Plan" : seller?.subscription_status === "trial" ? "Free Trial" : seller?.subscription_status === "past_due" ? "Payment Failed" : "Inactive"}</div>
+              <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{seller?.subscription_status === "active" ? "Click to view plan or upgrade" : seller?.subscription_status === "trial" ? "Click to choose a plan" : seller?.subscription_status === "past_due" ? "Update card before store goes offline" : "Click to reactivate or upgrade"}</div>
             </a>
             {seller?.email === "info@4regn.com" && <a href="/admin" style={{ display: "block", padding: "12px 16px", background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.12)", borderRadius: 10, color: "#8b5cf6", fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Admin Panel</a>}
             <button onClick={handleLogout} style={{ padding: "10px 16px", background: "transparent", border: "none", color: "rgba(245,245,245,0.25)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, cursor: "pointer", textAlign: "left" as const, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Log Out</button>

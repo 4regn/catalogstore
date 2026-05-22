@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       const nextBillingDate = new Date();
       nextBillingDate.setDate(nextBillingDate.getDate() + 30);
 
+      // Successful charge clears any grace period the seller may have been in.
       await supabase.from("sellers").update({
         subscription_status: "active",
         subscription_plan: planId,
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
         plan: planId,
         payfast_subscription_token: token || null,
         trial_ends_at: null, // Clear trial once active
+        subscription_grace_until: null, // Clear grace -- payment recovered
       }).eq("id", sellerId);
 
       // If this was the R49 first charge, update the PayFast subscription so that from
@@ -99,13 +101,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "ok", action: "cancelled" });
     }
 
-    // FAILED payment
+    // FAILED payment -- start (or keep) 7-day grace period instead of freezing immediately.
+    // PayFast will keep retrying automatically; if a retry succeeds, the COMPLETE branch
+    // above clears the grace. If 7 days pass with no success, the daily cron flips the
+    // seller to 'expired' and freezes the storefront.
     if (paymentStatus === "FAILED") {
+      // Only set grace_until on the FIRST failure of this billing cycle. If the seller
+      // is already past_due, leave the original grace window intact so retries don't
+      // keep extending the deadline.
+      const { data: existing } = await supabase
+        .from("sellers")
+        .select("subscription_status, subscription_grace_until")
+        .eq("id", sellerId)
+        .maybeSingle();
+
+      if (existing?.subscription_status === "past_due" && existing.subscription_grace_until) {
+        // Already in grace; nothing to do.
+        return NextResponse.json({ status: "ok", action: "failed_already_grace" });
+      }
+
+      const graceUntil = new Date();
+      graceUntil.setDate(graceUntil.getDate() + 7);
+
       await supabase.from("sellers").update({
-        subscription_status: "expired",
+        subscription_status: "past_due",
+        subscription_grace_until: graceUntil.toISOString(),
       }).eq("id", sellerId);
 
-      return NextResponse.json({ status: "ok", action: "failed" });
+      return NextResponse.json({ status: "ok", action: "past_due" });
     }
 
     return NextResponse.json({ status: "ignored", payment_status: paymentStatus });

@@ -51,16 +51,19 @@ export default function BillingPage() {
   const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const isActive = seller?.subscription_status === "active";
-  const isExpired = seller?.subscription_status === "expired" || (seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date());
+  const isPastDue = seller?.subscription_status === "past_due";
+  const graceDaysLeft = seller?.subscription_grace_until ? Math.max(0, Math.ceil((new Date(seller.subscription_grace_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+  const graceDateStr = seller?.subscription_grace_until ? new Date(seller.subscription_grace_until).toLocaleDateString("en-ZA", { day: "numeric", month: "short" }) : "";
+  const isExpired = seller?.subscription_status === "expired" || seller?.subscription_status === "cancelled" || (seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date());
   const needsVerification = trialActive && !seller?.payfast_subscription_token;
 
-  const subscribePlan = async (planId: string) => {
+  const subscribePlan = async (planId: string, intent: "signup" | "reactivate" = "signup") => {
     if (!seller) return;
     setProcessing(true);
     const res = await fetch("/api/billing-redirect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sellerId: seller.id, planId, returnOrigin: window.location.origin }),
+      body: JSON.stringify({ sellerId: seller.id, planId, returnOrigin: window.location.origin, intent }),
     });
     if (res.ok) {
       const html = await res.text();
@@ -112,10 +115,10 @@ export default function BillingPage() {
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px 80px" }}>
 
         <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", textAlign: "center", marginBottom: 8 }}>
-          {needsVerification ? "Verify Your Card" : isActive ? "Manage Subscription" : "Choose Your Plan"}
+          {needsVerification ? "Verify Your Card" : isPastDue ? "Payment Failed" : isExpired ? "Reactivate Your Store" : isActive ? "Manage Subscription" : "Choose Your Plan"}
         </h1>
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
-          {needsVerification ? "Connect your card to start your 7-day free trial and unlock your dashboard. No charge today." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your trial has expired. Continue to keep your store live." : "Start selling online in minutes"}
+          {needsVerification ? "Connect your card to start your 7-day free trial and unlock your dashboard. No charge today." : isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : "Start selling online in minutes"}
         </p>
 
         {isPromo && !isActive && (
@@ -141,14 +144,36 @@ export default function BillingPage() {
           </div>
         )}
 
-        {isExpired && (
-          <div style={{ padding: "24px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#ff3d6e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Trial Expired</div>
-            <p style={{ fontSize: 13, color: "rgba(245,245,245,0.35)", marginTop: 4 }}>Choose a plan below to reactivate your store</p>
+        {isPastDue && (
+          <div style={{ padding: "24px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Payment Failed</div>
+            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 8 }}>
+              Your store goes offline in {graceDaysLeft} {graceDaysLeft === 1 ? "day" : "days"}{graceDateStr ? ` (${graceDateStr})` : ""}
+            </div>
+            <p style={{ fontSize: 13, color: "rgba(245,245,245,0.5)", maxWidth: 420, margin: "0 auto", lineHeight: 1.5 }}>
+              Your last R149 charge didn&apos;t go through. PayFast will keep retrying your card over the next {graceDaysLeft} {graceDaysLeft === 1 ? "day" : "days"}. Make sure your card has funds, or update it on PayFast — your store stays live in the meantime.
+            </p>
           </div>
         )}
 
-        {/* PLANS */}
+        {isExpired && (
+          <div style={{ padding: "24px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#ff3d6e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Store Offline</div>
+            <p style={{ fontSize: 13, color: "rgba(245,245,245,0.5)", marginBottom: 20, maxWidth: 420, margin: "0 auto 20px", lineHeight: 1.5 }}>
+              Your subscription ended and your storefront is showing visitors an unavailable page. Your products, orders, and settings are all preserved — reactivate to bring your store back instantly.
+            </p>
+            <button
+              onClick={() => subscribePlan("starter", "reactivate")}
+              disabled={processing}
+              style={{ padding: "16px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}
+            >
+              {processing ? "Redirecting..." : "Reactivate Store — R149"}
+            </button>
+          </div>
+        )}
+
+        {/* PLANS -- hidden when expired since the Reactivate card above handles the CTA. */}
+        {!isExpired && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {PLANS.map((plan) => {
             const isCurrent = isActive && seller?.subscription_plan === plan.id;
@@ -197,8 +222,9 @@ export default function BillingPage() {
             );
           })}
         </div>
+        )}
 
-        <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>Starter: R1 card verification, 7-day free trial, then auto-billed monthly. Pro: billed immediately. Cancel anytime. Prices in ZAR.</p>
+        {!isExpired && <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>Starter: R1 card verification, 7-day free trial, then auto-billed monthly. Pro: billed immediately. Cancel anytime. Prices in ZAR.</p>}
 
         {/* CANCEL SUBSCRIPTION */}
         {isActive && (
