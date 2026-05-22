@@ -164,7 +164,7 @@ export default function HomePage() {
   const [previewStage, setPreviewStage] = useState<"upload"|"loading"|"preview">("upload");
   const [previewLogo, setPreviewLogo] = useState<string|null>(null);
   const [previewProducts, setPreviewProducts] = useState<{dataUrl:string;base64:string;mediaType:string}[]>([]);
-  const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl"|"crown">("gc");
+  const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl"|"crown"|"heirloom">("gc");
   const [previewStore, setPreviewStore] = useState<{storeName:string;tagline:string;storeSlug:string;brandColor:string;products:{name:string;price:string;category:string}[];collections:{name:string;productIndexes:number[]}[];aboutText?:string;insight1:{label:string;value:string};insight2:{label:string;value:string};insight3:{label:string;value:string}}|null>(null);
   const [previewError, setPreviewError] = useState<string|null>(null);
   const [previewLoadStep, setPreviewLoadStep] = useState(0);
@@ -861,6 +861,198 @@ ${collections.length > 1 ? `
 </body></html>`;
   }, [previewStore, previewProducts, previewBanner, previewLogo]);
 
+  const buildHeirloomStore = useCallback(() => {
+    if (!previewStore) return "";
+    const products = previewStore.products.slice(0, 10);
+    const collections = previewStore.collections || [];
+    const heroImg = previewBanner?.dataUrl ?? previewProducts[0]?.dataUrl ?? "";
+    const logoImg = previewLogo ?? "";
+    const storeName = previewStore.storeName;
+    const tagline = previewStore.tagline || "";
+    const aboutText = previewStore.aboutText || "";
+    const bc = previewStore.brandColor || previewBrandColor || "#111010";
+
+    // Heirloom tokens — extracted verbatim from HeirloomStore.tsx
+    const ink = "#111010";
+    const paper = "#fff";
+    const mid = "#f2f0ed";
+    const dim = "#595959";
+    const rule = "#e0dbd5";
+    const announce = "#1a1715";
+
+    // Product cards — magazine-grid, 2 columns to suit the mobile preview frame.
+    // Borders use --rule, no card shadows. Serif product name, sans price, uppercase category.
+    const productCards = products.map((p, i) => {
+      const img = previewProducts[i];
+      const onSale = i < 2;
+      const priceNum = parseInt(p.price.replace(/[^0-9]/g, "")) || 300;
+      const wasPrice = onSale ? "R" + Math.round(priceNum / 0.8) : "";
+      return `
+        <div style="position:relative;border-right:1px solid ${rule};border-bottom:1px solid ${rule};background:${paper};cursor:pointer;overflow:hidden">
+          ${onSale ? `<div style="position:absolute;top:14px;left:14px;background:${bc};color:#fff;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;padding:4px 9px;font-family:'DM Sans',sans-serif;font-weight:500;z-index:2">Sale</div>` : ""}
+          <div style="aspect-ratio:1;background:${mid};overflow:hidden">
+            ${img ? `<img src="${img.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">` : ""}
+          </div>
+          <div style="padding:14px 16px 18px">
+            <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:${dim};margin-bottom:5px">${p.category || "Product"}</div>
+            <div style="font-family:'DM Serif Display',Georgia,serif;font-size:15px;font-weight:400;line-height:1.25;color:${ink};margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:${ink}">
+              ${onSale ? `<span style="font-size:10px;color:${dim};text-decoration:line-through;margin-right:6px;font-weight:400">${wasPrice}</span>` : ""}${p.price}
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
+    // Categories row — Heirloom's signature 4-col strip, but 2-col to fit the preview width.
+    const categoryCards = collections.slice(0, 4).map((col, ci) => {
+      const firstIdx = col.productIndexes[0] ?? ci;
+      const img = previewProducts[firstIdx]?.dataUrl ?? "";
+      return `
+        <div style="position:relative;border-right:1px solid ${rule};border-bottom:1px solid ${rule};background:${paper};cursor:pointer;overflow:hidden">
+          <div style="aspect-ratio:3/4;background:${mid};overflow:hidden">
+            ${img ? `<img src="${img}" style="width:100%;height:100%;object-fit:cover;display:block">` : ""}
+          </div>
+          <div style="padding:14px 16px">
+            <div style="font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;letter-spacing:0.08em;color:${ink};margin-bottom:2px">${col.name}</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:10px;color:${dim};font-weight:400">${col.productIndexes.length} piece${col.productIndexes.length > 1 ? "s" : ""}</div>
+          </div>
+        </div>`;
+    }).join("");
+
+    const tickerItems = ["Free Delivery Over R500","New Arrivals","Secure Checkout","Made in South Africa",
+                         "Free Delivery Over R500","New Arrivals","Secure Checkout","Made in South Africa"]
+      .map(t => `<span style="font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${paper};padding:0 28px;display:inline-flex;align-items:center">${t}<span style="opacity:0.3;margin-left:28px">—</span></span>`).join("");
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:${paper};color:${ink};font-family:'DM Sans',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:${paper}}::-webkit-scrollbar-thumb{background:${ink};border-radius:2px}
+  @keyframes hltick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+</style>
+<script>
+  (function() {
+    var total = 12 * 3600 - 1;
+    function tick() {
+      var h = Math.floor(total / 3600);
+      var m = Math.floor((total % 3600) / 60);
+      var s = total % 60;
+      var el = document.getElementById("hl-timer");
+      if (el) el.textContent = (h<10?"0"+h:h) + " : " + (m<10?"0"+m:m) + " : " + (s<10?"0"+s:s);
+      if (total > 0) { total--; setTimeout(tick, 1000); }
+    }
+    document.addEventListener("DOMContentLoaded", tick);
+    setTimeout(tick, 100);
+  })();
+</script>
+</head><body>
+
+<!-- ANNOUNCEMENT BAR -->
+<div style="background:${announce};color:#fff;padding:9px 20px;text-align:center;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:400;letter-spacing:0.22em;text-transform:uppercase">
+  Use Code <span style="font-weight:600;letter-spacing:0.18em">WELCOME20</span> for 20% Off
+</div>
+
+<!-- NAV — sticky, white, hamburger + serif italic logo + cart -->
+<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 20px;height:56px;background:${paper};border-bottom:1px solid ${rule};position:sticky;top:0;z-index:50">
+  <div style="display:flex;align-items:center;gap:14px;justify-self:start">
+    <div style="width:20px;height:14px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer">
+      <div style="width:100%;height:1px;background:${ink}"></div>
+      <div style="width:100%;height:1px;background:${ink}"></div>
+      <div style="width:100%;height:1px;background:${ink}"></div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    ${logoImg ? `<img src="${logoImg}" style="height:24px;max-width:96px;object-fit:contain">` : ""}
+    <div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:22px;letter-spacing:0.04em;color:${ink};line-height:1">${storeName}</div>
+  </div>
+  <div style="justify-self:end;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:${ink};border-bottom:1px solid ${ink};padding-bottom:1px;cursor:pointer">Bag (0)</div>
+</div>
+
+<!-- HERO — dark with serif italic headline -->
+<div style="position:relative;min-height:380px;display:flex;align-items:flex-end;overflow:hidden;background:linear-gradient(180deg,#1a1715 0%,#0d0b0a 100%)">
+  ${heroImg ? `<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.65">` : ""}
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,8,0.9) 0%,rgba(8,8,8,0.45) 50%,rgba(8,8,8,0.15) 100%)"></div>
+  <div style="position:relative;z-index:1;padding:0 24px 36px;width:100%">
+    <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:0.3em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:10px">01 — The Edit</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <div style="width:22px;height:1px;background:rgba(255,255,255,0.4)"></div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.55)">${(tagline || "New Season").slice(0, 28)}</div>
+    </div>
+    <h1 style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:clamp(34px,8vw,52px);font-weight:400;line-height:0.97;letter-spacing:-0.5px;color:#fff;margin-bottom:20px">${storeName}</h1>
+    <p style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:300;line-height:1.7;color:rgba(255,255,255,0.62);max-width:320px;margin-bottom:24px">${(aboutText || tagline || "Considered pieces, made to last.").slice(0, 140)}</p>
+    <div style="display:inline-block;background:#f9f7f4;color:${ink};padding:13px 28px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;letter-spacing:0.25em;text-transform:uppercase;cursor:pointer">Shop the Edit</div>
+    <div style="margin-top:28px;display:flex;align-items:center;gap:14px">
+      <div id="hl-timer" style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.18em;line-height:1;color:#fff">12 : 00 : 00</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:8px;letter-spacing:0.25em;text-transform:uppercase;color:rgba(255,255,255,0.42)">Ends<br>Tonight</div>
+    </div>
+  </div>
+</div>
+
+<!-- TICKER -->
+<div style="background:${ink};padding:10px 0;overflow:hidden;white-space:nowrap">
+  <div style="display:inline-flex;animation:hltick 28s linear infinite">${tickerItems}</div>
+</div>
+
+<!-- CATEGORIES HEADER -->
+${collections.length > 0 ? `
+<div style="padding:36px 24px 24px;border-bottom:1px solid ${rule};background:${paper}">
+  <div style="font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:${dim};margin-bottom:6px">Shop the Categories</div>
+  <h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:30px;font-weight:400;line-height:1;letter-spacing:-0.01em;color:${ink}">Find your <em style="font-style:italic">edit</em></h2>
+</div>
+<div style="display:grid;grid-template-columns:repeat(2,1fr);background:${paper};border-bottom:0">${categoryCards}</div>` : ""}
+
+<!-- PRODUCTS HEADER -->
+<div style="padding:36px 24px 20px;background:${paper}">
+  <div style="font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:${dim};margin-bottom:6px">All Pieces</div>
+  <h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:30px;font-weight:400;line-height:1;letter-spacing:-0.01em;color:${ink}">The <em style="font-style:italic">collection</em></h2>
+</div>
+
+<!-- PRODUCT GRID -->
+<div style="display:grid;grid-template-columns:repeat(2,1fr);background:${paper}">${productCards}</div>
+
+<!-- NEWSLETTER / ABOUT — warm paper section -->
+<div style="background:${mid};padding:56px 28px;text-align:center;border-top:1px solid ${rule}">
+  <div style="font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:#888;margin-bottom:14px">Stay in the know</div>
+  <h2 style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:30px;font-weight:400;line-height:1.05;color:${ink};margin-bottom:14px">An heirloom in <em>every piece</em></h2>
+  <p style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:300;line-height:1.7;color:${dim};max-width:360px;margin:0 auto 24px">${aboutText || tagline || "Sign up for first looks, private sales, and stories from the makers behind every piece."}</p>
+  <div style="max-width:340px;margin:0 auto;border-bottom:1px solid ${ink};display:flex;align-items:center;gap:12px">
+    <span style="flex:1;font-family:'DM Sans',sans-serif;font-size:13px;color:#aaa;font-weight:300;padding:12px 0;text-align:left">Your email</span>
+    <span style="font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${ink};padding:12px 0">Subscribe →</span>
+  </div>
+</div>
+
+<!-- FOOTER — white paper, serif italic brand, dim links -->
+<div style="background:${paper};padding:48px 24px 24px;border-top:1px solid ${rule}">
+  <div style="margin-bottom:28px">
+    ${logoImg ? `<img src="${logoImg}" style="height:24px;max-width:100px;object-fit:contain;margin-bottom:10px">` : ""}
+    <div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:24px;letter-spacing:0.04em;color:${ink};margin-bottom:10px;line-height:1">${storeName}</div>
+    <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;line-height:1.6;color:${dim};max-width:240px">${tagline || "An heirloom in every piece."}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px">
+    <div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${dim};margin-bottom:14px">Shop</div>
+      ${collections.map(c => `<div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;color:${ink};margin-bottom:8px;cursor:pointer">${c.name}</div>`).join("")}
+      <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;color:${ink};margin-bottom:8px;cursor:pointer">All Pieces</div>
+    </div>
+    <div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${dim};margin-bottom:14px">Studio</div>
+      ${["Shipping","Returns","Privacy","Contact"].map(p => `<div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;color:${ink};margin-bottom:8px;cursor:pointer">${p}</div>`).join("")}
+    </div>
+  </div>
+  <div style="display:flex;gap:14px;margin-bottom:24px">
+    ${["Instagram","Facebook","TikTok","WhatsApp"].map(s => `<span style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:${dim};border-bottom:1px solid ${rule};padding-bottom:1px;cursor:pointer">${s}</span>`).join("")}
+  </div>
+  <div style="padding-top:18px;border-top:1px solid ${rule};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.08em;color:${dim}">
+    <span>© ${storeName}</span>
+    <span style="text-transform:uppercase;letter-spacing:0.14em">Powered by CatalogStore</span>
+  </div>
+</div>
+
+</body></html>`;
+  }, [previewStore, previewProducts, previewBanner, previewLogo, previewBrandColor]);
+
 
   return (
     <>
@@ -1292,19 +1484,45 @@ ${collections.length > 1 ? `
                       <div>
                         <div className="preview-upload-title">Choose Template</div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                          {(["gc", "sl", "crown"] as const).map(id => {
-                            const isGc = id === "gc";
-                            const isCrown = id === "crown";
+                          {(["gc", "sl", "crown", "heirloom"] as const).map(id => {
                             const sel = previewTemplate === id;
-                            const tplBg = isGc ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" : isCrown ? "linear-gradient(135deg,#0a0908,#1a1612)" : "linear-gradient(135deg,#f0ebe4,#e8e2da)";
-                            const tplColor = isGc ? "rgba(255,255,255,0.25)" : isCrown ? "rgba(196,162,101,0.6)" : "rgba(42,42,46,0.3)";
-                            const tplFont = isGc ? "'Schibsted Grotesk',sans-serif" : isCrown ? "'Georgia',serif" : "Georgia,serif";
-                            const tplLabel = isGc ? "GLASS CHROME" : isCrown ? "Crown" : "Soft Luxury";
-                            const tplDesc = isGc ? "Dark, futuristic, chrome" : isCrown ? "Dark luxury, gold accents" : "Warm cream, elegant";
+                            const tplBg =
+                              id === "gc" ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" :
+                              id === "crown" ? "linear-gradient(135deg,#0a0908,#1a1612)" :
+                              id === "heirloom" ? "linear-gradient(180deg,#1a1715 0%,#0d0b0a 100%)" :
+                              "linear-gradient(135deg,#f0ebe4,#e8e2da)";
+                            const tplColor =
+                              id === "gc" ? "rgba(255,255,255,0.25)" :
+                              id === "crown" ? "rgba(196,162,101,0.6)" :
+                              id === "heirloom" ? "rgba(255,255,255,0.85)" :
+                              "rgba(42,42,46,0.3)";
+                            const tplFont =
+                              id === "gc" ? "'Schibsted Grotesk',sans-serif" :
+                              id === "crown" ? "'Georgia',serif" :
+                              id === "heirloom" ? "'DM Serif Display',Georgia,serif" :
+                              "Georgia,serif";
+                            const tplLabel =
+                              id === "gc" ? "GLASS CHROME" :
+                              id === "crown" ? "Crown" :
+                              id === "heirloom" ? "Heirloom" :
+                              "Soft Luxury";
+                            const tplDesc =
+                              id === "gc" ? "Dark, futuristic, chrome" :
+                              id === "crown" ? "Dark luxury, gold accents" :
+                              id === "heirloom" ? "Magazine, serif, refined" :
+                              "Warm cream, elegant";
+                            const isItalic = id === "crown" || id === "heirloom";
+                            const previewFontSize = id === "gc" ? 8 : id === "crown" ? 14 : id === "heirloom" ? 16 : 11;
+                            const previewLetterSpacing = id === "crown" ? "0.18em" : id === "heirloom" ? "0.04em" : id === "gc" ? "0.12em" : "0.04em";
+                            const previewBorder =
+                              id === "crown" ? "rgba(196,162,101,0.1)" :
+                              id === "gc" ? "rgba(255,255,255,0.06)" :
+                              id === "heirloom" ? "rgba(255,255,255,0.08)" :
+                              "rgba(0,0,0,0.06)";
                             return (
                               <div key={id} className={`preview-tpl-option${sel ? " selected" : ""}`} onClick={() => setPreviewTemplate(id)} style={{ position: "relative" }}>
                                 {sel && <div style={{ position: "absolute", top: 7, right: 7, width: 18, height: 18, borderRadius: "50%", background: "var(--neon)", color: "#fff", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✓</div>}
-                                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", background: tplBg, fontSize: isCrown ? 14 : isGc ? 8 : 11, color: tplColor, fontFamily: tplFont, letterSpacing: isCrown ? "0.18em" : isGc ? "0.12em" : "0.04em", fontStyle: isCrown ? "italic" : "normal", borderBottom: `1px solid ${isCrown ? "rgba(196,162,101,0.1)" : isGc ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", background: tplBg, fontSize: previewFontSize, color: tplColor, fontFamily: tplFont, letterSpacing: previewLetterSpacing, fontStyle: isItalic ? "italic" : "normal", borderBottom: `1px solid ${previewBorder}` }}>
                                   {tplLabel}
                                 </div>
                                 <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.02)" }}>
@@ -1485,7 +1703,7 @@ ${collections.length > 1 ? `
                         {previewStore.storeSlug}.catalogstore.co.za
                       </div>
                     </div>
-                    <iframe srcDoc={previewTemplate === "gc" ? buildGCStore() : previewTemplate === "sl" ? buildSLStore() : buildCrownStore()} style={{ width: "100%", height: 620, border: "none", display: "block" }} title="Store Preview" />
+                    <iframe srcDoc={previewTemplate === "gc" ? buildGCStore() : previewTemplate === "sl" ? buildSLStore() : previewTemplate === "crown" ? buildCrownStore() : buildHeirloomStore()} style={{ width: "100%", height: 620, border: "none", display: "block" }} title="Store Preview" />
                   </div>
 
                   {/* INSIGHTS */}

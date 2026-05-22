@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
   const accentColor = brandColor ?? "#ff6b35";
 
   const isCrown = body.template === "crown";
+  const isHeirloom = body.template === "heirloom";
   const prompt = `You are helping a South African seller build a store preview on CatalogStore.
 
 ${bannerImage ? "The FIRST image is the store banner/cover photo. The remaining images are product photos." : "All images are product photos."}
@@ -106,7 +107,7 @@ Return ONLY raw JSON — no markdown, no code blocks, no extra text:
 
 {
   "storeName": "${brandName ? brandName : "SHORT PUNCHY NAME IN CAPS (2-3 words max)"}",
-  "tagline": "${isCrown ? "Elegant, poetic tagline under 6 words — think luxury editorial, e.g. Wear your crown. or Built for the bold." : "Compelling tagline under 8 words that matches the brand vibe"}",
+  "tagline": "${isCrown ? "Elegant, poetic tagline under 6 words — think luxury editorial, e.g. Wear your crown. or Built for the bold." : isHeirloom ? "Refined, magazine-style tagline under 7 words — heirloom craft / quiet luxury vibe, e.g. Made to outlive the season. or Considered pieces, made to last." : "Compelling tagline under 8 words that matches the brand vibe"}",
   "storeSlug": "${brandName ? brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : "lowercase-hyphenated-name"}",
   "brandColor": "${accentColor}",
   "products": [
@@ -122,7 +123,7 @@ Return ONLY raw JSON — no markdown, no code blocks, no extra text:
       "productIndexes": [0, 1]
     }
   ],
-  "aboutText": "${isCrown ? "2-3 sentences of refined, editorial brand copy. Sophisticated tone — think luxury brand website. Do NOT use the description verbatim. No hype, no exclamation marks. Example: 'Built for those who believe in the art of dressing well. Every piece is sourced with intention and worn with purpose.'" : "2-3 sentences of polished brand copy written like a real brand — do NOT copy the description verbatim, rewrite it in a compelling, professional tone"}",
+  "aboutText": "${isCrown ? "2-3 sentences of refined, editorial brand copy. Sophisticated tone — think luxury brand website. Do NOT use the description verbatim. No hype, no exclamation marks. Example: 'Built for those who believe in the art of dressing well. Every piece is sourced with intention and worn with purpose.'" : isHeirloom ? "2-3 sentences of quiet, magazine-style brand copy. Restrained tone — heirloom craft, considered pieces, made to last. No hype, no exclamation marks. Example: 'Made for those who choose less, and choose well. Every piece is built to be worn, mended, and passed on.'" : "2-3 sentences of polished brand copy written like a real brand — do NOT copy the description verbatim, rewrite it in a compelling, professional tone"}",
   "insight1": { "label": "Style", "value": "One sentence about the aesthetic vibe" },
   "insight2": { "label": "Target Market", "value": "One sentence about who buys these" },
   "insight3": { "label": "Tip", "value": "One actionable sales tip for this product type in South Africa" }
