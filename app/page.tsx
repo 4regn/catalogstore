@@ -7,8 +7,8 @@ import Image from "next/image";
 // ── DATA ────────────────────────────────────────────────────────────────────
 
 const TICKER_ITEMS = [
-  "Your Catalog Amplified", "Zero Commission", "WhatsApp Import",
-  "Instant Setup", "Professional Stores", "Powered by CatalogStore",
+  "Built in South Africa", "Zero Commission", "Online Card Payments",
+  "Live in Minutes", "Professional Stores", "Powered by CatalogStore",
   "South African Built", "Payments on Autopilot",
   "Make Money While You Sleep", "Zero Coding Required",
 ];
@@ -87,7 +87,7 @@ const PAINS = [
 ];
 
 const STEPS = [
-  { n: "01", t: "Sign Up",    d: "Pick a store name, choose your look. Your store URL is ready instantly. Already on WhatsApp Business? Import your catalog in seconds.", r: "20px 4px 4px 20px" },
+  { n: "01", t: "Sign Up",    d: "Pick a store name, choose your look. Your store URL is ready instantly — free for 7 days, no card needed.", r: "20px 4px 4px 20px" },
   { n: "02", t: "Customize",  d: "Upload products, set prices, organize collections. Use the visual editor to make it yours — colors, logo, banners, policies.",          r: "4px" },
   { n: "03", t: "Sell",       d: "Share your link. Customers browse, select variants, add to cart, and checkout. Orders and payments flow to you automatically.",         r: "4px 20px 20px 4px" },
 ];
@@ -98,7 +98,7 @@ const FAQS = [
   { q: "What happens after the free trial?",       a: "After 7 days, your chosen plan activates automatically. Your R1 card verification converts to your first subscription payment." },
   { q: "Can I use my own domain?",                 a: "Yes, on the Pro plan. You get a free subdomain (yourstore.catalogstore.co.za) on all plans, with custom domain support on Pro for a once-off R199 setup fee." },
   { q: "Do you take a percentage of my sales?",    a: "Never. We charge a flat monthly subscription. 100% of your sales revenue goes directly to your account." },
-  { q: "Can I import my WhatsApp Business catalog?", a: "Yes. If you already sell on WhatsApp Business, you can import your products automatically. You can also add products manually if you prefer." },
+  { q: "How do I add my products?",                a: "Add products one at a time through the dashboard, or upload many at once with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description." },
 ];
 
 // ── LOGO SVG ────────────────────────────────────────────────────────────────

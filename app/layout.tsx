@@ -5,9 +5,9 @@ import AffiliateRefTracker from "./components/AffiliateRefTracker";
 import AffiliateReferralBanner from "./components/AffiliateReferralBanner";
 
 export const metadata: Metadata = {
-  title: "CatalogStore - From Catalog to Checkout, in Minutes",
+  title: "CatalogStore — Built for South African Sellers",
   description:
-    "Turn your WhatsApp Business catalog into a professional online store. Accept card payments. No coding needed. Built for South African sellers.",
+    "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders. R99/month, zero commission. Built for South African sellers.",
 };
 
 export default function RootLayout({

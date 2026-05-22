@@ -277,7 +277,7 @@ export default function AffiliateDashboard() {
               style={styles.shareBtn}
               onClick={() => {
                 const msg = encodeURIComponent(
-                  `Want to set up a beautiful online store from your WhatsApp catalog? Check out CatalogStore: https://catalogstore.co.za/?ref=${affiliate.slug}`
+                  `Want to open a real online store and take card payments online? Check out CatalogStore — built for SA sellers: https://catalogstore.co.za/?ref=${affiliate.slug}`
                 );
                 window.open(`https://wa.me/?text=${msg}`, "_blank");
               }}
@@ -290,7 +290,7 @@ export default function AffiliateDashboard() {
             <button
               style={styles.shareBtn}
               onClick={() => {
-                const caption = `Set up your online store from your WhatsApp catalog 👀\n\ncatalogstore.co.za/?ref=${affiliate.slug}`;
+                const caption = `Open a real online store and take card payments online 👀\nBuilt for SA sellers — R99/month, zero commission.\n\ncatalogstore.co.za/?ref=${affiliate.slug}`;
                 navigator.clipboard.writeText(caption);
                 showToast("Caption copied");
               }}
