@@ -7,7 +7,7 @@ import AffiliateReferralBanner from "./components/AffiliateReferralBanner";
 export const metadata: Metadata = {
   title: "CatalogStore — Built for South African Sellers",
   description:
-    "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders. R99/month, zero commission. Built for South African sellers.",
+    "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders. R149/month, zero commission. Built for South African sellers.",
 };
 
 export default function RootLayout({

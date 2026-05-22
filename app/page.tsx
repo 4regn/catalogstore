@@ -13,15 +13,21 @@ const TICKER_ITEMS = [
   "Make Money While You Sleep", "Zero Coding Required",
 ];
 
-const STARTER_FEATURES = [
-  "15 Products", "5 Images Per Product", "5 Collections", "2 Templates",
-  "Store Editor", "All Payment Methods", "WhatsApp Checkout", "Subdomain Included",
-];
-
-const PRO_FEATURES = [
-  "100 Products", "20 Images Per Product", "20 Collections",
-  "All Templates (Current + Future)", "Custom Domain Support",
-  "No 'Powered by CatalogStore'", "Priority Support", "Everything in Starter",
+// One plan, everything included -- the pre-launch positioning. No Pro upsell yet,
+// because we have to prove we can sell at all before we can sell premium.
+const PLAN_FEATURES = [
+  "Up to 100 products",
+  "20 images per product",
+  "20 collections",
+  "All 4 templates included",
+  "Personal onboarding — we set you up 1-on-1",
+  "Custom domain support — we help you connect it",
+  "No 'Powered by CatalogStore' badge",
+  "Free subdomain (yourstore.catalogstore.co.za)",
+  "Visual store editor",
+  "Card, EFT, Apple Pay, WhatsApp checkout",
+  "Order notifications by email",
+  "Cancel anytime",
 ];
 
 const GC_IMAGES = [
@@ -1031,7 +1037,7 @@ ${collections.length > 1 ? `
               Built for <span className="shimmer-text">South African sellers.</span>
             </h1>
             <p className="fu3" style={{ fontSize: 17, lineHeight: 1.85, color: "var(--text-dim)", maxWidth: 560, margin: "0 auto 52px", fontWeight: 400 }}>
-              Open a real online store in minutes. Your customers shop and pay with their cards — no more chasing WhatsApp orders. R99/month, zero commission.
+              Open a real online store in minutes. Your customers shop and pay with their cards — no more chasing WhatsApp orders. R149/month, zero commission.
             </p>
             <div className="fu4 hero-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
               <Link href="/signup" className="glow-btn">Start Your Free Trial</Link>
@@ -1092,51 +1098,38 @@ ${collections.length > 1 ? `
           </div>
         </div>
 
-        {/* PRICING */}
+        {/* PRICING — single confident tier. Pre-launch we don't gate anything behind a Pro
+            upsell; we have to prove we can sell at all first. Everything's included. */}
         <section id="pricing" style={{ padding: "120px 0 100px" }}>
           <div className="section-label reveal">Pricing</div>
-          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(32px,5vw,56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase", marginBottom: 16 }}>Pick your fuel</h2>
-          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 20 }}>7-day free trial on Starter. Cancel anytime.</p>
+          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(32px,5vw,56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase", marginBottom: 16 }}>One plan. Everything included.</h2>
+          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 20, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>No tiers, no upsells. Every seller gets the full platform — including 1-on-1 onboarding from us.</p>
           <div className="reveal" style={{ textAlign: "center", marginBottom: 56 }}>
             <span style={{ display: "inline-block", padding: "8px 24px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: "var(--neon)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Launch Promo — R49 First Month on Starter
+              Launch Promo — R49 First Month
             </span>
           </div>
-          <div className="pricing-grid-2 stagger-children" style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 4, maxWidth: 820, margin: "0 auto" }}>
-            {/* STARTER */}
-            <div className="glass-card grad-border" style={{ padding: "44px 32px", borderRadius: "20px 4px 4px 20px", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+          <div className="reveal" style={{ maxWidth: 520, margin: "0 auto" }}>
+            <div className="glass-card grad-border" style={{ padding: "52px 40px", borderRadius: 20, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)" }} />
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20 }}>Starter</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                <span className="price-num" style={{ fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em" }}>R49</span>
-                <span style={{ fontSize: 22, fontWeight: 900, textDecoration: "line-through", color: "var(--text-muted)" }}>R99</span>
-                <span style={{ fontSize: 13, color: "var(--text-dim)" }}>/mo</span>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Catalogstore Plan</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, justifyContent: "center" }}>
+                <span className="price-num" style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-0.05em" }}>R49</span>
+                <span style={{ fontSize: 28, fontWeight: 900, textDecoration: "line-through", color: "var(--text-muted)" }}>R149</span>
+                <span style={{ fontSize: 14, color: "var(--text-dim)" }}>/mo</span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 28, fontWeight: 600 }}>First month only, then R99/mo</div>
-              <ul style={{ listStyle: "none", marginBottom: 36, flex: 1 }}>
-                {STARTER_FEATURES.map(f => (
+              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 32, fontWeight: 600, textAlign: "center" }}>First month only, then R149/mo</div>
+              <ul style={{ listStyle: "none", marginBottom: 36 }}>
+                {PLAN_FEATURES.map(f => (
                   <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" style={{ display: "block", width: "100%", padding: 16, borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "#f5f5f5", color: "#030303" }}>
-                Start with Starter
+              <Link href="/signup" style={{ display: "block", width: "100%", padding: 18, borderRadius: 100, textAlign: "center", fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "#f5f5f5", color: "#030303" }}>
+                Start Your Free Trial
               </Link>
-            </div>
-            {/* PRO */}
-            <div style={{ padding: "44px 32px", background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: "4px 20px 20px 4px", display: "flex", flexDirection: "column", opacity: 0.4, position: "relative" }}>
-              <div className="popular-badge">Coming Soon</div>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--text-dim)", fontWeight: 800, marginBottom: 20 }}>Pro</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                <span className="price-num" style={{ fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em" }}>R249</span>
-                <span style={{ fontSize: 13, color: "var(--text-dim)" }}>/mo</span>
+              <div style={{ marginTop: 16, textAlign: "center", fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+                7 days free · No credit card needed · Cancel anytime
               </div>
-              <div style={{ height: 20, marginBottom: 28 }} />
-              <ul style={{ listStyle: "none", marginBottom: 36, flex: 1 }}>
-                {PRO_FEATURES.map(f => (
-                  <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>
-                ))}
-              </ul>
-              <div style={{ display: "block", width: "100%", padding: 16, borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>Coming Soon</div>
             </div>
           </div>
         </section>
