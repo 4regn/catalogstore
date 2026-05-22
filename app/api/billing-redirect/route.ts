@@ -79,9 +79,7 @@ export async function POST(req: NextRequest) {
       amount: "0.00",
 
       item_name: `CatalogStore ${plan.name} Plan`,
-      item_description: planId === "starter"
-        ? `7-day free trial, then R49 first month, then R99/month. Cancel anytime.`
-        : `7-day free trial, then R249/month. Cancel anytime.`,
+      item_description: `7-day free trial, then R49 first month, then R149/month. Cancel anytime.`,
 
       name_first: seller.store_name || "Seller",
       email_address: seller.email,
@@ -93,7 +91,8 @@ export async function POST(req: NextRequest) {
       cancel_url: `${origin}/dashboard/billing?status=cancelled`,
       notify_url: `${origin}/api/subscription/notify`,
 
-      // Subscription settings — 7-day trial then R49, then R99
+      // Subscription settings — 7-day trial, R49 first charge, then we PUT the
+      // subscription to R149 via the notify webhook after the first payment lands.
       subscription_type: "1",                              // Recurring subscription
       recurring_amount: plan.firstAmount.toFixed(2),       // R49 first charge after trial
       frequency: "3",                                      // Monthly
