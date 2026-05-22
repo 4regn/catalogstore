@@ -1039,7 +1039,7 @@ ${collections.length > 1 ? `
             </div>
             <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>7-day free trial · Cancel anytime · No credit card needed</p>
             <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap" }}>
-              {[{ val: "R49", label: "First Month" }, { val: "0%", label: "Commission" }, { val: "Cards", label: "Accepted Online" }].map((stat, i) => (
+              {[{ val: "R49", label: "First Month" }, { val: "0%", label: "Commission" }, { val: "Online", label: "Card Payments" }].map((stat, i) => (
                 <div key={i} style={{ display: "flex", gap: 48, alignItems: "center" }}>
                   {i > 0 && <div style={{ width: 1, height: 40, background: "var(--glass-b)" }} />}
                   <div style={{ textAlign: "center" }}>
@@ -1059,6 +1059,26 @@ ${collections.length > 1 ? `
               <span>Live in Minutes</span>
               <span style={{ opacity: 0.4 }}>·</span>
               <span>ZAR Pricing</span>
+            </div>
+            {/* PAYMENT METHODS — shows the full range of ways customers can pay. Sits at the
+                bottom of the hero as the closing reassurance ('every payment method I'd want
+                is here'). Kept visually quieter than the trust row above so it doesn't
+                compete for attention. */}
+            <div className="fu5" style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--glass-b)", maxWidth: 600, marginLeft: "auto", marginRight: "auto" }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 700, marginBottom: 12, opacity: 0.7 }}>
+                Customers pay how they want
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 20, flexWrap: "wrap", fontSize: 12, color: "var(--text-dim)", fontWeight: 600, letterSpacing: "0.04em" }}>
+                <span>Card</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>EFT</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>Apple Pay</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>Google Pay</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>WhatsApp</span>
+              </div>
             </div>
           </div>
         </section>
