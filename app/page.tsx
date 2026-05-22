@@ -101,12 +101,38 @@ const STEPS = [
 ];
 
 const FAQS = [
-  { q: "Do I need technical skills?",              a: "Not at all. If you can post on social media, you can build a store on CatalogStore. Everything is click-to-edit with a visual editor." },
-  { q: "Can my customers pay online?",             a: "Yes. You connect your own payment provider like PayFast or set up EFT payments. Customers pay you directly through your store — we never touch your money." },
-  { q: "What happens after the free trial?",       a: "After 7 days, your chosen plan activates automatically. Your R1 card verification converts to your first subscription payment." },
-  { q: "Can I use my own domain?",                 a: "Yes, on the Pro plan. You get a free subdomain (yourstore.catalogstore.co.za) on all plans, with custom domain support on Pro for a once-off R199 setup fee." },
-  { q: "Do you take a percentage of my sales?",    a: "Never. We charge a flat monthly subscription. 100% of your sales revenue goes directly to your account." },
-  { q: "How do I add my products?",                a: "Add products one at a time through the dashboard, or upload many at once with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description." },
+  {
+    q: "Do I need technical skills?",
+    a: "Not at all. If you can post on social media, you can build a store on CatalogStore. Everything is click-to-edit, and we'll personally help you set it up if you'd like company through the first hour.",
+  },
+  {
+    q: "How long does it take to launch my store?",
+    a: "Most sellers go live the same day — pick a template, upload your products, add your logo, and your store URL is ready to share. If you'd rather have someone do it with you, we onboard new sellers 1-on-1 at no extra cost.",
+  },
+  {
+    q: "Can my customers pay online with cards?",
+    a: "Yes — your customers shop and check themselves out with their cards, EFT, Apple Pay, or Google Pay. You connect your own payment processor so sales go straight to your account. We never touch your money.",
+  },
+  {
+    q: "Do you take a percentage of my sales?",
+    a: "Never. We charge a flat R149/month. 100% of your sales revenue goes directly to your account.",
+  },
+  {
+    q: "What happens after my 7-day free trial?",
+    a: "Your first month is R49 (instead of R149) as a launch promo. From the second month onwards it's R149/month. Cancel anytime — no contracts, no penalties.",
+  },
+  {
+    q: "Can I use my own custom domain?",
+    a: "Yes — every store includes custom domain support. If you own yourbrand.co.za we'll personally help you connect it so customers find you directly. Your free subdomain (yourstore.catalogstore.co.za) is always included as a fallback.",
+  },
+  {
+    q: "How do I add my products?",
+    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. Your plan includes up to 20 products — plenty to launch with.",
+  },
+  {
+    q: "What if I get stuck?",
+    a: "Send us a message — we read every one. Pre-launch, the founder personally helps each new seller. You're not stuck on a help-desk queue.",
+  },
 ];
 
 // ── LOGO SVG ────────────────────────────────────────────────────────────────
