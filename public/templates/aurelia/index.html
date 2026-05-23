@@ -134,7 +134,10 @@ body {
 /* ── HERO ────────────────────────────────────── */
 .hero {
   position: relative;
-  height: 480px;
+  /* Match the cover image's natural 2:3 portrait aspect ratio so the face is
+     shown in full without cropping. Fixed-height heroes cropped the top of
+     her head and the dropper hand. */
+  aspect-ratio: 2 / 3;
   overflow: hidden;
   display: flex;
   align-items: flex-end;
