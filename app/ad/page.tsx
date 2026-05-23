@@ -385,26 +385,37 @@ function ScaledTemplateIframe({ src, title, active }: { src: string; title: stri
     const inject = () => {
       const doc = iframe.contentDocument;
       if (!doc) return;
-      if (!doc.querySelector("#ad-scroll-style")) {
-        const style = doc.createElement("style");
-        style.id = "ad-scroll-style";
-        style.textContent = `
-          html, body { will-change: transform; backface-visibility: hidden; }
-          body {
-            transition: transform 12s cubic-bezier(0.42, 0, 0.58, 1);
-            transform: translateY(0);
-          }
-          body.ad-scrolling {
-            /* Walk past most of the storefront content -- safe value for the
-               4500-6000px range these templates produce. */
-            transform: translateY(-3400px);
-          }
-        `;
-        doc.head.appendChild(style);
-      }
+
+      // Measure the actual content height of this template so we don't scroll
+      // past the footer into blank space (VOLT + Aurelia are shorter than
+      // Crown + Heirloom, so a fixed scroll distance overshoots them).
+      const contentHeight = Math.max(
+        doc.body.scrollHeight,
+        doc.documentElement.scrollHeight,
+      );
+      const viewportHeight = doc.documentElement.clientHeight || VH;
+      // Stop ~40px before the absolute end so the footer is still in view.
+      const scrollDistance = Math.max(0, contentHeight - viewportHeight - 40);
+
+      // Re-inject the style each time so the per-iframe distance is fresh.
+      const existing = doc.querySelector("#ad-scroll-style");
+      if (existing) existing.remove();
+      const style = doc.createElement("style");
+      style.id = "ad-scroll-style";
+      style.textContent = `
+        html, body { will-change: transform; backface-visibility: hidden; }
+        body {
+          transition: transform 12s cubic-bezier(0.42, 0, 0.58, 1);
+          transform: translateY(0);
+        }
+        body.ad-scrolling {
+          transform: translateY(-${scrollDistance}px);
+        }
+      `;
+      doc.head.appendChild(style);
+
       // Reset and trigger
       doc.body.classList.remove("ad-scrolling");
-      // force reflow so the next class add actually animates
       void doc.body.offsetHeight;
       if (active) {
         requestAnimationFrame(() => doc.body.classList.add("ad-scrolling"));
