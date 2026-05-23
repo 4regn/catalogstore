@@ -42,6 +42,13 @@ export default function AdPage() {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef<number>(0);
 
+  // Pre-cache assets that appear in mid-ad scenes so they're ready in time.
+  // (Without this the butterfly tee thumbnail in scene 6 was still loading
+  // when scene 7 took over.)
+  useEffect(() => {
+    ["/ad-assets/butterfly-tee.jpg"].forEach((src) => { new Image().src = src; });
+  }, []);
+
   // Advance scenes
   useEffect(() => {
     if (!playing || done) return;
@@ -125,7 +132,7 @@ export default function AdPage() {
 
         {/* SCENE 7 — Templates + AI preview. PersistentScene so iframes preload. */}
         <PersistentScene active={currentScene === "templates"}>
-          <TemplatesScene />
+          <TemplatesScene active={currentScene === "templates"} />
         </PersistentScene>
 
         {/* SCENE 8 — Stats lockup */}
@@ -340,10 +347,18 @@ const TEMPLATES = [
 // Same approach as the landing-page ScaledIframe: render at a fixed 400x844
 // virtual viewport, scale to fit the container via a CSS variable set by a
 // ResizeObserver. Without this the iframe content overflows or stays white.
-function ScaledTemplateIframe({ src, title }: { src: string; title: string }) {
+//
+// Also drives an auto-scroll inside the iframe when the templates scene is
+// active -- since the iframes are same-origin, we can poke their scroll
+// position directly via JS. This walks the viewer through each store's hero
+// → products → footer over the scene's 14-second budget.
+function ScaledTemplateIframe({ src, title, active }: { src: string; title: string; active: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const VW = 400;
   const VH = 844;
+
+  // Scale to fit container
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -356,14 +371,69 @@ function ScaledTemplateIframe({ src, title }: { src: string; title: string }) {
     ro.observe(wrap);
     return () => ro.disconnect();
   }, []);
+
+  // Auto-scroll when scene is active
+  useEffect(() => {
+    if (!active) return;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    let raf = 0;
+    let cancelled = false;
+
+    const drive = () => {
+      const doc = iframe.contentDocument;
+      const win = iframe.contentWindow;
+      if (!doc || !win) return;
+      const root = doc.scrollingElement || doc.documentElement;
+      // Reset to top before starting
+      win.scrollTo(0, 0);
+      const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
+      const DURATION_MS = 11000; // most of the 14s scene, leaves a beat at the end
+      const start = performance.now();
+      const tick = () => {
+        if (cancelled) return;
+        const t = Math.min(1, (performance.now() - start) / DURATION_MS);
+        // easeInOutCubic
+        const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        win.scrollTo(0, Math.round(maxScroll * ease));
+        if (t < 1) raf = requestAnimationFrame(tick);
+      };
+      tick();
+    };
+
+    if (iframe.contentDocument?.readyState === "complete") {
+      drive();
+    } else {
+      const onLoad = () => drive();
+      iframe.addEventListener("load", onLoad, { once: true });
+      return () => {
+        cancelled = true;
+        cancelAnimationFrame(raf);
+        iframe.removeEventListener("load", onLoad);
+      };
+    }
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [active]);
+
   return (
     <div ref={wrapRef} className="ad-tpl-iframe-wrap">
-      <iframe src={src} title={title} loading="eager" style={{ width: VW, height: VH }} className="ad-tpl-iframe" />
+      <iframe
+        ref={iframeRef}
+        src={src}
+        title={title}
+        loading="eager"
+        style={{ width: VW, height: VH }}
+        className="ad-tpl-iframe"
+        scrolling="no"
+      />
     </div>
   );
 }
 
-function TemplatesScene() {
+function TemplatesScene({ active }: { active: boolean }) {
   return (
     <div className="templates-stage">
       <h2 className="templates-headline">
@@ -375,7 +445,7 @@ function TemplatesScene() {
           <div key={t.name} className="templates-phone" style={{ animationDelay: `${300 + i * 600}ms` }}>
             <div className="phone-frame">
               <div className="phone-notch" />
-              <ScaledTemplateIframe src={t.src} title={t.name} />
+              <ScaledTemplateIframe src={t.src} title={t.name} active={active} />
             </div>
             <div className="templates-phone-label">
               <span className="templates-phone-name">{t.name}</span>
@@ -807,6 +877,9 @@ const css = `
     display: block;
     transform-origin: top left;
     transform: scale(var(--ad-tpl-scale, 0.4));
+    /* Ad is non-interactive -- taps shouldn't enter the iframe; we drive the
+       scroll ourselves via JS so the viewer can't break the choreography. */
+    pointer-events: none;
   }
   .templates-phone-label {
     display: flex; flex-direction: column; gap: 2px; align-items: center;
