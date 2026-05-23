@@ -190,7 +190,7 @@ export default function BillingPage() {
                   <span style={{ fontSize: 13, color: "rgba(245,245,245,0.25)" }}>/mo</span>
                 </div>
 
-                {!isActive && plan.id === "starter" && <p style={{ fontSize: 11, color: "#22c55e", marginBottom: 4 }}>7-day free trial - R1 card verification</p>}
+                {!isActive && plan.id === "starter" && <p style={{ fontSize: 11, color: "#22c55e", marginBottom: 4 }}>7-day free trial — R0 today, no charge until day 8</p>}
                 {isPromo && plan.promoPrice && !isActive && (
                   <p style={{ fontSize: 11, color: N, marginBottom: 16 }}>After 7-day trial: R{plan.promoPrice} first month, then R{plan.price}/mo</p>
                 )}
@@ -223,7 +223,7 @@ export default function BillingPage() {
         </div>
         )}
 
-        {!isExpired && <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>Starter: R1 card verification, 7-day free trial, then auto-billed monthly. Pro: billed immediately. Cancel anytime. Prices in ZAR.</p>}
+        {!isExpired && <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>R0 today. Your card is charged R49 after the 7-day free trial, then R149/month from month two. Cancel anytime. Prices in ZAR.</p>}
 
         {/* CANCEL SUBSCRIPTION */}
         {isActive && (
