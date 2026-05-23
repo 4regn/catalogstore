@@ -849,13 +849,13 @@ const css = `
   /* TEMPLATES */
   .templates-stage {
     display: flex; flex-direction: column;
-    gap: 18px; padding: 0; width: 100%;
+    gap: 20px; padding: 0; width: 100%;
     align-items: center;
     height: 100%;
     justify-content: center;
   }
   .templates-headline {
-    font-size: clamp(18px, 3.5vw, 30px);
+    font-size: clamp(20px, 4vw, 34px);
     font-weight: 900;
     line-height: 1.15;
     letter-spacing: -0.03em;
@@ -863,28 +863,26 @@ const css = `
     animation: fade-up 0.8s ease both;
   }
   .templates-row {
-    display: flex; gap: 10px; justify-content: center; align-items: flex-end;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 14px;
     width: 100%;
-    max-width: 100vw;
-    padding: 0 6px;
+    max-width: 360px;
+    margin: 0 auto;
     box-sizing: border-box;
   }
   .templates-phone {
     display: flex; flex-direction: column; align-items: center; gap: 8px;
     opacity: 0;
-    flex: 1 1 0;
-    max-width: 22vw;
-    min-width: 0;
     animation: fade-up 0.7s ease forwards;
   }
   .templates-phone .phone-frame {
     width: 100%;
-    max-width: 180px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    max-width: 150px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.55);
   }
   .templates-phone .phone-notch {
-    width: 38px; height: 12px;
+    width: 44px; height: 14px;
   }
   .ad-tpl-iframe-wrap {
     position: relative;
@@ -905,23 +903,15 @@ const css = `
   }
   .templates-phone-label {
     display: flex; flex-direction: column; gap: 2px; align-items: center;
-    max-width: 100%;
   }
   .templates-phone-name {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.08em;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
     text-transform: uppercase; color: #ff6b35;
     text-align: center;
   }
   .templates-phone-tag {
-    font-size: 8px; color: rgba(245,245,245,0.4);
+    font-size: 9px; color: rgba(245,245,245,0.4);
     text-align: center;
-    line-height: 1.2;
-  }
-
-  @media (max-width: 640px) {
-    .templates-phone { max-width: 24vw; }
-    .templates-phone-name { font-size: 8px; }
-    .templates-phone-tag { font-size: 7px; }
   }
 
   /* STATS */
