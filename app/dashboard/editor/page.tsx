@@ -4,7 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { revalidateStore } from "../../actions/revalidate-store";
-import { collectionSlug } from "../../store/[slug]/HeirloomStore";
+
+// Mirror HeirloomStore's collectionSlug. Inlined (not imported) so the editor
+// bundle doesn't have to drag the whole 1300-line storefront component just
+// to compute a slug -- that was bloating the dashboard load.
+const collectionSlug = (name: string) =>
+  name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
 /* ─── TYPES ─── */
 interface Seller {
