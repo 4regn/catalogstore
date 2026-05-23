@@ -10,6 +10,15 @@ interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string;
   facebook?: string; twitter?: string;
 }
+
+// Where a hero CTA points. "products" = scroll-jump down to the product grid.
+// "collection" = navigate to /store/<slug>/c/<collection-slug>. "url" = open an
+// arbitrary URL (external supported). "none" = don't render the button at all.
+type CtaTarget =
+  | { type: "products" }
+  | { type: "collection"; collection: string }
+  | { type: "url"; url: string }
+  | { type: "none" };
 interface StoreConfig {
   announcement?: string;
   show_announcement?: boolean;
@@ -23,6 +32,10 @@ interface StoreConfig {
   hero_body?: string;
   hero_cta_primary?: string;
   hero_cta_secondary?: string;
+  // Each CTA can independently link to: the products grid (scroll), a named
+  // collection page, a custom URL, or be hidden entirely.
+  hero_cta_primary_target?: CtaTarget;
+  hero_cta_secondary_target?: CtaTarget;
   featured_product_id?: string;
   flash_sale_label?: string;
   flash_sale_title?: string;
@@ -115,8 +128,14 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl] = useState<string | null>(null);
   const [liveHeroImage, setLiveHeroImage] = useState<string | null>(null);
+  const [liveHeroIndex, setLiveHeroIndex] = useState<string | null>(null);
+  const [liveHeroLabel, setLiveHeroLabel] = useState<string | null>(null);
   const [liveHeroHeadline, setLiveHeroHeadline] = useState<string | null>(null);
   const [liveHeroBody, setLiveHeroBody] = useState<string | null>(null);
+  const [liveHeroCtaPrimary, setLiveHeroCtaPrimary] = useState<string | null>(null);
+  const [liveHeroCtaSecondary, setLiveHeroCtaSecondary] = useState<string | null>(null);
+  const [liveHeroCtaPrimaryTarget, setLiveHeroCtaPrimaryTarget] = useState<CtaTarget | null>(null);
+  const [liveHeroCtaSecondaryTarget, setLiveHeroCtaSecondaryTarget] = useState<CtaTarget | null>(null);
   const [liveTicker, setLiveTicker] = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed] = useState<number | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
@@ -248,8 +267,14 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.announcement !== undefined) setLiveAnnouncement(e.data.announcement);
       if (e.data.logoUrl !== undefined) setLiveLogoUrl(e.data.logoUrl);
       if (e.data.heroImage !== undefined) setLiveHeroImage(e.data.heroImage);
+      if (e.data.heroIndex !== undefined) setLiveHeroIndex(e.data.heroIndex);
+      if (e.data.heroLabel !== undefined) setLiveHeroLabel(e.data.heroLabel);
       if (e.data.heroHeadline !== undefined) setLiveHeroHeadline(e.data.heroHeadline);
       if (e.data.heroBody !== undefined) setLiveHeroBody(e.data.heroBody);
+      if (e.data.heroCtaPrimary !== undefined) setLiveHeroCtaPrimary(e.data.heroCtaPrimary);
+      if (e.data.heroCtaSecondary !== undefined) setLiveHeroCtaSecondary(e.data.heroCtaSecondary);
+      if (e.data.heroCtaPrimaryTarget !== undefined) setLiveHeroCtaPrimaryTarget(e.data.heroCtaPrimaryTarget);
+      if (e.data.heroCtaSecondaryTarget !== undefined) setLiveHeroCtaSecondaryTarget(e.data.heroCtaSecondaryTarget);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
     };
@@ -375,13 +400,32 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const displayLogo = liveLogoUrl ?? seller.logo_url ?? null;
   const displayAnnouncement = liveAnnouncement ?? config.announcement ?? null;
   const displayHeroImage = liveHeroImage ?? config.hero_image ?? null;
-  const displayHeroIndex = config.hero_index ?? `${seller.store_name} · Release 01`;
-  const displayHeroLabel = config.hero_label ?? "Pick of the Week";
+  const displayHeroIndex = liveHeroIndex ?? config.hero_index ?? `${seller.store_name} · Release 01`;
+  const displayHeroLabel = liveHeroLabel ?? config.hero_label ?? "Pick of the Week";
   const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? "Built to outlast\nthe season.";
   const displayHeroEm = config.hero_headline_em ?? "outlast";
   const displayHeroBody = liveHeroBody ?? config.hero_body ?? (seller.tagline || "Limited-run pieces, made deliberately. New release every Friday at noon.");
-  const displayCtaPrimary = config.hero_cta_primary ?? "Shop the Drop";
-  const displayCtaSecondary = config.hero_cta_secondary ?? "Join Waitlist";
+  const displayCtaPrimary = liveHeroCtaPrimary ?? config.hero_cta_primary ?? "Shop the Drop";
+  // Default empty (not "Join Waitlist") -- there's no waitlist feature, so the
+  // secondary CTA should only appear if the seller has explicitly set both its
+  // label AND a target. Empty label or `none` target hides the button.
+  const displayCtaSecondary = liveHeroCtaSecondary ?? config.hero_cta_secondary ?? "";
+  const displayCtaPrimaryTarget: CtaTarget = liveHeroCtaPrimaryTarget ?? config.hero_cta_primary_target ?? { type: "products" };
+  const displayCtaSecondaryTarget: CtaTarget = liveHeroCtaSecondaryTarget ?? config.hero_cta_secondary_target ?? { type: "none" };
+
+  // Build a click handler for whatever destination the seller picked.
+  const ctaClick = (target: CtaTarget) => () => {
+    if (target.type === "products") {
+      document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" });
+    } else if (target.type === "collection") {
+      navigate(`/store/${slug}/c/${target.collection}`);
+    } else if (target.type === "url") {
+      if (target.url) window.open(target.url, "_blank", "noopener");
+    }
+    // target.type === "none" -> button shouldn't render at all; no-op fallback.
+  };
+  const showCtaPrimary = displayCtaPrimary.trim() !== "" && displayCtaPrimaryTarget.type !== "none";
+  const showCtaSecondary = displayCtaSecondary.trim() !== "" && displayCtaSecondaryTarget.type !== "none";
   const defaultTicker = ["Free Delivery Over R800", "New Drop Friday 12PM", "Up to 35% Off Archive", "Restock Alerts Via WhatsApp"];
   const displayTicker = liveTicker ?? config.ticker_texts ?? defaultTicker;
   const tickerDuration = liveTickerSpeed ?? config.ticker_speed ?? 36;
@@ -978,10 +1022,16 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               </h1>
               <p className="hl-hero-body">{displayHeroBody}</p>
               <div className="hl-cta-row">
-                <button className="hl-btn-solid" onClick={() => document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" })}>
-                  {displayCtaPrimary}
-                </button>
-                <button className="hl-btn-text">{displayCtaSecondary}</button>
+                {showCtaPrimary && (
+                  <button className="hl-btn-solid" onClick={ctaClick(displayCtaPrimaryTarget)}>
+                    {displayCtaPrimary}
+                  </button>
+                )}
+                {showCtaSecondary && (
+                  <button className="hl-btn-text" onClick={ctaClick(displayCtaSecondaryTarget)}>
+                    {displayCtaSecondary}
+                  </button>
+                )}
               </div>
               <div className="hl-timer-row">
                 <div className="hl-timer-note">{promoCountdown ? `${promoCountdown.code} ends in` : "Drop ends in"}</div>
