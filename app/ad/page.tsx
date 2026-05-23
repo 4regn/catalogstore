@@ -280,6 +280,32 @@ const TEMPLATES = [
   { name: "SOFT LUXURY",  tag: "skincare + fragrance", src: "/templates/aurelia/index.html" },
 ];
 
+// Same approach as the landing-page ScaledIframe: render at a fixed 400x844
+// virtual viewport, scale to fit the container via a CSS variable set by a
+// ResizeObserver. Without this the iframe content overflows or stays white.
+function ScaledTemplateIframe({ src, title }: { src: string; title: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const VW = 400;
+  const VH = 844;
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const update = () => {
+      const w = wrap.clientWidth;
+      if (w > 0) wrap.style.setProperty("--ad-tpl-scale", String(w / VW));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={wrapRef} className="ad-tpl-iframe-wrap">
+      <iframe src={src} title={title} loading="eager" style={{ width: VW, height: VH }} className="ad-tpl-iframe" />
+    </div>
+  );
+}
+
 function TemplatesScene() {
   return (
     <div className="templates-stage">
@@ -292,12 +318,7 @@ function TemplatesScene() {
           <div key={t.name} className="templates-phone" style={{ animationDelay: `${300 + i * 600}ms` }}>
             <div className="phone-frame">
               <div className="phone-notch" />
-              <iframe
-                src={t.src}
-                title={t.name}
-                loading="lazy"
-                className="templates-iframe"
-              />
+              <ScaledTemplateIframe src={t.src} title={t.name} />
             </div>
             <div className="templates-phone-label">
               <span className="templates-phone-name">{t.name}</span>
@@ -644,20 +665,27 @@ const css = `
     animation: fade-up 0.7s ease forwards;
   }
   .templates-phone .phone-frame {
-    width: clamp(120px, 14vw, 180px);
+    width: clamp(140px, 16vw, 200px);
     box-shadow: 0 20px 50px rgba(0,0,0,0.5);
   }
   .templates-phone .phone-notch {
     width: 50px; height: 14px;
   }
-  .templates-iframe {
-    width: 100%; height: 100%;
+  .ad-tpl-iframe-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 28px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .ad-tpl-iframe {
+    position: absolute;
+    top: 0; left: 0;
     border: none;
-    border-radius: 24px;
+    display: block;
     transform-origin: top left;
-    transform: scale(0.4);
-    width: 250%;
-    height: 250%;
+    transform: scale(var(--ad-tpl-scale, 0.4));
   }
   .templates-phone-label {
     display: flex; flex-direction: column; gap: 2px; align-items: center;
