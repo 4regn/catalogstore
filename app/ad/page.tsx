@@ -306,7 +306,8 @@ function FirstSaleScene() {
             <span className="sale-cart-count">(1)</span>
           </div>
           <div className="sale-product">
-            <div className="sale-product-image" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ad-assets/butterfly-tee.jpg" alt="Butterfly Tee" className="sale-product-image" />
             <div>
               <div className="sale-product-name">Butterfly Tee</div>
               <div className="sale-product-price">R599</div>
@@ -714,8 +715,14 @@ const css = `
     animation: fade-up 0.4s 0.6s ease both;
   }
   .sale-product-image {
-    width: 60px; height: 60px; border-radius: 8px;
-    background: linear-gradient(135deg,#ff6b35,#ff3d6e);
+    width: 60px; height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    /* Image is a tall portrait of a model in the tee -- crop to the chest
+       area so the butterflies + 4REGN text are the focal point of the
+       thumbnail, not the face. */
+    object-position: center 70%;
+    display: block;
   }
   .sale-product-name { font-size: 12px; font-weight: 700; }
   .sale-product-price { font-size: 11px; color: #1a1a1a; opacity: 0.6; }
