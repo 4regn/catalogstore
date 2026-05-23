@@ -141,6 +141,11 @@ const FAQS = [
 // template HTMLs (which weren't designed for 320px-wide phone bezels) overflow
 // horizontally inside the phone mockup. ResizeObserver keeps the scale in sync
 // if the container changes width (e.g. on rotation).
+//
+// Also lazy-mounts: the iframe element only enters the DOM once its phone wrap
+// scrolls within 300px of the viewport. Critical for the landing page where four
+// template iframes (one is 5MB, one is 2.3MB) sit below the fold -- without this,
+// every visitor pays the full network cost even if they never scroll to Templates.
 function ScaledIframe({
   src,
   title,
@@ -151,12 +156,14 @@ function ScaledIframe({
   background?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
   const VW = 400;
   const VH = 844;
 
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
+
     const update = () => {
       const w = wrap.clientWidth;
       if (w > 0) wrap.style.setProperty("--tpl-scale", String(w / VW));
@@ -164,18 +171,38 @@ function ScaledIframe({
     update();
     const ro = new ResizeObserver(update);
     ro.observe(wrap);
-    return () => ro.disconnect();
+
+    // Lazy mount: defer iframe creation until the user is about to see this
+    // phone. One-shot -- once visible, the iframe stays mounted even if the
+    // user scrolls away again, so it doesn't reload on re-entry.
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    io.observe(wrap);
+
+    return () => {
+      ro.disconnect();
+      io.disconnect();
+    };
   }, []);
 
   return (
     <div ref={wrapRef} className="tpl-phone-iframe-wrap" style={{ background }}>
-      <iframe
-        src={src}
-        title={title}
-        loading="lazy"
-        className="tpl-phone-iframe"
-        style={{ width: VW, height: VH }}
-      />
+      {visible && (
+        <iframe
+          src={src}
+          title={title}
+          loading="lazy"
+          className="tpl-phone-iframe"
+          style={{ width: VW, height: VH }}
+        />
+      )}
     </div>
   );
 }
