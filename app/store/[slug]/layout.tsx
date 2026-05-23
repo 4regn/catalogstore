@@ -3,10 +3,9 @@ import { supabaseAdmin } from "../../../lib/supabase-admin";
 
 export const revalidate = 60;
 
-// Per-seller browser tab branding. Looks up the seller by subdomain and uses
-// their logo as the favicon (with store name as the title fallback). Cascades
-// to every child route under /store/[slug] -- storefront, collection pages,
-// product pages, checkout -- so the seller's brand stays in the tab end-to-end.
+// Per-seller browser tab branding. Title + description; the favicon itself
+// is handled by the file-based dynamic icon at ./icon.tsx (which Next.js wires
+// up automatically and which overrides the root /app/favicon.ico).
 export async function generateMetadata({
   params,
 }: {
@@ -16,7 +15,7 @@ export async function generateMetadata({
 
   const { data: seller } = await supabaseAdmin
     .from("sellers")
-    .select("store_name, logo_url, tagline")
+    .select("store_name, tagline")
     .eq("subdomain", slug)
     .maybeSingle();
 
@@ -25,9 +24,6 @@ export async function generateMetadata({
   return {
     title: seller.store_name,
     description: seller.tagline || `Shop ${seller.store_name} online`,
-    icons: seller.logo_url
-      ? { icon: [{ url: seller.logo_url }], shortcut: [{ url: seller.logo_url }], apple: [{ url: seller.logo_url }] }
-      : undefined,
   };
 }
 
