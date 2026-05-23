@@ -84,9 +84,16 @@ export async function POST(req: NextRequest) {
     const recurringAmount = isReactivation
       ? plan.recurringAmount.toFixed(2)
       : plan.firstAmount.toFixed(2);
+    // PayFast shows item_name prominently on the checkout page; we use it to
+    // communicate the pricing schedule because PayFast's own "Future recurring
+    // amount" field only reflects the current recurring_amount (R49 at signup,
+    // bumped to R149 via the subscription update API after the first charge).
+    const itemName = isReactivation
+      ? `CatalogStore — R${plan.recurringAmount.toFixed(0)}/month`
+      : `CatalogStore — R${plan.firstAmount.toFixed(0)} first month, then R${plan.recurringAmount.toFixed(0)}/month`;
     const itemDescription = isReactivation
-      ? `R${plan.recurringAmount.toFixed(0)}/month. Cancel anytime.`
-      : `7-day free trial, then R${plan.firstAmount.toFixed(0)} first month, then R${plan.recurringAmount.toFixed(0)}/month. Cancel anytime.`;
+      ? `R${plan.recurringAmount.toFixed(0)}/month subscription. Cancel anytime from your dashboard.`
+      : `7-day free trial (R0 today). After the trial, R${plan.firstAmount.toFixed(0)} is debited as your first month, then R${plan.recurringAmount.toFixed(0)}/month from month two onwards. Cancel anytime from your dashboard.`;
 
     const fields: Record<string, string> = {
       merchant_id: merchantId,
@@ -94,7 +101,7 @@ export async function POST(req: NextRequest) {
 
       amount: todayAmount,
 
-      item_name: `CatalogStore ${plan.name} Plan`,
+      item_name: itemName,
       item_description: itemDescription,
 
       name_first: seller.store_name || "Seller",
