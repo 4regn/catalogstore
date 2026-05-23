@@ -3,9 +3,13 @@ import { supabaseAdmin } from "../../../lib/supabase-admin";
 
 export const revalidate = 60;
 
-// Per-seller browser tab branding. Title + description; the favicon itself
-// is handled by the file-based dynamic icon at ./icon.tsx (which Next.js wires
-// up automatically and which overrides the root /app/favicon.ico).
+// Per-seller browser tab branding. Title + description come from the seller
+// row; the favicon is declared as a same-origin URL pointing at
+// /store/[slug]/favicon (route handler at ./favicon/route.ts), which proxies
+// the seller's logo bytes through our origin.
+//
+// Same-origin matters: cross-origin <link rel="icon" href="https://...supabase.co/...">
+// is unreliable on iOS Safari -- it just falls back to the empty-favicon globe.
 export async function generateMetadata({
   params,
 }: {
@@ -15,16 +19,27 @@ export async function generateMetadata({
 
   const { data: seller } = await supabaseAdmin
     .from("sellers")
-    .select("store_name, tagline")
+    .select("store_name, tagline, logo_url")
     .eq("subdomain", slug)
     .maybeSingle();
 
   if (!seller) return {};
 
-  return {
+  const meta: Metadata = {
     title: seller.store_name,
     description: seller.tagline || `Shop ${seller.store_name} online`,
   };
+
+  if (seller.logo_url) {
+    const url = `/store/${slug}/favicon`;
+    meta.icons = {
+      icon: [{ url }],
+      shortcut: [{ url }],
+      apple: [{ url }],
+    };
+  }
+
+  return meta;
 }
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
