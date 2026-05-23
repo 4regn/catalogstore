@@ -136,6 +136,50 @@ const FAQS = [
 
 // ── LOGO SVG ────────────────────────────────────────────────────────────────
 
+// Renders an iframe at a fixed virtual mobile viewport (400x844, iPhone-ish) and
+// scales it down to fit whatever container width is available. Without this the
+// template HTMLs (which weren't designed for 320px-wide phone bezels) overflow
+// horizontally inside the phone mockup. ResizeObserver keeps the scale in sync
+// if the container changes width (e.g. on rotation).
+function ScaledIframe({
+  src,
+  title,
+  background = "#fff",
+}: {
+  src: string;
+  title: string;
+  background?: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const VW = 400;
+  const VH = 844;
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const update = () => {
+      const w = wrap.clientWidth;
+      if (w > 0) wrap.style.setProperty("--tpl-scale", String(w / VW));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={wrapRef} className="tpl-phone-iframe-wrap" style={{ background }}>
+      <iframe
+        src={src}
+        title={title}
+        loading="lazy"
+        className="tpl-phone-iframe"
+        style={{ width: VW, height: VH }}
+      />
+    </div>
+  );
+}
+
 function Logo({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 72 72" fill="none">
@@ -1162,6 +1206,11 @@ ${collections.length > 0 ? `
         .tpl-phone{position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:9/19;background:#0a0a0a;border-radius:42px;padding:10px;box-shadow:0 30px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.08),inset 0 0 0 2px rgba(255,255,255,0.04);overflow:hidden}
         .tpl-phone-notch{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:2;pointer-events:none}
         .tpl-phone-screen{width:100%;height:100%;border:none;display:block;border-radius:32px;overflow:hidden}
+        /* Wrapper for the scaled iframes (Heirloom + Crown). The iframe renders at
+           a fixed 400x844 virtual viewport and gets scaled to fit via --tpl-scale,
+           set by the ScaledIframe component's ResizeObserver. */
+        .tpl-phone-iframe-wrap{position:relative;width:100%;height:100%;border-radius:32px;overflow:hidden}
+        .tpl-phone-iframe{position:absolute;top:0;left:0;border:none;display:block;transform:scale(var(--tpl-scale,1));transform-origin:top left}
         .tpl-phone-caption{margin-top:28px;text-align:center;padding:0 8px}
         .tpl-phone-num{font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--neon);font-weight:800;margin-bottom:6px}
         .tpl-phone-title{font-size:clamp(20px,3vw,28px);font-weight:900;text-transform:uppercase;letter-spacing:-0.03em;margin-bottom:10px}
@@ -1778,13 +1827,7 @@ ${collections.length > 0 ? `
             <div>
               <div className="tpl-phone">
                 <div className="tpl-phone-notch" />
-                <iframe
-                  src="/templates/heirloom/index.html"
-                  title="Heirloom Template — Live Demo"
-                  loading="lazy"
-                  className="tpl-phone-screen"
-                  style={{ background: "#fff" }}
-                />
+                <ScaledIframe src="/templates/heirloom/index.html" title="Heirloom Template — Live Demo" background="#fff" />
               </div>
               <div className="tpl-phone-caption">
                 <div className="tpl-phone-num">Theme 01</div>
@@ -1798,13 +1841,7 @@ ${collections.length > 0 ? `
             <div>
               <div className="tpl-phone">
                 <div className="tpl-phone-notch" />
-                <iframe
-                  src="/templates/crown/index.html"
-                  title="Crown Template — Live Demo"
-                  loading="lazy"
-                  className="tpl-phone-screen"
-                  style={{ background: "#0a0908" }}
-                />
+                <ScaledIframe src="/templates/crown/index.html" title="Crown Template — Live Demo" background="#0a0908" />
               </div>
               <div className="tpl-phone-caption">
                 <div className="tpl-phone-num">Theme 02</div>
