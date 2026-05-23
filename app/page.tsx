@@ -1766,6 +1766,40 @@ ${collections.length > 0 ? `
               </div>
             </div>
           ))}
+
+          {/* CROWN — live interactive HTML demo (not a screenshot grid like GC/SL).
+              The full Crown template HTML lives at /public/templates/crown/index.html
+              and gets iframed here so visitors can scroll through the real thing. */}
+          <div className="reveal" style={{ marginTop: 88 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid var(--glass-b)", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--neon)", fontWeight: 800, marginBottom: 8 }}>Theme 03</div>
+                <h3 style={{ fontSize: "clamp(24px,4vw,38px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.04em" }}>Crown</h3>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-dim)", maxWidth: 280, lineHeight: 1.7 }}>Dark editorial luxury with gold accents. Built for premium hair, beauty, and lifestyle brands.</p>
+            </div>
+
+            {/* Browser-frame wrapper matching the AI preview iframe style. */}
+            <div style={{ background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--glass-b)", background: "rgba(255,255,255,0.02)" }}>
+                <div style={{ display: "flex", gap: 5 }}>
+                  {["#ff5f57", "#ffbd2e", "#28c840"].map(c => <div key={c} style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />)}
+                </div>
+                <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 5, padding: "4px 12px", fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>
+                  crown.catalogstore.co.za
+                </div>
+              </div>
+              <iframe
+                src="/templates/crown/index.html"
+                title="Crown Template — Live Demo"
+                loading="lazy"
+                style={{ width: "100%", height: 720, border: "none", display: "block", background: "#0a0908" }}
+              />
+            </div>
+            <p style={{ marginTop: 16, fontSize: 12, color: "var(--text-muted)", textAlign: "center", letterSpacing: "0.04em" }}>
+              ↑ Scroll inside the frame to explore the full template
+            </p>
+          </div>
         </section>
 
 
