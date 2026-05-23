@@ -159,7 +159,9 @@ export default function HomePage() {
   const cursorRingRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  // AI store preview is our biggest differentiator -- open by default so it
+  // doesn't feel buried. Toggle still works for sellers who want to collapse it.
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [previewStage, setPreviewStage] = useState<"upload"|"loading"|"preview">("upload");
   const [previewLogo, setPreviewLogo] = useState<string|null>(null);
   const [previewProducts, setPreviewProducts] = useState<{dataUrl:string;base64:string;mediaType:string}[]>([]);
@@ -963,8 +965,9 @@ ${collections.length > 1 ? `
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
-    ${logoImg ? `<img src="${logoImg}" style="height:24px;max-width:96px;object-fit:contain">` : ""}
-    <div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:22px;letter-spacing:0.04em;color:${ink};line-height:1">${storeName}</div>
+    ${logoImg
+      ? `<img src="${logoImg}" style="height:32px;max-width:140px;object-fit:contain">`
+      : `<div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:22px;letter-spacing:0.04em;color:${ink};line-height:1">${storeName}</div>`}
   </div>
   <div style="justify-self:end;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:${ink};border-bottom:1px solid ${ink};padding-bottom:1px;cursor:pointer">Bag (0)</div>
 </div>
@@ -1025,8 +1028,9 @@ ${collections.length > 0 ? `
 <!-- FOOTER — white paper, serif italic brand, dim links -->
 <div style="background:${paper};padding:48px 24px 24px;border-top:1px solid ${rule}">
   <div style="margin-bottom:28px">
-    ${logoImg ? `<img src="${logoImg}" style="height:24px;max-width:100px;object-fit:contain;margin-bottom:10px">` : ""}
-    <div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:24px;letter-spacing:0.04em;color:${ink};margin-bottom:10px;line-height:1">${storeName}</div>
+    ${logoImg
+      ? `<img src="${logoImg}" style="height:36px;max-width:160px;object-fit:contain;margin-bottom:14px">`
+      : `<div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:24px;letter-spacing:0.04em;color:${ink};margin-bottom:10px;line-height:1">${storeName}</div>`}
     <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;line-height:1.6;color:${dim};max-width:240px">${tagline || "An heirloom in every piece."}</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px">
@@ -1250,7 +1254,7 @@ ${collections.length > 0 ? `
           <div style={{ maxWidth: 820, width: "100%" }}>
             <div className="fu1 live-badge" style={{ marginBottom: 40 }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--neon)", animation: "pulse-ring 2s infinite", flexShrink: 0 }} />
-              Launch Promo — R49 First Month
+              7 Days Free, Then R49 First Month
             </div>
             <h1 className="fu2" style={{ fontSize: "clamp(46px,9vw,104px)", fontWeight: 900, lineHeight: 0.92, letterSpacing: "-0.06em", textTransform: "uppercase", marginBottom: 32 }}>
               Built for <span className="shimmer-text">South African sellers.</span>
@@ -1259,12 +1263,12 @@ ${collections.length > 0 ? `
               Open a real online store in minutes. Your customers shop and pay with their cards — no more chasing WhatsApp orders. R149/month, zero commission.
             </p>
             <div className="fu4 hero-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-              <Link href="/signup" className="glow-btn">Start Your Free Trial</Link>
-              <a href="#features" className="outline-btn">Learn More</a>
+              <Link href="/signup" className="glow-btn">Start 7-Day Free Trial</Link>
+              <a href="#ai-preview" className="outline-btn">✦ Try the AI Preview</a>
             </div>
-            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>7-day free trial · Cancel anytime · No credit card needed</p>
+            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>R0 today · Card is debited R49 after day 7 · Cancel anytime</p>
             <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap" }}>
-              {[{ val: "R49", label: "First Month" }, { val: "0%", label: "Commission" }, { val: "Online", label: "Card Payments" }].map((stat, i) => (
+              {[{ val: "7 Days", label: "Free Trial" }, { val: "0%", label: "Commission" }, { val: "Online", label: "Card Payments" }].map((stat, i) => (
                 <div key={i} style={{ display: "flex", gap: 48, alignItems: "center" }}>
                   {i > 0 && <div style={{ width: 1, height: 40, background: "var(--glass-b)" }} />}
                   <div style={{ textAlign: "center" }}>
@@ -1359,13 +1363,17 @@ ${collections.length > 0 ? `
           </div>
         </section>
 
-        {/* TEMPLATES */}
-        <section id="templates" style={{ padding: "60px 0 100px" }}>
-          <div className="section-label reveal">Templates</div>
-          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(28px,4vw,44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", marginBottom: 72 }}>Choose your look</h2>
+        {/* AI STORE PREVIEW — promoted to its own top-level section above Templates.
+            The hero CTA anchors to #ai-preview; the section opens by default
+            (previewOpen) so it doesn't feel hidden behind a click. */}
+        <section id="ai-preview" style={{ padding: "60px 0 40px" }}>
+          <div className="section-label reveal" style={{ color: "var(--neon)" }}>✦ AI Store Preview</div>
+          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(28px,4vw,44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", marginBottom: 16 }}>See your store before you build it</h2>
+          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", maxWidth: 520, margin: "0 auto 48px", lineHeight: 1.7 }}>
+            Upload 4 product photos and our AI generates a live, working store preview in under 10 seconds — products named, prices set, collections grouped. No signup needed.
+          </p>
 
-        {/* AI STORE PREVIEW — collapsible under Choose Your Look */}
-        <div style={{ marginTop: 0, marginBottom: 80 }}>
+        <div style={{ marginTop: 0, marginBottom: 0 }}>
           <button
             className="preview-toggle"
             onClick={() => setPreviewOpen(o => !o)}
@@ -1373,7 +1381,7 @@ ${collections.length > 0 ? `
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
-            {previewOpen ? "Close AI Store Preview" : "✦ See Your Store Come to Life — AI Preview"}
+            {previewOpen ? "Hide Preview Tool" : "Open AI Preview Tool"}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: previewOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s", flexShrink: 0 }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
@@ -1719,9 +1727,9 @@ ${collections.length > 0 ? `
                   <div style={{ marginTop: 16, padding: "36px 32px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 16, textAlign: "center", position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 0%,rgba(255,107,53,0.1) 0%,transparent 60%)", pointerEvents: "none" }} />
                     <h3 style={{ fontSize: "clamp(18px,2.5vw,26px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.03em", marginBottom: 10, position: "relative" }}>Ready to go live?</h3>
-                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 24, position: "relative" }}>Start your 7-day free trial — no credit card needed.</p>
+                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 24, position: "relative" }}>Start your 7-day free trial — R0 today, R49 after day 7.</p>
                     <Link href="/signup" style={{ display: "inline-block", padding: "16px 40px", borderRadius: 100, background: "var(--grad)", color: "#fff", fontFamily: "'Schibsted Grotesk',sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", textDecoration: "none", boxShadow: "0 0 32px rgba(255,107,53,0.25)", position: "relative" }}>
-                      Start Free Trial — R49 First Month
+                      Start 7-Day Free Trial
                     </Link>
                   </div>
                 </div>
@@ -1730,7 +1738,12 @@ ${collections.length > 0 ? `
             </div>
           </div>
         </div>
+        </section>
 
+        {/* TEMPLATES */}
+        <section id="templates" style={{ padding: "40px 0 100px" }}>
+          <div className="section-label reveal">Templates</div>
+          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(28px,4vw,44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", marginBottom: 72 }}>Choose your look</h2>
 
           {[
             { num: "01", title: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents. How your store would look.", images: GC_IMAGES },
