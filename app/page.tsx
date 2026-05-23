@@ -24,7 +24,6 @@ const PLAN_FEATURES = [
   "All 4 store templates",
   "Personal onboarding — we set you up 1-on-1",
   "Custom domain support — we help you connect it",
-  "No 'Powered by CatalogStore' badge",
   "Free subdomain (yourstore.catalogstore.co.za)",
   "Visual store editor",
   "Card, EFT, Apple Pay, WhatsApp checkout",
@@ -131,7 +130,7 @@ const FAQS = [
   },
   {
     q: "What if I get stuck?",
-    a: "Send us a message — we read every one. Pre-launch, the founder personally helps each new seller. You're not stuck on a help-desk queue.",
+    a: "Every new seller gets one-on-one onboarding to set up their store, products, and payments. After that, our support team is available by email and WhatsApp and replies the same day — you're never left figuring it out alone.",
   },
 ];
 
