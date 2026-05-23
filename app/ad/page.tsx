@@ -534,7 +534,7 @@ const css = `
     position: absolute; inset: 0;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    padding: 32px 24px;
+    padding: 20px 16px;
     text-align: center;
     opacity: 0;
     transition: opacity 0.6s ease;
@@ -849,13 +849,13 @@ const css = `
   /* TEMPLATES */
   .templates-stage {
     display: flex; flex-direction: column;
-    gap: 20px; padding: 0; width: 100%;
+    gap: 14px; padding: 0; width: 100%;
     align-items: center;
     height: 100%;
     justify-content: center;
   }
   .templates-headline {
-    font-size: clamp(20px, 4vw, 34px);
+    font-size: clamp(18px, 3vw, 28px);
     font-weight: 900;
     line-height: 1.15;
     letter-spacing: -0.03em;
@@ -865,24 +865,27 @@ const css = `
   .templates-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px 14px;
-    width: 100%;
-    max-width: 360px;
+    gap: 12px 14px;
+    width: auto;
     margin: 0 auto;
     box-sizing: border-box;
   }
   .templates-phone {
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
     opacity: 0;
     animation: fade-up 0.7s ease forwards;
   }
   .templates-phone .phone-frame {
-    width: 100%;
-    max-width: 150px;
-    box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+    /* Size relative to viewport HEIGHT so 2 rows of phones + labels + headline
+       always fit within the available vertical space. 13.5vh per phone width
+       means height (at 9:19 aspect) is ~28.5vh, so 2 rows = ~57vh, plus
+       ~10vh of labels + gaps + headline -> ~67vh used. Caps at 150px on tall
+       desktop viewports so phones don't get absurdly big. */
+    width: clamp(90px, 13.5vh, 150px);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.55);
   }
   .templates-phone .phone-notch {
-    width: 44px; height: 14px;
+    width: 42px; height: 13px;
   }
   .ad-tpl-iframe-wrap {
     position: relative;
@@ -902,16 +905,18 @@ const css = `
     pointer-events: none;
   }
   .templates-phone-label {
-    display: flex; flex-direction: column; gap: 2px; align-items: center;
+    display: flex; flex-direction: column; gap: 1px; align-items: center;
   }
   .templates-phone-name {
     font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
     text-transform: uppercase; color: #ff6b35;
     text-align: center;
+    line-height: 1.2;
   }
   .templates-phone-tag {
     font-size: 9px; color: rgba(245,245,245,0.4);
     text-align: center;
+    line-height: 1.2;
   }
 
   /* STATS */
