@@ -1800,6 +1800,38 @@ ${collections.length > 0 ? `
               ↑ Scroll inside the frame to explore the full template
             </p>
           </div>
+
+          {/* HEIRLOOM — live interactive HTML demo, same pattern as Crown.
+              Full template HTML lives at /public/templates/heirloom/index.html. */}
+          <div className="reveal" style={{ marginTop: 88 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid var(--glass-b)", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--neon)", fontWeight: 800, marginBottom: 8 }}>Theme 04</div>
+                <h3 style={{ fontSize: "clamp(24px,4vw,38px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.04em" }}>Heirloom</h3>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-dim)", maxWidth: 280, lineHeight: 1.7 }}>Magazine-style serif typography on warm paper. Built for considered, quiet-luxury brands.</p>
+            </div>
+
+            <div style={{ background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--glass-b)", background: "rgba(255,255,255,0.02)" }}>
+                <div style={{ display: "flex", gap: 5 }}>
+                  {["#ff5f57", "#ffbd2e", "#28c840"].map(c => <div key={c} style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />)}
+                </div>
+                <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 5, padding: "4px 12px", fontSize: 10, color: "var(--text-muted)", textAlign: "center" }}>
+                  heirloom.catalogstore.co.za
+                </div>
+              </div>
+              <iframe
+                src="/templates/heirloom/index.html"
+                title="Heirloom Template — Live Demo"
+                loading="lazy"
+                style={{ width: "100%", height: 720, border: "none", display: "block", background: "#fff" }}
+              />
+            </div>
+            <p style={{ marginTop: 16, fontSize: 12, color: "var(--text-muted)", textAlign: "center", letterSpacing: "0.04em" }}>
+              ↑ Scroll inside the frame to explore the full template
+            </p>
+          </div>
         </section>
 
 
