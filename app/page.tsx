@@ -173,8 +173,11 @@ function ScaledIframe({
     ro.observe(wrap);
 
     // Lazy mount: defer iframe creation until the user is about to see this
-    // phone. One-shot -- once visible, the iframe stays mounted even if the
-    // user scrolls away again, so it doesn't reload on re-entry.
+    // phone. Generous rootMargin (1200px) means row 2 phones (VOLT + Aurelia)
+    // start loading while the user is still looking at row 1 -- so by the
+    // time they scroll down, row 2 has had a head start and doesn't feel slow.
+    // One-shot -- once visible, the iframe stays mounted even if the user
+    // scrolls away again, so it doesn't reload on re-entry.
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
@@ -182,7 +185,7 @@ function ScaledIframe({
           io.disconnect();
         }
       },
-      { rootMargin: "300px" },
+      { rootMargin: "1200px" },
     );
     io.observe(wrap);
 
