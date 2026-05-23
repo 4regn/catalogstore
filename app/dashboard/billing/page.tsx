@@ -108,7 +108,7 @@ export default function BillingPage() {
         <a href="/dashboard" style={{ fontSize: 14, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", textDecoration: "none", color: "#f5f5f5" }}>
           CATALOG<span style={{ background: G, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>STORE</span>
         </a>
-        {needsVerification ? <span style={{ fontSize: 11, color: "rgba(245,245,245,0.15)", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>Verify card to continue</span> : <a href="/dashboard" style={{ fontSize: 11, color: "rgba(245,245,245,0.4)", textDecoration: "none", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>&larr; Back to Dashboard</a>}
+        {needsVerification ? <span style={{ fontSize: 11, color: "rgba(245,245,245,0.15)", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>Verify card to continue</span> : <a href="/dashboard" style={{ fontSize: 11, color: "#f5f5f5", textDecoration: "none", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "8px 14px", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 100, background: "rgba(255,255,255,0.04)" }}>&larr; Dashboard</a>}
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px 80px" }}>
@@ -117,7 +117,7 @@ export default function BillingPage() {
           {needsVerification ? "Verify Your Card" : isPastDue ? "Payment Failed" : isExpired ? "Reactivate Your Store" : isActive ? "Manage Subscription" : "Choose Your Plan"}
         </h1>
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
-          {needsVerification ? "Connect your card to start your 7-day free trial and unlock your dashboard. No charge today." : isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : "Start selling online in minutes"}
+          {needsVerification ? "Connect your card to start your 7-day free trial and unlock your dashboard. No charge today." : isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the Catalogstore plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : "Start selling online in minutes"}
         </p>
 
         {isPromo && !isActive && (
@@ -126,13 +126,34 @@ export default function BillingPage() {
           </div>
         )}
 
-        {/* CURRENT STATUS */}
+        {/* CURRENT STATUS — clickable so a newly-subscribed seller has an
+            obvious way back to the dashboard. The legacy subscription_plan
+            value is "starter" but we collapsed to a single tier; show
+            "Catalogstore" instead of the raw id. */}
         {isActive && (
-          <div style={{ padding: "24px", background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
+          <a
+            href="/dashboard"
+            style={{
+              display: "block",
+              padding: "24px",
+              background: "rgba(34,197,94,0.06)",
+              border: "1px solid rgba(34,197,94,0.15)",
+              borderRadius: 16,
+              marginBottom: 16,
+              textAlign: "center",
+              textDecoration: "none",
+              color: "inherit",
+              cursor: "pointer",
+              transition: "background 0.2s, border-color 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(34,197,94,0.1)"; e.currentTarget.style.borderColor = "rgba(34,197,94,0.25)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(34,197,94,0.06)"; e.currentTarget.style.borderColor = "rgba(34,197,94,0.15)"; }}
+          >
             <div style={{ fontSize: 14, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Active Subscription</div>
-            <div style={{ fontSize: 24, fontWeight: 900, textTransform: "uppercase" }}>{seller?.subscription_plan} Plan</div>
+            <div style={{ fontSize: 24, fontWeight: 900, textTransform: "uppercase" }}>Catalogstore Plan</div>
             {seller?.subscription_started_at && <div style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Active since {new Date(seller.subscription_started_at).toLocaleDateString()}</div>}
-          </div>
+            <div style={{ marginTop: 14, fontSize: 11, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Go to dashboard &rarr;</div>
+          </a>
         )}
 
         {trialActive && (
