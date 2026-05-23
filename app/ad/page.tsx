@@ -92,7 +92,7 @@ export default function AdPage() {
 
         {/* SCENE 2 — WhatsApp chaos */}
         <Scene active={currentScene === "chaos"}>
-          <ChaosScene />
+          <ChaosScene active={currentScene === "chaos"} />
         </Scene>
 
         {/* SCENE 3 — transition */}
@@ -123,10 +123,10 @@ export default function AdPage() {
           <FirstSaleScene />
         </Scene>
 
-        {/* SCENE 7 — Templates + AI preview */}
-        <Scene active={currentScene === "templates"}>
+        {/* SCENE 7 — Templates + AI preview. PersistentScene so iframes preload. */}
+        <PersistentScene active={currentScene === "templates"}>
           <TemplatesScene />
-        </Scene>
+        </PersistentScene>
 
         {/* SCENE 8 — Stats lockup */}
         <Scene active={currentScene === "stats"}>
@@ -170,49 +170,105 @@ export default function AdPage() {
   );
 }
 
-// ── SCENE WRAPPER ────────────────────────────────────────
+// ── SCENE WRAPPERS ───────────────────────────────────────
+// Default Scene: lazy-mount children on first activation, unmount 700ms after
+// deactivation (long enough for the fade-out transition). CSS animations with
+// animation-delay therefore fire FRESH each time the scene activates, instead
+// of having already played at page load when their delay timer was running.
 function Scene({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const [render, setRender] = useState(active);
+  useEffect(() => {
+    if (active) {
+      setRender(true);
+    } else if (render) {
+      const t = setTimeout(() => setRender(false), 700);
+      return () => clearTimeout(t);
+    }
+  }, [active, render]);
+  return <div className={`ad-scene${active ? " on" : ""}`}>{render ? children : null}</div>;
+}
+
+// PersistentScene: children are always mounted, only opacity toggles. Used for
+// the templates scene so the four template iframes pre-load while the user is
+// watching the earlier scenes -- they'd never be ready in time otherwise.
+function PersistentScene({ active, children }: { active: boolean; children: React.ReactNode }) {
   return <div className={`ad-scene${active ? " on" : ""}`}>{children}</div>;
 }
 
 // ── SCENE 2: WhatsApp chaos ──────────────────────────────
+// Cinematic accelerating reveal: messages start arriving every ~1.2s and ramp
+// up exponentially until they're firing every 80ms by the end. They stack
+// upward from the bottom of the screen (chat-style) so the visual effect is a
+// growing pile of unread DMs the seller can't keep up with. Background dims +
+// a subtle shake kicks in once the cadence peaks. Final overlay caption sits
+// on top of the pile in the last beat.
 const CHAOS_MESSAGES = [
-  { who: "Sis Lerato", msg: "Hi sis, do u still have the cream one?", t: 0 },
-  { who: "Unknown +27 82", msg: "What size 32?", t: 600 },
-  { who: "Cousin Sipho", msg: "Can I EFT tonight?", t: 1100 },
-  { who: "Mama T", msg: "Pls send pic", t: 1600 },
-  { who: "Thando", msg: "Did you get my payment??", t: 2100 },
-  { who: "Sis Lerato", msg: "Hello???", t: 2700 },
-  { who: "Unknown +27 78", msg: "Are you still selling?", t: 3200 },
-  { who: "Mama T", msg: "Pic pls 🙏", t: 3800 },
-  { who: "Banking app", msg: "+R250 deposit — but from who?", t: 4500 },
-  { who: "Unknown +27 71", msg: "Do u deliver?", t: 5100 },
-  { who: "Lerato", msg: "Sis pls reply", t: 5700 },
-  { who: "Mama T", msg: "Are you ignoring me??", t: 6300 },
+  { who: "Lerato",        msg: "Hi sis, do u still have the cream one?" },
+  { who: "+27 82 ***",    msg: "What size 32?" },
+  { who: "Cousin Sipho",  msg: "Can I EFT tonight?" },
+  { who: "Mama T",        msg: "Pls send pic 🙏" },
+  { who: "Thando",        msg: "Did u get my payment??" },
+  { who: "Lerato",        msg: "Hellooo???" },
+  { who: "+27 78 ***",    msg: "Are u still selling?" },
+  { who: "Bank App",      msg: "+R250 deposit — but from who?" },
+  { who: "+27 71 ***",    msg: "Do u deliver to Joburg?" },
+  { who: "Mama T",        msg: "Pic pls 😩" },
+  { who: "Lerato",        msg: "Sis pls reply" },
+  { who: "Zinhle",        msg: "Hi, available?" },
+  { who: "+27 84 ***",    msg: "How much for 2?" },
+  { who: "Cousin Sipho",  msg: "??" },
+  { who: "Mama T",        msg: "Are u ignoring me??" },
+  { who: "Lerato",        msg: "🤔" },
+  { who: "Voice note",    msg: "🎙 0:34" },
+  { who: "+27 76 ***",    msg: "Pls reply 🙏🙏" },
 ];
 
-function ChaosScene() {
+const AVATAR_COLORS = ["#ff6b35", "#ff3d6e", "#25d366", "#fbbf24", "#8b5cf6", "#06b6d4"];
+const avatarColor = (name: string) => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
+
+function ChaosScene({ active }: { active: boolean }) {
+  const [count, setCount] = useState(0);
+  const total = CHAOS_MESSAGES.length;
+
+  useEffect(() => {
+    if (!active) { setCount(0); return; }
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    let elapsed = 0;
+    for (let i = 0; i < total; i++) {
+      // exponential acceleration: 1200ms -> ~80ms over the scene's 8.5s budget
+      const gap = Math.max(80, 1250 * Math.pow(0.78, i));
+      elapsed += gap;
+      timeouts.push(setTimeout(() => setCount(i + 1), elapsed));
+    }
+    return () => timeouts.forEach(clearTimeout);
+  }, [active, total]);
+
+  const peakReached = count >= total - 4;
+  const showCaption  = count >= total - 2;
+
   return (
-    <div className="chaos-stage">
+    <div className={`chaos-stage${peakReached ? " peak" : ""}`}>
       <div className="chaos-vignette" />
-      {CHAOS_MESSAGES.map((m, i) => (
-        <div
-          key={i}
-          className="chaos-bubble"
-          style={{
-            animationDelay: `${m.t}ms`,
-            top: `${10 + (i * 7) % 70}%`,
-            left: `${(i * 19) % 60 + 5}%`,
-          }}
-        >
-          <div className="chaos-bubble-name">{m.who}</div>
-          <div className="chaos-bubble-msg">{m.msg}</div>
-        </div>
-      ))}
-      <div className="chaos-overlay-text">
-        Hundreds of DMs. Manual payments.<br />
-        <span className="grad">No way to scale.</span>
+      <div className="chaos-stack">
+        {CHAOS_MESSAGES.slice(0, count).map((m, i) => (
+          <div key={i} className="chaos-msg">
+            <div className="chaos-avatar" style={{ background: avatarColor(m.who) }}>
+              {m.who.replace(/[+0-9 *]/g, "").trim().charAt(0) || "?"}
+            </div>
+            <div className="chaos-msg-body">
+              <div className="chaos-msg-name">{m.who}</div>
+              <div className="chaos-msg-text">{m.msg}</div>
+            </div>
+            <div className="chaos-time">now</div>
+          </div>
+        ))}
       </div>
+      {showCaption && (
+        <div className="chaos-caption">
+          Hundreds of DMs.<br />
+          <span className="grad">No way to scale.</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -432,52 +488,110 @@ const css = `
   }
 
   /* CHAOS SCENE */
-  .chaos-stage { position: relative; width: 100%; height: 100%; }
+  .chaos-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    overflow: hidden;
+    padding: 0 0 40px;
+    transition: filter 0.6s ease;
+  }
+  .chaos-stage.peak {
+    animation: chaos-shake 0.12s linear infinite;
+  }
+  @keyframes chaos-shake {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-2px, 1px); }
+    75% { transform: translate(2px, -1px); }
+  }
   .chaos-vignette {
     position: absolute; inset: 0;
-    background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.7) 100%);
-    z-index: 5;
+    background: radial-gradient(circle at 50% 60%, transparent 0%, rgba(0,0,0,0.5) 80%);
+    z-index: 0;
+    pointer-events: none;
   }
-  .chaos-bubble {
-    position: absolute;
-    max-width: 240px;
-    background: #1a1a1a;
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 14px;
-    padding: 10px 14px;
-    opacity: 0;
-    animation: bubble-in 0.4s ease forwards;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  .chaos-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(440px, 92vw);
+    max-height: 78vh;
+    overflow: hidden;
+    align-items: stretch;
+    justify-content: flex-end;
+    z-index: 1;
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
   }
-  @keyframes bubble-in {
-    from { opacity: 0; transform: scale(0.7) translateY(20px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+  .chaos-msg {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 10px;
+    align-items: flex-start;
+    animation: chaos-pop 0.32s cubic-bezier(0.16,1,0.3,1) both;
   }
-  .chaos-bubble-name {
-    font-size: 9px;
-    font-weight: 700;
-    color: rgba(255,255,255,0.4);
+  @keyframes chaos-pop {
+    from { opacity: 0; transform: translateY(28px) scale(0.92); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+  .chaos-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: #fff;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   }
-  .chaos-bubble-msg {
+  .chaos-msg-body {
+    background: #1a1a1a;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 4px 14px 14px 14px;
+    padding: 8px 14px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+    min-width: 0;
+  }
+  .chaos-msg-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #25d366;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chaos-msg-text {
     font-size: 13px;
     color: #f5f5f5;
-    line-height: 1.35;
+    line-height: 1.4;
   }
-  .chaos-overlay-text {
+  .chaos-time {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    align-self: center;
+    padding-top: 16px;
+  }
+  .chaos-caption {
     position: absolute;
-    bottom: 14%;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: clamp(22px, 4vw, 38px);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: clamp(28px, 5vw, 52px);
     font-weight: 900;
-    line-height: 1.2;
+    line-height: 1.15;
     letter-spacing: -0.03em;
     text-align: center;
     z-index: 10;
-    animation: fade-up 1s 6.5s ease both;
+    padding: 28px 40px;
+    background: rgba(3,3,3,0.78);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+    animation: pop-in 0.6s ease both;
   }
 
   /* LOGO REVEAL */
