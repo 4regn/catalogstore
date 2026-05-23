@@ -36,6 +36,14 @@ interface StoreConfig {
   // collection page, a custom URL, or be hidden entirely.
   hero_cta_primary_target?: CtaTarget;
   hero_cta_secondary_target?: CtaTarget;
+  // Footer text — column headings + link labels. Defaults baked into the
+  // component so existing sellers see the same labels as before.
+  footer_tagline?: string;
+  footer_col1_label?: string;
+  footer_col2_label?: string;
+  footer_col3_label?: string;
+  footer_support_links?: string[];
+  footer_pay_links?: string[];
   featured_product_id?: string;
   flash_sale_label?: string;
   flash_sale_title?: string;
@@ -136,6 +144,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [liveHeroCtaSecondary, setLiveHeroCtaSecondary] = useState<string | null>(null);
   const [liveHeroCtaPrimaryTarget, setLiveHeroCtaPrimaryTarget] = useState<CtaTarget | null>(null);
   const [liveHeroCtaSecondaryTarget, setLiveHeroCtaSecondaryTarget] = useState<CtaTarget | null>(null);
+  const [liveFooterTagline, setLiveFooterTagline] = useState<string | null>(null);
+  const [liveFooterCol1Label, setLiveFooterCol1Label] = useState<string | null>(null);
+  const [liveFooterCol2Label, setLiveFooterCol2Label] = useState<string | null>(null);
+  const [liveFooterCol3Label, setLiveFooterCol3Label] = useState<string | null>(null);
+  const [liveFooterSupportLinks, setLiveFooterSupportLinks] = useState<string[] | null>(null);
+  const [liveFooterPayLinks, setLiveFooterPayLinks] = useState<string[] | null>(null);
   const [liveTicker, setLiveTicker] = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed] = useState<number | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
@@ -275,6 +289,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.heroCtaSecondary !== undefined) setLiveHeroCtaSecondary(e.data.heroCtaSecondary);
       if (e.data.heroCtaPrimaryTarget !== undefined) setLiveHeroCtaPrimaryTarget(e.data.heroCtaPrimaryTarget);
       if (e.data.heroCtaSecondaryTarget !== undefined) setLiveHeroCtaSecondaryTarget(e.data.heroCtaSecondaryTarget);
+      if (e.data.footerTagline !== undefined) setLiveFooterTagline(e.data.footerTagline);
+      if (e.data.footerCol1Label !== undefined) setLiveFooterCol1Label(e.data.footerCol1Label);
+      if (e.data.footerCol2Label !== undefined) setLiveFooterCol2Label(e.data.footerCol2Label);
+      if (e.data.footerCol3Label !== undefined) setLiveFooterCol3Label(e.data.footerCol3Label);
+      if (e.data.footerSupportLinks !== undefined) setLiveFooterSupportLinks(e.data.footerSupportLinks);
+      if (e.data.footerPayLinks !== undefined) setLiveFooterPayLinks(e.data.footerPayLinks);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
     };
@@ -426,6 +446,18 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   };
   const showCtaPrimary = displayCtaPrimary.trim() !== "" && displayCtaPrimaryTarget.type !== "none";
   const showCtaSecondary = displayCtaSecondary.trim() !== "" && displayCtaSecondaryTarget.type !== "none";
+
+  // Footer display values. footer_tagline takes priority over seller.description
+  // (so the seller can have a different blurb in the footer vs. elsewhere). Falls
+  // back through the chain so legacy data still renders.
+  const displayFooterTagline = liveFooterTagline ?? config.footer_tagline ?? liveDescription ?? seller.description ?? seller.tagline ?? "";
+  const displayFooterCol1 = liveFooterCol1Label ?? config.footer_col1_label ?? "Shop";
+  const displayFooterCol2 = liveFooterCol2Label ?? config.footer_col2_label ?? "Support";
+  const displayFooterCol3 = liveFooterCol3Label ?? config.footer_col3_label ?? "Pay";
+  const defaultSupport = ["Shipping", "Returns", "Sizing", "Contact"];
+  const defaultPay = ["Card", "EFT", "PayFast", "WhatsApp Order"];
+  const displayFooterSupport = liveFooterSupportLinks ?? (config.footer_support_links?.length ? config.footer_support_links : defaultSupport);
+  const displayFooterPay = liveFooterPayLinks ?? (config.footer_pay_links?.length ? config.footer_pay_links : defaultPay);
   const defaultTicker = ["Free Delivery Over R800", "New Drop Friday 12PM", "Up to 35% Off Archive", "Restock Alerts Via WhatsApp"];
   const displayTicker = liveTicker ?? config.ticker_texts ?? defaultTicker;
   const tickerDuration = liveTickerSpeed ?? config.ticker_speed ?? 36;
@@ -1254,7 +1286,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             <div className="hl-foot-grid">
               <div>
                 <div className="hl-foot-brand">{seller.store_name}</div>
-                <p className="hl-foot-tag">{liveDescription ?? seller.description ?? seller.tagline ?? ""}</p>
+                <p className="hl-foot-tag">{displayFooterTagline}</p>
                 <div className="hl-foot-soc">
                   {seller.social_links?.instagram && <a href={seller.social_links.instagram} target="_blank" rel="noreferrer">Instagram</a>}
                   {seller.social_links?.tiktok && <a href={seller.social_links.tiktok} target="_blank" rel="noreferrer">TikTok</a>}
@@ -1266,7 +1298,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 </div>
               </div>
               <div className="hl-foot-col">
-                <h4>Shop</h4>
+                <h4>{displayFooterCol1}</h4>
                 <ul>
                   {menuCategories.slice(0, 5).map((cat) => {
                     const target = `/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`;
@@ -1284,25 +1316,33 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 </ul>
               </div>
               <div className="hl-foot-col">
-                <h4>Support</h4>
+                <h4>{displayFooterCol2}</h4>
                 <ul>
-                  <li><a href="#">Shipping</a></li>
-                  <li><a href="#">Returns</a></li>
-                  <li><a href="#">Sizing</a></li>
-                  <li>
-                    {seller.whatsapp_number ? (
-                      <a href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">Contact</a>
-                    ) : <a href="#">Contact</a>}
-                  </li>
+                  {displayFooterSupport.map((label, i) => {
+                    const isContact = i === displayFooterSupport.length - 1; // last item = contact
+                    return (
+                      <li key={i}>
+                        {isContact && seller.whatsapp_number ? (
+                          <a href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{label}</a>
+                        ) : <a href="#">{label}</a>}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
               <div className="hl-foot-col">
-                <h4>Pay</h4>
+                <h4>{displayFooterCol3}</h4>
                 <ul>
-                  <li><a href="#">Card</a></li>
-                  <li><a href="#">EFT</a></li>
-                  <li><a href="#">PayFast</a></li>
-                  <li><a href="#" onClick={(e) => { e.preventDefault(); setCartOpen(true); }}>WhatsApp Order</a></li>
+                  {displayFooterPay.map((label, i) => {
+                    const isWhatsApp = label.toLowerCase().includes("whatsapp");
+                    return (
+                      <li key={i}>
+                        {isWhatsApp ? (
+                          <a href="#" onClick={(e) => { e.preventDefault(); setCartOpen(true); }}>{label}</a>
+                        ) : <a href="#">{label}</a>}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </div>

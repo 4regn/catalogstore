@@ -53,6 +53,13 @@ interface Seller {
     hero_cta_secondary?: string;
     hero_cta_primary_target?: CtaTarget;
     hero_cta_secondary_target?: CtaTarget;
+    // Heirloom footer
+    footer_tagline?: string;
+    footer_col1_label?: string;
+    footer_col2_label?: string;
+    footer_col3_label?: string;
+    footer_support_links?: string[];
+    footer_pay_links?: string[];
   };
 }
 
@@ -158,6 +165,14 @@ export default function StoreEditor() {
   const [heroCtaPrimaryTarget, setHeroCtaPrimaryTarget]     = useState<CtaTarget>({ type: "products" });
   const [heroCtaSecondaryTarget, setHeroCtaSecondaryTarget] = useState<CtaTarget>({ type: "none" });
 
+  /* Heirloom footer fields -- same pattern as the hero, template-aware. */
+  const [footerTagline, setFooterTagline]             = useState("");
+  const [footerCol1Label, setFooterCol1Label]         = useState("Shop");
+  const [footerCol2Label, setFooterCol2Label]         = useState("Support");
+  const [footerCol3Label, setFooterCol3Label]         = useState("Pay");
+  const [footerSupportLinks, setFooterSupportLinks]   = useState<string[]>(["Shipping", "Returns", "Sizing", "Contact"]);
+  const [footerPayLinks, setFooterPayLinks]           = useState<string[]>(["Card", "EFT", "PayFast", "WhatsApp Order"]);
+
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
@@ -216,6 +231,13 @@ export default function StoreEditor() {
       setHeroCtaSecondary(s.store_config?.hero_cta_secondary ?? "");
       setHeroCtaPrimaryTarget(s.store_config?.hero_cta_primary_target ?? { type: "products" });
       setHeroCtaSecondaryTarget(s.store_config?.hero_cta_secondary_target ?? { type: "none" });
+      // Heirloom footer
+      setFooterTagline(s.store_config?.footer_tagline ?? s.description ?? "");
+      setFooterCol1Label(s.store_config?.footer_col1_label ?? "Shop");
+      setFooterCol2Label(s.store_config?.footer_col2_label ?? "Support");
+      setFooterCol3Label(s.store_config?.footer_col3_label ?? "Pay");
+      setFooterSupportLinks(s.store_config?.footer_support_links?.length ? s.store_config.footer_support_links : ["Shipping", "Returns", "Sizing", "Contact"]);
+      setFooterPayLinks(s.store_config?.footer_pay_links?.length ? s.store_config.footer_pay_links : ["Card", "EFT", "PayFast", "WhatsApp Order"]);
       setLoading(false);
     })();
   }, []);
@@ -286,6 +308,14 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroCtaPrimaryTarget }); }, [heroCtaPrimaryTarget]);
   useEffect(() => { postUpdate({ heroCtaSecondaryTarget }); }, [heroCtaSecondaryTarget]);
 
+  /* Heirloom footer — live updates */
+  useEffect(() => { postUpdate({ footerTagline }); }, [footerTagline]);
+  useEffect(() => { postUpdate({ footerCol1Label }); }, [footerCol1Label]);
+  useEffect(() => { postUpdate({ footerCol2Label }); }, [footerCol2Label]);
+  useEffect(() => { postUpdate({ footerCol3Label }); }, [footerCol3Label]);
+  useEffect(() => { postUpdate({ footerSupportLinks }); }, [footerSupportLinks]);
+  useEffect(() => { postUpdate({ footerPayLinks }); }, [footerPayLinks]);
+
   /* ─── SAVE ─── */
   const save = async () => {
     if (!seller) return;
@@ -341,6 +371,13 @@ export default function StoreEditor() {
           hero_cta_secondary: heroCtaSecondary,
           hero_cta_primary_target: heroCtaPrimaryTarget,
           hero_cta_secondary_target: heroCtaSecondaryTarget,
+          // Heirloom footer
+          footer_tagline: footerTagline,
+          footer_col1_label: footerCol1Label,
+          footer_col2_label: footerCol2Label,
+          footer_col3_label: footerCol3Label,
+          footer_support_links: footerSupportLinks,
+          footer_pay_links: footerPayLinks,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -1145,7 +1182,69 @@ export default function StoreEditor() {
             )}
 
             {/* FOOTER */}
-            {activeSection === "footer" && (
+            {/* FOOTER — Heirloom variant. Heirloom's footer has its own
+                tagline (under the wordmark), 3 column headings, and 4+4 link
+                labels in the Support + Pay columns. Editor previously only
+                exposed Crown's "Footer Tagline" → seller.tagline, but Heirloom
+                doesn't use seller.tagline for the footer at all -- it uses
+                seller.description, then falls back to config.footer_tagline. */}
+            {activeSection === "footer" && seller?.template === "heirloom" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Footer Tagline</label>
+                  <textarea value={footerTagline} onChange={e => setFooterTagline(e.target.value)}
+                    rows={2} placeholder="e.g. Limited-run pieces, made deliberately. Made in South Africa."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={hintStyle}>Short line under your brand name in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 1 Heading</label>
+                  <input value={footerCol1Label} onChange={e => setFooterCol1Label(e.target.value)}
+                    placeholder="Shop" style={inputStyle} />
+                  <div style={hintStyle}>Links auto-populate from your collections — only the heading is editable here.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 2 Heading</label>
+                  <input value={footerCol2Label} onChange={e => setFooterCol2Label(e.target.value)}
+                    placeholder="Support" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Column 2 Link Labels</label>
+                  {footerSupportLinks.map((txt, i) => (
+                    <input key={i} value={txt}
+                      onChange={e => { const u = [...footerSupportLinks]; u[i] = e.target.value; setFooterSupportLinks(u); }}
+                      placeholder={["Shipping", "Returns", "Sizing", "Contact"][i] || ""}
+                      style={{ ...inputStyle, marginBottom: 6 }} />
+                  ))}
+                  <div style={hintStyle}>Last link auto-links to your WhatsApp number if set.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 3 Heading</label>
+                  <input value={footerCol3Label} onChange={e => setFooterCol3Label(e.target.value)}
+                    placeholder="Pay" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Column 3 Link Labels</label>
+                  {footerPayLinks.map((txt, i) => (
+                    <input key={i} value={txt}
+                      onChange={e => { const u = [...footerPayLinks]; u[i] = e.target.value; setFooterPayLinks(u); }}
+                      placeholder={["Card", "EFT", "PayFast", "WhatsApp Order"][i] || ""}
+                      style={{ ...inputStyle, marginBottom: 6 }} />
+                  ))}
+                  <div style={hintStyle}>Any label containing &quot;WhatsApp&quot; will open the cart on click.</div>
+                </div>
+
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  Social links (Instagram, TikTok, Facebook, X, WhatsApp) appear automatically below the tagline based on what you&apos;ve set in Dashboard → My Store.
+                </div>
+              </div>
+            )}
+
+            {/* FOOTER — Crown / Soft Luxury / Glass Chrome (legacy mapping) */}
+            {activeSection === "footer" && seller?.template !== "heirloom" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <label style={labelStyle}>Footer Tagline</label>
                 <input value={tagline} onChange={e => setTagline(e.target.value)}
