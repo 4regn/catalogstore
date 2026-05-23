@@ -372,50 +372,51 @@ function ScaledTemplateIframe({ src, title, active }: { src: string; title: stri
     return () => ro.disconnect();
   }, []);
 
-  // Auto-scroll when scene is active
+  // Auto-scroll when scene is active. Instead of driving scrollTop from JS
+  // (which forces 60 reflows per second across 4 iframes -> jank + visible
+  // shake), we inject a CSS transition INTO each iframe's document. Since the
+  // iframes are same-origin we can write to contentDocument.head directly, and
+  // a single CSS transform animation is GPU-composited -- zero JS work after
+  // the trigger, smooth even with 4 simultaneously.
   useEffect(() => {
-    if (!active) return;
     const iframe = iframeRef.current;
     if (!iframe) return;
-    let raf = 0;
-    let cancelled = false;
 
-    const drive = () => {
+    const inject = () => {
       const doc = iframe.contentDocument;
-      const win = iframe.contentWindow;
-      if (!doc || !win) return;
-      const root = doc.scrollingElement || doc.documentElement;
-      // Reset to top before starting
-      win.scrollTo(0, 0);
-      const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
-      const DURATION_MS = 11000; // most of the 14s scene, leaves a beat at the end
-      const start = performance.now();
-      const tick = () => {
-        if (cancelled) return;
-        const t = Math.min(1, (performance.now() - start) / DURATION_MS);
-        // easeInOutCubic
-        const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        win.scrollTo(0, Math.round(maxScroll * ease));
-        if (t < 1) raf = requestAnimationFrame(tick);
-      };
-      tick();
+      if (!doc) return;
+      if (!doc.querySelector("#ad-scroll-style")) {
+        const style = doc.createElement("style");
+        style.id = "ad-scroll-style";
+        style.textContent = `
+          html, body { will-change: transform; backface-visibility: hidden; }
+          body {
+            transition: transform 12s cubic-bezier(0.42, 0, 0.58, 1);
+            transform: translateY(0);
+          }
+          body.ad-scrolling {
+            /* Walk past most of the storefront content -- safe value for the
+               4500-6000px range these templates produce. */
+            transform: translateY(-3400px);
+          }
+        `;
+        doc.head.appendChild(style);
+      }
+      // Reset and trigger
+      doc.body.classList.remove("ad-scrolling");
+      // force reflow so the next class add actually animates
+      void doc.body.offsetHeight;
+      if (active) {
+        requestAnimationFrame(() => doc.body.classList.add("ad-scrolling"));
+      }
     };
 
     if (iframe.contentDocument?.readyState === "complete") {
-      drive();
+      inject();
     } else {
-      const onLoad = () => drive();
-      iframe.addEventListener("load", onLoad, { once: true });
-      return () => {
-        cancelled = true;
-        cancelAnimationFrame(raf);
-        iframe.removeEventListener("load", onLoad);
-      };
+      iframe.addEventListener("load", inject, { once: true });
+      return () => iframe.removeEventListener("load", inject);
     }
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
-    };
   }, [active]);
 
   return (
