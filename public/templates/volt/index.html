@@ -23,9 +23,10 @@
   --text-dim:   rgba(255,255,255,0.5);
   --text-mute:  rgba(255,255,255,0.3);
   --text-low:   rgba(255,255,255,0.18);
-  --accent:     #006a4e;
-  --accent-2:   #004d38;
-  --grad:       linear-gradient(135deg, #006a4e 0%, #004d38 100%);
+  --accent:     #ffffff;
+  --accent-2:   #e0e0e0;
+  --grad:       linear-gradient(135deg, #ffffff 0%, #c0c0c0 100%);
+  --on-accent:  #08080c;   /* text color when sitting on top of the accent */
 }
 
 html { scroll-behavior: smooth; }
@@ -130,7 +131,7 @@ body {
   padding: 8px 18px;
   border-radius: 100px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
@@ -198,13 +199,13 @@ body {
   padding: 14px 28px;
   border-radius: 100px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   cursor: pointer;
-  box-shadow: 0 8px 32px rgba(0,106,78,0.3);
+  box-shadow: 0 8px 32px rgba(255,255,255,0.15);
 }
 
 /* ── TICKER ──────────────────────────────────── */
@@ -339,7 +340,7 @@ body {
   top: 10px;
   left: 10px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 8px;
   font-weight: 800;
   text-transform: uppercase;
