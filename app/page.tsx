@@ -1833,7 +1833,7 @@ ${collections.length > 0 ? `
                 <div className="tpl-phone-num">Theme 01</div>
                 <h3 className="tpl-phone-title">Heirloom</h3>
                 <p className="tpl-phone-desc">Magazine-style serif typography on warm paper. Built for considered, quiet-luxury brands.</p>
-                <p className="tpl-phone-hint">↕ Scroll the phone to explore</p>
+                <p className="tpl-phone-hint">↑ Scroll the phone to explore ↓</p>
               </div>
             </div>
 
@@ -1847,7 +1847,7 @@ ${collections.length > 0 ? `
                 <div className="tpl-phone-num">Theme 02</div>
                 <h3 className="tpl-phone-title">Crown</h3>
                 <p className="tpl-phone-desc">Dark editorial luxury with gold accents. Built for premium hair, beauty, and lifestyle brands.</p>
-                <p className="tpl-phone-hint">↕ Scroll the phone to explore</p>
+                <p className="tpl-phone-hint">↑ Scroll the phone to explore ↓</p>
               </div>
             </div>
           </div>
