@@ -1816,7 +1816,8 @@ ${collections.length > 0 ? `
 
           {/* TEMPLATES — four phones, two pairs side by side.
               Row 1: Heirloom (01) + Crown (02) -- scrollable live iframes.
-              Row 2: Glass Chrome (03) + Soft Luxury (04) -- swipeable screenshot carousels.
+              Row 2: Glass Chrome (03) -- scrollable live iframe (VOLT demo)
+                     Soft Luxury (04)  -- swipeable screenshot carousel of 4regn.
 
               Each phone sits inside a black bezel with a notch. Swipe carousel uses
               CSS scroll-snap so it works as a real left/right swipe on mobile and
@@ -1853,23 +1854,17 @@ ${collections.length > 0 ? `
           </div>
 
           <div className="reveal tpl-pair-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
-            {/* GLASS CHROME — screenshot carousel */}
+            {/* GLASS CHROME — VOLT live demo (premium electronics retail) */}
             <div>
               <div className="tpl-phone">
                 <div className="tpl-phone-notch" />
-                <div className="tpl-phone-screen tpl-carousel">
-                  {GC_IMAGES.map(img => (
-                    <div key={img.src} className="tpl-carousel-slide">
-                      <Image src={img.src} alt={img.label} width={400} height={840} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} unoptimized />
-                    </div>
-                  ))}
-                </div>
+                <ScaledIframe src="/templates/volt/index.html" title="Glass Chrome Template — VOLT Demo" background="#08080c" />
               </div>
               <div className="tpl-phone-caption">
                 <div className="tpl-phone-num">Theme 03</div>
                 <h3 className="tpl-phone-title">Glass Chrome</h3>
-                <p className="tpl-phone-desc">Dark futuristic theme with chrome metallic accents. Built for streetwear and modern fashion brands.</p>
-                <p className="tpl-phone-hint">← Swipe the phone to browse →</p>
+                <p className="tpl-phone-desc">Dark futuristic theme with chrome metallic accents. Built for premium electronics, audio, and tech retail.</p>
+                <p className="tpl-phone-hint">↑ Scroll the phone to explore ↓</p>
               </div>
             </div>
 
