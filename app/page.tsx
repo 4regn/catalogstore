@@ -136,6 +136,50 @@ const FAQS = [
 
 // ── LOGO SVG ────────────────────────────────────────────────────────────────
 
+// Renders an iframe at a fixed virtual mobile viewport (400x844, iPhone-ish) and
+// scales it down to fit whatever container width is available. Without this the
+// template HTMLs (which weren't designed for 320px-wide phone bezels) overflow
+// horizontally inside the phone mockup. ResizeObserver keeps the scale in sync
+// if the container changes width (e.g. on rotation).
+function ScaledIframe({
+  src,
+  title,
+  background = "#fff",
+}: {
+  src: string;
+  title: string;
+  background?: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const VW = 400;
+  const VH = 844;
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const update = () => {
+      const w = wrap.clientWidth;
+      if (w > 0) wrap.style.setProperty("--tpl-scale", String(w / VW));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={wrapRef} className="tpl-phone-iframe-wrap" style={{ background }}>
+      <iframe
+        src={src}
+        title={title}
+        loading="lazy"
+        className="tpl-phone-iframe"
+        style={{ width: VW, height: VH }}
+      />
+    </div>
+  );
+}
+
 function Logo({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 72 72" fill="none">
@@ -1155,6 +1199,30 @@ ${collections.length > 0 ? `
         .tpl-card{border-radius:16px;overflow:hidden;border:1px solid var(--glass-b);transition:transform 0.4s cubic-bezier(0.16,1,0.3,1),border-color 0.3s,box-shadow 0.3s}
         .tpl-card:hover{transform:translateY(-6px) scale(1.01);border-color:rgba(255,107,53,0.25);box-shadow:0 24px 60px rgba(0,0,0,0.5)}
 
+        /* Phone-frame mockup for the four template previews. Width is responsive --
+           on desktop, each phone sits in a 1fr column of the 2-col pair; on mobile
+           pairs stack so each phone gets the full container width. The :before
+           pseudo creates the iPhone-style notch / dynamic island. */
+        .tpl-phone{position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:9/19;background:#0a0a0a;border-radius:42px;padding:10px;box-shadow:0 30px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.08),inset 0 0 0 2px rgba(255,255,255,0.04);overflow:hidden}
+        .tpl-phone-notch{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:2;pointer-events:none}
+        .tpl-phone-screen{width:100%;height:100%;border:none;display:block;border-radius:32px;overflow:hidden}
+        /* Wrapper for the scaled iframes (Heirloom + Crown). The iframe renders at
+           a fixed 400x844 virtual viewport and gets scaled to fit via --tpl-scale,
+           set by the ScaledIframe component's ResizeObserver. */
+        .tpl-phone-iframe-wrap{position:relative;width:100%;height:100%;border-radius:32px;overflow:hidden}
+        .tpl-phone-iframe{position:absolute;top:0;left:0;border:none;display:block;transform:scale(var(--tpl-scale,1));transform-origin:top left}
+        .tpl-phone-caption{margin-top:28px;text-align:center;padding:0 8px}
+        .tpl-phone-num{font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--neon);font-weight:800;margin-bottom:6px}
+        .tpl-phone-title{font-size:clamp(20px,3vw,28px);font-weight:900;text-transform:uppercase;letter-spacing:-0.03em;margin-bottom:10px}
+        .tpl-phone-desc{font-size:12px;color:var(--text-dim);line-height:1.65;max-width:320px;margin:0 auto 12px}
+        .tpl-phone-hint{font-size:10px;letter-spacing:0.08em;color:var(--text-muted);font-weight:600}
+
+        /* Horizontal swipe carousel for the screenshot-based templates (GC, SL).
+           scroll-snap gives crisp page-by-page behaviour on touch + mouse drag. */
+        .tpl-carousel{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+        .tpl-carousel::-webkit-scrollbar{display:none}
+        .tpl-carousel-slide{flex:0 0 100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always}
+
         .sleep-number{font-size:120px;font-weight:900;letter-spacing:-0.08em;line-height:0.9;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:float 4s ease-in-out infinite}
 
         .popular-badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);padding:5px 20px;background:var(--grad);border-radius:100px;font-size:9px;font-weight:800;color:#fff;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 4px 16px rgba(255,107,53,0.4);white-space:nowrap}
@@ -1202,6 +1270,7 @@ ${collections.length > 0 ? `
           .pricing-grid-2 > div{border-radius:20px!important}
           .price-num{font-size:36px!important}
           .tpl-grid{grid-template-columns:1fr!important}
+          .tpl-pair-row{grid-template-columns:1fr!important;gap:64px!important}
           .pain-grid-2{grid-template-columns:1fr!important}
           .sleep-flex > div{border-radius:20px!important}
           .sleep-flex{flex-direction:column!important}
@@ -1745,27 +1814,85 @@ ${collections.length > 0 ? `
           <div className="section-label reveal">Templates</div>
           <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(28px,4vw,44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", marginBottom: 72 }}>Choose your look</h2>
 
-          {[
-            { num: "01", title: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents. How your store would look.", images: GC_IMAGES },
-            { num: "02", title: "Soft Luxury",  desc: "Warm cream tones with elegant serif typography. How your store would look.",    images: SL_IMAGES },
-          ].map((tpl, ti) => (
-            <div key={tpl.title} className="reveal" style={{ marginBottom: ti === 0 ? 88 : 0 }}>
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid var(--glass-b)", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--neon)", fontWeight: 800, marginBottom: 8 }}>Theme {tpl.num}</div>
-                  <h3 style={{ fontSize: "clamp(24px,4vw,38px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.04em" }}>{tpl.title}</h3>
-                </div>
-                <p style={{ fontSize: 13, color: "var(--text-dim)", maxWidth: 280, lineHeight: 1.7 }}>{tpl.desc}</p>
+          {/* TEMPLATES — four phones, two pairs side by side.
+              Row 1: Heirloom (01) + Crown (02) -- scrollable live iframes.
+              Row 2: Glass Chrome (03) + Soft Luxury (04) -- swipeable screenshot carousels.
+
+              Each phone sits inside a black bezel with a notch. Swipe carousel uses
+              CSS scroll-snap so it works as a real left/right swipe on mobile and
+              a click-and-drag on desktop, no JS needed. */}
+
+          <div className="reveal tpl-pair-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 64 }}>
+            {/* HEIRLOOM */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <ScaledIframe src="/templates/heirloom/index.html" title="Heirloom Template — Live Demo" background="#fff" />
               </div>
-              <div className="tpl-grid stagger-children" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {tpl.images.map(img => (
-                  <div key={img.src} className="tpl-card">
-                    <Image src={img.src} alt={img.label} width={600} height={375} style={{ width: "100%", height: "auto", display: "block" }} unoptimized />
-                  </div>
-                ))}
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 01</div>
+                <h3 className="tpl-phone-title">Heirloom</h3>
+                <p className="tpl-phone-desc">Magazine-style serif typography on warm paper. Built for considered, quiet-luxury brands.</p>
+                <p className="tpl-phone-hint">↕ Scroll the phone to explore</p>
               </div>
             </div>
-          ))}
+
+            {/* CROWN */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <ScaledIframe src="/templates/crown/index.html" title="Crown Template — Live Demo" background="#0a0908" />
+              </div>
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 02</div>
+                <h3 className="tpl-phone-title">Crown</h3>
+                <p className="tpl-phone-desc">Dark editorial luxury with gold accents. Built for premium hair, beauty, and lifestyle brands.</p>
+                <p className="tpl-phone-hint">↕ Scroll the phone to explore</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="reveal tpl-pair-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+            {/* GLASS CHROME — screenshot carousel */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <div className="tpl-phone-screen tpl-carousel">
+                  {GC_IMAGES.map(img => (
+                    <div key={img.src} className="tpl-carousel-slide">
+                      <Image src={img.src} alt={img.label} width={400} height={840} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} unoptimized />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 03</div>
+                <h3 className="tpl-phone-title">Glass Chrome</h3>
+                <p className="tpl-phone-desc">Dark futuristic theme with chrome metallic accents. Built for streetwear and modern fashion brands.</p>
+                <p className="tpl-phone-hint">← Swipe the phone to browse →</p>
+              </div>
+            </div>
+
+            {/* SOFT LUXURY — screenshot carousel */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <div className="tpl-phone-screen tpl-carousel">
+                  {SL_IMAGES.map(img => (
+                    <div key={img.src} className="tpl-carousel-slide">
+                      <Image src={img.src} alt={img.label} width={400} height={840} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} unoptimized />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 04</div>
+                <h3 className="tpl-phone-title">Soft Luxury</h3>
+                <p className="tpl-phone-desc">Warm cream tones with elegant serif typography. Built for beauty, fashion, and lifestyle.</p>
+                <p className="tpl-phone-hint">← Swipe the phone to browse →</p>
+              </div>
+            </div>
+          </div>
         </section>
 
 
