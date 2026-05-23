@@ -199,8 +199,6 @@ function Logo({ size = 28 }: { size?: number }) {
 // ── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const cursorRef = useRef<HTMLDivElement>(null);
-  const cursorRingRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   // AI store preview is our biggest differentiator -- open by default so it
@@ -224,41 +222,6 @@ export default function HomePage() {
   const previewPanelRef = useRef<HTMLDivElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
-  const mouseRef = useRef({ x: 0, y: 0 });
-  const ringRef = useRef({ x: 0, y: 0 });
-
-  // Cursor
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY };
-      if (cursorRef.current) {
-        cursorRef.current.style.left = e.clientX + "px";
-        cursorRef.current.style.top = e.clientY + "px";
-      }
-    };
-    document.addEventListener("mousemove", onMove);
-    let raf: number;
-    const animate = () => {
-      ringRef.current.x += (mouseRef.current.x - ringRef.current.x) * 0.12;
-      ringRef.current.y += (mouseRef.current.y - ringRef.current.y) * 0.12;
-      if (cursorRingRef.current) {
-        cursorRingRef.current.style.left = ringRef.current.x + "px";
-        cursorRingRef.current.style.top = ringRef.current.y + "px";
-      }
-      raf = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => { document.removeEventListener("mousemove", onMove); cancelAnimationFrame(raf); };
-  }, []);
-
-  // Cursor expand on hover
-  useEffect(() => {
-    const expand = () => document.body.classList.add("cursor-expand");
-    const shrink = () => document.body.classList.remove("cursor-expand");
-    const els = document.querySelectorAll("a, button");
-    els.forEach(el => { el.addEventListener("mouseenter", expand); el.addEventListener("mouseleave", shrink); });
-    return () => els.forEach(el => { el.removeEventListener("mouseenter", expand); el.removeEventListener("mouseleave", shrink); });
-  }, []);
 
   // Scroll listener
   useEffect(() => {
@@ -1112,14 +1075,8 @@ ${collections.length > 0 ? `
           --grad:linear-gradient(135deg,#ff6b35 0%,#ff3d6e 100%);
         }
         html{scroll-behavior:smooth}
-        body{font-family:'Schibsted Grotesk',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;cursor:none}
-        a{text-decoration:none;cursor:none}
-        button{cursor:none}
-
-        #cs-cursor{position:fixed;width:12px;height:12px;background:var(--neon);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);transition:width 0.3s,height 0.3s,background 0.2s}
-        #cs-cursor-ring{position:fixed;width:36px;height:36px;border:1px solid rgba(255,107,53,0.4);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:width 0.3s,height 0.3s,opacity 0.3s}
-        body.cursor-expand #cs-cursor{width:48px;height:48px;background:rgba(255,107,53,0.15)}
-        body.cursor-expand #cs-cursor-ring{opacity:0}
+        body{font-family:'Schibsted Grotesk',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+        a{text-decoration:none}
 
         @keyframes pulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
         @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(255,107,53,0.6)}70%{box-shadow:0 0 0 8px rgba(255,107,53,0)}100%{box-shadow:0 0 0 0 rgba(255,107,53,0)}}
@@ -1274,14 +1231,8 @@ ${collections.length > 0 ? `
           .pain-grid-2{grid-template-columns:1fr!important}
           .sleep-flex > div{border-radius:20px!important}
           .sleep-flex{flex-direction:column!important}
-          #cs-cursor,#cs-cursor-ring{display:none}
         }
       `}</style>
-
-      {/* CURSOR */}
-      <div id="cs-cursor" ref={cursorRef} />
-      <div id="cs-cursor-ring" ref={cursorRingRef} />
-
 
       {/* AMBIENT ORBS */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
