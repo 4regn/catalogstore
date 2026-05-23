@@ -450,7 +450,7 @@ function TemplatesScene({ active }: { active: boolean }) {
     <div className="templates-stage">
       <h2 className="templates-headline">
         Four templates.<br />
-        <span className="grad">Built for SA brands.</span>
+        <span className="grad">Give your business a professional storefront.</span>
       </h2>
       <div className="templates-row">
         {TEMPLATES.map((t, i) => (
