@@ -11,6 +11,48 @@ import { revalidateStore } from "../../actions/revalidate-store";
 const collectionSlug = (name: string) =>
   name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
+// Monoline SVG icon set. Replaces emoji (🏠 ✏️ 📱 🖥 etc.) which felt cheap
+// against the dark/orange brand. All icons are 1.5px stroke at 20x20 viewBox,
+// pure CSS-controllable via currentColor. One place to add new icons.
+type IconName =
+  | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products"
+  | "collections" | "policies" | "promise" | "about" | "testimonials"
+  | "cta" | "trust" | "footer"
+  | "desktop" | "mobile" | "pencil" | "image" | "external"
+  | "arrow-left" | "check";
+
+function EditorIcon({ name, size = 16, stroke = 1.5, className }: { name: IconName; size?: number; stroke?: number; className?: string }) {
+  const common = {
+    width: size, height: size, viewBox: "0 0 20 20", fill: "none",
+    stroke: "currentColor", strokeWidth: stroke,
+    strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+    className,
+  };
+  switch (name) {
+    case "announcement": return <svg {...common}><path d="M15 4 5 8H3v4h2l10 4V4Z"/><path d="M16 7v6"/></svg>;
+    case "logo": return <svg {...common}><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/></svg>;
+    case "hero": return <svg {...common}><path d="M3 9 10 3l7 6v8a1 1 0 0 1-1 1h-4v-6H8v6H4a1 1 0 0 1-1-1V9Z"/></svg>;
+    case "ticker": return <svg {...common}><path d="M3 7h14"/><path d="M3 13h14"/><circle cx="6" cy="7" r="0.8"/><circle cx="14" cy="13" r="0.8"/></svg>;
+    case "circle": return <svg {...common}><circle cx="6" cy="6" r="2.5"/><circle cx="14" cy="6" r="2.5"/><circle cx="6" cy="14" r="2.5"/><circle cx="14" cy="14" r="2.5"/></svg>;
+    case "products": return <svg {...common}><path d="M4 6h12l-1 11H5L4 6Z"/><path d="M7 6V4a3 3 0 0 1 6 0v2"/></svg>;
+    case "collections": return <svg {...common}><path d="M3 6a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Z"/></svg>;
+    case "policies": return <svg {...common}><rect x="4" y="3" width="12" height="14" rx="1"/><path d="M7 7h6"/><path d="M7 10h6"/><path d="M7 13h4"/></svg>;
+    case "promise": return <svg {...common}><path d="M10 3 3 7l7 4 7-4-7-4Z"/><path d="m3 11 7 4 7-4"/><path d="m3 15 7 4 7-4"/></svg>;
+    case "about": return <svg {...common}><path d="M4 4h8a3 3 0 0 1 3 3v10H7a3 3 0 0 1-3-3V4Z"/><path d="M4 14a3 3 0 0 1 3-3h8"/></svg>;
+    case "testimonials": return <svg {...common}><path d="M3 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-5l-3 3v-3H4a1 1 0 0 1-1-1V5Z"/></svg>;
+    case "cta": return <svg {...common}><path d="M17 3 9 11"/><path d="M17 3v6"/><path d="M17 3h-6"/><path d="m6 14 1 3 3-3-2-2-2 2Z"/></svg>;
+    case "trust": return <svg {...common}><path d="M10 3 4 5v5c0 4 2.5 6 6 7 3.5-1 6-3 6-7V5l-6-2Z"/><path d="m8 10 1.5 1.5L13 8"/></svg>;
+    case "footer": return <svg {...common}><path d="m8 10 4-4a3 3 0 0 1 4 4l-2 2"/><path d="m12 10-4 4a3 3 0 0 1-4-4l2-2"/></svg>;
+    case "desktop": return <svg {...common}><rect x="3" y="4" width="14" height="9" rx="1"/><path d="M7 17h6"/><path d="M10 13v4"/></svg>;
+    case "mobile": return <svg {...common}><rect x="6" y="3" width="8" height="14" rx="1.5"/><circle cx="10" cy="14.5" r="0.6" fill="currentColor"/></svg>;
+    case "pencil": return <svg {...common}><path d="m4 16 1-3 9-9a1.5 1.5 0 0 1 2.5 1.5l-9 9-3 1Z"/><path d="m12 5 2.5 2.5"/></svg>;
+    case "image": return <svg {...common}><rect x="3" y="3" width="14" height="14" rx="1.5"/><circle cx="7" cy="7" r="1.2"/><path d="m3 14 5-4 4 3 5-5v9H3v-3Z"/></svg>;
+    case "external": return <svg {...common}><path d="M7 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-3"/><path d="M11 3h6v6"/><path d="m17 3-7 7"/></svg>;
+    case "arrow-left": return <svg {...common}><path d="m11 5-5 5 5 5"/><path d="M16 10H6"/></svg>;
+    case "check": return <svg {...common}><path d="m4 10 4 4 8-8"/></svg>;
+  }
+}
+
 /* ─── TYPES ─── */
 interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
