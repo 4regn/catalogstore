@@ -5,6 +5,12 @@ import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { revalidateStore } from "../../actions/revalidate-store";
 
+// Mirror HeirloomStore's collectionSlug. Inlined (not imported) so the editor
+// bundle doesn't have to drag the whole 1300-line storefront component just
+// to compute a slug -- that was bloating the dashboard load.
+const collectionSlug = (name: string) =>
+  name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
 /* ─── TYPES ─── */
 interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
@@ -38,8 +44,33 @@ interface Seller {
     promise_images?: (string | null)[];
     promise_label?: string;
     hero_image?: string;
+    // Heirloom hero fields -- editor and storefront both read these.
+    hero_index?: string;
+    hero_label?: string;
+    hero_headline?: string;
+    hero_body?: string;
+    hero_cta_primary?: string;
+    hero_cta_secondary?: string;
+    hero_cta_primary_target?: CtaTarget;
+    hero_cta_secondary_target?: CtaTarget;
+    // Heirloom footer
+    footer_tagline?: string;
+    footer_col1_label?: string;
+    footer_col2_label?: string;
+    footer_col3_label?: string;
+    footer_support_links?: string[];
+    footer_pay_links?: string[];
   };
 }
+
+// Hero CTA destinations -- mirror the type in HeirloomStore so the editor and
+// the storefront agree. Adding new targets here requires updating the
+// storefront's switch statement too.
+type CtaTarget =
+  | { type: "products" }
+  | { type: "collection"; collection: string }
+  | { type: "url"; url: string }
+  | { type: "none" };
 
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
@@ -120,6 +151,28 @@ export default function StoreEditor() {
   const [heroImageUrl, setHeroImageUrl]           = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
 
+  /* Heirloom-specific hero fields. The previous editor reused Crown's mapping
+     (tagline -> headline, description -> subtitle) which was wrong for
+     Heirloom -- it left the actual headline + eyebrow + label + CTA labels
+     uneditable. These fields are independent and only surfaced in the hero
+     panel when seller.template === "heirloom". */
+  const [heroIndex, setHeroIndex]               = useState("");
+  const [heroLabel, setHeroLabel]               = useState("");
+  const [heroHeadline, setHeroHeadline]         = useState("");
+  const [heroBody, setHeroBody]                 = useState("");
+  const [heroCtaPrimary, setHeroCtaPrimary]     = useState("");
+  const [heroCtaSecondary, setHeroCtaSecondary] = useState("");
+  const [heroCtaPrimaryTarget, setHeroCtaPrimaryTarget]     = useState<CtaTarget>({ type: "products" });
+  const [heroCtaSecondaryTarget, setHeroCtaSecondaryTarget] = useState<CtaTarget>({ type: "none" });
+
+  /* Heirloom footer fields -- same pattern as the hero, template-aware. */
+  const [footerTagline, setFooterTagline]             = useState("");
+  const [footerCol1Label, setFooterCol1Label]         = useState("Shop");
+  const [footerCol2Label, setFooterCol2Label]         = useState("Support");
+  const [footerCol3Label, setFooterCol3Label]         = useState("Pay");
+  const [footerSupportLinks, setFooterSupportLinks]   = useState<string[]>(["Shipping", "Returns", "Sizing", "Contact"]);
+  const [footerPayLinks, setFooterPayLinks]           = useState<string[]>(["Card", "EFT", "PayFast", "WhatsApp Order"]);
+
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
@@ -169,6 +222,22 @@ export default function StoreEditor() {
       setLogoPreview(s.logo_url || "");
       setHeroImagePreview(s.store_config?.hero_image || "");
       setHeroImageUrl(s.store_config?.hero_image || "");
+      // Heirloom-specific hero fields
+      setHeroIndex(s.store_config?.hero_index ?? "");
+      setHeroLabel(s.store_config?.hero_label ?? "");
+      setHeroHeadline(s.store_config?.hero_headline ?? "");
+      setHeroBody(s.store_config?.hero_body ?? "");
+      setHeroCtaPrimary(s.store_config?.hero_cta_primary ?? "");
+      setHeroCtaSecondary(s.store_config?.hero_cta_secondary ?? "");
+      setHeroCtaPrimaryTarget(s.store_config?.hero_cta_primary_target ?? { type: "products" });
+      setHeroCtaSecondaryTarget(s.store_config?.hero_cta_secondary_target ?? { type: "none" });
+      // Heirloom footer
+      setFooterTagline(s.store_config?.footer_tagline ?? s.description ?? "");
+      setFooterCol1Label(s.store_config?.footer_col1_label ?? "Shop");
+      setFooterCol2Label(s.store_config?.footer_col2_label ?? "Support");
+      setFooterCol3Label(s.store_config?.footer_col3_label ?? "Pay");
+      setFooterSupportLinks(s.store_config?.footer_support_links?.length ? s.store_config.footer_support_links : ["Shipping", "Returns", "Sizing", "Contact"]);
+      setFooterPayLinks(s.store_config?.footer_pay_links?.length ? s.store_config.footer_pay_links : ["Card", "EFT", "PayFast", "WhatsApp Order"]);
       setLoading(false);
     })();
   }, []);
@@ -229,6 +298,24 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages]);
   useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview]);
 
+  /* Heirloom hero — live updates */
+  useEffect(() => { postUpdate({ heroIndex }); }, [heroIndex]);
+  useEffect(() => { postUpdate({ heroLabel }); }, [heroLabel]);
+  useEffect(() => { postUpdate({ heroHeadline }); }, [heroHeadline]);
+  useEffect(() => { postUpdate({ heroBody }); }, [heroBody]);
+  useEffect(() => { postUpdate({ heroCtaPrimary }); }, [heroCtaPrimary]);
+  useEffect(() => { postUpdate({ heroCtaSecondary }); }, [heroCtaSecondary]);
+  useEffect(() => { postUpdate({ heroCtaPrimaryTarget }); }, [heroCtaPrimaryTarget]);
+  useEffect(() => { postUpdate({ heroCtaSecondaryTarget }); }, [heroCtaSecondaryTarget]);
+
+  /* Heirloom footer — live updates */
+  useEffect(() => { postUpdate({ footerTagline }); }, [footerTagline]);
+  useEffect(() => { postUpdate({ footerCol1Label }); }, [footerCol1Label]);
+  useEffect(() => { postUpdate({ footerCol2Label }); }, [footerCol2Label]);
+  useEffect(() => { postUpdate({ footerCol3Label }); }, [footerCol3Label]);
+  useEffect(() => { postUpdate({ footerSupportLinks }); }, [footerSupportLinks]);
+  useEffect(() => { postUpdate({ footerPayLinks }); }, [footerPayLinks]);
+
   /* ─── SAVE ─── */
   const save = async () => {
     if (!seller) return;
@@ -273,6 +360,24 @@ export default function StoreEditor() {
           promise_title: promiseTitle,
           promise_items: promiseItems,
           promise_images: promiseImages,
+          // Heirloom-specific hero fields. Empty strings are kept (sellers
+          // sometimes deliberately blank a field), but undefined would fall
+          // back to template defaults at render time.
+          hero_index: heroIndex,
+          hero_label: heroLabel,
+          hero_headline: heroHeadline,
+          hero_body: heroBody,
+          hero_cta_primary: heroCtaPrimary,
+          hero_cta_secondary: heroCtaSecondary,
+          hero_cta_primary_target: heroCtaPrimaryTarget,
+          hero_cta_secondary_target: heroCtaSecondaryTarget,
+          // Heirloom footer
+          footer_tagline: footerTagline,
+          footer_col1_label: footerCol1Label,
+          footer_col2_label: footerCol2Label,
+          footer_col3_label: footerCol3Label,
+          footer_support_links: footerSupportLinks,
+          footer_pay_links: footerPayLinks,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -308,6 +413,17 @@ export default function StoreEditor() {
     fontSize: 10, fontWeight: 700, letterSpacing: "0.1em",
     textTransform: "uppercase", color: "rgba(245,245,245,0.4)",
     display: "block", marginBottom: 6,
+  };
+  const hintStyle: React.CSSProperties = {
+    fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4, lineHeight: 1.45,
+  };
+  const ctaCardStyle: React.CSSProperties = {
+    padding: 12, background: "rgba(255,255,255,0.025)",
+    border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10,
+  };
+  const ctaCardTitle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 800, textTransform: "uppercase",
+    letterSpacing: "0.08em", color: "rgba(245,245,245,0.55)", marginBottom: 8,
   };
 
   if (loading) return (
@@ -464,8 +580,94 @@ export default function StoreEditor() {
               </div>
             )}
 
-            {/* HERO */}
-            {activeSection === "hero" && (
+            {/* HERO — Heirloom variant. The pre-existing block below was
+                Crown-shaped (tagline => headline, description => subtitle)
+                which mangled Heirloom's structure -- Heirloom's headline
+                lives in config.hero_headline, not seller.tagline. We branch
+                on template and render the right form. */}
+            {activeSection === "hero" && seller?.template === "heirloom" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Hero background image (shared upload UI) */}
+                <div>
+                  <label style={labelStyle}>Hero Background Image</label>
+                  <div onClick={() => heroImageRef.current?.click()}
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroImagePreview
+                      ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload hero image</div></div>}
+                  </div>
+                  <input ref={heroImageRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
+                      reader.readAsDataURL(f);
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_image.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl + "?t=" + Date.now(); setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                    }} style={{ display: "none" }} />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Eyebrow (release tag)</label>
+                  <input value={heroIndex} onChange={e => setHeroIndex(e.target.value)} placeholder={`${seller.store_name} · Release 01`} style={inputStyle} />
+                  <div style={hintStyle}>Tiny tag at the very top of the hero, e.g. &quot;4REGN · RELEASE 01&quot;.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Label</label>
+                  <input value={heroLabel} onChange={e => setHeroLabel(e.target.value)} placeholder="Pick of the Week" style={inputStyle} />
+                  <div style={hintStyle}>The smaller line above the headline, e.g. &quot;PICK OF THE WEEK&quot;.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Headline</label>
+                  <textarea value={heroHeadline} onChange={e => setHeroHeadline(e.target.value)} rows={3} placeholder={"Built to outlast\nthe season."} style={{ ...inputStyle, resize: "vertical", minHeight: 80 }} />
+                  <div style={hintStyle}>The big italic text in the hero. Use a line break to control where the headline wraps. Aim for 4-8 words.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Body</label>
+                  <textarea value={heroBody} onChange={e => setHeroBody(e.target.value)} rows={3} placeholder="Short sentence under the headline." style={{ ...inputStyle, resize: "vertical", minHeight: 64 }} />
+                </div>
+
+                {/* Primary CTA */}
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Primary Button</div>
+                  <input value={heroCtaPrimary} onChange={e => setHeroCtaPrimary(e.target.value)} placeholder="Shop the Drop" style={inputStyle} />
+                  <div style={{ height: 10 }} />
+                  <CtaTargetPicker target={heroCtaPrimaryTarget} onChange={setHeroCtaPrimaryTarget} collections={seller.collections || []} />
+                </div>
+
+                {/* Secondary CTA */}
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Secondary Button <span style={{ fontWeight: 400, color: "rgba(245,245,245,0.3)" }}>(optional)</span></div>
+                  <input value={heroCtaSecondary} onChange={e => setHeroCtaSecondary(e.target.value)} placeholder="e.g. View Collection — leave blank to hide" style={inputStyle} />
+                  <div style={{ height: 10 }} />
+                  <CtaTargetPicker target={heroCtaSecondaryTarget} onChange={setHeroCtaSecondaryTarget} collections={seller.collections || []} />
+                  <div style={{ ...hintStyle, marginTop: 8 }}>Leave the label empty or set the link to &quot;Hide button&quot; if you don&apos;t need a second CTA.</div>
+                </div>
+
+                {/* Text color (shared) */}
+                <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                        <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                      </label>
+                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
+                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HERO — Crown / Soft Luxury / Glass Chrome (legacy mapping) */}
+            {activeSection === "hero" && seller?.template !== "heirloom" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
                   <label style={labelStyle}>Hero Background Image</label>
@@ -980,7 +1182,69 @@ export default function StoreEditor() {
             )}
 
             {/* FOOTER */}
-            {activeSection === "footer" && (
+            {/* FOOTER — Heirloom variant. Heirloom's footer has its own
+                tagline (under the wordmark), 3 column headings, and 4+4 link
+                labels in the Support + Pay columns. Editor previously only
+                exposed Crown's "Footer Tagline" → seller.tagline, but Heirloom
+                doesn't use seller.tagline for the footer at all -- it uses
+                seller.description, then falls back to config.footer_tagline. */}
+            {activeSection === "footer" && seller?.template === "heirloom" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Footer Tagline</label>
+                  <textarea value={footerTagline} onChange={e => setFooterTagline(e.target.value)}
+                    rows={2} placeholder="e.g. Limited-run pieces, made deliberately. Made in South Africa."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={hintStyle}>Short line under your brand name in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 1 Heading</label>
+                  <input value={footerCol1Label} onChange={e => setFooterCol1Label(e.target.value)}
+                    placeholder="Shop" style={inputStyle} />
+                  <div style={hintStyle}>Links auto-populate from your collections — only the heading is editable here.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 2 Heading</label>
+                  <input value={footerCol2Label} onChange={e => setFooterCol2Label(e.target.value)}
+                    placeholder="Support" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Column 2 Link Labels</label>
+                  {footerSupportLinks.map((txt, i) => (
+                    <input key={i} value={txt}
+                      onChange={e => { const u = [...footerSupportLinks]; u[i] = e.target.value; setFooterSupportLinks(u); }}
+                      placeholder={["Shipping", "Returns", "Sizing", "Contact"][i] || ""}
+                      style={{ ...inputStyle, marginBottom: 6 }} />
+                  ))}
+                  <div style={hintStyle}>Last link auto-links to your WhatsApp number if set.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 3 Heading</label>
+                  <input value={footerCol3Label} onChange={e => setFooterCol3Label(e.target.value)}
+                    placeholder="Pay" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Column 3 Link Labels</label>
+                  {footerPayLinks.map((txt, i) => (
+                    <input key={i} value={txt}
+                      onChange={e => { const u = [...footerPayLinks]; u[i] = e.target.value; setFooterPayLinks(u); }}
+                      placeholder={["Card", "EFT", "PayFast", "WhatsApp Order"][i] || ""}
+                      style={{ ...inputStyle, marginBottom: 6 }} />
+                  ))}
+                  <div style={hintStyle}>Any label containing &quot;WhatsApp&quot; will open the cart on click.</div>
+                </div>
+
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  Social links (Instagram, TikTok, Facebook, X, WhatsApp) appear automatically below the tagline based on what you&apos;ve set in Dashboard → My Store.
+                </div>
+              </div>
+            )}
+
+            {/* FOOTER — Crown / Soft Luxury / Glass Chrome (legacy mapping) */}
+            {activeSection === "footer" && seller?.template !== "heirloom" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <label style={labelStyle}>Footer Tagline</label>
                 <input value={tagline} onChange={e => setTagline(e.target.value)}
@@ -1052,6 +1316,90 @@ export default function StoreEditor() {
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; margin: 0; padding: 0; }
       `}</style>
+    </div>
+  );
+}
+
+
+/* ─── CTA TARGET PICKER ───────────────────────────────────
+   Lets the seller pick what a hero button does: scroll to products,
+   navigate to a specific collection page, open a custom URL, or hide
+   the button entirely. Reused for both primary and secondary CTAs. */
+function CtaTargetPicker({
+  target,
+  onChange,
+  collections,
+}: {
+  target: CtaTarget;
+  onChange: (t: CtaTarget) => void;
+  collections: string[];
+}) {
+  const baseInput: React.CSSProperties = {
+    width: "100%", padding: "9px 11px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 8, color: "#f5f5f5",
+    fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
+    outline: "none",
+  };
+  const labelMini: React.CSSProperties = {
+    fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+    textTransform: "uppercase", color: "rgba(245,245,245,0.35)",
+    display: "block", marginBottom: 5,
+  };
+  return (
+    <div>
+      <label style={labelMini}>Link to</label>
+      <select
+        value={target.type}
+        onChange={e => {
+          const t = e.target.value as CtaTarget["type"];
+          if (t === "products") onChange({ type: "products" });
+          else if (t === "collection") onChange({ type: "collection", collection: target.type === "collection" ? target.collection : "" });
+          else if (t === "url") onChange({ type: "url", url: target.type === "url" ? target.url : "" });
+          else onChange({ type: "none" });
+        }}
+        style={baseInput}
+      >
+        <option value="products">↓ Scroll to products section</option>
+        <option value="collection">Collection page</option>
+        <option value="url">Custom URL</option>
+        <option value="none">No link — hide button</option>
+      </select>
+
+      {target.type === "collection" && (
+        <div style={{ marginTop: 8 }}>
+          <label style={labelMini}>Collection</label>
+          <select
+            value={target.collection}
+            onChange={e => onChange({ type: "collection", collection: e.target.value })}
+            style={baseInput}
+          >
+            <option value="">— Choose a collection —</option>
+            {collections.map(c => (
+              <option key={c} value={collectionSlug(c)}>{c}</option>
+            ))}
+          </select>
+          {collections.length === 0 && (
+            <div style={{ fontSize: 10, color: "rgba(245,245,245,0.4)", marginTop: 4 }}>
+              Add collections in the dashboard to link to them here.
+            </div>
+          )}
+        </div>
+      )}
+
+      {target.type === "url" && (
+        <div style={{ marginTop: 8 }}>
+          <label style={labelMini}>URL</label>
+          <input
+            type="url"
+            value={target.url}
+            placeholder="https://..."
+            onChange={e => onChange({ type: "url", url: e.target.value })}
+            style={baseInput}
+          />
+        </div>
+      )}
     </div>
   );
 }
