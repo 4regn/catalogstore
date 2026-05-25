@@ -910,10 +910,10 @@ export default function CrownStore() {
                     {/* Image */}
                     <div className="crown-prod-img" style={{ position: "relative", overflow: "hidden", aspectRatio: "3/4", background: bgElevated, borderBottom: `1px solid ${border}` }}>
                       {imgs[0] ? (
-                        <img src={imgs[0]} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block", filter: "brightness(0.9)" }} loading="lazy" />
-                      ) : (
-                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, fontSize: 32 }}>◆</div>
-                      )}
+                        <img src={imgs[0]} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block", filter: "brightness(0.9)" }} loading="lazy"
+                          onError={(e) => { e.currentTarget.style.display = "none"; (e.currentTarget.parentElement!.querySelector(".crown-img-fallback") as HTMLElement | null)?.style.setProperty("display", "flex"); }} />
+                      ) : null}
+                      <div className="crown-img-fallback" style={{ width: "100%", height: "100%", display: imgs[0] ? "none" : "flex", alignItems: "center", justifyContent: "center", color: textMuted, fontSize: 32, position: "absolute", inset: 0 }}>◆</div>
                       {discountPct && (
                         <div style={{ position: "absolute", top: 12, right: 12, background: gold, color: bgDeep, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", padding: "4px 10px" }}>−{discountPct}%</div>
                       )}
