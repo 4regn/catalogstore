@@ -214,48 +214,64 @@ export default function StoreEditor() {
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  /* ─── SEND LIVE UPDATES TO IFRAME ─── */
-  const postUpdate = useCallback((payload: Record<string, unknown>) => {
+  /* ─── SEND LIVE UPDATES TO IFRAME (debounced + batched) ─── */
+  const pendingUpdatesRef = useRef<Record<string, unknown>>({});
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushUpdates = useCallback(() => {
+    const payload = pendingUpdatesRef.current;
+    pendingUpdatesRef.current = {};
+    flushTimerRef.current = null;
+    if (Object.keys(payload).length === 0) return;
     iframeRef.current?.contentWindow?.postMessage({ type: "LIVE_UPDATE", ...payload }, "*");
   }, []);
 
-  /* Live update on every field change */
-  useEffect(() => { postUpdate({ tagline }); }, [tagline]);
-  useEffect(() => { postUpdate({ description }); }, [description]);
-  useEffect(() => { postUpdate({ announcement }); }, [announcement]);
-  useEffect(() => { postUpdate({ trustItems }); }, [trustItems]);
-  useEffect(() => { postUpdate({ testimonialText }); }, [testimonialText]);
-  useEffect(() => { postUpdate({ ctaHeadline }); }, [ctaHeadline]);
-  useEffect(() => { postUpdate({ ctaSubtext }); }, [ctaSubtext]);
-  useEffect(() => { postUpdate({ aboutTitle }); }, [aboutTitle]);
-  useEffect(() => { postUpdate({ heroSubtext }); }, [heroSubtext]);
-  useEffect(() => { postUpdate({ circleTitle }); }, [circleTitle]);
-  useEffect(() => { postUpdate({ circleSubtitle }); }, [circleSubtitle]);
-  useEffect(() => { postUpdate({ productsLabel }); }, [productsLabel]);
-  useEffect(() => { postUpdate({ productsHeading }); }, [productsHeading]);
-  useEffect(() => { postUpdate({ aboutLabel }); }, [aboutLabel]);
-  useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
-  useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
-  useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
-  useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
-  useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
-  useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed]);
-  useEffect(() => { postUpdate({ bgColor }); }, [bgColor]);
-  useEffect(() => { postUpdate({ heroTextColor }); }, [heroTextColor]);
-  useEffect(() => { postUpdate({ circleTextColor }); }, [circleTextColor]);
-  useEffect(() => { postUpdate({ prodTextColor }); }, [prodTextColor]);
-  useEffect(() => { postUpdate({ aboutTextColor }); }, [aboutTextColor]);
-  useEffect(() => { postUpdate({ collTextColor }); }, [collTextColor]);
-  useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor]);
-  useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor]);
-  useEffect(() => { postUpdate({ footerTextColor }); }, [footerTextColor]);
-  useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel]);
-  useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
-  useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems]);
-  useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages]);
-  useEffect(() => { postUpdate({ policyItems }); }, [policyItems]);
-  useEffect(() => { postUpdate({ aboutImage: aboutImagePreview }); }, [aboutImagePreview]);
-  useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview]);
+  const postUpdate = useCallback((payload: Record<string, unknown>) => {
+    Object.assign(pendingUpdatesRef.current, payload);
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(flushUpdates, 120);
+  }, [flushUpdates]);
+
+  useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
+
+  /* Live update on every field change — the debounced postUpdate batches
+     these into one postMessage per ~120ms instead of one per keystroke. */
+  useEffect(() => { postUpdate({ tagline }); }, [tagline, postUpdate]);
+  useEffect(() => { postUpdate({ description }); }, [description, postUpdate]);
+  useEffect(() => { postUpdate({ announcement }); }, [announcement, postUpdate]);
+  useEffect(() => { postUpdate({ trustItems }); }, [trustItems, postUpdate]);
+  useEffect(() => { postUpdate({ testimonialText }); }, [testimonialText, postUpdate]);
+  useEffect(() => { postUpdate({ ctaHeadline }); }, [ctaHeadline, postUpdate]);
+  useEffect(() => { postUpdate({ ctaSubtext }); }, [ctaSubtext, postUpdate]);
+  useEffect(() => { postUpdate({ aboutTitle }); }, [aboutTitle, postUpdate]);
+  useEffect(() => { postUpdate({ heroSubtext }); }, [heroSubtext, postUpdate]);
+  useEffect(() => { postUpdate({ circleTitle }); }, [circleTitle, postUpdate]);
+  useEffect(() => { postUpdate({ circleSubtitle }); }, [circleSubtitle, postUpdate]);
+  useEffect(() => { postUpdate({ productsLabel }); }, [productsLabel, postUpdate]);
+  useEffect(() => { postUpdate({ productsHeading }); }, [productsHeading, postUpdate]);
+  useEffect(() => { postUpdate({ aboutLabel }); }, [aboutLabel, postUpdate]);
+  useEffect(() => { postUpdate({ collLabel }); }, [collLabel, postUpdate]);
+  useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle, postUpdate]);
+  useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder, postUpdate]);
+  useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview, postUpdate]);
+  useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts, postUpdate]);
+  useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed, postUpdate]);
+  useEffect(() => { postUpdate({ bgColor }); }, [bgColor, postUpdate]);
+  useEffect(() => { postUpdate({ heroTextColor }); }, [heroTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ circleTextColor }); }, [circleTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ prodTextColor }); }, [prodTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ aboutTextColor }); }, [aboutTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ collTextColor }); }, [collTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ footerTextColor }); }, [footerTextColor, postUpdate]);
+  useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel, postUpdate]);
+  useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle, postUpdate]);
+  useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems, postUpdate]);
+  useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages, postUpdate]);
+  useEffect(() => { postUpdate({ policyItems }); }, [policyItems, postUpdate]);
+  useEffect(() => { postUpdate({ aboutImage: aboutImagePreview }); }, [aboutImagePreview, postUpdate]);
+  useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview, postUpdate]);
 
   /* ─── SAVE ─── */
   const save = async () => {

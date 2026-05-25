@@ -23,6 +23,9 @@ interface Product {
 
 interface CartItem { product: Product; qty: number; selectedVariants: { [key: string]: string }; }
 
+const fmt = (n: number) => "R" + Math.round(n).toLocaleString("en-ZA");
+const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = "none"; };
+
 export default function StorePage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -234,7 +237,7 @@ export default function StorePage() {
 
   /* Edit mode section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
-    if (!isEditMode) return <div style={style}>{children}</div>;
+    if (!isEditMode) return <>{children}</>;
     const isHovered = hoveredSection === id;
     return (
       <div
@@ -363,7 +366,7 @@ export default function StorePage() {
           <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
             {seller?.banner_url ? (
               <>
-                <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
+                <img src={seller.banner_url} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
                 {cfg.show_banner_text && (
                   <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(42,42,46,0) 30%, rgba(42,42,46,0.4) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "0 40px 80px", textAlign: "center" }}>
                     {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)", marginBottom: 16 }}>{displayTagline}</div>}
@@ -468,8 +471,8 @@ export default function StorePage() {
                   <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, marginBottom: 4, letterSpacing: "0.01em" }}>{product.name}</div>
                   {product.category && <div style={{ fontSize: 11, color: "#b5b1ac", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{product.category}</div>}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 16, fontWeight: 500, color: accent }}>R{product.price}</span>
-                    {product.old_price && <span style={{ fontSize: 14, color: "#b5b1ac", textDecoration: "line-through" }}>R{product.old_price}</span>}
+                    <span style={{ fontSize: 16, fontWeight: 500, color: accent }}>{fmt(product.price)}</span>
+                    {product.old_price && <span style={{ fontSize: 14, color: "#b5b1ac", textDecoration: "line-through" }}>{fmt(product.old_price)}</span>}
                   </div>
                 </div>
               ))}
@@ -587,7 +590,7 @@ export default function StorePage() {
               <div className="sl-modal" style={{ display: "flex", gap: 36 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ borderRadius: 14, overflow: "hidden", background: "#f5f5f5", aspectRatio: "3/4" }}>
-                    {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }} />}
+                    {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }} />}
                   </div>
                   {selectedProduct.images?.length > 1 && (
                     <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto" }}>
@@ -599,8 +602,8 @@ export default function StorePage() {
                   {selectedProduct.category && <p style={{ fontSize: 11, color: "#b5b1ac", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{selectedProduct.category}</p>}
                   <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 400, letterSpacing: "0.01em", marginBottom: 12 }}>{selectedProduct.name}</h2>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-                    <span style={{ fontSize: 24, fontWeight: 500, color: accent }}>R{selectedProduct.price}</span>
-                    {selectedProduct.old_price && <span style={{ fontSize: 18, color: "#b5b1ac", textDecoration: "line-through" }}>R{selectedProduct.old_price}</span>}
+                    <span style={{ fontSize: 24, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
+                    {selectedProduct.old_price && <span style={{ fontSize: 18, color: "#b5b1ac", textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
                   </div>
                   {selectedProduct.description && <p style={{ fontSize: 14, lineHeight: 1.7, color: "#8a8690", marginBottom: 24 }}>{selectedProduct.description}</p>}
                   {selectedProduct.variants?.length > 0 && (
@@ -617,7 +620,7 @@ export default function StorePage() {
                       ))}
                     </div>
                   )}
-                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "18px 32px", background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; R{selectedProduct.price}</button>
+                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "18px 32px", background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(selectedProduct.price)}</button>
                 </div>
               </div>
             </div>
@@ -639,11 +642,11 @@ export default function StorePage() {
                   <div style={{ flex: 1, overflow: "auto", padding: "24px 28px" }}>
                     {cart.map((item, idx) => (
                       <div key={idx} style={{ display: "flex", gap: 16, padding: "20px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                        {item.product.image_url && <img src={item.product.image_url} alt="" style={{ width: 80, height: 100, borderRadius: 10, objectFit: "cover" }} />}
+                        {item.product.image_url && <img src={item.product.image_url} alt="" onError={hideOnError} style={{ width: 80, height: 100, borderRadius: 10, objectFit: "cover" }} />}
                         <div style={{ flex: 1 }}>
                           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 12, color: "#b5b1ac", marginBottom: 8 }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" \u2022 ")}</div>}
-                          <div style={{ fontSize: 14, fontWeight: 500, color: accent, marginBottom: 8 }}>R{item.product.price}</div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: accent, marginBottom: 8 }}>{fmt(item.product.price)}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <button onClick={() => updateQty(idx, -1)} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid rgba(0,0,0,0.1)", background: "none", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
                             <span style={{ fontSize: 14, fontWeight: 500, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
@@ -658,12 +661,12 @@ export default function StorePage() {
                     {totalDiscount > 0 && (
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                         <span style={{ fontSize: 13, color: accent, letterSpacing: "0.04em", textTransform: "uppercase" }}>Discount</span>
-                        <span style={{ fontSize: 14, color: accent }}>−R{Math.round(totalDiscount)}</span>
+                        <span style={{ fontSize: 14, color: accent }}>−{fmt(totalDiscount)}</span>
                       </div>
                     )}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                       <span style={{ fontSize: 14, color: "#8a8690", letterSpacing: "0.04em", textTransform: "uppercase" }}>Total</span>
-                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500 }}>R{Math.round(cartTotal)}</span>
+                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500 }}>{fmt(cartTotal)}</span>
                     </div>
                     <button onClick={() => {
                       const payload = JSON.stringify(cart.map(i => ({ name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
@@ -690,8 +693,8 @@ export default function StorePage() {
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
                   <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
-                    {p.image_url && <img src={p.image_url} alt="" style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
-                    <div><div style={{ fontSize: 15 }}>{p.name}</div><div style={{ fontSize: 13, color: accent }}>R{p.price}</div></div>
+                    {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
+                    <div><div style={{ fontSize: 15 }}>{p.name}</div><div style={{ fontSize: 13, color: accent }}>{fmt(p.price)}</div></div>
                   </div>
                 ))}
               </div>

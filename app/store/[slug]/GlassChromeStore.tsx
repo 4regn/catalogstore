@@ -23,6 +23,9 @@ interface Product {
 
 interface CartItem { product: Product; qty: number; selectedVariants: { [key: string]: string }; }
 
+const fmt = (n: number) => "R" + Math.round(n).toLocaleString("en-ZA");
+const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = "none"; };
+
 export default function GlassChromeStore() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -242,7 +245,7 @@ export default function GlassChromeStore() {
 
   /* Edit mode section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
-    if (!isEditMode) return <div style={style}>{children}</div>;
+    if (!isEditMode) return <>{children}</>;
     const isHovered = hoveredSection === id;
     return (
       <div
@@ -378,7 +381,7 @@ export default function GlassChromeStore() {
           <section className="gc-hero" style={{ position: "relative", height: seller?.banner_url ? "100vh" : "auto", minHeight: seller?.banner_url ? 600 : "auto", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
             {seller?.banner_url ? (
               <>
-                <img src={seller.banner_url} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.35) saturate(0.7)" }} />
+                <img src={seller.banner_url} alt="" onError={hideOnError} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.35) saturate(0.7)" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(3,3,5,0.92) 0%, rgba(3,3,5,0.4) 50%, rgba(3,3,5,0.15) 100%)" }} />
                 <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)" }} />
                 {cfg.show_banner_text && (
@@ -464,7 +467,7 @@ export default function GlassChromeStore() {
               {filtered.map((product) => (
                 <div key={product.id} onClick={() => openProduct(product)} style={{ background: P, border: "1px solid " + PB, borderRadius: 12, overflow: "hidden", cursor: "pointer", transition: "transform 0.35s, border-color 0.35s, box-shadow 0.35s", position: "relative" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = PB; e.currentTarget.style.boxShadow = ""; }}>
                   <div style={{ aspectRatio: "3/4", overflow: "hidden", background: "linear-gradient(145deg, #141418, #0c0c10)", position: "relative" }}>
-                    {product.image_url && <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s", filter: "brightness(0.85)" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />}
+                    {product.image_url && <img src={product.image_url} alt={product.name} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s", filter: "brightness(0.85)" }} />}
                     {product.old_price && <div style={{ position: "absolute", top: 12, left: 12, fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 4, background: "#fff", color: "#000", fontWeight: 600 }}>Sale</div>}
                     {(() => { const pp = getProductPromo(product.id); return pp ? (
                       <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(0,0,0,0.7)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -477,8 +480,8 @@ export default function GlassChromeStore() {
                     {product.category && <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", color: "rgba(255,255,255,0.28)", textTransform: "uppercase", marginBottom: 5 }}>{product.category}</div>}
                     <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10, letterSpacing: "0.01em", lineHeight: 1.3 }}>{product.name}</div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>R{product.price}</span>
-                      {product.old_price && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>R{product.old_price}</span>}
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{fmt(product.price)}</span>
+                      {product.old_price && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>{fmt(product.old_price)}</span>}
                     </div>
                   </div>
                 </div>
@@ -621,7 +624,7 @@ export default function GlassChromeStore() {
               <div className="gc-modal" style={{ display: "flex", gap: 36 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ borderRadius: 12, overflow: "hidden", background: "#0f0f14", aspectRatio: "3/4", border: "1px solid " + PB }}>
-                    {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg, #141418, #0c0c10)" }} />}
+                    {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg, #141418, #0c0c10)" }} />}
                   </div>
                   {selectedProduct.images?.length > 1 && (
                     <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto" }}>
@@ -633,8 +636,8 @@ export default function GlassChromeStore() {
                   {selectedProduct.category && <p style={{ fontFamily: mono, fontSize: 10, color: "rgba(255,255,255,0.28)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>{selectedProduct.category}</p>}
                   <h2 style={{ fontFamily: display, fontSize: 32, letterSpacing: "0.02em", marginBottom: 12, textTransform: "uppercase" }}>{selectedProduct.name}</h2>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 20 }}>
-                    <span style={{ fontSize: 24, fontWeight: 600 }}>R{selectedProduct.price}</span>
-                    {selectedProduct.old_price && <span style={{ fontSize: 16, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>R{selectedProduct.old_price}</span>}
+                    <span style={{ fontSize: 24, fontWeight: 600 }}>{fmt(selectedProduct.price)}</span>
+                    {selectedProduct.old_price && <span style={{ fontSize: 16, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
                   </div>
                   {selectedProduct.description && <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(255,255,255,0.5)", marginBottom: 24, fontWeight: 300 }}>{selectedProduct.description}</p>}
                   {selectedProduct.variants?.length > 0 && (
@@ -651,7 +654,7 @@ export default function GlassChromeStore() {
                       ))}
                     </div>
                   )}
-                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "16px 32px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart - R{selectedProduct.price}</button>
+                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "16px 32px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(selectedProduct.price)}</button>
                 </div>
               </div>
             </div>
@@ -673,11 +676,11 @@ export default function GlassChromeStore() {
                   <div style={{ flex: 1, overflow: "auto", padding: "24px 28px" }}>
                     {cart.map((item, idx) => (
                       <div key={idx} style={{ display: "flex", gap: 16, padding: "20px 0", borderBottom: "1px solid " + PB }}>
-                        {item.product.image_url && <img src={item.product.image_url} alt="" style={{ width: 80, height: 100, borderRadius: 8, objectFit: "cover" }} />}
+                        {item.product.image_url && <img src={item.product.image_url} alt="" onError={hideOnError} style={{ width: 80, height: 100, borderRadius: 8, objectFit: "cover" }} />}
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 8, fontFamily: mono, letterSpacing: "0.05em" }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" / ")}</div>}
-                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>R{item.product.price}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{fmt(item.product.price)}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <button onClick={() => updateQty(idx, -1)} style={{ width: 28, height: 28, borderRadius: 4, border: "1px solid " + PB, background: "none", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", color: "#f0f0f0" }}>-</button>
                             <span style={{ fontSize: 14, fontWeight: 500, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
@@ -692,12 +695,12 @@ export default function GlassChromeStore() {
                     {totalDiscount > 0 && (
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                         <span style={{ fontFamily: mono, fontSize: 11, color: "#fff", letterSpacing: "0.1em", textTransform: "uppercase" }}>Discount</span>
-                        <span style={{ fontFamily: mono, fontSize: 12, color: "#fff" }}>−R{Math.round(totalDiscount)}</span>
+                        <span style={{ fontFamily: mono, fontSize: 12, color: "#fff" }}>−{fmt(totalDiscount)}</span>
                       </div>
                     )}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                       <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Total</span>
-                      <span style={{ fontFamily: display, fontSize: 28 }}>R{Math.round(cartTotal)}</span>
+                      <span style={{ fontFamily: display, fontSize: 28 }}>{fmt(cartTotal)}</span>
                     </div>
                     <button onClick={() => {
                       const payload = JSON.stringify(cart.map(i => ({ name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
@@ -724,8 +727,8 @@ export default function GlassChromeStore() {
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
                   <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid " + PB, cursor: "pointer" }}>
-                    {p.image_url && <img src={p.image_url} alt="" style={{ width: 48, height: 60, borderRadius: 6, objectFit: "cover" }} />}
-                    <div><div style={{ fontSize: 14 }}>{p.name}</div><div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>R{p.price}</div></div>
+                    {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} style={{ width: 48, height: 60, borderRadius: 6, objectFit: "cover" }} />}
+                    <div><div style={{ fontSize: 14 }}>{p.name}</div><div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{fmt(p.price)}</div></div>
                   </div>
                 ))}
               </div>

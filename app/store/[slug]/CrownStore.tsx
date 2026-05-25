@@ -76,6 +76,7 @@ interface CartItem {
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 const fmt = (n: number) => "R" + n.toLocaleString("en-ZA");
+const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = "none"; };
 const FREE_SHIP = 800;
 
 export default function CrownStore() {
@@ -785,7 +786,7 @@ export default function CrownStore() {
           {/* Background image */}
           <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
             {displayHeroImage ? (
-              <img src={displayHeroImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
+              <img src={displayHeroImage} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
             ) : (
               <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg, ${bgElevated} 0%, #1e1a16 100%)` }} />
             )}
@@ -1193,7 +1194,7 @@ export default function CrownStore() {
                 {/* Image side */}
                 <div style={{ position: "relative", overflow: "hidden", background: bgCard }}>
                   {imgs[activeImg] ? (
-                    <img src={imgs[activeImg]} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.9)" }} />
+                    <img src={imgs[activeImg]} alt={p.name} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.9)" }} />
                   ) : (
                     <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, fontSize: 48 }}>◆</div>
                   )}
@@ -1320,7 +1321,7 @@ export default function CrownStore() {
                   return (
                     <div key={idx} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 14, alignItems: "center", padding: "16px 0", borderBottom: `1px solid ${border}` }}>
                       <div style={{ width: 64, height: 80, overflow: "hidden", background: bgCard, flexShrink: 0 }}>
-                        {img ? <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted }}>◆</div>}
+                        {img ? <img src={img} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted }}>◆</div>}
                       </div>
                       <div>
                         <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, fontWeight: 300, color: cream, marginBottom: 3 }}>{item.product.name}</div>
