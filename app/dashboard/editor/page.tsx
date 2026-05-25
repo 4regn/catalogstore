@@ -120,22 +120,34 @@ type ActiveSection =
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
   | null;
 
-const SECTION_LABELS: Record<string, string> = {
-  announcement: "📢 Announcement Bar",
-  logo:         "🏷 Store Logo",
-  hero:         "🏠 Hero Section",
-  ticker:       "📣 Promo Ticker",
-  circle:       "⭕ Browse by Category",
-  products:     "🛍 Products",
-  collections:  "📂 Collections",
-  policies:     "📋 Shipping & Policies",
-  promise:      "💎 Our Promise",
-  about:        "📖 About / Story",
-  testimonials: "💬 Testimonials",
-  cta:          "🚀 Call to Action",
-  trust:        "✅ Trust Bar",
-  footer:       "🔗 Footer",
+const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
+  announcement: { icon: "announcement", label: "Announcement Bar" },
+  logo:         { icon: "logo",         label: "Store Logo" },
+  hero:         { icon: "hero",         label: "Hero Section" },
+  ticker:       { icon: "ticker",       label: "Promo Ticker" },
+  circle:       { icon: "circle",       label: "Browse by Category" },
+  products:     { icon: "products",     label: "Products" },
+  collections:  { icon: "collections",  label: "Collections" },
+  policies:     { icon: "policies",     label: "Shipping & Policies" },
+  promise:      { icon: "promise",      label: "Our Promise" },
+  about:        { icon: "about",        label: "About / Story" },
+  testimonials: { icon: "testimonials", label: "Testimonials" },
+  cta:          { icon: "cta",          label: "Call to Action" },
+  trust:        { icon: "trust",        label: "Trust Bar" },
+  footer:       { icon: "footer",       label: "Footer" },
 };
+
+// Compact icon+label inline component for the chrome.
+function SectionTag({ section, color = "rgba(245,245,245,0.6)" }: { section: keyof typeof SECTION_LABELS; color?: string }) {
+  const s = SECTION_LABELS[section];
+  if (!s) return null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color }}>
+      <EditorIcon name={s.icon} size={13} />
+      <span>{s.label}</span>
+    </span>
+  );
+}
 
 export default function StoreEditor() {
   const router = useRouter();
@@ -490,28 +502,31 @@ export default function StoreEditor() {
       {/* ── TOP BAR ── */}
       <div style={{ height: 52, background: "#111116", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={() => router.push("/dashboard")}
-            style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 6, transition: "color 0.2s" }}>
-            ←
+          <button onClick={() => router.push("/dashboard")} aria-label="Back to dashboard"
+            style={{ background: "none", border: "none", color: "rgba(245,245,245,0.4)", cursor: "pointer", padding: "6px 8px", borderRadius: 6, display: "flex", alignItems: "center" }}>
+            <EditorIcon name="arrow-left" size={18} />
           </button>
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.08)" }} />
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#f5f5f5" }}>{seller?.store_name}</div>
             <div style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", letterSpacing: "0.04em" }}>
-              {panelVisible && activeSection ? SECTION_LABELS[activeSection] : "Click any section to edit"}
+              {panelVisible && activeSection ? <SectionTag section={activeSection} color="rgba(245,245,245,0.45)" /> : "Click any section to edit"}
             </div>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Device toggle */}
+          {/* Device toggle -- desktop / mobile preview */}
           <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, overflow: "hidden" }}>
-            {[{ icon: "🖥", label: "desktop" }, { icon: "📱", label: "mobile" }].map(d => (
-              <button key={d.label} title={d.label}
+            {([
+              { name: "desktop" as const, label: "Desktop" },
+              { name: "mobile" as const,  label: "Mobile" },
+            ]).map(d => (
+              <button key={d.name} title={d.label} aria-label={`${d.label} preview`}
                 onClick={() => {
                   const iframe = iframeRef.current;
                   if (!iframe) return;
-                  if (d.label === "mobile") {
+                  if (d.name === "mobile") {
                     iframe.style.width = "390px";
                     iframe.style.margin = "0 auto";
                     iframe.style.display = "block";
@@ -524,8 +539,8 @@ export default function StoreEditor() {
                     iframe.style.border = "none";
                   }
                 }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: "6px 10px" }}>
-                {d.icon}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 12px", color: "rgba(245,245,245,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <EditorIcon name={d.name} size={16} />
               </button>
             ))}
           </div>
@@ -533,15 +548,26 @@ export default function StoreEditor() {
           {/* Open in new tab */}
           {seller?.subdomain && (
             <a href={`/store/${seller.subdomain}`} target="_blank" rel="noreferrer"
-              style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,245,245,0.35)", textDecoration: "none", padding: "6px 12px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }}>
-              Open Store ↗
+              style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(245,245,245,0.6)", textDecoration: "none", padding: "8px 14px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8, transition: "color 0.15s, border-color 0.15s" }}>
+              Open Store <EditorIcon name="external" size={13} />
             </a>
           )}
 
-          {/* Save */}
+          {/* Save -- uses the brand orange→pink gradient (matches landing CTAs) */}
           <button onClick={save} disabled={saving}
-            style={{ padding: "8px 20px", background: saved ? "#22c55e" : G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", letterSpacing: "0.04em", transition: "background 0.3s" }}>
-            {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
+            style={{
+              padding: "9px 22px",
+              background: saved ? "#22c55e" : "linear-gradient(135deg,#ff6b35 0%,#ff3d6e 100%)",
+              color: "#fff", border: "none", borderRadius: 100,
+              fontFamily: "'Schibsted Grotesk', sans-serif",
+              fontSize: 12, fontWeight: 800, letterSpacing: "0.04em",
+              cursor: saving ? "not-allowed" : "pointer",
+              boxShadow: saved ? "none" : "0 6px 20px rgba(255,107,53,0.25)",
+              transition: "background 0.3s, box-shadow 0.3s",
+              display: "inline-flex", alignItems: "center", gap: 7,
+            }}>
+            {saved && <EditorIcon name="check" size={14} stroke={2.5} />}
+            {saving ? "Saving..." : saved ? "Saved" : "Save Changes"}
           </button>
         </div>
       </div>
@@ -587,7 +613,7 @@ export default function StoreEditor() {
           {/* Panel header */}
           <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5" }}>
-              {activeSection ? SECTION_LABELS[activeSection] : ""}
+              {activeSection && <SectionTag section={activeSection} color="#f5f5f5" />}
             </div>
             <button onClick={() => setPanelVisible(false)}
               style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>
@@ -617,7 +643,7 @@ export default function StoreEditor() {
                   style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   {logoPreview
                     ? <img src={logoPreview} alt="" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
-                    : <div style={{ textAlign: "center" }}><div style={{ fontSize: 32, opacity: 0.25 }}>🏷</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.3)", marginTop: 6 }}>Click to upload your logo</div></div>
+                    : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.3)" }}><EditorIcon name="image" size={28} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload your logo</div></div>
                   }
                 </div>
                 <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
@@ -645,7 +671,7 @@ export default function StoreEditor() {
                     style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {heroImagePreview
                       ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload hero image</div></div>}
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>}
                   </div>
                   <input ref={heroImageRef} type="file" accept="image/*"
                     onChange={async e => {
@@ -740,7 +766,7 @@ export default function StoreEditor() {
                     style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {heroImagePreview
                       ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload hero image</div></div>
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>
                     }
                   </div>
                   <input ref={heroImageRef} type="file" accept="image/*"
@@ -1350,8 +1376,17 @@ export default function StoreEditor() {
           {/* Panel save button */}
           <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", gap: 10 }}>
             <button onClick={save} disabled={saving}
-              style={{ flex: 1, padding: "10px", background: G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-              {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
+              style={{
+                flex: 1, padding: "11px", borderRadius: 100, border: "none",
+                background: saved ? "#22c55e" : "linear-gradient(135deg,#ff6b35 0%,#ff3d6e 100%)",
+                color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 800, letterSpacing: "0.04em",
+                cursor: saving ? "not-allowed" : "pointer",
+                boxShadow: saved ? "none" : "0 4px 18px rgba(255,107,53,0.25)",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+              }}>
+              {saved && <EditorIcon name="check" size={14} stroke={2.5} />}
+              {saving ? "Saving..." : saved ? "Saved" : "Save Changes"}
             </button>
             <button onClick={() => setPanelVisible(false)}
               style={{ padding: "10px 16px", background: "rgba(255,255,255,0.04)", color: "rgba(245,245,245,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
@@ -1370,7 +1405,7 @@ export default function StoreEditor() {
             display: "flex", alignItems: "center", gap: 8,
             pointerEvents: "none",
           }}>
-            <span style={{ fontSize: 14 }}>👆</span>
+            <span style={{ display: "inline-flex", color: "rgba(255,107,53,0.85)" }}><EditorIcon name="pencil" size={14} /></span>
             <span style={{ fontSize: 12, color: "rgba(245,245,245,0.6)", letterSpacing: "0.02em" }}>Click any section on your store to edit it</span>
           </div>
         )}

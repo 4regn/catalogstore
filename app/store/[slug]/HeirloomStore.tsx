@@ -510,9 +510,15 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
             background: "#111", color: "#fff",
             fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-            padding: "4px 12px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
+            padding: "5px 12px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
+            borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
           }}>
-            ✏️ Click to edit
+            <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m4 16 1-3 9-9a1.5 1.5 0 0 1 2.5 1.5l-9 9-3 1Z"/>
+              <path d="m12 5 2.5 2.5"/>
+            </svg>
+            Click to edit
           </div>
         )}
         {children}
