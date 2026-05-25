@@ -157,7 +157,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   /* ─── PROMO ─── */
   const [promoCountdown, setPromoCountdown] = useState<PromoDiscount | null>(() => buildInitialPromos(initialDiscountCodes).countdown);
   const [promoDiscounts, setPromoDiscounts] = useState<PromoDiscount[]>(() => buildInitialPromos(initialDiscountCodes).discounts);
-  const [decoTimer, setDecoTimer] = useState({ h: 4, m: 22, s: 15 });
 
   /* ─── UI ─── */
   const [activeCategory, setActiveCategory] = useState("All");
@@ -252,21 +251,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     const i = setInterval(tick, 1000);
     return () => clearInterval(i);
   }, [promoDiscounts.length, promoCountdown?.expires_at]);
-
-  /* ─── DECORATIVE TIMER (when no real promo set) ─── */
-  useEffect(() => {
-    if (promoCountdown) return;
-    const i = setInterval(() => {
-      setDecoTimer((prev) => {
-        let s = prev.s - 1, m = prev.m, h = prev.h;
-        if (s < 0) { s = 59; m -= 1; }
-        if (m < 0) { m = 59; h -= 1; }
-        if (h < 0) { h = 0; m = 0; s = 0; }
-        return { h, m, s };
-      });
-    }, 1000);
-    return () => clearInterval(i);
-  }, [promoCountdown]);
 
   const getProductPromo = (productId: string) =>
     promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
@@ -478,9 +462,11 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const flashSaleProducts = products.filter((p) => getProductPromo(p.id)).slice(0, 3);
 
   /* ─── HERO TIMER DISPLAY ─── */
-  const heroTimer = promoCountdown?.timeLeft ||
-    `${pad(decoTimer.h)}:${pad(decoTimer.m)}:${pad(decoTimer.s)}`;
-  const heroTimerParts = heroTimer.split(":");
+  // Only render when there's a real active discount with show_countdown set.
+  // Removed the previous decorative-only fallback so sellers without a sale
+  // don't broadcast a fake "Drop ends in 04:22:15" countdown forever -- same
+  // behaviour GC + SL already use.
+  const heroTimerParts = promoCountdown?.timeLeft?.split(":") ?? null;
 
   /* ─── CATEGORY IMAGE: first product image in that category ─── */
   const catImage = (cat: string) => {
@@ -1065,12 +1051,14 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   </button>
                 )}
               </div>
-              <div className="hl-timer-row">
-                <div className="hl-timer-note">{promoCountdown ? `${promoCountdown.code} ends in` : "Drop ends in"}</div>
-                <div className="hl-timer-digits">
-                  {heroTimerParts[0]}<span className="sep">:</span>{heroTimerParts[1]}<span className="sep">:</span>{heroTimerParts[2]}
+              {promoCountdown && heroTimerParts && (
+                <div className="hl-timer-row">
+                  <div className="hl-timer-note">{`${promoCountdown.code} ends in`}</div>
+                  <div className="hl-timer-digits">
+                    {heroTimerParts[0]}<span className="sep">:</span>{heroTimerParts[1]}<span className="sep">:</span>{heroTimerParts[2]}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
             {featuredProduct && (
               <button className="hl-pill" onClick={() => openProduct(featuredProduct)}>
