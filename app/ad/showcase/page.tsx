@@ -12,27 +12,41 @@ import { useEffect, useRef, useState } from "react";
 // that the storefront would still be white when the template scene fades in.
 
 const TEMPLATES = [
-  { theme: "01", name: "HEIRLOOM",     tag: "Fashion & Lifestyle",     src: "/templates/heirloom/index.html", bg: "#fff" },
-  { theme: "02", name: "CROWN",        tag: "Beauty & Hair",            src: "/templates/crown/index.html",    bg: "#0a0908" },
-  { theme: "03", name: "GLASS CHROME", tag: "Electronics & Tech",       src: "/templates/volt/index.html",     bg: "#08080c" },
-  { theme: "04", name: "SOFT LUXURY",  tag: "Skincare & Fragrance",     src: "/templates/aurelia/index.html",  bg: "#f6f3ef" },
+  { theme: "01", name: "HEIRLOOM",     tag: "Fashion & Lifestyle",     src: "/templates/heirloom/index.html", bg: "#fff",     scrollMs: 9000 },
+  { theme: "02", name: "CROWN",        tag: "Beauty & Hair",            src: "/templates/crown/index.html",    bg: "#0a0908", scrollMs: 9000 },
+  { theme: "03", name: "GLASS CHROME", tag: "Electronics & Tech",       src: "/templates/volt/index.html",     bg: "#08080c", scrollMs: 6000 },
+  { theme: "04", name: "SOFT LUXURY",  tag: "Skincare & Fragrance",     src: "/templates/aurelia/index.html",  bg: "#f6f3ef", scrollMs: 6000 },
 ];
 
-type SceneId = "intro" | "tpl-0" | "tpl-1" | "tpl-2" | "tpl-3" | "pricing";
+type SceneId =
+  | "intro"
+  | "tease-0" | "tease-1" | "tease-2" | "tease-3"
+  | "tpl-0"   | "tpl-1"   | "tpl-2"   | "tpl-3"
+  | "pricing";
 
+// Scenes now include a 4-phone "tease" montage between the brand intro and the
+// detail walkthrough. Each tease beat is ~1.1s -- just long enough to register
+// the look before the next slides in. Detail scenes are longer for the tall
+// storefronts (Heirloom, Crown) and shorter for the flatter ones (VOLT, Aurelia)
+// so every template gets enough screen time to actually be read.
 const SCENES: { id: SceneId; duration: number }[] = [
   { id: "intro",   duration: 3500 },
-  { id: "tpl-0",   duration: 8500 },
-  { id: "tpl-1",   duration: 8500 },
-  { id: "tpl-2",   duration: 8500 },
-  { id: "tpl-3",   duration: 8500 },
+  { id: "tease-0", duration: 1100 },
+  { id: "tease-1", duration: 1100 },
+  { id: "tease-2", duration: 1100 },
+  { id: "tease-3", duration: 1100 },
+  { id: "tpl-0",   duration: 10500 },
+  { id: "tpl-1",   duration: 10500 },
+  { id: "tpl-2",   duration: 7500 },
+  { id: "tpl-3",   duration: 7500 },
   { id: "pricing", duration: 5500 },
 ];
 const TOTAL_MS = SCENES.reduce((a, s) => a + s.duration, 0);
-// Slowed from the original 4.8s -- Crown and Heirloom are taller storefronts
-// and the previous pace meant content blurred past before you could read it.
-// Leaves a beat at the end of each scene for the crossfade.
-const SCROLL_MS = 7200;
+
+// Three modes a phone can be in. Hidden = off-screen (other scene active).
+// Tease = small + brief sneak peek (the 4-phone montage). Detail = full size,
+// auto-scrolling (the main walkthrough beat).
+type PhoneMode = "hidden" | "tease" | "detail";
 
 export default function ShowcasePage() {
   const [sceneIdx, setSceneIdx] = useState(0);
@@ -87,12 +101,27 @@ export default function ShowcasePage() {
           </div>
         </Scene>
 
-        {/* SCENES 2–5 — Each template in a phone frame */}
-        {TEMPLATES.map((t, i) => (
-          <PersistentScene key={t.theme} active={current === `tpl-${i}`}>
-            <PhoneStage template={t} active={current === `tpl-${i}`} />
-          </PersistentScene>
-        ))}
+        {/* Tease eyebrow -- only visible while the tease montage is playing.
+            Sits above the phone stage so the viewer knows this is a preview
+            sequence and not the main beat yet. */}
+        <div className={`sw-tease-eyebrow${current?.startsWith("tease") ? " on" : ""}`}>
+          A quick look at all four
+        </div>
+
+        {/* PHONE STAGES — rendered once each at the top level so the same
+            iframe is used for both the tease and the detail beat (otherwise
+            we'd load 8 iframes total and they'd race for bandwidth). Each
+            phone's mode is driven by the current scene id:
+              - "tease-N"  → small, no scroll, brief glimpse
+              - "tpl-N"    → full size, auto-scroll
+              - other      → hidden */}
+        {TEMPLATES.map((t, i) => {
+          const mode: PhoneMode =
+            current === `tease-${i}` ? "tease" :
+            current === `tpl-${i}`   ? "detail" :
+            "hidden";
+          return <PhoneStage key={t.theme} template={t} mode={mode} />;
+        })}
 
         {/* SCENE 6 — Pricing outro */}
         <Scene active={current === "pricing"}>
@@ -154,13 +183,21 @@ function PersistentScene({ active, children }: { active: boolean; children: Reac
 }
 
 // ── PHONE STAGE ──────────────────────────────────────────
-// Each template scene: centered phone, theme number + name + tag below.
-function PhoneStage({ template, active }: { template: typeof TEMPLATES[0]; active: boolean }) {
+// Same component renders three states so the underlying iframe DOM is shared
+// across the tease + detail beats (otherwise we'd load 8 iframes in total
+// and they'd race for bandwidth).
+function PhoneStage({ template, mode }: { template: typeof TEMPLATES[0]; mode: PhoneMode }) {
   return (
-    <div className="sw-phone-stage">
+    <div className={`sw-phone-stage sw-mode-${mode}`}>
       <div className="sw-phone">
         <div className="sw-phone-notch" />
-        <ScaledIframe src={template.src} title={template.name} background={template.bg} active={active} />
+        <ScaledIframe
+          src={template.src}
+          title={template.name}
+          background={template.bg}
+          active={mode === "detail"}
+          scrollMs={template.scrollMs}
+        />
       </div>
       <div className="sw-phone-caption">
         <div className="sw-phone-theme">Theme {template.theme}</div>
@@ -176,8 +213,8 @@ function PhoneStage({ template, active }: { template: typeof TEMPLATES[0]; activ
 // fire correctly inside the iframe), scales it to fill the phone screen,
 // and injects a CSS transform into the iframe document to scroll the body
 // from top to bottom over SCROLL_MS milliseconds when the scene is active.
-function ScaledIframe({ src, title, background, active }: {
-  src: string; title: string; background: string; active: boolean;
+function ScaledIframe({ src, title, background, active, scrollMs }: {
+  src: string; title: string; background: string; active: boolean; scrollMs: number;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -228,7 +265,7 @@ function ScaledIframe({ src, title, background, active }: {
       style.textContent = `
         html, body { will-change: transform; backface-visibility: hidden; }
         body {
-          transition: transform ${SCROLL_MS}ms cubic-bezier(0.42, 0, 0.58, 1);
+          transition: transform ${scrollMs}ms cubic-bezier(0.42, 0, 0.58, 1);
           transform: translateY(0);
         }
         body.sw-scrolling { transform: translateY(-${scrollDistance}px); }
@@ -248,7 +285,7 @@ function ScaledIframe({ src, title, background, active }: {
       iframe.addEventListener("load", drive, { once: true });
       return () => iframe.removeEventListener("load", drive);
     }
-  }, [active]);
+  }, [active, scrollMs]);
 
   return (
     <div ref={wrapRef} className="sw-iframe-wrap" style={{ background }}>
@@ -319,12 +356,45 @@ const css = `
     animation: sw-fade-up 0.9s 0.9s ease both;
   }
 
+  /* ── TEASE EYEBROW ────────────────────────────────── */
+  .sw-tease-eyebrow {
+    position: absolute; top: 28px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: rgba(245,245,245,0.45);
+    opacity: 0; transition: opacity 0.4s ease;
+    z-index: 100;
+  }
+  .sw-tease-eyebrow.on { opacity: 1; }
+
   /* ── PHONE STAGE ──────────────────────────────────── */
   .sw-phone-stage {
-    display: flex; flex-direction: column; align-items: center;
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 28px;
     width: 100%;
-    animation: sw-pop-up 0.9s ease both;
+    pointer-events: none;
+    transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sw-mode-hidden {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  .sw-mode-detail {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .sw-mode-tease {
+    /* Slightly smaller + sharper appear so the four teases feel snappy */
+    opacity: 1;
+    transform: translateY(0) scale(0.86);
+    animation: sw-tease-pop 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes sw-tease-pop {
+    0%   { opacity: 0; transform: translateX(60px) scale(0.86); }
+    18%  { opacity: 1; transform: translateX(0)    scale(0.86); }
+    82%  { opacity: 1; transform: translateX(0)    scale(0.86); }
+    100% { opacity: 0; transform: translateX(-60px) scale(0.86); }
   }
   .sw-phone {
     /* Scales to roughly fit a portrait viewport while keeping iPhone-ish
