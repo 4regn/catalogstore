@@ -1,8 +1,41 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const PAYFAST_PASSPHRASE = process.env.PAYFAST_PASSPHRASE || "";
+const PAYFAST_IPS = new Set([
+  "197.97.145.144", "197.97.145.145", "197.97.145.146", "197.97.145.147",
+  "197.97.145.148", "197.97.145.149", "197.97.145.150", "197.97.145.151",
+  "41.74.179.194", "41.74.179.195", "41.74.179.196", "41.74.179.197",
+]);
+const PAYFAST_VALIDATE_HOSTS = ["www.payfast.co.za", "sandbox.payfast.co.za"];
+
+function verifySignature(data: Record<string, string>, receivedSig: string): boolean {
+  const ordered = Object.keys(data)
+    .filter((k) => k !== "signature")
+    .sort()
+    .map((k) => `${k}=${encodeURIComponent(data[k]).replace(/%20/g, "+")}`)
+    .join("&");
+  const withPassphrase = PAYFAST_PASSPHRASE ? ordered + "&passphrase=" + encodeURIComponent(PAYFAST_PASSPHRASE) : ordered;
+  const hash = crypto.createHash("md5").update(withPassphrase).digest("hex");
+  return hash === receivedSig;
+}
+
+async function payfastValidate(rawBody: string): Promise<boolean> {
+  for (const host of PAYFAST_VALIDATE_HOSTS) {
+    try {
+      const res = await fetch(`https://${host}/eng/query/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: rawBody,
+      });
+      if (res.ok && (await res.text()).trim() === "VALID") return true;
+    } catch { /* try next */ }
+  }
+  return false;
+}
 
 // Rate limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -23,12 +56,29 @@ export async function POST(req: NextRequest) {
   if (!rateLimit(ip)) {
     return NextResponse.json({ status: "rate_limited" }, { status: 429 });
   }
+  if (ip !== "unknown" && !PAYFAST_IPS.has(ip)) {
+    console.error("Subscription notify from non-allowlisted IP:", ip);
+    return NextResponse.json({ status: "error", reason: "ip not allowed" }, { status: 403 });
+  }
+  if (!PAYFAST_PASSPHRASE) {
+    console.error("PAYFAST_PASSPHRASE is not configured — rejecting subscription ITN");
+    return NextResponse.json({ status: "error", reason: "passphrase not configured" }, { status: 503 });
+  }
 
   try {
     const body = await req.text();
     const params = new URLSearchParams(body);
     const data: Record<string, string> = {};
     params.forEach((value, key) => { data[key] = value; });
+
+    if (!data.signature || !verifySignature(data, data.signature)) {
+      console.error("Subscription notify signature verification failed");
+      return NextResponse.json({ status: "error", reason: "invalid signature" }, { status: 403 });
+    }
+    if (!(await payfastValidate(body))) {
+      console.error("Subscription notify validate handshake failed");
+      return NextResponse.json({ status: "error", reason: "validate failed" }, { status: 403 });
+    }
 
     const sellerId = data.custom_str1;
     const planId = data.custom_str2 || "starter";

@@ -44,12 +44,14 @@ export async function POST(req: NextRequest) {
     // Block if email/phone already exists as either a SELLER or an AFFILIATE.
     // The spec says: a person cannot be both, to prevent the self-discount exploit.
 
-    // Check sellers table (your existing one — adjust the table name if needed)
-    const { data: existingSeller } = await supabaseAdmin
-      .from("sellers")
-      .select("id")
-      .or(`email.eq.${email},phone.eq.${phone}`)
-      .maybeSingle();
+    // Check sellers table — run as two separate .eq queries so user input is
+    // properly parameterized. The previous .or() interpolated raw values into
+    // PostgREST filter syntax, which can be broken with a "," or ")".
+    const [{ data: sellerByEmail }, { data: sellerByPhone }] = await Promise.all([
+      supabaseAdmin.from("sellers").select("id").eq("email", email).maybeSingle(),
+      supabaseAdmin.from("sellers").select("id").eq("phone", phone).maybeSingle(),
+    ]);
+    const existingSeller = sellerByEmail || sellerByPhone;
 
     if (existingSeller) {
       return NextResponse.json(
@@ -61,12 +63,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check affiliates table
-    const { data: existingAffiliate } = await supabaseAdmin
-      .from("affiliates")
-      .select("id")
-      .or(`email.eq.${email},phone.eq.${phone}`)
-      .maybeSingle();
+    // Check affiliates table — same .eq-pair pattern as above for safety
+    const [{ data: affByEmail }, { data: affByPhone }] = await Promise.all([
+      supabaseAdmin.from("affiliates").select("id").eq("email", email).maybeSingle(),
+      supabaseAdmin.from("affiliates").select("id").eq("phone", phone).maybeSingle(),
+    ]);
+    const existingAffiliate = affByEmail || affByPhone;
 
     if (existingAffiliate)
       return NextResponse.json(

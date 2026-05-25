@@ -1173,7 +1173,7 @@ ${collections.length > 1 ? `
                           type="text"
                           value={previewBrandName}
                           onChange={e => setPreviewBrandName(e.target.value)}
-                          placeholder="e.g. 4REGN, MAISON NALA, KASI DRIP..."
+                          placeholder="Your brand name"
                           maxLength={40}
                           style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px", color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", letterSpacing: "0.02em", transition: "border-color 0.2s" }}
                           onFocus={e => e.target.style.borderColor = "rgba(255,107,53,0.4)"}
@@ -1603,11 +1603,10 @@ ${collections.length > 1 ? `
                 CATALOG<span className="grad-text">STORE</span>
               </span>
             </div>
-            <p style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase" }}>© 2026 CatalogStore. Built in South Africa.</p>
+            <p style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase" }}>© {new Date().getFullYear()} CatalogStore. Built in South Africa.</p>
             <div style={{ display: "flex", gap: 20 }}>
-              <a href="#" className="social-link">Instagram</a>
-              <a href="#" className="social-link">Facebook</a>
-              <a href="#" className="social-link">WhatsApp</a>
+              <a href="mailto:info@4regn.com" className="social-link">Contact</a>
+              <a href="/affiliate/signup" className="social-link">Become an Affiliate</a>
             </div>
           </div>
         </footer>
