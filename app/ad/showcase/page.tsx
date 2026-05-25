@@ -22,16 +22,17 @@ type SceneId = "intro" | "tpl-0" | "tpl-1" | "tpl-2" | "tpl-3" | "pricing";
 
 const SCENES: { id: SceneId; duration: number }[] = [
   { id: "intro",   duration: 3500 },
-  { id: "tpl-0",   duration: 6000 },
-  { id: "tpl-1",   duration: 6000 },
-  { id: "tpl-2",   duration: 6000 },
-  { id: "tpl-3",   duration: 6000 },
-  { id: "pricing", duration: 5000 },
+  { id: "tpl-0",   duration: 8500 },
+  { id: "tpl-1",   duration: 8500 },
+  { id: "tpl-2",   duration: 8500 },
+  { id: "tpl-3",   duration: 8500 },
+  { id: "pricing", duration: 5500 },
 ];
 const TOTAL_MS = SCENES.reduce((a, s) => a + s.duration, 0);
-// Most of each template scene is spent scrolling; leave a beat at the end
-// for the crossfade so the seller doesn't see the page jump back to the top.
-const SCROLL_MS = 4800;
+// Slowed from the original 4.8s -- Crown and Heirloom are taller storefronts
+// and the previous pace meant content blurred past before you could read it.
+// Leaves a beat at the end of each scene for the crossfade.
+const SCROLL_MS = 7200;
 
 export default function ShowcasePage() {
   const [sceneIdx, setSceneIdx] = useState(0);
@@ -206,6 +207,16 @@ function ScaledIframe({ src, title, background, active }: {
     const drive = () => {
       const doc = iframe.contentDocument;
       if (!doc) return;
+
+      // Force-eager every image so they all download while earlier scenes are
+      // playing. We translate the body to scroll (not the iframe scrollTop),
+      // which means loading="lazy" doesn't trigger -- without this fix half
+      // the products + texture circles stay as broken-image placeholders.
+      doc.querySelectorAll("img").forEach((img) => {
+        img.loading = "eager";
+        img.decoding = "async";
+      });
+
       const contentHeight = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
       const viewportHeight = doc.documentElement.clientHeight || VH;
       const scrollDistance = Math.max(0, contentHeight - viewportHeight - 40);
