@@ -130,6 +130,9 @@ export default function CrownStore() {
 
   /* ui state */
   const [activeCategory, setActiveCategory] = useState("All");
+  const [productSort, setProductSort] = useState("default");
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [k: string]: string }>({});
@@ -276,13 +279,23 @@ export default function CrownStore() {
 
   /* lock body scroll when overlays open */
   useEffect(() => {
-    document.body.style.overflow = (cartOpen || checkoutOpen || !!selectedProduct || mobileNavOpen) ? "hidden" : "";
+    document.body.style.overflow = (cartOpen || checkoutOpen || !!selectedProduct || mobileNavOpen || showSearch) ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [cartOpen, checkoutOpen, selectedProduct, mobileNavOpen]);
+  }, [cartOpen, checkoutOpen, selectedProduct, mobileNavOpen, showSearch]);
 
   /* ─── DERIVED ─── */
   const categories = ["All", ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
-  const filtered = activeCategory === "All" ? products : products.filter(p => p.category === activeCategory);
+  const filtered = (() => {
+    let list = activeCategory === "All" ? [...products] : products.filter(p => p.category === activeCategory);
+    if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
+    else if (productSort === "price-low") list.sort((a, b) => a.price - b.price);
+    else if (productSort === "price-high") list.sort((a, b) => b.price - a.price);
+    return list;
+  })();
+  const searched = searchQuery.trim()
+    ? products.filter(p => p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    : null;
   const subtotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
@@ -723,6 +736,12 @@ export default function CrownStore() {
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button onClick={() => setShowSearch(true)} title="Search products" style={{
+            background: "none", border: "none", color: textSecondary, cursor: "pointer",
+            display: "flex", alignItems: "center", padding: 4, transition: "color 0.2s",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
           <button onClick={() => setCartOpen(true)} style={{
             display: "flex", alignItems: "center", gap: 10,
             background: "none", border: `1px solid rgba(196,162,101,0.3)`,
@@ -852,8 +871,8 @@ export default function CrownStore() {
                 {displayProductsHeading}
               </h2>
             </div>
-            {/* Category filter */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {/* Category filter + sort */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               {categories.map(cat => (
                 <button key={cat} className={`crown-cat-btn${activeCategory === cat ? " active" : ""}`}
                   onClick={() => setActiveCategory(cat)}
@@ -861,6 +880,14 @@ export default function CrownStore() {
                   {cat}
                 </button>
               ))}
+              <select value={productSort} onChange={(e) => setProductSort(e.target.value)}
+                style={{ marginLeft: 8, background: "none", border: `1px solid ${border}`, color: textMuted, fontFamily: "'Didact Gothic', sans-serif", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", padding: "8px 28px 8px 14px", cursor: "pointer", outline: "none", appearance: "none", WebkitAppearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(196,162,101,0.5)'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" }}>
+                <option value="default" style={{ background: bgCard }}>Featured</option>
+                <option value="az" style={{ background: bgCard }}>A — Z</option>
+                <option value="za" style={{ background: bgCard }}>Z — A</option>
+                <option value="price-low" style={{ background: bgCard }}>Price ↑</option>
+                <option value="price-high" style={{ background: bgCard }}>Price ↓</option>
+              </select>
             </div>
           </div>
           </EditSection>
@@ -1098,6 +1125,48 @@ export default function CrownStore() {
           </div>
         </footer>
         </EditSection>
+
+        {/* ── SEARCH OVERLAY ── */}
+        {showSearch && (
+          <>
+            <div onClick={() => { setShowSearch(false); setSearchQuery(""); }}
+              style={{ position: "fixed", inset: 0, background: "rgba(10,9,8,0.85)", backdropFilter: "blur(12px)", zIndex: 700 }} />
+            <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 701, padding: "0 48px", maxWidth: 720, margin: "0 auto" }}>
+              <div style={{ display: "flex", alignItems: "center", height: 90, gap: 16 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input autoFocus type="text" placeholder="Search products..." value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") { setShowSearch(false); setSearchQuery(""); } }}
+                  style={{ flex: 1, padding: "16px 0", background: "none", border: "none", borderBottom: `1px solid ${border}`, fontFamily: "'Cormorant Garant', serif", fontSize: 28, fontWeight: 300, color: cream, outline: "none" }} />
+                <button onClick={() => { setShowSearch(false); setSearchQuery(""); }}
+                  style={{ background: "none", border: "none", color: textMuted, cursor: "pointer", fontSize: 22, lineHeight: 1, padding: 8 }}>✕</button>
+              </div>
+              {searched && (
+                <div style={{ paddingBottom: 32, maxHeight: "60vh", overflowY: "auto" }}>
+                  {searched.length === 0 ? (
+                    <div style={{ padding: "24px 8px", color: textMuted, fontSize: 13, letterSpacing: "0.06em" }}>No products match "{searchQuery}".</div>
+                  ) : (
+                    searched.slice(0, 8).map((p) => (
+                      <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }}
+                        style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 8px", borderBottom: `1px solid ${border}`, cursor: "pointer" }}>
+                        {p.image_url ? (
+                          <img src={p.image_url} alt="" style={{ width: 52, height: 64, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 52, height: 64, background: bgCard, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, flexShrink: 0 }}>◆</div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 17, fontWeight: 300, color: cream, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                          {p.category && <div style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: textMuted }}>{p.category}</div>}
+                        </div>
+                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, fontWeight: 300, color: goldLight, flexShrink: 0 }}>{fmt(p.price)}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* ── WHATSAPP FLOAT ── */}
         <a href={`https://wa.me/${(s.whatsapp_number || "").replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
