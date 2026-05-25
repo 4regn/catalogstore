@@ -60,6 +60,7 @@ interface Seller {
     footer_col3_label?: string;
     footer_support_links?: string[];
     footer_pay_links?: string[];
+    hero_countdown_label?: string;
   };
 }
 
@@ -173,6 +174,11 @@ export default function StoreEditor() {
   const [footerSupportLinks, setFooterSupportLinks]   = useState<string[]>(["Shipping", "Returns", "Sizing", "Contact"]);
   const [footerPayLinks, setFooterPayLinks]           = useState<string[]>(["Card", "EFT", "PayFast", "WhatsApp Order"]);
 
+  /* Editable label above the hero countdown timer. Empty string = default to
+     `<CODE> ends in` from the active discount; sellers can override to e.g.
+     "Limited drop ends in". */
+  const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
+
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
@@ -238,6 +244,7 @@ export default function StoreEditor() {
       setFooterCol3Label(s.store_config?.footer_col3_label ?? "Pay");
       setFooterSupportLinks(s.store_config?.footer_support_links?.length ? s.store_config.footer_support_links : ["Shipping", "Returns", "Sizing", "Contact"]);
       setFooterPayLinks(s.store_config?.footer_pay_links?.length ? s.store_config.footer_pay_links : ["Card", "EFT", "PayFast", "WhatsApp Order"]);
+      setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
       setLoading(false);
     })();
   }, []);
@@ -315,6 +322,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ footerCol3Label }); }, [footerCol3Label]);
   useEffect(() => { postUpdate({ footerSupportLinks }); }, [footerSupportLinks]);
   useEffect(() => { postUpdate({ footerPayLinks }); }, [footerPayLinks]);
+  useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
 
   /* ─── SAVE ─── */
   const save = async () => {
@@ -378,6 +386,7 @@ export default function StoreEditor() {
           footer_col3_label: footerCol3Label,
           footer_support_links: footerSupportLinks,
           footer_pay_links: footerPayLinks,
+          hero_countdown_label: heroCountdownLabel,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -647,6 +656,20 @@ export default function StoreEditor() {
                   <div style={{ height: 10 }} />
                   <CtaTargetPicker target={heroCtaSecondaryTarget} onChange={setHeroCtaSecondaryTarget} collections={seller.collections || []} />
                   <div style={{ ...hintStyle, marginTop: 8 }}>Leave the label empty or set the link to &quot;Hide button&quot; if you don&apos;t need a second CTA.</div>
+                </div>
+
+                {/* Sale Countdown */}
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Sale Countdown</div>
+                  <input value={heroCountdownLabel} onChange={e => setHeroCountdownLabel(e.target.value)}
+                    placeholder="e.g. Limited drop ends in" style={inputStyle} />
+                  <div style={{ ...hintStyle, marginTop: 8 }}>
+                    Label above the countdown timer. Leave empty to auto-show
+                    &quot;<em>{`<CODE>`}</em> ends in&quot; based on the active
+                    discount. The timer itself only appears when a real discount
+                    code with &quot;Show Countdown&quot; is active — manage codes
+                    in <strong>Dashboard → Discounts</strong>.
+                  </div>
                 </div>
 
                 {/* Text color (shared) */}

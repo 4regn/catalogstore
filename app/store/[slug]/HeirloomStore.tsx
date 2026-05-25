@@ -44,6 +44,11 @@ interface StoreConfig {
   footer_col3_label?: string;
   footer_support_links?: string[];
   footer_pay_links?: string[];
+  // Label shown above the hero timer digits. Defaults to "<CODE> ends in"
+  // when a real discount is active. Sellers can override with anything --
+  // "Limited drop ends in", "Black Friday ends in", etc. -- without having
+  // to expose their discount code name in the hero.
+  hero_countdown_label?: string;
   featured_product_id?: string;
   flash_sale_label?: string;
   flash_sale_title?: string;
@@ -150,6 +155,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [liveFooterCol3Label, setLiveFooterCol3Label] = useState<string | null>(null);
   const [liveFooterSupportLinks, setLiveFooterSupportLinks] = useState<string[] | null>(null);
   const [liveFooterPayLinks, setLiveFooterPayLinks] = useState<string[] | null>(null);
+  const [liveHeroCountdownLabel, setLiveHeroCountdownLabel] = useState<string | null>(null);
   const [liveTicker, setLiveTicker] = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed] = useState<number | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
@@ -279,6 +285,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.footerCol3Label !== undefined) setLiveFooterCol3Label(e.data.footerCol3Label);
       if (e.data.footerSupportLinks !== undefined) setLiveFooterSupportLinks(e.data.footerSupportLinks);
       if (e.data.footerPayLinks !== undefined) setLiveFooterPayLinks(e.data.footerPayLinks);
+      if (e.data.heroCountdownLabel !== undefined) setLiveHeroCountdownLabel(e.data.heroCountdownLabel);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
     };
@@ -1053,7 +1060,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               </div>
               {promoCountdown && heroTimerParts && (
                 <div className="hl-timer-row">
-                  <div className="hl-timer-note">{`${promoCountdown.code} ends in`}</div>
+                  <div className="hl-timer-note">
+                    {liveHeroCountdownLabel ?? config.hero_countdown_label ?? `${promoCountdown.code} ends in`}
+                  </div>
                   <div className="hl-timer-digits">
                     {heroTimerParts[0]}<span className="sep">:</span>{heroTimerParts[1]}<span className="sep">:</span>{heroTimerParts[2]}
                   </div>
