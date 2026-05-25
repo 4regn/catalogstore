@@ -553,21 +553,27 @@ export default function StoreEditor() {
             </a>
           )}
 
-          {/* Save -- uses the brand orange→pink gradient (matches landing CTAs) */}
+          {/* Save -- premium dark button with subtle orange accent. Lets the
+              brand color show up as a hint (thin border + glow) rather than a
+              paint -- feels editorial against any storefront aesthetic. */}
           <button onClick={save} disabled={saving}
             style={{
               padding: "9px 22px",
-              background: saved ? "#22c55e" : "linear-gradient(135deg,#ff6b35 0%,#ff3d6e 100%)",
-              color: "#fff", border: "none", borderRadius: 100,
+              background: saved
+                ? "linear-gradient(135deg,#16a34a 0%,#15803d 100%)"
+                : "linear-gradient(135deg,#1c1c20 0%,#0d0d11 100%)",
+              color: "#fff",
+              border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,107,53,0.35)",
+              borderRadius: 100,
               fontFamily: "'Schibsted Grotesk', sans-serif",
-              fontSize: 12, fontWeight: 800, letterSpacing: "0.04em",
+              fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
               cursor: saving ? "not-allowed" : "pointer",
-              boxShadow: saved ? "none" : "0 6px 20px rgba(255,107,53,0.25)",
-              transition: "background 0.3s, box-shadow 0.3s",
-              display: "inline-flex", alignItems: "center", gap: 7,
+              boxShadow: saved ? "0 4px 18px rgba(34,197,94,0.18)" : "0 4px 18px rgba(255,107,53,0.15)",
+              transition: "all 0.25s ease",
+              display: "inline-flex", alignItems: "center", gap: 8,
             }}>
-            {saved && <EditorIcon name="check" size={14} stroke={2.5} />}
-            {saving ? "Saving..." : saved ? "Saved" : "Save Changes"}
+            {saved && <EditorIcon name="check" size={13} stroke={2.5} />}
+            {saving ? "Saving" : saved ? "Saved" : "Save"}
           </button>
         </div>
       </div>
@@ -611,13 +617,29 @@ export default function StoreEditor() {
           flexDirection: "column",
         }}>
           {/* Panel header */}
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5" }}>
-              {activeSection && <SectionTag section={activeSection} color="#f5f5f5" />}
+          <div style={{ padding: "16px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+              {activeSection && (
+                <>
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: "rgba(255,107,53,0.08)", color: "#ff6b35" }}>
+                    <EditorIcon name={SECTION_LABELS[activeSection].icon} size={15} stroke={1.7} />
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5", letterSpacing: "-0.01em" }}>{SECTION_LABELS[activeSection].label}</span>
+                </>
+              )}
             </div>
-            <button onClick={() => setPanelVisible(false)}
-              style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>
-              ×
+            <button onClick={() => setPanelVisible(false)} aria-label="Close panel"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                color: "rgba(245,245,245,0.5)",
+                cursor: "pointer", borderRadius: 8,
+                padding: 6, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.15s ease",
+              }}>
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m5 5 10 10"/><path d="m15 5-10 10"/>
+              </svg>
             </button>
           </div>
 
@@ -1377,19 +1399,30 @@ export default function StoreEditor() {
           <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", gap: 10 }}>
             <button onClick={save} disabled={saving}
               style={{
-                flex: 1, padding: "11px", borderRadius: 100, border: "none",
-                background: saved ? "#22c55e" : "linear-gradient(135deg,#ff6b35 0%,#ff3d6e 100%)",
+                flex: 1, padding: "12px", borderRadius: 100,
+                background: saved
+                  ? "linear-gradient(135deg,#16a34a 0%,#15803d 100%)"
+                  : "linear-gradient(135deg,#1c1c20 0%,#0d0d11 100%)",
+                border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,107,53,0.35)",
                 color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif",
-                fontSize: 12, fontWeight: 800, letterSpacing: "0.04em",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
                 cursor: saving ? "not-allowed" : "pointer",
-                boxShadow: saved ? "none" : "0 4px 18px rgba(255,107,53,0.25)",
-                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+                boxShadow: saved ? "0 4px 18px rgba(34,197,94,0.18)" : "0 4px 18px rgba(255,107,53,0.15)",
+                transition: "all 0.25s ease",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}>
-              {saved && <EditorIcon name="check" size={14} stroke={2.5} />}
-              {saving ? "Saving..." : saved ? "Saved" : "Save Changes"}
+              {saved && <EditorIcon name="check" size={13} stroke={2.5} />}
+              {saving ? "Saving" : saved ? "Saved" : "Save Changes"}
             </button>
             <button onClick={() => setPanelVisible(false)}
-              style={{ padding: "10px 16px", background: "rgba(255,255,255,0.04)", color: "rgba(245,245,245,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
+              style={{
+                padding: "12px 18px", borderRadius: 100,
+                background: "transparent", color: "rgba(245,245,245,0.5)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                fontFamily: "'Schibsted Grotesk', sans-serif",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+                cursor: "pointer", transition: "all 0.2s ease",
+              }}>
               Done
             </button>
           </div>
