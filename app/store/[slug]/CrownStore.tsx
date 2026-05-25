@@ -43,12 +43,24 @@ interface StoreConfig {
   promise_label?: string;
   hero_image?: string;
 }
+interface CheckoutConfig {
+  eft_enabled?: boolean;
+  eft_bank_name?: string;
+  eft_account_number?: string;
+  eft_account_name?: string;
+  eft_branch_code?: string;
+  eft_account_type?: string;
+  eft_instructions?: string;
+  payfast_enabled?: boolean;
+  whatsapp_checkout_enabled?: boolean;
+}
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
   subdomain: string; template: string; primary_color: string;
   logo_url: string; tagline: string; description: string;
   collections: string[]; social_links: SocialLinks;
   store_config: StoreConfig; subscription_status?: string;
+  checkout_config?: CheckoutConfig;
 }
 interface Variant { name: string; options: string[]; }
 interface Product {
@@ -138,6 +150,8 @@ export default function CrownStore() {
   });
   const [formErrors, setFormErrors] = useState<{ [k: string]: string }>({});
   const [submitting, setSubmitting] = useState(false);
+  const [orderRef, setOrderRef] = useState("");
+  const [checkoutError, setCheckoutError] = useState("");
 
   /* nav scroll */
   const [scrolled, setScrolled] = useState(false);
@@ -154,7 +168,7 @@ export default function CrownStore() {
       setSeller(s);
       const { data: p } = await supabase
         .from("products").select("*")
-        .eq("seller_id", s.id).eq("in_stock", true)
+        .eq("seller_id", s.id).eq("in_stock", true).eq("status", "published")
         .order("sort_order", { ascending: true });
       setProducts(p || []);
       const { data: dcs } = await supabase.from("discount_codes").select("*").eq("seller_id", s.id).eq("active", true).eq("show_countdown", true).not("expires_at", "is", null);
@@ -267,9 +281,33 @@ export default function CrownStore() {
   /* ─── DERIVED ─── */
   const categories = ["All", ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
   const filtered = activeCategory === "All" ? products : products.filter(p => p.category === activeCategory);
-  const cartTotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const subtotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
-  const grandTotal = cartTotal + (cartTotal >= FREE_SHIP ? 0 : shippingCost);
+
+  /* Promo discount calculation */
+  const lineDiscount = cart.reduce((sum, item) => {
+    const productPromo = getProductPromo(item.product.id);
+    const collectionPromo = item.product.category ? getCollectionPromo(item.product.category) : undefined;
+    const promo = productPromo || collectionPromo;
+    if (!promo) return sum;
+    const lineTotal = item.product.price * item.qty;
+    const off = promo.type === "percentage" ? lineTotal * (promo.value / 100) : Math.min(promo.value, lineTotal);
+    return sum + off;
+  }, 0);
+  const cartPromo = promoDiscounts.find((d) => d.applies_to === "cart");
+  const afterLine = Math.max(0, subtotal - lineDiscount);
+  const cartDiscount = cartPromo
+    ? (cartPromo.type === "percentage" ? afterLine * (cartPromo.value / 100) : Math.min(cartPromo.value, afterLine))
+    : 0;
+  const shippingPromo = promoDiscounts.find((d) => d.applies_to === "shipping");
+  const cartTotal = Math.max(0, afterLine - cartDiscount);
+  const baseShipping = cartTotal >= FREE_SHIP ? 0 : shippingCost;
+  const shippingDiscount = shippingPromo
+    ? (shippingPromo.type === "percentage" ? baseShipping * (shippingPromo.value / 100) : Math.min(shippingPromo.value, baseShipping))
+    : 0;
+  const finalShipping = Math.max(0, baseShipping - shippingDiscount);
+  const totalDiscount = lineDiscount + cartDiscount + shippingDiscount;
+  const grandTotal = cartTotal + finalShipping;
   const freeShipRemaining = Math.max(0, FREE_SHIP - cartTotal);
   const freeShipPct = Math.min(100, (cartTotal / FREE_SHIP) * 100);
 
@@ -324,16 +362,34 @@ export default function CrownStore() {
   const handleCheckout = async () => {
     if (!validateForm()) return;
     setSubmitting(true);
+    setCheckoutError("");
     try {
-      const orderRef = "CROWN-" + Math.floor(10000 + Math.random() * 90000);
+      const ref = "CROWN-" + Math.floor(10000 + Math.random() * 90000);
+      setOrderRef(ref);
       const items = cart.map(i => ({
         name: i.product.name,
         qty: i.qty,
         price: i.product.price,
         variants: i.selectedVariants,
       }));
-      /* Save order to Supabase */
-      await supabase.from("orders").insert({
+
+      if (form.paymentMethod === "payfast") {
+        /* Hand off to the proper checkout page which has the full PayFast flow */
+        const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(
+          cart.map((i) => ({
+            name: i.product.name,
+            price: i.product.price,
+            qty: i.qty,
+            variant: Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(", "),
+            image: i.product.image_url || "",
+          }))
+        ))));
+        window.location.href = `/store/${slug}/checkout?cart=${encoded}`;
+        return;
+      }
+
+      /* WhatsApp / EFT: save order then show success */
+      const { error: insertErr } = await supabase.from("orders").insert({
         seller_id: seller!.id,
         customer_name: `${form.firstName} ${form.lastName}`,
         customer_email: form.email,
@@ -341,46 +397,44 @@ export default function CrownStore() {
         delivery_address: `${form.address}, ${form.suburb}, ${form.city}, ${form.province}, ${form.postalCode}`,
         items,
         total: grandTotal,
-        shipping_cost: cartTotal >= FREE_SHIP ? 0 : shippingCost,
+        shipping_cost: finalShipping,
         payment_method: form.paymentMethod,
         notes: form.notes,
         status: "pending",
-        order_ref: orderRef,
+        order_ref: ref,
       });
+      if (insertErr) throw insertErr;
 
-      if (form.paymentMethod === "payfast") {
-        /* PayFast redirect via API route */
-        const res = await fetch("/api/checkout/payfast", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: orderRef, amount: grandTotal, email: form.email, name: `${form.firstName} ${form.lastName}`, sellerId: seller!.id }),
-        });
-        const { redirectUrl } = await res.json();
-        if (redirectUrl) { window.location.href = redirectUrl; return; }
+      if (form.paymentMethod === "whatsapp") {
+        orderViaWhatsApp(ref);
       }
-      /* WhatsApp / EFT fallback */
       setCheckoutStep(3);
+    } catch (e: any) {
+      setCheckoutError(e?.message || "Could not place your order. Please try again or contact the store.");
     } finally {
       setSubmitting(false);
     }
   };
 
   /* WhatsApp order */
-  const orderViaWhatsApp = () => {
+  const orderViaWhatsApp = (ref?: string) => {
     if (!seller) return;
     const lines = cart.map(i => {
       const vars = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(", ");
       return `• ${i.product.name}${vars ? ` (${vars})` : ""} × ${i.qty} — ${fmt(i.product.price * i.qty)}`;
     });
     const msg = [
-      `Hi ${seller.store_name}! I'd like to order:`,
+      `Hi! I'd like to place an order with ${seller.store_name}:`,
       ...lines,
-      ``,
+      totalDiscount > 0 ? `` : "",
+      totalDiscount > 0 ? `Discount: -${fmt(totalDiscount)}` : "",
       `Total: ${fmt(grandTotal)}`,
+      ref ? `Reference: ${ref}` : "",
       ``,
       `Delivery to: ${form.city || "[city]"}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     const num = (seller.whatsapp_number || "").replace(/\D/g, "");
+    if (!num) return;
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -421,25 +475,25 @@ export default function CrownStore() {
   const displayDescription  = liveDescription  ?? s.description;
   const displayAnnouncement = liveAnnouncement ?? config.announcement;
   const displayTrustItems   = liveTrustItems   ?? null;
-  const displayTestimonial  = liveTestimonial  ?? "I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.";
-  const displayCtaHeadline  = liveCtaHeadline  ?? "Your next look starts here";
-  const displayCtaSubtext      = liveCtaSubtext      ?? "Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.";
+  const displayTestimonial  = liveTestimonial  ?? "";
+  const displayCtaHeadline  = liveCtaHeadline  ?? "Your next favourite starts here";
+  const displayCtaSubtext      = liveCtaSubtext      ?? "Browse the full collection and find something that feels made for you.";
   const displayAboutTitle      = liveAboutTitle      ?? "";
-  const displayHeroSubtext     = liveHeroSubtext     ?? config.hero_subtext     ?? "Premium Hair Collection · SA Delivered";
-  const displayCircleTitle     = liveCircleTitle     ?? config.circle_title     ?? "Shop by Texture";
-  const displayCircleSubtitle  = liveCircleSubtitle  ?? config.circle_subtitle  ?? "Find your signature look";
+  const displayHeroSubtext     = liveHeroSubtext     ?? config.hero_subtext     ?? "";
+  const displayCircleTitle     = liveCircleTitle     ?? config.circle_title     ?? "Shop by Category";
+  const displayCircleSubtitle  = liveCircleSubtitle  ?? config.circle_subtitle  ?? "";
   const displayProductsLabel   = liveProductsLabel   ?? config.products_label   ?? "The Edit";
   const displayProductsHeading = liveProductsHeading ?? config.products_heading ?? "Latest arrivals";
   const displayAboutLabel      = liveAboutLabel      ?? config.about_label      ?? "Our Story";
   const displayCollLabel       = liveCollLabel       ?? config.coll_label       ?? "Featured Collections";
-  const displayCollSubtitle    = liveCollSubtitle    ?? config.coll_subtitle    ?? "Find your signature look";
+  const displayCollSubtitle    = liveCollSubtitle    ?? config.coll_subtitle    ?? "";
   const rawCats                = categories.filter(c => c !== "All");
   const orderedCats            = liveCollOrder ? liveCollOrder.filter(c => rawCats.includes(c)).concat(rawCats.filter(c => !liveCollOrder!.includes(c))) : rawCats;
   const displayLogoUrl         = liveLogoUrl         ?? s.logo_url;
   const displayHeroImage       = liveHeroImage       ?? config.hero_image ?? null;
 
   /* Ticker */
-  const defaultTicker   = ["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"];
+  const defaultTicker   = [`FREE DELIVERY ON ORDERS OVER ${fmt(FREE_SHIP)}`, "NEW ARRIVALS JUST DROPPED", "SHOP THE LATEST COLLECTION"];
   const displayTicker   = liveTicker      ?? config.ticker_texts  ?? defaultTicker;
   const tickerDuration  = liveTickerSpeed ?? config.ticker_speed  ?? 20;
 
@@ -464,7 +518,7 @@ export default function CrownStore() {
   const displayPromiseItems  = livePromiseItems  ?? (config.promise_items?.length ? config.promise_items : defaultPromiseItems);
   const displayPromiseImages = livePromiseImages ?? config.promise_images ?? [null, null, null, null];
   const defaultTrustItems   = [
-    { icon: "diamond", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
+    { icon: "shield", title: "Quality Guaranteed", desc: "Every order checked before it ships" },
     { icon: "truck", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
     { icon: "refresh", title: "Easy Returns", desc: "14-day returns on unopened items" },
     { icon: "phone", title: "Real Support", desc: "WhatsApp us — we actually reply" },
@@ -595,6 +649,7 @@ export default function CrownStore() {
           .crown-checkout-grid{grid-template-columns:1fr!important}
             .crown-promise-row{grid-template-columns:1fr!important}
             .crown-policies-grid{grid-template-columns:1fr!important;gap:24px!important}
+            .crown-footer-grid{grid-template-columns:1fr!important;gap:32px!important}
         }
         @media(max-width:480px){
           .crown-prod-grid{grid-template-columns:1fr 1fr!important}
@@ -616,7 +671,7 @@ export default function CrownStore() {
         {(config.show_announcement !== false) && (displayAnnouncement || config.announcement) && (
           <EditSection id="announcement">
             <div style={{ background: gold, color: bgDeep, textAlign: "center", padding: "10px 20px", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase" }}>
-              {displayAnnouncement || `Free shipping on orders over ${fmt(FREE_SHIP)} · 100% Human Hair · SA Nationwide`}
+              {displayAnnouncement || `Free shipping on orders over ${fmt(FREE_SHIP)} · SA Nationwide`}
             </div>
           </EditSection>
         )}
@@ -969,13 +1024,13 @@ export default function CrownStore() {
         {/* ── CTA BANNER ── */}
         <EditSection id="cta">
         <section style={{ padding: "140px 48px", textAlign: "center", position: "relative", overflow: "hidden",
-          background: s.logo_url
-            ? `linear-gradient(rgba(10,9,8,0.82),rgba(10,9,8,0.82)) center/cover, url(${s.logo_url}) center/cover no-repeat`
+          background: displayHeroImage
+            ? `linear-gradient(rgba(10,9,8,0.82),rgba(10,9,8,0.82)) center/cover, url(${displayHeroImage}) center/cover no-repeat`
             : `linear-gradient(135deg, ${bgElevated} 0%, #1e1a16 100%)` }}>
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ fontSize: 9, letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 20 }}>Ready?</div>
             <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, color: ctaTextColor, lineHeight: 1.05, marginBottom: 20, letterSpacing: "-0.01em" }}>
-              {displayCtaHeadline} <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight }}></em>
+              {displayCtaHeadline}
             </h2>
             <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, margin: "0 auto 40px" }}>
               {displayCtaSubtext}
@@ -1011,7 +1066,7 @@ export default function CrownStore() {
         {/* ── FOOTER ── */}
         <EditSection id="footer">
         <footer style={{ background: bgDeep, borderTop: `1px solid ${border}`, padding: "60px 48px 32px" }}>
-          <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 60, marginBottom: 40 }}>
+          <div className="crown-footer-grid" style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 60, marginBottom: 40 }}>
             <div>
               {(liveLogoUrl || s.logo_url)
                 ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain", marginBottom: 14 }} />
@@ -1088,10 +1143,10 @@ export default function CrownStore() {
                 </div>
 
                 {/* Details side */}
-                <div style={{ padding: "40px 40px", overflow: "y-auto", display: "flex", flexDirection: "column", gap: 0, overflowY: "auto" }}>
+                <div style={{ padding: "40px 40px", display: "flex", flexDirection: "column", gap: 0, overflowY: "auto" }}>
                   <button onClick={() => setSelectedProduct(null)} style={{ alignSelf: "flex-end", background: "none", border: "none", color: textMuted, cursor: "pointer", fontSize: 22, lineHeight: 1, marginBottom: 20, transition: "color 0.2s" }}>✕</button>
 
-                  <div style={{ fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>Crown Hair Collection</div>
+                  {p.category && <div style={{ fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>{p.category}</div>}
                   <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(28px,3.5vw,42px)", fontWeight: 300, color: cream, lineHeight: 1.05, marginBottom: 10 }}>{p.name}</h2>
                   <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 26, fontWeight: 300, color: goldLight, marginBottom: 20 }}>
                     {fmt(p.price)}
@@ -1138,14 +1193,22 @@ export default function CrownStore() {
                     style={{ width: "100%", padding: 18, background: gold, color: bgDeep, border: "none", fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", cursor: "pointer", marginBottom: 12, transition: "all 0.3s" }}>
                     Add to Cart
                   </button>
-                  <button onClick={() => { handleAddToCart(); if (!variantError) { setCartOpen(false); setCheckoutOpen(true); }}}
+                  <button onClick={() => {
+                    if (!selectedProduct) return;
+                    const allSelected = (selectedProduct.variants || []).every((v) => selectedVariants[v.name]);
+                    if (!allSelected && (selectedProduct.variants || []).length > 0) { setVariantError(true); return; }
+                    addToCart(selectedProduct, localQty, selectedVariants);
+                    setSelectedProduct(null);
+                    setCartOpen(false);
+                    setCheckoutOpen(true);
+                  }}
                     style={{ width: "100%", padding: 15, background: "none", color: textSecondary, border: `1px solid ${border}`, fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.3s" }}>
                     Buy Now
                   </button>
 
                   {/* Trust */}
                   <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${border}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    {[["◆", "100% Human Hair"], ["🚚", "48hr Dispatch"], ["↩", "14-Day Returns"], ["💬", "WhatsApp Support"]].map(([icon, text]) => (
+                    {[["◆", "Quality Checked"], ["🚚", "48hr Dispatch"], ["↩", "14-Day Returns"], ["💬", "WhatsApp Support"]].map(([icon, text]) => (
                       <div key={text} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 12, color: gold, opacity: 0.6 }}>{icon}</span>
                         <span style={{ fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: textMuted }}>{text}</span>
@@ -1218,6 +1281,12 @@ export default function CrownStore() {
                       <div style={{ height: "100%", width: `${freeShipPct}%`, background: gold, borderRadius: 1, transition: "width 0.5s ease" }} />
                     </div>
                   </div>
+                  {totalDiscount > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: gold }}>Discount</span>
+                      <span style={{ fontSize: 13, color: gold }}>−{fmt(totalDiscount)}</span>
+                    </div>
+                  )}
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
                     <span style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: textMuted }}>Subtotal</span>
                     <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 24, fontWeight: 300, color: cream }}>{fmt(cartTotal)}</span>
@@ -1226,7 +1295,7 @@ export default function CrownStore() {
                     style={{ width: "100%", padding: 17, background: gold, color: bgDeep, border: "none", fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", cursor: "pointer", marginBottom: 10, transition: "background 0.3s" }}>
                     Checkout →
                   </button>
-                  <button onClick={orderViaWhatsApp}
+                  <button onClick={() => orderViaWhatsApp()}
                     style={{ width: "100%", padding: 14, background: "none", color: textSecondary, border: `1px solid ${border}`, fontFamily: "'Didact Gothic', sans-serif", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                     Order via WhatsApp
@@ -1264,13 +1333,13 @@ export default function CrownStore() {
               {checkoutStep < 3 && (
                 <div style={{ padding: "16px 32px", display: "flex", alignItems: "center", gap: 0, borderBottom: `1px solid ${border}`, flexShrink: 0 }}>
                   {["Details", "Payment", "Confirm"].map((step, i) => (
-                    <>
-                      <div key={step} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div key={step} style={{ display: "contents" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div style={{ width: 24, height: 24, borderRadius: "50%", border: `1px solid ${checkoutStep > i + 1 ? gold : checkoutStep === i + 1 ? cream : border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: checkoutStep > i + 1 ? gold : checkoutStep === i + 1 ? cream : textMuted, background: checkoutStep > i + 1 ? "rgba(196,162,101,0.1)" : "none", transition: "all 0.3s" }}>{checkoutStep > i + 1 ? "✓" : i + 1}</div>
                         <span style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: checkoutStep === i + 1 ? cream : textMuted }}>{step}</span>
                       </div>
                       {i < 2 && <div style={{ flex: 1, height: 1, background: checkoutStep > i + 1 ? "rgba(196,162,101,0.3)" : border, margin: "0 12px", transition: "background 0.3s" }} />}
-                    </>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1325,7 +1394,7 @@ export default function CrownStore() {
                             <div style={{ fontSize: 10, letterSpacing: "0.06em", color: textMuted, textTransform: "uppercase" }}>{opt.eta}</div>
                           </div>
                           <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, fontWeight: 300, color: cartTotal >= FREE_SHIP ? "#65a865" : goldLight }}>
-                            {cartTotal >= FREE_SHIP ? "Free" : `R${opt.price}`}
+                            {cartTotal >= FREE_SHIP ? "Free" : fmt(opt.price)}
                           </div>
                         </div>
                       ))}
@@ -1380,19 +1449,39 @@ export default function CrownStore() {
                     )}
 
                     {/* EFT info */}
-                    {form.paymentMethod === "eft" && (
-                      <div style={{ background: "rgba(196,162,101,0.04)", border: `1px solid ${border}`, padding: 20 }}>
-                        <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.8, marginBottom: 14 }}>Transfer to the account below and use your order number as reference.</div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                          {[["Bank", "FNB"], ["Account Name", s.store_name], ["Branch Code", "250655"], ["Account Type", "Cheque"]].map(([k, v]) => (
-                            <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                              <span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: textMuted }}>{k}</span>
-                              <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, fontWeight: 300, color: cream }}>{v}</span>
-                            </div>
-                          ))}
+                    {form.paymentMethod === "eft" && (() => {
+                      const cc = s.checkout_config || {};
+                      const eftRows = [
+                        ["Bank", cc.eft_bank_name],
+                        ["Account Name", cc.eft_account_name || s.store_name],
+                        ["Account Number", cc.eft_account_number],
+                        ["Branch Code", cc.eft_branch_code],
+                        ["Account Type", cc.eft_account_type],
+                      ].filter(([, v]) => !!v);
+                      const hasEft = !!cc.eft_account_number;
+                      return (
+                        <div style={{ background: "rgba(196,162,101,0.04)", border: `1px solid ${border}`, padding: 20 }}>
+                          {hasEft ? (
+                            <>
+                              <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.8, marginBottom: 14 }}>Transfer to the account below and use your order reference as the payment reference.</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                {eftRows.map(([k, v]) => (
+                                  <div key={k as string} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                                    <span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: textMuted }}>{k}</span>
+                                    <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 16, fontWeight: 300, color: cream, textAlign: "right" }}>{v}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {cc.eft_instructions && (
+                                <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.7, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${border}` }}>{cc.eft_instructions}</div>
+                              )}
+                            </>
+                          ) : (
+                            <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.8 }}>EFT details will be sent to you after you place this order. {s.whatsapp_number ? "We'll WhatsApp you with the banking details." : ""}</div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Order summary */}
                     <div style={{ background: bgCard, border: `1px solid ${border}`, padding: 20 }}>
@@ -1407,9 +1496,15 @@ export default function CrownStore() {
                         );
                       })}
                       <div style={{ borderTop: `1px solid ${border}`, marginTop: 12, paddingTop: 12 }}>
+                        {totalDiscount > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: gold }}>Discount</span>
+                            <span style={{ fontSize: 13, color: gold }}>−{fmt(totalDiscount)}</span>
+                          </div>
+                        )}
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                           <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: textMuted }}>Shipping</span>
-                          <span style={{ fontSize: 13, color: cartTotal >= FREE_SHIP ? "#65a865" : cream }}>{cartTotal >= FREE_SHIP ? "Free" : fmt(shippingCost)}</span>
+                          <span style={{ fontSize: 13, color: finalShipping === 0 ? "#65a865" : cream }}>{finalShipping === 0 ? "Free" : fmt(finalShipping)}</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
                           <span style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: cream }}>Total</span>
@@ -1417,6 +1512,10 @@ export default function CrownStore() {
                         </div>
                       </div>
                     </div>
+
+                    {checkoutError && (
+                      <div style={{ background: "rgba(196,101,101,0.08)", border: "1px solid rgba(196,101,101,0.3)", padding: "12px 16px", color: "#c46565", fontSize: 12, lineHeight: 1.6 }}>{checkoutError}</div>
+                    )}
 
                     <div style={{ display: "flex", gap: 10 }}>
                       <button onClick={() => setCheckoutStep(1)} style={{ flex: 1, padding: 15, background: "none", color: textSecondary, border: `1px solid ${border}`, fontFamily: "'Didact Gothic', sans-serif", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer" }}>← Back</button>
@@ -1439,7 +1538,7 @@ export default function CrownStore() {
                       Thank you! A confirmation has been sent to <strong style={{ color: cream }}>{form.email}</strong>. We'll WhatsApp your tracking number once dispatched.
                     </p>
                     <div style={{ fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: textMuted }}>
-                      Order ref: <span style={{ color: gold }}>CROWN-{Math.floor(10000 + Math.random() * 90000)}</span>
+                      Order ref: <span style={{ color: gold }}>{orderRef}</span>
                     </div>
                     <button onClick={() => { setCheckoutOpen(false); setCart([]); setCheckoutStep(1); }}
                       style={{ marginTop: 16, padding: "14px 36px", background: gold, color: bgDeep, border: "none", fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer" }}>

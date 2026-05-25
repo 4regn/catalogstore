@@ -140,9 +140,9 @@ export default function StorePage() {
   const social = seller?.social_links || {};
   const accent = seller?.primary_color || "#9c7c62";
   const collections = seller?.collections || [];
-  const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery Over R500", "Designed in South Africa"];
+  const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"];
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
-  const policyItems = cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "All major cards accepted via Yoco. Also checkout through WhatsApp for a personal experience." }];
+  const policyItems = cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout for a personal experience." }];
   const cats = ["All", ...collections.filter((c) => products.some((p) => p.category === c))];
   const filtered = (() => {
     let list = activeCategory === "All" ? [...products] : products.filter((p) => p.category === activeCategory);
@@ -170,20 +170,55 @@ export default function StorePage() {
 
   const removeFromCart = (i: number) => setCart(cart.filter((_, idx) => idx !== i));
   const updateQty = (i: number, d: number) => { const u = [...cart]; u[i].qty += d; if (u[i].qty < 1) u[i].qty = 1; setCart(u); };
-  const cartTotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const subtotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+
+  /* Promo discount */
+  const lineDiscount = cart.reduce((sum, item) => {
+    const productPromo = getProductPromo(item.product.id);
+    const collectionPromo = item.product.category ? getCollectionPromo(item.product.category) : undefined;
+    const promo = productPromo || collectionPromo;
+    if (!promo) return sum;
+    const lt = item.product.price * item.qty;
+    return sum + (promo.type === "percentage" ? lt * (promo.value / 100) : Math.min(promo.value, lt));
+  }, 0);
+  const cartPromo = promoDiscounts.find((d) => d.applies_to === "cart");
+  const afterLine = Math.max(0, subtotal - lineDiscount);
+  const cartDiscount = cartPromo
+    ? (cartPromo.type === "percentage" ? afterLine * (cartPromo.value / 100) : Math.min(cartPromo.value, afterLine))
+    : 0;
+  const cartTotal = Math.max(0, afterLine - cartDiscount);
+  const totalDiscount = lineDiscount + cartDiscount;
+
+  /* Normalize SA WhatsApp number: strip non-digits, then convert leading 0 to 27 */
+  const normalizeWa = (raw: string) => {
+    const digits = (raw || "").replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.startsWith("0")) return "27" + digits.substring(1);
+    return digits;
+  };
 
   const checkoutWhatsApp = () => {
     if (!seller?.whatsapp_number) return;
     let msg = "Hi! I'd like to order:\n\n";
     cart.forEach((i) => { msg += "- " + i.product.name; const v = Object.entries(i.selectedVariants); if (v.length > 0) msg += " (" + v.map(([k, val]) => k + ": " + val).join(", ") + ")"; msg += " x" + i.qty + " - R" + (i.product.price * i.qty) + "\n"; });
-    msg += "\nTotal: R" + cartTotal;
-    let phone = seller.whatsapp_number.replace(/\D/g, "");
-    if (phone.startsWith("0")) phone = "27" + phone.substring(1);
+    if (totalDiscount > 0) msg += "\nDiscount: -R" + Math.round(totalDiscount);
+    msg += "\nTotal: R" + Math.round(cartTotal);
+    const phone = normalizeWa(seller.whatsapp_number);
+    if (!phone) return;
     window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(msg), "_blank");
   };
 
-  const waLink = seller?.whatsapp_number ? "https://wa.me/" + (seller.whatsapp_number.startsWith("0") ? "27" + seller.whatsapp_number.substring(1) : seller.whatsapp_number).replace(/\D/g, "") : "#";
+  const waPhone = normalizeWa(seller?.whatsapp_number || "");
+  const waLink = waPhone ? "https://wa.me/" + waPhone : "#";
+
+  /* Build a social URL from a raw value that might be a handle, partial URL, or full URL */
+  const socialUrl = (raw: string | undefined, base: string) => {
+    if (!raw) return "";
+    const trimmed = raw.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${base}${trimmed.replace(/^@/, "").replace(/^\/+/, "")}`;
+  };
 
   /* Live overrides */
   const displayTagline      = liveTagline      ?? seller?.tagline      ?? "";
@@ -191,7 +226,7 @@ export default function StorePage() {
   const displayAnnouncement = liveAnnouncement ?? cfg.announcement     ?? "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
   const displayLogoUrl      = liveLogoUrl      ?? seller?.logo_url     ?? "";
-  const accentColor         = "#9c7c62";
+  const accentColor         = seller?.primary_color || "#9c7c62";
 
   /* Edit mode section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
@@ -268,8 +303,12 @@ export default function StorePage() {
         <header style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(246,243,239,0.92)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
           <div className="sl-header-grid" style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: 72 }}>
             <div className="sl-hnav" style={{ display: "flex", gap: 32 }}>
-              <span style={{ color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Shop All</span>
-              {cats.length > 2 && <span style={{ color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Collections</span>}
+              <button onClick={() => { setActiveCategory("All"); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                style={{ background: "none", border: "none", padding: 0, color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Shop All</button>
+              {cats.length > 2 && (
+                <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
+                  style={{ background: "none", border: "none", padding: 0, color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
+              )}
             </div>
             <div style={{ textAlign: "center" }}>
               {displayLogoUrl ? (
@@ -494,25 +533,41 @@ export default function StorePage() {
               </div>
               <div>
                 <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Shop</h5>
-                {collections.slice(0, 4).map((c) => <div key={c} style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer" }}>{c}</div>)}
+                {collections.slice(0, 4).map((c) => (
+                  <button key={c} onClick={() => { setActiveCategory(c); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                    style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
+                ))}
               </div>
-              <div>
-                <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Info</h5>
-                {["About", "Shipping", "Returns", "Contact"].map((l) => <div key={l} style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer" }}>{l}</div>)}
-              </div>
+              {(cfg.show_policies || cfg.show_about) && (
+                <div>
+                  <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Info</h5>
+                  {cfg.show_about && (
+                    <button onClick={() => document.querySelector(".sl-story")?.scrollIntoView({ behavior: "smooth" })}
+                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>About</button>
+                  )}
+                  {cfg.show_policies && (
+                    <button onClick={() => document.querySelector(".sl-polg")?.scrollIntoView({ behavior: "smooth" })}
+                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Shipping & Returns</button>
+                  )}
+                  {seller?.whatsapp_number && (
+                    <a href={waLink} target="_blank" rel="noreferrer"
+                      style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>Contact</a>
+                  )}
+                </div>
+              )}
               {(social.instagram || social.tiktok || social.facebook || social.twitter || social.whatsapp) && (
                 <div>
                   <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Connect</h5>
-                  {seller?.whatsapp_number && <a href={waLink} target="_blank" style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>WhatsApp</a>}
-                  {social.instagram && <a href={social.instagram} target="_blank" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>Instagram</a>}
-                  {social.tiktok && <a href={social.tiktok} target="_blank" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="12" height="14" viewBox="0 0 448 512" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg>TikTok</a>}
-                  {social.facebook && <a href={social.facebook} target="_blank" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>Facebook</a>}
+                  {seller?.whatsapp_number && <a href={waLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>WhatsApp</a>}
+                  {social.instagram && <a href={socialUrl(social.instagram, "instagram.com/")} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>Instagram</a>}
+                  {social.tiktok && <a href={socialUrl(social.tiktok, "tiktok.com/@")} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="12" height="14" viewBox="0 0 448 512" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg>TikTok</a>}
+                  {social.facebook && <a href={socialUrl(social.facebook, "facebook.com/")} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>Facebook</a>}
                 </div>
               )}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 32, borderTop: "1px solid rgba(246,243,239,0.1)", flexWrap: "wrap", gap: 12 }}>
               <p style={{ fontSize: 11, color: "rgba(246,243,239,0.3)" }}>&copy; {new Date().getFullYear()} {seller?.store_name}</p>
-              <p style={{ fontSize: 10, color: "rgba(246,243,239,0.3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Powered by <a href="/" style={{ color: accent, textDecoration: "none", fontWeight: 500 }}>CatalogStore</a></p>
+              <p style={{ fontSize: 10, color: "rgba(246,243,239,0.3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Powered by <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: "none", fontWeight: 500 }}>CatalogStore</a></p>
             </div>
           </div>
         </footer>
@@ -594,11 +649,21 @@ export default function StorePage() {
                     ))}
                   </div>
                   <div style={{ padding: "24px 28px", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+                    {totalDiscount > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, color: accent, letterSpacing: "0.04em", textTransform: "uppercase" }}>Discount</span>
+                        <span style={{ fontSize: 14, color: accent }}>−R{Math.round(totalDiscount)}</span>
+                      </div>
+                    )}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                       <span style={{ fontSize: 14, color: "#8a8690", letterSpacing: "0.04em", textTransform: "uppercase" }}>Total</span>
-                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500 }}>R{cartTotal}</span>
+                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500 }}>R{Math.round(cartTotal)}</span>
                     </div>
-                    <button onClick={() => { const encoded = btoa(JSON.stringify(cart.map(i => ({ name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })))); window.location.href = "/store/" + slug + "/checkout?cart=" + encoded; }} style={{ width: "100%", padding: 18, background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
+                    <button onClick={() => {
+                      const payload = JSON.stringify(cart.map(i => ({ name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
+                      const encoded = btoa(unescape(encodeURIComponent(payload)));
+                      window.location.href = "/store/" + slug + "/checkout?cart=" + encoded;
+                    }} style={{ width: "100%", padding: 18, background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
                     {seller?.checkout_config?.whatsapp_checkout_enabled !== false && <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 18, background: "#25d366", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>}
                     <p style={{ textAlign: "center", fontSize: 11, color: "#b5b1ac", marginTop: 12 }}>You'll be taken to WhatsApp to confirm</p>
                   </div>
@@ -630,7 +695,7 @@ export default function StorePage() {
 
         {/* WHATSAPP FLOAT */}
         {seller?.whatsapp_number && (
-          <a href={waLink} target="_blank" style={{ position: "fixed", bottom: 24, right: 24, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
+          <a href={waLink} target="_blank" rel="noreferrer" style={{ position: "fixed", bottom: 24, right: 24, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
           </a>
         )}

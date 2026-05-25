@@ -37,6 +37,10 @@ interface Seller {
     promise_images?: (string | null)[];
     promise_label?: string;
     hero_image?: string;
+    footer_text_color?: string;
+    testimonial_text?: string;
+    cta_headline?: string;
+    cta_subtext?: string;
   };
 }
 
@@ -70,9 +74,12 @@ export default function StoreEditor() {
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]           = useState(false);
   const [saved, setSaved]             = useState(false);
+  const [saveError, setSaveError]     = useState("");
+  const [uploadError, setUploadError] = useState("");
   const [activeSection, setActiveSection] = useState<ActiveSection>(null);
   const [panelVisible, setPanelVisible]   = useState(false);
   const [iframeReady, setIframeReady]     = useState(false);
+  const [deviceMode, setDeviceMode]       = useState<"desktop" | "mobile">("desktop");
 
   /* Local editable state */
   const [tagline, setTagline]           = useState("");
@@ -161,6 +168,9 @@ export default function StoreEditor() {
       if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
       if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
+      if (s.store_config?.testimonial_text) setTestimonialText(s.store_config.testimonial_text);
+      if (s.store_config?.cta_headline) setCtaHeadline(s.store_config.cta_headline);
+      if (s.store_config?.cta_subtext) setCtaSubtext(s.store_config.cta_subtext);
       setLogoPreview(s.logo_url || "");
       setHeroImagePreview(s.store_config?.hero_image || "");
       setHeroImageUrl(s.store_config?.hero_image || "");
@@ -228,30 +238,36 @@ export default function StoreEditor() {
   const save = async () => {
     if (!seller) return;
     setSaving(true);
-    let logoUrl = seller.logo_url;
-    if (logoFile) {
-      const ext = logoFile.name.split(".").pop();
-      const path = `logos/${seller.id}-${Date.now()}.${ext}`;
-      await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true });
-      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-      logoUrl = data.publicUrl;
-    }
-    await supabase.from("sellers").update({
-      tagline, description, logo_url: logoUrl,
-      collections: collOrder.length > 0 ? collOrder : seller.collections,
-      store_config: {
-        ...seller.store_config,
-        announcement,
-        trust_items: trustItems,
-        hero_subtext: heroSubtext,
-        circle_title: circleTitle,
-        circle_subtitle: circleSubtitle,
-        products_label: productsLabel,
-        products_heading: productsHeading,
-        about_label: aboutLabel,
-        about_title: aboutTitle,
-        coll_label: collLabel,
-        coll_subtitle: collSubtitle,
+    setSaveError("");
+    try {
+      let logoUrl = seller.logo_url;
+      if (logoFile) {
+        const ext = logoFile.name.split(".").pop();
+        const path = `logos/${seller.id}-${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true });
+        if (upErr) throw upErr;
+        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+        logoUrl = data.publicUrl;
+      }
+      /* Don't persist a base64 data: URL into the DB if the hero upload failed */
+      const heroImageToSave = heroImageUrl || (heroImagePreview && !heroImagePreview.startsWith("data:") ? heroImagePreview : undefined);
+
+      const { error: updateErr } = await supabase.from("sellers").update({
+        tagline, description, logo_url: logoUrl,
+        collections: collOrder.length > 0 ? collOrder : seller.collections,
+        store_config: {
+          ...seller.store_config,
+          announcement,
+          trust_items: trustItems,
+          hero_subtext: heroSubtext,
+          circle_title: circleTitle,
+          circle_subtitle: circleSubtitle,
+          products_label: productsLabel,
+          products_heading: productsHeading,
+          about_label: aboutLabel,
+          about_title: aboutTitle,
+          coll_label: collLabel,
+          coll_subtitle: collSubtitle,
           ticker_texts: tickerTexts,
           ticker_speed: tickerSpeed,
           bg_color: bgColor,
@@ -263,22 +279,40 @@ export default function StoreEditor() {
           cta_text_color: ctaTextColor,
           trust_text_color: trustTextColor,
           footer_text_color: footerTextColor,
-          hero_image: heroImageUrl || heroImagePreview || undefined,
+          hero_image: heroImageToSave,
           promise_label: promiseLabel,
           promise_title: promiseTitle,
           promise_items: promiseItems,
           promise_images: promiseImages,
-      },
-    }).eq("id", seller.id);
-    setSaved(true);
-    setSaving(false);
-    setTimeout(() => setSaved(false), 3000);
+          testimonial_text: testimonialText,
+          cta_headline: ctaHeadline,
+          cta_subtext: ctaSubtext,
+        },
+      }).eq("id", seller.id);
+      if (updateErr) throw updateErr;
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e: any) {
+      setSaveError(e?.message || "Could not save changes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* ─── LOGO UPLOAD ─── */
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const validateImage = (f: File) => {
+    if (!f.type.startsWith("image/")) return "Please choose an image file.";
+    if (f.size > MAX_IMAGE_BYTES) return "Image must be 5MB or smaller.";
+    return "";
+  };
+
   const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    const err = validateImage(f);
+    if (err) { setUploadError(err); e.target.value = ""; return; }
+    setUploadError("");
     setLogoFile(f);
     const reader = new FileReader();
     reader.onload = ev => setLogoPreview(ev.target?.result as string);
@@ -333,9 +367,10 @@ export default function StoreEditor() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/* Device toggle */}
           <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, overflow: "hidden" }}>
-            {[{ icon: "🖥", label: "desktop" }, { icon: "📱", label: "mobile" }].map(d => (
+            {([{ icon: "🖥", label: "desktop" }, { icon: "📱", label: "mobile" }] as const).map(d => (
               <button key={d.label} title={d.label}
                 onClick={() => {
+                  setDeviceMode(d.label);
                   const iframe = iframeRef.current;
                   if (!iframe) return;
                   if (d.label === "mobile") {
@@ -351,7 +386,7 @@ export default function StoreEditor() {
                     iframe.style.border = "none";
                   }
                 }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: "6px 10px" }}>
+                style={{ background: deviceMode === d.label ? "rgba(255,255,255,0.1)" : "none", border: "none", cursor: "pointer", fontSize: 14, padding: "6px 10px", opacity: deviceMode === d.label ? 1 : 0.5 }}>
                 {d.icon}
               </button>
             ))}
@@ -473,6 +508,9 @@ export default function StoreEditor() {
                   <input ref={heroImageRef} type="file" accept="image/*"
                     onChange={async e => {
                       const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const err = validateImage(f);
+                      if (err) { setUploadError(err); e.target.value = ""; return; }
+                      setUploadError("");
                       // Show preview immediately from local file
                       const reader = new FileReader();
                       reader.onload = ev => {
@@ -485,13 +523,15 @@ export default function StoreEditor() {
                       const ext = f.name.split(".").pop();
                       const path = `${seller.id}/hero_image.${ext}`;
                       const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                      if (!error) {
-                        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                        const finalUrl = data.publicUrl + "?t=" + Date.now();
-                        setHeroImagePreview(finalUrl);
-                        setHeroImageUrl(finalUrl);
-                        postUpdate({ heroImage: finalUrl });
+                      if (error) {
+                        setUploadError("Hero image upload failed: " + error.message);
+                        return;
                       }
+                      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                      const finalUrl = data.publicUrl;
+                      setHeroImagePreview(finalUrl);
+                      setHeroImageUrl(finalUrl);
+                      postUpdate({ heroImage: finalUrl });
                     }}
                     style={{ display: "none" }} />
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage. Different from your logo.</div>
@@ -688,19 +728,6 @@ export default function StoreEditor() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
                   <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <label style={{ width: 28, height: 28, borderRadius: 6, background: circleTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
-                      <input type="color" value={circleTextColor} onChange={e => setCircleTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
-                    </label>
-                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{circleTextColor}</span>
-                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
-                  </div>
-                </div>
-                </div>
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: collTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={collTextColor} onChange={e => setCollTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
@@ -834,32 +861,6 @@ export default function StoreEditor() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
                   <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <label style={{ width: 28, height: 28, borderRadius: 6, background: aboutTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
-                      <input type="color" value={aboutTextColor} onChange={e => setAboutTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
-                    </label>
-                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{aboutTextColor}</span>
-                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
-                  </div>
-                </div>
-                </div>
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <label style={{ width: 28, height: 28, borderRadius: 6, background: trustTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
-                      <input type="color" value={trustTextColor} onChange={e => setTrustTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
-                    </label>
-                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{trustTextColor}</span>
-                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
-                  </div>
-                </div>
-                </div>
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: ctaTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={ctaTextColor} onChange={e => setCtaTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
@@ -908,14 +909,19 @@ export default function StoreEditor() {
                       <input ref={promiseImgRefs[i]} type="file" accept="image/*"
                         onChange={async e => {
                           const f = e.target.files?.[0]; if (!f || !seller) return;
+                          const err = validateImage(f);
+                          if (err) { setUploadError(err); e.target.value = ""; return; }
+                          setUploadError("");
                           const ext = f.name.split(".").pop();
                           const path = `${seller.id}/promise_${i}.${ext}`;
                           const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                          if (!error) {
-                            const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                            const u = [...promiseImages]; u[i] = data.publicUrl + "?t=" + Date.now();
-                            setPromiseImages(u);
+                          if (error) {
+                            setUploadError("Image upload failed: " + error.message);
+                            return;
                           }
+                          const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                          const u = [...promiseImages]; u[i] = data.publicUrl;
+                          setPromiseImages(u);
                         }}
                         style={{ display: "none" }} />
                     </div>
@@ -1011,15 +1017,22 @@ export default function StoreEditor() {
           </div>
 
           {/* Panel save button */}
-          <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", gap: 10 }}>
-            <button onClick={save} disabled={saving}
-              style={{ flex: 1, padding: "10px", background: G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-              {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
-            </button>
-            <button onClick={() => setPanelVisible(false)}
-              style={{ padding: "10px 16px", background: "rgba(255,255,255,0.04)", color: "rgba(245,245,245,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
-              Done
-            </button>
+          <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            {(uploadError || saveError) && (
+              <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5", padding: "8px 12px", borderRadius: 8, fontSize: 11, lineHeight: 1.5 }}>
+                {uploadError || saveError}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={save} disabled={saving}
+                style={{ flex: 1, padding: "10px", background: G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
+              </button>
+              <button onClick={() => setPanelVisible(false)}
+                style={{ padding: "10px 16px", background: "rgba(255,255,255,0.04)", color: "rgba(245,245,245,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
+                Done
+              </button>
+            </div>
           </div>
         </div>
 
