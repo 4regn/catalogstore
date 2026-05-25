@@ -7,6 +7,8 @@ import { useParams } from "next/navigation";
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
   primary_color: string; logo_url: string; template: string;
+  subscription_status?: string | null;
+  trial_ends_at?: string | null;
   checkout_config: {
     eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
     eft_branch_code: string; eft_account_type: string; eft_instructions: string;
@@ -166,8 +168,16 @@ export default function CheckoutPage() {
     setApplyingDiscount(false);
   };
 
+  const isStoreActive = (s: Seller | null) => {
+    if (!s) return false;
+    if (s.subscription_status === "active") return true;
+    if (s.subscription_status === "trial" && s.trial_ends_at && new Date(s.trial_ends_at) > new Date()) return true;
+    return false;
+  };
+
   const placeOrder = async () => {
     if (!seller) return;
+    if (!isStoreActive(seller)) { alert("This store is not currently accepting orders. Please contact the seller directly."); return; }
     if (!email || !firstName || !lastName) { alert("Please fill in your contact details"); return; }
     if (fulfillment === "delivery" && (!address || !city || !postalCode)) { alert("Please fill in your delivery address"); return; }
     setPlacing(true);
@@ -216,6 +226,13 @@ export default function CheckoutPage() {
   };
 
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.bodyFont, background: T.bg }}><p style={{ color: T.muted }}>Loading checkout...</p></div>;
+
+  if (seller && !isStoreActive(seller) && !paidOrder) return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: T.bodyFont, background: T.bg, color: T.text, padding: "40px 24px", textAlign: "center" }}>
+      <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: 500, marginBottom: 12 }}>Store Temporarily Unavailable</h1>
+      <p style={{ fontSize: 15, color: T.muted, maxWidth: 420, lineHeight: 1.6 }}>This store is not currently accepting orders. Please check back soon or contact the seller directly.</p>
+    </div>
+  );
 
   // PayFast payment success confirmation
   if (paidOrder) return (

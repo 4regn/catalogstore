@@ -59,7 +59,9 @@ interface Seller {
   subdomain: string; template: string; primary_color: string;
   logo_url: string; tagline: string; description: string;
   collections: string[]; social_links: SocialLinks;
-  store_config: StoreConfig; subscription_status?: string;
+  store_config: StoreConfig;
+  subscription_status?: string;
+  trial_ends_at?: string | null;
   checkout_config?: CheckoutConfig;
 }
 interface Variant { name: string; options: string[]; }
@@ -469,6 +471,16 @@ export default function CrownStore() {
         <div style={{ fontSize: 64, fontWeight: 300, color: "#c4a265", opacity: 0.3, marginBottom: 16 }}>404</div>
         <div style={{ fontSize: 24, fontWeight: 300 }}>Store not found</div>
       </div>
+    </div>
+  );
+
+  /* Subscription gate: store goes dark unless seller is active or in a live trial. */
+  const storeInactive = seller && seller.subscription_status !== "active" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
+  if (storeInactive && !isEditMode) return (
+    <div style={{ minHeight: "100vh", background: "#0a0908", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#f0e6d3", fontFamily: "'Cormorant Garant', serif", textAlign: "center", padding: "40px 24px" }}>
+      {seller?.logo_url ? <img src={seller.logo_url} alt="" onError={hideOnError} style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
+      <h1 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 32, fontWeight: 400, color: "#f0e6d3", marginBottom: 12 }}>Store Temporarily Unavailable</h1>
+      <p style={{ fontSize: 15, color: "rgba(240,230,211,0.55)", maxWidth: 400, lineHeight: 1.6 }}>This store is currently inactive. Please check back soon or contact the seller directly.</p>
     </div>
   );
 

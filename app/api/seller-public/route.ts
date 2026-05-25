@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
     primary_color: seller.primary_color,
     logo_url: seller.logo_url,
     template: seller.template,
+    subscription_status: seller.subscription_status || null,
+    trial_ends_at: seller.trial_ends_at || null,
     checkout_config: safeCheckoutConfig,
   });
 }

@@ -208,9 +208,9 @@ export default function StorePage() {
   const checkoutWhatsApp = () => {
     if (!seller?.whatsapp_number) return;
     let msg = "Hi! I'd like to order:\n\n";
-    cart.forEach((i) => { msg += "- " + i.product.name; const v = Object.entries(i.selectedVariants); if (v.length > 0) msg += " (" + v.map(([k, val]) => k + ": " + val).join(", ") + ")"; msg += " x" + i.qty + " - R" + (i.product.price * i.qty) + "\n"; });
-    if (totalDiscount > 0) msg += "\nDiscount: -R" + Math.round(totalDiscount);
-    msg += "\nTotal: R" + Math.round(cartTotal);
+    cart.forEach((i) => { msg += "- " + i.product.name; const v = Object.entries(i.selectedVariants); if (v.length > 0) msg += " (" + v.map(([k, val]) => k + ": " + val).join(", ") + ")"; msg += " x" + i.qty + " - " + fmt(i.product.price * i.qty) + "\n"; });
+    if (totalDiscount > 0) msg += "\nDiscount: -" + fmt(totalDiscount);
+    msg += "\nTotal: " + fmt(cartTotal);
     const phone = normalizeWa(seller.whatsapp_number);
     if (!phone) return;
     window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(msg), "_blank");
