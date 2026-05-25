@@ -45,7 +45,6 @@ interface Seller {
     hero_image?: string;
     about_image?: string;
     footer_text_color?: string;
-    testimonial_text?: string;
     cta_headline?: string;
     cta_subtext?: string;
   };
@@ -53,7 +52,7 @@ interface Seller {
 
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
-  | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
+  | "policies" | "promise" | "about" | "cta" | "trust" | "footer"
   | null;
 
 const SECTION_LABELS: Record<string, string> = {
@@ -67,7 +66,6 @@ const SECTION_LABELS: Record<string, string> = {
   policies:     "📋 Shipping & Policies",
   promise:      "💎 Our Promise",
   about:        "📖 About / Story",
-  testimonials: "💬 Testimonials",
   cta:          "🚀 Call to Action",
   trust:        "✅ Trust Bar",
   footer:       "🔗 Footer",
@@ -95,7 +93,6 @@ export default function StoreEditor() {
   const [description, setDescription]   = useState("");
   const [announcement, setAnnouncement] = useState("");
   const [trustItems, setTrustItems]     = useState<{ icon: string; title: string; desc: string }[]>([]);
-  const [testimonialText, setTestimonialText] = useState("I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.");
   const [ctaHeadline, setCtaHeadline]         = useState("Your next look starts here");
   const [ctaSubtext, setCtaSubtext]           = useState("Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.");
   const [aboutTitle, setAboutTitle]           = useState("");
@@ -185,7 +182,6 @@ export default function StoreEditor() {
       if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
       if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
-      if (s.store_config?.testimonial_text) setTestimonialText(s.store_config.testimonial_text);
       if (s.store_config?.cta_headline) setCtaHeadline(s.store_config.cta_headline);
       if (s.store_config?.cta_subtext) setCtaSubtext(s.store_config.cta_subtext);
       if (s.store_config?.policy_items?.length) setPolicyItems(s.store_config.policy_items);
@@ -240,7 +236,6 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ description }); }, [description, postUpdate]);
   useEffect(() => { postUpdate({ announcement }); }, [announcement, postUpdate]);
   useEffect(() => { postUpdate({ trustItems }); }, [trustItems, postUpdate]);
-  useEffect(() => { postUpdate({ testimonialText }); }, [testimonialText, postUpdate]);
   useEffect(() => { postUpdate({ ctaHeadline }); }, [ctaHeadline, postUpdate]);
   useEffect(() => { postUpdate({ ctaSubtext }); }, [ctaSubtext, postUpdate]);
   useEffect(() => { postUpdate({ aboutTitle }); }, [aboutTitle, postUpdate]);
@@ -323,7 +318,6 @@ export default function StoreEditor() {
           promise_title: promiseTitle,
           promise_items: promiseItems,
           promise_images: promiseImages,
-          testimonial_text: testimonialText,
           cta_headline: ctaHeadline,
           cta_subtext: ctaSubtext,
           policy_items: policyItems,
@@ -957,17 +951,6 @@ export default function StoreEditor() {
                   </div>
                 </div>
                 </div>
-              </div>
-            )}
-
-            {/* TESTIMONIALS */}
-            {activeSection === "testimonials" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <label style={labelStyle}>Testimonial Quote</label>
-                <textarea value={testimonialText} onChange={e => setTestimonialText(e.target.value)}
-                  rows={4} placeholder="What your best customer said..."
-                  style={{ ...inputStyle, resize: "vertical" }} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Use a real review from a happy customer. Short and specific works better than long and vague.</div>
               </div>
             )}
 

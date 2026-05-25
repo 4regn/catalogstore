@@ -263,7 +263,7 @@ export default function StorePage() {
   if (storeInactive && !orderStatus) return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef", padding: "40px 24px", textAlign: "center" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Jost:wght@300;400;500;600;700&display=swap');`}</style>
-      {displayLogoUrl ? <img src={displayLogoUrl} alt="" style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
+      {displayLogoUrl ? <img src={displayLogoUrl} alt="" onError={hideOnError} style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
       <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 400, color: "#2a2a2e", marginBottom: 12 }}>Store Temporarily Unavailable</h1>
       <p style={{ fontSize: 15, color: "#8a8690", maxWidth: 400, lineHeight: 1.6 }}>This store is currently inactive. Please check back soon or contact the seller directly.</p>
     </div>
@@ -272,7 +272,7 @@ export default function StorePage() {
   if (orderStatus === "success" || orderStatus === "cancelled") return (
     <div style={{ minHeight: "100vh", background: "#f6f3ef", fontFamily: "'Jost', sans-serif", color: "#2a2a2e", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
       <div style={{ maxWidth: 500, width: "100%", textAlign: "center" }}>
-        {displayLogoUrl ? <img src={displayLogoUrl} alt="" style={{ height: 44, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
+        {displayLogoUrl ? <img src={displayLogoUrl} alt="" onError={hideOnError} style={{ height: 44, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
         {orderStatus === "success" ? (<>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
           <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Successful!</h1>
@@ -317,9 +317,10 @@ export default function StorePage() {
                   style={{ background: "none", border: "none", padding: 0, color: "#8a8690", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
               )}
             </div>
-            <div style={{ textAlign: "center" }}>
+            <div style={{ textAlign: "center", cursor: isEditMode ? "pointer" : "default" }}
+              onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*") : undefined}>
               {displayLogoUrl ? (
-                <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
+                <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
               ) : (
                 <div>
                   <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>{seller?.store_name}</div>
@@ -397,7 +398,7 @@ export default function StorePage() {
                 return (
                   <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "relative", aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", cursor: "pointer" }}>
                     {colProduct?.image_url ? (
-                      <img src={colProduct.image_url} alt={col} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.8s" }} />
+                      <img src={colProduct.image_url} alt={col} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.8s" }} />
                     ) : (
                       <div style={{ width: "100%", height: "100%", background: `linear-gradient(145deg, ${["#d4c5b5,#bfae9c", "#c5bdb5,#a89e94", "#d9cfc5,#c4b8aa"][i % 3]})` }} />
                     )}
@@ -487,7 +488,7 @@ export default function StorePage() {
               <div style={{ aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", background: "linear-gradient(145deg, #d4c5b5, #c0b0a0)" }}>
                 {(() => {
                   const aboutImg = liveAboutImage ?? cfg.about_image ?? products.find((p) => p.image_url)?.image_url;
-                  return aboutImg ? <img src={aboutImg} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null;
+                  return aboutImg ? <img src={aboutImg} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null;
                 })()}
               </div>
               <div>
@@ -594,7 +595,7 @@ export default function StorePage() {
                   </div>
                   {selectedProduct.images?.length > 1 && (
                     <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto" }}>
-                      {selectedProduct.images.map((img, i) => <img key={i} src={img} alt="" onClick={() => setActiveImageIndex(i)} style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", cursor: "pointer", border: activeImageIndex === i ? "2px solid " + accent : "2px solid transparent", flexShrink: 0 }} />)}
+                      {selectedProduct.images.map((img, i) => <img key={i} src={img} alt="" onError={hideOnError} onClick={() => setActiveImageIndex(i)} style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", cursor: "pointer", border: activeImageIndex === i ? "2px solid " + accent : "2px solid transparent", flexShrink: 0 }} />)}
                     </div>
                   )}
                 </div>

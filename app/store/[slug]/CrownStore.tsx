@@ -95,7 +95,6 @@ export default function CrownStore() {
   const [liveDescription, setLiveDescription]   = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
   const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
-  const [liveTestimonial, setLiveTestimonial]   = useState<string | null>(null);
   const [liveCtaHeadline, setLiveCtaHeadline]         = useState<string | null>(null);
   const [liveCtaSubtext, setLiveCtaSubtext]           = useState<string | null>(null);
   const [liveAboutTitle, setLiveAboutTitle]           = useState<string | null>(null);
@@ -232,7 +231,6 @@ export default function CrownStore() {
       if (e.data.description    !== undefined) setLiveDescription(e.data.description);
       if (e.data.announcement   !== undefined) setLiveAnnouncement(e.data.announcement);
       if (e.data.trustItems     !== undefined) setLiveTrustItems(e.data.trustItems);
-      if (e.data.testimonialText !== undefined) setLiveTestimonial(e.data.testimonialText);
       if (e.data.ctaHeadline     !== undefined) setLiveCtaHeadline(e.data.ctaHeadline);
       if (e.data.ctaSubtext      !== undefined) setLiveCtaSubtext(e.data.ctaSubtext);
       if (e.data.aboutTitle      !== undefined) setLiveAboutTitle(e.data.aboutTitle);
@@ -491,7 +489,6 @@ export default function CrownStore() {
   const displayDescription  = liveDescription  ?? s.description;
   const displayAnnouncement = liveAnnouncement ?? config.announcement;
   const displayTrustItems   = liveTrustItems   ?? null;
-  const displayTestimonial  = liveTestimonial  ?? "";
   const displayCtaHeadline  = liveCtaHeadline  ?? "Your next favourite starts here";
   const displayCtaSubtext      = liveCtaSubtext      ?? "Browse the full collection and find something that feels made for you.";
   const displayAboutTitle      = liveAboutTitle      ?? "";
@@ -610,8 +607,8 @@ export default function CrownStore() {
     );
   };
 
-  const TrustIcon = ({ id }: { id: string }) => {
-    const s = { width: 22, height: 22, stroke: gold, fill: "none", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const TrustIcon = ({ id, size = 22 }: { id: string; size?: number }) => {
+    const s = { width: size, height: size, stroke: gold, fill: "none", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
     const icons: Record<string, React.ReactNode> = {
       shield:  <svg {...s} viewBox="0 0 24 24"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/></svg>,
       star:    <svg {...s} viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
@@ -724,7 +721,7 @@ export default function CrownStore() {
           <div style={{ cursor: isEditMode ? "pointer" : "default" }}
             onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*") : undefined}>
             {(liveLogoUrl || s.logo_url)
-              ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} style={{ height: 40, maxWidth: 160, objectFit: "contain" }} />
+              ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} onError={hideOnError} style={{ height: 40, maxWidth: 160, objectFit: "contain" }} />
               : <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 26, fontWeight: 300, letterSpacing: "0.18em", textTransform: "uppercase", color: cream }}>{s.store_name || "Crown"}</div>
             }
           </div>
@@ -847,7 +844,7 @@ export default function CrownStore() {
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, cursor: "pointer", flexShrink: 0 }}>
                   <div style={{ width: 180, height: 180, borderRadius: "50%", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.4s, box-shadow 0.4s", boxShadow: activeCategory === cat ? `0 0 40px rgba(196,162,101,0.15)` : "none", borderColor: activeCategory === cat ? gold : border }}>
                     {products.find(p => p.category === cat)?.image_url ? (
-                      <img src={products.find(p => p.category === cat)!.image_url} alt={cat} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.6s ease" }} />
+                      <img src={products.find(p => p.category === cat)!.image_url} alt={cat} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.6s ease" }} />
                     ) : (
                       <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, color: textMuted }}>◆</span>
                     )}
@@ -987,7 +984,7 @@ export default function CrownStore() {
                       style={{ cursor: "pointer", position: "relative" }}>
                       <div style={{ width: "100%", aspectRatio: "3/4", borderRadius: "200px 200px 12px 12px", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, transition: "border-color 0.4s" }}>
                         {catImg ? (
-                          <img src={catImg} alt={cat} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.8s ease" }} />
+                          <img src={catImg} alt={cat} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.8s ease" }} />
                         ) : (
                           <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, fontSize: 32 }}>◆</div>
                         )}
@@ -1039,7 +1036,7 @@ export default function CrownStore() {
                   return (
                     <div key={i} style={{ overflow: "hidden", borderRadius: cell.radius, position: "relative", background: bgCard }}>
                       {imgSrc
-                        ? <img src={imgSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)" }} />
+                        ? <img src={imgSrc} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)" }} />
                         : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, fontSize: 28 }}>◆</div>
                       }
                     </div>
@@ -1099,7 +1096,7 @@ export default function CrownStore() {
           <div className="crown-footer-grid" style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 60, marginBottom: 40 }}>
             <div>
               {(liveLogoUrl || s.logo_url)
-                ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} style={{ height: 44, maxWidth: 160, objectFit: "contain", marginBottom: 14 }} />
+                ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain", marginBottom: 14 }} />
                 : <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 300, letterSpacing: "0.14em", textTransform: "uppercase", color: cream, marginBottom: 14 }}>{s.store_name}</div>
               }
               <div style={{ fontSize: 13, color: textMuted, lineHeight: 1.8, maxWidth: 240 }}>{displayTagline || s.tagline || ""}</div>
@@ -1151,7 +1148,7 @@ export default function CrownStore() {
                       <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }}
                         style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 8px", borderBottom: `1px solid ${border}`, cursor: "pointer" }}>
                         {p.image_url ? (
-                          <img src={p.image_url} alt="" style={{ width: 52, height: 64, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
+                          <img src={p.image_url} alt="" onError={hideOnError} style={{ width: 52, height: 64, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
                         ) : (
                           <div style={{ width: 52, height: 64, background: bgCard, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", color: textMuted, flexShrink: 0 }}>◆</div>
                         )}
@@ -1204,7 +1201,7 @@ export default function CrownStore() {
                       {imgs.map((img, i) => (
                         <div key={i} onClick={e => { e.stopPropagation(); setActiveImg(i); }}
                           style={{ width: 48, height: 56, overflow: "hidden", cursor: "pointer", border: `1px solid ${i === activeImg ? gold : "transparent"}`, transition: "border-color 0.2s" }}>
-                          <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
+                          <img src={img} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
                         </div>
                       ))}
                     </div>
@@ -1280,9 +1277,9 @@ export default function CrownStore() {
 
                   {/* Trust */}
                   <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${border}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    {[["◆", "Quality Checked"], ["🚚", "48hr Dispatch"], ["↩", "14-Day Returns"], ["💬", "WhatsApp Support"]].map(([icon, text]) => (
+                    {[["check", "Quality Checked"], ["truck", "48hr Dispatch"], ["refresh", "14-Day Returns"], ["phone", "WhatsApp Support"]].map(([icon, text]) => (
                       <div key={text} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 12, color: gold, opacity: 0.6 }}>{icon}</span>
+                        <span style={{ color: gold, opacity: 0.6, display: "inline-flex", alignItems: "center" }}><TrustIcon id={icon} size={14} /></span>
                         <span style={{ fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: textMuted }}>{text}</span>
                       </div>
                     ))}
