@@ -9,7 +9,7 @@ interface Seller {
   primary_color: string; logo_url: string; banner_url: string; tagline: string; description: string;
   collections: string[];
   social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
-  store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; show_newsletter: boolean; announcement: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[] };
+  store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; announcement: string; about_image?: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[] };
   checkout_config?: { whatsapp_checkout_enabled?: boolean };
   subscription_status?: string; trial_ends_at?: string; payfast_subscription_token?: string;
 }
@@ -34,6 +34,8 @@ export default function GlassChromeStore() {
   const [liveDescription, setLiveDescription]   = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
   const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
+  const [livePolicyItems, setLivePolicyItems]   = useState<{ title: string; desc: string }[] | null>(null);
+  const [liveAboutImage, setLiveAboutImage]     = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
@@ -80,6 +82,8 @@ export default function GlassChromeStore() {
       if (e.data.description  !== undefined) setLiveDescription(e.data.description);
       if (e.data.announcement !== undefined) setLiveAnnouncement(e.data.announcement);
       if (e.data.trustItems   !== undefined) setLiveTrustItems(e.data.trustItems);
+      if (e.data.policyItems  !== undefined) setLivePolicyItems(e.data.policyItems);
+      if (e.data.aboutImage   !== undefined) setLiveAboutImage(e.data.aboutImage || null);
       if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
     };
     window.addEventListener("message", handler);
@@ -137,12 +141,12 @@ export default function GlassChromeStore() {
     if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
   };
 
-  const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "" };
+  const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "" };
   const social = seller?.social_links || {};
   const collections = seller?.collections || [];
   const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"];
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Every piece quality-checked" }, { icon: "\u2708", title: "Fast Shipping", desc: "Nationwide 2-5 days" }, { icon: "\u21BA", title: "Easy Returns", desc: "30-day return policy" }, { icon: "\u26A1", title: "Secure Payments", desc: "Card, EFT & WhatsApp" }];
-  const policyItems = cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard R65 nationwide. Free over R599. Express available." }, { title: "Returns", desc: "30-day returns on unworn items in original packaging." }, { title: "Payment", desc: "Visa, Mastercard, EFT. All transactions SSL secured." }];
+  const policyItems = livePolicyItems ?? (cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard R65 nationwide. Free over R599. Express available." }, { title: "Returns", desc: "30-day returns on unworn items in original packaging." }, { title: "Payment", desc: "Visa, Mastercard, EFT. All transactions SSL secured." }]);
   const cats = ["All", ...collections.filter((c) => products.some((p) => p.category === c))];
   const filtered = (() => {
     let list = activeCategory === "All" ? [...products] : products.filter((p) => p.category === activeCategory);
@@ -491,7 +495,10 @@ export default function GlassChromeStore() {
             <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
               <div className="gc-about" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
                 <div style={{ position: "relative", aspectRatio: "4/5", borderRadius: 20, overflow: "hidden", background: "#0b0b0f", border: "1px solid " + PB }}>
-                  {seller?.banner_url && <img src={seller.banner_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} />}
+                  {(() => {
+                    const aboutImg = liveAboutImage ?? cfg.about_image ?? products.find((p) => p.image_url)?.image_url;
+                    return aboutImg ? <img src={aboutImg} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} /> : null;
+                  })()}
                 </div>
                 <div>
                   <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 14 }}>/ 03 - About</p>

@@ -5,6 +5,12 @@ import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 
 /* ─── TYPES ─── */
+const TEMPLATES = [
+  { id: "soft-luxury",      label: "Soft Luxury",     desc: "Warm minimal · serif headlines" },
+  { id: "crown",            label: "Crown",           desc: "Editorial dark · gold accents" },
+  { id: "glass-futuristic", label: "Glass Chrome",    desc: "Bold futuristic · monospace UI" },
+];
+
 interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
   tagline: string; description: string; logo_url: string; banner_url: string;
@@ -37,6 +43,7 @@ interface Seller {
     promise_images?: (string | null)[];
     promise_label?: string;
     hero_image?: string;
+    about_image?: string;
     footer_text_color?: string;
     testimonial_text?: string;
     cta_headline?: string;
@@ -80,6 +87,8 @@ export default function StoreEditor() {
   const [panelVisible, setPanelVisible]   = useState(false);
   const [iframeReady, setIframeReady]     = useState(false);
   const [deviceMode, setDeviceMode]       = useState<"desktop" | "mobile">("desktop");
+  const [template, setTemplate]           = useState<string>("soft-luxury");
+  const [switchingTheme, setSwitchingTheme] = useState(false);
 
   /* Local editable state */
   const [tagline, setTagline]           = useState("");
@@ -119,12 +128,20 @@ export default function StoreEditor() {
     { num: "04", title: "Secure Payment",     desc: "Pay safely via card, EFT, or WhatsApp. Your details are always protected." },
   ]);
   const [promiseImages, setPromiseImages]       = useState<(string|null)[]>([null,null,null,null]);
+  const [policyItems, setPolicyItems]           = useState<{ title: string; desc: string }[]>([
+    { title: "Shipping", desc: "Free delivery on qualifying orders. Standard 2–4 business days nationwide." },
+    { title: "Returns",  desc: "14-day returns on unopened items in original packaging." },
+    { title: "Payment",  desc: "Secure card payments via PayFast. EFT and WhatsApp accepted." },
+  ]);
   const promiseImgRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const [logoFile, setLogoFile]         = useState<File | null>(null);
   const [logoPreview, setLogoPreview]   = useState("");
   const [heroImagePreview, setHeroImagePreview] = useState("");
   const [heroImageUrl, setHeroImageUrl]           = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
+  const [aboutImagePreview, setAboutImagePreview] = useState("");
+  const [aboutImageUrl, setAboutImageUrl]         = useState("");
+  const aboutImageRef = useRef<HTMLInputElement>(null);
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -171,9 +188,13 @@ export default function StoreEditor() {
       if (s.store_config?.testimonial_text) setTestimonialText(s.store_config.testimonial_text);
       if (s.store_config?.cta_headline) setCtaHeadline(s.store_config.cta_headline);
       if (s.store_config?.cta_subtext) setCtaSubtext(s.store_config.cta_subtext);
+      if (s.store_config?.policy_items?.length) setPolicyItems(s.store_config.policy_items);
+      setAboutImagePreview(s.store_config?.about_image || "");
+      setAboutImageUrl(s.store_config?.about_image || "");
       setLogoPreview(s.logo_url || "");
       setHeroImagePreview(s.store_config?.hero_image || "");
       setHeroImageUrl(s.store_config?.hero_image || "");
+      setTemplate(s.template || "soft-luxury");
       setLoading(false);
     })();
   }, []);
@@ -232,6 +253,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
   useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems]);
   useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages]);
+  useEffect(() => { postUpdate({ policyItems }); }, [policyItems]);
+  useEffect(() => { postUpdate({ aboutImage: aboutImagePreview }); }, [aboutImagePreview]);
   useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview]);
 
   /* ─── SAVE ─── */
@@ -287,6 +310,8 @@ export default function StoreEditor() {
           testimonial_text: testimonialText,
           cta_headline: ctaHeadline,
           cta_subtext: ctaSubtext,
+          policy_items: policyItems,
+          about_image: aboutImageUrl || (aboutImagePreview && !aboutImagePreview.startsWith("data:") ? aboutImagePreview : undefined),
         },
       }).eq("id", seller.id);
       if (updateErr) throw updateErr;
@@ -296,6 +321,29 @@ export default function StoreEditor() {
       setSaveError(e?.message || "Could not save changes. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  /* ─── SWITCH THEME ─── */
+  const changeTheme = async (next: string) => {
+    if (!seller || next === template || switchingTheme) return;
+    setSwitchingTheme(true);
+    setSaveError("");
+    try {
+      const { error } = await supabase.from("sellers").update({ template: next }).eq("id", seller.id);
+      if (error) throw error;
+      setTemplate(next);
+      setSeller({ ...seller, template: next });
+      /* Force the preview iframe to reload with the new theme */
+      const iframe = iframeRef.current;
+      if (iframe && seller.subdomain) {
+        setIframeReady(false);
+        iframe.src = `/store/${seller.subdomain}?editMode=true&_t=${Date.now()}`;
+      }
+    } catch (e: any) {
+      setSaveError(e?.message || "Could not change theme.");
+    } finally {
+      setSwitchingTheme(false);
     }
   };
 
@@ -365,6 +413,37 @@ export default function StoreEditor() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Theme picker */}
+          <select
+            value={template}
+            disabled={switchingTheme}
+            onChange={(e) => changeTheme(e.target.value)}
+            title="Switch storefront theme"
+            style={{
+              padding: "6px 28px 6px 10px",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 8,
+              color: "#f5f5f5",
+              fontFamily: "'Schibsted Grotesk', sans-serif",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              cursor: switchingTheme ? "wait" : "pointer",
+              outline: "none",
+              appearance: "none",
+              WebkitAppearance: "none",
+              backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(245,245,245,0.4)'/%3E%3C/svg%3E\")",
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 10px center",
+            }}>
+            {TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id} style={{ background: "#111116" }}>
+                {switchingTheme && t.id === template ? "Switching…" : t.label}
+              </option>
+            ))}
+          </select>
+
           {/* Device toggle */}
           <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, overflow: "hidden" }}>
             {([{ icon: "🖥", label: "desktop" }, { icon: "📱", label: "mobile" }] as const).map(d => (
@@ -742,6 +821,39 @@ export default function StoreEditor() {
             {/* ABOUT */}
             {activeSection === "about" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={labelStyle}>About Image</label>
+                <div onClick={() => aboutImageRef.current?.click()}
+                  style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {aboutImagePreview
+                    ? <img src={aboutImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload About image</div></div>}
+                </div>
+                <input ref={aboutImageRef} type="file" accept="image/*"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0]; if (!f || !seller) return;
+                    const err = validateImage(f);
+                    if (err) { setUploadError(err); e.target.value = ""; return; }
+                    setUploadError("");
+                    const reader = new FileReader();
+                    reader.onload = (ev) => { const localUrl = ev.target?.result as string; setAboutImagePreview(localUrl); postUpdate({ aboutImage: localUrl }); };
+                    reader.readAsDataURL(f);
+                    const ext = f.name.split(".").pop();
+                    const path = `${seller.id}/about_image.${ext}`;
+                    const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                    if (error) { setUploadError("About image upload failed: " + error.message); return; }
+                    const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                    setAboutImagePreview(data.publicUrl); setAboutImageUrl(data.publicUrl);
+                    postUpdate({ aboutImage: data.publicUrl });
+                  }}
+                  style={{ display: "none" }} />
+                {aboutImagePreview && (
+                  <button onClick={() => { setAboutImagePreview(""); setAboutImageUrl(""); postUpdate({ aboutImage: "" }); }}
+                    style={{ padding: "8px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 11 }}>
+                    Remove image
+                  </button>
+                )}
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Optional — shown next to your About text. Falls back to your first product photo if empty.</div>
+
                 <label style={labelStyle}>Section Label</label>
                 <input value={aboutLabel} onChange={e => setAboutLabel(e.target.value)}
                   placeholder="e.g. Our Story"
@@ -934,46 +1046,32 @@ export default function StoreEditor() {
             {activeSection === "policies" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <label style={labelStyle}>Shipping & Policies</label>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
-                {(seller?.store_config?.policy_items || [
-                  { title: "Shipping", desc: "" },
-                  { title: "Returns",  desc: "" },
-                  { title: "Payment",  desc: "" },
-                ]).map((pol, i) => {
-                  const policyItems = seller?.store_config?.policy_items || [
-                    { title: "Shipping", desc: "Free delivery on orders over R500. Standard 2–4 days nationwide." },
-                    { title: "Returns",  desc: "14-day returns on all unopened products in original packaging." },
-                    { title: "Payment",  desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome." },
-                  ];
-                  return (
-                    <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <input
-                        defaultValue={policyItems[i]?.title || pol.title}
-                        onBlur={async e => {
-                          if (!seller) return;
-                          const items = [...(seller.store_config?.policy_items || policyItems)];
-                          items[i] = { ...items[i], title: e.target.value };
-                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
-                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
-                        }}
-                        placeholder="e.g. Shipping"
-                        style={{ ...inputStyle, fontWeight: 700 }} />
-                      <textarea
-                        defaultValue={policyItems[i]?.desc || pol.desc}
-                        onBlur={async e => {
-                          if (!seller) return;
-                          const items = [...(seller.store_config?.policy_items || policyItems)];
-                          items[i] = { ...items[i], desc: e.target.value };
-                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
-                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
-                        }}
-                        placeholder="Description..."
-                        rows={3}
-                        style={{ ...inputStyle, resize: "vertical" }} />
-                    </div>
-                  );
-                })}
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Changes save automatically when you click out of a field.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section. Click <strong>Save Changes</strong> when done.</div>
+                {policyItems.map((pol, i) => (
+                  <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input
+                      value={pol.title}
+                      onChange={(e) => { const u = [...policyItems]; u[i] = { ...u[i], title: e.target.value }; setPolicyItems(u); }}
+                      placeholder="e.g. Shipping"
+                      style={{ ...inputStyle, fontWeight: 700 }} />
+                    <textarea
+                      value={pol.desc}
+                      onChange={(e) => { const u = [...policyItems]; u[i] = { ...u[i], desc: e.target.value }; setPolicyItems(u); }}
+                      placeholder="Description..."
+                      rows={3}
+                      style={{ ...inputStyle, resize: "vertical" }} />
+                    {policyItems.length > 1 && (
+                      <button onClick={() => setPolicyItems(policyItems.filter((_, j) => j !== i))}
+                        style={{ alignSelf: "flex-end", padding: "6px 10px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 10 }}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => setPolicyItems([...policyItems, { title: "", desc: "" }])}
+                  style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, color: "rgba(245,245,245,0.4)", cursor: "pointer", fontSize: 12 }}>
+                  + Add policy
+                </button>
               </div>
             )}
 

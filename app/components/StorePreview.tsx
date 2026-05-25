@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -32,7 +32,7 @@ interface UploadedImage {
   fileName: string;
 }
 
-type Template = "gc" | "sl";
+type Template = "gc" | "sl" | "crown";
 type Stage = "upload" | "loading" | "preview";
 
 const MAX_PRODUCTS = 10;
@@ -46,6 +46,17 @@ const LOADING_STEPS = [
   "Putting it all together...",
 ];
 
+/* Escape any string that will be interpolated into innerHTML / srcdoc.
+   Without this, AI-returned content with <script> / quote / on* attrs could XSS. */
+function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ── STORE HTML BUILDERS ──────────────────────────────────
 
 function buildGlassChromeHTML(storeData: StoreData, images: UploadedImage[], logoDataUrl: string | null): string {
@@ -56,18 +67,18 @@ function buildGlassChromeHTML(storeData: StoreData, images: UploadedImage[], log
   const productCards = products.map((p, i) => `
     <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);overflow:hidden;cursor:pointer;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
       <div style="aspect-ratio:3/4;overflow:hidden;background:#111118">
-        ${images[i] ? `<img src="${images[i].dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}
+        ${images[i] ? `<img src="${esc(images[i].dataUrl)}" style="width:100%;height:100%;object-fit:cover;display:block">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}
       </div>
       <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.04)">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:rgba(255,255,255,0.75);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-        <div style="font-size:12px;font-weight:800;color:#ff6b35">${p.price}</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:rgba(255,255,255,0.75);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+        <div style="font-size:12px;font-weight:800;color:#ff6b35">${esc(p.price)}</div>
       </div>
     </div>
   `).join("");
 
   const tickerItems = ["Free Delivery Over R500", "New Arrivals Weekly", "Secure Checkout", "South African Brand"];
   const tickerHtml = [...tickerItems, ...tickerItems].map(t =>
-    `<span style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:4px;height:4px;border-radius:50%;background:#ff6b35;flex-shrink:0"></span>${t}</span>`
+    `<span style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:4px;height:4px;border-radius:50%;background:#ff6b35;flex-shrink:0"></span>${esc(t)}</span>`
   ).join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -76,8 +87,8 @@ function buildGlassChromeHTML(storeData: StoreData, images: UploadedImage[], log
 </head><body>
 <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(8,8,12,0.95);position:sticky;top:0;z-index:10;backdrop-filter:blur(20px)">
   <div style="display:flex;align-items:center;gap:10px">
-    ${logoImg ? `<img src="${logoImg}" style="width:30px;height:30px;object-fit:contain;border-radius:6px">` : ""}
-    <span style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em">${storeData.storeName}</span>
+    ${logoImg ? `<img src="${esc(logoImg)}" style="width:30px;height:30px;object-fit:contain;border-radius:6px">` : ""}
+    <span style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em">${esc(storeData.storeName)}</span>
   </div>
   <div style="display:flex;gap:14px;align-items:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35)">
     <span>Shop</span><span>Collections</span>
@@ -85,11 +96,11 @@ function buildGlassChromeHTML(storeData: StoreData, images: UploadedImage[], log
   </div>
 </div>
 <div style="position:relative;height:280px;overflow:hidden;display:flex;align-items:flex-end">
-  ${heroImg ? `<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.55">` : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}
+  ${heroImg ? `<img src="${esc(heroImg)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.55">` : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,#111118,#1a1a24)"></div>`}
   <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,12,0.97) 0%,rgba(8,8,12,0.3) 55%,transparent 100%)"></div>
   <div style="position:relative;padding:20px 20px 24px;z-index:1">
-    <div style="font-size:9px;color:rgba(255,107,53,0.7);text-transform:uppercase;letter-spacing:0.2em;font-weight:700;margin-bottom:6px">— ${storeData.tagline}</div>
-    <div style="font-size:32px;font-weight:900;text-transform:uppercase;letter-spacing:-0.04em;line-height:1">${storeData.storeName}</div>
+    <div style="font-size:9px;color:rgba(255,107,53,0.7);text-transform:uppercase;letter-spacing:0.2em;font-weight:700;margin-bottom:6px">— ${esc(storeData.tagline)}</div>
+    <div style="font-size:32px;font-weight:900;text-transform:uppercase;letter-spacing:-0.04em;line-height:1">${esc(storeData.storeName)}</div>
     <div style="display:inline-block;margin-top:14px;padding:10px 22px;border-radius:100px;background:linear-gradient(135deg,#ff6b35,#ff3d6e);color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em">Shop the Collection</div>
   </div>
 </div>
@@ -101,7 +112,7 @@ function buildGlassChromeHTML(storeData: StoreData, images: UploadedImage[], log
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px">${productCards}</div>
 </div>
 <div style="padding:20px;border-top:1px solid rgba(255,255,255,0.04);text-align:center;font-size:9px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:0.1em">
-  © 2026 ${storeData.storeName} · Powered by CatalogStore
+  © ${new Date().getFullYear()} ${esc(storeData.storeName)} · Powered by CatalogStore
 </div>
 </body></html>`;
 }
@@ -114,18 +125,18 @@ function buildSoftLuxuryHTML(storeData: StoreData, images: UploadedImage[], logo
   const productCards = products.map((p, i) => `
     <div style="background:#fff;overflow:hidden;cursor:pointer;transition:box-shadow 0.3s" onmouseover="this.style.boxShadow='0 8px 30px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
       <div style="aspect-ratio:3/4;overflow:hidden;background:#f0ebe4">
-        ${images[i] ? `<img src="${images[i].dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">` : `<div style="width:100%;height:100%;background:#ede8e2"></div>`}
+        ${images[i] ? `<img src="${esc(images[i].dataUrl)}" style="width:100%;height:100%;object-fit:cover;display:block">` : `<div style="width:100%;height:100%;background:#ede8e2"></div>`}
       </div>
       <div style="padding:10px 12px;border-top:1px solid rgba(0,0,0,0.04)">
-        <div style="font-size:11px;font-weight:300;letter-spacing:0.04em;color:rgba(42,42,46,0.65);margin-bottom:3px;font-family:'Georgia',serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-        <div style="font-size:12px;font-weight:600;color:#9c7c62;font-family:sans-serif">${p.price}</div>
+        <div style="font-size:11px;font-weight:300;letter-spacing:0.04em;color:rgba(42,42,46,0.65);margin-bottom:3px;font-family:'Georgia',serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+        <div style="font-size:12px;font-weight:600;color:#9c7c62;font-family:sans-serif">${esc(p.price)}</div>
       </div>
     </div>
   `).join("");
 
   const tickerItems = ["Free Delivery Over R500", "Curated Collections", "Secure Checkout", "Proudly South African"];
   const tickerHtml = [...tickerItems, ...tickerItems].map(t =>
-    `<span style="font-size:9px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;color:rgba(42,42,46,0.3);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:3px;height:3px;border-radius:50%;background:#9c7c62;flex-shrink:0"></span>${t}</span>`
+    `<span style="font-size:9px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;color:rgba(42,42,46,0.3);padding:0 32px;display:inline-flex;align-items:center;gap:14px"><span style="width:3px;height:3px;border-radius:50%;background:#9c7c62;flex-shrink:0"></span>${esc(t)}</span>`
   ).join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -134,19 +145,19 @@ function buildSoftLuxuryHTML(storeData: StoreData, images: UploadedImage[], logo
 </head><body>
 <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(0,0,0,0.06);background:rgba(246,243,239,0.95);position:sticky;top:0;z-index:10;backdrop-filter:blur(20px)">
   <div style="display:flex;align-items:center;gap:10px">
-    ${logoImg ? `<img src="${logoImg}" style="width:28px;height:28px;object-fit:contain;border-radius:4px">` : ""}
-    <span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;letter-spacing:0.1em;text-transform:uppercase">${storeData.storeName}</span>
+    ${logoImg ? `<img src="${esc(logoImg)}" style="width:28px;height:28px;object-fit:contain;border-radius:4px">` : ""}
+    <span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;letter-spacing:0.1em;text-transform:uppercase">${esc(storeData.storeName)}</span>
   </div>
   <div style="display:flex;gap:16px;align-items:center;font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.12em;color:rgba(42,42,46,0.4)">
     <span>Shop</span><span>Collections</span><span>Search</span><span>Bag (0)</span>
   </div>
 </div>
 <div style="position:relative;height:280px;overflow:hidden;display:flex;align-items:flex-end">
-  ${heroImg ? `<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : `<div style="position:absolute;inset:0;background:#e8e2da"></div>`}
+  ${heroImg ? `<img src="${esc(heroImg)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : `<div style="position:absolute;inset:0;background:#e8e2da"></div>`}
   <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(246,243,239,0.97) 0%,rgba(246,243,239,0.15) 55%,transparent 100%)"></div>
   <div style="position:relative;padding:20px 20px 24px;z-index:1">
-    <div style="font-size:9px;color:rgba(42,42,46,0.4);text-transform:uppercase;letter-spacing:0.2em;font-weight:400;margin-bottom:6px">${storeData.tagline}</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:300;letter-spacing:0.04em;line-height:1;font-style:italic;color:#2a2a2e">${storeData.storeName}</div>
+    <div style="font-size:9px;color:rgba(42,42,46,0.4);text-transform:uppercase;letter-spacing:0.2em;font-weight:400;margin-bottom:6px">${esc(storeData.tagline)}</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:300;letter-spacing:0.04em;line-height:1;font-style:italic;color:#2a2a2e">${esc(storeData.storeName)}</div>
     <div style="display:inline-block;margin-top:14px;padding:10px 24px;border:1px solid rgba(42,42,46,0.25);color:#2a2a2e;font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:0.14em">Shop the Collection →</div>
   </div>
 </div>
@@ -158,7 +169,66 @@ function buildSoftLuxuryHTML(storeData: StoreData, images: UploadedImage[], logo
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px">${productCards}</div>
 </div>
 <div style="padding:20px;border-top:1px solid rgba(0,0,0,0.05);text-align:center;font-size:9px;color:rgba(42,42,46,0.25);text-transform:uppercase;letter-spacing:0.12em">
-  © 2026 ${storeData.storeName} · Powered by CatalogStore
+  © ${new Date().getFullYear()} ${esc(storeData.storeName)} · Powered by CatalogStore
+</div>
+</body></html>`;
+}
+
+function buildCrownHTML(storeData: StoreData, images: UploadedImage[], logoDataUrl: string | null): string {
+  const products = storeData.products.slice(0, 6);
+  const heroImg = images[0]?.dataUrl ?? "";
+  const logoImg = logoDataUrl ?? "";
+
+  const productCards = products.map((p, i) => `
+    <div style="background:#1a1816;cursor:pointer;border:1px solid transparent;transition:border-color 0.3s" onmouseover="this.style.borderColor='rgba(196,162,101,0.25)'" onmouseout="this.style.borderColor='transparent'">
+      <div style="aspect-ratio:3/4;overflow:hidden;background:#141210;border-bottom:1px solid rgba(196,162,101,0.06)">
+        ${images[i] ? `<img src="${esc(images[i].dataUrl)}" style="width:100%;height:100%;object-fit:cover;display:block;filter:brightness(0.9)">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#141210,#1e1a16);display:flex;align-items:center;justify-content:center;color:rgba(240,230,211,0.2);font-size:24px">◆</div>`}
+      </div>
+      <div style="padding:14px 14px 18px">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:300;color:#f0e6d3;line-height:1.15;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:14px;font-weight:300;color:#d4b88a;letter-spacing:0.02em">${esc(p.price)}</div>
+      </div>
+    </div>
+  `).join("");
+
+  const tickerItems = ["Free Delivery on Qualifying Orders", "Premium Selection", "Shipped Nationwide"];
+  const tickerHtml = [...tickerItems, ...tickerItems].map(t =>
+    `<span style="font-family:'Didact Gothic',sans-serif;font-size:9px;color:rgba(240,230,211,0.4);padding:0 32px;letter-spacing:0.18em;text-transform:uppercase;display:inline-flex;align-items:center;gap:16px">${esc(t)} <span style="color:#c4a265;font-size:7px">✦</span></span>`
+  ).join("");
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Didact+Gothic&family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0908;color:#f0e6d3;font-family:'Didact Gothic',sans-serif;overflow-x:hidden}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0a0908}::-webkit-scrollbar-thumb{background:#c4a265;border-radius:2px}@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}</style>
+</head><body>
+<div style="background:#c4a265;color:#0a0908;text-align:center;padding:9px 16px;font-size:9px;letterspacing:0.18em;text-transform:uppercase;letter-spacing:0.18em">Free shipping on qualifying orders</div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(196,162,101,0.1);background:rgba(10,9,8,0.95);position:sticky;top:0;z-index:10;backdrop-filter:blur(20px)">
+  <div style="display:flex;align-items:center;gap:10px">
+    ${logoImg ? `<img src="${esc(logoImg)}" style="height:26px;max-width:100px;object-fit:contain">` : `<span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;letter-spacing:0.18em;text-transform:uppercase">${esc(storeData.storeName)}</span>`}
+  </div>
+  <div style="display:flex;gap:18px;align-items:center;font-family:'Didact Gothic',sans-serif;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(240,230,211,0.6)">
+    <span>Shop</span><span>Collections</span>
+    <span style="padding:7px 14px;border:1px solid rgba(196,162,101,0.3);color:#d4b88a">Cart 0</span>
+  </div>
+</div>
+<div style="position:relative;height:300px;overflow:hidden;display:flex;align-items:flex-end">
+  ${heroImg ? `<img src="${esc(heroImg)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(0.55)">` : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,#141210 0%,#1e1a16 100%)"></div>`}
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(10,9,8,0.92) 0%,rgba(10,9,8,0.35) 55%,transparent 100%)"></div>
+  <div style="position:relative;padding:20px 20px 28px;z-index:1">
+    <div style="font-size:8px;color:#c4a265;text-transform:uppercase;letter-spacing:0.28em;font-weight:400;margin-bottom:10px">${esc(storeData.tagline)}</div>
+    <h1 style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;line-height:0.95;letter-spacing:-0.01em;color:#f0e6d3">${esc(storeData.storeName)}</h1>
+    <div style="display:inline-block;margin-top:18px;padding:11px 24px;border:1px solid #c4a265;color:#d4b88a;font-family:'Didact Gothic',sans-serif;font-size:9px;letter-spacing:0.16em;text-transform:uppercase">Explore Collection →</div>
+  </div>
+</div>
+<div style="background:#141210;overflow:hidden;padding:11px 0;border-top:1px solid rgba(196,162,101,0.1);border-bottom:1px solid rgba(196,162,101,0.1)">
+  <div style="display:flex;white-space:nowrap;animation:marquee 18s linear infinite">${tickerHtml}</div>
+</div>
+<div style="padding:24px 16px;background:#0a0908">
+  <div style="font-size:8px;letter-spacing:0.24em;text-transform:uppercase;color:#c4a265;margin-bottom:8px">The Edit</div>
+  <h2 style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;color:#f0e6d3;letter-spacing:-0.01em;margin-bottom:20px">Latest arrivals</h2>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:2px">${productCards}</div>
+</div>
+<div style="padding:20px;border-top:1px solid rgba(196,162,101,0.1);text-align:center;font-size:9px;color:rgba(240,230,211,0.3);text-transform:uppercase;letter-spacing:0.12em">
+  © ${new Date().getFullYear()} ${esc(storeData.storeName)} · Powered by CatalogStore
 </div>
 </body></html>`;
 }
@@ -175,6 +245,14 @@ export default function StorePreview() {
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
+  const loadingTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearLoadingTimers = useCallback(() => {
+    loadingTimersRef.current.forEach((t) => clearTimeout(t));
+    loadingTimersRef.current = [];
+  }, []);
+
+  useEffect(() => () => clearLoadingTimers(), [clearLoadingTimers]);
 
   const isReady = !!logoDataUrl && productImages.length >= MIN_PRODUCTS;
 
@@ -221,10 +299,11 @@ export default function StorePreview() {
     setStage("loading");
     setLoadingStep(0);
 
-    // Animate loading steps
-    LOADING_STEPS.forEach((_, i) => {
-      setTimeout(() => setLoadingStep(i), i * 1600);
-    });
+    // Animate loading steps — track timers so we can cancel on reset/unmount
+    clearLoadingTimers();
+    loadingTimersRef.current = LOADING_STEPS.map((_, i) =>
+      setTimeout(() => setLoadingStep(i), i * 1600)
+    );
 
     try {
       // Only send base64 + mediaType — no API keys, no secrets
@@ -261,14 +340,14 @@ export default function StorePreview() {
   }, [isReady, productImages, selectedTemplate]);
 
   const reset = useCallback(() => {
+    clearLoadingTimers();
     setStage("upload");
     setLogoDataUrl(null);
     setProductImages([]);
-    setSelectedTemplate("gc");
     setStoreData(null);
     setError(null);
     setLoadingStep(0);
-  }, []);
+  }, [clearLoadingTimers]);
 
   // ── STYLES ───────────────────────────────────────────────
   const s = {
@@ -341,14 +420,17 @@ export default function StorePreview() {
               Choose Template
               <span style={{ flex: 1, height: 1, background: "rgba(255,107,53,0.15)" }} />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {(["gc", "sl"] as Template[]).map(id => {
-                const isGc = id === "gc";
-                const selected = selectedTemplate === id;
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {([
+                { id: "gc",    label: "Glass Chrome", desc: "Dark, futuristic, chrome",  thumbBg: "linear-gradient(135deg,#0a0a0e,#1a1a24)", thumbBorder: "rgba(255,255,255,0.06)", thumbFont: "'Schibsted Grotesk', sans-serif", thumbColor: "rgba(255,255,255,0.3)",  thumbSize: 9,  thumbLs: "0.12em", thumbStyle: "normal" as const, thumbCase: "uppercase" as const, thumbText: "GLASS CHROME" },
+                { id: "crown", label: "Crown",        desc: "Editorial dark, gold",       thumbBg: "linear-gradient(135deg,#0a0908,#1e1a16)", thumbBorder: "rgba(196,162,101,0.15)", thumbFont: "'Cormorant Garamond', serif",     thumbColor: "#c4a265",                thumbSize: 14, thumbLs: "0.14em", thumbStyle: "normal" as const, thumbCase: "uppercase" as const, thumbText: "Crown" },
+                { id: "sl",    label: "Soft Luxury",  desc: "Warm cream, elegant",        thumbBg: "linear-gradient(135deg,#f0ebe4,#e8e2da)", thumbBorder: "rgba(0,0,0,0.06)",       thumbFont: "'Georgia', serif",                thumbColor: "rgba(42,42,46,0.35)",    thumbSize: 12, thumbLs: "0.04em", thumbStyle: "italic" as const, thumbCase: "none" as const,      thumbText: "Soft Luxury" },
+              ] as const).map((tpl) => {
+                const selected = selectedTemplate === tpl.id;
                 return (
                   <div
-                    key={id}
-                    onClick={() => setSelectedTemplate(id)}
+                    key={tpl.id}
+                    onClick={() => setSelectedTemplate(tpl.id as Template)}
                     style={{
                       borderRadius: 14, border: selected ? "2px solid var(--neon)" : "2px solid var(--glass-b)",
                       cursor: "pointer", overflow: "hidden",
@@ -367,23 +449,19 @@ export default function StorePreview() {
                     )}
                     <div style={{
                       height: 80, display: "flex", alignItems: "center", justifyContent: "center",
-                      background: isGc ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" : "linear-gradient(135deg,#f0ebe4,#e8e2da)",
-                      borderBottom: isGc ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.06)",
-                      fontSize: isGc ? 9 : 12,
-                      color: isGc ? "rgba(255,255,255,0.3)" : "rgba(42,42,46,0.35)",
-                      fontFamily: isGc ? "'Schibsted Grotesk', sans-serif" : "'Georgia', serif",
-                      letterSpacing: isGc ? "0.12em" : "0.04em",
-                      fontStyle: isGc ? "normal" : "italic",
-                      textTransform: isGc ? "uppercase" : "none",
+                      background: tpl.thumbBg, borderBottom: `1px solid ${tpl.thumbBorder}`,
+                      fontSize: tpl.thumbSize, color: tpl.thumbColor,
+                      fontFamily: tpl.thumbFont, letterSpacing: tpl.thumbLs,
+                      fontStyle: tpl.thumbStyle, textTransform: tpl.thumbCase,
                     }}>
-                      {isGc ? "GLASS CHROME" : "Soft Luxury"}
+                      {tpl.thumbText}
                     </div>
                     <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)" }}>
                       <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>
-                        {isGc ? "Glass Chrome" : "Soft Luxury"}
+                        {tpl.label}
                       </div>
                       <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                        {isGc ? "Dark, futuristic, chrome" : "Warm cream, elegant"}
+                        {tpl.desc}
                       </div>
                     </div>
                   </div>
@@ -519,9 +597,10 @@ export default function StorePreview() {
   // ── RENDER: PREVIEW ──────────────────────────────────────
   const renderPreview = () => {
     if (!storeData) return null;
-    const storeHtml = selectedTemplate === "gc"
-      ? buildGlassChromeHTML(storeData, productImages, logoDataUrl)
-      : buildSoftLuxuryHTML(storeData, productImages, logoDataUrl);
+    const storeHtml =
+      selectedTemplate === "gc"    ? buildGlassChromeHTML(storeData, productImages, logoDataUrl) :
+      selectedTemplate === "crown" ? buildCrownHTML(storeData, productImages, logoDataUrl) :
+                                     buildSoftLuxuryHTML(storeData, productImages, logoDataUrl);
 
     return (
       <div>

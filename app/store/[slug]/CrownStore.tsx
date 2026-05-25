@@ -123,6 +123,7 @@ export default function CrownStore() {
   const [livePromiseTitle, setLivePromiseTitle]       = useState<string | null>(null);
   const [livePromiseItems, setLivePromiseItems]       = useState<{num:string;title:string;desc:string}[] | null>(null);
   const [livePromiseImages, setLivePromiseImages]     = useState<(string|null)[] | null>(null);
+  const [livePolicyItems, setLivePolicyItems]         = useState<{ title: string; desc: string }[] | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
   const [promoCountdown, setPromoCountdown]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(null);
   const [promoDiscounts, setPromoDiscounts]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>([]);
@@ -256,6 +257,7 @@ export default function CrownStore() {
       if (e.data.promiseTitle     !== undefined) setLivePromiseTitle(e.data.promiseTitle);
       if (e.data.promiseItems     !== undefined) setLivePromiseItems(e.data.promiseItems);
       if (e.data.promiseImages    !== undefined) setLivePromiseImages(e.data.promiseImages);
+      if (e.data.policyItems      !== undefined) setLivePolicyItems(e.data.policyItems);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -1048,11 +1050,11 @@ export default function CrownStore() {
           <EditSection id="policies">
           <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
             <div className="crown-policies-grid" style={{ maxWidth: 1300, margin: "0 auto", padding: "48px 32px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 40 }}>
-              {(config.policy_items?.length ? config.policy_items : [
+              {(livePolicyItems ?? (config.policy_items?.length ? config.policy_items : [
                 { title: "Shipping", desc: `Free delivery on orders over ${fmt(FREE_SHIP)}. Standard 2–4 business days nationwide. Tracked and insured.` },
                 { title: "Returns", desc: "14-day returns on all unopened products in original packaging. Quality issue? We replace — no questions asked." },
                 { title: "Payment", desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome." },
-              ]).map((pol, i) => (
+              ])).map((pol, i) => (
                 <div key={i} style={{ paddingLeft: i > 0 ? 40 : 0, borderLeft: i > 0 ? `1px solid ${border}` : "none" }}>
                   <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 300, color: cream, marginBottom: 10 }}>{pol.title}</div>
                   <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.9 }}>{pol.desc}</div>
