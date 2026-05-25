@@ -22,7 +22,8 @@ type SceneId =
   | "intro"
   | "tease-0" | "tease-1" | "tease-2" | "tease-3"
   | "tpl-0"   | "tpl-1"   | "tpl-2"   | "tpl-3"
-  | "pricing";
+  | "pricing"
+  | "outro";
 
 // Scenes now include a 4-phone "tease" montage between the brand intro and the
 // detail walkthrough. Each tease beat is ~1.1s -- just long enough to register
@@ -40,6 +41,7 @@ const SCENES: { id: SceneId; duration: number }[] = [
   { id: "tpl-2",   duration: 7500 },
   { id: "tpl-3",   duration: 7500 },
   { id: "pricing", duration: 5500 },
+  { id: "outro",   duration: 3800 },
 ];
 const TOTAL_MS = SCENES.reduce((a, s) => a + s.duration, 0);
 
@@ -139,6 +141,31 @@ export default function ShowcasePage() {
             </div>
             <div className="sw-pricing-cta">catalogstore.co.za</div>
             <div className="sw-pricing-foot">Cancel anytime · No commission · Built in South Africa</div>
+          </div>
+        </Scene>
+
+        {/* SCENE 7 — Brand outro. Final beat so the name + mark are the last
+            thing the viewer sees. Inline the logo SVG (rather than importing
+            from app/page.tsx) to keep this route self-contained. */}
+        <Scene active={current === "outro"}>
+          <div className="sw-outro">
+            <div className="sw-outro-mark">
+              <svg viewBox="0 0 72 72" width="80" height="80" fill="none">
+                <defs>
+                  <linearGradient id="sw-mark-grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#ff6b35" />
+                    <stop offset="100%" stopColor="#ff3d6e" />
+                  </linearGradient>
+                </defs>
+                <path d="M54 12 A26 26 0 1 0 54 60" stroke="url(#sw-mark-grad)" strokeWidth="9" strokeLinecap="round" fill="none" />
+                <circle cx="57" cy="36" r="6" fill="url(#sw-mark-grad)" />
+              </svg>
+            </div>
+            <h1 className="sw-outro-wordmark">
+              CATALOG<span className="sw-outro-grad">STORE</span>
+            </h1>
+            <div className="sw-outro-tag">Built for South African sellers.</div>
+            <div className="sw-outro-url">catalogstore.co.za</div>
           </div>
         </Scene>
 
@@ -498,6 +525,56 @@ const css = `
     font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
     color: rgba(245,245,245,0.35); font-weight: 500;
     animation: sw-fade-up 0.9s 1.1s ease both;
+  }
+
+  /* ── OUTRO ────────────────────────────────────────── */
+  .sw-outro {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 16px;
+    text-align: center;
+  }
+  .sw-outro-mark {
+    margin-bottom: 4px;
+    animation: sw-pop-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    filter: drop-shadow(0 0 32px rgba(255,107,53,0.35));
+  }
+  .sw-outro-wordmark {
+    font-size: clamp(40px, 9vw, 84px);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    text-transform: uppercase;
+    color: #f5f5f5;
+    margin: 0;
+    animation: sw-fade-up 0.9s 0.25s ease both;
+  }
+  .sw-outro-grad {
+    background: linear-gradient(135deg, #ff6b35 0%, #ff3d6e 50%, #ffb347 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: sw-shimmer 3s linear infinite;
+  }
+  @keyframes sw-shimmer {
+    0%   { background-position: 0% center; }
+    100% { background-position: 200% center; }
+  }
+  .sw-outro-tag {
+    font-size: 14px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(245,245,245,0.65);
+    font-weight: 500;
+    margin-top: 4px;
+    animation: sw-fade-up 0.9s 0.55s ease both;
+  }
+  .sw-outro-url {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: rgba(245,245,245,0.4);
+    margin-top: 22px;
+    animation: sw-fade-up 0.9s 0.85s ease both;
   }
 
   /* ── PROGRESS / REPLAY ────────────────────────────── */
