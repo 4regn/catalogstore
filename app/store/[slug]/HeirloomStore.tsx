@@ -44,6 +44,11 @@ interface StoreConfig {
   footer_col3_label?: string;
   footer_support_links?: string[];
   footer_pay_links?: string[];
+  // Label shown above the hero timer digits. Defaults to "<CODE> ends in"
+  // when a real discount is active. Sellers can override with anything --
+  // "Limited drop ends in", "Black Friday ends in", etc. -- without having
+  // to expose their discount code name in the hero.
+  hero_countdown_label?: string;
   featured_product_id?: string;
   flash_sale_label?: string;
   flash_sale_title?: string;
@@ -150,6 +155,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [liveFooterCol3Label, setLiveFooterCol3Label] = useState<string | null>(null);
   const [liveFooterSupportLinks, setLiveFooterSupportLinks] = useState<string[] | null>(null);
   const [liveFooterPayLinks, setLiveFooterPayLinks] = useState<string[] | null>(null);
+  const [liveHeroCountdownLabel, setLiveHeroCountdownLabel] = useState<string | null>(null);
   const [liveTicker, setLiveTicker] = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed] = useState<number | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
@@ -279,6 +285,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.footerCol3Label !== undefined) setLiveFooterCol3Label(e.data.footerCol3Label);
       if (e.data.footerSupportLinks !== undefined) setLiveFooterSupportLinks(e.data.footerSupportLinks);
       if (e.data.footerPayLinks !== undefined) setLiveFooterPayLinks(e.data.footerPayLinks);
+      if (e.data.heroCountdownLabel !== undefined) setLiveHeroCountdownLabel(e.data.heroCountdownLabel);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
     };
@@ -503,9 +510,15 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
             background: "#111", color: "#fff",
             fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-            padding: "4px 12px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
+            padding: "5px 12px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
+            borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
           }}>
-            ✏️ Click to edit
+            <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m4 16 1-3 9-9a1.5 1.5 0 0 1 2.5 1.5l-9 9-3 1Z"/>
+              <path d="m12 5 2.5 2.5"/>
+            </svg>
+            Click to edit
           </div>
         )}
         {children}
@@ -1053,7 +1066,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               </div>
               {promoCountdown && heroTimerParts && (
                 <div className="hl-timer-row">
-                  <div className="hl-timer-note">{`${promoCountdown.code} ends in`}</div>
+                  <div className="hl-timer-note">
+                    {liveHeroCountdownLabel ?? config.hero_countdown_label ?? `${promoCountdown.code} ends in`}
+                  </div>
                   <div className="hl-timer-digits">
                     {heroTimerParts[0]}<span className="sep">:</span>{heroTimerParts[1]}<span className="sep">:</span>{heroTimerParts[2]}
                   </div>

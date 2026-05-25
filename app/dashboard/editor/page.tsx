@@ -11,6 +11,48 @@ import { revalidateStore } from "../../actions/revalidate-store";
 const collectionSlug = (name: string) =>
   name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
+// Monoline SVG icon set. Replaces emoji (🏠 ✏️ 📱 🖥 etc.) which felt cheap
+// against the dark/orange brand. All icons are 1.5px stroke at 20x20 viewBox,
+// pure CSS-controllable via currentColor. One place to add new icons.
+type IconName =
+  | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products"
+  | "collections" | "policies" | "promise" | "about" | "testimonials"
+  | "cta" | "trust" | "footer"
+  | "desktop" | "mobile" | "pencil" | "image" | "external"
+  | "arrow-left" | "check";
+
+function EditorIcon({ name, size = 16, stroke = 1.5, className }: { name: IconName; size?: number; stroke?: number; className?: string }) {
+  const common = {
+    width: size, height: size, viewBox: "0 0 20 20", fill: "none",
+    stroke: "currentColor", strokeWidth: stroke,
+    strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+    className,
+  };
+  switch (name) {
+    case "announcement": return <svg {...common}><path d="M15 4 5 8H3v4h2l10 4V4Z"/><path d="M16 7v6"/></svg>;
+    case "logo": return <svg {...common}><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/></svg>;
+    case "hero": return <svg {...common}><path d="M3 9 10 3l7 6v8a1 1 0 0 1-1 1h-4v-6H8v6H4a1 1 0 0 1-1-1V9Z"/></svg>;
+    case "ticker": return <svg {...common}><path d="M3 7h14"/><path d="M3 13h14"/><circle cx="6" cy="7" r="0.8"/><circle cx="14" cy="13" r="0.8"/></svg>;
+    case "circle": return <svg {...common}><circle cx="6" cy="6" r="2.5"/><circle cx="14" cy="6" r="2.5"/><circle cx="6" cy="14" r="2.5"/><circle cx="14" cy="14" r="2.5"/></svg>;
+    case "products": return <svg {...common}><path d="M4 6h12l-1 11H5L4 6Z"/><path d="M7 6V4a3 3 0 0 1 6 0v2"/></svg>;
+    case "collections": return <svg {...common}><path d="M3 6a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Z"/></svg>;
+    case "policies": return <svg {...common}><rect x="4" y="3" width="12" height="14" rx="1"/><path d="M7 7h6"/><path d="M7 10h6"/><path d="M7 13h4"/></svg>;
+    case "promise": return <svg {...common}><path d="M10 3 3 7l7 4 7-4-7-4Z"/><path d="m3 11 7 4 7-4"/><path d="m3 15 7 4 7-4"/></svg>;
+    case "about": return <svg {...common}><path d="M4 4h8a3 3 0 0 1 3 3v10H7a3 3 0 0 1-3-3V4Z"/><path d="M4 14a3 3 0 0 1 3-3h8"/></svg>;
+    case "testimonials": return <svg {...common}><path d="M3 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-5l-3 3v-3H4a1 1 0 0 1-1-1V5Z"/></svg>;
+    case "cta": return <svg {...common}><path d="M17 3 9 11"/><path d="M17 3v6"/><path d="M17 3h-6"/><path d="m6 14 1 3 3-3-2-2-2 2Z"/></svg>;
+    case "trust": return <svg {...common}><path d="M10 3 4 5v5c0 4 2.5 6 6 7 3.5-1 6-3 6-7V5l-6-2Z"/><path d="m8 10 1.5 1.5L13 8"/></svg>;
+    case "footer": return <svg {...common}><path d="m8 10 4-4a3 3 0 0 1 4 4l-2 2"/><path d="m12 10-4 4a3 3 0 0 1-4-4l2-2"/></svg>;
+    case "desktop": return <svg {...common}><rect x="3" y="4" width="14" height="9" rx="1"/><path d="M7 17h6"/><path d="M10 13v4"/></svg>;
+    case "mobile": return <svg {...common}><rect x="6" y="3" width="8" height="14" rx="1.5"/><circle cx="10" cy="14.5" r="0.6" fill="currentColor"/></svg>;
+    case "pencil": return <svg {...common}><path d="m4 16 1-3 9-9a1.5 1.5 0 0 1 2.5 1.5l-9 9-3 1Z"/><path d="m12 5 2.5 2.5"/></svg>;
+    case "image": return <svg {...common}><rect x="3" y="3" width="14" height="14" rx="1.5"/><circle cx="7" cy="7" r="1.2"/><path d="m3 14 5-4 4 3 5-5v9H3v-3Z"/></svg>;
+    case "external": return <svg {...common}><path d="M7 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-3"/><path d="M11 3h6v6"/><path d="m17 3-7 7"/></svg>;
+    case "arrow-left": return <svg {...common}><path d="m11 5-5 5 5 5"/><path d="M16 10H6"/></svg>;
+    case "check": return <svg {...common}><path d="m4 10 4 4 8-8"/></svg>;
+  }
+}
+
 /* ─── TYPES ─── */
 interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
@@ -60,6 +102,7 @@ interface Seller {
     footer_col3_label?: string;
     footer_support_links?: string[];
     footer_pay_links?: string[];
+    hero_countdown_label?: string;
   };
 }
 
@@ -77,22 +120,34 @@ type ActiveSection =
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
   | null;
 
-const SECTION_LABELS: Record<string, string> = {
-  announcement: "📢 Announcement Bar",
-  logo:         "🏷 Store Logo",
-  hero:         "🏠 Hero Section",
-  ticker:       "📣 Promo Ticker",
-  circle:       "⭕ Browse by Category",
-  products:     "🛍 Products",
-  collections:  "📂 Collections",
-  policies:     "📋 Shipping & Policies",
-  promise:      "💎 Our Promise",
-  about:        "📖 About / Story",
-  testimonials: "💬 Testimonials",
-  cta:          "🚀 Call to Action",
-  trust:        "✅ Trust Bar",
-  footer:       "🔗 Footer",
+const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
+  announcement: { icon: "announcement", label: "Announcement Bar" },
+  logo:         { icon: "logo",         label: "Store Logo" },
+  hero:         { icon: "hero",         label: "Hero Section" },
+  ticker:       { icon: "ticker",       label: "Promo Ticker" },
+  circle:       { icon: "circle",       label: "Browse by Category" },
+  products:     { icon: "products",     label: "Products" },
+  collections:  { icon: "collections",  label: "Collections" },
+  policies:     { icon: "policies",     label: "Shipping & Policies" },
+  promise:      { icon: "promise",      label: "Our Promise" },
+  about:        { icon: "about",        label: "About / Story" },
+  testimonials: { icon: "testimonials", label: "Testimonials" },
+  cta:          { icon: "cta",          label: "Call to Action" },
+  trust:        { icon: "trust",        label: "Trust Bar" },
+  footer:       { icon: "footer",       label: "Footer" },
 };
+
+// Compact icon+label inline component for the chrome.
+function SectionTag({ section, color = "rgba(245,245,245,0.6)" }: { section: keyof typeof SECTION_LABELS; color?: string }) {
+  const s = SECTION_LABELS[section];
+  if (!s) return null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color }}>
+      <EditorIcon name={s.icon} size={13} />
+      <span>{s.label}</span>
+    </span>
+  );
+}
 
 export default function StoreEditor() {
   const router = useRouter();
@@ -173,6 +228,11 @@ export default function StoreEditor() {
   const [footerSupportLinks, setFooterSupportLinks]   = useState<string[]>(["Shipping", "Returns", "Sizing", "Contact"]);
   const [footerPayLinks, setFooterPayLinks]           = useState<string[]>(["Card", "EFT", "PayFast", "WhatsApp Order"]);
 
+  /* Editable label above the hero countdown timer. Empty string = default to
+     `<CODE> ends in` from the active discount; sellers can override to e.g.
+     "Limited drop ends in". */
+  const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
+
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
@@ -238,6 +298,7 @@ export default function StoreEditor() {
       setFooterCol3Label(s.store_config?.footer_col3_label ?? "Pay");
       setFooterSupportLinks(s.store_config?.footer_support_links?.length ? s.store_config.footer_support_links : ["Shipping", "Returns", "Sizing", "Contact"]);
       setFooterPayLinks(s.store_config?.footer_pay_links?.length ? s.store_config.footer_pay_links : ["Card", "EFT", "PayFast", "WhatsApp Order"]);
+      setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
       setLoading(false);
     })();
   }, []);
@@ -315,6 +376,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ footerCol3Label }); }, [footerCol3Label]);
   useEffect(() => { postUpdate({ footerSupportLinks }); }, [footerSupportLinks]);
   useEffect(() => { postUpdate({ footerPayLinks }); }, [footerPayLinks]);
+  useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
 
   /* ─── SAVE ─── */
   const save = async () => {
@@ -378,6 +440,7 @@ export default function StoreEditor() {
           footer_col3_label: footerCol3Label,
           footer_support_links: footerSupportLinks,
           footer_pay_links: footerPayLinks,
+          hero_countdown_label: heroCountdownLabel,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -439,28 +502,31 @@ export default function StoreEditor() {
       {/* ── TOP BAR ── */}
       <div style={{ height: 52, background: "#111116", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={() => router.push("/dashboard")}
-            style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 6, transition: "color 0.2s" }}>
-            ←
+          <button onClick={() => router.push("/dashboard")} aria-label="Back to dashboard"
+            style={{ background: "none", border: "none", color: "rgba(245,245,245,0.4)", cursor: "pointer", padding: "6px 8px", borderRadius: 6, display: "flex", alignItems: "center" }}>
+            <EditorIcon name="arrow-left" size={18} />
           </button>
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.08)" }} />
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#f5f5f5" }}>{seller?.store_name}</div>
             <div style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", letterSpacing: "0.04em" }}>
-              {panelVisible && activeSection ? SECTION_LABELS[activeSection] : "Click any section to edit"}
+              {panelVisible && activeSection ? <SectionTag section={activeSection} color="rgba(245,245,245,0.45)" /> : "Click any section to edit"}
             </div>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Device toggle */}
+          {/* Device toggle -- desktop / mobile preview */}
           <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, overflow: "hidden" }}>
-            {[{ icon: "🖥", label: "desktop" }, { icon: "📱", label: "mobile" }].map(d => (
-              <button key={d.label} title={d.label}
+            {([
+              { name: "desktop" as const, label: "Desktop" },
+              { name: "mobile" as const,  label: "Mobile" },
+            ]).map(d => (
+              <button key={d.name} title={d.label} aria-label={`${d.label} preview`}
                 onClick={() => {
                   const iframe = iframeRef.current;
                   if (!iframe) return;
-                  if (d.label === "mobile") {
+                  if (d.name === "mobile") {
                     iframe.style.width = "390px";
                     iframe.style.margin = "0 auto";
                     iframe.style.display = "block";
@@ -473,8 +539,8 @@ export default function StoreEditor() {
                     iframe.style.border = "none";
                   }
                 }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: "6px 10px" }}>
-                {d.icon}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 12px", color: "rgba(245,245,245,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <EditorIcon name={d.name} size={16} />
               </button>
             ))}
           </div>
@@ -482,15 +548,32 @@ export default function StoreEditor() {
           {/* Open in new tab */}
           {seller?.subdomain && (
             <a href={`/store/${seller.subdomain}`} target="_blank" rel="noreferrer"
-              style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,245,245,0.35)", textDecoration: "none", padding: "6px 12px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }}>
-              Open Store ↗
+              style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(245,245,245,0.6)", textDecoration: "none", padding: "8px 14px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8, transition: "color 0.15s, border-color 0.15s" }}>
+              Open Store <EditorIcon name="external" size={13} />
             </a>
           )}
 
-          {/* Save */}
+          {/* Save -- premium dark button with subtle orange accent. Lets the
+              brand color show up as a hint (thin border + glow) rather than a
+              paint -- feels editorial against any storefront aesthetic. */}
           <button onClick={save} disabled={saving}
-            style={{ padding: "8px 20px", background: saved ? "#22c55e" : G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", letterSpacing: "0.04em", transition: "background 0.3s" }}>
-            {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
+            style={{
+              padding: "9px 22px",
+              background: saved
+                ? "linear-gradient(135deg,#16a34a 0%,#15803d 100%)"
+                : "linear-gradient(135deg,#1c1c20 0%,#0d0d11 100%)",
+              color: "#fff",
+              border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,107,53,0.35)",
+              borderRadius: 100,
+              fontFamily: "'Schibsted Grotesk', sans-serif",
+              fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+              cursor: saving ? "not-allowed" : "pointer",
+              boxShadow: saved ? "0 4px 18px rgba(34,197,94,0.18)" : "0 4px 18px rgba(255,107,53,0.15)",
+              transition: "all 0.25s ease",
+              display: "inline-flex", alignItems: "center", gap: 8,
+            }}>
+            {saved && <EditorIcon name="check" size={13} stroke={2.5} />}
+            {saving ? "Saving" : saved ? "Saved" : "Save"}
           </button>
         </div>
       </div>
@@ -534,13 +617,29 @@ export default function StoreEditor() {
           flexDirection: "column",
         }}>
           {/* Panel header */}
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5" }}>
-              {activeSection ? SECTION_LABELS[activeSection] : ""}
+          <div style={{ padding: "16px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+              {activeSection && (
+                <>
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: "rgba(255,107,53,0.08)", color: "#ff6b35" }}>
+                    <EditorIcon name={SECTION_LABELS[activeSection].icon} size={15} stroke={1.7} />
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5", letterSpacing: "-0.01em" }}>{SECTION_LABELS[activeSection].label}</span>
+                </>
+              )}
             </div>
-            <button onClick={() => setPanelVisible(false)}
-              style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>
-              ×
+            <button onClick={() => setPanelVisible(false)} aria-label="Close panel"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                color: "rgba(245,245,245,0.5)",
+                cursor: "pointer", borderRadius: 8,
+                padding: 6, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.15s ease",
+              }}>
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m5 5 10 10"/><path d="m15 5-10 10"/>
+              </svg>
             </button>
           </div>
 
@@ -566,7 +665,7 @@ export default function StoreEditor() {
                   style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   {logoPreview
                     ? <img src={logoPreview} alt="" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
-                    : <div style={{ textAlign: "center" }}><div style={{ fontSize: 32, opacity: 0.25 }}>🏷</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.3)", marginTop: 6 }}>Click to upload your logo</div></div>
+                    : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.3)" }}><EditorIcon name="image" size={28} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload your logo</div></div>
                   }
                 </div>
                 <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
@@ -594,7 +693,7 @@ export default function StoreEditor() {
                     style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {heroImagePreview
                       ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload hero image</div></div>}
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>}
                   </div>
                   <input ref={heroImageRef} type="file" accept="image/*"
                     onChange={async e => {
@@ -649,6 +748,20 @@ export default function StoreEditor() {
                   <div style={{ ...hintStyle, marginTop: 8 }}>Leave the label empty or set the link to &quot;Hide button&quot; if you don&apos;t need a second CTA.</div>
                 </div>
 
+                {/* Sale Countdown */}
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Sale Countdown</div>
+                  <input value={heroCountdownLabel} onChange={e => setHeroCountdownLabel(e.target.value)}
+                    placeholder="e.g. Limited drop ends in" style={inputStyle} />
+                  <div style={{ ...hintStyle, marginTop: 8 }}>
+                    Label above the countdown timer. Leave empty to auto-show
+                    &quot;<em>{`<CODE>`}</em> ends in&quot; based on the active
+                    discount. The timer itself only appears when a real discount
+                    code with &quot;Show Countdown&quot; is active — manage codes
+                    in <strong>Dashboard → Discounts</strong>.
+                  </div>
+                </div>
+
                 {/* Text color (shared) */}
                 <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
@@ -675,7 +788,7 @@ export default function StoreEditor() {
                     style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {heroImagePreview
                       ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload hero image</div></div>
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>
                     }
                   </div>
                   <input ref={heroImageRef} type="file" accept="image/*"
@@ -1285,11 +1398,31 @@ export default function StoreEditor() {
           {/* Panel save button */}
           <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", gap: 10 }}>
             <button onClick={save} disabled={saving}
-              style={{ flex: 1, padding: "10px", background: G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-              {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
+              style={{
+                flex: 1, padding: "12px", borderRadius: 100,
+                background: saved
+                  ? "linear-gradient(135deg,#16a34a 0%,#15803d 100%)"
+                  : "linear-gradient(135deg,#1c1c20 0%,#0d0d11 100%)",
+                border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,107,53,0.35)",
+                color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+                cursor: saving ? "not-allowed" : "pointer",
+                boxShadow: saved ? "0 4px 18px rgba(34,197,94,0.18)" : "0 4px 18px rgba(255,107,53,0.15)",
+                transition: "all 0.25s ease",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}>
+              {saved && <EditorIcon name="check" size={13} stroke={2.5} />}
+              {saving ? "Saving" : saved ? "Saved" : "Save Changes"}
             </button>
             <button onClick={() => setPanelVisible(false)}
-              style={{ padding: "10px 16px", background: "rgba(255,255,255,0.04)", color: "rgba(245,245,245,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
+              style={{
+                padding: "12px 18px", borderRadius: 100,
+                background: "transparent", color: "rgba(245,245,245,0.5)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                fontFamily: "'Schibsted Grotesk', sans-serif",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+                cursor: "pointer", transition: "all 0.2s ease",
+              }}>
               Done
             </button>
           </div>
@@ -1305,7 +1438,7 @@ export default function StoreEditor() {
             display: "flex", alignItems: "center", gap: 8,
             pointerEvents: "none",
           }}>
-            <span style={{ fontSize: 14 }}>👆</span>
+            <span style={{ display: "inline-flex", color: "rgba(255,107,53,0.85)" }}><EditorIcon name="pencil" size={14} /></span>
             <span style={{ fontSize: 12, color: "rgba(245,245,245,0.6)", letterSpacing: "0.02em" }}>Click any section on your store to edit it</span>
           </div>
         )}
