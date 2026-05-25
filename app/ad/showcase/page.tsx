@@ -150,7 +150,7 @@ export default function ShowcasePage() {
         <Scene active={current === "outro"}>
           <div className="sw-outro">
             <div className="sw-outro-mark">
-              <svg viewBox="0 0 72 72" width="80" height="80" fill="none">
+              <svg viewBox="0 0 72 72" width="clamp(72, 11vw, 128)" height="clamp(72, 11vw, 128)" fill="none" style={{ width: "clamp(72px, 11vw, 128px)", height: "clamp(72px, 11vw, 128px)" }}>
                 <defs>
                   <linearGradient id="sw-mark-grad" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0%" stopColor="#ff6b35" />
@@ -366,9 +366,9 @@ const css = `
     animation: sw-fade-up 0.9s 0.1s ease both;
   }
   .sw-intro-title {
-    font-size: clamp(40px, 9vw, 76px); font-weight: 900;
+    font-size: clamp(40px, 10vw, 108px); font-weight: 900;
     line-height: 1.04; letter-spacing: -0.04em;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
     animation: sw-fade-up 0.9s 0.4s ease both;
   }
   .sw-intro-title em {
@@ -424,14 +424,17 @@ const css = `
     100% { opacity: 0; transform: translateX(-60px) scale(0.86); }
   }
   .sw-phone {
-    /* Scales to roughly fit a portrait viewport while keeping iPhone-ish
-       proportions. 56vh × 9/19 = phone width; capped for tablet/desktop. */
+    /* Sized purely off viewport height so the phone fills the 9:16 frame
+       at recording time (1080x1920). Previously capped at 700px which left
+       a 1228->700 dead zone -- phone took only ~36% of a 1920px-tall frame.
+       72vh gives ~72% fill in any aspect, scaling cleanly on phone browsers
+       too. Aspect-ratio is locked so width tracks. */
     position: relative;
-    height: min(64vh, 700px);
+    height: 72vh;
     aspect-ratio: 9/19;
     background: #0a0a0a;
-    border-radius: clamp(28px, 5vh, 44px);
-    padding: clamp(7px, 1vh, 10px);
+    border-radius: clamp(28px, 5vh, 52px);
+    padding: clamp(8px, 1.2vh, 12px);
     box-shadow:
       0 30px 80px rgba(0,0,0,0.7),
       0 0 0 1px rgba(255,255,255,0.08),
@@ -486,9 +489,9 @@ const css = `
     color: rgba(245,245,245,0.45); margin-bottom: 16px;
   }
   .sw-pricing-title {
-    font-size: clamp(56px, 12vw, 120px); font-weight: 900;
+    font-size: clamp(56px, 14vw, 160px); font-weight: 900;
     line-height: 1; letter-spacing: -0.05em;
-    margin-bottom: 36px;
+    margin-bottom: 40px;
     animation: sw-pop-up 1s 0.15s ease both;
   }
   .sw-pricing-row {
@@ -539,7 +542,7 @@ const css = `
     filter: drop-shadow(0 0 32px rgba(255,107,53,0.35));
   }
   .sw-outro-wordmark {
-    font-size: clamp(40px, 9vw, 84px);
+    font-size: clamp(40px, 11vw, 120px);
     font-weight: 900;
     line-height: 1;
     letter-spacing: -0.04em;
