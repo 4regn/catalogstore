@@ -162,7 +162,7 @@ export default function AffiliateSignup() {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Nkululeko Mathonsi"
+                  placeholder="Your full name"
                   style={styles.input}
                 />
               </div>
