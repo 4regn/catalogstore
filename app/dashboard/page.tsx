@@ -130,7 +130,15 @@ export default function Dashboard() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { checkAuth(); }, []);
+  /* Track the realtime subscription so it can be torn down on unmount.
+     Previously `checkAuth` returned a cleanup function but the effect's
+     callback (async) discarded the return — every hot-reload or navigation
+     stacked a new channel and double-played the new-order beep. */
+  useEffect(() => {
+    let activeChannel: ReturnType<typeof supabase.channel> | null = null;
+    checkAuth().then((c) => { activeChannel = c || null; });
+    return () => { if (activeChannel) supabase.removeChannel(activeChannel); };
+  }, []);
 
   const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned") => { setTab(t); setSidebarOpen(false); };
 
@@ -157,7 +165,7 @@ export default function Dashboard() {
       try { const ctx = new AudioContext(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 880; gain.gain.value = 0.15; osc.start(); osc.stop(ctx.currentTime + 0.15); setTimeout(() => { const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain(); osc2.connect(gain2); gain2.connect(ctx.destination); osc2.frequency.value = 1100; gain2.gain.value = 0.15; osc2.start(); osc2.stop(ctx.currentTime + 0.2); }, 180); } catch {}
       setTimeout(() => setOrderNotification(null), 10000);
     }).subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return channel;
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
@@ -343,8 +351,14 @@ export default function Dashboard() {
   const isAdmin = seller?.email === "info@4regn.com";
   const needsCardVerification = trialActive && !hasVerifiedCard && !isAdmin;
 
-  if ((isExpired || needsCardVerification) && typeof window !== "undefined") {
-    window.location.href = "/dashboard/billing";
+  /* Side effects belong in useEffect, not the render body. In strict mode the
+     render runs twice and this used to fire two assignments to window.location
+     and race with the realtime subscription. */
+  const shouldRedirectToBilling = !!seller && (isExpired || needsCardVerification);
+  useEffect(() => {
+    if (shouldRedirectToBilling) router.push("/dashboard/billing");
+  }, [shouldRedirectToBilling, router]);
+  if (shouldRedirectToBilling) {
     return (<div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}><p style={{ color: "rgba(245,245,245,0.35)" }}>{needsCardVerification ? "Please verify your card to continue..." : "Redirecting to billing..."}</p></div>);
   }
 

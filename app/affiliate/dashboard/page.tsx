@@ -108,14 +108,21 @@ export default function AffiliateDashboard() {
     setTimeout(() => setToast(""), 2200);
   }
 
+  /* Derive the public origin from the current page (so staging / preview
+     deploys generate working referral links) and fall back to the production
+     domain only as a last resort. */
+  const appOrigin = (typeof window !== "undefined" && window.location.origin)
+    || process.env.NEXT_PUBLIC_APP_URL
+    || "https://catalogstore.co.za";
+  const refLink = (slug: string) => `${appOrigin}/?ref=${slug}`;
+
   async function copyLink() {
     if (!affiliate) return;
-    const link = `https://catalogstore.co.za/?ref=${affiliate.slug}`;
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(refLink(affiliate.slug));
       showToast("Link copied");
     } catch {
-      showToast("Copy failed");
+      showToast("Copy failed — link unavailable in this browser");
     }
   }
 
@@ -264,7 +271,7 @@ export default function AffiliateDashboard() {
 
           <div style={styles.refLinkInput}>
             <span style={styles.refLinkText}>
-              <span style={styles.refLinkDomain}>catalogstore.co.za/?ref=</span>
+              <span style={styles.refLinkDomain}>{appOrigin.replace(/^https?:\/\//, "")}/?ref=</span>
               {affiliate.slug}
             </span>
             <button onClick={copyLink} style={styles.copyBtn} aria-label="Copy link">
@@ -280,9 +287,9 @@ export default function AffiliateDashboard() {
               style={styles.shareBtn}
               onClick={() => {
                 const msg = encodeURIComponent(
-                  `Want to set up a beautiful online store from your WhatsApp catalog? Check out CatalogStore: https://catalogstore.co.za/?ref=${affiliate.slug}`
+                  `Want to set up a beautiful online store from your WhatsApp catalog? Check out CatalogStore: ${refLink(affiliate.slug)}`
                 );
-                window.open(`https://wa.me/?text=${msg}`, "_blank");
+                window.open(`https://wa.me/?text=${msg}`, "_blank", "noopener,noreferrer");
               }}
             >
               <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 16, height: 16 }}>
@@ -292,10 +299,14 @@ export default function AffiliateDashboard() {
             </button>
             <button
               style={styles.shareBtn}
-              onClick={() => {
-                const caption = `Set up your online store from your WhatsApp catalog 👀\n\ncatalogstore.co.za/?ref=${affiliate.slug}`;
-                navigator.clipboard.writeText(caption);
-                showToast("Caption copied");
+              onClick={async () => {
+                const caption = `Set up your online store from your WhatsApp catalog 👀\n\n${refLink(affiliate.slug)}`;
+                try {
+                  await navigator.clipboard.writeText(caption);
+                  showToast("Caption copied");
+                } catch {
+                  showToast("Copy unavailable in this browser");
+                }
               }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}>
