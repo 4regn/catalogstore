@@ -367,7 +367,7 @@ export default function StorePage() {
           <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
             {seller?.banner_url ? (
               <>
-                <img src={seller.banner_url} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
+                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
                 {cfg.show_banner_text && (
                   <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(42,42,46,0) 30%, rgba(42,42,46,0.4) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "0 40px 80px", textAlign: "center" }}>
                     {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)", marginBottom: 16 }}>{displayTagline}</div>}
@@ -398,7 +398,7 @@ export default function StorePage() {
                 return (
                   <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "relative", aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", cursor: "pointer" }}>
                     {colProduct?.image_url ? (
-                      <img src={colProduct.image_url} alt={col} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.8s" }} />
+                      <img src={colProduct.image_url} alt={col} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.8s" }} />
                     ) : (
                       <div style={{ width: "100%", height: "100%", background: `linear-gradient(145deg, ${["#d4c5b5,#bfae9c", "#c5bdb5,#a89e94", "#d9cfc5,#c4b8aa"][i % 3]})` }} />
                     )}
@@ -456,7 +456,7 @@ export default function StorePage() {
                 <div key={product.id} onClick={() => openProduct(product)} style={{ cursor: "pointer" }}>
                   <div style={{ aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }}>
                     {product.image_url && (
-                      <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.6s" }}
+                      <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.6s" }}
                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     )}
                     {product.old_price && (
@@ -488,7 +488,7 @@ export default function StorePage() {
               <div style={{ aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", background: "linear-gradient(145deg, #d4c5b5, #c0b0a0)" }}>
                 {(() => {
                   const aboutImg = liveAboutImage ?? cfg.about_image ?? products.find((p) => p.image_url)?.image_url;
-                  return aboutImg ? <img src={aboutImg} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null;
+                  return aboutImg ? <img src={aboutImg} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null;
                 })()}
               </div>
               <div>
@@ -643,7 +643,7 @@ export default function StorePage() {
                   <div style={{ flex: 1, overflow: "auto", padding: "24px 28px" }}>
                     {cart.map((item, idx) => (
                       <div key={idx} style={{ display: "flex", gap: 16, padding: "20px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                        {item.product.image_url && <img src={item.product.image_url} alt="" onError={hideOnError} style={{ width: 80, height: 100, borderRadius: 10, objectFit: "cover" }} />}
+                        {item.product.image_url && <img src={item.product.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 80, height: 100, borderRadius: 10, objectFit: "cover" }} />}
                         <div style={{ flex: 1 }}>
                           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 12, color: "#b5b1ac", marginBottom: 8 }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" \u2022 ")}</div>}
@@ -694,7 +694,7 @@ export default function StorePage() {
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
                   <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
-                    {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
+                    {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 15 }}>{p.name}</div><div style={{ fontSize: 13, color: accent }}>{fmt(p.price)}</div></div>
                   </div>
                 ))}
@@ -705,7 +705,7 @@ export default function StorePage() {
 
         {/* WHATSAPP FLOAT */}
         {seller?.whatsapp_number && (
-          <a href={waLink} target="_blank" rel="noreferrer" style={{ position: "fixed", bottom: 24, right: 24, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
+          <a href={waLink} target="_blank" rel="noreferrer" aria-label={`Chat with ${seller?.store_name || "us"} on WhatsApp`} style={{ position: "fixed", bottom: 24, right: 24, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
           </a>
         )}

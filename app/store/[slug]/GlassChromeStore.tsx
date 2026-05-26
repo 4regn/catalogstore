@@ -345,7 +345,7 @@ export default function GlassChromeStore() {
             )}
           </nav>
           <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-            <button onClick={() => setShowSearch(true)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", display: "flex", alignItems: "center" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+            <button onClick={() => setShowSearch(true)} aria-label="Search products" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", display: "flex", alignItems: "center" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
             <button onClick={() => setShowCart(true)} style={{ background: P, border: "1px solid " + PB, color: "#f0f0f0", padding: "8px 18px", borderRadius: 6, fontFamily: body, fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer" }}>Cart ({cartCount})</button>
           </div>
         </header>
@@ -382,7 +382,7 @@ export default function GlassChromeStore() {
           <section className="gc-hero" style={{ position: "relative", height: seller?.banner_url ? "100vh" : "auto", minHeight: seller?.banner_url ? 600 : "auto", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
             {seller?.banner_url ? (
               <>
-                <img src={seller.banner_url} alt="" onError={hideOnError} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.35) saturate(0.7)" }} />
+                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.35) saturate(0.7)" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(3,3,5,0.92) 0%, rgba(3,3,5,0.4) 50%, rgba(3,3,5,0.15) 100%)" }} />
                 <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)" }} />
                 {cfg.show_banner_text && (
@@ -414,7 +414,7 @@ export default function GlassChromeStore() {
                 const colProduct = products.find((p) => p.category === col && p.image_url);
                 return (
                   <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "relative", aspectRatio: "3/4", borderRadius: 12, overflow: "hidden", cursor: "pointer", background: "#0b0b0f", border: "1px solid " + PB }}>
-                    {colProduct?.image_url ? <img src={colProduct.image_url} alt={col} onError={hideOnError} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.4) saturate(0.7)", transition: "transform 0.6s" }} /> : <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg, #14141a, #0a0a0e)" }} />}
+                    {colProduct?.image_url ? <img src={colProduct.image_url} alt={col} onError={hideOnError} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.4) saturate(0.7)", transition: "transform 0.6s" }} /> : <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg, #14141a, #0a0a0e)" }} />}
                     <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(3,3,5,0.85) 0%, transparent 55%)" }} />
                     <div style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
                       <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.2em", color: "#fff", marginBottom: 4, textTransform: "uppercase" }}>{count} Piece{count !== 1 ? "s" : ""}</div>
@@ -468,7 +468,7 @@ export default function GlassChromeStore() {
               {filtered.map((product) => (
                 <div key={product.id} onClick={() => openProduct(product)} style={{ background: P, border: "1px solid " + PB, borderRadius: 12, overflow: "hidden", cursor: "pointer", transition: "transform 0.35s, border-color 0.35s, box-shadow 0.35s", position: "relative" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = PB; e.currentTarget.style.boxShadow = ""; }}>
                   <div style={{ aspectRatio: "3/4", overflow: "hidden", background: "linear-gradient(145deg, #141418, #0c0c10)", position: "relative" }}>
-                    {product.image_url && <img src={product.image_url} alt={product.name} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s", filter: "brightness(0.85)" }} />}
+                    {product.image_url && <img src={product.image_url} alt={product.name} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s", filter: "brightness(0.85)" }} />}
                     {product.old_price && <div style={{ position: "absolute", top: 12, left: 12, fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 4, background: "#fff", color: "#000", fontWeight: 600 }}>Sale</div>}
                     {(() => { const pp = getProductPromo(product.id); return pp ? (
                       <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(0,0,0,0.7)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -501,7 +501,7 @@ export default function GlassChromeStore() {
                 <div style={{ position: "relative", aspectRatio: "4/5", borderRadius: 20, overflow: "hidden", background: "#0b0b0f", border: "1px solid " + PB }}>
                   {(() => {
                     const aboutImg = liveAboutImage ?? cfg.about_image ?? products.find((p) => p.image_url)?.image_url;
-                    return aboutImg ? <img src={aboutImg} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} /> : null;
+                    return aboutImg ? <img src={aboutImg} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} /> : null;
                   })()}
                 </div>
                 <div>
@@ -677,7 +677,7 @@ export default function GlassChromeStore() {
                   <div style={{ flex: 1, overflow: "auto", padding: "24px 28px" }}>
                     {cart.map((item, idx) => (
                       <div key={idx} style={{ display: "flex", gap: 16, padding: "20px 0", borderBottom: "1px solid " + PB }}>
-                        {item.product.image_url && <img src={item.product.image_url} alt="" onError={hideOnError} style={{ width: 80, height: 100, borderRadius: 8, objectFit: "cover" }} />}
+                        {item.product.image_url && <img src={item.product.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 80, height: 100, borderRadius: 8, objectFit: "cover" }} />}
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 8, fontFamily: mono, letterSpacing: "0.05em" }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" / ")}</div>}
@@ -728,7 +728,7 @@ export default function GlassChromeStore() {
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
                   <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid " + PB, cursor: "pointer" }}>
-                    {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} style={{ width: 48, height: 60, borderRadius: 6, objectFit: "cover" }} />}
+                    {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 6, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 14 }}>{p.name}</div><div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{fmt(p.price)}</div></div>
                   </div>
                 ))}
@@ -739,7 +739,7 @@ export default function GlassChromeStore() {
 
         {/* WHATSAPP FLOAT */}
         {seller?.whatsapp_number && (
-          <a href={waLink} target="_blank" rel="noreferrer" style={{ position: "fixed", bottom: 28, right: 28, width: 52, height: 52, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
+          <a href={waLink} target="_blank" rel="noreferrer" aria-label={`Chat with ${seller?.store_name || "us"} on WhatsApp`} style={{ position: "fixed", bottom: 28, right: 28, width: 52, height: 52, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
           </a>
         )}
