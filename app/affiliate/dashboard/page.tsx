@@ -11,6 +11,11 @@ const supabase = createClient(
 
 // Helpers
 const fromCents = (c: number) => (c / 100).toFixed(0);
+
+/* Commission policy lives here, not sprinkled as magic numbers. */
+const COMMISSION_MONTHS = 6;
+const MIN_WITHDRAW_CENTS = 15000; // R150
+const MIN_WITHDRAW_R = MIN_WITHDRAW_CENTS / 100;
 const formatR = (cents: number) =>
   `R${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -128,8 +133,8 @@ export default function AffiliateDashboard() {
 
   async function handleWithdraw() {
     if (!affiliate) return;
-    if (affiliate.availableBalance < 15000) {
-      showToast(`Need at least R150 to withdraw`);
+    if (affiliate.availableBalance < MIN_WITHDRAW_CENTS) {
+      showToast(`Need at least R${MIN_WITHDRAW_R} to withdraw`);
       return;
     }
     if (!confirm(`Request withdrawal of ${formatR(affiliate.availableBalance)}?`)) return;
@@ -177,7 +182,7 @@ export default function AffiliateDashboard() {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-  const canWithdraw = affiliate.availableBalance >= 15000;
+  const canWithdraw = affiliate.availableBalance >= MIN_WITHDRAW_CENTS;
 
   return (
     <div style={styles.page}>
@@ -248,7 +253,7 @@ export default function AffiliateDashboard() {
           >
             {canWithdraw
               ? `${formatR(affiliate.availableBalance)} available · Withdrawals coming soon`
-              : `R${fromCents(affiliate.availableBalance)} available · min R150 to withdraw`}
+              : `R${fromCents(affiliate.availableBalance)} available · min R${MIN_WITHDRAW_R} to withdraw`}
           </button>
 
           <div style={styles.progressRow}>
@@ -256,7 +261,7 @@ export default function AffiliateDashboard() {
             <span style={styles.progressText}>
               {formatR(affiliate.availableBalance)}
               <span style={styles.progressTarget}>
-                {" "}· min R150 {canWithdraw ? "✓" : ""}
+                {" "}· min R{MIN_WITHDRAW_R} {canWithdraw ? "✓" : ""}
               </span>
             </span>
           </div>
@@ -266,7 +271,7 @@ export default function AffiliateDashboard() {
         <section style={styles.refCard}>
           <div style={styles.refTitle}>Your referral link</div>
           <p style={styles.refSub}>
-            Share anywhere. Sellers earn you <strong style={{ color: "#fff" }}>50%</strong> for 6 months.
+            Share anywhere. Sellers earn you <strong style={{ color: "#fff" }}>50%</strong> for {COMMISSION_MONTHS} months.
           </p>
 
           <div style={styles.refLinkInput}>
@@ -399,7 +404,7 @@ export default function AffiliateDashboard() {
               const sellerName =
                 r.sellers?.store_name || r.sellers?.email?.split("@")[0] || "Seller";
               const sellerInitials = sellerName.slice(0, 2).toUpperCase();
-              const fillPct = (r.payments_counted / 6) * 100;
+              const fillPct = (r.payments_counted / COMMISSION_MONTHS) * 100;
 
               return (
                 <div key={r.id} style={styles.seller}>
@@ -439,7 +444,7 @@ export default function AffiliateDashboard() {
                         )}
                         <span style={styles.sWindowText}>
                           {r.status === "active"
-                            ? `${r.payments_counted}/6 mo`
+                            ? `${r.payments_counted}/${COMMISSION_MONTHS} mo`
                             : r.status === "trial"
                             ? "Starts on convert"
                             : r.status === "disconnected"

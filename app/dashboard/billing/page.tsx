@@ -34,7 +34,9 @@ export default function BillingPage() {
     setLoading(false);
   };
 
-  const isPromo = true; // Toggle this off after launch promo ends
+  /* Launch promo banner — set NEXT_PUBLIC_LAUNCH_PROMO=false to switch off
+     without redeploying client code. Default on. */
+  const isPromo = process.env.NEXT_PUBLIC_LAUNCH_PROMO !== "false";
   const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const isActive = seller?.subscription_status === "active";

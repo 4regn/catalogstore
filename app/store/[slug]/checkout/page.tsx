@@ -113,7 +113,27 @@ export default function CheckoutPage() {
       // Show a message that payment was cancelled
       alert("Payment was cancelled. You can try again.");
     }
-    try { const c = JSON.parse(atob(p.get("cart") || "")); if (Array.isArray(c)) setCart(c); } catch {}
+    /* Decode + validate cart from URL. Any malformed item would otherwise
+       produce NaN totals and an unclickable "Pay Now RNaN" button. Prices
+       here are display-only — the server re-fetches before charging. */
+    try {
+      const raw = p.get("cart") || "";
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(raw))));
+      if (Array.isArray(decoded)) {
+        const clean = decoded
+          .filter((i: any) => i && typeof i === "object")
+          .map((i: any) => ({
+            id: typeof i.id === "string" ? i.id : undefined,
+            name: typeof i.name === "string" ? i.name : "",
+            price: Number.isFinite(Number(i.price)) ? Number(i.price) : 0,
+            qty: Math.max(1, Math.floor(Number(i.qty)) || 1),
+            variant: typeof i.variant === "string" ? i.variant : "",
+            image: typeof i.image === "string" ? i.image : "",
+          }))
+          .filter((i: any) => i.name);
+        if (clean.length > 0) setCart(clean);
+      }
+    } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
     if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
     else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");
