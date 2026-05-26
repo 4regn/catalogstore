@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 /* ─── TYPES ─── */
 const TEMPLATES = [
@@ -73,6 +73,12 @@ const SECTION_LABELS: Record<string, string> = {
 
 export default function StoreEditor() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  /* assist=<sellerId> means an admin is editing another seller's store.
+     Loads + saves are routed through /api/admin/seller/[id] so the admin
+     never sees PayFast / EFT keys, and the server enforces it. */
+  const assistSellerId = searchParams.get("assist");
+  const isAssist = !!assistSellerId;
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const [seller, setSeller]           = useState<Seller | null>(null);
@@ -143,9 +149,28 @@ export default function StoreEditor() {
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, } = await supabase.auth.getUser();
       if (!user) { router.push("/login"); return; }
-      const { data: s } = await supabase.from("sellers").select("*").eq("email", user.email).single();
+      let s: any = null;
+      if (isAssist) {
+        /* Admin assist mode — server checks the caller is admin and returns
+           the seller's editable fields with API keys stripped. */
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token || "";
+        const res = await fetch(`/api/admin/seller/${assistSellerId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          alert(res.status === 403 ? "Admin assistance is only available to the admin account." : "Could not load that seller.");
+          router.push("/admin");
+          return;
+        }
+        const json = await res.json();
+        s = json.seller;
+      } else {
+        const { data } = await supabase.from("sellers").select("*").eq("email", user.email).single();
+        s = data;
+      }
       if (!s) { router.push("/dashboard"); return; }
       setSeller(s);
       setTagline(s.tagline || "");
@@ -278,15 +303,12 @@ export default function StoreEditor() {
       if (logoFile) {
         const ext = logoFile.name.split(".").pop();
         const path = `logos/${seller.id}-${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-        logoUrl = data.publicUrl;
+        logoUrl = await uploadImage(logoFile, "logo", path);
       }
       /* Don't persist a base64 data: URL into the DB if the hero upload failed */
       const heroImageToSave = heroImageUrl || (heroImagePreview && !heroImagePreview.startsWith("data:") ? heroImagePreview : undefined);
 
-      const { error: updateErr } = await supabase.from("sellers").update({
+      const patch = {
         tagline, description, logo_url: logoUrl,
         collections: collOrder.length > 0 ? collOrder : seller.collections,
         store_config: {
@@ -323,8 +345,26 @@ export default function StoreEditor() {
           policy_items: policyItems,
           about_image: aboutImageUrl || (aboutImagePreview && !aboutImagePreview.startsWith("data:") ? aboutImagePreview : undefined),
         },
-      }).eq("id", seller.id);
-      if (updateErr) throw updateErr;
+      };
+
+      if (isAssist) {
+        /* Admin assist: route the save through the admin API which
+           re-verifies the caller is admin and strips any sensitive keys. */
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token || "";
+        const res = await fetch(`/api/admin/seller/${seller.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(patch),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || "Admin save failed");
+        }
+      } else {
+        const { error: updateErr } = await supabase.from("sellers").update(patch).eq("id", seller.id);
+        if (updateErr) throw updateErr;
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e: any) {
@@ -340,8 +380,22 @@ export default function StoreEditor() {
     setSwitchingTheme(true);
     setSaveError("");
     try {
-      const { error } = await supabase.from("sellers").update({ template: next }).eq("id", seller.id);
-      if (error) throw error;
+      if (isAssist) {
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token || "";
+        const res = await fetch(`/api/admin/seller/${seller.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ template: next }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || "Theme switch failed");
+        }
+      } else {
+        const { error } = await supabase.from("sellers").update({ template: next }).eq("id", seller.id);
+        if (error) throw error;
+      }
       setTemplate(next);
       setSeller({ ...seller, template: next });
       /* Force the preview iframe to reload with the new theme */
@@ -363,6 +417,31 @@ export default function StoreEditor() {
     if (!f.type.startsWith("image/")) return "Please choose an image file.";
     if (f.size > MAX_IMAGE_BYTES) return "Image must be 5MB or smaller.";
     return "";
+  };
+
+  /* Upload an image. In assist mode, routes through the admin upload
+     endpoint (which uses the service role) so storage RLS doesn't reject
+     the admin writing into the seller's path. */
+  const uploadImage = async (file: File, kind: string, fallbackPath: string): Promise<string> => {
+    if (isAssist && seller) {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token || "";
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("kind", kind);
+      const res = await fetch(`/api/admin/seller/${seller.id}/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Upload failed");
+      return j.url as string;
+    }
+    const { error: upErr } = await supabase.storage.from("store-assets").upload(fallbackPath, file, { upsert: true });
+    if (upErr) throw upErr;
+    const { data } = supabase.storage.from("store-assets").getPublicUrl(fallbackPath);
+    return data.publicUrl;
   };
 
   const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -406,10 +485,24 @@ export default function StoreEditor() {
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#0a0a0e", fontFamily: "'Schibsted Grotesk', sans-serif", overflow: "hidden" }}>
 
+      {/* ── ADMIN ASSIST BANNER ── */}
+      {isAssist && (
+        <div style={{ background: "linear-gradient(90deg, rgba(139,92,246,0.18), rgba(139,92,246,0.08))", borderBottom: "1px solid rgba(139,92,246,0.3)", padding: "8px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, fontWeight: 700, color: "#c4b5fd", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#8b5cf6", boxShadow: "0 0 8px #8b5cf6" }} />
+            Admin Assistance — editing on behalf of {seller?.store_name || "seller"}
+          </div>
+          <button onClick={() => router.push("/admin")}
+            style={{ padding: "6px 14px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#f5f5f5", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>
+            Exit Assist →
+          </button>
+        </div>
+      )}
+
       {/* ── TOP BAR ── */}
       <div style={{ height: 52, background: "#111116", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={() => router.push("/dashboard")}
+          <button onClick={() => router.push(isAssist ? "/admin" : "/dashboard")}
             style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 6, transition: "color 0.2s" }}>
             ←
           </button>
@@ -611,13 +704,9 @@ export default function StoreEditor() {
                       // Also upload to storage for persistence
                       const ext = f.name.split(".").pop();
                       const path = `${seller.id}/hero_image.${ext}`;
-                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                      if (error) {
-                        setUploadError("Hero image upload failed: " + error.message);
-                        return;
-                      }
-                      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                      const finalUrl = data.publicUrl;
+                      let finalUrl: string;
+                      try { finalUrl = await uploadImage(f, "hero_image", path); }
+                      catch (err: any) { setUploadError("Hero image upload failed: " + (err?.message || "unknown")); return; }
                       setHeroImagePreview(finalUrl);
                       setHeroImageUrl(finalUrl);
                       postUpdate({ heroImage: finalUrl });
@@ -849,11 +938,11 @@ export default function StoreEditor() {
                     reader.readAsDataURL(f);
                     const ext = f.name.split(".").pop();
                     const path = `${seller.id}/about_image.${ext}`;
-                    const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                    if (error) { setUploadError("About image upload failed: " + error.message); return; }
-                    const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                    setAboutImagePreview(data.publicUrl); setAboutImageUrl(data.publicUrl);
-                    postUpdate({ aboutImage: data.publicUrl });
+                    let publicUrl: string;
+                    try { publicUrl = await uploadImage(f, "about_image", path); }
+                    catch (err: any) { setUploadError("About image upload failed: " + (err?.message || "unknown")); return; }
+                    setAboutImagePreview(publicUrl); setAboutImageUrl(publicUrl);
+                    postUpdate({ aboutImage: publicUrl });
                   }}
                   style={{ display: "none" }} />
                 {aboutImagePreview && (
@@ -1025,13 +1114,10 @@ export default function StoreEditor() {
                           setUploadError("");
                           const ext = f.name.split(".").pop();
                           const path = `${seller.id}/promise_${i}.${ext}`;
-                          const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                          if (error) {
-                            setUploadError("Image upload failed: " + error.message);
-                            return;
-                          }
-                          const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                          const u = [...promiseImages]; u[i] = data.publicUrl;
+                          let publicUrl: string;
+                          try { publicUrl = await uploadImage(f, `promise_${i}`, path); }
+                          catch (err: any) { setUploadError("Image upload failed: " + (err?.message || "unknown")); return; }
+                          const u = [...promiseImages]; u[i] = publicUrl;
                           setPromiseImages(u);
                         }}
                         style={{ display: "none" }} />
