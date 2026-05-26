@@ -93,6 +93,10 @@ export default function StoreEditor() {
   const [deviceMode, setDeviceMode]       = useState<"desktop" | "mobile">("desktop");
   const [template, setTemplate]           = useState<string>("soft-luxury");
   const [switchingTheme, setSwitchingTheme] = useState(false);
+  /* Dirty tracker — flips true the first time the seller edits anything,
+     back to false on a successful save. Powers the unsaved-changes guard. */
+  const [isDirty, setIsDirty] = useState(false);
+  const initialLoadDone = useRef(false);
 
   /* Local editable state */
   const [tagline, setTagline]           = useState("");
@@ -217,6 +221,9 @@ export default function StoreEditor() {
       setHeroImageUrl(s.store_config?.hero_image || "");
       setTemplate(s.template || "soft-luxury");
       setLoading(false);
+      /* Initial state hydration is complete — any subsequent state changes
+         are seller edits and should mark the form dirty. */
+      requestAnimationFrame(() => { initialLoadDone.current = true; });
     })();
   }, []);
 
@@ -251,7 +258,19 @@ export default function StoreEditor() {
     Object.assign(pendingUpdatesRef.current, payload);
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
     flushTimerRef.current = setTimeout(flushUpdates, 120);
+    /* Anything that updates the live preview is also a user edit — mark
+       dirty so we can warn on close. */
+    if (initialLoadDone.current) setIsDirty(true);
   }, [flushUpdates]);
+
+  /* beforeunload guard — warn if the seller tries to navigate away with
+     pending changes. */
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
 
@@ -365,6 +384,7 @@ export default function StoreEditor() {
         const { error: updateErr } = await supabase.from("sellers").update(patch).eq("id", seller.id);
         if (updateErr) throw updateErr;
       }
+      setIsDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e: any) {
@@ -583,8 +603,13 @@ export default function StoreEditor() {
           )}
 
           {/* Save */}
-          <button onClick={save} disabled={saving}
-            style={{ padding: "8px 20px", background: saved ? "#22c55e" : G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", letterSpacing: "0.04em", transition: "background 0.3s" }}>
+          {isDirty && !saving && !saved && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.08em", textTransform: "uppercase" }} title="You have unsaved changes">
+              ● Unsaved
+            </span>
+          )}
+          <button onClick={save} disabled={saving || (!isDirty && !saved)}
+            style={{ padding: "8px 20px", background: saved ? "#22c55e" : isDirty ? G : "rgba(255,255,255,0.06)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: saving || (!isDirty && !saved) ? "not-allowed" : "pointer", letterSpacing: "0.04em", transition: "background 0.3s", opacity: saving || (!isDirty && !saved) ? 0.5 : 1 }}>
             {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
           </button>
         </div>
@@ -1207,9 +1232,9 @@ export default function StoreEditor() {
               </div>
             )}
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={save} disabled={saving}
-                style={{ flex: 1, padding: "10px", background: G, color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-                {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
+              <button onClick={save} disabled={saving || (!isDirty && !saved)}
+                style={{ flex: 1, padding: "10px", background: saved ? "#22c55e" : isDirty ? G : "rgba(255,255,255,0.06)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: saving || (!isDirty && !saved) ? "not-allowed" : "pointer", opacity: saving || (!isDirty && !saved) ? 0.6 : 1 }}>
+                {saving ? "Saving..." : saved ? "✓ Saved!" : isDirty ? "Save Changes" : "Saved"}
               </button>
               <button onClick={() => setPanelVisible(false)}
                 style={{ padding: "10px 16px", background: "rgba(255,255,255,0.04)", color: "rgba(245,245,245,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>

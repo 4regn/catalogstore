@@ -8,8 +8,63 @@
 
 html {
   scroll-behavior: smooth;
+  /* Use a true-black background so the dark surfaces don't flash white on
+     initial paint before React mounts. */
+  background-color: #030303;
 }
 
 body {
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Most app surfaces are dark — set a sensible default so the user never
+     sees a blank-white moment between route transitions. Storefronts and
+     other pages override this on their root container. */
+  color: #f5f5f5;
+}
+
+/* Accessible focus ring — visible on keyboard nav, hidden on mouse click.
+   Buttons and inputs inside the templates already set their own focus, but
+   any unstyled element gets a usable outline by default. */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid #ff6b35;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Image safety net — broken images shouldn't push layouts around */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Webkit scrollbar — subtle dark themed */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 107, 53, 0.25);
+  color: #fff;
 }

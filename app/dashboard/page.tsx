@@ -84,6 +84,7 @@ export default function Dashboard() {
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formSaving, setFormSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [formError, setFormError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
@@ -205,7 +206,7 @@ export default function Dashboard() {
     }
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); setFormError(""); };
   const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
 
   const addVariant = () => setFormVariants([...formVariants, { name: "", options: [""] }]);
@@ -233,52 +234,166 @@ export default function Dashboard() {
   const removeExistingImage = (i: number) => setExistingImages((p) => p.filter((_, idx) => idx !== i));
 
   // ── PARALLEL IMAGE UPLOAD ────────────────────────────────────────────────────
-  const uploadImages = async (sellerId: string, productId: string): Promise<string[]> => {
+  /* Uploads in parallel, never rejects the whole batch on a single failure.
+     Returns { urls, failures } so the caller can decide what to do. */
+  const uploadImages = async (sellerId: string, productId: string): Promise<{ urls: string[]; failures: string[] }> => {
+    if (formImages.length === 0) return { urls: [], failures: [] };
     setUploadProgress("Uploading " + formImages.length + " image" + (formImages.length > 1 ? "s" : "") + "...");
     const results = await Promise.all(
       formImages.map(async (file, i) => {
-        const ext = file.name.split(".").pop();
-        const path = sellerId + "/" + productId + "/" + Date.now() + "-" + i + "." + ext;
-        const { error } = await supabase.storage.from("product-images").upload(path, file);
-        if (error) return null;
-        return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        /* crypto.randomUUID() if available, else a Math.random fallback. The
+           old Date.now()+index could collide if two uploads landed in the
+           same millisecond with the same index. */
+        const id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        const path = `${sellerId}/${productId}/${id}-${i}.${ext}`;
+        try {
+          const { error } = await supabase.storage.from("product-images").upload(path, file, { contentType: file.type });
+          if (error) return { ok: false as const, name: file.name };
+          return { ok: true as const, url: supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl };
+        } catch {
+          return { ok: false as const, name: file.name };
+        }
       })
     );
     setUploadProgress("");
-    return results.filter(Boolean) as string[];
+    const urls = results.filter((r): r is { ok: true; url: string } => r.ok).map((r) => r.url);
+    const failures = results.filter((r): r is { ok: false; name: string } => !r.ok).map((r) => r.name);
+    return { urls, failures };
   };
 
   const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {} })).filter((x) => x.options.length > 0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setFormSaving(true); setUploadProgress("");
-    const { data: { user } } = await supabase.auth.getUser(); if (!user) return;
-    const cv = cleanVariants(formVariants);
-    if (editingId) {
-      let allImages = [...existingImages];
-      if (formImages.length > 0) { const newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, images: allImages, image_url: allImages[0] || null, variants: cv } : p));
-    } else {
-      // ── PARALLEL: upload images and insert product at the same time ──────────
-      const tempId = Date.now().toString();
-      const [uploadedUrls, insertResult] = await Promise.all([
-        formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, in_stock: true, variants: cv, status: "published", images: [], image_url: null }).select().single(),
-      ]);
-      const { data, error } = insertResult;
-      if (error || !data) { setFormSaving(false); return; }
-      if (uploadedUrls.length > 0) { await supabase.from("products").update({ images: uploadedUrls, image_url: uploadedUrls[0] }).eq("id", data.id); }
-      setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
+  /* Up-front validation. Returns first error message or empty string. */
+  const validateForm = (): string => {
+    if (!formName.trim()) return "Product name is required";
+    if (formName.length > 200) return "Product name must be 200 characters or fewer";
+    const price = parseFloat(formPrice);
+    if (!Number.isFinite(price) || price < 0) return "Price must be a positive number";
+    if (price > 1_000_000) return "Price looks too high — double-check before saving";
+    if (formComparePrice.trim()) {
+      const cmp = parseFloat(formComparePrice);
+      if (!Number.isFinite(cmp) || cmp <= 0) return "Compare-at price must be a positive number";
+      if (cmp <= price) return "Compare-at price should be higher than the selling price";
     }
-    resetForm(); setFormSaving(false);
+    /* A product with neither a new file nor an existing image is allowed —
+       sellers sometimes add specs first then come back for photos. */
+    return "";
   };
 
-  const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); };
-  const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); };
-  const restoreProduct = async (id: string) => { await supabase.from("products").update({ status: "published" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "published" } : p)); };
-  const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); };
-  const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError("");
+    const v = validateForm();
+    if (v) { setFormError(v); return; }
+
+    setFormSaving(true);
+    setUploadProgress("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setFormError("Your session has expired. Please log in again."); router.push("/login"); return; }
+      const cv = cleanVariants(formVariants);
+      const price = parseFloat(formPrice);
+      const oldPrice = formComparePrice.trim() ? parseFloat(formComparePrice) : null;
+
+      if (editingId) {
+        /* EDIT */
+        let allImages = [...existingImages];
+        let warning = "";
+        if (formImages.length > 0) {
+          const { urls, failures } = await uploadImages(user.id, editingId);
+          allImages = [...allImages, ...urls];
+          if (failures.length) warning = `${failures.length} image${failures.length > 1 ? "s" : ""} couldn't upload (${failures.join(", ")}). The product was still saved.`;
+        }
+        const patch = { name: formName.trim(), price, old_price: oldPrice, category: formCategory.trim(), images: allImages, image_url: allImages[0] || null, variants: cv };
+        const { error } = await supabase.from("products").update(patch).eq("id", editingId).eq("seller_id", user.id);
+        if (error) { setFormError("Could not save product: " + error.message); return; }
+        setProducts(products.map((p) => p.id === editingId ? { ...p, ...patch } : p));
+        if (warning) alert(warning);
+        resetForm();
+      } else {
+        /* CREATE — insert first to get the real product id, then upload
+           images using that id as the storage prefix. The old flow used a
+           Date.now() temp id and risked collisions; this is single-write
+           and the storage path matches the product id. */
+        const { data, error } = await supabase
+          .from("products")
+          .insert({ seller_id: user.id, name: formName.trim(), price, old_price: oldPrice, category: formCategory.trim(), in_stock: true, variants: cv, status: "published", images: [], image_url: null, sort_order: products.length })
+          .select()
+          .single();
+        if (error || !data) { setFormError("Could not create product: " + (error?.message || "unknown error")); return; }
+
+        let warning = "";
+        let uploadedUrls: string[] = [];
+        if (formImages.length > 0) {
+          const result = await uploadImages(user.id, data.id);
+          uploadedUrls = result.urls;
+          if (result.failures.length) warning = `${result.failures.length} image${result.failures.length > 1 ? "s" : ""} couldn't upload (${result.failures.join(", ")}). The product was created — you can add the missing photos by editing it.`;
+          if (uploadedUrls.length > 0) {
+            const { error: imgErr } = await supabase.from("products").update({ images: uploadedUrls, image_url: uploadedUrls[0] }).eq("id", data.id);
+            if (imgErr) warning = "Images uploaded but couldn't be attached to the product. Try editing the product and re-saving.";
+          }
+        }
+        setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
+        if (warning) alert(warning);
+        resetForm();
+      }
+    } catch (e: any) {
+      setFormError(e?.message || "Something went wrong saving this product. Please try again.");
+    } finally {
+      setFormSaving(false);
+      setUploadProgress("");
+    }
+  };
+
+  /* Optimistic update with rollback. We flip the UI immediately so the
+     dashboard feels snappy, then if the DB write fails we revert and tell
+     the seller. */
+  const toggleStock = async (id: string, cur: boolean) => {
+    setProducts((prev) => prev.map((p) => p.id === id ? { ...p, in_stock: !cur } : p));
+    const { error } = await supabase.from("products").update({ in_stock: !cur }).eq("id", id);
+    if (error) {
+      setProducts((prev) => prev.map((p) => p.id === id ? { ...p, in_stock: cur } : p));
+      alert("Couldn't update stock: " + error.message);
+    }
+  };
+  const trashProduct = async (id: string) => {
+    const prev = products.find((p) => p.id === id);
+    setProducts((p) => p.map((x) => x.id === id ? { ...x, status: "trashed" } : x));
+    const { error } = await supabase.from("products").update({ status: "trashed" }).eq("id", id);
+    if (error && prev) {
+      setProducts((p) => p.map((x) => x.id === id ? prev : x));
+      alert("Couldn't move to trash: " + error.message);
+    }
+  };
+  const restoreProduct = async (id: string) => {
+    const prev = products.find((p) => p.id === id);
+    setProducts((p) => p.map((x) => x.id === id ? { ...x, status: "published" } : x));
+    const { error } = await supabase.from("products").update({ status: "published" }).eq("id", id);
+    if (error && prev) {
+      setProducts((p) => p.map((x) => x.id === id ? prev : x));
+      alert("Couldn't restore: " + error.message);
+    }
+  };
+  const deleteForever = async (id: string) => {
+    if (!confirm("Permanently delete this product? This cannot be undone.")) return;
+    const snapshot = products;
+    setProducts((p) => p.filter((x) => x.id !== id));
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) {
+      setProducts(snapshot);
+      alert("Couldn't delete: " + error.message);
+    }
+  };
+  const toggleDraft = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "draft" ? "published" : "draft";
+    setProducts((p) => p.map((x) => x.id === id ? { ...x, status: newStatus } : x));
+    const { error } = await supabase.from("products").update({ status: newStatus }).eq("id", id);
+    if (error) {
+      setProducts((p) => p.map((x) => x.id === id ? { ...x, status: currentStatus } : x));
+      alert("Couldn't update status: " + error.message);
+    }
+  };
   const reorderProduct = async (id: string, direction: "up" | "down") => {
     const list = [...products].filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
     const idx = list.findIndex((p) => p.id === id); if (idx < 0) return;
@@ -304,34 +419,59 @@ export default function Dashboard() {
   const handleCsvUpload = async (file: File) => {
     if (!seller) return;
     setCsvUploading(true); setCsvResult("");
-    const text = await file.text();
-    const lines = text.split("\n").filter((l) => l.trim());
-    if (lines.length < 2) { setCsvResult("CSV must have a header row and at least one product."); setCsvUploading(false); return; }
-    const header = lines[0].toLowerCase().split(",").map((h) => h.trim().replace(/"/g, ""));
-    const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
-    const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
-    const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
-    const descIdx = header.findIndex((h) => h === "description" || h === "desc");
-    const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
-    if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); setCsvUploading(false); return; }
-    let added = 0; let errors = 0;
-    const planLimitsLocal = seller?.subscription_plan === "pro" ? { products: 100 } : { products: 15 };
-    const publishedLocal = products.filter((p) => p.status === "published" || !p.status).length;
-    const draftLocal = products.filter((p) => p.status === "draft").length;
-    const remaining = planLimitsLocal.products - (publishedLocal + draftLocal);
-    for (let i = 1; i < lines.length && added < remaining; i++) {
-      const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-      const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
-      if (!name || isNaN(price)) { errors++; continue; }
-      const category = catIdx >= 0 ? cols[catIdx] || null : null;
-      const description = descIdx >= 0 ? cols[descIdx] || "" : "";
-      const oldPrice = oldPriceIdx >= 0 && cols[oldPriceIdx] ? parseFloat(cols[oldPriceIdx]) : null;
-      const { data, error } = await supabase.from("products").insert({ seller_id: seller.id, name, price, old_price: oldPrice, category, description, in_stock: true, status: "published", variants: [], sort_order: products.length + added }).select().single();
-      if (data) { added++; setProducts((prev) => [data, ...prev]); } else errors++;
+    try {
+      if (file.size > 2 * 1024 * 1024) { setCsvResult("CSV is too large. Please keep it under 2MB."); return; }
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) { setCsvResult("CSV must have a header row and at least one product."); return; }
+      const header = lines[0].toLowerCase().split(",").map((h) => h.trim().replace(/"/g, ""));
+      const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
+      const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
+      const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
+      const descIdx = header.findIndex((h) => h === "description" || h === "desc");
+      const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
+      if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); return; }
+      let added = 0; let errors = 0;
+      const planLimitsLocal = seller?.subscription_plan === "pro" ? { products: 100 } : { products: 15 };
+      const publishedLocal = products.filter((p) => p.status === "published" || !p.status).length;
+      const draftLocal = products.filter((p) => p.status === "draft").length;
+      const remaining = planLimitsLocal.products - (publishedLocal + draftLocal);
+      /* Batch all rows in one insert. The old per-row loop did N round-trips
+         and counted products.length once at the start (so all rows ended up
+         with the same sort_order). */
+      const rows: any[] = [];
+      for (let i = 1; i < lines.length && rows.length < remaining; i++) {
+        const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+        const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
+        if (!name || !Number.isFinite(price) || price < 0) { errors++; continue; }
+        rows.push({
+          seller_id: seller.id,
+          name: name.slice(0, 200),
+          price,
+          old_price: oldPriceIdx >= 0 && cols[oldPriceIdx] ? (Number.isFinite(parseFloat(cols[oldPriceIdx])) ? parseFloat(cols[oldPriceIdx]) : null) : null,
+          category: catIdx >= 0 ? (cols[catIdx] || null) : null,
+          description: descIdx >= 0 ? (cols[descIdx] || "").slice(0, 2000) : "",
+          in_stock: true,
+          status: "published",
+          variants: [],
+          sort_order: products.length + rows.length,
+        });
+      }
+      if (rows.length > 0) {
+        const { data, error } = await supabase.from("products").insert(rows).select();
+        if (error) { setCsvResult("Import failed: " + error.message); return; }
+        if (data) {
+          added = data.length;
+          setProducts((prev) => [...data, ...prev]);
+        }
+      }
+      const skipped = Math.max(0, lines.length - 1 - remaining);
+      setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + (errors > 0 ? ", " + errors + " row" + (errors > 1 ? "s" : "") + " skipped (invalid)" : "") + (skipped > 0 ? ", " + skipped + " skipped (plan limit)" : "") + ".");
+    } catch (e: any) {
+      setCsvResult("Couldn't read CSV: " + (e?.message || "unknown error"));
+    } finally {
+      setCsvUploading(false);
     }
-    const skipped = Math.max(0, lines.length - 1 - remaining);
-    setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + (errors > 0 ? ", " + errors + " failed" : "") + (skipped > 0 ? ", " + skipped + " skipped (plan limit)" : "") + ".");
-    setCsvUploading(false);
   };
 
   if (loading) return (
@@ -618,8 +758,13 @@ export default function Dashboard() {
                 </div>
 
                 {uploadProgress && <div style={{ marginTop: 12, fontSize: 12, color: N }}>{uploadProgress}</div>}
+                {formError && (
+                  <div role="alert" style={{ marginTop: 12, padding: "10px 14px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 10, color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>
+                    {formError}
+                  </div>
+                )}
                 {/* 6. SAVE */}
-                <button type="submit" disabled={formSaving} style={{ width: "100%", padding: "14px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: formSaving ? "not-allowed" : "pointer", opacity: formSaving ? 0.6 : 1, marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{formSaving ? "Saving..." : editingId ? "Save Changes" : "Save Product"}</button>
+                <button type="submit" disabled={formSaving} style={{ width: "100%", padding: "14px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: formSaving ? "not-allowed" : "pointer", opacity: formSaving ? 0.6 : 1, marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{formSaving ? (uploadProgress || "Saving...") : editingId ? "Save Changes" : "Save Product"}</button>
               </form>
             </div>)}
 
@@ -771,13 +916,13 @@ export default function Dashboard() {
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Payment:</label>
                     {["awaiting_payment", "paid", "refunded"].map((s) => (
-                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,61,110,0.1)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff3d6e" : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s.replace("_", " ")}</button>
+                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id).eq("seller_id", seller!.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,61,110,0.1)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff3d6e" : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s.replace("_", " ")}</button>
                     ))}
                   </div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Status:</label>
                     {["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => (
-                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? (s === "delivered" ? "rgba(34,197,94,0.15)" : s === "cancelled" ? "rgba(255,61,110,0.1)" : s === "shipped" ? "rgba(37,99,235,0.1)" : s === "confirmed" || s === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.status === s ? (s === "delivered" ? "#22c55e" : s === "cancelled" ? "#ff3d6e" : s === "shipped" ? "#2563eb" : s === "confirmed" || s === "processing" ? N : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s}</button>
+                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id).eq("seller_id", seller!.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? (s === "delivered" ? "rgba(34,197,94,0.15)" : s === "cancelled" ? "rgba(255,61,110,0.1)" : s === "shipped" ? "rgba(37,99,235,0.1)" : s === "confirmed" || s === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.status === s ? (s === "delivered" ? "#22c55e" : s === "cancelled" ? "#ff3d6e" : s === "shipped" ? "#2563eb" : s === "confirmed" || s === "processing" ? N : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s}</button>
                     ))}
                   </div>
                 </div>
