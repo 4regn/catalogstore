@@ -769,9 +769,13 @@ export default function Dashboard() {
             </div>)}
 
             {filteredProducts.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}>
-                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>{productFilter === "trashed" ? "Trash is empty" : productFilter === "draft" ? "No drafts" : searchQuery ? "No results" : "No products yet"}</p>
-                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>{productFilter === "trashed" ? "Products you delete will appear here for recovery." : productFilter === "draft" ? "Draft products won't be visible to customers." : searchQuery ? "Try a different search term." : "Add your first product to get your store going."}</p>
+              <div style={{ textAlign: "center" as const, padding: "80px 24px", color: "rgba(245,245,245,0.35)", background: "rgba(255,255,255,0.015)", border: "1px dashed rgba(255,255,255,0.06)", borderRadius: 16 }}>
+                <div style={{ fontSize: 36, opacity: 0.25, marginBottom: 16 }}>{productFilter === "trashed" ? "🗑" : productFilter === "draft" ? "📝" : searchQuery ? "🔍" : "📦"}</div>
+                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8, color: "rgba(245,245,245,0.5)" }}>{productFilter === "trashed" ? "Trash is empty" : productFilter === "draft" ? "No drafts" : searchQuery ? "No results" : "No products yet"}</p>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.3)", marginBottom: 20, maxWidth: 360, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>{productFilter === "trashed" ? "Products you delete appear here for 30 days so you can recover them." : productFilter === "draft" ? "Drafts stay hidden from customers until you publish them." : searchQuery ? "Try a different search term, or clear the filter." : "Add your first product to get your store going. It takes about a minute."}</p>
+                {!searchQuery && productFilter === "published" && (
+                  <button onClick={() => { if (!canAddProduct) { alert("You've reached your plan limit of " + planLimits.products + " products. Upgrade to Pro for more."); return; } resetForm(); setShowForm(true); }} style={{ padding: "12px 28px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>+ Add Your First Product</button>
+                )}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -959,7 +963,14 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : visibleOrders.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No orders yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Orders will appear here when customers buy from your store.</p></div>
+              <div style={{ textAlign: "center" as const, padding: "80px 24px", color: "rgba(245,245,245,0.35)", background: "rgba(255,255,255,0.015)", border: "1px dashed rgba(255,255,255,0.06)", borderRadius: 16 }}>
+                <div style={{ fontSize: 36, opacity: 0.25, marginBottom: 16 }}>🛒</div>
+                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8, color: "rgba(245,245,245,0.5)" }}>No orders yet</p>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.3)", maxWidth: 320, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>Orders will appear here the moment a customer checks out. We&apos;ll also email you and play a chime so you don&apos;t miss one.</p>
+                {seller?.subdomain && (
+                  <a href={"/store/" + seller.subdomain} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 20, padding: "10px 22px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.18)", borderRadius: 100, color: N, fontSize: 11, fontWeight: 700, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Visit Your Store</a>
+                )}
+              </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {visibleOrders.map((order) => (

@@ -10,15 +10,29 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [resetSending, setResetSending] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setInfo("");
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) { setError(authError.message); setLoading(false); return; }
     router.push("/dashboard");
+  };
+
+  const handleReset = async () => {
+    setError(""); setInfo("");
+    if (!email) { setError("Enter your email above first."); return; }
+    setResetSending(true);
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    setResetSending(false);
+    if (resetErr) { setError(resetErr.message); return; }
+    setInfo("Password reset email sent. Check your inbox.");
   };
 
   const Eye = ({ open }: { open: boolean }) => open ? (
@@ -42,19 +56,25 @@ export default function Login() {
           <h1 style={s.title}>WELCOME BACK</h1>
           <p style={s.subtitle}>Log in to manage your store.</p>
 
-          {error && <div style={s.error}>{error}</div>}
+          {error && <div style={s.error} role="alert">{error}</div>}
+          {info && <div style={{ ...s.error, background: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.18)", color: "#22c55e" }}>{info}</div>}
 
           <form onSubmit={handleLogin} style={s.form}>
             <div style={s.field}>
               <label style={s.label}>EMAIL</label>
-              <input type="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required style={s.input} />
+              <input type="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" style={s.input} />
             </div>
 
             <div style={s.field}>
-              <label style={s.label}>PASSWORD</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={s.label}>PASSWORD</label>
+                <button type="button" onClick={handleReset} disabled={resetSending} style={{ background: "none", border: "none", color: "#ff6b35", fontSize: 10, fontFamily: "'Schibsted Grotesk', sans-serif", fontWeight: 700, cursor: resetSending ? "not-allowed" : "pointer", letterSpacing: "0.04em", textTransform: "uppercase" as const, opacity: resetSending ? 0.6 : 1, padding: 0 }}>
+                  {resetSending ? "Sending..." : "Forgot?"}
+                </button>
+              </div>
               <div style={s.passWrap}>
-                <input type={showPassword ? "text" : "password"} placeholder="Your password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ ...s.input, paddingRight: 48 }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={s.eyeBtn}><Eye open={showPassword} /></button>
+                <input type={showPassword ? "text" : "password"} placeholder="Your password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" style={{ ...s.input, paddingRight: 48 }} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} style={s.eyeBtn}><Eye open={showPassword} /></button>
               </div>
             </div>
 
@@ -64,6 +84,7 @@ export default function Login() {
           </form>
 
           <p style={s.footer}>{"Don't have an account? "}<a href="/signup" style={s.link}>Create your store</a></p>
+          <p style={{ ...s.footer, marginTop: 8, fontSize: 11 }}>Are you an affiliate? <a href="/affiliate/login" style={s.link}>Affiliate sign in</a></p>
         </div>
       </div>
     </div>

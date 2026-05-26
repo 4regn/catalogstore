@@ -78,21 +78,61 @@ export default function SignUp() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    /* Up-front validation. Email + password are validated by Supabase
+       already, but the seller-profile fields are not. */
+    const name = storeName.trim();
+    if (!name) { setError("Store name is required."); return; }
+    if (name.length < 2) { setError("Store name must be at least 2 characters."); return; }
+    if (name.length > 60) { setError("Store name must be 60 characters or fewer."); return; }
+
+    const phoneDigits = whatsapp.replace(/\D/g, "");
+    /* SA mobile: starts with 0 (10 digits) or 27 (11 digits) */
+    if (!/^(?:0[6-8]\d{8}|27[6-8]\d{8})$/.test(phoneDigits)) {
+      setError("Please enter a valid South African mobile number (e.g. 0671234567).");
+      return;
+    }
+    const normalizedWhatsapp = phoneDigits.startsWith("0") ? "27" + phoneDigits.substring(1) : phoneDigits;
+
     if (!allChecksPassed) { setError("Password does not meet all requirements."); return; }
     if (!passwordsMatch) { setError("Passwords do not match."); return; }
     setLoading(true);
+
+    /* Resolve a unique subdomain BEFORE we create the auth user.
+       Otherwise a collision creates an orphan auth account with no seller row. */
+    const baseSubdomain = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "store";
+    let subdomain = baseSubdomain;
+    let suffix = 1;
+    while (suffix < 50) {
+      const { data: taken } = await supabase.from("sellers").select("id").eq("subdomain", subdomain).maybeSingle();
+      if (!taken) break;
+      suffix += 1;
+      subdomain = `${baseSubdomain}-${suffix}`;
+    }
+    if (suffix >= 50) {
+      /* DB unique constraint is the safety net, but this many collisions
+         means someone's trying to grief; fall back to a timestamp suffix */
+      subdomain = `${baseSubdomain}-${Date.now().toString(36)}`;
+    }
 
     const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
     if (authError) { setError(authError.message); setLoading(false); return; }
 
     if (authData.user) {
-      const subdomain = storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       const trialEnd = new Date(); trialEnd.setDate(trialEnd.getDate() + 7);
       const { error: profileError } = await supabase.from("sellers").insert({
-        id: authData.user.id, email, store_name: storeName, whatsapp_number: whatsapp, subdomain,
+        id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
         subscription_status: "trial", subscription_plan: "starter", trial_ends_at: trialEnd.toISOString(),
       });
-      if (profileError) { setError(profileError.message); setLoading(false); return; }
+      if (profileError) {
+        /* The seller insert failed (race condition on subdomain, RLS, etc).
+           The auth user is now orphaned. Surface a clear message and the
+           user can retry — the auth.signUp call is idempotent on email so
+           a retry won't create another auth account. */
+        setError("Could not create your store: " + profileError.message + ". Please try a different store name.");
+        setLoading(false);
+        return;
+      }
 
       // If user typed a ref code, set it as the cookie before attribution.
       // This unifies the two attribution paths (link click vs typed code).
