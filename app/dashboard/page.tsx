@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import Spinner from "../components/Spinner";
 
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 
@@ -474,13 +475,7 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}>
-      <div style={{ width: 32, height: 32, border: "3px solid rgba(255,255,255,0.06)", borderTopColor: "#ff6b35", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <p style={{ color: "rgba(245,245,245,0.35)", marginTop: 16 }}>Loading dashboard...</p>
-    </div>
-  );
+  if (loading) return <Spinner fullscreen label="Loading dashboard" />;
 
   const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;

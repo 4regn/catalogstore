@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
+import Spinner from "../../components/Spinner";
 
 const PLANS = [
   {
@@ -83,11 +84,7 @@ export default function BillingPage() {
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#030303", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}>
-      <p style={{ color: "rgba(245,245,245,0.35)" }}>Loading billing...</p>
-    </div>
-  );
+  if (loading) return <Spinner fullscreen label="Loading billing" />;
 
   return (
     <div style={{ minHeight: "100vh", background: "#030303", fontFamily: "'Schibsted Grotesk', sans-serif", color: "#f5f5f5" }}>
