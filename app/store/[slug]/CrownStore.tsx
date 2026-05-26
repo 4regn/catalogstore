@@ -393,6 +393,7 @@ export default function CrownStore() {
         /* Hand off to the proper checkout page which has the full PayFast flow */
         const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(
           cart.map((i) => ({
+            id: i.product.id,
             name: i.product.name,
             price: i.product.price,
             qty: i.qty,

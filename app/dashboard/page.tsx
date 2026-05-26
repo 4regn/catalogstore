@@ -161,17 +161,40 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
-  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
-  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); return; } setBannerFile(f); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/")) { alert("Logo must be an image file"); e.target.value = ""; return; } if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); e.target.value = ""; return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
+  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/")) { alert("Banner must be an image file"); e.target.value = ""; return; } if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); e.target.value = ""; return; } setBannerFile(f); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
 
   const saveStoreSettings = async () => {
-    if (!seller) return; setStoreSaving(true); setStoreSaved(false);
-    let logoUrl = seller.logo_url || ""; let bannerUrl = seller.banner_url || "";
-    if (logoFile) { const ext = logoFile.name.split(".").pop(); const path = seller.id + "/logo." + ext; await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); logoUrl = data.publicUrl + "?t=" + Date.now(); }
-    if (bannerFile) { const ext = bannerFile.name.split(".").pop(); const path = seller.id + "/banner." + ext; await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); bannerUrl = data.publicUrl + "?t=" + Date.now(); }
-    const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }).eq("id", seller.id);
-    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); }
-    setStoreSaving(false);
+    if (!seller) return;
+    setStoreSaving(true); setStoreSaved(false);
+    try {
+      let logoUrl = seller.logo_url || "";
+      let bannerUrl = seller.banner_url || "";
+      if (logoFile) {
+        const ext = logoFile.name.split(".").pop();
+        const path = seller.id + "/logo." + ext;
+        const { error: upErr } = await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true });
+        if (upErr) { alert("Logo upload failed: " + upErr.message); setStoreSaving(false); return; }
+        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+        logoUrl = data.publicUrl;
+      }
+      if (bannerFile) {
+        const ext = bannerFile.name.split(".").pop();
+        const path = seller.id + "/banner." + ext;
+        const { error: upErr } = await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true });
+        if (upErr) { alert("Banner upload failed: " + upErr.message); setStoreSaving(false); return; }
+        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+        bannerUrl = data.publicUrl;
+      }
+      const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }).eq("id", seller.id);
+      if (error) { alert("Couldn't save store: " + error.message); return; }
+      setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig });
+      setLogoFile(null); setBannerFile(null);
+      setStoreSaved(true);
+      setTimeout(() => setStoreSaved(false), 3000);
+    } finally {
+      setStoreSaving(false);
+    }
   };
 
   const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };

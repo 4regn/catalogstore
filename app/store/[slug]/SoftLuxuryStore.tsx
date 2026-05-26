@@ -670,7 +670,7 @@ export default function StorePage() {
                       <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500 }}>{fmt(cartTotal)}</span>
                     </div>
                     <button onClick={() => {
-                      const payload = JSON.stringify(cart.map(i => ({ name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
+                      const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
                       const encoded = btoa(unescape(encodeURIComponent(payload)));
                       window.location.href = "/store/" + slug + "/checkout?cart=" + encoded;
                     }} style={{ width: "100%", padding: 18, background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>

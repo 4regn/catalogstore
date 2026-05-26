@@ -235,15 +235,13 @@ export default function AffiliateDashboard() {
 
           <button
             onClick={handleWithdraw}
-            style={{
-              ...styles.withdrawBtn,
-              ...(canWithdraw ? {} : styles.withdrawBtnDisabled),
-            }}
-            disabled={!canWithdraw}
+            style={{ ...styles.withdrawBtn, ...styles.withdrawBtnDisabled }}
+            disabled
+            title="Withdrawals will open once the payout system is live"
           >
             {canWithdraw
-              ? `Withdraw ${formatR(affiliate.availableBalance)}`
-              : `R${fromCents(affiliate.availableBalance)} available · min R150`}
+              ? `${formatR(affiliate.availableBalance)} available · Withdrawals coming soon`
+              : `R${fromCents(affiliate.availableBalance)} available · min R150 to withdraw`}
           </button>
 
           <div style={styles.progressRow}>
@@ -313,15 +311,6 @@ export default function AffiliateDashboard() {
               </svg>
               Copy
             </button>
-            <button style={styles.shareBtn} onClick={() => showToast("QR code coming soon")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16 }}>
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <line x1="14" y1="17" x2="21" y2="17" />
-              </svg>
-              QR
-            </button>
           </div>
         </section>
 
@@ -345,7 +334,10 @@ export default function AffiliateDashboard() {
           <div style={styles.stat}>
             <div style={styles.statLabel}>Avg / seller</div>
             <div style={styles.statValue}>
-              <span style={styles.statSmall}>R</span>147
+              <span style={styles.statSmall}>R</span>
+              {stats && stats.activePaying > 0
+                ? Math.round((affiliate.totalEarned / 100) / stats.activePaying).toLocaleString()
+                : "—"}
             </div>
           </div>
         </section>

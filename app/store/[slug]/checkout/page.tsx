@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
 
@@ -18,7 +18,7 @@ interface Seller {
   };
 }
 
-interface CartItem { name: string; price: number; qty: number; variant: string; image: string; }
+interface CartItem { id?: string; name: string; price: number; qty: number; variant: string; image: string; }
 
 const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo", "Mpumalanga", "North West", "Northern Cape", "Western Cape"];
 
@@ -46,6 +46,8 @@ export default function CheckoutPage() {
   const [billingSame, setBillingSame] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const placingRef = useRef(false);
+  const [orderError, setOrderError] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [discountCode, setDiscountCode] = useState("");
@@ -176,53 +178,76 @@ export default function CheckoutPage() {
   };
 
   const placeOrder = async () => {
+    /* Double-submit guard: a ref because state updates are async, so two
+       fast clicks could both pass `if (placing) return` before React renders. */
+    if (placingRef.current) return;
     if (!seller) return;
-    if (!isStoreActive(seller)) { alert("This store is not currently accepting orders. Please contact the seller directly."); return; }
-    if (!email || !firstName || !lastName) { alert("Please fill in your contact details"); return; }
-    if (fulfillment === "delivery" && (!address || !city || !postalCode)) { alert("Please fill in your delivery address"); return; }
+    if (!isStoreActive(seller)) { setOrderError("This store is not currently accepting orders. Please contact the seller directly."); return; }
+    if (!email || !firstName || !lastName) { setOrderError("Please fill in your contact details"); return; }
+    if (fulfillment === "delivery" && (!address || !city || !postalCode)) { setOrderError("Please fill in your delivery address"); return; }
+
+    placingRef.current = true;
     setPlacing(true);
-    const { data, error } = await supabase.from("orders").insert({
-      seller_id: seller.id,
-      customer_name: firstName + " " + lastName,
-      customer_phone: phone,
-      customer_email: email,
-      items: cart.map((i) => ({ name: i.name, qty: i.qty, price: i.price, variant: i.variant, image: i.image })),
-      total,
-      status: "pending",
-      payment_status: paymentMethod === "eft" ? "awaiting_payment" : "pending",
-      shipping_address: fulfillment === "delivery" ? { address, apartment, city, province, postal_code: postalCode } : null,
-      fulfillment_method: fulfillment,
-      shipping_option: fulfillment === "delivery" ? cc.shipping_options?.[shippingOption]?.name : "Pickup",
-      shipping_cost: shipping,
-      payment_method: paymentMethod,
-    }).select().single();
+    setOrderError("");
 
-    if (data) {
-      setOrderNumber(data.order_number || data.id?.substring(0, 8));
-      setOrderPlaced(true);
+    try {
+      /* All pricing/discount logic happens server-side now. The server
+         re-fetches product prices from the DB so client-supplied `price`
+         values are ignored. */
+      const res = await fetch("/api/checkout/place-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug,
+          items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image })),
+          customer: { firstName, lastName, email, phone },
+          address: fulfillment === "delivery"
+            ? { address, apartment, city, province, postal_code: postalCode }
+            : null,
+          fulfillment,
+          shippingOptionIndex: fulfillment === "delivery" ? shippingOption : null,
+          paymentMethod,
+          discountCode: discountApplied?.code || null,
+        }),
+      });
 
-      // Send notification to seller (non-blocking)
-      fetch("/api/notify-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: data.id, sellerId: seller.id }) }).catch(() => {});
-
-      // Increment discount code usage
-      if (discountApplied && seller) {
-        const { data: dc } = await supabase.from("discount_codes").select("id, used_count").eq("seller_id", seller.id).eq("code", discountApplied.code.toUpperCase()).single();
-        if (dc) await supabase.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOrderError(json.error || "Could not place your order. Please try again.");
+        return;
       }
 
+      const orderId: string = json.orderId;
+      setOrderNumber(json.orderNumber);
+      setOrderPlaced(true);
+
+      // Notify seller (non-blocking)
+      fetch("/api/notify-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      }).catch(() => {});
+
       if (paymentMethod === "payfast" && cc.payfast_enabled) {
-        // Redirect through server-side route (merchant keys never exposed to browser)
-        const res = await fetch("/api/payfast-redirect", {
+        const pfRes = await fetch("/api/payfast-redirect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: data.id, slug, firstName, lastName, email, phone, returnOrigin: window.location.origin }),
+          body: JSON.stringify({ orderId, slug, firstName, lastName, email, phone, returnOrigin: window.location.origin }),
         });
-        const html = await res.text();
+        if (!pfRes.ok) {
+          setOrderError("Could not start PayFast checkout. Your order was saved; please contact the seller.");
+          return;
+        }
+        const html = await pfRes.text();
         document.open(); document.write(html); document.close();
         return;
       }
+    } catch (e: any) {
+      setOrderError(e?.message || "Network error placing your order. Please try again.");
+    } finally {
+      setPlacing(false);
+      placingRef.current = false;
     }
-    setPlacing(false);
   };
 
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.bodyFont, background: T.bg }}><p style={{ color: T.muted }}>Loading checkout...</p></div>;
@@ -480,6 +505,11 @@ export default function CheckoutPage() {
           </div>
 
           {/* PLACE ORDER */}
+          {orderError && (
+            <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#dc2626", padding: "12px 16px", borderRadius: 10, fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
+              {orderError}
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <a href={"/store/" + slug} style={{ fontSize: 13, color: accent, textDecoration: "none" }}>&larr; Return to store</a>
             <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#22c55e", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "payfast" ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
