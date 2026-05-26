@@ -65,7 +65,24 @@ export async function POST(req: NextRequest) {
 
     const merchantId = process.env.PAYFAST_MERCHANT_ID!;
     const merchantKey = process.env.PAYFAST_MERCHANT_KEY!;
-    const origin = returnOrigin || "https://catalogstore.co.za";
+    const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+    /* Validate the returnOrigin from the browser. notify_url is always
+       APP_ORIGIN — never client-derived — so PayFast's ITN can't be
+       redirected to an attacker's host. */
+    const safeOrigin = (raw: unknown): string => {
+      if (typeof raw !== "string") return APP_ORIGIN;
+      try {
+        const u = new URL(raw);
+        const host = u.host.toLowerCase();
+        const allowed = new URL(APP_ORIGIN).host.toLowerCase();
+        if (host === allowed) return u.origin;
+        if (host.endsWith("." + allowed)) return u.origin;
+        if (host === "localhost" || host.startsWith("localhost:") || host.startsWith("127.0.0.1")) return u.origin;
+        return APP_ORIGIN;
+      } catch { return APP_ORIGIN; }
+    };
+    const escAttr = (v: unknown): string => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const origin = safeOrigin(returnOrigin);
 
     // Calculate billing date — first charge after 7-day trial
     const billingDate = new Date();
@@ -92,7 +109,10 @@ export async function POST(req: NextRequest) {
 
       return_url: `${origin}/dashboard/billing?status=success&plan=${planId}`,
       cancel_url: `${origin}/dashboard/billing?status=cancelled`,
-      notify_url: `${origin}/api/subscription/notify`,
+      /* notify_url is always our configured APP_ORIGIN, not derived from
+         the browser request, so the PayFast ITN can't be redirected to
+         an attacker-controlled host. */
+      notify_url: `${APP_ORIGIN}/api/subscription/notify`,
 
       // Subscription settings — 7-day trial then R49, then R99
       subscription_type: "1",                              // Recurring subscription
@@ -119,7 +139,7 @@ export async function POST(req: NextRequest) {
           <p style="font-size:13px;color:rgba(255,255,255,0.4);margin:0">Please wait</p>
           <form id="pf" method="POST" action="https://www.payfast.co.za/eng/process">
             ${Object.entries(fields)
-              .map(([k, v]) => `<input type="hidden" name="${k}" value="${v.replace(/"/g, "&quot;")}" />`)
+              .map(([k, v]) => `<input type="hidden" name="${escAttr(k)}" value="${escAttr(v)}" />`)
               .join("\n            ")}
           </form>
           <script>document.getElementById("pf").submit();</script>

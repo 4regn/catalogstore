@@ -54,9 +54,30 @@ export default function CheckoutPage() {
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string } | null>(null);
+  const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
 
   useEffect(() => { load(); }, [slug]);
+
+  /* While we're showing the "Processing payment" state, poll the order
+     every 3 seconds for up to 90 seconds so the page flips to "Confirmed"
+     as soon as PayFast's ITN lands. */
+  useEffect(() => {
+    if (!paidOrder?._processing || !paidOrder?.order_number) return;
+    let count = 0;
+    const id = setInterval(async () => {
+      count += 1;
+      const orderId = (paidOrder as any).id || new URLSearchParams(window.location.search).get("paid");
+      if (!orderId) { clearInterval(id); return; }
+      const { data } = await supabase.from("orders").select("*").eq("id", orderId).single();
+      if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
+        setPaidOrder({ ...data, _processing: false });
+        clearInterval(id);
+      } else if (count >= 30) {
+        clearInterval(id);
+      }
+    }, 3000);
+    return () => clearInterval(id);
+  }, [paidOrder?._processing, paidOrder?.order_number]);
 
   const load = async () => {
     // Fetch seller data through safe API (strips merchant keys)
@@ -68,11 +89,23 @@ export default function CheckoutPage() {
       if (prods) setSellerProducts(prods);
     }
     const p = new URLSearchParams(window.location.search);
-    // Check if returning from PayFast payment
+    // Check if returning from PayFast payment.
+    // Only show the success screen if the order is actually marked paid
+    // server-side — previously anyone could land on ?paid=<orderId> and
+    // see "Payment Successful" regardless of whether payment went through.
     const paidId = p.get("paid");
     if (paidId) {
       const { data: order } = await supabase.from("orders").select("*").eq("id", paidId).single();
-      if (order) { setPaidOrder(order); setLoading(false); return; }
+      if (order && (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered")) {
+        setPaidOrder(order); setLoading(false); return;
+      }
+      if (order) {
+        /* Order exists but isn't paid yet — PayFast's ITN may still be in
+           flight. Show a "processing" message instead of false success. */
+        setPaidOrder({ ...order, _processing: true });
+        setLoading(false);
+        return;
+      }
     }
     // Handle cancelled PayFast payment - reload cart from order
     const cancelledParam = p.get("cancelled");
@@ -266,13 +299,25 @@ export default function CheckoutPage() {
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "60px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 40, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
-          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(34,197,94,0.12)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-          <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
-          <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
+          {paidOrder._processing ? (
+            <>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC ? 400 : 300, marginBottom: 8 }}>Processing payment…</h1>
+              <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
+            </>
+          ) : (
+            <>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(34,197,94,0.12)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
+              <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
+            </>
+          )}
         </div>
         <div style={{ background: T.card, borderRadius: 16, padding: 28, marginBottom: 24, border: "1px solid " + T.border }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Order Confirmed</h3>
-          <p style={{ fontSize: 14, lineHeight: 1.8, color: T.muted, marginBottom: 20 }}>Thank you {paidOrder.customer_name}! Your payment has been received and your order is being processed. You'll receive updates via email.</p>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: paidOrder._processing ? "#fbbf24" : "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{paidOrder._processing ? "Awaiting Confirmation" : "Order Confirmed"}</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.8, color: T.muted, marginBottom: 20 }}>{paidOrder._processing
+            ? `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for the payment confirmation from PayFast. This page will update automatically, or check your email for the receipt.`
+            : `Thank you ${paidOrder.customer_name}! Your payment has been received and your order is being processed. You'll receive updates via email.`}</p>
           <div style={{ borderTop: "1px solid " + T.border, paddingTop: 16 }}>
             {(paidOrder.items || []).map((item: any, i: number) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 14 }}>

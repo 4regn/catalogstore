@@ -57,23 +57,28 @@ export default function BillingPage() {
     }
   };
 
+  /* CRITICAL: never use the ?status=success URL param to promote a seller
+     to active. PayFast's ITN webhook (/api/subscription/notify) is the
+     only source of truth for subscription activation. Previously the
+     client wrote subscription_status="active" directly from the URL,
+     which meant anyone could give themselves a paid plan by visiting
+     /dashboard/billing?status=success&plan=pro.
+     We just clean the URL and show a confirmation banner — the
+     subscription is activated by the webhook within seconds. */
+  const [justSubscribed, setJustSubscribed] = useState(false);
+  const [paymentCancelled, setPaymentCancelled] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
     const status = p.get("status");
-    const plan = p.get("plan");
-    if (status === "success" && plan && seller) {
-      supabase.from("sellers").update({
-        subscription_status: "active",
-        subscription_plan: plan,
-        subscription_started_at: new Date().toISOString(),
-        plan: plan,
-      }).eq("id", seller.id).then(() => {
-        setSeller({ ...seller, subscription_status: "active", subscription_plan: plan, plan });
-        window.history.replaceState({}, "", "/dashboard/billing");
-      });
+    if (status === "success") {
+      setJustSubscribed(true);
+      window.history.replaceState({}, "", "/dashboard/billing");
+    } else if (status === "cancelled") {
+      setPaymentCancelled(true);
+      window.history.replaceState({}, "", "/dashboard/billing");
     }
-  }, [seller]);
+  }, []);
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
@@ -103,6 +108,22 @@ export default function BillingPage() {
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
           {needsVerification ? "Verify your card with R1 to start your 7-day free trial and unlock your dashboard." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the " + (seller?.subscription_plan || "starter") + " plan" : isExpired ? "Your trial has expired. Choose a plan to continue." : "Start selling online in minutes"}
         </p>
+
+        {justSubscribed && (
+          <div style={{ maxWidth: 720, margin: "0 auto 24px", padding: "16px 20px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 14, display: "flex", alignItems: "center", gap: 12 }} role="status">
+            <span style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(34,197,94,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#22c55e", fontSize: 14, fontWeight: 800 }}>✓</span>
+            <div style={{ fontSize: 13, color: "#a7f3d0", lineHeight: 1.5 }}>
+              <strong style={{ color: "#22c55e" }}>Payment received.</strong> Your subscription will activate within a few seconds — refresh the page if it doesn&apos;t update.
+            </div>
+          </div>
+        )}
+        {paymentCancelled && (
+          <div style={{ maxWidth: 720, margin: "0 auto 24px", padding: "16px 20px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 14 }} role="status">
+            <div style={{ fontSize: 13, color: "#fcd34d", lineHeight: 1.5 }}>
+              Payment was cancelled. You can pick a plan below to try again.
+            </div>
+          </div>
+        )}
 
         {isPromo && !isActive && (
           <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -191,7 +212,24 @@ export default function BillingPage() {
           <div style={{ marginTop: 48, padding: "28px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, textAlign: "center" }}>
             <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Cancel Subscription</h3>
             <p style={{ fontSize: 13, color: "rgba(245,245,245,0.25)", marginBottom: 20, maxWidth: 400, margin: "0 auto 20px" }}>Your store will remain active until the end of your current billing period. After that, your store will go offline.</p>
-            <button onClick={async () => { if (!confirm("Are you sure you want to cancel your subscription? Your store will go offline at the end of your billing period.")) return; await supabase.from("sellers").update({ subscription_status: "expired" }).eq("id", seller.id); setSeller({ ...seller, subscription_status: "expired" }); }} style={{ padding: "12px 32px", background: "transparent", border: "1px solid rgba(255,61,110,0.2)", borderRadius: 100, color: "#ff3d6e", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>Cancel Subscription</button>
+            <button onClick={async () => {
+              if (!confirm("Are you sure you want to cancel your subscription? Your store will keep working until the end of the current billing period, then go offline.")) return;
+              setProcessing(true);
+              try {
+                const session = await supabase.auth.getSession();
+                const token = session.data.session?.access_token || "";
+                const res = await fetch("/api/subscription/cancel", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                const j = await res.json().catch(() => ({}));
+                if (!res.ok) { alert(j.error || "Could not cancel — please email support."); return; }
+                setSeller({ ...seller, subscription_status: "cancelled" });
+                alert("Your subscription has been cancelled. Your store will stay live until the end of the billing period.");
+              } finally {
+                setProcessing(false);
+              }
+            }} disabled={processing} style={{ padding: "12px 32px", background: "transparent", border: "1px solid rgba(255,61,110,0.2)", borderRadius: 100, color: "#ff3d6e", fontSize: 11, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.5 : 1, fontFamily: "'Schibsted Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>{processing ? "Cancelling..." : "Cancel Subscription"}</button>
           </div>
         )}
 
