@@ -52,6 +52,7 @@ export default function StorePage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
+  const [modalQty, setModalQty] = useState(1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -164,14 +165,34 @@ export default function StorePage() {
   })();
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
-  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); };
+  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
+  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); };
 
-  const addToCart = (p: Product) => {
+  /* Escape closes whichever overlay is open. Customers expect this. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (selectedProduct) closeProduct();
+      else if (showCart) setShowCart(false);
+      else if (showSearch) { setShowSearch(false); setSearchQuery(""); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedProduct, showCart, showSearch]);
+
+  /* Lock body scroll when any overlay is open */
+  useEffect(() => {
+    const open = !!selectedProduct || showCart || showSearch;
+    if (typeof document === "undefined") return;
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [selectedProduct, showCart, showSearch]);
+
+  const addToCart = (p: Product, qty: number = 1) => {
     const key = JSON.stringify(selectedVariants);
     const idx = cart.findIndex((i) => i.product.id === p.id && JSON.stringify(i.selectedVariants) === key);
-    if (idx >= 0) { const u = [...cart]; u[idx].qty += 1; setCart(u); }
-    else setCart([...cart, { product: p, qty: 1, selectedVariants: { ...selectedVariants } }]);
+    if (idx >= 0) { const u = [...cart]; u[idx].qty += qty; setCart(u); }
+    else setCart([...cart, { product: p, qty, selectedVariants: { ...selectedVariants } }]);
     closeProduct(); setShowCart(true);
   };
 
@@ -621,7 +642,16 @@ export default function StorePage() {
                       ))}
                     </div>
                   )}
-                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "18px 32px", background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(selectedProduct.price)}</button>
+                  {/* Quantity picker */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", marginBottom: 16, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                    <span style={{ fontSize: 11, color: "#8a8690", letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: "'Jost', sans-serif", fontWeight: 500 }}>Quantity</span>
+                    <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 100, overflow: "hidden" }}>
+                      <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 36, height: 36, background: "none", border: "none", color: "#2a2a2e", cursor: "pointer", fontSize: 16, fontFamily: "'Jost', sans-serif" }}>−</button>
+                      <span style={{ minWidth: 32, textAlign: "center", fontSize: 14, fontWeight: 500, color: "#2a2a2e" }}>{modalQty}</span>
+                      <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 36, height: 36, background: "none", border: "none", color: "#2a2a2e", cursor: "pointer", fontSize: 16, fontFamily: "'Jost', sans-serif" }}>+</button>
+                    </div>
+                  </div>
+                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: "#2a2a2e", color: "#f6f3ef", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
                 </div>
               </div>
             </div>
@@ -647,7 +677,7 @@ export default function StorePage() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 12, color: "#b5b1ac", marginBottom: 8 }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" \u2022 ")}</div>}
-                          <div style={{ fontSize: 14, fontWeight: 500, color: accent, marginBottom: 8 }}>{fmt(item.product.price)}</div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: accent, marginBottom: 8 }}>{fmt(item.product.price * item.qty)}{item.qty > 1 && <span style={{ fontSize: 11, color: "#b5b1ac", marginLeft: 6, fontWeight: 400 }}>({fmt(item.product.price)} each)</span>}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <button onClick={() => updateQty(idx, -1)} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid rgba(0,0,0,0.1)", background: "none", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
                             <span style={{ fontSize: 14, fontWeight: 500, minWidth: 20, textAlign: "center" }}>{item.qty}</span>

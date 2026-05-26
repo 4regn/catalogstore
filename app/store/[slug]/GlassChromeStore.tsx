@@ -52,6 +52,7 @@ export default function GlassChromeStore() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
+  const [modalQty, setModalQty] = useState(1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -164,14 +165,34 @@ export default function GlassChromeStore() {
   })();
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
-  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); };
+  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
+  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); };
 
-  const addToCart = (p: Product) => {
+  /* Escape closes the topmost overlay */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (selectedProduct) closeProduct();
+      else if (showCart) setShowCart(false);
+      else if (showSearch) { setShowSearch(false); setSearchQuery(""); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedProduct, showCart, showSearch]);
+
+  /* Body scroll lock */
+  useEffect(() => {
+    const open = !!selectedProduct || showCart || showSearch;
+    if (typeof document === "undefined") return;
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [selectedProduct, showCart, showSearch]);
+
+  const addToCart = (p: Product, qty: number = 1) => {
     const key = JSON.stringify(selectedVariants);
     const idx = cart.findIndex((i) => i.product.id === p.id && JSON.stringify(i.selectedVariants) === key);
-    if (idx >= 0) { const u = [...cart]; u[idx].qty += 1; setCart(u); }
-    else setCart([...cart, { product: p, qty: 1, selectedVariants: { ...selectedVariants } }]);
+    if (idx >= 0) { const u = [...cart]; u[idx].qty += qty; setCart(u); }
+    else setCart([...cart, { product: p, qty, selectedVariants: { ...selectedVariants } }]);
     closeProduct(); setShowCart(true);
   };
 
@@ -655,7 +676,16 @@ export default function GlassChromeStore() {
                       ))}
                     </div>
                   )}
-                  <button onClick={() => addToCart(selectedProduct)} style={{ padding: "16px 32px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(selectedProduct.price)}</button>
+                  {/* Quantity picker */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", marginBottom: 14, borderTop: "1px solid " + PB, borderBottom: "1px solid " + PB }}>
+                    <span style={{ fontFamily: mono, fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.12em", textTransform: "uppercase" }}>Quantity</span>
+                    <div style={{ display: "flex", alignItems: "center", border: "1px solid " + PB, borderRadius: 4, overflow: "hidden" }}>
+                      <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 34, height: 34, background: "none", border: "none", color: "#f0f0f0", cursor: "pointer", fontSize: 14, fontFamily: body }}>−</button>
+                      <span style={{ minWidth: 32, textAlign: "center", fontFamily: mono, fontSize: 13, fontWeight: 700, color: "#fff" }}>{modalQty}</span>
+                      <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 34, height: 34, background: "none", border: "none", color: "#f0f0f0", cursor: "pointer", fontSize: 14, fontFamily: body }}>+</button>
+                    </div>
+                  </div>
+                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "16px 32px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(selectedProduct.price * modalQty)}</button>
                 </div>
               </div>
             </div>
@@ -681,7 +711,7 @@ export default function GlassChromeStore() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 8, fontFamily: mono, letterSpacing: "0.05em" }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" / ")}</div>}
-                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{fmt(item.product.price)}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{fmt(item.product.price * item.qty)}{item.qty > 1 && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 8, fontWeight: 400, fontFamily: mono }}>({fmt(item.product.price)} ea)</span>}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <button onClick={() => updateQty(idx, -1)} style={{ width: 28, height: 28, borderRadius: 4, border: "1px solid " + PB, background: "none", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", color: "#f0f0f0" }}>-</button>
                             <span style={{ fontSize: 14, fontWeight: 500, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
