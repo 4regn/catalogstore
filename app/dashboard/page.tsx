@@ -5,6 +5,14 @@ import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import Spinner from "../components/Spinner";
 
+/* Read a non-HttpOnly cookie. We use this to detect admin impersonation
+   so the dashboard knows to mask payment / banking values. */
+function readImpersonationCookie(): string {
+  if (typeof document === "undefined") return "";
+  const row = document.cookie.split(";").map((c) => c.trim()).find((c) => c.startsWith("cs_impersonating="));
+  return row ? decodeURIComponent(row.split("=").slice(1).join("=")) : "";
+}
+
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 
 interface SocialLinks {
@@ -66,6 +74,10 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  /* True when an admin is signed in as this seller via the impersonation
+     flow. We mask payment/banking values from the UI in this mode — the
+     admin can SET new values but never sees the existing ones. */
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const [tab, setTab] = useState<"overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned">("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
@@ -147,8 +159,14 @@ export default function Dashboard() {
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
+    /* Cookie set by /api/admin/impersonate/[id]. We blank out the
+       sensitive checkout-config fields below so they never touch React
+       state when admin is acting on the seller's behalf. */
+    const impersonatingId = readImpersonationCookie();
+    const impersonating = !!impersonatingId && impersonatingId === user.id;
+    setIsImpersonating(impersonating);
     const { data: sd } = await supabase.from("sellers").select("*").eq("id", user.id).single();
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout." }] }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout." }] }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: impersonating ? "" : (cc.eft_account_number || ""), eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: impersonating ? "" : (cc.payfast_merchant_id || ""), payfast_merchant_key: impersonating ? "" : (cc.payfast_merchant_key || ""), delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
     // Fetch products, orders, discounts in parallel
     const [pdResult, odResult, dcResult] = await Promise.all([
       supabase.from("products").select("*").eq("seller_id", user.id).order("sort_order", { ascending: true }),
@@ -1189,7 +1207,15 @@ export default function Dashboard() {
               <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>EFT / Direct Deposit</h3>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", marginBottom: 16 }}><span style={{ fontSize: 13 }}>Enable EFT Payments</span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, eft_enabled: !checkoutConfig.eft_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.eft_enabled ? N : "rgba(255,255,255,0.08)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.eft_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
               {checkoutConfig.eft_enabled && (<div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
-                {[{ k: "eft_bank_name" as const, l: "Bank Name", p: "e.g. Capitec Business" }, { k: "eft_account_number" as const, l: "Account Number", p: "e.g. 1053526750" }, { k: "eft_account_name" as const, l: "Account Name", p: "e.g. YOUR BRAND PTY LTD" }, { k: "eft_branch_code" as const, l: "Branch Code", p: "e.g. 450105" }, { k: "eft_account_type" as const, l: "Account Type", p: "e.g. Cheque / Savings / Business" }].map((f) => (<div key={f.k}><label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>{f.l}</label><input type="text" value={checkoutConfig[f.k]} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, [f.k]: e.target.value })} placeholder={f.p} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></div>))}
+                {[{ k: "eft_bank_name" as const, l: "Bank Name", p: "e.g. Capitec Business", sensitive: false }, { k: "eft_account_number" as const, l: "Account Number", p: "e.g. 1053526750", sensitive: true }, { k: "eft_account_name" as const, l: "Account Name", p: "e.g. YOUR BRAND PTY LTD", sensitive: false }, { k: "eft_branch_code" as const, l: "Branch Code", p: "e.g. 450105", sensitive: false }, { k: "eft_account_type" as const, l: "Account Type", p: "e.g. Cheque / Savings / Business", sensitive: false }].map((f) => {
+                  const hidden = isImpersonating && f.sensitive;
+                  return (
+                    <div key={f.k}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>{f.l}{hidden && <span style={{ color: "#c4b5fd", marginLeft: 8, fontWeight: 600 }}>· hidden during assist</span>}</label>
+                      <input type="text" value={checkoutConfig[f.k]} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, [f.k]: e.target.value })} placeholder={hidden ? "•••••• existing value hidden. Type to replace." : f.p} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: hidden ? "1px solid rgba(139,92,246,0.3)" : "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    </div>
+                  );
+                })}
                 <div><label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Payment Instructions</label><textarea value={checkoutConfig.eft_instructions} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, eft_instructions: e.target.value })} placeholder={"e.g. After placing your order, please make payment within 24 hours using your order number as reference."} rows={6} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const }} /></div>
               </div>)}
             </div>
@@ -1197,13 +1223,53 @@ export default function Dashboard() {
               <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>PayFast</h3>
               <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Accept card payments. Enter your PayFast merchant credentials.</p>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", marginBottom: 16 }}><span style={{ fontSize: 13 }}>Enable PayFast</span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, payfast_enabled: !checkoutConfig.payfast_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.payfast_enabled ? N : "rgba(255,255,255,0.08)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.payfast_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
-              {checkoutConfig.payfast_enabled && (<div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}><div><label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Merchant ID</label><input type="text" value={checkoutConfig.payfast_merchant_id} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, payfast_merchant_id: e.target.value })} placeholder="Your PayFast Merchant ID" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></div><div><label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Merchant Key</label><input type="password" value={checkoutConfig.payfast_merchant_key} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, payfast_merchant_key: e.target.value })} placeholder="Your PayFast Merchant Key" style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></div><p style={{ fontSize: 11, color: "rgba(245,245,245,0.2)" }}>Find these in your PayFast dashboard under Settings &gt; Integration.</p></div>)}
+              {checkoutConfig.payfast_enabled && (<div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Merchant ID{isImpersonating && <span style={{ color: "#c4b5fd", marginLeft: 8, fontWeight: 600 }}>· hidden during assist</span>}</label>
+                  <input type="text" value={checkoutConfig.payfast_merchant_id} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, payfast_merchant_id: e.target.value })} placeholder={isImpersonating ? "•••••• existing value hidden. Type to replace." : "Your PayFast Merchant ID"} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: isImpersonating ? "1px solid rgba(139,92,246,0.3)" : "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Merchant Key{isImpersonating && <span style={{ color: "#c4b5fd", marginLeft: 8, fontWeight: 600 }}>· hidden during assist</span>}</label>
+                  <input type="password" value={checkoutConfig.payfast_merchant_key} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, payfast_merchant_key: e.target.value })} placeholder={isImpersonating ? "•••••• existing value hidden. Type to replace." : "Your PayFast Merchant Key"} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: isImpersonating ? "1px solid rgba(139,92,246,0.3)" : "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                </div>
+                <p style={{ fontSize: 11, color: "rgba(245,245,245,0.2)" }}>Find these in your PayFast dashboard under Settings &gt; Integration.{isImpersonating && <span style={{ color: "#c4b5fd" }}> While assisting, existing values are hidden. Leave blank to keep them; type new values to replace.</span>}</p>
+              </div>)}
             </div>
             <div style={{ marginBottom: 32, padding: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><div><h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>WhatsApp Checkout</h3><p style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Allow customers to place orders via WhatsApp message</p></div><button onClick={() => setCheckoutConfig({ ...checkoutConfig, whatsapp_checkout_enabled: !checkoutConfig.whatsapp_checkout_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.whatsapp_checkout_enabled ? "#25d366" : "rgba(255,255,255,0.08)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.whatsapp_checkout_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={async () => { if (!seller) return; setCheckoutSaving(true); setCheckoutSaved(false); await supabase.from("sellers").update({ checkout_config: checkoutConfig }).eq("id", seller.id); setSeller({ ...seller, checkout_config: checkoutConfig }); setCheckoutSaving(false); setCheckoutSaved(true); setTimeout(() => setCheckoutSaved(false), 3000); }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
+              <button onClick={async () => {
+                if (!seller) return;
+                setCheckoutSaving(true); setCheckoutSaved(false);
+                try {
+                  if (isImpersonating) {
+                    /* Admin path: send a partial PATCH; empty strings on
+                       sensitive fields are preserved server-side, and the
+                       sanitized merged config comes back. */
+                    const session = await supabase.auth.getSession();
+                    const token = session.data.session?.access_token || "";
+                    const res = await fetch("/api/admin/checkout-config", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify(checkoutConfig),
+                    });
+                    const j = await res.json().catch(() => ({}));
+                    if (!res.ok) { alert(j.error || "Could not save checkout settings."); return; }
+                    /* Clear the sensitive form fields so the admin can't
+                       inspect what they just typed via dev-tools state. */
+                    setCheckoutConfig({ ...checkoutConfig, ...j.checkout_config, payfast_merchant_key: "", payfast_merchant_id: "", eft_account_number: "" });
+                  } else {
+                    const { error } = await supabase.from("sellers").update({ checkout_config: checkoutConfig }).eq("id", seller.id);
+                    if (error) { alert("Could not save: " + error.message); return; }
+                    setSeller({ ...seller, checkout_config: checkoutConfig });
+                  }
+                  setCheckoutSaved(true);
+                  setTimeout(() => setCheckoutSaved(false), 3000);
+                } finally {
+                  setCheckoutSaving(false);
+                }
+              }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
               {checkoutSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
             </div>
           </div>)}

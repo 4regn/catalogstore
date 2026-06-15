@@ -3,6 +3,7 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import AffiliateRefTracker from "./components/AffiliateRefTracker";
 import AffiliateReferralBanner from "./components/AffiliateReferralBanner";
+import ImpersonationBanner from "./components/ImpersonationBanner";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za"),
@@ -71,6 +72,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <ImpersonationBanner />
         <AffiliateRefTracker />
         <AffiliateReferralBanner />
         {children}
