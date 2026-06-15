@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { writeAudit } from "../../../../../lib/admin-audit";
 import { getClientIP } from "../../../../../lib/rate-limit";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+/* Lazy-init the supabase admin client so module evaluation at build time
+   (Next 16 "collect page data" phase) doesn't crash when env vars aren't
+   present. The runtime always has them. */
+let _admin: SupabaseClient | null = null;
+function admin() {
+  if (_admin) return _admin;
+  _admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+  return _admin;
+}
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "info@4regn.com";
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
@@ -31,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     req.headers.get("authorization")?.replace("Bearer ", "");
   if (!accessToken) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(accessToken);
+  const { data: userData, error: userErr } = await admin().auth.getUser(accessToken);
   if (userErr || !userData.user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
 
   const adminEmail = (userData.user.email || "").toLowerCase();
@@ -43,7 +51,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!sellerId) return NextResponse.json({ error: "Missing seller id" }, { status: 400 });
 
   /* Find the seller */
-  const { data: seller, error: sellerErr } = await supabaseAdmin
+  const { data: seller, error: sellerErr } = await admin()
     .from("sellers")
     .select("id, email, store_name")
     .eq("id", sellerId)
@@ -54,7 +62,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   /* Generate a magic link that signs the seller in.
      The action_link contains the access + refresh tokens in its hash
      fragment, which the Supabase client picks up on landing. */
-  const { data: link, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+  const { data: link, error: linkErr } = await admin().auth.admin.generateLink({
     type: "magiclink",
     email: seller.email,
     options: {

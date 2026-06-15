@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
+import { getAdmin } from "../../../lib/supabase-admin";
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
 
 /* Strict HTML attribute escaping — the previous version only handled `"`,
@@ -52,10 +46,10 @@ export async function POST(req: NextRequest) {
     if (!orderId || !slug) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
     // Get seller checkout config server-side (never exposed to client)
-    const { data: seller } = await supabase.from("sellers").select("id, checkout_config, store_name").eq("subdomain", slug).single();
+    const { data: seller } = await getAdmin().from("sellers").select("id, checkout_config, store_name").eq("subdomain", slug).single();
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
 
-    const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single();
+    const { data: order } = await getAdmin().from("orders").select("*").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
     // Verify order belongs to this seller

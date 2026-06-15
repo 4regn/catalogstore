@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
+import { getAdmin } from "../../../lib/supabase-admin";
 export async function GET(req: NextRequest) {
   const ip = getClientIP(req);
   const rl = rateLimit("seller-pub:" + ip, 30, 60);
@@ -14,7 +8,7 @@ export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
   if (!slug) return NextResponse.json({ error: "Missing slug" }, { status: 400 });
 
-  const { data: seller } = await supabase.from("sellers").select("*").eq("subdomain", slug).single();
+  const { data: seller } = await getAdmin().from("sellers").select("*").eq("subdomain", slug).single();
   if (!seller) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Strip sensitive keys before sending to client

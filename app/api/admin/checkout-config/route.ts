@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { writeAudit } from "../../../../lib/admin-audit";
 import { getClientIP } from "../../../../lib/rate-limit";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+/* Lazy init — avoids "supabaseUrl is required" during Next 16's
+   collect-page-data phase when env vars may be absent. */
+let _admin: SupabaseClient | null = null;
+function admin() {
+  if (_admin) return _admin;
+  _admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+  return _admin;
+}
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "info@4regn.com";
 
@@ -69,7 +76,7 @@ export async function PATCH(req: NextRequest) {
     cookieStore.get("sb-access-token")?.value ||
     req.headers.get("authorization")?.replace("Bearer ", "");
   if (!accessToken) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(accessToken);
+  const { data: userData, error: userErr } = await admin().auth.getUser(accessToken);
   if (userErr || !userData.user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
   if (userData.user.id !== impersonatingSellerId) {
     return NextResponse.json({ error: "Session / impersonation target mismatch" }, { status: 403 });
@@ -79,7 +86,7 @@ export async function PATCH(req: NextRequest) {
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   /* Fetch existing config so we can merge */
-  const { data: existing, error: getErr } = await supabaseAdmin
+  const { data: existing, error: getErr } = await admin()
     .from("sellers")
     .select("checkout_config")
     .eq("id", impersonatingSellerId)
@@ -101,7 +108,7 @@ export async function PATCH(req: NextRequest) {
     if (SENSITIVE_KEYS.has(k)) sensitiveWritten.push(k);
   }
 
-  const { error: updErr } = await supabaseAdmin
+  const { error: updErr } = await admin()
     .from("sellers")
     .update({ checkout_config: merged })
     .eq("id", impersonatingSellerId);

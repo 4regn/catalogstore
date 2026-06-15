@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { getAdmin } from "../../../../lib/supabase-admin";
 
 function clearRefCookie(res: NextResponse, host: string | null) {
   const isProd = host?.includes("catalogstore.co.za") ?? false;
@@ -30,7 +24,7 @@ export async function POST(req: NextRequest) {
     if (!accessToken) {
       return NextResponse.json({ ok: false, reason: "not_authenticated" }, { status: 401 });
     }
-    const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(accessToken);
+    const { data: userData, error: userErr } = await getAdmin().auth.getUser(accessToken);
     if (userErr || !userData.user) {
       return NextResponse.json({ ok: false, reason: "invalid_session" }, { status: 401 });
     }
@@ -58,7 +52,7 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
-    const { data: affiliate } = await supabaseAdmin
+    const { data: affiliate } = await getAdmin()
       .from("affiliates")
       .select("id, user_id")
       .eq("slug", cleanSlug)
@@ -70,7 +64,7 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
-    const { data: seller } = await supabaseAdmin
+    const { data: seller } = await getAdmin()
       .from("sellers")
       .select("id")
       .eq("id", sellerId)
@@ -88,7 +82,7 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await getAdmin()
       .from("affiliate_referrals")
       .select("id")
       .eq("seller_id", sellerId)
@@ -100,7 +94,7 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
-    const { error: insertErr } = await supabaseAdmin
+    const { error: insertErr } = await getAdmin()
       .from("affiliate_referrals")
       .insert({
         affiliate_id: affiliate.id,

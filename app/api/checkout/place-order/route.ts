@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getAdmin } from "../../../../lib/supabase-admin";
 
 /* Server-side order placement.
    The previous flow inserted directly from the browser using client-supplied
@@ -62,7 +57,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Delivery address incomplete" }, { status: 400 });
   }
 
-  const { data: seller, error: sellerErr } = await supabase
+  const { data: seller, error: sellerErr } = await getAdmin()
     .from("sellers")
     .select("id, subscription_status, trial_ends_at, checkout_config")
     .eq("subdomain", slug)
@@ -83,10 +78,10 @@ export async function POST(req: NextRequest) {
 
   const [byId, byName] = await Promise.all([
     itemIds.length
-      ? supabase.from("products").select("id, name, price, in_stock, status, category").in("id", itemIds).eq("seller_id", seller.id)
+      ? getAdmin().from("products").select("id, name, price, in_stock, status, category").in("id", itemIds).eq("seller_id", seller.id)
       : Promise.resolve({ data: [] as any[] }),
     itemNames.length
-      ? supabase.from("products").select("id, name, price, in_stock, status, category").in("name", itemNames).eq("seller_id", seller.id)
+      ? getAdmin().from("products").select("id, name, price, in_stock, status, category").in("name", itemNames).eq("seller_id", seller.id)
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
@@ -142,7 +137,7 @@ export async function POST(req: NextRequest) {
   let discountRow: any = null;
   if (typeof discountCode === "string" && discountCode.trim()) {
     const code = discountCode.trim().toUpperCase();
-    const { data: dc } = await supabase
+    const { data: dc } = await getAdmin()
       .from("discount_codes")
       .select("*")
       .eq("seller_id", seller.id)
@@ -179,7 +174,7 @@ export async function POST(req: NextRequest) {
        we read it. If two checkouts read used_count=4 with max_uses=5, only one
        update succeeds; the other gets 0 rows affected and is rejected. */
     if (dc.max_uses) {
-      const { data: updated, error: upErr } = await supabase
+      const { data: updated, error: upErr } = await getAdmin()
         .from("discount_codes")
         .update({ used_count: (dc.used_count || 0) + 1 })
         .eq("id", dc.id)
@@ -191,7 +186,7 @@ export async function POST(req: NextRequest) {
       }
     } else {
       /* No max_uses cap — still bump the counter for analytics, but don't fail */
-      await supabase.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
+      await getAdmin().from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
     }
     discountRow = dc;
   }
@@ -218,7 +213,7 @@ export async function POST(req: NextRequest) {
     status: "pending",
   };
 
-  const { data: inserted, error: insErr } = await supabase
+  const { data: inserted, error: insErr } = await getAdmin()
     .from("orders")
     .insert(orderRow)
     .select("id, order_number, total")
@@ -227,7 +222,7 @@ export async function POST(req: NextRequest) {
   if (insErr || !inserted) {
     /* Roll back the discount reservation if order insert failed */
     if (discountRow?.max_uses) {
-      await supabase
+      await getAdmin()
         .from("discount_codes")
         .update({ used_count: (discountRow.used_count || 0) })
         .eq("id", discountRow.id);

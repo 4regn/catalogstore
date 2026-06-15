@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import crypto from "crypto";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { getAdmin } from "../../../../lib/supabase-admin";
 
 const PAYFAST_PASSPHRASE = process.env.PAYFAST_PASSPHRASE || "";
 const PAYFAST_MERCHANT_ID = process.env.PAYFAST_MERCHANT_ID || "";
@@ -41,10 +35,10 @@ export async function POST(req: NextRequest) {
     req.headers.get("authorization")?.replace("Bearer ", "");
   if (!accessToken) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(accessToken);
+  const { data: userData, error: userErr } = await getAdmin().auth.getUser(accessToken);
   if (userErr || !userData.user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
 
-  const { data: seller, error: sellerErr } = await supabaseAdmin
+  const { data: seller, error: sellerErr } = await getAdmin()
     .from("sellers")
     .select("id, payfast_subscription_token, subscription_status")
     .eq("id", userData.user.id)
@@ -54,7 +48,7 @@ export async function POST(req: NextRequest) {
   if (!seller.payfast_subscription_token) {
     /* Nothing to cancel at PayFast — just mark as cancelled locally.
        Happens on trial accounts that never converted. */
-    await supabaseAdmin.from("sellers").update({ subscription_status: "cancelled" }).eq("id", seller.id);
+    await getAdmin().from("sellers").update({ subscription_status: "cancelled" }).eq("id", seller.id);
     return NextResponse.json({ ok: true, note: "no_token" });
   }
 
@@ -92,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     /* PayFast accepted the cancel — mark seller cancelled. They keep
        access until the next billing date passes (handled elsewhere). */
-    await supabaseAdmin
+    await getAdmin()
       .from("sellers")
       .update({ subscription_status: "cancelled" })
       .eq("id", seller.id);

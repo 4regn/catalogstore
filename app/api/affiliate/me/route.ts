@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { getAdmin } from "../../../../lib/supabase-admin";
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     // ─── 2. Verify the user ──────────────────────────────
     const { data: userData, error: userErr } =
-      await supabaseAdmin.auth.getUser(accessToken);
+      await getAdmin().auth.getUser(accessToken);
 
     if (userErr || !userData.user) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
@@ -31,7 +25,7 @@ export async function GET(req: NextRequest) {
     const userId = userData.user.id;
 
     // ─── 3. Fetch affiliate record ───────────────────────
-    const { data: affiliate, error: affErr } = await supabaseAdmin
+    const { data: affiliate, error: affErr } = await getAdmin()
       .from("affiliates")
       .select("*")
       .eq("user_id", userId)
@@ -46,7 +40,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ─── 4. Fetch referrals (joined with sellers) ────────
-    const { data: referrals, error: refErr } = await supabaseAdmin
+    const { data: referrals, error: refErr } = await getAdmin()
       .from("affiliate_referrals")
       .select(
         `
@@ -74,7 +68,7 @@ export async function GET(req: NextRequest) {
     if (refErr) throw refErr;
 
     // ─── 5. Fetch withdrawals ───────────────────────────
-    const { data: withdrawals, error: wErr } = await supabaseAdmin
+    const { data: withdrawals, error: wErr } = await getAdmin()
       .from("affiliate_withdrawals")
       .select("*")
       .eq("affiliate_id", affiliate.id)

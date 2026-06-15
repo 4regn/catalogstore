@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
+import { getAdmin } from "../../../../lib/supabase-admin";
 // Server-side admin client (uses service role — bypasses RLS, runs server-only)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -48,8 +41,8 @@ export async function POST(req: NextRequest) {
     // properly parameterized. The previous .or() interpolated raw values into
     // PostgREST filter syntax, which can be broken with a "," or ")".
     const [{ data: sellerByEmail }, { data: sellerByPhone }] = await Promise.all([
-      supabaseAdmin.from("sellers").select("id").eq("email", email).maybeSingle(),
-      supabaseAdmin.from("sellers").select("id").eq("phone", phone).maybeSingle(),
+      getAdmin().from("sellers").select("id").eq("email", email).maybeSingle(),
+      getAdmin().from("sellers").select("id").eq("phone", phone).maybeSingle(),
     ]);
     const existingSeller = sellerByEmail || sellerByPhone;
 
@@ -65,8 +58,8 @@ export async function POST(req: NextRequest) {
 
     // Check affiliates table — same .eq-pair pattern as above for safety
     const [{ data: affByEmail }, { data: affByPhone }] = await Promise.all([
-      supabaseAdmin.from("affiliates").select("id").eq("email", email).maybeSingle(),
-      supabaseAdmin.from("affiliates").select("id").eq("phone", phone).maybeSingle(),
+      getAdmin().from("affiliates").select("id").eq("email", email).maybeSingle(),
+      getAdmin().from("affiliates").select("id").eq("phone", phone).maybeSingle(),
     ]);
     const existingAffiliate = affByEmail || affByPhone;
 
@@ -82,7 +75,7 @@ export async function POST(req: NextRequest) {
     let candidateSlug = slug;
     let suffix = 1;
     while (true) {
-      const { data: slugTaken } = await supabaseAdmin
+      const { data: slugTaken } = await getAdmin()
         .from("affiliates")
         .select("id")
         .eq("slug", candidateSlug)
@@ -98,7 +91,7 @@ export async function POST(req: NextRequest) {
     slug = candidateSlug;
 
     // ─── 4. CREATE AUTH USER ──────────────────────────────
-    const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+    const { data: authData, error: authErr } = await getAdmin().auth.admin.createUser({
       email,
       password,
       email_confirm: true, // auto-confirm — gate withdrawals separately via affiliates.email_verified
@@ -114,7 +107,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ─── 5. CREATE AFFILIATE RECORD ───────────────────────
-    const { error: insertErr } = await supabaseAdmin.from("affiliates").insert({
+    const { error: insertErr } = await getAdmin().from("affiliates").insert({
       user_id: authData.user.id,
       slug,
       full_name: fullName,
@@ -131,7 +124,7 @@ export async function POST(req: NextRequest) {
 
     if (insertErr) {
       // Rollback: delete the auth user we just created
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      await getAdmin().auth.admin.deleteUser(authData.user.id);
       console.error("Affiliate insert error:", insertErr);
       return NextResponse.json(
         { error: insertErr.message || "Failed to create affiliate" },

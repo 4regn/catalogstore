@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Spinner from "../../components/Spinner";
 
 /* ─── TYPES ─── */
@@ -74,11 +74,15 @@ const SECTION_LABELS: Record<string, string> = {
 
 export default function StoreEditor() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   /* assist=<sellerId> means an admin is editing another seller's store.
-     Loads + saves are routed through /api/admin/seller/[id] so the admin
-     never sees PayFast / EFT keys, and the server enforces it. */
-  const assistSellerId = searchParams.get("assist");
+     Read via window.location instead of useSearchParams() so Next 16
+     doesn't require the page to be statically renderable / wrapped in
+     <Suspense> at build time. We do this in useState's initialiser so
+     the value is available on first render. */
+  const [assistSellerId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("assist");
+  });
   const isAssist = !!assistSellerId;
   const iframeRef = useRef<HTMLIFrameElement>(null);
 

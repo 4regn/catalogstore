@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { getAdmin } from "../../../../../lib/supabase-admin";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "info@4regn.com";
 
@@ -38,7 +32,7 @@ async function requireAdmin(req: NextRequest): Promise<{ ok: true; email: string
   if (!accessToken) {
     return { ok: false, res: NextResponse.json({ error: "Not authenticated" }, { status: 401 }) };
   }
-  const { data: userData, error } = await supabaseAdmin.auth.getUser(accessToken);
+  const { data: userData, error } = await getAdmin().auth.getUser(accessToken);
   if (error || !userData.user) {
     return { ok: false, res: NextResponse.json({ error: "Invalid session" }, { status: 401 }) };
   }
@@ -55,7 +49,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: "Missing seller id" }, { status: 400 });
 
-  const { data: seller, error } = await supabaseAdmin
+  const { data: seller, error } = await getAdmin()
     .from("sellers")
     .select(READABLE_FIELDS)
     .eq("id", id)
@@ -110,7 +104,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
   }
 
-  const { data: updated, error } = await supabaseAdmin
+  const { data: updated, error } = await getAdmin()
     .from("sellers")
     .update(sanitized)
     .eq("id", id)
@@ -123,7 +117,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   /* Audit log — best effort, don't block on it */
   try {
-    await supabaseAdmin.from("admin_audit_log").insert({
+    await getAdmin().from("admin_audit_log").insert({
       admin_email: auth.email,
       action: "edit_seller",
       target_seller_id: id,

@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
+import { getAdmin } from "../../../lib/supabase-admin";
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIP(req);
@@ -18,10 +12,10 @@ export async function POST(req: NextRequest) {
     // Look up the order first; the seller is whoever owns the order, not
     // whoever the client says it is. (Previously this trusted a sellerId
     // from the request body and used it for "authorization" — meaningless.)
-    const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single();
+    const { data: order } = await getAdmin().from("orders").select("*").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { data: seller } = await supabase.from("sellers").select("*").eq("id", order.seller_id).single();
+    const { data: seller } = await getAdmin().from("sellers").select("*").eq("id", order.seller_id).single();
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
 
     const items = (order.items || []).map((i: any) => `${i.name} x${i.qty} — R${(i.price * i.qty).toFixed(0)}${i.variant ? " (" + i.variant + ")" : ""}`).join("\n");

@@ -3,13 +3,21 @@
    logged to console and the API continues — we don't want a missing
    audit table to break legitimate admin work. */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+/* Lazy init — Next 16's collect-page-data phase imports this module
+   without env vars present. We defer createClient until the first audit
+   call so the build doesn't crash. */
+let _admin: SupabaseClient | null = null;
+function admin() {
+  if (_admin) return _admin;
+  _admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+  return _admin;
+}
 
 export interface AuditEntry {
   adminEmail: string;
@@ -23,7 +31,7 @@ export interface AuditEntry {
 
 export async function writeAudit(entry: AuditEntry): Promise<void> {
   try {
-    await supabaseAdmin.from("admin_audit_log").insert({
+    await admin().from("admin_audit_log").insert({
       admin_email: entry.adminEmail,
       action: entry.action,
       target_seller_id: entry.targetSellerId || null,

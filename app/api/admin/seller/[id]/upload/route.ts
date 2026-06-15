@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { getAdmin } from "../../../../../../lib/supabase-admin";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "info@4regn.com";
 
@@ -28,7 +22,7 @@ async function requireAdmin(req: NextRequest) {
     cookieStore.get("sb-access-token")?.value ||
     req.headers.get("authorization")?.replace("Bearer ", "");
   if (!accessToken) return { ok: false as const, res: NextResponse.json({ error: "Not authenticated" }, { status: 401 }) };
-  const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
+  const { data, error } = await getAdmin().auth.getUser(accessToken);
   if (error || !data.user) return { ok: false as const, res: NextResponse.json({ error: "Invalid session" }, { status: 401 }) };
   if ((data.user.email || "").toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
     return { ok: false as const, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
@@ -66,7 +60,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     : `${id}/${kind}.${ext}`;
 
   const arrayBuf = await file.arrayBuffer();
-  const { error: upErr } = await supabaseAdmin.storage
+  const { error: upErr } = await getAdmin().storage
     .from("store-assets")
     .upload(path, arrayBuf, { upsert: true, contentType: file.type });
 
@@ -74,6 +68,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: upErr.message }, { status: 500 });
   }
 
-  const { data } = supabaseAdmin.storage.from("store-assets").getPublicUrl(path);
+  const { data } = getAdmin().storage.from("store-assets").getPublicUrl(path);
   return NextResponse.json({ url: data.publicUrl });
 }
