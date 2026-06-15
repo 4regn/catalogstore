@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { revalidateStore } from "../actions/revalidate-store";
+import TemplateContentPanel from "./TemplateContentPanel";
+import type { StoreConfig } from "./types";
 
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 
@@ -11,13 +13,7 @@ interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string;
 }
 
-interface StoreConfig {
-  show_banner_text: boolean; show_marquee: boolean; show_collections: boolean;
-  show_about: boolean; show_trust_bar: boolean; show_policies: boolean;
-  show_newsletter: boolean; announcement: string;
-  marquee_texts: string[]; trust_items: { icon: string; title: string; desc: string }[];
-  policy_items: { title: string; desc: string }[];
-}
+// StoreConfig type lives in ./types so the TemplateContentPanel can share it.
 
 interface CheckoutConfig {
   eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
@@ -161,7 +157,12 @@ export default function Dashboard() {
       supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
     ]);
     const sd = sellerRes.data;
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }] }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }],
+      // Template-specific fields -- preserve whatever's in the DB. Undefined = the
+      // storefront uses its hardcoded fallback. Empty string saved deliberately
+      // means "don't show this section at all" (most templates fall through).
+      ticker_texts: c.ticker_texts, hero_index: c.hero_index, hero_label: c.hero_label, hero_headline: c.hero_headline, hero_body: c.hero_body, hero_cta_primary: c.hero_cta_primary, hero_cta_secondary: c.hero_cta_secondary, flash_sale_label: c.flash_sale_label, flash_sale_title: c.flash_sale_title, newsletter_label: c.newsletter_label, newsletter_title: c.newsletter_title, newsletter_sub: c.newsletter_sub, hero_subtext: c.hero_subtext, circle_title: c.circle_title, circle_subtitle: c.circle_subtitle, products_label: c.products_label, products_heading: c.products_heading, about_label: c.about_label, coll_label: c.coll_label, coll_subtitle: c.coll_subtitle, cta_headline: c.cta_headline, cta_subtext: c.cta_subtext, promise_label: c.promise_label, promise_title: c.promise_title, promise_items: c.promise_items,
+    }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
     if (pdResult.data) setProducts(pdResult.data);
     if (odResult.data) {
       setOrders(odResult.data);
@@ -1007,6 +1008,16 @@ export default function Dashboard() {
                 </button>))}
               </div>
             </div>
+            {/* Template-specific text fields (hero copy, section headings,
+                newsletter, promise grid, etc.). Switches based on the active
+                template. See ./TemplateContentPanel.tsx for the per-template
+                forms. */}
+            <div style={{ marginBottom: 40 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Hero &amp; Section Copy</h3>
+              <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Edit the text shown across your storefront — hero headline, CTA labels, section titles, newsletter copy. Fields differ per template.</p>
+              <TemplateContentPanel template={storeTemplate} config={storeConfig} onChange={setStoreConfig} />
+            </div>
+
             <div style={{ marginBottom: 40 }}>
               <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16 }}>Brand Color</h3>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, alignItems: "center" }}>
