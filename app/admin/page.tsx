@@ -256,25 +256,7 @@ export default function AdminDashboard() {
                       <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12, color: N }}>Quick Actions</h3>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {selectedSeller.subdomain && <a href={"/store/" + selectedSeller.subdomain} target="_blank" rel="noreferrer" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 10, color: N, fontSize: 12, fontWeight: 700, textAlign: "center", textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.06em" }}>Visit Store</a>}
-                        <a href={"/dashboard/editor?assist=" + selectedSeller.id} target="_blank" rel="noreferrer" style={{ display: "block", padding: "12px 16px", background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10, color: "#c4b5fd", fontSize: 12, fontWeight: 700, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif" }} title="Open the visual editor only. Payment + bank details are never loaded.">🛡 Edit Store Visually</a>
-                        <button onClick={async () => {
-                          if (!confirm(`Log in as ${selectedSeller.store_name}? You'll act as the seller across the whole dashboard until you click Exit Assist. Banking + payment keys stay hidden. This is logged.`)) return;
-                          try {
-                            const session = await supabase.auth.getSession();
-                            const token = session.data.session?.access_token || "";
-                            const res = await fetch(`/api/admin/impersonate/${selectedSeller.id}`, {
-                              method: "POST",
-                              headers: { Authorization: `Bearer ${token}` },
-                            });
-                            const j = await res.json().catch(() => ({}));
-                            if (!res.ok || !j.actionLink) { alert(j.error || "Could not start admin assist."); return; }
-                            /* Navigate to the magic link, which signs us out
-                               of the admin session and in as the seller. */
-                            window.location.href = j.actionLink;
-                          } catch (e: any) {
-                            alert("Network error: " + (e?.message || "unknown"));
-                          }
-                        }} style={{ display: "block", padding: "12px 16px", background: "linear-gradient(135deg, rgba(109,40,217,0.18), rgba(139,92,246,0.18))", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 10, color: "#fff", fontSize: 12, fontWeight: 800, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.06em", cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif", width: "100%" }} title="Full impersonation: dashboard, editor, products, orders. Payment + bank fields are masked from view.">🛡 Log in as Seller (Full Assist)</button>
+                        <a href={"/dashboard/editor?assist=" + selectedSeller.id} target="_blank" rel="noreferrer" style={{ display: "block", padding: "12px 16px", background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10, color: "#c4b5fd", fontSize: 12, fontWeight: 700, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif" }} title="Open the visual editor for this seller. Their payment + bank details are never loaded.">🛡 Admin Assistance</a>
                       </div>
                     </div>
                   </div>
