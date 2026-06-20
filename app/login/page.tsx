@@ -28,7 +28,9 @@ export default function Login() {
     setError(""); setInfo("");
     if (!email) { setError("Enter your email above first."); return; }
     setResetSending(true);
-    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
+    /* Send the seller to /reset-password — that page catches the
+       recovery session and lets them set a new password. */
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
     const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     setResetSending(false);
     if (resetErr) { setError(resetErr.message); return; }

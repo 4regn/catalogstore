@@ -9,6 +9,19 @@ export default function AffiliateLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [resetSending, setResetSending] = useState(false);
+
+  async function handleReset() {
+    setError(""); setInfo("");
+    if (!email) { setError("Enter your email above first."); return; }
+    setResetSending(true);
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo });
+    setResetSending(false);
+    if (resetErr) { setError(resetErr.message); return; }
+    setInfo("Password reset email sent. Check your inbox.");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -122,10 +135,11 @@ export default function AffiliateLogin() {
             Create an affiliate account
           </a>
 
+          {info && <p style={{ ...styles.legal, color: "#22c55e" }}>{info}</p>}
           <p style={styles.legal}>
-            <a href="/affiliate/forgot" style={styles.link}>
-              Forgot your password?
-            </a>
+            <button type="button" onClick={handleReset} disabled={resetSending} style={{ ...styles.link, background: "none", border: "none", cursor: resetSending ? "not-allowed" : "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit", opacity: resetSending ? 0.6 : 1 }}>
+              {resetSending ? "Sending reset email…" : "Forgot your password?"}
+            </button>
           </p>
         </form>
       </div>
