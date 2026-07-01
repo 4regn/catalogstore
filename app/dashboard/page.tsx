@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import { revalidateStore } from "../actions/revalidate-store";
 import Spinner from "../components/Spinner";
 
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
@@ -14,7 +15,7 @@ interface SocialLinks {
 interface StoreConfig {
   show_banner_text: boolean; show_marquee: boolean; show_collections: boolean;
   show_about: boolean; show_trust_bar: boolean; show_policies: boolean;
-  announcement: string;
+  show_newsletter: boolean; announcement: string;
   marquee_texts: string[]; trust_items: { icon: string; title: string; desc: string }[];
   policy_items: { title: string; desc: string }[];
 }
@@ -33,7 +34,7 @@ interface Seller {
   template: string; plan: string; primary_color: string; logo_url: string; banner_url: string;
   tagline: string; description: string; collections: string[];
   social_links: SocialLinks; store_config: StoreConfig; checkout_config: CheckoutConfig;
-  subscription_status: string; subscription_plan: string; trial_ends_at: string; subscription_started_at: string;
+  subscription_status: string; subscription_plan: string; subscription_grace_until: string | null; trial_ends_at: string; subscription_started_at: string;
   payfast_subscription_token: string | null;
 }
 
@@ -52,10 +53,19 @@ interface Order {
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string;
 }
 
+const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token";
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
+const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
+const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown";
+const PRODUCTS_LIMIT = 500;
+const ORDERS_LIMIT = 100;
+const DISCOUNTS_LIMIT = 100;
+
 const TEMPLATES = [
   { id: "soft-luxury", name: "Soft Luxury", desc: "Warm cream tones with elegant serif typography", colors: { bg: "#f6f3ef", card: "#ffffff", text: "#2a2a2e" } },
   { id: "glass-futuristic", name: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents", colors: { bg: "#030305", card: "#0b0b0f", text: "#f0f0f0" } },
   { id: "crown", name: "Crown", desc: "Dark luxury hair store — gold accents, editorial typography", colors: { bg: "#0a0908", card: "#1a1816", text: "#f0e6d3" } },
+  { id: "heirloom", name: "Heirloom", desc: "Editorial archive — italic serifs, hairline grids, drop pacing", colors: { bg: "#ffffff", card: "#f2f0ed", text: "#111010" } },
 ];
 
 const COLOR_PRESETS = ["#ff6b35", "#ff3d6e", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
@@ -79,13 +89,13 @@ export default function Dashboard() {
   const [formPrice, setFormPrice] = useState("");
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
+  const [formDescription, setFormDescription] = useState("");
   const [formImages, setFormImages] = useState<File[]>([]);
   const [formPreviews, setFormPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formSaving, setFormSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
-  const [formError, setFormError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
@@ -95,7 +105,7 @@ export default function Dashboard() {
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
-  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"], trust_items: [{ icon: "★", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "✈", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "↺", title: "Easy Returns", desc: "14-day policy" }, { icon: "⚡", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout." }] });
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "★", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "✈", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "↺", title: "Easy Returns", desc: "14-day policy" }, { icon: "⚡", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }] });
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeSaved, setStoreSaved] = useState(false);
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
@@ -106,6 +116,8 @@ export default function Dashboard() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
+  const [hasMoreOrders, setHasMoreOrders] = useState(false);
+  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [productSort, setProductSort] = useState("manual");
 
@@ -132,31 +144,30 @@ export default function Dashboard() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  /* Track the realtime subscription so it can be torn down on unmount.
-     Previously `checkAuth` returned a cleanup function but the effect's
-     callback (async) discarded the return — every hot-reload or navigation
-     stacked a new channel and double-played the new-order beep. */
-  useEffect(() => {
-    let activeChannel: ReturnType<typeof supabase.channel> | null = null;
-    checkAuth().then((c) => { activeChannel = c || null; });
-    return () => { if (activeChannel) supabase.removeChannel(activeChannel); };
-  }, []);
+  useEffect(() => { checkAuth(); }, []);
 
   const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned") => { setTab(t); setSidebarOpen(false); };
 
   const checkAuth = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    // getSession() reads from local storage — no network round-trip,
+    // unlike getUser() which validates the JWT against Supabase.
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) { router.push("/login"); return; }
-    const { data: sd } = await supabase.from("sellers").select("*").eq("id", user.id).single();
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout." }] }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
-    // Fetch products, orders, discounts in parallel
-    const [pdResult, odResult, dcResult] = await Promise.all([
-      supabase.from("products").select("*").eq("seller_id", user.id).order("sort_order", { ascending: true }),
-      supabase.from("orders").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("discount_codes").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+    // Fetch seller + products + orders + discounts in a single parallel batch
+    const [sellerRes, pdResult, odResult, dcResult] = await Promise.all([
+      supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single(),
+      supabase.from("products").select(PRODUCT_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }).limit(PRODUCTS_LIMIT),
+      supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT),
+      supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
     ]);
+    const sd = sellerRes.data;
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }] }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
     if (pdResult.data) setProducts(pdResult.data);
-    if (odResult.data) setOrders(odResult.data);
+    if (odResult.data) {
+      setOrders(odResult.data);
+      setHasMoreOrders(odResult.data.length >= ORDERS_LIMIT);
+    }
     if (dcResult.data) setDiscountCodes(dcResult.data);
     setLoading(false);
 
@@ -167,48 +178,43 @@ export default function Dashboard() {
       try { const ctx = new AudioContext(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 880; gain.gain.value = 0.15; osc.start(); osc.stop(ctx.currentTime + 0.15); setTimeout(() => { const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain(); osc2.connect(gain2); gain2.connect(ctx.destination); osc2.frequency.value = 1100; gain2.gain.value = 0.15; osc2.start(); osc2.stop(ctx.currentTime + 0.2); }, 180); } catch {}
       setTimeout(() => setOrderNotification(null), 10000);
     }).subscribe();
-    return channel;
+    return () => { supabase.removeChannel(channel); };
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login"); };
-  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/")) { alert("Logo must be an image file"); e.target.value = ""; return; } if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); e.target.value = ""; return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
-  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/")) { alert("Banner must be an image file"); e.target.value = ""; return; } if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); e.target.value = ""; return; } setBannerFile(f); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
 
-  const saveStoreSettings = async () => {
-    if (!seller) return;
-    setStoreSaving(true); setStoreSaved(false);
-    try {
-      let logoUrl = seller.logo_url || "";
-      let bannerUrl = seller.banner_url || "";
-      if (logoFile) {
-        const ext = logoFile.name.split(".").pop();
-        const path = seller.id + "/logo." + ext;
-        const { error: upErr } = await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true });
-        if (upErr) { alert("Logo upload failed: " + upErr.message); setStoreSaving(false); return; }
-        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-        logoUrl = data.publicUrl;
-      }
-      if (bannerFile) {
-        const ext = bannerFile.name.split(".").pop();
-        const path = seller.id + "/banner." + ext;
-        const { error: upErr } = await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true });
-        if (upErr) { alert("Banner upload failed: " + upErr.message); setStoreSaving(false); return; }
-        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-        bannerUrl = data.publicUrl;
-      }
-      const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }).eq("id", seller.id);
-      if (error) { alert("Couldn't save store: " + error.message); return; }
-      setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig });
-      setLogoFile(null); setBannerFile(null);
-      setStoreSaved(true);
-      setTimeout(() => setStoreSaved(false), 3000);
-    } finally {
-      setStoreSaving(false);
-    }
+  const revalidateMyStore = () => {
+    const sub = seller?.subdomain;
+    if (sub) void revalidateStore(sub).catch(() => {});
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); setFormError(""); };
-  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
+  const loadMoreOrders = async () => {
+    if (!seller || loadingMoreOrders) return;
+    setLoadingMoreOrders(true);
+    const { data } = await supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", seller.id).order("created_at", { ascending: false }).range(orders.length, orders.length + ORDERS_LIMIT - 1);
+    if (data && data.length > 0) {
+      setOrders((prev) => [...prev, ...data]);
+      setHasMoreOrders(data.length >= ORDERS_LIMIT);
+    } else {
+      setHasMoreOrders(false);
+    }
+    setLoadingMoreOrders(false);
+  };
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
+  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); return; } setBannerFile(f); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
+
+  const saveStoreSettings = async () => {
+    if (!seller) return; setStoreSaving(true); setStoreSaved(false);
+    let logoUrl = seller.logo_url || ""; let bannerUrl = seller.banner_url || "";
+    if (logoFile) { const ext = logoFile.name.split(".").pop(); const path = seller.id + "/logo." + ext; await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); logoUrl = data.publicUrl + "?t=" + Date.now(); }
+    if (bannerFile) { const ext = bannerFile.name.split(".").pop(); const path = seller.id + "/banner." + ext; await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); bannerUrl = data.publicUrl + "?t=" + Date.now(); }
+    const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }).eq("id", seller.id);
+    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: storeConfig }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); revalidateMyStore(); }
+    setStoreSaving(false);
+  };
+
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
 
   const addVariant = () => setFormVariants([...formVariants, { name: "", options: [""] }]);
   const removeVariant = (i: number) => setFormVariants(formVariants.filter((_, idx) => idx !== i));
@@ -235,166 +241,80 @@ export default function Dashboard() {
   const removeExistingImage = (i: number) => setExistingImages((p) => p.filter((_, idx) => idx !== i));
 
   // ── PARALLEL IMAGE UPLOAD ────────────────────────────────────────────────────
-  /* Uploads in parallel, never rejects the whole batch on a single failure.
-     Returns { urls, failures } so the caller can decide what to do. */
-  const uploadImages = async (sellerId: string, productId: string): Promise<{ urls: string[]; failures: string[] }> => {
-    if (formImages.length === 0) return { urls: [], failures: [] };
+  const uploadImages = async (sellerId: string, productId: string): Promise<string[]> => {
     setUploadProgress("Uploading " + formImages.length + " image" + (formImages.length > 1 ? "s" : "") + "...");
     const results = await Promise.all(
       formImages.map(async (file, i) => {
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-        /* crypto.randomUUID() if available, else a Math.random fallback. The
-           old Date.now()+index could collide if two uploads landed in the
-           same millisecond with the same index. */
-        const id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-        const path = `${sellerId}/${productId}/${id}-${i}.${ext}`;
-        try {
-          const { error } = await supabase.storage.from("product-images").upload(path, file, { contentType: file.type });
-          if (error) return { ok: false as const, name: file.name };
-          return { ok: true as const, url: supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl };
-        } catch {
-          return { ok: false as const, name: file.name };
-        }
+        const ext = file.name.split(".").pop();
+        const path = sellerId + "/" + productId + "/" + Date.now() + "-" + i + "." + ext;
+        const { error } = await supabase.storage.from("product-images").upload(path, file);
+        if (error) return null;
+        return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
       })
     );
     setUploadProgress("");
-    const urls = results.filter((r): r is { ok: true; url: string } => r.ok).map((r) => r.url);
-    const failures = results.filter((r): r is { ok: false; name: string } => !r.ok).map((r) => r.name);
-    return { urls, failures };
+    return results.filter(Boolean) as string[];
   };
 
   const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {} })).filter((x) => x.options.length > 0);
 
-  /* Up-front validation. Returns first error message or empty string. */
-  const validateForm = (): string => {
-    if (!formName.trim()) return "Product name is required";
-    if (formName.length > 200) return "Product name must be 200 characters or fewer";
-    const price = parseFloat(formPrice);
-    if (!Number.isFinite(price) || price < 0) return "Price must be a positive number";
-    if (price > 1_000_000) return "Price looks too high — double-check before saving";
-    if (formComparePrice.trim()) {
-      const cmp = parseFloat(formComparePrice);
-      if (!Number.isFinite(cmp) || cmp <= 0) return "Compare-at price must be a positive number";
-      if (cmp <= price) return "Compare-at price should be higher than the selling price";
-    }
-    /* A product with neither a new file nor an existing image is allowed —
-       sellers sometimes add specs first then come back for photos. */
-    return "";
-  };
+  // The variant-image picker shows existing URLs alongside FileReader base64 previews of newly added files.
+  // If the seller picks a fresh-upload preview, that base64 must be remapped to the eventual Storage URL
+  // before save, otherwise we persist megabytes of base64 into the row. Any base64 we can't map (stale
+  // entry from a previous bug, or whose upload failed) is dropped — never persist data: URLs.
+  const remapVariantImages = (variants: Variant[], previewToUrl: Map<string, string>): Variant[] =>
+    variants.map((v) => {
+      if (!v.images) return v;
+      const next: { [k: string]: string } = {};
+      for (const [opt, img] of Object.entries(v.images)) {
+        if (typeof img !== "string" || !img) continue;
+        if (img.startsWith("data:")) {
+          const url = previewToUrl.get(img);
+          if (url) next[opt] = url;
+        } else {
+          next[opt] = img;
+        }
+      }
+      return { ...v, images: next };
+    });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError("");
-    const v = validateForm();
-    if (v) { setFormError(v); return; }
-
-    setFormSaving(true);
-    setUploadProgress("");
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setFormError("Your session has expired. Please log in again."); router.push("/login"); return; }
-      const cv = cleanVariants(formVariants);
-      const price = parseFloat(formPrice);
-      const oldPrice = formComparePrice.trim() ? parseFloat(formComparePrice) : null;
-
-      if (editingId) {
-        /* EDIT */
-        let allImages = [...existingImages];
-        let warning = "";
-        if (formImages.length > 0) {
-          const { urls, failures } = await uploadImages(user.id, editingId);
-          allImages = [...allImages, ...urls];
-          if (failures.length) warning = `${failures.length} image${failures.length > 1 ? "s" : ""} couldn't upload (${failures.join(", ")}). The product was still saved.`;
-        }
-        const patch = { name: formName.trim(), price, old_price: oldPrice, category: formCategory.trim(), images: allImages, image_url: allImages[0] || null, variants: cv };
-        const { error } = await supabase.from("products").update(patch).eq("id", editingId).eq("seller_id", user.id);
-        if (error) { setFormError("Could not save product: " + error.message); return; }
-        setProducts(products.map((p) => p.id === editingId ? { ...p, ...patch } : p));
-        if (warning) alert(warning);
-        resetForm();
-      } else {
-        /* CREATE — insert first to get the real product id, then upload
-           images using that id as the storage prefix. The old flow used a
-           Date.now() temp id and risked collisions; this is single-write
-           and the storage path matches the product id. */
-        const { data, error } = await supabase
-          .from("products")
-          .insert({ seller_id: user.id, name: formName.trim(), price, old_price: oldPrice, category: formCategory.trim(), in_stock: true, variants: cv, status: "published", images: [], image_url: null, sort_order: products.length })
-          .select()
-          .single();
-        if (error || !data) { setFormError("Could not create product: " + (error?.message || "unknown error")); return; }
-
-        let warning = "";
-        let uploadedUrls: string[] = [];
-        if (formImages.length > 0) {
-          const result = await uploadImages(user.id, data.id);
-          uploadedUrls = result.urls;
-          if (result.failures.length) warning = `${result.failures.length} image${result.failures.length > 1 ? "s" : ""} couldn't upload (${result.failures.join(", ")}). The product was created — you can add the missing photos by editing it.`;
-          if (uploadedUrls.length > 0) {
-            const { error: imgErr } = await supabase.from("products").update({ images: uploadedUrls, image_url: uploadedUrls[0] }).eq("id", data.id);
-            if (imgErr) warning = "Images uploaded but couldn't be attached to the product. Try editing the product and re-saving.";
-          }
-        }
-        setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
-        if (warning) alert(warning);
-        resetForm();
-      }
-    } catch (e: any) {
-      setFormError(e?.message || "Something went wrong saving this product. Please try again.");
-    } finally {
-      setFormSaving(false);
-      setUploadProgress("");
+    e.preventDefault(); setFormSaving(true); setUploadProgress("");
+    const { data: { user } } = await supabase.auth.getUser(); if (!user) return;
+    if (editingId) {
+      let allImages = [...existingImages];
+      let newUrls: string[] = [];
+      if (formImages.length > 0) { newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
+      const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, newUrls[i] || ""] as [string, string]));
+      const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
+    } else {
+      // ── PARALLEL: upload images and insert product at the same time ──────────
+      const tempId = Date.now().toString();
+      const [uploadedUrls, insertResult] = await Promise.all([
+        formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
+      ]);
+      const { data, error } = insertResult;
+      if (error || !data) { setFormSaving(false); return; }
+      const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, uploadedUrls[i] || ""] as [string, string]));
+      const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
+      const followUp: Record<string, unknown> = {};
+      if (uploadedUrls.length > 0) { followUp.images = uploadedUrls; followUp.image_url = uploadedUrls[0] || null; }
+      if (cv.length > 0) { followUp.variants = cv; }
+      if (Object.keys(followUp).length > 0) { await supabase.from("products").update(followUp).eq("id", data.id); }
+      setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
+      revalidateMyStore();
     }
+    resetForm(); setFormSaving(false);
   };
 
-  /* Optimistic update with rollback. We flip the UI immediately so the
-     dashboard feels snappy, then if the DB write fails we revert and tell
-     the seller. */
-  const toggleStock = async (id: string, cur: boolean) => {
-    setProducts((prev) => prev.map((p) => p.id === id ? { ...p, in_stock: !cur } : p));
-    const { error } = await supabase.from("products").update({ in_stock: !cur }).eq("id", id);
-    if (error) {
-      setProducts((prev) => prev.map((p) => p.id === id ? { ...p, in_stock: cur } : p));
-      alert("Couldn't update stock: " + error.message);
-    }
-  };
-  const trashProduct = async (id: string) => {
-    const prev = products.find((p) => p.id === id);
-    setProducts((p) => p.map((x) => x.id === id ? { ...x, status: "trashed" } : x));
-    const { error } = await supabase.from("products").update({ status: "trashed" }).eq("id", id);
-    if (error && prev) {
-      setProducts((p) => p.map((x) => x.id === id ? prev : x));
-      alert("Couldn't move to trash: " + error.message);
-    }
-  };
-  const restoreProduct = async (id: string) => {
-    const prev = products.find((p) => p.id === id);
-    setProducts((p) => p.map((x) => x.id === id ? { ...x, status: "published" } : x));
-    const { error } = await supabase.from("products").update({ status: "published" }).eq("id", id);
-    if (error && prev) {
-      setProducts((p) => p.map((x) => x.id === id ? prev : x));
-      alert("Couldn't restore: " + error.message);
-    }
-  };
-  const deleteForever = async (id: string) => {
-    if (!confirm("Permanently delete this product? This cannot be undone.")) return;
-    const snapshot = products;
-    setProducts((p) => p.filter((x) => x.id !== id));
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) {
-      setProducts(snapshot);
-      alert("Couldn't delete: " + error.message);
-    }
-  };
-  const toggleDraft = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === "draft" ? "published" : "draft";
-    setProducts((p) => p.map((x) => x.id === id ? { ...x, status: newStatus } : x));
-    const { error } = await supabase.from("products").update({ status: newStatus }).eq("id", id);
-    if (error) {
-      setProducts((p) => p.map((x) => x.id === id ? { ...x, status: currentStatus } : x));
-      alert("Couldn't update status: " + error.message);
-    }
-  };
+  const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); revalidateMyStore(); };
+  const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); revalidateMyStore(); };
+  const restoreProduct = async (id: string) => { await supabase.from("products").update({ status: "published" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "published" } : p)); revalidateMyStore(); };
+  const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); revalidateMyStore(); };
+  const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); revalidateMyStore(); };
   const reorderProduct = async (id: string, direction: "up" | "down") => {
     const list = [...products].filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
     const idx = list.findIndex((p) => p.id === id); if (idx < 0) return;
@@ -405,6 +325,7 @@ export default function Dashboard() {
     updates[idx] = { ...b, sort_order: idx }; updates[swapIdx] = { ...a, sort_order: swapIdx };
     await Promise.all([supabase.from("products").update({ sort_order: swapIdx }).eq("id", a.id), supabase.from("products").update({ sort_order: idx }).eq("id", b.id)]);
     setProducts(products.map((p) => { if (p.id === a.id) return { ...p, sort_order: swapIdx }; if (p.id === b.id) return { ...p, sort_order: idx }; return p; }));
+    revalidateMyStore();
   };
   const initSortOrders = async () => {
     const unordered = products.filter((p) => p.sort_order === null || p.sort_order === undefined);
@@ -415,24 +336,8 @@ export default function Dashboard() {
     }
   };
   useEffect(() => { if (products.length > 0 && seller) initSortOrders(); }, [products.length > 0 && seller?.id]);
+  const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); revalidateMyStore(); };
 
-  /* Billing redirect — must be above the early `if (loading) return` so the
-     hook count is stable across renders. */
-  const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
-  const isSubscribed = seller?.subscription_status === "active";
-  const isExpiredTrial = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date();
-  const isExpired = seller?.subscription_status === "expired" || isExpiredTrial;
-  const hasVerifiedCard = !!seller?.payfast_subscription_token || seller?.subscription_status === "active";
-  const isAdmin = seller?.email === "info@4regn.com";
-  const needsCardVerification = trialActive && !hasVerifiedCard && !isAdmin;
-  const shouldRedirectToBilling = !!seller && (isExpired || needsCardVerification);
-  useEffect(() => {
-    if (shouldRedirectToBilling) router.push("/dashboard/billing");
-  }, [shouldRedirectToBilling, router]);
-
-  const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); };
-
-  /* Parse a CSV line correctly, handling quoted fields that may contain commas */
   const parseCsvLine = (line: string): string[] => {
     const result: string[] = [];
     let cur = ""; let inQuote = false;
@@ -449,13 +354,13 @@ export default function Dashboard() {
     return result;
   };
 
-  /* Strip HTML tags from Shopify's Body (HTML) field */
   const stripHtml = (html: string): string =>
     html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 2000);
 
   const handleCsvUpload = async (file: File) => {
     if (!seller) return;
     setCsvUploading(true); setCsvResult("");
+    let added = 0;
     try {
       if (file.size > 5 * 1024 * 1024) { setCsvResult("CSV is too large. Please keep it under 5MB."); return; }
       const text = await file.text();
@@ -465,10 +370,9 @@ export default function Dashboard() {
       const rawHeader = parseCsvLine(lines[0]);
       const header = rawHeader.map((h) => h.toLowerCase().replace(/"/g, "").trim());
 
-      /* Detect Shopify CSV by presence of Shopify-specific columns */
       const isShopify = header.includes("handle") && header.includes("variant price");
 
-      const planLimitsLocal = seller?.subscription_plan === "pro" ? { products: 100 } : { products: 15 };
+      const planLimitsLocal = { products: 20 };
       const publishedLocal = products.filter((p) => p.status === "published" || !p.status).length;
       const draftLocal = products.filter((p) => p.status === "draft").length;
       const remaining = planLimitsLocal.products - (publishedLocal + draftLocal);
@@ -477,16 +381,11 @@ export default function Dashboard() {
       const rows: any[] = [];
 
       if (isShopify) {
-        /* Shopify CSV: one row per variant, products span multiple rows sharing the same Handle.
-           First row for a handle has: Title, Body (HTML), Type, Tags, Vendor, Image Src, Status.
-           All rows for a handle have: Option1 Name, Option1 Value, Option2 Name, Option2 Value,
-           Variant Price, Variant Compare At Price, Variant Inventory Qty. */
         const col = (row: string[], name: string) => {
           const idx = header.indexOf(name);
           return idx >= 0 ? (row[idx] || "").trim() : "";
         };
 
-        /* Group rows by Handle */
         const handleMap = new Map<string, string[][]>();
         for (let i = 1; i < lines.length; i++) {
           const cols = parseCsvLine(lines[i]);
@@ -502,7 +401,6 @@ export default function Dashboard() {
           const title = col(first, "title");
           if (!title) { errors++; continue; }
 
-          /* Use first variant price as the product price */
           const priceStr = col(first, "variant price");
           const price = parseFloat(priceStr);
           if (!Number.isFinite(price) || price < 0) { errors++; continue; }
@@ -518,9 +416,6 @@ export default function Dashboard() {
           const statusRaw = col(first, "status").toLowerCase();
           const status = statusRaw === "draft" ? "draft" : "published";
 
-          /* Build variants in the format the storefront expects:
-             { name: "Size", options: ["S", "M", "L"] }
-             Shopify gives us Option1 Name + per-row Option1 Value, etc. */
           const opt1Name = col(first, "option1 name");
           const opt2Name = col(first, "option2 name");
           const opt3Name = col(first, "option3 name");
@@ -546,7 +441,7 @@ export default function Dashboard() {
             old_price,
             category,
             description,
-            _imageSrc: imageSrc,   // temp field — stripped before insert
+            _imageSrc: imageSrc,
             in_stock: true,
             status,
             variants: hasVariants ? variants : [],
@@ -554,7 +449,6 @@ export default function Dashboard() {
           });
         }
       } else {
-        /* Generic CSV: simple flat format with name + price columns */
         const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
         const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
         const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
@@ -582,7 +476,6 @@ export default function Dashboard() {
       }
 
       if (rows.length > 0) {
-        /* Strip temp fields before inserting */
         const imageSrcs = rows.map((r) => r._imageSrc as string | null);
         const cleanRows = rows.map(({ _imageSrc: _i, ...rest }) => rest);
 
@@ -590,9 +483,6 @@ export default function Dashboard() {
         if (error) { setCsvResult("Import failed: " + error.message); return; }
         if (data) {
           added = data.length;
-          /* For Shopify imports: fetch each image URL and re-upload to our storage
-             so they aren't dependent on Shopify's CDN. Run sequentially to avoid
-             hammering rate limits. */
           const inserted = [...data];
           if (isShopify) {
             setCsvResult("Importing images… (0/" + inserted.length + ")");
@@ -612,7 +502,7 @@ export default function Dashboard() {
                 const url = urlData.publicUrl;
                 await supabase.from("products").update({ image_url: url, images: [url] }).eq("id", inserted[i].id);
                 inserted[i] = { ...inserted[i], image_url: url, images: [url] };
-              } catch { /* skip failed images silently */ }
+              } catch { /* skip failed images */ }
               setCsvResult("Importing images… (" + (i + 1) + "/" + inserted.length + ")");
             }
           }
@@ -627,15 +517,25 @@ export default function Dashboard() {
     } finally {
       setCsvUploading(false);
     }
+    if (added > 0) revalidateMyStore();
   };
 
   if (loading) return <Spinner fullscreen label="Loading dashboard" />;
 
-  if (shouldRedirectToBilling) {
+  const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
+  const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+  const isSubscribed = seller?.subscription_status === "active";
+  const isExpiredTrial = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date();
+  const isExpired = seller?.subscription_status === "expired" || isExpiredTrial;
+  const hasVerifiedCard = !!seller?.payfast_subscription_token || seller?.subscription_status === "active";
+  const isAdmin = seller?.email === "info@4regn.com";
+  const needsCardVerification = trialActive && !hasVerifiedCard && !isAdmin;
+
+  if ((isExpired || needsCardVerification) && typeof window !== "undefined") {
+    window.location.href = "/dashboard/billing";
     return (<div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}><p style={{ color: "rgba(245,245,245,0.35)" }}>{needsCardVerification ? "Please verify your card to continue..." : "Redirecting to billing..."}</p></div>);
   }
 
-  const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const publishedCount = products.filter((p) => p.status === "published" || !p.status).length;
   const draftCount = products.filter((p) => p.status === "draft").length;
   const trashedCount = products.filter((p) => p.status === "trashed").length;
@@ -648,7 +548,10 @@ export default function Dashboard() {
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
-  const planLimits = seller?.subscription_plan === "pro" ? { products: 100, images: 20, collections: 20 } : { products: 15, images: 5, collections: 5 };
+  // Pre-launch: one plan, deliberate limits matching the landing page promise.
+  // 20 products + 5 photos each caps storage cost; 10 collections is generous-enough
+  // organisation. Higher counts unlock on a future Pro tier.
+  const planLimits = { products: 20, images: 5, collections: 10 };
   const canAddProduct = publishedCount + draftCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;
@@ -703,9 +606,9 @@ export default function Dashboard() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {seller?.subdomain && <a href={"/store/" + seller.subdomain} target="_blank" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 10, color: N, fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>View My Store</a>}
-            <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : seller?.subscription_status === "trial" ? "rgba(251,191,36,0.06)" : "rgba(255,61,110,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : seller?.subscription_status === "trial" ? "1px solid rgba(251,191,36,0.12)" : "1px solid rgba(255,61,110,0.12)", borderRadius: 10, textDecoration: "none", textAlign: "center" as const }}>
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: seller?.subscription_status === "active" ? "#22c55e" : seller?.subscription_status === "trial" ? "#fbbf24" : "#ff3d6e" }}>{seller?.subscription_status === "active" ? "Active Plan" : seller?.subscription_status === "trial" ? "Free Trial" : "Inactive"}</div>
-              <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{seller?.subscription_status === "active" ? "Click to view plan or upgrade" : seller?.subscription_status === "trial" ? "Click to choose a plan" : "Click to reactivate or upgrade"}</div>
+            <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : seller?.subscription_status === "trial" ? "rgba(251,191,36,0.06)" : seller?.subscription_status === "past_due" ? "rgba(251,191,36,0.1)" : "rgba(255,61,110,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : seller?.subscription_status === "trial" ? "1px solid rgba(251,191,36,0.12)" : seller?.subscription_status === "past_due" ? "1px solid rgba(251,191,36,0.3)" : "1px solid rgba(255,61,110,0.12)", borderRadius: 10, textDecoration: "none", textAlign: "center" as const }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: seller?.subscription_status === "active" ? "#22c55e" : seller?.subscription_status === "trial" ? "#fbbf24" : seller?.subscription_status === "past_due" ? "#fbbf24" : "#ff3d6e" }}>{seller?.subscription_status === "active" ? "Active Plan" : seller?.subscription_status === "trial" ? "Free Trial" : seller?.subscription_status === "past_due" ? "Payment Failed" : "Inactive"}</div>
+              <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>{seller?.subscription_status === "active" ? "Click to view plan or upgrade" : seller?.subscription_status === "trial" ? "Click to choose a plan" : seller?.subscription_status === "past_due" ? "Update card before store goes offline" : "Click to reactivate or upgrade"}</div>
             </a>
             {seller?.email === "info@4regn.com" && <a href="/admin" style={{ display: "block", padding: "12px 16px", background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.12)", borderRadius: 10, color: "#8b5cf6", fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Admin Panel</a>}
             <button onClick={handleLogout} style={{ padding: "10px 16px", background: "transparent", border: "none", color: "rgba(245,245,245,0.25)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, cursor: "pointer", textAlign: "left" as const, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Log Out</button>
@@ -852,7 +755,19 @@ export default function Dashboard() {
                   {formVariants.length > 0 && (<div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" as const }}>{PRESET_VARIANTS.filter((p) => !formVariants.some((v) => v.name.toLowerCase() === p.name.toLowerCase())).map((p) => (<button key={p.name} type="button" onClick={() => addPresetVariant(p)} style={{ padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ {p.name}</button>))}<button type="button" onClick={addVariant} style={{ padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Custom</button></div>)}
                 </div>
 
-                {/* 5. COLLECTION with auto-create */}
+                {/* 5. DESCRIPTION */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 8 }}>Description (optional)</label>
+                  <textarea
+                    placeholder="Tell shoppers about this piece — fabric, fit, story, anything that helps them decide."
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    rows={5}
+                    style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const, lineHeight: 1.5 }}
+                  />
+                </div>
+
+                {/* 6. COLLECTION with auto-create */}
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6, display: "block" }}>Collection</label>
                   <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const }}>
@@ -874,6 +789,7 @@ export default function Dashboard() {
                           setSeller({ ...seller, collections: updated });
                           setFormCategory(name);
                           e.currentTarget.value = "";
+                          revalidateMyStore();
                         }}
                       />
                       <button type="button" onClick={async () => {
@@ -886,30 +802,22 @@ export default function Dashboard() {
                         setSeller({ ...seller, collections: updated });
                         setFormCategory(name);
                         if (input) input.value = "";
+                        revalidateMyStore();
                       }} style={{ padding: "9px 14px", background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>+ Create</button>
                     </div>
                   )}
                 </div>
 
                 {uploadProgress && <div style={{ marginTop: 12, fontSize: 12, color: N }}>{uploadProgress}</div>}
-                {formError && (
-                  <div role="alert" style={{ marginTop: 12, padding: "10px 14px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 10, color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>
-                    {formError}
-                  </div>
-                )}
-                {/* 6. SAVE */}
-                <button type="submit" disabled={formSaving} style={{ width: "100%", padding: "14px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: formSaving ? "not-allowed" : "pointer", opacity: formSaving ? 0.6 : 1, marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{formSaving ? (uploadProgress || "Saving...") : editingId ? "Save Changes" : "Save Product"}</button>
+                {/* 7. SAVE */}
+                <button type="submit" disabled={formSaving} style={{ width: "100%", padding: "14px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: formSaving ? "not-allowed" : "pointer", opacity: formSaving ? 0.6 : 1, marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{formSaving ? "Saving..." : editingId ? "Save Changes" : "Save Product"}</button>
               </form>
             </div>)}
 
             {filteredProducts.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "80px 24px", color: "rgba(245,245,245,0.35)", background: "rgba(255,255,255,0.015)", border: "1px dashed rgba(255,255,255,0.06)", borderRadius: 16 }}>
-                <div style={{ fontSize: 36, opacity: 0.25, marginBottom: 16 }}>{productFilter === "trashed" ? "🗑" : productFilter === "draft" ? "📝" : searchQuery ? "🔍" : "📦"}</div>
-                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8, color: "rgba(245,245,245,0.5)" }}>{productFilter === "trashed" ? "Trash is empty" : productFilter === "draft" ? "No drafts" : searchQuery ? "No results" : "No products yet"}</p>
-                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.3)", marginBottom: 20, maxWidth: 360, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>{productFilter === "trashed" ? "Products you delete appear here for 30 days so you can recover them." : productFilter === "draft" ? "Drafts stay hidden from customers until you publish them." : searchQuery ? "Try a different search term, or clear the filter." : "Add your first product to get your store going. It takes about a minute."}</p>
-                {!searchQuery && productFilter === "published" && (
-                  <button onClick={() => { if (!canAddProduct) { alert("You've reached your plan limit of " + planLimits.products + " products. Upgrade to Pro for more."); return; } resetForm(); setShowForm(true); }} style={{ padding: "12px 28px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>+ Add Your First Product</button>
-                )}
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>{productFilter === "trashed" ? "Trash is empty" : productFilter === "draft" ? "No drafts" : searchQuery ? "No results" : "No products yet"}</p>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>{productFilter === "trashed" ? "Products you delete will appear here for recovery." : productFilter === "draft" ? "Draft products won't be visible to customers." : searchQuery ? "Try a different search term." : "Add your first product to get your store going."}</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -981,7 +889,7 @@ export default function Dashboard() {
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>R{p.price}</div></div>
                           </div>
-                          <button onClick={async () => { await supabase.from("products").update({ category: "" }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: "" } : x)); }} style={{ padding: "6px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                          <button onClick={async () => { await supabase.from("products").update({ category: "" }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: "" } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
                         </div>
                       ))}
                     </div>
@@ -998,7 +906,7 @@ export default function Dashboard() {
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>{p.category ? "In: " + p.category : "No collection"}</div></div>
                           </div>
-                          <button onClick={async () => { await supabase.from("products").update({ category: selectedCollection }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: selectedCollection! } : x)); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
+                          <button onClick={async () => { await supabase.from("products").update({ category: selectedCollection }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: selectedCollection! } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
                         </div>
                       ))}
                     </div>
@@ -1008,8 +916,8 @@ export default function Dashboard() {
             ) : (
               <div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); } } }} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                  <button onClick={async () => { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
+                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } } }} style={{ flex: 1, padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  <button onClick={async () => { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
                 </div>
                 {storeCollections.length === 0 ? (
                   <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No collections yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Create your first collection to organize your products.</p></div>
@@ -1026,7 +934,7 @@ export default function Dashboard() {
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <span style={{ fontSize: 12, color: "rgba(245,245,245,0.15)" }}>&rarr;</span>
-                            <button onClick={async (e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                            <button onClick={async (e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                           </div>
                         </div>
                       );
@@ -1054,13 +962,13 @@ export default function Dashboard() {
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Payment:</label>
                     {["awaiting_payment", "paid", "refunded"].map((s) => (
-                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id).eq("seller_id", seller!.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,61,110,0.1)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff3d6e" : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s.replace("_", " ")}</button>
+                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,61,110,0.1)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff3d6e" : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s.replace("_", " ")}</button>
                     ))}
                   </div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Status:</label>
                     {["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => (
-                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id).eq("seller_id", seller!.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? (s === "delivered" ? "rgba(34,197,94,0.15)" : s === "cancelled" ? "rgba(255,61,110,0.1)" : s === "shipped" ? "rgba(37,99,235,0.1)" : s === "confirmed" || s === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.status === s ? (s === "delivered" ? "#22c55e" : s === "cancelled" ? "#ff3d6e" : s === "shipped" ? "#2563eb" : s === "confirmed" || s === "processing" ? N : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s}</button>
+                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? (s === "delivered" ? "rgba(34,197,94,0.15)" : s === "cancelled" ? "rgba(255,61,110,0.1)" : s === "shipped" ? "rgba(37,99,235,0.1)" : s === "confirmed" || s === "processing" ? "rgba(255,107,53,0.08)" : "rgba(251,191,36,0.1)") : "rgba(255,255,255,0.03)", color: selectedOrder.status === s ? (s === "delivered" ? "#22c55e" : s === "cancelled" ? "#ff3d6e" : s === "shipped" ? "#2563eb" : s === "confirmed" || s === "processing" ? N : "#fbbf24") : "rgba(245,245,245,0.25)" }}>{s}</button>
                     ))}
                   </div>
                 </div>
@@ -1097,14 +1005,7 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : visibleOrders.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "80px 24px", color: "rgba(245,245,245,0.35)", background: "rgba(255,255,255,0.015)", border: "1px dashed rgba(255,255,255,0.06)", borderRadius: 16 }}>
-                <div style={{ fontSize: 36, opacity: 0.25, marginBottom: 16 }}>🛒</div>
-                <p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8, color: "rgba(245,245,245,0.5)" }}>No orders yet</p>
-                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.3)", maxWidth: 320, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>Orders will appear here the moment a customer checks out. We&apos;ll also email you and play a chime so you don&apos;t miss one.</p>
-                {seller?.subdomain && (
-                  <a href={"/store/" + seller.subdomain} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 20, padding: "10px 22px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.18)", borderRadius: 100, color: N, fontSize: 11, fontWeight: 700, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Visit Your Store</a>
-                )}
-              </div>
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "rgba(245,245,245,0.35)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No orders yet</p><p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>Orders will appear here when customers buy from your store.</p></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {visibleOrders.map((order) => (
@@ -1117,6 +1018,9 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+                {hasMoreOrders && (
+                  <button onClick={loadMoreOrders} disabled={loadingMoreOrders} style={{ marginTop: 12, padding: "12px 20px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, color: "#f5f5f5", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: loadingMoreOrders ? "not-allowed" : "pointer", opacity: loadingMoreOrders ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em", alignSelf: "center" }}>{loadingMoreOrders ? "Loading…" : "Load more orders"}</button>
+                )}
               </div>
             )}
           </div>)}
@@ -1189,8 +1093,8 @@ export default function Dashboard() {
                   if (dcAppliesTo === "collection" && dcCollections.length === 0) { alert("Please select at least one collection"); return; }
                   setDcSaving(true);
                   const payload = { seller_id: seller.id, code: dcCode.toUpperCase(), type: dcType, value: parseFloat(dcValue), min_order: parseFloat(dcMinOrder) || 0, max_uses: dcMaxUses ? parseInt(dcMaxUses) : null, expires_at: dcExpires ? new Date(dcExpires).toISOString() : null, applies_to: dcAppliesTo, product_ids: dcProductIds, collection_names: dcCollections, show_countdown: dcShowCountdown };
-                  if (dcEditId) { const { error } = await supabase.from("discount_codes").update(payload).eq("id", dcEditId); if (!error) { setDiscountCodes(discountCodes.map((d) => d.id === dcEditId ? { ...d, ...payload } as DiscountCode : d)); setShowDcForm(false); setDcEditId(null); } else alert("Error: " + error.message); }
-                  else { const { data, error } = await supabase.from("discount_codes").insert(payload).select().single(); if (data) { setDiscountCodes([data, ...discountCodes]); setShowDcForm(false); } if (error) alert("Error: " + error.message); }
+                  if (dcEditId) { const { error } = await supabase.from("discount_codes").update(payload).eq("id", dcEditId); if (!error) { setDiscountCodes(discountCodes.map((d) => d.id === dcEditId ? { ...d, ...payload } as DiscountCode : d)); setShowDcForm(false); setDcEditId(null); revalidateMyStore(); } else alert("Error: " + error.message); }
+                  else { const { data, error } = await supabase.from("discount_codes").insert(payload).select().single(); if (data) { setDiscountCodes([data, ...discountCodes]); setShowDcForm(false); revalidateMyStore(); } if (error) alert("Error: " + error.message); }
                   setDcSaving(false);
                 }} disabled={dcSaving || !dcCode || !dcValue} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: dcSaving ? "not-allowed" : "pointer", opacity: (dcSaving || !dcCode || !dcValue) ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{dcSaving ? "Saving..." : dcEditId ? "Save Changes" : "Create Discount Code"}</button>
               </div>
@@ -1217,8 +1121,8 @@ export default function Dashboard() {
                               </div>
                               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                                 <button onClick={() => { setDcEditId(dc.id); setDcCode(dc.code); setDcType(dc.type); setDcValue(String(dc.value)); setDcMinOrder(dc.min_order > 0 ? String(dc.min_order) : ""); setDcMaxUses(dc.max_uses ? String(dc.max_uses) : ""); setDcExpires(dc.expires_at ? dc.expires_at.split("T")[0] : ""); setDcAppliesTo(dc.applies_to || "cart"); setDcProductIds(dc.product_ids || []); setDcCollections(dc.collection_names || []); setDcShowCountdown(dc.show_countdown || false); setShowDcForm(true); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(245,245,245,0.4)", fontFamily: "'Schibsted Grotesk', sans-serif" }}>Edit</button>
-                                <button onClick={async () => { await supabase.from("discount_codes").update({ active: !dc.active }).eq("id", dc.id); setDiscountCodes(discountCodes.map((d) => d.id === dc.id ? { ...d, active: !d.active } : d)); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: dc.active ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", color: dc.active ? "#22c55e" : "rgba(245,245,245,0.25)" }}>{dc.active ? "Active" : "Off"}</button>
-                                <button onClick={async () => { if (!confirm("Delete this code?")) return; await supabase.from("discount_codes").delete().eq("id", dc.id); setDiscountCodes(discountCodes.filter((d) => d.id !== dc.id)); }} style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                                <button onClick={async () => { await supabase.from("discount_codes").update({ active: !dc.active }).eq("id", dc.id); setDiscountCodes(discountCodes.map((d) => d.id === dc.id ? { ...d, active: !d.active } : d)); revalidateMyStore(); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: dc.active ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)", color: dc.active ? "#22c55e" : "rgba(245,245,245,0.25)" }}>{dc.active ? "Active" : "Off"}</button>
+                                <button onClick={async () => { if (!confirm("Delete this code?")) return; await supabase.from("discount_codes").delete().eq("id", dc.id); setDiscountCodes(discountCodes.filter((d) => d.id !== dc.id)); revalidateMyStore(); }} style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                               </div>
                             </div>
                           ))}
@@ -1342,19 +1246,7 @@ export default function Dashboard() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><div><h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>WhatsApp Checkout</h3><p style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Allow customers to place orders via WhatsApp message</p></div><button onClick={() => setCheckoutConfig({ ...checkoutConfig, whatsapp_checkout_enabled: !checkoutConfig.whatsapp_checkout_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.whatsapp_checkout_enabled ? "#25d366" : "rgba(255,255,255,0.08)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.whatsapp_checkout_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={async () => {
-                if (!seller) return;
-                setCheckoutSaving(true); setCheckoutSaved(false);
-                try {
-                  const { error } = await supabase.from("sellers").update({ checkout_config: checkoutConfig }).eq("id", seller.id);
-                  if (error) { alert("Could not save: " + error.message); return; }
-                  setSeller({ ...seller, checkout_config: checkoutConfig });
-                  setCheckoutSaved(true);
-                  setTimeout(() => setCheckoutSaved(false), 3000);
-                } finally {
-                  setCheckoutSaving(false);
-                }
-              }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
+              <button onClick={async () => { if (!seller) return; setCheckoutSaving(true); setCheckoutSaved(false); await supabase.from("sellers").update({ checkout_config: checkoutConfig }).eq("id", seller.id); setSeller({ ...seller, checkout_config: checkoutConfig }); setCheckoutSaving(false); setCheckoutSaved(true); setTimeout(() => setCheckoutSaved(false), 3000); revalidateMyStore(); }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
               {checkoutSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
             </div>
           </div>)}

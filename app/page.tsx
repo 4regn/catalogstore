@@ -7,21 +7,28 @@ import Image from "next/image";
 // ── DATA ────────────────────────────────────────────────────────────────────
 
 const TICKER_ITEMS = [
-  "Your Catalog Amplified", "Zero Commission", "WhatsApp Import",
-  "Instant Setup", "Professional Stores", "Powered by CatalogStore",
+  "Built in South Africa", "Zero Commission", "Online Card Payments",
+  "Live in Minutes", "Professional Stores", "Powered by CatalogStore",
   "South African Built", "Payments on Autopilot",
   "Make Money While You Sleep", "Zero Coding Required",
 ];
 
-const STARTER_FEATURES = [
-  "15 Products", "5 Images Per Product", "5 Collections", "2 Templates",
-  "Store Editor", "All Payment Methods", "WhatsApp Checkout", "Subdomain Included",
-];
-
-const PRO_FEATURES = [
-  "100 Products", "20 Images Per Product", "20 Collections",
-  "All Templates (Current + Future)", "Custom Domain Support",
-  "No 'Powered by CatalogStore'", "Priority Support", "Everything in Starter",
+// One plan, everything currently buildable -- a Pro tier comes later as the real upsell
+// once there's more to upsell to (more products beyond 20, new templates beyond the
+// current 4). Limits here are deliberate: 20 products keeps storage + perf costs
+// predictable on the current tier; sellers who outgrow them upgrade.
+const PLAN_FEATURES = [
+  "Up to 20 products",
+  "5 photos per product",
+  "Up to 10 collections",
+  "All 4 store templates",
+  "Personal onboarding — we set you up 1-on-1",
+  "Custom domain support — we help you connect it",
+  "Free subdomain (yourstore.catalogstore.co.za)",
+  "Visual store editor",
+  "Card, EFT, Apple Pay, WhatsApp checkout",
+  "Order notifications by email",
+  "Cancel anytime",
 ];
 
 const GC_IMAGES = [
@@ -87,21 +94,121 @@ const PAINS = [
 ];
 
 const STEPS = [
-  { n: "01", t: "Sign Up",    d: "Pick a store name, choose your look. Your store URL is ready instantly. Already on WhatsApp Business? Import your catalog in seconds.", r: "20px 4px 4px 20px" },
+  { n: "01", t: "Sign Up",    d: "Pick a store name, choose your look. Your store URL is ready instantly — free for 7 days, no card needed.", r: "20px 4px 4px 20px" },
   { n: "02", t: "Customize",  d: "Upload products, set prices, organize collections. Use the visual editor to make it yours — colors, logo, banners, policies.",          r: "4px" },
   { n: "03", t: "Sell",       d: "Share your link. Customers browse, select variants, add to cart, and checkout. Orders and payments flow to you automatically.",         r: "4px 20px 20px 4px" },
 ];
 
 const FAQS = [
-  { q: "Do I need technical skills?",              a: "Not at all. If you can post on social media, you can build a store on CatalogStore. Everything is click-to-edit with a visual editor." },
-  { q: "Can my customers pay online?",             a: "Yes. You connect your own payment provider like PayFast or set up EFT payments. Customers pay you directly through your store — we never touch your money." },
-  { q: "What happens after the free trial?",       a: "After 7 days, your chosen plan activates automatically. Your R1 card verification converts to your first subscription payment." },
-  { q: "Can I use my own domain?",                 a: "Yes, on the Pro plan. You get a free subdomain (yourstore.catalogstore.co.za) on all plans, with custom domain support on Pro for a once-off R199 setup fee." },
-  { q: "Do you take a percentage of my sales?",    a: "Never. We charge a flat monthly subscription. 100% of your sales revenue goes directly to your account." },
-  { q: "Can I import my WhatsApp Business catalog?", a: "Yes. If you already sell on WhatsApp Business, you can import your products automatically. You can also add products manually if you prefer." },
+  {
+    q: "Do I need technical skills?",
+    a: "Not at all. If you can post on social media, you can build a store on CatalogStore. Everything is click-to-edit, and we'll personally help you set it up if you'd like company through the first hour.",
+  },
+  {
+    q: "How long does it take to launch my store?",
+    a: "Most sellers go live the same day — pick a template, upload your products, add your logo, and your store URL is ready to share. If you'd rather have someone do it with you, we onboard new sellers 1-on-1 at no extra cost.",
+  },
+  {
+    q: "Can my customers pay online with cards?",
+    a: "Yes — your customers shop and check themselves out with their cards, EFT, Apple Pay, or Google Pay. You connect your own payment processor so sales go straight to your account. We never touch your money.",
+  },
+  {
+    q: "Do you take a percentage of my sales?",
+    a: "Never. We charge a flat R149/month. 100% of your sales revenue goes directly to your account.",
+  },
+  {
+    q: "What happens after my 7-day free trial?",
+    a: "Your first month is R49 (instead of R149) as a launch promo. From the second month onwards it's R149/month. Cancel anytime — no contracts, no penalties.",
+  },
+  {
+    q: "Can I use my own custom domain?",
+    a: "Yes — every store includes custom domain support. If you own yourbrand.co.za we'll personally help you connect it so customers find you directly. Your free subdomain (yourstore.catalogstore.co.za) is always included as a fallback.",
+  },
+  {
+    q: "How do I add my products?",
+    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. Your plan includes up to 20 products — plenty to launch with.",
+  },
+  {
+    q: "What if I get stuck?",
+    a: "Every new seller gets one-on-one onboarding to set up their store, products, and payments. After that, our support team is available by email and WhatsApp and replies the same day — you're never left figuring it out alone.",
+  },
 ];
 
 // ── LOGO SVG ────────────────────────────────────────────────────────────────
+
+// Renders an iframe at a fixed virtual mobile viewport (400x844, iPhone-ish) and
+// scales it down to fit whatever container width is available. Without this the
+// template HTMLs (which weren't designed for 320px-wide phone bezels) overflow
+// horizontally inside the phone mockup. ResizeObserver keeps the scale in sync
+// if the container changes width (e.g. on rotation).
+//
+// Also lazy-mounts: the iframe element only enters the DOM once its phone wrap
+// scrolls within 300px of the viewport. Critical for the landing page where four
+// template iframes (one is 5MB, one is 2.3MB) sit below the fold -- without this,
+// every visitor pays the full network cost even if they never scroll to Templates.
+function ScaledIframe({
+  src,
+  title,
+  background = "#fff",
+}: {
+  src: string;
+  title: string;
+  background?: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const VW = 400;
+  const VH = 844;
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    const update = () => {
+      const w = wrap.clientWidth;
+      if (w > 0) wrap.style.setProperty("--tpl-scale", String(w / VW));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrap);
+
+    // Lazy mount: defer iframe creation until the user is about to see this
+    // phone. Generous rootMargin (1200px) means row 2 phones (VOLT + Aurelia)
+    // start loading while the user is still looking at row 1 -- so by the
+    // time they scroll down, row 2 has had a head start and doesn't feel slow.
+    // One-shot -- once visible, the iframe stays mounted even if the user
+    // scrolls away again, so it doesn't reload on re-entry.
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "1200px" },
+    );
+    io.observe(wrap);
+
+    return () => {
+      ro.disconnect();
+      io.disconnect();
+    };
+  }, []);
+
+  return (
+    <div ref={wrapRef} className="tpl-phone-iframe-wrap" style={{ background }}>
+      {visible && (
+        <iframe
+          src={src}
+          title={title}
+          loading="lazy"
+          className="tpl-phone-iframe"
+          style={{ width: VW, height: VH }}
+        />
+      )}
+    </div>
+  );
+}
 
 function Logo({ size = 28 }: { size?: number }) {
   return (
@@ -122,15 +229,15 @@ function Logo({ size = 28 }: { size?: number }) {
 // ── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const cursorRef = useRef<HTMLDivElement>(null);
-  const cursorRingRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  // AI store preview is our biggest differentiator -- open by default so it
+  // doesn't feel buried. Toggle still works for sellers who want to collapse it.
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [previewStage, setPreviewStage] = useState<"upload"|"loading"|"preview">("upload");
   const [previewLogo, setPreviewLogo] = useState<string|null>(null);
   const [previewProducts, setPreviewProducts] = useState<{dataUrl:string;base64:string;mediaType:string}[]>([]);
-  const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl"|"crown">("gc");
+  const [previewTemplate, setPreviewTemplate] = useState<"gc"|"sl"|"crown"|"heirloom">("gc");
   const [previewStore, setPreviewStore] = useState<{storeName:string;tagline:string;storeSlug:string;brandColor:string;products:{name:string;price:string;category:string}[];collections:{name:string;productIndexes:number[]}[];aboutText?:string;insight1:{label:string;value:string};insight2:{label:string;value:string};insight3:{label:string;value:string}}|null>(null);
   const [previewError, setPreviewError] = useState<string|null>(null);
   const [previewLoadStep, setPreviewLoadStep] = useState(0);
@@ -145,41 +252,6 @@ export default function HomePage() {
   const previewPanelRef = useRef<HTMLDivElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
-  const mouseRef = useRef({ x: 0, y: 0 });
-  const ringRef = useRef({ x: 0, y: 0 });
-
-  // Cursor
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY };
-      if (cursorRef.current) {
-        cursorRef.current.style.left = e.clientX + "px";
-        cursorRef.current.style.top = e.clientY + "px";
-      }
-    };
-    document.addEventListener("mousemove", onMove);
-    let raf: number;
-    const animate = () => {
-      ringRef.current.x += (mouseRef.current.x - ringRef.current.x) * 0.12;
-      ringRef.current.y += (mouseRef.current.y - ringRef.current.y) * 0.12;
-      if (cursorRingRef.current) {
-        cursorRingRef.current.style.left = ringRef.current.x + "px";
-        cursorRingRef.current.style.top = ringRef.current.y + "px";
-      }
-      raf = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => { document.removeEventListener("mousemove", onMove); cancelAnimationFrame(raf); };
-  }, []);
-
-  // Cursor expand on hover
-  useEffect(() => {
-    const expand = () => document.body.classList.add("cursor-expand");
-    const shrink = () => document.body.classList.remove("cursor-expand");
-    const els = document.querySelectorAll("a, button");
-    els.forEach(el => { el.addEventListener("mouseenter", expand); el.addEventListener("mouseleave", shrink); });
-    return () => els.forEach(el => { el.removeEventListener("mouseenter", expand); el.removeEventListener("mouseleave", shrink); });
-  }, []);
 
   // Scroll listener
   useEffect(() => {
@@ -827,6 +899,200 @@ ${collections.length > 1 ? `
 </body></html>`;
   }, [previewStore, previewProducts, previewBanner, previewLogo]);
 
+  const buildHeirloomStore = useCallback(() => {
+    if (!previewStore) return "";
+    const products = previewStore.products.slice(0, 10);
+    const collections = previewStore.collections || [];
+    const heroImg = previewBanner?.dataUrl ?? previewProducts[0]?.dataUrl ?? "";
+    const logoImg = previewLogo ?? "";
+    const storeName = previewStore.storeName;
+    const tagline = previewStore.tagline || "";
+    const aboutText = previewStore.aboutText || "";
+    const bc = previewStore.brandColor || previewBrandColor || "#111010";
+
+    // Heirloom tokens — extracted verbatim from HeirloomStore.tsx
+    const ink = "#111010";
+    const paper = "#fff";
+    const mid = "#f2f0ed";
+    const dim = "#595959";
+    const rule = "#e0dbd5";
+    const announce = "#1a1715";
+
+    // Product cards — magazine-grid, 2 columns to suit the mobile preview frame.
+    // Borders use --rule, no card shadows. Serif product name, sans price, uppercase category.
+    const productCards = products.map((p, i) => {
+      const img = previewProducts[i];
+      const onSale = i < 2;
+      const priceNum = parseInt(p.price.replace(/[^0-9]/g, "")) || 300;
+      const wasPrice = onSale ? "R" + Math.round(priceNum / 0.8) : "";
+      return `
+        <div style="position:relative;border-right:1px solid ${rule};border-bottom:1px solid ${rule};background:${paper};cursor:pointer;overflow:hidden">
+          ${onSale ? `<div style="position:absolute;top:14px;left:14px;background:${bc};color:#fff;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;padding:4px 9px;font-family:'DM Sans',sans-serif;font-weight:500;z-index:2">Sale</div>` : ""}
+          <div style="aspect-ratio:1;background:${mid};overflow:hidden">
+            ${img ? `<img src="${img.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block">` : ""}
+          </div>
+          <div style="padding:14px 16px 18px">
+            <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:${dim};margin-bottom:5px">${p.category || "Product"}</div>
+            <div style="font-family:'DM Serif Display',Georgia,serif;font-size:15px;font-weight:400;line-height:1.25;color:${ink};margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:${ink}">
+              ${onSale ? `<span style="font-size:10px;color:${dim};text-decoration:line-through;margin-right:6px;font-weight:400">${wasPrice}</span>` : ""}${p.price}
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
+    // Categories row — Heirloom's signature 4-col strip, but 2-col to fit the preview width.
+    const categoryCards = collections.slice(0, 4).map((col, ci) => {
+      const firstIdx = col.productIndexes[0] ?? ci;
+      const img = previewProducts[firstIdx]?.dataUrl ?? "";
+      return `
+        <div style="position:relative;border-right:1px solid ${rule};border-bottom:1px solid ${rule};background:${paper};cursor:pointer;overflow:hidden">
+          <div style="aspect-ratio:3/4;background:${mid};overflow:hidden">
+            ${img ? `<img src="${img}" style="width:100%;height:100%;object-fit:cover;display:block">` : ""}
+          </div>
+          <div style="padding:14px 16px">
+            <div style="font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;letter-spacing:0.08em;color:${ink};margin-bottom:2px">${col.name}</div>
+            <div style="font-family:'DM Sans',sans-serif;font-size:10px;color:${dim};font-weight:400">${col.productIndexes.length} piece${col.productIndexes.length > 1 ? "s" : ""}</div>
+          </div>
+        </div>`;
+    }).join("");
+
+    const tickerItems = ["Free Delivery Over R500","New Arrivals","Secure Checkout","Made in South Africa",
+                         "Free Delivery Over R500","New Arrivals","Secure Checkout","Made in South Africa"]
+      .map(t => `<span style="font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${paper};padding:0 28px;display:inline-flex;align-items:center">${t}<span style="opacity:0.3;margin-left:28px">—</span></span>`).join("");
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:${paper};color:${ink};font-family:'DM Sans',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:${paper}}::-webkit-scrollbar-thumb{background:${ink};border-radius:2px}
+  @keyframes hltick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+</style>
+<script>
+  (function() {
+    var total = 12 * 3600 - 1;
+    function tick() {
+      var h = Math.floor(total / 3600);
+      var m = Math.floor((total % 3600) / 60);
+      var s = total % 60;
+      var el = document.getElementById("hl-timer");
+      if (el) el.textContent = (h<10?"0"+h:h) + " : " + (m<10?"0"+m:m) + " : " + (s<10?"0"+s:s);
+      if (total > 0) { total--; setTimeout(tick, 1000); }
+    }
+    document.addEventListener("DOMContentLoaded", tick);
+    setTimeout(tick, 100);
+  })();
+</script>
+</head><body>
+
+<!-- ANNOUNCEMENT BAR -->
+<div style="background:${announce};color:#fff;padding:9px 20px;text-align:center;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:400;letter-spacing:0.22em;text-transform:uppercase">
+  Use Code <span style="font-weight:600;letter-spacing:0.18em">WELCOME20</span> for 20% Off
+</div>
+
+<!-- NAV — sticky, white, hamburger + serif italic logo + cart -->
+<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 20px;height:56px;background:${paper};border-bottom:1px solid ${rule};position:sticky;top:0;z-index:50">
+  <div style="display:flex;align-items:center;gap:14px;justify-self:start">
+    <div style="width:20px;height:14px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer">
+      <div style="width:100%;height:1px;background:${ink}"></div>
+      <div style="width:100%;height:1px;background:${ink}"></div>
+      <div style="width:100%;height:1px;background:${ink}"></div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    ${logoImg
+      ? `<img src="${logoImg}" style="height:32px;max-width:140px;object-fit:contain">`
+      : `<div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:22px;letter-spacing:0.04em;color:${ink};line-height:1">${storeName}</div>`}
+  </div>
+  <div style="justify-self:end;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:${ink};border-bottom:1px solid ${ink};padding-bottom:1px;cursor:pointer">Bag (0)</div>
+</div>
+
+<!-- HERO — dark with serif italic headline -->
+<div style="position:relative;min-height:380px;display:flex;align-items:flex-end;overflow:hidden;background:linear-gradient(180deg,#1a1715 0%,#0d0b0a 100%)">
+  ${heroImg ? `<img src="${heroImg}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.65">` : ""}
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,8,0.9) 0%,rgba(8,8,8,0.45) 50%,rgba(8,8,8,0.15) 100%)"></div>
+  <div style="position:relative;z-index:1;padding:0 24px 36px;width:100%">
+    <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:0.3em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:10px">01 — The Edit</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <div style="width:22px;height:1px;background:rgba(255,255,255,0.4)"></div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.55)">${(tagline || "New Season").slice(0, 28)}</div>
+    </div>
+    <h1 style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:clamp(34px,8vw,52px);font-weight:400;line-height:0.97;letter-spacing:-0.5px;color:#fff;margin-bottom:20px">${storeName}</h1>
+    <p style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:300;line-height:1.7;color:rgba(255,255,255,0.62);max-width:320px;margin-bottom:24px">${(aboutText || tagline || "Considered pieces, made to last.").slice(0, 140)}</p>
+    <div style="display:inline-block;background:#f9f7f4;color:${ink};padding:13px 28px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;letter-spacing:0.25em;text-transform:uppercase;cursor:pointer">Shop the Edit</div>
+    <div style="margin-top:28px;display:flex;align-items:center;gap:14px">
+      <div id="hl-timer" style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.18em;line-height:1;color:#fff">12 : 00 : 00</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:8px;letter-spacing:0.25em;text-transform:uppercase;color:rgba(255,255,255,0.42)">Ends<br>Tonight</div>
+    </div>
+  </div>
+</div>
+
+<!-- TICKER -->
+<div style="background:${ink};padding:10px 0;overflow:hidden;white-space:nowrap">
+  <div style="display:inline-flex;animation:hltick 28s linear infinite">${tickerItems}</div>
+</div>
+
+<!-- CATEGORIES HEADER -->
+${collections.length > 0 ? `
+<div style="padding:36px 24px 24px;border-bottom:1px solid ${rule};background:${paper}">
+  <div style="font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:${dim};margin-bottom:6px">Shop the Categories</div>
+  <h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:30px;font-weight:400;line-height:1;letter-spacing:-0.01em;color:${ink}">Find your <em style="font-style:italic">edit</em></h2>
+</div>
+<div style="display:grid;grid-template-columns:repeat(2,1fr);background:${paper};border-bottom:0">${categoryCards}</div>` : ""}
+
+<!-- PRODUCTS HEADER -->
+<div style="padding:36px 24px 20px;background:${paper}">
+  <div style="font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:${dim};margin-bottom:6px">All Pieces</div>
+  <h2 style="font-family:'DM Serif Display',Georgia,serif;font-size:30px;font-weight:400;line-height:1;letter-spacing:-0.01em;color:${ink}">The <em style="font-style:italic">collection</em></h2>
+</div>
+
+<!-- PRODUCT GRID -->
+<div style="display:grid;grid-template-columns:repeat(2,1fr);background:${paper}">${productCards}</div>
+
+<!-- NEWSLETTER / ABOUT — warm paper section -->
+<div style="background:${mid};padding:56px 28px;text-align:center;border-top:1px solid ${rule}">
+  <div style="font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:#888;margin-bottom:14px">Stay in the know</div>
+  <h2 style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:30px;font-weight:400;line-height:1.05;color:${ink};margin-bottom:14px">An heirloom in <em>every piece</em></h2>
+  <p style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:300;line-height:1.7;color:${dim};max-width:360px;margin:0 auto 24px">${aboutText || tagline || "Sign up for first looks, private sales, and stories from the makers behind every piece."}</p>
+  <div style="max-width:340px;margin:0 auto;border-bottom:1px solid ${ink};display:flex;align-items:center;gap:12px">
+    <span style="flex:1;font-family:'DM Sans',sans-serif;font-size:13px;color:#aaa;font-weight:300;padding:12px 0;text-align:left">Your email</span>
+    <span style="font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${ink};padding:12px 0">Subscribe →</span>
+  </div>
+</div>
+
+<!-- FOOTER — white paper, serif italic brand, dim links -->
+<div style="background:${paper};padding:48px 24px 24px;border-top:1px solid ${rule}">
+  <div style="margin-bottom:28px">
+    ${logoImg
+      ? `<img src="${logoImg}" style="height:36px;max-width:160px;object-fit:contain;margin-bottom:14px">`
+      : `<div style="font-family:'DM Serif Display',Georgia,serif;font-style:italic;font-size:24px;letter-spacing:0.04em;color:${ink};margin-bottom:10px;line-height:1">${storeName}</div>`}
+    <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;line-height:1.6;color:${dim};max-width:240px">${tagline || "An heirloom in every piece."}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px">
+    <div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${dim};margin-bottom:14px">Shop</div>
+      ${collections.map(c => `<div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;color:${ink};margin-bottom:8px;cursor:pointer">${c.name}</div>`).join("")}
+      <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;color:${ink};margin-bottom:8px;cursor:pointer">All Pieces</div>
+    </div>
+    <div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:${dim};margin-bottom:14px">Studio</div>
+      ${["Shipping","Returns","Privacy","Contact"].map(p => `<div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:300;color:${ink};margin-bottom:8px;cursor:pointer">${p}</div>`).join("")}
+    </div>
+  </div>
+  <div style="display:flex;gap:14px;margin-bottom:24px">
+    ${["Instagram","Facebook","TikTok","WhatsApp"].map(s => `<span style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:${dim};border-bottom:1px solid ${rule};padding-bottom:1px;cursor:pointer">${s}</span>`).join("")}
+  </div>
+  <div style="padding-top:18px;border-top:1px solid ${rule};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.08em;color:${dim}">
+    <span>© ${storeName}</span>
+    <span style="text-transform:uppercase;letter-spacing:0.14em">Powered by CatalogStore</span>
+  </div>
+</div>
+
+</body></html>`;
+  }, [previewStore, previewProducts, previewBanner, previewLogo, previewBrandColor]);
+
 
   return (
     <>
@@ -839,14 +1105,8 @@ ${collections.length > 1 ? `
           --grad:linear-gradient(135deg,#ff6b35 0%,#ff3d6e 100%);
         }
         html{scroll-behavior:smooth}
-        body{font-family:'Schibsted Grotesk',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;cursor:none}
-        a{text-decoration:none;cursor:none}
-        button{cursor:none}
-
-        #cs-cursor{position:fixed;width:12px;height:12px;background:var(--neon);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);transition:width 0.3s,height 0.3s,background 0.2s}
-        #cs-cursor-ring{position:fixed;width:36px;height:36px;border:1px solid rgba(255,107,53,0.4);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:width 0.3s,height 0.3s,opacity 0.3s}
-        body.cursor-expand #cs-cursor{width:48px;height:48px;background:rgba(255,107,53,0.15)}
-        body.cursor-expand #cs-cursor-ring{opacity:0}
+        body{font-family:'Schibsted Grotesk',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+        a{text-decoration:none}
 
         @keyframes pulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
         @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(255,107,53,0.6)}70%{box-shadow:0 0 0 8px rgba(255,107,53,0)}100%{box-shadow:0 0 0 0 rgba(255,107,53,0)}}
@@ -926,6 +1186,30 @@ ${collections.length > 1 ? `
         .tpl-card{border-radius:16px;overflow:hidden;border:1px solid var(--glass-b);transition:transform 0.4s cubic-bezier(0.16,1,0.3,1),border-color 0.3s,box-shadow 0.3s}
         .tpl-card:hover{transform:translateY(-6px) scale(1.01);border-color:rgba(255,107,53,0.25);box-shadow:0 24px 60px rgba(0,0,0,0.5)}
 
+        /* Phone-frame mockup for the four template previews. Width is responsive --
+           on desktop, each phone sits in a 1fr column of the 2-col pair; on mobile
+           pairs stack so each phone gets the full container width. The :before
+           pseudo creates the iPhone-style notch / dynamic island. */
+        .tpl-phone{position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:9/19;background:#0a0a0a;border-radius:42px;padding:10px;box-shadow:0 30px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.08),inset 0 0 0 2px rgba(255,255,255,0.04);overflow:hidden}
+        .tpl-phone-notch{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:2;pointer-events:none}
+        .tpl-phone-screen{width:100%;height:100%;border:none;display:block;border-radius:32px;overflow:hidden}
+        /* Wrapper for the scaled iframes (Heirloom + Crown). The iframe renders at
+           a fixed 400x844 virtual viewport and gets scaled to fit via --tpl-scale,
+           set by the ScaledIframe component's ResizeObserver. */
+        .tpl-phone-iframe-wrap{position:relative;width:100%;height:100%;border-radius:32px;overflow:hidden}
+        .tpl-phone-iframe{position:absolute;top:0;left:0;border:none;display:block;transform:scale(var(--tpl-scale,1));transform-origin:top left}
+        .tpl-phone-caption{margin-top:28px;text-align:center;padding:0 8px}
+        .tpl-phone-num{font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--neon);font-weight:800;margin-bottom:6px}
+        .tpl-phone-title{font-size:clamp(20px,3vw,28px);font-weight:900;text-transform:uppercase;letter-spacing:-0.03em;margin-bottom:10px}
+        .tpl-phone-desc{font-size:12px;color:var(--text-dim);line-height:1.65;max-width:320px;margin:0 auto 12px}
+        .tpl-phone-hint{font-size:10px;letter-spacing:0.08em;color:var(--text-muted);font-weight:600}
+
+        /* Horizontal swipe carousel for the screenshot-based templates (GC, SL).
+           scroll-snap gives crisp page-by-page behaviour on touch + mouse drag. */
+        .tpl-carousel{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+        .tpl-carousel::-webkit-scrollbar{display:none}
+        .tpl-carousel-slide{flex:0 0 100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always}
+
         .sleep-number{font-size:120px;font-weight:900;letter-spacing:-0.08em;line-height:0.9;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:float 4s ease-in-out infinite}
 
         .popular-badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);padding:5px 20px;background:var(--grad);border-radius:100px;font-size:9px;font-weight:800;color:#fff;letter-spacing:0.1em;text-transform:uppercase;box-shadow:0 4px 16px rgba(255,107,53,0.4);white-space:nowrap}
@@ -973,17 +1257,12 @@ ${collections.length > 1 ? `
           .pricing-grid-2 > div{border-radius:20px!important}
           .price-num{font-size:36px!important}
           .tpl-grid{grid-template-columns:1fr!important}
+          .tpl-pair-row{grid-template-columns:1fr!important;gap:64px!important}
           .pain-grid-2{grid-template-columns:1fr!important}
           .sleep-flex > div{border-radius:20px!important}
           .sleep-flex{flex-direction:column!important}
-          #cs-cursor,#cs-cursor-ring{display:none}
         }
       `}</style>
-
-      {/* CURSOR */}
-      <div id="cs-cursor" ref={cursorRef} />
-      <div id="cs-cursor-ring" ref={cursorRingRef} />
-
 
       {/* AMBIENT ORBS */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
@@ -1025,21 +1304,21 @@ ${collections.length > 1 ? `
           <div style={{ maxWidth: 820, width: "100%" }}>
             <div className="fu1 live-badge" style={{ marginBottom: 40 }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--neon)", animation: "pulse-ring 2s infinite", flexShrink: 0 }} />
-              Launch Promo — R49 First Month
+              7 Days Free, Then R49 First Month
             </div>
             <h1 className="fu2" style={{ fontSize: "clamp(46px,9vw,104px)", fontWeight: 900, lineHeight: 0.92, letterSpacing: "-0.06em", textTransform: "uppercase", marginBottom: 32 }}>
-              Your catalog.<br /><span className="shimmer-text">Amplified.</span>
+              Built for <span className="shimmer-text">South African sellers.</span>
             </h1>
-            <p className="fu3" style={{ fontSize: 17, lineHeight: 1.85, color: "var(--text-dim)", maxWidth: 500, margin: "0 auto 52px", fontWeight: 400 }}>
-              Build a professional online store in minutes. Accept payments automatically. Make money while you sleep. No coding required.
+            <p className="fu3" style={{ fontSize: 17, lineHeight: 1.85, color: "var(--text-dim)", maxWidth: 560, margin: "0 auto 52px", fontWeight: 400 }}>
+              Open a real online store in minutes. Your customers shop and pay with their cards — no more chasing WhatsApp orders. R149/month, zero commission.
             </p>
             <div className="fu4 hero-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-              <Link href="/signup" className="glow-btn">Start Your Free Trial</Link>
-              <a href="#features" className="outline-btn">Learn More</a>
+              <Link href="/signup" className="glow-btn">Start 7-Day Free Trial</Link>
+              <a href="#ai-preview" className="outline-btn">✦ Try the AI Preview</a>
             </div>
-            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>7-day free trial · Cancel anytime · No credit card risk</p>
+            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>R0 today · Card is debited R49 after day 7 · Cancel anytime</p>
             <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap" }}>
-              {[{ val: "R49", label: "First Month" }, { val: "7", label: "Day Free Trial" }, { val: "0%", label: "Commission" }].map((stat, i) => (
+              {[{ val: "7 Days", label: "Free Trial" }, { val: "0%", label: "Commission" }, { val: "Online", label: "Card Payments" }].map((stat, i) => (
                 <div key={i} style={{ display: "flex", gap: 48, alignItems: "center" }}>
                   {i > 0 && <div style={{ width: 1, height: 40, background: "var(--glass-b)" }} />}
                   <div style={{ textAlign: "center" }}>
@@ -1048,6 +1327,37 @@ ${collections.length > 1 ? `
                   </div>
                 </div>
               ))}
+            </div>
+            {/* TRUST SIGNALS — sits just below the hero stats. SA-specific positioning,
+                no competitor mention, reinforces who the platform is for and that it's legit. */}
+            <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 28, marginTop: 36, flexWrap: "wrap", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 600 }}>
+              <span>🇿🇦 Made in South Africa</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>Secure Card Payments</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>Live in Minutes</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>ZAR Pricing</span>
+            </div>
+            {/* PAYMENT METHODS — shows the full range of ways customers can pay. Sits at the
+                bottom of the hero as the closing reassurance ('every payment method I'd want
+                is here'). Kept visually quieter than the trust row above so it doesn't
+                compete for attention. */}
+            <div className="fu5" style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--glass-b)", maxWidth: 600, marginLeft: "auto", marginRight: "auto" }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 700, marginBottom: 12, opacity: 0.7 }}>
+                Customers pay how they want
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 20, flexWrap: "wrap", fontSize: 12, color: "var(--text-dim)", fontWeight: 600, letterSpacing: "0.04em" }}>
+                <span>Card</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>EFT</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>Apple Pay</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>Google Pay</span>
+                <span style={{ opacity: 0.3 }}>·</span>
+                <span>WhatsApp</span>
+              </div>
             </div>
           </div>
         </section>
@@ -1061,62 +1371,59 @@ ${collections.length > 1 ? `
           </div>
         </div>
 
-        {/* PRICING */}
+        {/* PRICING — single confident tier. Pre-launch we don't gate anything behind a Pro
+            upsell; we have to prove we can sell at all first. Everything's included. */}
         <section id="pricing" style={{ padding: "120px 0 100px" }}>
           <div className="section-label reveal">Pricing</div>
-          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(32px,5vw,56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase", marginBottom: 16 }}>Pick your fuel</h2>
-          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 20 }}>7-day free trial on Starter. Cancel anytime.</p>
+          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(32px,5vw,56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase", marginBottom: 16 }}>One plan. Everything included.</h2>
+          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 20, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>No tiers, no upsells. Every seller gets the full platform — including 1-on-1 onboarding from us.</p>
           <div className="reveal" style={{ textAlign: "center", marginBottom: 56 }}>
             <span style={{ display: "inline-block", padding: "8px 24px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: "var(--neon)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Launch Promo — R49 First Month on Starter
+              Launch Promo — R49 First Month
             </span>
           </div>
-          <div className="pricing-grid-2 stagger-children" style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 4, maxWidth: 820, margin: "0 auto" }}>
-            {/* STARTER */}
-            <div className="glass-card grad-border" style={{ padding: "44px 32px", borderRadius: "20px 4px 4px 20px", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+          <div className="reveal" style={{ maxWidth: 520, margin: "0 auto" }}>
+            <div className="glass-card grad-border" style={{ padding: "52px 40px", borderRadius: 20, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)" }} />
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20 }}>Starter</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                <span className="price-num" style={{ fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em" }}>R49</span>
-                <span style={{ fontSize: 22, fontWeight: 900, textDecoration: "line-through", color: "var(--text-muted)" }}>R99</span>
-                <span style={{ fontSize: 13, color: "var(--text-dim)" }}>/mo</span>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Catalogstore Plan</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, justifyContent: "center" }}>
+                <span className="price-num" style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-0.05em" }}>R49</span>
+                <span style={{ fontSize: 28, fontWeight: 900, textDecoration: "line-through", color: "var(--text-muted)" }}>R149</span>
+                <span style={{ fontSize: 14, color: "var(--text-dim)" }}>/mo</span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 28, fontWeight: 600 }}>First month only, then R99/mo</div>
-              <ul style={{ listStyle: "none", marginBottom: 36, flex: 1 }}>
-                {STARTER_FEATURES.map(f => (
+              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 32, fontWeight: 600, textAlign: "center" }}>First month only, then R149/mo</div>
+              <ul style={{ listStyle: "none", marginBottom: 36 }}>
+                {PLAN_FEATURES.map(f => (
                   <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/signup" style={{ display: "block", width: "100%", padding: 16, borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "#f5f5f5", color: "#030303" }}>
-                Start with Starter
+              <Link href="/signup" style={{ display: "block", width: "100%", padding: 18, borderRadius: 100, textAlign: "center", fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "#f5f5f5", color: "#030303" }}>
+                Start Your Free Trial
               </Link>
-            </div>
-            {/* PRO */}
-            <div style={{ padding: "44px 32px", background: "var(--glass)", border: "1px solid var(--glass-b)", borderRadius: "4px 20px 20px 4px", display: "flex", flexDirection: "column", opacity: 0.4, position: "relative" }}>
-              <div className="popular-badge">Coming Soon</div>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--text-dim)", fontWeight: 800, marginBottom: 20 }}>Pro</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                <span className="price-num" style={{ fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em" }}>R249</span>
-                <span style={{ fontSize: 13, color: "var(--text-dim)" }}>/mo</span>
+              <div style={{ marginTop: 16, textAlign: "center", fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+                7 days free · No credit card needed · Cancel anytime
               </div>
-              <div style={{ height: 20, marginBottom: 28 }} />
-              <ul style={{ listStyle: "none", marginBottom: 36, flex: 1 }}>
-                {PRO_FEATURES.map(f => (
-                  <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>
-                ))}
-              </ul>
-              <div style={{ display: "block", width: "100%", padding: 16, borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>Coming Soon</div>
             </div>
+            {/* GROWTH HINT — signals to sellers that there's a roadmap so they don't worry
+                about hitting the limits later. Not a 'Coming Soon' card because Pro isn't
+                built; just a soft acknowledgement that we're expanding. */}
+            <p className="reveal" style={{ textAlign: "center", marginTop: 32, fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", letterSpacing: "0.02em" }}>
+              Outgrowing the limits? A higher tier with more products and new templates is coming. Early sellers get grandfathered pricing.
+            </p>
           </div>
         </section>
 
-        {/* TEMPLATES */}
-        <section id="templates" style={{ padding: "60px 0 100px" }}>
-          <div className="section-label reveal">Templates</div>
-          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(28px,4vw,44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", marginBottom: 72 }}>Choose your look</h2>
+        {/* AI STORE PREVIEW — promoted to its own top-level section above Templates.
+            The hero CTA anchors to #ai-preview; the section opens by default
+            (previewOpen) so it doesn't feel hidden behind a click. */}
+        <section id="ai-preview" style={{ padding: "60px 0 40px" }}>
+          <div className="section-label reveal" style={{ color: "var(--neon)" }}>✦ AI Store Preview</div>
+          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(28px,4vw,44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", marginBottom: 16 }}>See your store before you build it</h2>
+          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", maxWidth: 520, margin: "0 auto 48px", lineHeight: 1.7 }}>
+            Upload 4 product photos and our AI generates a live, working store preview in under 10 seconds — products named, prices set, collections grouped. No signup needed.
+          </p>
 
-        {/* AI STORE PREVIEW — collapsible under Choose Your Look */}
-        <div style={{ marginTop: 0, marginBottom: 80 }}>
+        <div style={{ marginTop: 0, marginBottom: 0 }}>
           <button
             className="preview-toggle"
             onClick={() => setPreviewOpen(o => !o)}
@@ -1124,7 +1431,7 @@ ${collections.length > 1 ? `
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
-            {previewOpen ? "Close AI Store Preview" : "✦ See Your Store Come to Life — AI Preview"}
+            {previewOpen ? "Hide Preview Tool" : "Open AI Preview Tool"}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: previewOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s", flexShrink: 0 }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
@@ -1234,19 +1541,45 @@ ${collections.length > 1 ? `
                       <div>
                         <div className="preview-upload-title">Choose Template</div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                          {(["gc", "sl", "crown"] as const).map(id => {
-                            const isGc = id === "gc";
-                            const isCrown = id === "crown";
+                          {(["gc", "sl", "crown", "heirloom"] as const).map(id => {
                             const sel = previewTemplate === id;
-                            const tplBg = isGc ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" : isCrown ? "linear-gradient(135deg,#0a0908,#1a1612)" : "linear-gradient(135deg,#f0ebe4,#e8e2da)";
-                            const tplColor = isGc ? "rgba(255,255,255,0.25)" : isCrown ? "rgba(196,162,101,0.6)" : "rgba(42,42,46,0.3)";
-                            const tplFont = isGc ? "'Schibsted Grotesk',sans-serif" : isCrown ? "'Georgia',serif" : "Georgia,serif";
-                            const tplLabel = isGc ? "GLASS CHROME" : isCrown ? "Crown" : "Soft Luxury";
-                            const tplDesc = isGc ? "Dark, futuristic, chrome" : isCrown ? "Dark luxury, gold accents" : "Warm cream, elegant";
+                            const tplBg =
+                              id === "gc" ? "linear-gradient(135deg,#0a0a0e,#1a1a24)" :
+                              id === "crown" ? "linear-gradient(135deg,#0a0908,#1a1612)" :
+                              id === "heirloom" ? "linear-gradient(180deg,#1a1715 0%,#0d0b0a 100%)" :
+                              "linear-gradient(135deg,#f0ebe4,#e8e2da)";
+                            const tplColor =
+                              id === "gc" ? "rgba(255,255,255,0.25)" :
+                              id === "crown" ? "rgba(196,162,101,0.6)" :
+                              id === "heirloom" ? "rgba(255,255,255,0.85)" :
+                              "rgba(42,42,46,0.3)";
+                            const tplFont =
+                              id === "gc" ? "'Schibsted Grotesk',sans-serif" :
+                              id === "crown" ? "'Georgia',serif" :
+                              id === "heirloom" ? "'DM Serif Display',Georgia,serif" :
+                              "Georgia,serif";
+                            const tplLabel =
+                              id === "gc" ? "GLASS CHROME" :
+                              id === "crown" ? "Crown" :
+                              id === "heirloom" ? "Heirloom" :
+                              "Soft Luxury";
+                            const tplDesc =
+                              id === "gc" ? "Dark, futuristic, chrome" :
+                              id === "crown" ? "Dark luxury, gold accents" :
+                              id === "heirloom" ? "Magazine, serif, refined" :
+                              "Warm cream, elegant";
+                            const isItalic = id === "crown" || id === "heirloom";
+                            const previewFontSize = id === "gc" ? 8 : id === "crown" ? 14 : id === "heirloom" ? 16 : 11;
+                            const previewLetterSpacing = id === "crown" ? "0.18em" : id === "heirloom" ? "0.04em" : id === "gc" ? "0.12em" : "0.04em";
+                            const previewBorder =
+                              id === "crown" ? "rgba(196,162,101,0.1)" :
+                              id === "gc" ? "rgba(255,255,255,0.06)" :
+                              id === "heirloom" ? "rgba(255,255,255,0.08)" :
+                              "rgba(0,0,0,0.06)";
                             return (
                               <div key={id} className={`preview-tpl-option${sel ? " selected" : ""}`} onClick={() => setPreviewTemplate(id)} style={{ position: "relative" }}>
                                 {sel && <div style={{ position: "absolute", top: 7, right: 7, width: 18, height: 18, borderRadius: "50%", background: "var(--neon)", color: "#fff", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✓</div>}
-                                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", background: tplBg, fontSize: isCrown ? 14 : isGc ? 8 : 11, color: tplColor, fontFamily: tplFont, letterSpacing: isCrown ? "0.18em" : isGc ? "0.12em" : "0.04em", fontStyle: isCrown ? "italic" : "normal", borderBottom: `1px solid ${isCrown ? "rgba(196,162,101,0.1)" : isGc ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                                <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", background: tplBg, fontSize: previewFontSize, color: tplColor, fontFamily: tplFont, letterSpacing: previewLetterSpacing, fontStyle: isItalic ? "italic" : "normal", borderBottom: `1px solid ${previewBorder}` }}>
                                   {tplLabel}
                                 </div>
                                 <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.02)" }}>
@@ -1427,7 +1760,7 @@ ${collections.length > 1 ? `
                         {previewStore.storeSlug}.catalogstore.co.za
                       </div>
                     </div>
-                    <iframe srcDoc={previewTemplate === "gc" ? buildGCStore() : previewTemplate === "sl" ? buildSLStore() : buildCrownStore()} style={{ width: "100%", height: 620, border: "none", display: "block" }} title="Store Preview" />
+                    <iframe srcDoc={previewTemplate === "gc" ? buildGCStore() : previewTemplate === "sl" ? buildSLStore() : previewTemplate === "crown" ? buildCrownStore() : buildHeirloomStore()} style={{ width: "100%", height: 620, border: "none", display: "block" }} title="Store Preview" />
                   </div>
 
                   {/* INSIGHTS */}
@@ -1444,9 +1777,9 @@ ${collections.length > 1 ? `
                   <div style={{ marginTop: 16, padding: "36px 32px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 16, textAlign: "center", position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 0%,rgba(255,107,53,0.1) 0%,transparent 60%)", pointerEvents: "none" }} />
                     <h3 style={{ fontSize: "clamp(18px,2.5vw,26px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.03em", marginBottom: 10, position: "relative" }}>Ready to go live?</h3>
-                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 24, position: "relative" }}>Start your 7-day free trial — no credit card needed.</p>
+                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 24, position: "relative" }}>Start your 7-day free trial — R0 today, R49 after day 7.</p>
                     <Link href="/signup" style={{ display: "inline-block", padding: "16px 40px", borderRadius: 100, background: "var(--grad)", color: "#fff", fontFamily: "'Schibsted Grotesk',sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", textDecoration: "none", boxShadow: "0 0 32px rgba(255,107,53,0.25)", position: "relative" }}>
-                      Start Free Trial — R49 First Month
+                      Start 7-Day Free Trial
                     </Link>
                   </div>
                 </div>
@@ -1455,29 +1788,78 @@ ${collections.length > 1 ? `
             </div>
           </div>
         </div>
+        </section>
 
+        {/* TEMPLATES */}
+        <section id="templates" style={{ padding: "40px 0 100px" }}>
+          <div className="section-label reveal">Templates</div>
+          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(28px,4vw,44px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", marginBottom: 72 }}>Choose your look</h2>
 
-          {[
-            { num: "01", title: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents. How your store would look.", images: GC_IMAGES },
-            { num: "02", title: "Soft Luxury",  desc: "Warm cream tones with elegant serif typography. How your store would look.",    images: SL_IMAGES },
-          ].map((tpl, ti) => (
-            <div key={tpl.title} className="reveal" style={{ marginBottom: ti === 0 ? 88 : 0 }}>
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid var(--glass-b)", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--neon)", fontWeight: 800, marginBottom: 8 }}>Theme {tpl.num}</div>
-                  <h3 style={{ fontSize: "clamp(24px,4vw,38px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.04em" }}>{tpl.title}</h3>
-                </div>
-                <p style={{ fontSize: 13, color: "var(--text-dim)", maxWidth: 280, lineHeight: 1.7 }}>{tpl.desc}</p>
+          {/* TEMPLATES — four phones, two pairs side by side.
+              Row 1: Heirloom (01) + Crown (02) -- scrollable live iframes.
+              Row 2: Glass Chrome (03) + Soft Luxury (04) -- also scrollable live iframes
+                     (VOLT premium electronics demo, AURELIA skincare boutique demo).
+              All four phones now use ScaledIframe -- no more screenshot carousels. */}
+
+          <div className="reveal tpl-pair-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 64 }}>
+            {/* HEIRLOOM */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <ScaledIframe src="/templates/heirloom/index.html" title="Heirloom Template — Live Demo" background="#fff" />
               </div>
-              <div className="tpl-grid stagger-children" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {tpl.images.map(img => (
-                  <div key={img.src} className="tpl-card">
-                    <Image src={img.src} alt={img.label} width={600} height={375} style={{ width: "100%", height: "auto", display: "block" }} unoptimized />
-                  </div>
-                ))}
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 01</div>
+                <h3 className="tpl-phone-title">Heirloom</h3>
+                <p className="tpl-phone-desc">Magazine-style serif typography on warm paper. Built for considered, quiet-luxury brands.</p>
+                <p className="tpl-phone-hint">↑ Scroll the phone to explore ↓</p>
               </div>
             </div>
-          ))}
+
+            {/* CROWN */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <ScaledIframe src="/templates/crown/index.html" title="Crown Template — Live Demo" background="#0a0908" />
+              </div>
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 02</div>
+                <h3 className="tpl-phone-title">Crown</h3>
+                <p className="tpl-phone-desc">Dark editorial luxury with gold accents. Built for premium hair, beauty, and lifestyle brands.</p>
+                <p className="tpl-phone-hint">↑ Scroll the phone to explore ↓</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="reveal tpl-pair-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+            {/* GLASS CHROME — VOLT live demo (premium electronics retail) */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <ScaledIframe src="/templates/volt/index.html" title="Glass Chrome Template — VOLT Demo" background="#08080c" />
+              </div>
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 03</div>
+                <h3 className="tpl-phone-title">Glass Chrome</h3>
+                <p className="tpl-phone-desc">Dark futuristic theme with chrome metallic accents. Built for premium electronics, audio, and tech retail.</p>
+                <p className="tpl-phone-hint">↑ Scroll the phone to explore ↓</p>
+              </div>
+            </div>
+
+            {/* SOFT LUXURY — AURELIA live demo (curated skincare + fragrance boutique) */}
+            <div>
+              <div className="tpl-phone">
+                <div className="tpl-phone-notch" />
+                <ScaledIframe src="/templates/aurelia/index.html" title="Soft Luxury Template — AURELIA Demo" background="#f6f3ef" />
+              </div>
+              <div className="tpl-phone-caption">
+                <div className="tpl-phone-num">Theme 04</div>
+                <h3 className="tpl-phone-title">Soft Luxury</h3>
+                <p className="tpl-phone-desc">Warm cream tones with elegant serif typography. Built for beauty, skincare, and lifestyle brands.</p>
+                <p className="tpl-phone-hint">↑ Scroll the phone to explore ↓</p>
+              </div>
+            </div>
+          </div>
         </section>
 
 

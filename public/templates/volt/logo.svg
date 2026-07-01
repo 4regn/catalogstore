@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" width="360" height="100">
+  <defs>
+    <linearGradient id="chrome" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="28%" stop-color="#d8d8d8"/>
+      <stop offset="50%" stop-color="#7a7a7a"/>
+      <stop offset="72%" stop-color="#d8d8d8"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Lightning bolt mark -->
+  <g transform="translate(12, 14)">
+    <path d="M34 0 L0 46 L20 46 L10 74 L46 28 L26 28 L34 0 Z"
+          fill="url(#chrome)"
+          stroke="#1a1a1a" stroke-width="1" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark VOLT -->
+  <text x="80" y="74"
+        font-family="'Arial Black', 'Helvetica Neue', Helvetica, sans-serif"
+        font-size="64" font-weight="900"
+        fill="url(#chrome)"
+        stroke="#1a1a1a" stroke-width="1.2"
+        letter-spacing="-4">VOLT</text>
+</svg>

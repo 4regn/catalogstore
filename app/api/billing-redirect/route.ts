@@ -18,17 +18,16 @@ function rateLimit(ip: string): boolean {
   return true;
 }
 
+// Pre-launch: a single tier with everything included. Keeping the 'starter' key for
+// backwards-compat with any existing references; the marketing page now calls it
+// 'Catalogstore Plan'. Pro tier removed -- the Pro features got merged into Starter
+// (all templates, custom domain support, no 'Powered by CatalogStore' badge, personal
+// onboarding). When we have proof we can sell, we can add a higher tier back.
 const PLANS: Record<string, { name: string; firstAmount: number; recurringAmount: number; trialDays: number }> = {
   starter: {
-    name: "Starter",
-    firstAmount: 49.00,      // R49 after 7-day trial
-    recurringAmount: 99.00,  // R99 every month after
-    trialDays: 7,
-  },
-  pro: {
-    name: "Pro",
-    firstAmount: 249.00,     // R249 after 7-day trial
-    recurringAmount: 249.00, // R249 every month after
+    name: "Catalogstore",
+    firstAmount: 49.00,      // R49 promotional first month after 7-day trial
+    recurringAmount: 149.00, // R149/mo recurring after first month
     trialDays: 7,
   },
 };
@@ -40,7 +39,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { sellerId, planId, returnOrigin } = await req.json();
+    const { sellerId, planId, returnOrigin, intent } = await req.json();
 
     if (!sellerId || !planId) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
@@ -50,6 +49,11 @@ export async function POST(req: NextRequest) {
     if (!plan) {
       return NextResponse.json({ error: "Invalid plan." }, { status: 400 });
     }
+
+    // Reactivation = a frozen seller paying to bring their store back online.
+    // They already used the R49 promo + 7-day trial on signup, so this is a
+    // fresh subscription at the full R149 charging today.
+    const isReactivation = intent === "reactivate";
 
     // Get seller details from Supabase (server side — keys never exposed)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -84,28 +88,45 @@ export async function POST(req: NextRequest) {
     const escAttr = (v: unknown): string => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     const origin = safeOrigin(returnOrigin);
 
-    // Calculate billing date — first charge after 7-day trial
+    // Signup flow: 7-day trial, R0 today, first charge of R49 at end of trial.
+    // Reactivation flow: charge full R149 today, then R149/mo recurring -- no trial,
+    // no promo, since the seller already used both on the original signup.
     const billingDate = new Date();
-    billingDate.setDate(billingDate.getDate() + plan.trialDays);
+    if (!isReactivation) {
+      billingDate.setDate(billingDate.getDate() + plan.trialDays);
+    }
     const billingDateStr = billingDate.toISOString().split("T")[0]; // YYYY-MM-DD
+
+    const todayAmount = isReactivation ? plan.recurringAmount.toFixed(2) : "0.00";
+    const recurringAmount = isReactivation
+      ? plan.recurringAmount.toFixed(2)
+      : plan.firstAmount.toFixed(2);
+    // PayFast shows item_name prominently on the checkout page; we use it to
+    // communicate the pricing schedule because PayFast's own "Future recurring
+    // amount" field only reflects the current recurring_amount (R49 at signup,
+    // bumped to R149 via the subscription update API after the first charge).
+    const itemName = isReactivation
+      ? `CatalogStore — R${plan.recurringAmount.toFixed(0)}/month`
+      : `CatalogStore — R${plan.firstAmount.toFixed(0)} first month, then R${plan.recurringAmount.toFixed(0)}/month`;
+    const itemDescription = isReactivation
+      ? `R${plan.recurringAmount.toFixed(0)}/month subscription. Cancel anytime from your dashboard.`
+      : `7-day free trial (R0 today). After the trial, R${plan.firstAmount.toFixed(0)} is debited as your first month, then R${plan.recurringAmount.toFixed(0)}/month from month two onwards. Cancel anytime from your dashboard.`;
 
     const fields: Record<string, string> = {
       merchant_id: merchantId,
       merchant_key: merchantKey,
 
-      // R0 today — free trial, first charge hits on billing_date
-      amount: "0.00",
+      amount: todayAmount,
 
-      item_name: `CatalogStore ${plan.name} Plan`,
-      item_description: planId === "starter"
-        ? `7-day free trial, then R49 first month, then R99/month. Cancel anytime.`
-        : `7-day free trial, then R249/month. Cancel anytime.`,
+      item_name: itemName,
+      item_description: itemDescription,
 
       name_first: seller.store_name || "Seller",
       email_address: seller.email,
       m_payment_id: seller.id,
       custom_str1: seller.id,
       custom_str2: planId,
+      custom_str3: isReactivation ? "reactivate" : "signup",
 
       return_url: `${origin}/dashboard/billing?status=success&plan=${planId}`,
       cancel_url: `${origin}/dashboard/billing?status=cancelled`,
@@ -114,12 +135,13 @@ export async function POST(req: NextRequest) {
          an attacker-controlled host. */
       notify_url: `${APP_ORIGIN}/api/subscription/notify`,
 
-      // Subscription settings — 7-day trial then R49, then R99
+      // Subscription settings. Signup uses R49 first charge + R149 PUT after trial;
+      // reactivation jumps straight to R149 today with no PUT needed.
       subscription_type: "1",                              // Recurring subscription
-      recurring_amount: plan.firstAmount.toFixed(2),       // R49 first charge after trial
+      recurring_amount: recurringAmount,
       frequency: "3",                                      // Monthly
       cycles: "0",                                         // Never stops
-      billing_date: billingDateStr,                        // First charge after 7-day trial
+      billing_date: billingDateStr,
     };
 
     // Build the auto-submitting PayFast form

@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRAIL — Premium Sneakers</title>
+<base href="/templates/heirloom/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --ink:#111010;
+  --paper:#ffffff;
+  --mid:#f2f0ed;
+  --dim:#777;
+  --rule:#e0dbd5;
+  --serif:'DM Serif Display',Georgia,serif;
+  --sans:'DM Sans',sans-serif;
+  --display:'Bebas Neue',sans-serif;
+}
+html{scroll-behavior:smooth}
+section,div,footer,nav{background-color:inherit}
+/* Blanket white base */
+
+body{font-family:var(--sans);background:#ffffff;color:#111010;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* TICKER */
+.ticker{background:var(--ink);color:var(--paper);padding:10px 0;overflow:hidden;white-space:nowrap}
+.ticker-inner{display:inline-flex;animation:tick 32s linear infinite}
+.ticker-inner span{font-size:11px;font-weight:500;letter-spacing:2.5px;text-transform:uppercase;padding:0 40px}
+.ticker-inner span::before{content:'—';margin-right:40px;opacity:0.3}
+@keyframes tick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* NAV */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:#fff;border-bottom:1px solid var(--rule);
+  display:grid;grid-template-columns:1fr auto 1fr;
+  align-items:center;padding:0 48px;height:64px;
+}
+.nav-left{display:flex;gap:32px;align-items:center}
+.nav-left a,.nav-right-links a{
+  font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;
+  text-decoration:none;color:var(--dim);transition:color 0.2s;
+}
+.nav-left a:hover,.nav-right-links a:hover{color:var(--ink)}
+.nav-center{display:flex;align-items:center;justify-content:center}
+.nav-logo-img{height:44px;width:44px;display:block;flex-shrink:0}
+.nav-right{display:flex;justify-content:flex-end;align-items:center;gap:32px}
+.nav-right-links{display:flex;gap:32px}
+.nav-bag{
+  font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;
+  text-decoration:none;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:1px;transition:opacity 0.2s;
+}
+.nav-bag:hover{opacity:0.5}
+
+/* HERO */
+.hero{
+  position:relative;
+  width:100%;
+  height:100vh;
+  min-height:640px;
+  border-bottom:1px solid var(--rule);
+  overflow:hidden;
+  display:flex;
+  align-items:flex-end;
+  background-image:url('./heirloom-01.jpg');
+  background-size:cover;
+  background-position:center center;
+  background-repeat:no-repeat;
+}
+.hero-overlay{
+  position:absolute;
+  top:0;left:0;right:0;bottom:0;
+  z-index:1;
+  background:linear-gradient(to top,rgba(8,8,8,0.88) 0%,rgba(8,8,8,0.5) 45%,rgba(8,8,8,0.1) 100%);
+}
+.hero *{background-color:transparent}
+.hero-left{
+  position:relative;
+  z-index:2;
+  width:100%;
+  max-width:720px;
+  padding:0 72px 64px;
+  background:transparent !important;
+}
+.hero-index{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:10px}
+.hero-label{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.hero-label::before{content:'';display:block;width:20px;height:1px;background:rgba(255,255,255,0.35)}
+.hero-h1{font-family:var(--serif);font-size:clamp(44px,6vw,82px);line-height:0.97;font-weight:400;color:#fff;margin-bottom:18px}
+.hero-h1 em{font-style:italic}
+.hero-body{font-size:15px;font-weight:300;line-height:1.7;color:rgba(255,255,255,0.6);max-width:420px;margin-bottom:32px}
+.hero-cta-row{display:flex;align-items:center;gap:24px;margin-bottom:36px}
+.btn-solid{display:inline-block;background:#f9f7f4;color:#111;font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;text-decoration:none;padding:15px 32px;transition:opacity 0.2s;border:none;cursor:pointer;font-family:var(--sans)}
+.btn-solid:hover{opacity:0.8}
+.btn-text{font-size:10px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.25);padding-bottom:2px;transition:color 0.2s,border-color 0.2s}
+.btn-text:hover{color:#fff;border-color:rgba(255,255,255,0.6)}
+.hero-timer-row{display:flex;flex-direction:column;gap:4px}
+.timer-note{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.4)}
+.timer-digits{font-family:var(--display);font-size:52px;letter-spacing:3px;line-height:1;color:#fff}
+.timer-digits span{color:rgba(255,255,255,0.22);margin:0 2px}
+.hero-pill{position:absolute;bottom:64px;right:64px;z-index:2;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);padding:18px 22px;text-align:right;backdrop-filter:blur(8px)}
+.pill-label{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.5)}
+.pill-name{font-family:var(--serif);font-size:17px;line-height:1.2;margin-top:4px;color:#fff}
+.pill-price{font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px}
+
+/* SECTION RULE */
+.section-rule{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:28px 48px;border-bottom:1px solid var(--rule);background:#fff;
+}
+.section-rule-left{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#888}
+.section-rule-right{
+  font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  text-decoration:none;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:1px;
+}
+.section-rule-right:hover{opacity:0.5}
+
+/* CATEGORIES — using real product photos */
+.cat-row{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);background:#fff}
+.cat-item{
+  position:relative;overflow:hidden;border-right:1px solid var(--rule);
+  text-decoration:none;color:var(--ink);display:block;
+}
+.cat-item:last-child{border-right:none}
+.cat-item img{
+  width:100%;aspect-ratio:3/4;object-fit:cover;display:block;
+  transition:transform 0.6s cubic-bezier(0.16,1,0.3,1);
+}
+.cat-item:hover img{transform:scale(1.05)}
+.cat-item-footer{
+  padding:20px 24px;border-top:1px solid var(--rule);
+  display:flex;justify-content:space-between;align-items:center;background:#fff;
+}
+.cat-name-text{font-size:13px;font-weight:500;letter-spacing:1px}
+.cat-count-text{font-size:11px;color:var(--dim)}
+
+/* PRODUCTS */
+.product-grid{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);background:#fff}
+.p-card{
+  border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  text-decoration:none;color:var(--ink);display:block;position:relative;overflow:hidden;background:#fff;
+}
+.p-card:nth-child(4n){border-right:none}
+.p-img{aspect-ratio:1;overflow:hidden;position:relative;background:var(--mid)}
+.p-img img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.6s cubic-bezier(0.16,1,0.3,1)}
+.p-card:hover .p-img img{transform:scale(1.06)}
+.p-tag{
+  position:absolute;top:16px;left:16px;z-index:2;
+  font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  background:var(--ink);color:var(--paper);padding:4px 10px;
+}
+.p-wa{
+  position:absolute;bottom:0;left:0;right:0;z-index:2;
+  background:var(--ink);color:var(--paper);
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  text-align:center;padding:12px;
+  transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);
+}
+.p-card:hover .p-wa{transform:translateY(0)}
+.p-info{padding:18px 20px 20px;background:#fff}
+.p-brand{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:4px}
+.p-name{font-family:var(--serif);font-size:17px;font-weight:400;margin-bottom:10px;line-height:1.2;color:#111}
+.p-foot{display:flex;justify-content:space-between;align-items:center}
+.p-price{font-size:13px;font-weight:500}
+.p-price .was{font-size:11px;color:var(--dim);text-decoration:line-through;margin-right:6px}
+.p-stars{font-size:10px;color:var(--ink);letter-spacing:1px}
+
+/* FLASH SALE */
+.flash{border-bottom:1px solid var(--rule);background:#fff}
+.flash-header{
+  display:grid;grid-template-columns:1fr auto;align-items:center;
+  padding:28px 48px;border-bottom:1px solid var(--rule);gap:32px;background:#fff;
+}
+.flash-title-text{font-family:var(--display);font-size:36px;letter-spacing:3px;color:#111}
+.flash-countdown{font-family:var(--display);font-size:36px;letter-spacing:2px;color:#111}
+.flash-countdown .sep{color:var(--rule);margin:0 2px}
+.flash-label-sm{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#888;display:block;margin-bottom:4px}
+.flash-grid{display:grid;grid-template-columns:repeat(3,1fr);background:#fff}
+.flash-card{
+  border-right:1px solid var(--rule);text-decoration:none;color:var(--ink);
+  display:block;overflow:hidden;
+}
+.flash-card:last-child{border-right:none}
+.flash-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;transition:transform 0.5s cubic-bezier(0.16,1,0.3,1)}
+.flash-card:hover img{transform:scale(1.04)}
+.flash-card-info{
+  padding:20px 24px;border-top:1px solid var(--rule);
+  display:flex;justify-content:space-between;align-items:center;background:#fff;
+}
+.flash-card-name{font-family:var(--serif);font-size:15px}
+.flash-card-prices{text-align:right}
+.flash-card-new{font-size:15px;font-weight:500;display:block}
+.flash-card-old{font-size:11px;color:var(--dim);text-decoration:line-through}
+
+/* SOLE STORIES */
+.stories{border-bottom:1px solid var(--rule);background:#fff}
+.stories-grid{display:grid;grid-template-columns:repeat(3,1fr)}
+.story-card{border-right:1px solid var(--rule);position:relative;overflow:hidden;cursor:pointer}
+.story-card:last-child{border-right:none}
+.story-card img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;transition:transform 0.6s cubic-bezier(0.16,1,0.3,1)}
+.story-card:hover img{transform:scale(1.04)}
+.story-overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(17,16,16,0.75) 0%,transparent 55%);
+  display:flex;flex-direction:column;justify-content:flex-end;padding:28px;
+}
+.story-type{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:rgba(249,247,244,0.5);margin-bottom:8px}
+.story-name{font-family:var(--serif);font-size:19px;color:var(--paper);line-height:1.25}
+.story-play{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%) scale(0.85);
+  width:48px;height:48px;border:1px solid rgba(249,247,244,0.45);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity 0.3s,transform 0.3s;color:var(--paper);font-size:14px;
+}
+.story-card:hover .story-play{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+/* FINDER */
+.finder{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--rule);min-height:600px;background:#fff}
+.finder-img{background:#f0ede8;overflow:hidden;border-right:1px solid var(--rule)}
+.finder-img img{width:100%;height:100%;object-fit:cover;display:block}
+.finder-form-side{padding:72px 64px;display:flex;flex-direction:column;justify-content:center;background:var(--paper)}
+.finder-heading{font-family:var(--serif);font-size:clamp(32px,3.5vw,52px);font-weight:400;line-height:1.1;margin-bottom:12px;color:var(--ink)}
+.finder-heading em{font-style:italic}
+.finder-desc{font-size:13px;font-weight:300;color:#666;line-height:1.8;max-width:380px;margin-bottom:40px}
+.form-field{margin-bottom:20px}
+.form-field label{display:block;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#888;margin-bottom:8px}
+.form-field input{
+  width:100%;background:transparent;border:none;border-bottom:1px solid #ccc;
+  color:var(--ink);font-family:var(--sans);font-size:14px;font-weight:300;
+  padding:10px 0;outline:none;transition:border-color 0.2s;
+}
+.form-field input:focus{border-color:var(--ink)}
+.form-field input::placeholder{color:#bbb}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.form-submit-btn{
+  margin-top:8px;background:var(--ink);color:var(--paper);border:none;cursor:pointer;
+  font-family:var(--sans);font-size:11px;font-weight:500;letter-spacing:2.5px;
+  text-transform:uppercase;padding:16px 32px;transition:opacity 0.2s;align-self:flex-start;
+}
+.form-submit-btn:hover{opacity:0.7}
+
+/* FOOTER */
+footer{padding:64px 48px 40px;background:#fff}
+.footer-top{
+  display:grid;grid-template-columns:2fr 1fr 1fr 1fr;
+  gap:48px;padding-bottom:48px;border-bottom:1px solid var(--rule);margin-bottom:32px;
+}
+.footer-brand-logo{max-width:80px;margin-bottom:20px;display:block;opacity:0.65;border-radius:4px}
+.footer-tagline{font-size:12px;font-weight:300;line-height:1.8;color:#666;max-width:220px}
+.footer-col h5{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#888;margin-bottom:20px;font-weight:500}
+.footer-col ul{list-style:none;display:flex;flex-direction:column;gap:12px}
+.footer-col ul a{font-size:13px;font-weight:300;color:#111;text-decoration:none;transition:color 0.2s}
+.footer-col ul a:hover{color:var(--dim)}
+.footer-bottom{display:flex;justify-content:space-between;align-items:center}
+.footer-copy{font-size:11px;color:#888;letter-spacing:1px}
+.footer-social{display:flex;gap:24px}
+.footer-social a{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#888;text-decoration:none;transition:color 0.2s}
+.footer-social a:hover{color:var(--ink)}
+
+/* WA */
+.wa{
+  position:fixed;bottom:28px;right:28px;z-index:999;
+  display:flex;align-items:center;gap:10px;
+  background:#fff;border:1px solid var(--rule);padding:12px 20px 12px 16px;
+  text-decoration:none;color:var(--ink);box-shadow:0 4px 24px rgba(0,0,0,0.08);
+  transition:box-shadow 0.3s,transform 0.3s;
+  font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;
+}
+.wa:hover{box-shadow:0 8px 32px rgba(0,0,0,0.13);transform:translateY(-2px)}
+.wa-dot{width:8px;height:8px;background:#25D366;border-radius:50%;flex-shrink:0}
+
+/* MOBILE */
+@media(max-width:900px){
+  nav{padding:0 20px}
+  .nav-left,.nav-right-links{display:none}
+  .hero{grid-template-columns:1fr}
+  .hero-left{padding:48px 24px}
+  .hero-right{height:70vw;border-right:none}
+  .cat-row{grid-template-columns:1fr 1fr}
+  .product-grid{grid-template-columns:1fr 1fr}
+  .stories-grid{grid-template-columns:1fr 1fr}
+  .flash-grid{grid-template-columns:1fr 1fr}
+  .flash-header{grid-template-columns:1fr}
+  .finder{grid-template-columns:1fr}
+  .finder-img{height:55vw}
+  .finder-form-side{padding:48px 24px}
+  .footer-top{grid-template-columns:1fr 1fr}
+  .section-rule{padding:20px 20px}
+  footer{padding:48px 20px 32px}
+}
+
+/* ── MOBILE MENU ── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  padding: 4px;
+  background: none;
+  border: none;
+}
+.hamburger span {
+  display: block;
+  width: 22px;
+  height: 1.5px;
+  background: var(--ink);
+  transition: all 0.3s;
+}
+.hamburger.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; }
+.hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #fff;
+  z-index: 999;
+  flex-direction: column;
+  padding: 80px 32px 40px;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu-close {
+  position: absolute;
+  top: 20px; right: 24px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink);
+  line-height: 1;
+}
+.mobile-menu nav-links-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.mobile-menu a {
+  font-size: 28px;
+  font-family: var(--serif);
+  font-weight: 400;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rule);
+  display: block;
+}
+.mobile-menu a:last-child { border-bottom: none; }
+.mobile-menu-footer {
+  margin-top: auto;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ── CART DRAWER ── */
+.cart-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.cart-overlay.open { opacity: 1; pointer-events: all; }
+
+.cart-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 400px;
+  max-width: 100vw;
+  background: #fff;
+  z-index: 1001;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+  display: flex;
+  flex-direction: column;
+}
+.cart-drawer.open { transform: translateX(0); }
+
+.cart-drawer-header {
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cart-drawer-header h3 {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 400;
+}
+.cart-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--ink);
+  line-height: 1;
+  padding: 4px;
+}
+
+.cart-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 28px;
+}
+
+.cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--dim);
+}
+.cart-empty-icon { font-size: 40px; opacity: 0.3; }
+.cart-empty p { font-size: 13px; letter-spacing: 1px; }
+
+.cart-item {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: start;
+}
+.cart-item:last-child { border-bottom: none; }
+.cart-item-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: var(--mid);
+  display: block;
+}
+.cart-item-brand {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 3px;
+}
+.cart-item-name {
+  font-family: var(--serif);
+  font-size: 14px;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.cart-item-size {
+  font-size: 11px;
+  color: var(--dim);
+  margin-bottom: 10px;
+}
+.cart-item-qty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.qty-btn {
+  width: 24px; height: 24px;
+  border: 1px solid var(--rule);
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  transition: background 0.2s;
+}
+.qty-btn:hover { background: var(--mid); }
+.qty-num { font-size: 13px; min-width: 16px; text-align: center; }
+.cart-item-price { font-size: 14px; font-weight: 500; white-space: nowrap; }
+.cart-item-remove {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 6px;
+  display: block;
+}
+.cart-item-remove:hover { color: var(--ink); }
+
+.cart-footer {
+  padding: 20px 28px 32px;
+  border-top: 1px solid var(--rule);
+}
+.cart-subtotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.cart-subtotal-label {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.cart-subtotal-amount {
+  font-family: var(--serif);
+  font-size: 20px;
+}
+.cart-shipping-note {
+  font-size: 11px;
+  color: var(--dim);
+  margin-bottom: 20px;
+  letter-spacing: 0.5px;
+}
+.cart-checkout-btn {
+  width: 100%;
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  padding: 18px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.cart-checkout-btn:hover { opacity: 0.8; }
+.cart-continue {
+  display: block;
+  text-align: center;
+  margin-top: 12px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  cursor: pointer;
+  background: none;
+  border: none;
+  width: 100%;
+}
+.cart-continue:hover { color: var(--ink); }
+
+/* Cart badge */
+.cart-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.badge-count {
+  background: var(--ink);
+  color: #fff;
+  font-size: 9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  display: none;
+}
+.badge-count.visible { display: flex; }
+
+/* ── PDP OVERLAY ── */
+.pdp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 1002;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.pdp-overlay.open { opacity: 1; pointer-events: all; }
+
+.pdp-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 100%;
+  max-width: 960px;
+  background: #fff;
+  z-index: 1003;
+  transform: translateX(100%);
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.pdp-drawer.open { transform: translateX(0); }
+
+.pdp-header {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  border-bottom: 1px solid var(--rule);
+  padding: 18px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+}
+.pdp-breadcrumb {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pdp-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--ink);
+  padding: 4px;
+  line-height: 1;
+}
+
+.pdp-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+}
+
+.pdp-images {
+  position: sticky;
+  top: 61px;
+  height: calc(100vh - 61px);
+  overflow: hidden;
+  background: var(--mid);
+  display: flex;
+  flex-direction: column;
+}
+.pdp-main-img {
+  flex: 1;
+  object-fit: cover;
+  width: 100%;
+  display: block;
+}
+.pdp-thumbs {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+.pdp-thumb {
+  flex: 1;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-right: 1px solid var(--rule);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.pdp-thumb:last-child { border-right: none; }
+.pdp-thumb:hover, .pdp-thumb.active { opacity: 1; }
+
+.pdp-info {
+  padding: 40px 40px 60px;
+  border-left: 1px solid var(--rule);
+}
+.pdp-brand {
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.pdp-name {
+  font-family: var(--serif);
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 400;
+  line-height: 1.1;
+  margin-bottom: 16px;
+}
+.pdp-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.pdp-price {
+  font-size: 22px;
+  font-weight: 500;
+}
+.pdp-was {
+  font-size: 14px;
+  color: var(--dim);
+  text-decoration: line-through;
+}
+.pdp-rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--rule);
+}
+.pdp-stars { font-size: 13px; color: #111; letter-spacing: 2px; }
+.pdp-review-count { font-size: 11px; color: var(--dim); }
+
+.pdp-size-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pdp-size-guide {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  padding: 0 0 1px;
+}
+.pdp-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+.size-btn {
+  min-width: 52px;
+  padding: 10px 8px;
+  border: 1px solid var(--rule);
+  background: #fff;
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  color: var(--ink);
+}
+.size-btn:hover { border-color: var(--ink); }
+.size-btn.selected { background: var(--ink); color: #fff; border-color: var(--ink); }
+.size-btn.soldout {
+  color: var(--rule);
+  border-color: #eee;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.pdp-add-btn {
+  width: 100%;
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  padding: 18px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: opacity 0.2s;
+}
+.pdp-add-btn:hover { opacity: 0.8; }
+.pdp-add-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.pdp-trust {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--rule);
+  margin-bottom: 32px;
+}
+.trust-item {
+  flex: 1;
+  padding: 12px 8px;
+  text-align: center;
+  border-right: 1px solid var(--rule);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  line-height: 1.6;
+}
+.trust-item:last-child { border-right: none; }
+.trust-icon { font-size: 14px; display: block; margin-bottom: 4px; }
+
+/* Accordion */
+.pdp-accordion { border-top: 1px solid var(--rule); }
+.accordion-item { border-bottom: 1px solid var(--rule); }
+.accordion-trigger {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 16px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.accordion-icon { font-size: 18px; transition: transform 0.3s; line-height: 1; }
+.accordion-item.open .accordion-icon { transform: rotate(45deg); }
+.accordion-body {
+  font-size: 13px;
+  font-weight: 300;
+  color: #555;
+  line-height: 1.8;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, padding 0.3s;
+}
+.accordion-item.open .accordion-body {
+  max-height: 200px;
+  padding-bottom: 16px;
+}
+
+/* PDP mobile */
+@media(max-width:768px) {
+  .pdp-body { grid-template-columns: 1fr; }
+  .pdp-images { position: relative; top: 0; height: 60vw; }
+  .pdp-info { padding: 28px 24px 48px; border-left: none; }
+  .cart-drawer { width: 100%; }
+  .pdp-drawer { max-width: 100%; }
+}
+
+/* Mobile nav show hamburger */
+@media(max-width:900px) {
+  .hamburger { display: flex; }
+  .nav-bag-text { display: none; }
+}
+
+/* ── TRUST STRIP ── */
+.trust-strip {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  border-bottom: 1px solid var(--rule);
+}
+.trust-strip-item {
+  padding: 20px 16px;
+  text-align: center;
+  border-right: 1px solid var(--rule);
+}
+.trust-strip-item:last-child { border-right: none; }
+.trust-strip-icon { font-size: 18px; margin-bottom: 6px; }
+.trust-strip-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.trust-strip-sub { font-size: 11px; color: var(--dim); }
+
+@media(max-width:600px) {
+  .trust-strip { grid-template-columns: 1fr 1fr; }
+  .trust-strip-item:nth-child(2) { border-right: none; }
+}
+
+/* ── NEWSLETTER ── */
+.newsletter {
+  border-bottom: 1px solid var(--rule);
+  padding: 64px 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 40px;
+}
+.newsletter-copy {}
+.newsletter-label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.newsletter-heading {
+  font-family: var(--serif);
+  font-size: clamp(22px,3vw,34px);
+  font-weight: 400;
+  line-height: 1.2;
+}
+.newsletter-form {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  max-width: 420px;
+  width: 100%;
+}
+.newsletter-input {
+  flex: 1;
+  border: 1px solid var(--rule);
+  border-right: none;
+  background: #fff;
+  padding: 14px 18px;
+  font-family: var(--sans);
+  font-size: 13px;
+  outline: none;
+  color: var(--ink);
+  transition: border-color 0.2s;
+}
+.newsletter-input:focus { border-color: var(--ink); }
+.newsletter-input::placeholder { color: #bbb; }
+.newsletter-submit {
+  background: var(--ink);
+  color: #fff;
+  border: 1px solid var(--ink);
+  padding: 14px 24px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+.newsletter-submit:hover { opacity: 0.8; }
+@media(max-width:768px) {
+  .newsletter { flex-direction: column; align-items: flex-start; padding: 48px 24px; }
+  .newsletter-form { max-width: 100%; width: 100%; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- TICKER -->
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobile-menu">
+  <button class="mobile-menu-close" onclick="closeMobileMenu()">×</button>
+  <a href="#" onclick="closeMobileMenu()">Men</a>
+  <a href="#" onclick="closeMobileMenu()">Women</a>
+  <a href="#" onclick="closeMobileMenu()">Rare Finds</a>
+  <a href="#" onclick="closeMobileMenu()">Under R1000</a>
+  <a href="#" onclick="closeMobileMenu()">New Arrivals</a>
+  <a href="#products" onclick="closeMobileMenu()">All Products</a>
+  <div class="mobile-menu-footer">GRAIL — Premium Sneakers</div>
+</div>
+
+<!-- CART -->
+<div class="cart-overlay" id="cart-overlay" onclick="closeCart()"></div>
+<div class="cart-drawer" id="cart-drawer">
+  <div class="cart-drawer-header">
+    <h3>Your Bag</h3>
+    <button class="cart-close" onclick="closeCart()">×</button>
+  </div>
+  <div class="cart-items" id="cart-items">
+    <div class="cart-empty" id="cart-empty">
+      <div class="cart-empty-icon">🛒</div>
+      <p>Your bag is empty</p>
+    </div>
+  </div>
+  <div class="cart-footer">
+    <div class="cart-subtotal">
+      <span class="cart-subtotal-label">Subtotal</span>
+      <span class="cart-subtotal-amount" id="cart-total">R 0</span>
+    </div>
+    <p class="cart-shipping-note">Shipping calculated at checkout</p>
+    <button class="cart-checkout-btn">Proceed to Checkout</button>
+    <button class="cart-continue" onclick="closeCart()">Continue Shopping</button>
+  </div>
+</div>
+
+<!-- PDP -->
+<div class="pdp-overlay" id="pdp-overlay" onclick="closePDP()"></div>
+<div class="pdp-drawer" id="pdp-drawer">
+  <div class="pdp-header">
+    <span class="pdp-breadcrumb">Products / <span id="pdp-breadcrumb-name"></span></span>
+    <button class="pdp-close" onclick="closePDP()">×</button>
+  </div>
+  <div class="pdp-body">
+    <div class="pdp-images">
+      <img loading="lazy" class="pdp-main-img" id="pdp-main-img" src="" alt="">
+      <div class="pdp-thumbs">
+        <img loading="lazy" class="pdp-thumb active" id="pdp-thumb-1" src="" alt="" onclick="switchImage(this)">
+        <img loading="lazy" class="pdp-thumb" id="pdp-thumb-2" src="" alt="" onclick="switchImage(this)">
+        <img loading="lazy" class="pdp-thumb" id="pdp-thumb-3" src="" alt="" onclick="switchImage(this)">
+      </div>
+    </div>
+    <div class="pdp-info">
+      <div class="pdp-brand" id="pdp-brand"></div>
+      <h1 class="pdp-name" id="pdp-name"></h1>
+      <div class="pdp-price-row">
+        <span class="pdp-was" id="pdp-was"></span>
+        <span class="pdp-price" id="pdp-price"></span>
+      </div>
+      <div class="pdp-rating">
+        <span class="pdp-stars">★★★★★</span>
+        <span class="pdp-review-count">24 reviews</span>
+      </div>
+      <div class="pdp-size-label">
+        <span>Select Size (UK)</span>
+        <button class="pdp-size-guide">Size Guide</button>
+      </div>
+      <div class="pdp-sizes">
+        <button class="size-btn soldout" onclick="selectSize(this)">UK 6</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 7</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 7.5</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 8</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 8.5</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 9</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 9.5</button>
+        <button class="size-btn soldout" onclick="selectSize(this)">UK 10</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 10.5</button>
+        <button class="size-btn" onclick="selectSize(this)">UK 11</button>
+      </div>
+      <button class="pdp-add-btn" id="pdp-add-btn" onclick="addToCart()" disabled>Select a Size</button>
+      <div class="pdp-trust">
+        <div class="trust-item"><span class="trust-icon">✓</span>Authenticated</div>
+        <div class="trust-item"><span class="trust-icon">↩</span>Easy Returns</div>
+        <div class="trust-item"><span class="trust-icon">🚚</span>Fast Delivery</div>
+      </div>
+      <div class="pdp-accordion">
+        <div class="accordion-item">
+          <button class="accordion-trigger" onclick="toggleAccordion(this)">
+            Description <span class="accordion-icon">+</span>
+          </button>
+          <div class="accordion-body" id="pdp-description">
+            Deadstock condition. Original box included. Authenticated before dispatch.
+            All our pairs go through a thorough authentication process before they reach you.
+          </div>
+        </div>
+        <div class="accordion-item">
+          <button class="accordion-trigger" onclick="toggleAccordion(this)">
+            Shipping & Delivery <span class="accordion-icon">+</span>
+          </button>
+          <div class="accordion-body">
+            Free shipping on orders over R800. Standard delivery 2–4 business days.
+            Express delivery available at checkout. We ship nationwide.
+          </div>
+        </div>
+        <div class="accordion-item">
+          <button class="accordion-trigger" onclick="toggleAccordion(this)">
+            Returns Policy <span class="accordion-icon">+</span>
+          </button>
+          <div class="accordion-body">
+            Unworn items in original condition and box can be returned within 7 days.
+            Contact us to initiate a return. Exchanges subject to stock availability.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ticker">
+  <div class="ticker-inner">
+    <span>Flash Sale Friday</span><span>Free delivery over R800</span>
+    <span>Worldwide sourcing</span><span>Authenticated. Guaranteed.</span>
+    <span>GRAIL — Premium Sneakers</span><span>Durban · JHB · CPT</span>
+    <span>Flash Sale Friday</span><span>Free delivery over R800</span>
+    <span>Worldwide sourcing</span><span>Authenticated. Guaranteed.</span>
+    <span>GRAIL — Premium Sneakers</span><span>Durban · JHB · CPT</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <button class="hamburger" id="hamburger" onclick="openMobileMenu()"><span></span><span></span><span></span></button>
+  <div class="nav-left">
+    <a href="#">Men</a>
+    <a href="#">Women</a>
+    <a href="#">Rare Finds</a>
+    <a href="#">Under R1000</a>
+  </div>
+  <div class="nav-center">
+    <img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0NCA0NCIgd2lkdGg9IjQ0IiBoZWlnaHQ9IjQ0Ij4KICA8cmVjdCB3aWR0aD0iNDQiIGhlaWdodD0iNDQiIGZpbGw9IiNmZmZmZmYiLz4KICA8IS0tIENyb3duOiAzIHBpbGxhcnMgLS0+CiAgPHJlY3QgeD0iMTAiIHk9IjE3IiB3aWR0aD0iNSIgaGVpZ2h0PSIxMyIgZmlsbD0iIzExMTAxMCIvPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwIiB3aWR0aD0iNSIgaGVpZ2h0PSIyMCIgZmlsbD0iIzExMTAxMCIvPgogIDxyZWN0IHg9IjI5IiB5PSIxNyIgd2lkdGg9IjUiIGhlaWdodD0iMTMiIGZpbGw9IiMxMTEwMTAiLz4KICA8IS0tIENyb3duIGJhc2UgLS0+CiAgPHJlY3QgeD0iMTAiIHk9IjI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMy41IiBmaWxsPSIjMTExMDEwIi8+CiAgPCEtLSBHUkFJTCB3b3JkbWFyayAtLT4KICA8dGV4dCB4PSIyMiIgeT0iNDAuNSIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsIHNlcmlmIiBmb250LXNpemU9IjYuNSIgZm9udC13ZWlnaHQ9ImJvbGQiIGxldHRlci1zcGFjaW5nPSIyLjUiIGZpbGw9IiMxMTEwMTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkdSQUlMPC90ZXh0Pgo8L3N2Zz4=" alt="GRAIL" class="nav-logo-img">
+  </div>
+  <div class="nav-right">
+    <div class="nav-right-links"><a href="#">New Arrivals</a></div>
+    <a href="#" class="nav-bag cart-badge" onclick="event.preventDefault();openCart()">Bag <span class="badge-count" id="cart-badge-count">0</span></a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-overlay"></div>
+  <div class="hero-left">
+    <div class="hero-index">GRAIL — Flash Sale Friday</div>
+    <div class="hero-label">Sneaker of the Week</div>
+    <h1 class="hero-h1">Lost &amp; Found<br><em>Jordan 1s.</em></h1>
+    <p class="hero-body">The most sought-after colourway. Dead stock. One per customer. Don't sleep on this one.</p>
+    <div class="hero-cta-row">
+      <a href="#" class="btn-solid">Shop Now</a>
+      <a href="#products" class="btn-text">Browse All</a>
+    </div>
+    <div class="hero-timer-row">
+      <div class="timer-note">Sale ends in</div>
+      <div class="timer-digits" id="hero-timer">04<span>:</span>22<span>:</span>15</div>
+    </div>
+  </div>
+  <div class="hero-pill">
+    <div class="pill-label">Featured Drop</div>
+    <div class="pill-name">Air Jordan 1<br>High OG</div>
+    <div class="pill-price">R 4,499</div>
+  </div>
+</section>
+
+<!-- CATEGORIES — using sneaker photos -->
+<div class="section-rule">
+  <span class="section-rule-left">Browse by Category</span>
+  <a href="#" class="section-rule-right">All Products</a>
+</div>
+<div class="cat-row">
+  <a href="#" class="cat-item">
+    <img loading="lazy" src="./heirloom-02.jpg" alt="Men">
+    <div class="cat-item-footer"><span class="cat-name-text">Men</span><span class="cat-count-text">124 styles</span></div>
+  </a>
+  <a href="#" class="cat-item">
+    <img loading="lazy" src="./heirloom-03.jpg" alt="Women">
+    <div class="cat-item-footer"><span class="cat-name-text">Women</span><span class="cat-count-text">89 styles</span></div>
+  </a>
+  <a href="#" class="cat-item">
+    <img loading="lazy" src="./heirloom-04.jpg" alt="Under R1000">
+    <div class="cat-item-footer"><span class="cat-name-text">Under R1000</span><span class="cat-count-text">42 styles</span></div>
+  </a>
+  <a href="#" class="cat-item">
+    <img loading="lazy" src="./heirloom-05.jpg" alt="Rare Finds">
+    <div class="cat-item-footer"><span class="cat-name-text">Rare Finds</span><span class="cat-count-text">17 grails</span></div>
+  </a>
+</div>
+
+<!-- PRODUCTS -->
+<div class="section-rule" id="products">
+  <span class="section-rule-left">Featured Sneakers</span>
+  <a href="#" class="section-rule-right">View All</a>
+</div>
+<div class="product-grid">
+
+  <a href="#" class="p-card">
+    <div class="p-img"><div class="p-tag">Rare</div><img loading="lazy" src="./heirloom-06.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Nike × Levi's</div><div class="p-name">SB Dunk Low Denim</div><div class="p-foot"><span class="p-price">R 5,800</span><span class="p-stars">★★★★★</span></div></div>
+  </a>
+
+  <a href="#" class="p-card">
+    <div class="p-img"><div class="p-tag">New</div><img loading="lazy" src="./heirloom-07.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Adidas</div><div class="p-name">Niteball Carbon</div><div class="p-foot"><span class="p-price">R 2,999</span><span class="p-stars">★★★★☆</span></div></div>
+  </a>
+
+  <a href="#" class="p-card">
+    <div class="p-img"><div class="p-tag">Hot</div><img loading="lazy" src="./heirloom-02.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Nike</div><div class="p-name">Dunk Low Spartan Green</div><div class="p-foot"><span class="p-price">R 3,499</span><span class="p-stars">★★★★★</span></div></div>
+  </a>
+
+  <a href="#" class="p-card">
+    <div class="p-img"><img loading="lazy" src="./heirloom-08.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Nike</div><div class="p-name">Shox R4 Brown</div><div class="p-foot"><span class="p-price">R 3,199</span><span class="p-stars">★★★★☆</span></div></div>
+  </a>
+
+  <a href="#" class="p-card">
+    <div class="p-img"><div class="p-tag">Classic</div><img loading="lazy" src="./heirloom-04.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Nike</div><div class="p-name">Dunk Low Panda</div><div class="p-foot"><span class="p-price"><span class="was">R 3,200</span>R 2,699</span><span class="p-stars">★★★★★</span></div></div>
+  </a>
+
+  <a href="#" class="p-card">
+    <div class="p-img"><div class="p-tag">Rare</div><img loading="lazy" src="./heirloom-09.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Jordan</div><div class="p-name">Air Jordan 4 Military Black</div><div class="p-foot"><span class="p-price">R 6,499</span><span class="p-stars">★★★★★</span></div></div>
+  </a>
+
+  <a href="#" class="p-card">
+    <div class="p-img"><img loading="lazy" src="./heirloom-03.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Jordan</div><div class="p-name">Air Jordan 3 Cardinal Red</div><div class="p-foot"><span class="p-price">R 5,199</span><span class="p-stars">★★★★★</span></div></div>
+  </a>
+
+  <a href="#" class="p-card">
+    <div class="p-img"><div class="p-tag">Trending</div><img loading="lazy" src="./heirloom-10.jpg" alt=""><div class="p-wa">Add to Cart</div></div>
+    <div class="p-info"><div class="p-brand">Adidas</div><div class="p-name">Forum Low Cream Black</div><div class="p-foot"><span class="p-price">R 2,499</span><span class="p-stars">★★★★☆</span></div></div>
+  </a>
+
+  <a href="#" class="p-card" style="border-right:none;grid-column:span 2">
+    <div style="display:grid;grid-template-columns:1fr 1fr;height:100%">
+      <div class="p-img" style="aspect-ratio:auto;height:100%"><div class="p-tag">Black Cat</div><img loading="lazy" src="./heirloom-05.jpg" alt="" style="height:100%;object-fit:cover"><div class="p-wa">Add to Cart</div></div>
+      <div class="p-info" style="display:flex;flex-direction:column;justify-content:center;padding:40px;background:#fff">
+        <div class="p-brand">Jordan</div>
+        <div class="p-name" style="font-size:28px;margin-bottom:16px">Air Jordan 4<br>Black Cat</div>
+        <div style="font-size:13px;font-weight:300;color:var(--dim);line-height:1.7;margin-bottom:24px">One of the most sought-after Jordan 4 colourways. All-black nubuck with reflective detailing. Grail status.</div>
+        <div class="p-foot" style="margin-bottom:24px"><span class="p-price" style="font-size:20px">R 9,800</span><span class="p-stars">★★★★★</span></div>
+        <a href="#" class="btn-solid" style="align-self:flex-start">Add to Cart</a>
+      </div>
+    </div>
+  </a>
+
+</div>
+
+<!-- SOLE STORIES -->
+<div class="section-rule">
+  <span class="section-rule-left">Sole Stories</span>
+  <a href="#" class="section-rule-right">Watch All</a>
+</div>
+<section class="stories">
+  <div class="stories-grid">
+    <div class="story-card">
+      <img loading="lazy" src="./heirloom-05.jpg" alt="">
+      <div class="story-overlay"><div class="story-type">Sole vs Sole</div><div class="story-name">Jordan 4 Black Cat:<br>The full breakdown</div></div>
+      <div class="story-play">▶</div>
+    </div>
+    <div class="story-card">
+      <img loading="lazy" src="./heirloom-11.jpg" alt="">
+      <div class="story-overlay"><div class="story-type">Sneaker Stories</div><div class="story-name">The Jordan 1:<br>History of an icon</div></div>
+      <div class="story-play">▶</div>
+    </div>
+    <div class="story-card">
+      <img loading="lazy" src="./heirloom-02.jpg" alt="">
+      <div class="story-overlay"><div class="story-type">Drop Alert</div><div class="story-name">This week's fire<br>drops — ranked</div></div>
+      <div class="story-play">▶</div>
+    </div>
+  </div>
+</section>
+
+<!-- FLASH SALE -->
+<div class="flash">
+  <div class="flash-header">
+    <div><span class="flash-label-sm">Limited Time Only</span><div class="flash-title-text">Flash Sale Friday</div></div>
+    <div style="text-align:right"><span class="flash-label-sm">Ends in</span>
+    <div class="flash-countdown"><span id="f-h">04</span><span class="sep">:</span><span id="f-m">22</span><span class="sep">:</span><span id="f-s">15</span></div></div>
+  </div>
+  <div class="flash-grid">
+    <a href="#" class="flash-card">
+      <img loading="lazy" src="./heirloom-04.jpg" alt="">
+      <div class="flash-card-info"><div class="flash-card-name">Dunk Low Panda</div><div class="flash-card-prices"><span class="flash-card-new">R 2,699</span><span class="flash-card-old">R 3,200</span></div></div>
+    </a>
+    <a href="#" class="flash-card">
+      <img loading="lazy" src="./heirloom-10.jpg" alt="">
+      <div class="flash-card-info"><div class="flash-card-name">Forum Low Cream</div><div class="flash-card-prices"><span class="flash-card-new">R 1,999</span><span class="flash-card-old">R 2,499</span></div></div>
+    </a>
+    <a href="#" class="flash-card">
+      <img loading="lazy" src="./heirloom-07.jpg" alt="">
+      <div class="flash-card-info"><div class="flash-card-name">Niteball Carbon</div><div class="flash-card-prices"><span class="flash-card-new">R 2,499</span><span class="flash-card-old">R 2,999</span></div></div>
+    </a>
+  </div>
+</div>
+
+
+
+<!-- FOOTER -->
+
+<!-- NEWSLETTER -->
+<div class="newsletter">
+  <div class="newsletter-copy">
+    <div class="newsletter-label">Stay in the loop</div>
+    <div class="newsletter-heading">New drops. Exclusive deals.<br>First to know.</div>
+  </div>
+  <form class="newsletter-form" onsubmit="return false">
+    <input class="newsletter-input" type="email" placeholder="Your email address">
+    <button class="newsletter-submit" type="submit">Subscribe</button>
+  </form>
+</div>
+
+<footer>
+  <div class="footer-top">
+    <div>
+      <img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgNTIiIHdpZHRoPSIyMDAiIGhlaWdodD0iNTIiPgogIDwhLS0gQ3Jvd24gZW1ibGVtIC0tPgogIDxyZWN0IHg9IjAiIHk9IjEwIiB3aWR0aD0iNSIgaGVpZ2h0PSIxOCIgZmlsbD0iIzExMTAxMCIvPgogIDxyZWN0IHg9IjkiIHk9IjIiIHdpZHRoPSI1IiBoZWlnaHQ9IjI2IiBmaWxsPSIjMTExMDEwIi8+CiAgPHJlY3QgeD0iMTgiIHk9IjEwIiB3aWR0aD0iNSIgaGVpZ2h0PSIxOCIgZmlsbD0iIzExMTAxMCIvPgogIDxyZWN0IHg9IjAiIHk9IjI2IiB3aWR0aD0iMjMiIGhlaWdodD0iMyIgZmlsbD0iIzExMTAxMCIvPgogIDwhLS0gV29yZG1hcmsgLS0+CiAgPHRleHQgeD0iMzIiIHk9IjMwIiBmb250LWZhbWlseT0iR2VvcmdpYSwgc2VyaWYiIGZvbnQtc2l6ZT0iMjYiIGZvbnQtd2VpZ2h0PSJib2xkIiBsZXR0ZXItc3BhY2luZz0iNyIgZmlsbD0iIzExMTAxMCI+R1JBSUw8L3RleHQ+CiAgPCEtLSBUYWdsaW5lIC0tPgogIDx0ZXh0IHg9IjMyIiB5PSI0NCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjciIGxldHRlci1zcGFjaW5nPSI0IiBmaWxsPSIjOTk5Ij5QUkVNSVVNIFNORUFLRVJTPC90ZXh0Pgo8L3N2Zz4=" alt="GRAIL" style="height:52px;width:auto;margin-bottom:20px;display:block">
+      <p class="footer-tagline">Curated pairs. Authenticated. Delivered to your door. This is GRAIL.</p>
+    </div>
+    <div class="footer-col"><h5>Shop</h5><ul><li><a href="#">Men's</a></li><li><a href="#">Women's</a></li><li><a href="#">Under R1000</a></li><li><a href="#">Rare Finds</a></li><li><a href="#">New Arrivals</a></li></ul></div>
+    <div class="footer-col"><h5>Services</h5><ul><li><a href="#">Size Guide</a></li><li><a href="#">Returns Policy</a></li><li><a href="#">Track Order</a></li><li><a href="#">Delivery Info</a></li></ul></div>
+    <div class="footer-col"><h5>Connect</h5><ul><li><a href="#">WhatsApp</a></li><li><a href="#">Instagram</a></li><li><a href="#">TikTok</a></li><li><a href="#">Contact</a></li></ul></div>
+  </div>
+  <div class="footer-bottom">
+    <span class="footer-copy">© 2025 GRAIL. All rights reserved.</span>
+    <div class="footer-social"><a href="#">Instagram</a><a href="#">TikTok</a><a href="#">WhatsApp</a></div>
+  </div>
+</footer>
+
+
+
+<script>
+(function(){
+  let total = 4*3600 + 22*60 + 15;
+  const pad = n => String(n).padStart(2,'0');
+  setInterval(function(){
+    if(total <= 0) return;
+    total--;
+    const h = Math.floor(total/3600);
+    const m = Math.floor((total%3600)/60);
+    const s = total%60;
+    const ht = document.getElementById('hero-timer');
+    if(ht) ht.innerHTML = pad(h)+'<span>:</span>'+pad(m)+'<span>:</span>'+pad(s);
+    const fh=document.getElementById('f-h'); if(fh) fh.textContent=pad(h);
+    const fm=document.getElementById('f-m'); if(fm) fm.textContent=pad(m);
+    const fs=document.getElementById('f-s'); if(fs) fs.textContent=pad(s);
+  }, 1000);
+})();
+</script>
+
+
+
+
+<script>
+var cart = [];
+var currentProduct = {};
+var selectedSize = null;
+
+function openMobileMenu() {
+  document.getElementById('mobile-menu').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMobileMenu() {
+  document.getElementById('mobile-menu').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function openCart() {
+  document.getElementById('cart-overlay').classList.add('open');
+  document.getElementById('cart-drawer').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeCart() {
+  document.getElementById('cart-overlay').classList.remove('open');
+  document.getElementById('cart-drawer').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function updateCartUI() {
+  var items = document.getElementById('cart-items');
+  var empty = document.getElementById('cart-empty');
+  var totalEl = document.getElementById('cart-total');
+  var badge = document.getElementById('cart-badge-count');
+
+  items.querySelectorAll('.cart-item').forEach(function(e){ e.remove(); });
+
+  if (cart.length === 0) {
+    empty.style.display = 'flex';
+    totalEl.textContent = 'R 0';
+    badge.classList.remove('visible');
+    return;
+  }
+
+  empty.style.display = 'none';
+  var total = 0;
+
+  cart.forEach(function(item, idx) {
+    var priceNum = parseInt(item.price.replace(/[^0-9]/g, ''));
+    total += priceNum * item.qty;
+
+    var el = document.createElement('div');
+    el.className = 'cart-item';
+    el.innerHTML =
+      '<img loading="lazy" class="cart-item-img" src="' + item.img + '" alt="">' +
+      '<div>' +
+        '<div class="cart-item-brand">' + item.brand + '</div>' +
+        '<div class="cart-item-name">' + item.name + '</div>' +
+        '<div class="cart-item-size">' + item.size + '</div>' +
+        '<div class="cart-item-qty">' +
+          '<button class="qty-btn" onclick="updateQty(' + idx + ',-1)">&#8722;</button>' +
+          '<span class="qty-num">' + item.qty + '</span>' +
+          '<button class="qty-btn" onclick="updateQty(' + idx + ',1)">+</button>' +
+        '</div>' +
+        '<button class="cart-item-remove" onclick="removeItem(' + idx + ')">Remove</button>' +
+      '</div>' +
+      '<div class="cart-item-price">' + item.price + '</div>';
+    items.appendChild(el);
+  });
+
+  var totalCount = cart.reduce(function(s, i){ return s + i.qty; }, 0);
+  totalEl.textContent = 'R ' + total.toLocaleString();
+  badge.textContent = totalCount;
+  badge.classList.add('visible');
+}
+
+function updateQty(idx, delta) {
+  cart[idx].qty = Math.max(1, cart[idx].qty + delta);
+  updateCartUI();
+}
+
+function removeItem(idx) {
+  cart.splice(idx, 1);
+  updateCartUI();
+}
+
+function openPDP(el) {
+  var card = el.closest ? el.closest('.p-card') : el;
+  if (!card) return;
+
+  var imgEl   = card.querySelector('.p-img img');
+  var brandEl = card.querySelector('.p-brand');
+  var nameEl  = card.querySelector('.p-name');
+  var priceEl = card.querySelector('.p-price');
+  var wasEl   = card.querySelector('.p-price .was');
+
+  if (!imgEl || !brandEl || !nameEl || !priceEl) return;
+
+  var img   = imgEl.src;
+  var brand = brandEl.textContent;
+  var name  = nameEl.textContent;
+  var was   = wasEl ? wasEl.textContent : '';
+
+  // Get last text node for price (excludes the .was span)
+  var priceNodes = priceEl.childNodes;
+  var price = '';
+  priceNodes.forEach(function(node) {
+    if (node.nodeType === 3) price += node.textContent.trim();
+  });
+  if (!price) price = priceEl.textContent.replace(was, '').trim();
+
+  currentProduct = { img: img, brand: brand, name: name, price: price, was: was };
+  selectedSize = null;
+
+  document.getElementById('pdp-brand').textContent = brand;
+  document.getElementById('pdp-name').textContent  = name;
+  document.getElementById('pdp-price').textContent = price;
+  document.getElementById('pdp-breadcrumb-name').textContent = name;
+
+  var wasEl2 = document.getElementById('pdp-was');
+  wasEl2.textContent = was;
+  wasEl2.style.display = was ? 'inline' : 'none';
+
+  ['pdp-main-img','pdp-thumb-1','pdp-thumb-2','pdp-thumb-3'].forEach(function(id) {
+    document.getElementById(id).src = img;
+  });
+
+  document.querySelectorAll('.size-btn').forEach(function(b){ b.classList.remove('selected'); });
+  var addBtn = document.getElementById('pdp-add-btn');
+  addBtn.disabled = true;
+  addBtn.textContent = 'Select a Size';
+
+  document.querySelectorAll('.accordion-item').forEach(function(a){ a.classList.remove('open'); });
+  document.querySelectorAll('.pdp-thumb').forEach(function(t){ t.classList.remove('active'); });
+  var t1 = document.getElementById('pdp-thumb-1');
+  if (t1) t1.classList.add('active');
+
+  document.getElementById('pdp-overlay').classList.add('open');
+  document.getElementById('pdp-drawer').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePDP() {
+  document.getElementById('pdp-overlay').classList.remove('open');
+  document.getElementById('pdp-drawer').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function selectSize(btn) {
+  if (btn.classList.contains('soldout')) return;
+  document.querySelectorAll('.size-btn').forEach(function(b){ b.classList.remove('selected'); });
+  btn.classList.add('selected');
+  selectedSize = btn.textContent;
+  var addBtn = document.getElementById('pdp-add-btn');
+  addBtn.disabled = false;
+  addBtn.textContent = 'Add to Bag';
+}
+
+function switchImage(thumb) {
+  document.querySelectorAll('.pdp-thumb').forEach(function(t){ t.classList.remove('active'); });
+  thumb.classList.add('active');
+  document.getElementById('pdp-main-img').src = thumb.src;
+}
+
+function addToCart() {
+  if (!selectedSize) return;
+  var existing = null;
+  for (var i = 0; i < cart.length; i++) {
+    if (cart[i].name === currentProduct.name && cart[i].size === selectedSize) {
+      existing = cart[i]; break;
+    }
+  }
+  if (existing) {
+    existing.qty++;
+  } else {
+    cart.push({
+      img: currentProduct.img,
+      brand: currentProduct.brand,
+      name: currentProduct.name,
+      price: currentProduct.price,
+      was: currentProduct.was,
+      size: selectedSize,
+      qty: 1
+    });
+  }
+  updateCartUI();
+  closePDP();
+  setTimeout(openCart, 350);
+}
+
+function toggleAccordion(trigger) {
+  var item = trigger.closest('.accordion-item');
+  var isOpen = item.classList.contains('open');
+  document.querySelectorAll('.accordion-item').forEach(function(a){ a.classList.remove('open'); });
+  if (!isOpen) item.classList.add('open');
+}
+
+// Countdown timer
+(function() {
+  var total = 4*3600 + 22*60 + 15;
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  setInterval(function() {
+    if (total <= 0) return;
+    total--;
+    var h = Math.floor(total/3600);
+    var m = Math.floor((total%3600)/60);
+    var s = total%60;
+    var ht = document.getElementById('hero-timer');
+    if (ht) ht.innerHTML = pad(h)+'<span>:</span>'+pad(m)+'<span>:</span>'+pad(s);
+    var fh=document.getElementById('f-h'); if(fh) fh.textContent=pad(h);
+    var fm=document.getElementById('f-m'); if(fm) fm.textContent=pad(m);
+    var fs=document.getElementById('f-s'); if(fs) fs.textContent=pad(s);
+  }, 1000);
+})();
+
+// Wire up product cards on load
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.p-card').forEach(function(card) {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', function(e) {
+      if (!e.target.closest('.p-wa')) openPDP(card);
+    });
+  });
+  document.querySelectorAll('.p-wa').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openPDP(btn.closest('.p-card'));
+    });
+  });
+});
+</script>
+</body>
+</html>

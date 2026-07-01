@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+
 // Helpers
 const fromCents = (c: number) => (c / 100).toFixed(0);
 
@@ -286,7 +287,7 @@ export default function AffiliateDashboard() {
               style={styles.shareBtn}
               onClick={() => {
                 const msg = encodeURIComponent(
-                  `Want to set up a beautiful online store from your WhatsApp catalog? Check out CatalogStore: ${refLink(affiliate.slug)}`
+                  `Want to open a real online store and take card payments online? Check out CatalogStore — built for SA sellers: ${refLink(affiliate.slug)}`
                 );
                 window.open(`https://wa.me/?text=${msg}`, "_blank", "noopener,noreferrer");
               }}
@@ -299,7 +300,7 @@ export default function AffiliateDashboard() {
             <button
               style={styles.shareBtn}
               onClick={async () => {
-                const caption = `Set up your online store from your WhatsApp catalog 👀\n\n${refLink(affiliate.slug)}`;
+                const caption = `Open a real online store and take card payments online 👀\nBuilt for SA sellers — R99/month, zero commission.\n\n${refLink(affiliate.slug)}`;
                 try {
                   await navigator.clipboard.writeText(caption);
                   showToast("Caption copied");

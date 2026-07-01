@@ -3,15 +3,57 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
-import Spinner from "../../components/Spinner";
+import { revalidateStore } from "../../actions/revalidate-store";
+
+// Mirror HeirloomStore's collectionSlug. Inlined (not imported) so the editor
+// bundle doesn't have to drag the whole 1300-line storefront component just
+// to compute a slug -- that was bloating the dashboard load.
+const collectionSlug = (name: string) =>
+  name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+// Monoline SVG icon set. Replaces emoji (🏠 ✏️ 📱 🖥 etc.) which felt cheap
+// against the dark/orange brand. All icons are 1.5px stroke at 20x20 viewBox,
+// pure CSS-controllable via currentColor. One place to add new icons.
+type IconName =
+  | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products"
+  | "collections" | "policies" | "promise" | "about" | "testimonials"
+  | "cta" | "trust" | "footer"
+  | "desktop" | "mobile" | "pencil" | "image" | "external"
+  | "arrow-left" | "check";
+
+function EditorIcon({ name, size = 16, stroke = 1.5, className }: { name: IconName; size?: number; stroke?: number; className?: string }) {
+  const common = {
+    width: size, height: size, viewBox: "0 0 20 20", fill: "none",
+    stroke: "currentColor", strokeWidth: stroke,
+    strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+    className,
+  };
+  switch (name) {
+    case "announcement": return <svg {...common}><path d="M15 4 5 8H3v4h2l10 4V4Z"/><path d="M16 7v6"/></svg>;
+    case "logo": return <svg {...common}><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/></svg>;
+    case "hero": return <svg {...common}><path d="M3 9 10 3l7 6v8a1 1 0 0 1-1 1h-4v-6H8v6H4a1 1 0 0 1-1-1V9Z"/></svg>;
+    case "ticker": return <svg {...common}><path d="M3 7h14"/><path d="M3 13h14"/><circle cx="6" cy="7" r="0.8"/><circle cx="14" cy="13" r="0.8"/></svg>;
+    case "circle": return <svg {...common}><circle cx="6" cy="6" r="2.5"/><circle cx="14" cy="6" r="2.5"/><circle cx="6" cy="14" r="2.5"/><circle cx="14" cy="14" r="2.5"/></svg>;
+    case "products": return <svg {...common}><path d="M4 6h12l-1 11H5L4 6Z"/><path d="M7 6V4a3 3 0 0 1 6 0v2"/></svg>;
+    case "collections": return <svg {...common}><path d="M3 6a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Z"/></svg>;
+    case "policies": return <svg {...common}><rect x="4" y="3" width="12" height="14" rx="1"/><path d="M7 7h6"/><path d="M7 10h6"/><path d="M7 13h4"/></svg>;
+    case "promise": return <svg {...common}><path d="M10 3 3 7l7 4 7-4-7-4Z"/><path d="m3 11 7 4 7-4"/><path d="m3 15 7 4 7-4"/></svg>;
+    case "about": return <svg {...common}><path d="M4 4h8a3 3 0 0 1 3 3v10H7a3 3 0 0 1-3-3V4Z"/><path d="M4 14a3 3 0 0 1 3-3h8"/></svg>;
+    case "testimonials": return <svg {...common}><path d="M3 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-5l-3 3v-3H4a1 1 0 0 1-1-1V5Z"/></svg>;
+    case "cta": return <svg {...common}><path d="M17 3 9 11"/><path d="M17 3v6"/><path d="M17 3h-6"/><path d="m6 14 1 3 3-3-2-2-2 2Z"/></svg>;
+    case "trust": return <svg {...common}><path d="M10 3 4 5v5c0 4 2.5 6 6 7 3.5-1 6-3 6-7V5l-6-2Z"/><path d="m8 10 1.5 1.5L13 8"/></svg>;
+    case "footer": return <svg {...common}><path d="m8 10 4-4a3 3 0 0 1 4 4l-2 2"/><path d="m12 10-4 4a3 3 0 0 1-4-4l2-2"/></svg>;
+    case "desktop": return <svg {...common}><rect x="3" y="4" width="14" height="9" rx="1"/><path d="M7 17h6"/><path d="M10 13v4"/></svg>;
+    case "mobile": return <svg {...common}><rect x="6" y="3" width="8" height="14" rx="1.5"/><circle cx="10" cy="14.5" r="0.6" fill="currentColor"/></svg>;
+    case "pencil": return <svg {...common}><path d="m4 16 1-3 9-9a1.5 1.5 0 0 1 2.5 1.5l-9 9-3 1Z"/><path d="m12 5 2.5 2.5"/></svg>;
+    case "image": return <svg {...common}><rect x="3" y="3" width="14" height="14" rx="1.5"/><circle cx="7" cy="7" r="1.2"/><path d="m3 14 5-4 4 3 5-5v9H3v-3Z"/></svg>;
+    case "external": return <svg {...common}><path d="M7 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-3"/><path d="M11 3h6v6"/><path d="m17 3-7 7"/></svg>;
+    case "arrow-left": return <svg {...common}><path d="m11 5-5 5 5 5"/><path d="M16 10H6"/></svg>;
+    case "check": return <svg {...common}><path d="m4 10 4 4 8-8"/></svg>;
+  }
+}
 
 /* ─── TYPES ─── */
-const TEMPLATES = [
-  { id: "soft-luxury",      label: "Soft Luxury",     desc: "Warm minimal · serif headlines" },
-  { id: "crown",            label: "Crown",           desc: "Editorial dark · gold accents" },
-  { id: "glass-futuristic", label: "Glass Chrome",    desc: "Bold futuristic · monospace UI" },
-];
-
 interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
   tagline: string; description: string; logo_url: string; banner_url: string;
@@ -44,70 +86,87 @@ interface Seller {
     promise_images?: (string | null)[];
     promise_label?: string;
     hero_image?: string;
-    about_image?: string;
-    footer_text_color?: string;
-    cta_headline?: string;
-    cta_subtext?: string;
+    // Heirloom hero fields -- editor and storefront both read these.
+    hero_index?: string;
+    hero_label?: string;
+    hero_headline?: string;
+    hero_body?: string;
+    hero_cta_primary?: string;
+    hero_cta_secondary?: string;
+    hero_cta_primary_target?: CtaTarget;
+    hero_cta_secondary_target?: CtaTarget;
+    // Heirloom footer
+    footer_tagline?: string;
+    footer_col1_label?: string;
+    footer_col2_label?: string;
+    footer_col3_label?: string;
+    footer_support_links?: string[];
+    footer_pay_links?: string[];
+    hero_countdown_label?: string;
   };
 }
 
+// Hero CTA destinations -- mirror the type in HeirloomStore so the editor and
+// the storefront agree. Adding new targets here requires updating the
+// storefront's switch statement too.
+type CtaTarget =
+  | { type: "products" }
+  | { type: "collection"; collection: string }
+  | { type: "url"; url: string }
+  | { type: "none" };
+
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
-  | "policies" | "promise" | "about" | "cta" | "trust" | "footer"
+  | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
   | null;
 
-const SECTION_LABELS: Record<string, string> = {
-  announcement: "📢 Announcement Bar",
-  logo:         "🏷 Store Logo",
-  hero:         "🏠 Hero Section",
-  ticker:       "📣 Promo Ticker",
-  circle:       "⭕ Browse by Category",
-  products:     "🛍 Products",
-  collections:  "📂 Collections",
-  policies:     "📋 Shipping & Policies",
-  promise:      "💎 Our Promise",
-  about:        "📖 About / Story",
-  cta:          "🚀 Call to Action",
-  trust:        "✅ Trust Bar",
-  footer:       "🔗 Footer",
+const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
+  announcement: { icon: "announcement", label: "Announcement Bar" },
+  logo:         { icon: "logo",         label: "Store Logo" },
+  hero:         { icon: "hero",         label: "Hero Section" },
+  ticker:       { icon: "ticker",       label: "Promo Ticker" },
+  circle:       { icon: "circle",       label: "Browse by Category" },
+  products:     { icon: "products",     label: "Products" },
+  collections:  { icon: "collections",  label: "Collections" },
+  policies:     { icon: "policies",     label: "Shipping & Policies" },
+  promise:      { icon: "promise",      label: "Our Promise" },
+  about:        { icon: "about",        label: "About / Story" },
+  testimonials: { icon: "testimonials", label: "Testimonials" },
+  cta:          { icon: "cta",          label: "Call to Action" },
+  trust:        { icon: "trust",        label: "Trust Bar" },
+  footer:       { icon: "footer",       label: "Footer" },
 };
+
+// Compact icon+label inline component for the chrome.
+function SectionTag({ section, color = "rgba(245,245,245,0.6)" }: { section: keyof typeof SECTION_LABELS; color?: string }) {
+  const s = SECTION_LABELS[section];
+  if (!s) return null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color }}>
+      <EditorIcon name={s.icon} size={13} />
+      <span>{s.label}</span>
+    </span>
+  );
+}
 
 export default function StoreEditor() {
   const router = useRouter();
-  /* assist=<sellerId> means an admin is editing another seller's store.
-     Read via window.location instead of useSearchParams() so Next 16
-     doesn't require the page to be statically renderable / wrapped in
-     <Suspense> at build time. We do this in useState's initialiser so
-     the value is available on first render. */
-  const [assistSellerId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("assist");
-  });
-  const isAssist = !!assistSellerId;
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const [seller, setSeller]           = useState<Seller | null>(null);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]           = useState(false);
   const [saved, setSaved]             = useState(false);
-  const [saveError, setSaveError]     = useState("");
-  const [uploadError, setUploadError] = useState("");
   const [activeSection, setActiveSection] = useState<ActiveSection>(null);
   const [panelVisible, setPanelVisible]   = useState(false);
   const [iframeReady, setIframeReady]     = useState(false);
-  const [deviceMode, setDeviceMode]       = useState<"desktop" | "mobile">("desktop");
-  const [template, setTemplate]           = useState<string>("soft-luxury");
-  const [switchingTheme, setSwitchingTheme] = useState(false);
-  /* Dirty tracker — flips true the first time the seller edits anything,
-     back to false on a successful save. Powers the unsaved-changes guard. */
-  const [isDirty, setIsDirty] = useState(false);
-  const initialLoadDone = useRef(false);
 
   /* Local editable state */
   const [tagline, setTagline]           = useState("");
   const [description, setDescription]   = useState("");
   const [announcement, setAnnouncement] = useState("");
   const [trustItems, setTrustItems]     = useState<{ icon: string; title: string; desc: string }[]>([]);
+  const [testimonialText, setTestimonialText] = useState("I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.");
   const [ctaHeadline, setCtaHeadline]         = useState("Your next look starts here");
   const [ctaSubtext, setCtaSubtext]           = useState("Browse our full collection and find the perfect bundles, closures, and frontals for your signature style.");
   const [aboutTitle, setAboutTitle]           = useState("");
@@ -140,46 +199,50 @@ export default function StoreEditor() {
     { num: "04", title: "Secure Payment",     desc: "Pay safely via card, EFT, or WhatsApp. Your details are always protected." },
   ]);
   const [promiseImages, setPromiseImages]       = useState<(string|null)[]>([null,null,null,null]);
-  const [policyItems, setPolicyItems]           = useState<{ title: string; desc: string }[]>([
-    { title: "Shipping", desc: "Free delivery on qualifying orders. Standard 2–4 business days nationwide." },
-    { title: "Returns",  desc: "14-day returns on unopened items in original packaging." },
-    { title: "Payment",  desc: "Secure card payments via PayFast. EFT and WhatsApp accepted." },
-  ]);
   const promiseImgRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const [logoFile, setLogoFile]         = useState<File | null>(null);
   const [logoPreview, setLogoPreview]   = useState("");
   const [heroImagePreview, setHeroImagePreview] = useState("");
   const [heroImageUrl, setHeroImageUrl]           = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
-  const [aboutImagePreview, setAboutImagePreview] = useState("");
-  const [aboutImageUrl, setAboutImageUrl]         = useState("");
-  const aboutImageRef = useRef<HTMLInputElement>(null);
+
+  /* Heirloom-specific hero fields. The previous editor reused Crown's mapping
+     (tagline -> headline, description -> subtitle) which was wrong for
+     Heirloom -- it left the actual headline + eyebrow + label + CTA labels
+     uneditable. These fields are independent and only surfaced in the hero
+     panel when seller.template === "heirloom". */
+  const [heroIndex, setHeroIndex]               = useState("");
+  const [heroLabel, setHeroLabel]               = useState("");
+  const [heroHeadline, setHeroHeadline]         = useState("");
+  const [heroBody, setHeroBody]                 = useState("");
+  const [heroCtaPrimary, setHeroCtaPrimary]     = useState("");
+  const [heroCtaSecondary, setHeroCtaSecondary] = useState("");
+  const [heroCtaPrimaryTarget, setHeroCtaPrimaryTarget]     = useState<CtaTarget>({ type: "products" });
+  const [heroCtaSecondaryTarget, setHeroCtaSecondaryTarget] = useState<CtaTarget>({ type: "none" });
+
+  /* Heirloom footer fields -- same pattern as the hero, template-aware. */
+  const [footerTagline, setFooterTagline]             = useState("");
+  const [footerCol1Label, setFooterCol1Label]         = useState("Shop");
+  const [footerCol2Label, setFooterCol2Label]         = useState("Support");
+  const [footerCol3Label, setFooterCol3Label]         = useState("Pay");
+  const [footerSupportLinks, setFooterSupportLinks]   = useState<string[]>(["Shipping", "Returns", "Sizing", "Contact"]);
+  const [footerPayLinks, setFooterPayLinks]           = useState<string[]>(["Card", "EFT", "PayFast", "WhatsApp Order"]);
+
+  /* Editable label above the hero countdown timer. Empty string = default to
+     `<CODE> ends in` from the active discount; sellers can override to e.g.
+     "Limited drop ends in". */
+  const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
 
   /* ─── LOAD ─── */
   useEffect(() => {
     (async () => {
-      const { data: { user }, } = await supabase.auth.getUser();
+      // getSession() is local; getUser() validates against Supabase (extra round-trip).
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) { router.push("/login"); return; }
-      let s: any = null;
-      if (isAssist) {
-        /* Admin assist mode — server checks the caller is admin and returns
-           the seller's editable fields with API keys stripped. */
-        const session = await supabase.auth.getSession();
-        const token = session.data.session?.access_token || "";
-        const res = await fetch(`/api/admin/seller/${assistSellerId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          alert(res.status === 403 ? "Admin assistance is only available to the admin account." : "Could not load that seller.");
-          router.push("/admin");
-          return;
-        }
-        const json = await res.json();
-        s = json.seller;
-      } else {
-        const { data } = await supabase.from("sellers").select("*").eq("email", user.email).single();
-        s = data;
-      }
+      // Explicit columns — only what the editor actually uses. Skipping the bigger
+      // checkout_config / subscription_* / payfast_* fields keeps this row small.
+      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, store_config").eq("email", user.email).single();
       if (!s) { router.push("/dashboard"); return; }
       setSeller(s);
       setTagline(s.tagline || "");
@@ -216,19 +279,27 @@ export default function StoreEditor() {
       if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
       if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
-      if (s.store_config?.cta_headline) setCtaHeadline(s.store_config.cta_headline);
-      if (s.store_config?.cta_subtext) setCtaSubtext(s.store_config.cta_subtext);
-      if (s.store_config?.policy_items?.length) setPolicyItems(s.store_config.policy_items);
-      setAboutImagePreview(s.store_config?.about_image || "");
-      setAboutImageUrl(s.store_config?.about_image || "");
       setLogoPreview(s.logo_url || "");
       setHeroImagePreview(s.store_config?.hero_image || "");
       setHeroImageUrl(s.store_config?.hero_image || "");
-      setTemplate(s.template || "soft-luxury");
+      // Heirloom-specific hero fields
+      setHeroIndex(s.store_config?.hero_index ?? "");
+      setHeroLabel(s.store_config?.hero_label ?? "");
+      setHeroHeadline(s.store_config?.hero_headline ?? "");
+      setHeroBody(s.store_config?.hero_body ?? "");
+      setHeroCtaPrimary(s.store_config?.hero_cta_primary ?? "");
+      setHeroCtaSecondary(s.store_config?.hero_cta_secondary ?? "");
+      setHeroCtaPrimaryTarget(s.store_config?.hero_cta_primary_target ?? { type: "products" });
+      setHeroCtaSecondaryTarget(s.store_config?.hero_cta_secondary_target ?? { type: "none" });
+      // Heirloom footer
+      setFooterTagline(s.store_config?.footer_tagline ?? s.description ?? "");
+      setFooterCol1Label(s.store_config?.footer_col1_label ?? "Shop");
+      setFooterCol2Label(s.store_config?.footer_col2_label ?? "Support");
+      setFooterCol3Label(s.store_config?.footer_col3_label ?? "Pay");
+      setFooterSupportLinks(s.store_config?.footer_support_links?.length ? s.store_config.footer_support_links : ["Shipping", "Returns", "Sizing", "Contact"]);
+      setFooterPayLinks(s.store_config?.footer_pay_links?.length ? s.store_config.footer_pay_links : ["Card", "EFT", "PayFast", "WhatsApp Order"]);
+      setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
       setLoading(false);
-      /* Initial state hydration is complete — any subsequent state changes
-         are seller edits and should mark the form dirty. */
-      requestAnimationFrame(() => { initialLoadDone.current = true; });
     })();
   }, []);
 
@@ -247,107 +318,94 @@ export default function StoreEditor() {
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  /* ─── SEND LIVE UPDATES TO IFRAME (debounced + batched) ─── */
-  const pendingUpdatesRef = useRef<Record<string, unknown>>({});
-  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const flushUpdates = useCallback(() => {
-    const payload = pendingUpdatesRef.current;
-    pendingUpdatesRef.current = {};
-    flushTimerRef.current = null;
-    if (Object.keys(payload).length === 0) return;
+  /* ─── SEND LIVE UPDATES TO IFRAME ─── */
+  const postUpdate = useCallback((payload: Record<string, unknown>) => {
     iframeRef.current?.contentWindow?.postMessage({ type: "LIVE_UPDATE", ...payload }, "*");
   }, []);
 
-  const postUpdate = useCallback((payload: Record<string, unknown>) => {
-    Object.assign(pendingUpdatesRef.current, payload);
-    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-    flushTimerRef.current = setTimeout(flushUpdates, 120);
-    /* Anything that updates the live preview is also a user edit — mark
-       dirty so we can warn on close. */
-    if (initialLoadDone.current) setIsDirty(true);
-  }, [flushUpdates]);
+  /* Live update on every field change */
+  useEffect(() => { postUpdate({ tagline }); }, [tagline]);
+  useEffect(() => { postUpdate({ description }); }, [description]);
+  useEffect(() => { postUpdate({ announcement }); }, [announcement]);
+  useEffect(() => { postUpdate({ trustItems }); }, [trustItems]);
+  useEffect(() => { postUpdate({ testimonialText }); }, [testimonialText]);
+  useEffect(() => { postUpdate({ ctaHeadline }); }, [ctaHeadline]);
+  useEffect(() => { postUpdate({ ctaSubtext }); }, [ctaSubtext]);
+  useEffect(() => { postUpdate({ aboutTitle }); }, [aboutTitle]);
+  useEffect(() => { postUpdate({ heroSubtext }); }, [heroSubtext]);
+  useEffect(() => { postUpdate({ circleTitle }); }, [circleTitle]);
+  useEffect(() => { postUpdate({ circleSubtitle }); }, [circleSubtitle]);
+  useEffect(() => { postUpdate({ productsLabel }); }, [productsLabel]);
+  useEffect(() => { postUpdate({ productsHeading }); }, [productsHeading]);
+  useEffect(() => { postUpdate({ aboutLabel }); }, [aboutLabel]);
+  useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
+  useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
+  useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
+  useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
+  useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
+  useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed]);
+  useEffect(() => { postUpdate({ bgColor }); }, [bgColor]);
+  useEffect(() => { postUpdate({ heroTextColor }); }, [heroTextColor]);
+  useEffect(() => { postUpdate({ circleTextColor }); }, [circleTextColor]);
+  useEffect(() => { postUpdate({ prodTextColor }); }, [prodTextColor]);
+  useEffect(() => { postUpdate({ aboutTextColor }); }, [aboutTextColor]);
+  useEffect(() => { postUpdate({ collTextColor }); }, [collTextColor]);
+  useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor]);
+  useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor]);
+  useEffect(() => { postUpdate({ footerTextColor }); }, [footerTextColor]);
+  useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel]);
+  useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
+  useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems]);
+  useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages]);
+  useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview]);
 
-  /* beforeunload guard — warn if the seller tries to navigate away with
-     pending changes. */
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
+  /* Heirloom hero — live updates */
+  useEffect(() => { postUpdate({ heroIndex }); }, [heroIndex]);
+  useEffect(() => { postUpdate({ heroLabel }); }, [heroLabel]);
+  useEffect(() => { postUpdate({ heroHeadline }); }, [heroHeadline]);
+  useEffect(() => { postUpdate({ heroBody }); }, [heroBody]);
+  useEffect(() => { postUpdate({ heroCtaPrimary }); }, [heroCtaPrimary]);
+  useEffect(() => { postUpdate({ heroCtaSecondary }); }, [heroCtaSecondary]);
+  useEffect(() => { postUpdate({ heroCtaPrimaryTarget }); }, [heroCtaPrimaryTarget]);
+  useEffect(() => { postUpdate({ heroCtaSecondaryTarget }); }, [heroCtaSecondaryTarget]);
 
-  useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
-
-  /* Live update on every field change — the debounced postUpdate batches
-     these into one postMessage per ~120ms instead of one per keystroke. */
-  useEffect(() => { postUpdate({ tagline }); }, [tagline, postUpdate]);
-  useEffect(() => { postUpdate({ description }); }, [description, postUpdate]);
-  useEffect(() => { postUpdate({ announcement }); }, [announcement, postUpdate]);
-  useEffect(() => { postUpdate({ trustItems }); }, [trustItems, postUpdate]);
-  useEffect(() => { postUpdate({ ctaHeadline }); }, [ctaHeadline, postUpdate]);
-  useEffect(() => { postUpdate({ ctaSubtext }); }, [ctaSubtext, postUpdate]);
-  useEffect(() => { postUpdate({ aboutTitle }); }, [aboutTitle, postUpdate]);
-  useEffect(() => { postUpdate({ heroSubtext }); }, [heroSubtext, postUpdate]);
-  useEffect(() => { postUpdate({ circleTitle }); }, [circleTitle, postUpdate]);
-  useEffect(() => { postUpdate({ circleSubtitle }); }, [circleSubtitle, postUpdate]);
-  useEffect(() => { postUpdate({ productsLabel }); }, [productsLabel, postUpdate]);
-  useEffect(() => { postUpdate({ productsHeading }); }, [productsHeading, postUpdate]);
-  useEffect(() => { postUpdate({ aboutLabel }); }, [aboutLabel, postUpdate]);
-  useEffect(() => { postUpdate({ collLabel }); }, [collLabel, postUpdate]);
-  useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle, postUpdate]);
-  useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder, postUpdate]);
-  useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview, postUpdate]);
-  useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts, postUpdate]);
-  useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed, postUpdate]);
-  useEffect(() => { postUpdate({ bgColor }); }, [bgColor, postUpdate]);
-  useEffect(() => { postUpdate({ heroTextColor }); }, [heroTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ circleTextColor }); }, [circleTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ prodTextColor }); }, [prodTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ aboutTextColor }); }, [aboutTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ collTextColor }); }, [collTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ footerTextColor }); }, [footerTextColor, postUpdate]);
-  useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel, postUpdate]);
-  useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle, postUpdate]);
-  useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems, postUpdate]);
-  useEffect(() => { postUpdate({ promiseImages }); }, [promiseImages, postUpdate]);
-  useEffect(() => { postUpdate({ policyItems }); }, [policyItems, postUpdate]);
-  useEffect(() => { postUpdate({ aboutImage: aboutImagePreview }); }, [aboutImagePreview, postUpdate]);
-  useEffect(() => { if (logoPreview) postUpdate({ logoUrl: logoPreview }); }, [logoPreview, postUpdate]);
+  /* Heirloom footer — live updates */
+  useEffect(() => { postUpdate({ footerTagline }); }, [footerTagline]);
+  useEffect(() => { postUpdate({ footerCol1Label }); }, [footerCol1Label]);
+  useEffect(() => { postUpdate({ footerCol2Label }); }, [footerCol2Label]);
+  useEffect(() => { postUpdate({ footerCol3Label }); }, [footerCol3Label]);
+  useEffect(() => { postUpdate({ footerSupportLinks }); }, [footerSupportLinks]);
+  useEffect(() => { postUpdate({ footerPayLinks }); }, [footerPayLinks]);
+  useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
 
   /* ─── SAVE ─── */
   const save = async () => {
     if (!seller) return;
     setSaving(true);
-    setSaveError("");
-    try {
-      let logoUrl = seller.logo_url;
-      if (logoFile) {
-        const ext = logoFile.name.split(".").pop();
-        const path = `logos/${seller.id}-${Date.now()}.${ext}`;
-        logoUrl = await uploadImage(logoFile, "logo", path);
-      }
-      /* Don't persist a base64 data: URL into the DB if the hero upload failed */
-      const heroImageToSave = heroImageUrl || (heroImagePreview && !heroImagePreview.startsWith("data:") ? heroImagePreview : undefined);
-
-      const patch = {
-        tagline, description, logo_url: logoUrl,
-        collections: collOrder.length > 0 ? collOrder : seller.collections,
-        store_config: {
-          ...seller.store_config,
-          announcement,
-          trust_items: trustItems,
-          hero_subtext: heroSubtext,
-          circle_title: circleTitle,
-          circle_subtitle: circleSubtitle,
-          products_label: productsLabel,
-          products_heading: productsHeading,
-          about_label: aboutLabel,
-          about_title: aboutTitle,
-          coll_label: collLabel,
-          coll_subtitle: collSubtitle,
+    let logoUrl = seller.logo_url;
+    if (logoFile) {
+      const ext = logoFile.name.split(".").pop();
+      const path = `logos/${seller.id}-${Date.now()}.${ext}`;
+      await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true });
+      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+      logoUrl = data.publicUrl;
+    }
+    await supabase.from("sellers").update({
+      tagline, description, logo_url: logoUrl,
+      collections: collOrder.length > 0 ? collOrder : seller.collections,
+      store_config: {
+        ...seller.store_config,
+        announcement,
+        trust_items: trustItems,
+        hero_subtext: heroSubtext,
+        circle_title: circleTitle,
+        circle_subtitle: circleSubtitle,
+        products_label: productsLabel,
+        products_heading: productsHeading,
+        about_label: aboutLabel,
+        about_title: aboutTitle,
+        coll_label: collLabel,
+        coll_subtitle: collSubtitle,
           ticker_texts: tickerTexts,
           ticker_speed: tickerSpeed,
           bg_color: bgColor,
@@ -359,122 +417,42 @@ export default function StoreEditor() {
           cta_text_color: ctaTextColor,
           trust_text_color: trustTextColor,
           footer_text_color: footerTextColor,
-          hero_image: heroImageToSave,
+          hero_image: heroImageUrl || heroImagePreview || undefined,
           promise_label: promiseLabel,
           promise_title: promiseTitle,
           promise_items: promiseItems,
           promise_images: promiseImages,
-          cta_headline: ctaHeadline,
-          cta_subtext: ctaSubtext,
-          policy_items: policyItems,
-          about_image: aboutImageUrl || (aboutImagePreview && !aboutImagePreview.startsWith("data:") ? aboutImagePreview : undefined),
-        },
-      };
-
-      if (isAssist) {
-        /* Admin assist: route the save through the admin API which
-           re-verifies the caller is admin and strips any sensitive keys. */
-        const session = await supabase.auth.getSession();
-        const token = session.data.session?.access_token || "";
-        const res = await fetch(`/api/admin/seller/${seller.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(patch),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error || "Admin save failed");
-        }
-      } else {
-        const { error: updateErr } = await supabase.from("sellers").update(patch).eq("id", seller.id);
-        if (updateErr) throw updateErr;
-      }
-      setIsDirty(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e: any) {
-      setSaveError(e?.message || "Could not save changes. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  /* ─── SWITCH THEME ─── */
-  const changeTheme = async (next: string) => {
-    if (!seller || next === template || switchingTheme) return;
-    setSwitchingTheme(true);
-    setSaveError("");
-    try {
-      if (isAssist) {
-        const session = await supabase.auth.getSession();
-        const token = session.data.session?.access_token || "";
-        const res = await fetch(`/api/admin/seller/${seller.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ template: next }),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error || "Theme switch failed");
-        }
-      } else {
-        const { error } = await supabase.from("sellers").update({ template: next }).eq("id", seller.id);
-        if (error) throw error;
-      }
-      setTemplate(next);
-      setSeller({ ...seller, template: next });
-      /* Force the preview iframe to reload with the new theme */
-      const iframe = iframeRef.current;
-      if (iframe && seller.subdomain) {
-        setIframeReady(false);
-        iframe.src = `/store/${seller.subdomain}?editMode=true&_t=${Date.now()}`;
-      }
-    } catch (e: any) {
-      setSaveError(e?.message || "Could not change theme.");
-    } finally {
-      setSwitchingTheme(false);
-    }
+          // Heirloom-specific hero fields. Empty strings are kept (sellers
+          // sometimes deliberately blank a field), but undefined would fall
+          // back to template defaults at render time.
+          hero_index: heroIndex,
+          hero_label: heroLabel,
+          hero_headline: heroHeadline,
+          hero_body: heroBody,
+          hero_cta_primary: heroCtaPrimary,
+          hero_cta_secondary: heroCtaSecondary,
+          hero_cta_primary_target: heroCtaPrimaryTarget,
+          hero_cta_secondary_target: heroCtaSecondaryTarget,
+          // Heirloom footer
+          footer_tagline: footerTagline,
+          footer_col1_label: footerCol1Label,
+          footer_col2_label: footerCol2Label,
+          footer_col3_label: footerCol3Label,
+          footer_support_links: footerSupportLinks,
+          footer_pay_links: footerPayLinks,
+          hero_countdown_label: heroCountdownLabel,
+      },
+    }).eq("id", seller.id);
+    setSaved(true);
+    setSaving(false);
+    setTimeout(() => setSaved(false), 3000);
+    if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
   };
 
   /* ─── LOGO UPLOAD ─── */
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
-  const validateImage = (f: File) => {
-    if (!f.type.startsWith("image/")) return "Please choose an image file.";
-    if (f.size > MAX_IMAGE_BYTES) return "Image must be 5MB or smaller.";
-    return "";
-  };
-
-  /* Upload an image. In assist mode, routes through the admin upload
-     endpoint (which uses the service role) so storage RLS doesn't reject
-     the admin writing into the seller's path. */
-  const uploadImage = async (file: File, kind: string, fallbackPath: string): Promise<string> => {
-    if (isAssist && seller) {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token || "";
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("kind", kind);
-      const res = await fetch(`/api/admin/seller/${seller.id}/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || "Upload failed");
-      return j.url as string;
-    }
-    const { error: upErr } = await supabase.storage.from("store-assets").upload(fallbackPath, file, { upsert: true });
-    if (upErr) throw upErr;
-    const { data } = supabase.storage.from("store-assets").getPublicUrl(fallbackPath);
-    return data.publicUrl;
-  };
-
   const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const err = validateImage(f);
-    if (err) { setUploadError(err); e.target.value = ""; return; }
-    setUploadError("");
     setLogoFile(f);
     const reader = new FileReader();
     reader.onload = ev => setLogoPreview(ev.target?.result as string);
@@ -499,85 +477,56 @@ export default function StoreEditor() {
     textTransform: "uppercase", color: "rgba(245,245,245,0.4)",
     display: "block", marginBottom: 6,
   };
+  const hintStyle: React.CSSProperties = {
+    fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4, lineHeight: 1.45,
+  };
+  const ctaCardStyle: React.CSSProperties = {
+    padding: 12, background: "rgba(255,255,255,0.025)",
+    border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10,
+  };
+  const ctaCardTitle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 800, textTransform: "uppercase",
+    letterSpacing: "0.08em", color: "rgba(245,245,245,0.55)", marginBottom: 8,
+  };
 
   if (loading) return (
-    <Spinner fullscreen background="#0a0a0e" color={G} label={isAssist ? "Loading seller's store" : "Loading your editor"} />
+    <div style={{ minHeight: "100vh", background: "#0a0a0e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 32, height: 32, border: "2px solid rgba(255,255,255,0.08)", borderTopColor: G, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
   );
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#0a0a0e", fontFamily: "'Schibsted Grotesk', sans-serif", overflow: "hidden" }}>
 
-      {/* ── ADMIN ASSIST BANNER ── */}
-      {isAssist && (
-        <div style={{ background: "linear-gradient(90deg, rgba(139,92,246,0.18), rgba(139,92,246,0.08))", borderBottom: "1px solid rgba(139,92,246,0.3)", padding: "8px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, fontWeight: 700, color: "#c4b5fd", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#8b5cf6", boxShadow: "0 0 8px #8b5cf6" }} />
-            Admin Assistance — editing on behalf of {seller?.store_name || "seller"}
-          </div>
-          <button onClick={() => router.push("/admin")}
-            style={{ padding: "6px 14px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#f5f5f5", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>
-            Exit Assist →
-          </button>
-        </div>
-      )}
-
       {/* ── TOP BAR ── */}
       <div style={{ height: 52, background: "#111116", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={() => router.push(isAssist ? "/admin" : "/dashboard")}
-            style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 6, transition: "color 0.2s" }}>
-            ←
+          <button onClick={() => router.push("/dashboard")} aria-label="Back to dashboard"
+            style={{ background: "none", border: "none", color: "rgba(245,245,245,0.4)", cursor: "pointer", padding: "6px 8px", borderRadius: 6, display: "flex", alignItems: "center" }}>
+            <EditorIcon name="arrow-left" size={18} />
           </button>
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.08)" }} />
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#f5f5f5" }}>{seller?.store_name}</div>
             <div style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", letterSpacing: "0.04em" }}>
-              {panelVisible && activeSection ? SECTION_LABELS[activeSection] : "Click any section to edit"}
+              {panelVisible && activeSection ? <SectionTag section={activeSection} color="rgba(245,245,245,0.45)" /> : "Click any section to edit"}
             </div>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Theme picker */}
-          <select
-            value={template}
-            disabled={switchingTheme}
-            onChange={(e) => changeTheme(e.target.value)}
-            title="Switch storefront theme"
-            style={{
-              padding: "6px 28px 6px 10px",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 8,
-              color: "#f5f5f5",
-              fontFamily: "'Schibsted Grotesk', sans-serif",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.04em",
-              cursor: switchingTheme ? "wait" : "pointer",
-              outline: "none",
-              appearance: "none",
-              WebkitAppearance: "none",
-              backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(245,245,245,0.4)'/%3E%3C/svg%3E\")",
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "right 10px center",
-            }}>
-            {TEMPLATES.map((t) => (
-              <option key={t.id} value={t.id} style={{ background: "#111116" }}>
-                {switchingTheme && t.id === template ? "Switching…" : t.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Device toggle */}
+          {/* Device toggle -- desktop / mobile preview */}
           <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, overflow: "hidden" }}>
-            {([{ icon: "🖥", label: "desktop" }, { icon: "📱", label: "mobile" }] as const).map(d => (
-              <button key={d.label} title={d.label}
+            {([
+              { name: "desktop" as const, label: "Desktop" },
+              { name: "mobile" as const,  label: "Mobile" },
+            ]).map(d => (
+              <button key={d.name} title={d.label} aria-label={`${d.label} preview`}
                 onClick={() => {
-                  setDeviceMode(d.label);
                   const iframe = iframeRef.current;
                   if (!iframe) return;
-                  if (d.label === "mobile") {
+                  if (d.name === "mobile") {
                     iframe.style.width = "390px";
                     iframe.style.margin = "0 auto";
                     iframe.style.display = "block";
@@ -590,8 +539,8 @@ export default function StoreEditor() {
                     iframe.style.border = "none";
                   }
                 }}
-                style={{ background: deviceMode === d.label ? "rgba(255,255,255,0.1)" : "none", border: "none", cursor: "pointer", fontSize: 14, padding: "6px 10px", opacity: deviceMode === d.label ? 1 : 0.5 }}>
-                {d.icon}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 12px", color: "rgba(245,245,245,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <EditorIcon name={d.name} size={16} />
               </button>
             ))}
           </div>
@@ -599,20 +548,32 @@ export default function StoreEditor() {
           {/* Open in new tab */}
           {seller?.subdomain && (
             <a href={`/store/${seller.subdomain}`} target="_blank" rel="noreferrer"
-              style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,245,245,0.35)", textDecoration: "none", padding: "6px 12px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }}>
-              Open Store ↗
+              style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(245,245,245,0.6)", textDecoration: "none", padding: "8px 14px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8, transition: "color 0.15s, border-color 0.15s" }}>
+              Open Store <EditorIcon name="external" size={13} />
             </a>
           )}
 
-          {/* Save */}
-          {isDirty && !saving && !saved && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.08em", textTransform: "uppercase" }} title="You have unsaved changes">
-              ● Unsaved
-            </span>
-          )}
-          <button onClick={save} disabled={saving || (!isDirty && !saved)}
-            style={{ padding: "8px 20px", background: saved ? "#22c55e" : isDirty ? G : "rgba(255,255,255,0.06)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: saving || (!isDirty && !saved) ? "not-allowed" : "pointer", letterSpacing: "0.04em", transition: "background 0.3s", opacity: saving || (!isDirty && !saved) ? 0.5 : 1 }}>
-            {saving ? "Saving..." : saved ? "✓ Saved!" : "Save Changes"}
+          {/* Save -- premium dark button with subtle orange accent. Lets the
+              brand color show up as a hint (thin border + glow) rather than a
+              paint -- feels editorial against any storefront aesthetic. */}
+          <button onClick={save} disabled={saving}
+            style={{
+              padding: "9px 22px",
+              background: saved
+                ? "linear-gradient(135deg,#16a34a 0%,#15803d 100%)"
+                : "linear-gradient(135deg,#1c1c20 0%,#0d0d11 100%)",
+              color: "#fff",
+              border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,107,53,0.35)",
+              borderRadius: 100,
+              fontFamily: "'Schibsted Grotesk', sans-serif",
+              fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+              cursor: saving ? "not-allowed" : "pointer",
+              boxShadow: saved ? "0 4px 18px rgba(34,197,94,0.18)" : "0 4px 18px rgba(255,107,53,0.15)",
+              transition: "all 0.25s ease",
+              display: "inline-flex", alignItems: "center", gap: 8,
+            }}>
+            {saved && <EditorIcon name="check" size={13} stroke={2.5} />}
+            {saving ? "Saving" : saved ? "Saved" : "Save"}
           </button>
         </div>
       </div>
@@ -656,13 +617,29 @@ export default function StoreEditor() {
           flexDirection: "column",
         }}>
           {/* Panel header */}
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5" }}>
-              {activeSection ? SECTION_LABELS[activeSection] : ""}
+          <div style={{ padding: "16px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+              {activeSection && (
+                <>
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: "rgba(255,107,53,0.08)", color: "#ff6b35" }}>
+                    <EditorIcon name={SECTION_LABELS[activeSection].icon} size={15} stroke={1.7} />
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5", letterSpacing: "-0.01em" }}>{SECTION_LABELS[activeSection].label}</span>
+                </>
+              )}
             </div>
-            <button onClick={() => setPanelVisible(false)}
-              style={{ background: "none", border: "none", color: "rgba(245,245,245,0.35)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>
-              ×
+            <button onClick={() => setPanelVisible(false)} aria-label="Close panel"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                color: "rgba(245,245,245,0.5)",
+                cursor: "pointer", borderRadius: 8,
+                padding: 6, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.15s ease",
+              }}>
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m5 5 10 10"/><path d="m15 5-10 10"/>
+              </svg>
             </button>
           </div>
 
@@ -688,7 +665,7 @@ export default function StoreEditor() {
                   style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   {logoPreview
                     ? <img src={logoPreview} alt="" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
-                    : <div style={{ textAlign: "center" }}><div style={{ fontSize: 32, opacity: 0.25 }}>🏷</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.3)", marginTop: 6 }}>Click to upload your logo</div></div>
+                    : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.3)" }}><EditorIcon name="image" size={28} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload your logo</div></div>
                   }
                 </div>
                 <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
@@ -702,8 +679,108 @@ export default function StoreEditor() {
               </div>
             )}
 
-            {/* HERO */}
-            {activeSection === "hero" && (
+            {/* HERO — Heirloom variant. The pre-existing block below was
+                Crown-shaped (tagline => headline, description => subtitle)
+                which mangled Heirloom's structure -- Heirloom's headline
+                lives in config.hero_headline, not seller.tagline. We branch
+                on template and render the right form. */}
+            {activeSection === "hero" && seller?.template === "heirloom" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Hero background image (shared upload UI) */}
+                <div>
+                  <label style={labelStyle}>Hero Background Image</label>
+                  <div onClick={() => heroImageRef.current?.click()}
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroImagePreview
+                      ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>}
+                  </div>
+                  <input ref={heroImageRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
+                      reader.readAsDataURL(f);
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_image.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl + "?t=" + Date.now(); setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                    }} style={{ display: "none" }} />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Eyebrow (release tag)</label>
+                  <input value={heroIndex} onChange={e => setHeroIndex(e.target.value)} placeholder={`${seller.store_name} · Release 01`} style={inputStyle} />
+                  <div style={hintStyle}>Tiny tag at the very top of the hero, e.g. &quot;4REGN · RELEASE 01&quot;.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Label</label>
+                  <input value={heroLabel} onChange={e => setHeroLabel(e.target.value)} placeholder="Pick of the Week" style={inputStyle} />
+                  <div style={hintStyle}>The smaller line above the headline, e.g. &quot;PICK OF THE WEEK&quot;.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Headline</label>
+                  <textarea value={heroHeadline} onChange={e => setHeroHeadline(e.target.value)} rows={3} placeholder={"Built to outlast\nthe season."} style={{ ...inputStyle, resize: "vertical", minHeight: 80 }} />
+                  <div style={hintStyle}>The big italic text in the hero. Use a line break to control where the headline wraps. Aim for 4-8 words.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Body</label>
+                  <textarea value={heroBody} onChange={e => setHeroBody(e.target.value)} rows={3} placeholder="Short sentence under the headline." style={{ ...inputStyle, resize: "vertical", minHeight: 64 }} />
+                </div>
+
+                {/* Primary CTA */}
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Primary Button</div>
+                  <input value={heroCtaPrimary} onChange={e => setHeroCtaPrimary(e.target.value)} placeholder="Shop the Drop" style={inputStyle} />
+                  <div style={{ height: 10 }} />
+                  <CtaTargetPicker target={heroCtaPrimaryTarget} onChange={setHeroCtaPrimaryTarget} collections={seller.collections || []} />
+                </div>
+
+                {/* Secondary CTA */}
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Secondary Button <span style={{ fontWeight: 400, color: "rgba(245,245,245,0.3)" }}>(optional)</span></div>
+                  <input value={heroCtaSecondary} onChange={e => setHeroCtaSecondary(e.target.value)} placeholder="e.g. View Collection — leave blank to hide" style={inputStyle} />
+                  <div style={{ height: 10 }} />
+                  <CtaTargetPicker target={heroCtaSecondaryTarget} onChange={setHeroCtaSecondaryTarget} collections={seller.collections || []} />
+                  <div style={{ ...hintStyle, marginTop: 8 }}>Leave the label empty or set the link to &quot;Hide button&quot; if you don&apos;t need a second CTA.</div>
+                </div>
+
+                {/* Sale Countdown */}
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Sale Countdown</div>
+                  <input value={heroCountdownLabel} onChange={e => setHeroCountdownLabel(e.target.value)}
+                    placeholder="e.g. Limited drop ends in" style={inputStyle} />
+                  <div style={{ ...hintStyle, marginTop: 8 }}>
+                    Label above the countdown timer. Leave empty to auto-show
+                    &quot;<em>{`<CODE>`}</em> ends in&quot; based on the active
+                    discount. The timer itself only appears when a real discount
+                    code with &quot;Show Countdown&quot; is active — manage codes
+                    in <strong>Dashboard → Discounts</strong>.
+                  </div>
+                </div>
+
+                {/* Text color (shared) */}
+                <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                        <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                      </label>
+                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
+                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HERO — Crown / Soft Luxury / Glass Chrome (legacy mapping) */}
+            {activeSection === "hero" && seller?.template !== "heirloom" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
                   <label style={labelStyle}>Hero Background Image</label>
@@ -711,15 +788,12 @@ export default function StoreEditor() {
                     style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {heroImagePreview
                       ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload hero image</div></div>
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>
                     }
                   </div>
                   <input ref={heroImageRef} type="file" accept="image/*"
                     onChange={async e => {
                       const f = e.target.files?.[0]; if (!f || !seller) return;
-                      const err = validateImage(f);
-                      if (err) { setUploadError(err); e.target.value = ""; return; }
-                      setUploadError("");
                       // Show preview immediately from local file
                       const reader = new FileReader();
                       reader.onload = ev => {
@@ -731,12 +805,14 @@ export default function StoreEditor() {
                       // Also upload to storage for persistence
                       const ext = f.name.split(".").pop();
                       const path = `${seller.id}/hero_image.${ext}`;
-                      let finalUrl: string;
-                      try { finalUrl = await uploadImage(f, "hero_image", path); }
-                      catch (err: any) { setUploadError("Hero image upload failed: " + (err?.message || "unknown")); return; }
-                      setHeroImagePreview(finalUrl);
-                      setHeroImageUrl(finalUrl);
-                      postUpdate({ heroImage: finalUrl });
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) {
+                        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                        const finalUrl = data.publicUrl + "?t=" + Date.now();
+                        setHeroImagePreview(finalUrl);
+                        setHeroImageUrl(finalUrl);
+                        postUpdate({ heroImage: finalUrl });
+                      }
                     }}
                     style={{ display: "none" }} />
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage. Different from your logo.</div>
@@ -933,6 +1009,19 @@ export default function StoreEditor() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
                   <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: circleTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={circleTextColor} onChange={e => setCircleTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{circleTextColor}</span>
+                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: collTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={collTextColor} onChange={e => setCollTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
@@ -947,39 +1036,6 @@ export default function StoreEditor() {
             {/* ABOUT */}
             {activeSection === "about" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <label style={labelStyle}>About Image</label>
-                <div onClick={() => aboutImageRef.current?.click()}
-                  style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                  {aboutImagePreview
-                    ? <img src={aboutImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    : <div style={{ textAlign: "center" }}><div style={{ fontSize: 28 }}>🖼</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", marginTop: 6 }}>Click to upload About image</div></div>}
-                </div>
-                <input ref={aboutImageRef} type="file" accept="image/*"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0]; if (!f || !seller) return;
-                    const err = validateImage(f);
-                    if (err) { setUploadError(err); e.target.value = ""; return; }
-                    setUploadError("");
-                    const reader = new FileReader();
-                    reader.onload = (ev) => { const localUrl = ev.target?.result as string; setAboutImagePreview(localUrl); postUpdate({ aboutImage: localUrl }); };
-                    reader.readAsDataURL(f);
-                    const ext = f.name.split(".").pop();
-                    const path = `${seller.id}/about_image.${ext}`;
-                    let publicUrl: string;
-                    try { publicUrl = await uploadImage(f, "about_image", path); }
-                    catch (err: any) { setUploadError("About image upload failed: " + (err?.message || "unknown")); return; }
-                    setAboutImagePreview(publicUrl); setAboutImageUrl(publicUrl);
-                    postUpdate({ aboutImage: publicUrl });
-                  }}
-                  style={{ display: "none" }} />
-                {aboutImagePreview && (
-                  <button onClick={() => { setAboutImagePreview(""); setAboutImageUrl(""); postUpdate({ aboutImage: "" }); }}
-                    style={{ padding: "8px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 11 }}>
-                    Remove image
-                  </button>
-                )}
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Optional — shown next to your About text. Falls back to your first product photo if empty.</div>
-
                 <label style={labelStyle}>Section Label</label>
                 <input value={aboutLabel} onChange={e => setAboutLabel(e.target.value)}
                   placeholder="e.g. Our Story"
@@ -1070,6 +1126,17 @@ export default function StoreEditor() {
               </div>
             )}
 
+            {/* TESTIMONIALS */}
+            {activeSection === "testimonials" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={labelStyle}>Testimonial Quote</label>
+                <textarea value={testimonialText} onChange={e => setTestimonialText(e.target.value)}
+                  rows={4} placeholder="What your best customer said..."
+                  style={{ ...inputStyle, resize: "vertical" }} />
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Use a real review from a happy customer. Short and specific works better than long and vague.</div>
+              </div>
+            )}
+
             {/* CTA BANNER */}
             {activeSection === "cta" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1083,6 +1150,32 @@ export default function StoreEditor() {
                   rows={3} placeholder="e.g. Browse our full collection..."
                   style={{ ...inputStyle, resize: "vertical" }} />
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>The smaller descriptive text below the headline.</div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: aboutTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={aboutTextColor} onChange={e => setAboutTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{aboutTextColor}</span>
+                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: trustTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={trustTextColor} onChange={e => setTrustTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{trustTextColor}</span>
+                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  </div>
+                </div>
+                </div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
@@ -1136,16 +1229,14 @@ export default function StoreEditor() {
                       <input ref={promiseImgRefs[i]} type="file" accept="image/*"
                         onChange={async e => {
                           const f = e.target.files?.[0]; if (!f || !seller) return;
-                          const err = validateImage(f);
-                          if (err) { setUploadError(err); e.target.value = ""; return; }
-                          setUploadError("");
                           const ext = f.name.split(".").pop();
                           const path = `${seller.id}/promise_${i}.${ext}`;
-                          let publicUrl: string;
-                          try { publicUrl = await uploadImage(f, `promise_${i}`, path); }
-                          catch (err: any) { setUploadError("Image upload failed: " + (err?.message || "unknown")); return; }
-                          const u = [...promiseImages]; u[i] = publicUrl;
-                          setPromiseImages(u);
+                          const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                          if (!error) {
+                            const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                            const u = [...promiseImages]; u[i] = data.publicUrl + "?t=" + Date.now();
+                            setPromiseImages(u);
+                          }
                         }}
                         style={{ display: "none" }} />
                     </div>
@@ -1158,37 +1249,115 @@ export default function StoreEditor() {
             {activeSection === "policies" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <label style={labelStyle}>Shipping & Policies</label>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section. Click <strong>Save Changes</strong> when done.</div>
-                {policyItems.map((pol, i) => (
-                  <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <input
-                      value={pol.title}
-                      onChange={(e) => { const u = [...policyItems]; u[i] = { ...u[i], title: e.target.value }; setPolicyItems(u); }}
-                      placeholder="e.g. Shipping"
-                      style={{ ...inputStyle, fontWeight: 700 }} />
-                    <textarea
-                      value={pol.desc}
-                      onChange={(e) => { const u = [...policyItems]; u[i] = { ...u[i], desc: e.target.value }; setPolicyItems(u); }}
-                      placeholder="Description..."
-                      rows={3}
-                      style={{ ...inputStyle, resize: "vertical" }} />
-                    {policyItems.length > 1 && (
-                      <button onClick={() => setPolicyItems(policyItems.filter((_, j) => j !== i))}
-                        style={{ alignSelf: "flex-end", padding: "6px 10px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 10 }}>
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button onClick={() => setPolicyItems([...policyItems, { title: "", desc: "" }])}
-                  style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, color: "rgba(245,245,245,0.4)", cursor: "pointer", fontSize: 12 }}>
-                  + Add policy
-                </button>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
+                {(seller?.store_config?.policy_items || [
+                  { title: "Shipping", desc: "" },
+                  { title: "Returns",  desc: "" },
+                  { title: "Payment",  desc: "" },
+                ]).map((pol, i) => {
+                  const policyItems = seller?.store_config?.policy_items || [
+                    { title: "Shipping", desc: "Free delivery on orders over R500. Standard 2–4 days nationwide." },
+                    { title: "Returns",  desc: "14-day returns on all unopened products in original packaging." },
+                    { title: "Payment",  desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome." },
+                  ];
+                  return (
+                    <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <input
+                        defaultValue={policyItems[i]?.title || pol.title}
+                        onBlur={async e => {
+                          if (!seller) return;
+                          const items = [...(seller.store_config?.policy_items || policyItems)];
+                          items[i] = { ...items[i], title: e.target.value };
+                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
+                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
+                          if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
+                        }}
+                        placeholder="e.g. Shipping"
+                        style={{ ...inputStyle, fontWeight: 700 }} />
+                      <textarea
+                        defaultValue={policyItems[i]?.desc || pol.desc}
+                        onBlur={async e => {
+                          if (!seller) return;
+                          const items = [...(seller.store_config?.policy_items || policyItems)];
+                          items[i] = { ...items[i], desc: e.target.value };
+                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
+                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
+                          if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
+                        }}
+                        placeholder="Description..."
+                        rows={3}
+                        style={{ ...inputStyle, resize: "vertical" }} />
+                    </div>
+                  );
+                })}
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Changes save automatically when you click out of a field.</div>
               </div>
             )}
 
             {/* FOOTER */}
-            {activeSection === "footer" && (
+            {/* FOOTER — Heirloom variant. Heirloom's footer has its own
+                tagline (under the wordmark), 3 column headings, and 4+4 link
+                labels in the Support + Pay columns. Editor previously only
+                exposed Crown's "Footer Tagline" → seller.tagline, but Heirloom
+                doesn't use seller.tagline for the footer at all -- it uses
+                seller.description, then falls back to config.footer_tagline. */}
+            {activeSection === "footer" && seller?.template === "heirloom" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Footer Tagline</label>
+                  <textarea value={footerTagline} onChange={e => setFooterTagline(e.target.value)}
+                    rows={2} placeholder="e.g. Limited-run pieces, made deliberately. Made in South Africa."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={hintStyle}>Short line under your brand name in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 1 Heading</label>
+                  <input value={footerCol1Label} onChange={e => setFooterCol1Label(e.target.value)}
+                    placeholder="Shop" style={inputStyle} />
+                  <div style={hintStyle}>Links auto-populate from your collections — only the heading is editable here.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 2 Heading</label>
+                  <input value={footerCol2Label} onChange={e => setFooterCol2Label(e.target.value)}
+                    placeholder="Support" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Column 2 Link Labels</label>
+                  {footerSupportLinks.map((txt, i) => (
+                    <input key={i} value={txt}
+                      onChange={e => { const u = [...footerSupportLinks]; u[i] = e.target.value; setFooterSupportLinks(u); }}
+                      placeholder={["Shipping", "Returns", "Sizing", "Contact"][i] || ""}
+                      style={{ ...inputStyle, marginBottom: 6 }} />
+                  ))}
+                  <div style={hintStyle}>Last link auto-links to your WhatsApp number if set.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 3 Heading</label>
+                  <input value={footerCol3Label} onChange={e => setFooterCol3Label(e.target.value)}
+                    placeholder="Pay" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Column 3 Link Labels</label>
+                  {footerPayLinks.map((txt, i) => (
+                    <input key={i} value={txt}
+                      onChange={e => { const u = [...footerPayLinks]; u[i] = e.target.value; setFooterPayLinks(u); }}
+                      placeholder={["Card", "EFT", "PayFast", "WhatsApp Order"][i] || ""}
+                      style={{ ...inputStyle, marginBottom: 6 }} />
+                  ))}
+                  <div style={hintStyle}>Any label containing &quot;WhatsApp&quot; will open the cart on click.</div>
+                </div>
+
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  Social links (Instagram, TikTok, Facebook, X, WhatsApp) appear automatically below the tagline based on what you&apos;ve set in Dashboard → My Store.
+                </div>
+              </div>
+            )}
+
+            {/* FOOTER — Crown / Soft Luxury / Glass Chrome (legacy mapping) */}
+            {activeSection === "footer" && seller?.template !== "heirloom" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <label style={labelStyle}>Footer Tagline</label>
                 <input value={tagline} onChange={e => setTagline(e.target.value)}
@@ -1227,22 +1396,35 @@ export default function StoreEditor() {
           </div>
 
           {/* Panel save button */}
-          <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-            {(uploadError || saveError) && (
-              <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5", padding: "8px 12px", borderRadius: 8, fontSize: 11, lineHeight: 1.5 }}>
-                {uploadError || saveError}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={save} disabled={saving || (!isDirty && !saved)}
-                style={{ flex: 1, padding: "10px", background: saved ? "#22c55e" : isDirty ? G : "rgba(255,255,255,0.06)", color: "#fff", border: "none", borderRadius: 8, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: saving || (!isDirty && !saved) ? "not-allowed" : "pointer", opacity: saving || (!isDirty && !saved) ? 0.6 : 1 }}>
-                {saving ? "Saving..." : saved ? "✓ Saved!" : isDirty ? "Save Changes" : "Saved"}
-              </button>
-              <button onClick={() => setPanelVisible(false)}
-                style={{ padding: "10px 16px", background: "rgba(255,255,255,0.04)", color: "rgba(245,245,245,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
-                Done
-              </button>
-            </div>
+          <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", gap: 10 }}>
+            <button onClick={save} disabled={saving}
+              style={{
+                flex: 1, padding: "12px", borderRadius: 100,
+                background: saved
+                  ? "linear-gradient(135deg,#16a34a 0%,#15803d 100%)"
+                  : "linear-gradient(135deg,#1c1c20 0%,#0d0d11 100%)",
+                border: saved ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,107,53,0.35)",
+                color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+                cursor: saving ? "not-allowed" : "pointer",
+                boxShadow: saved ? "0 4px 18px rgba(34,197,94,0.18)" : "0 4px 18px rgba(255,107,53,0.15)",
+                transition: "all 0.25s ease",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}>
+              {saved && <EditorIcon name="check" size={13} stroke={2.5} />}
+              {saving ? "Saving" : saved ? "Saved" : "Save Changes"}
+            </button>
+            <button onClick={() => setPanelVisible(false)}
+              style={{
+                padding: "12px 18px", borderRadius: 100,
+                background: "transparent", color: "rgba(245,245,245,0.5)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                fontFamily: "'Schibsted Grotesk', sans-serif",
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase",
+                cursor: "pointer", transition: "all 0.2s ease",
+              }}>
+              Done
+            </button>
           </div>
         </div>
 
@@ -1256,7 +1438,7 @@ export default function StoreEditor() {
             display: "flex", alignItems: "center", gap: 8,
             pointerEvents: "none",
           }}>
-            <span style={{ fontSize: 14 }}>👆</span>
+            <span style={{ display: "inline-flex", color: "rgba(255,107,53,0.85)" }}><EditorIcon name="pencil" size={14} /></span>
             <span style={{ fontSize: 12, color: "rgba(245,245,245,0.6)", letterSpacing: "0.02em" }}>Click any section on your store to edit it</span>
           </div>
         )}
@@ -1267,6 +1449,90 @@ export default function StoreEditor() {
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; margin: 0; padding: 0; }
       `}</style>
+    </div>
+  );
+}
+
+
+/* ─── CTA TARGET PICKER ───────────────────────────────────
+   Lets the seller pick what a hero button does: scroll to products,
+   navigate to a specific collection page, open a custom URL, or hide
+   the button entirely. Reused for both primary and secondary CTAs. */
+function CtaTargetPicker({
+  target,
+  onChange,
+  collections,
+}: {
+  target: CtaTarget;
+  onChange: (t: CtaTarget) => void;
+  collections: string[];
+}) {
+  const baseInput: React.CSSProperties = {
+    width: "100%", padding: "9px 11px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 8, color: "#f5f5f5",
+    fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
+    outline: "none",
+  };
+  const labelMini: React.CSSProperties = {
+    fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+    textTransform: "uppercase", color: "rgba(245,245,245,0.35)",
+    display: "block", marginBottom: 5,
+  };
+  return (
+    <div>
+      <label style={labelMini}>Link to</label>
+      <select
+        value={target.type}
+        onChange={e => {
+          const t = e.target.value as CtaTarget["type"];
+          if (t === "products") onChange({ type: "products" });
+          else if (t === "collection") onChange({ type: "collection", collection: target.type === "collection" ? target.collection : "" });
+          else if (t === "url") onChange({ type: "url", url: target.type === "url" ? target.url : "" });
+          else onChange({ type: "none" });
+        }}
+        style={baseInput}
+      >
+        <option value="products">↓ Scroll to products section</option>
+        <option value="collection">Collection page</option>
+        <option value="url">Custom URL</option>
+        <option value="none">No link — hide button</option>
+      </select>
+
+      {target.type === "collection" && (
+        <div style={{ marginTop: 8 }}>
+          <label style={labelMini}>Collection</label>
+          <select
+            value={target.collection}
+            onChange={e => onChange({ type: "collection", collection: e.target.value })}
+            style={baseInput}
+          >
+            <option value="">— Choose a collection —</option>
+            {collections.map(c => (
+              <option key={c} value={collectionSlug(c)}>{c}</option>
+            ))}
+          </select>
+          {collections.length === 0 && (
+            <div style={{ fontSize: 10, color: "rgba(245,245,245,0.4)", marginTop: 4 }}>
+              Add collections in the dashboard to link to them here.
+            </div>
+          )}
+        </div>
+      )}
+
+      {target.type === "url" && (
+        <div style={{ marginTop: 8 }}>
+          <label style={labelMini}>URL</label>
+          <input
+            type="url"
+            value={target.url}
+            placeholder="https://..."
+            onChange={e => onChange({ type: "url", url: e.target.value })}
+            style={baseInput}
+          />
+        </div>
+      )}
     </div>
   );
 }

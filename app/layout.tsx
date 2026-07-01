@@ -7,11 +7,11 @@ import AffiliateReferralBanner from "./components/AffiliateReferralBanner";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za"),
   title: {
-    default: "CatalogStore — From Catalog to Checkout, in Minutes",
+    default: "CatalogStore — Built for South African Sellers",
     template: "%s · CatalogStore",
   },
   description:
-    "Turn your WhatsApp Business catalog into a professional online store. Accept card payments. No coding needed. Built for South African sellers.",
+    "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders. R149/month, zero commission. Built for South African sellers.",
   keywords: [
     "online store builder South Africa",
     "WhatsApp catalog to store",
@@ -20,19 +20,31 @@ export const metadata: Metadata = {
     "South African e-commerce",
     "CatalogStore",
   ],
+  // Icons declared as metadata (not via /app/favicon.ico file convention) so child
+  // layouts can override them with per-seller favicons. File-based icons in /app
+  // would always win precedence over a child layout's metadata.icons; declaring
+  // them here keeps everything on the same metadata.icons override hierarchy.
+  icons: {
+    icon: [
+      { url: "/cs-favicon.ico", sizes: "any" },
+      { url: "/cs-icon.png", type: "image/png" },
+    ],
+    shortcut: [{ url: "/cs-favicon.ico" }],
+    apple: [{ url: "/cs-apple-icon.png" }],
+  },
   openGraph: {
     type: "website",
     siteName: "CatalogStore",
-    title: "CatalogStore — From Catalog to Checkout, in Minutes",
+    title: "CatalogStore — Built for South African Sellers",
     description:
-      "Turn your WhatsApp Business catalog into a professional online store. Accept card payments. No coding needed.",
+      "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders.",
     locale: "en_ZA",
   },
   twitter: {
     card: "summary_large_image",
-    title: "CatalogStore — From Catalog to Checkout, in Minutes",
+    title: "CatalogStore — Built for South African Sellers",
     description:
-      "Turn your WhatsApp Business catalog into a professional online store. No coding needed.",
+      "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders.",
   },
   robots: {
     index: true,

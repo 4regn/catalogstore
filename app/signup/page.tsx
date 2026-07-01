@@ -186,7 +186,7 @@ export default function SignUp() {
               <label style={s.label}>STORE NAME</label>
               <input type="text" placeholder="e.g. NALA Studio" value={storeName} onChange={(e) => setStoreName(e.target.value)} required style={s.input} />
               {storeName && (
-                <div style={s.hint}>Your store URL: <span style={{ color: "#ff6b35" }}>{storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}</span>.catalogstore.co.za</div>
+                <div style={s.hint}>Your store URL: catalogstore.co.za/store/<span style={{ color: "#ff6b35" }}>{storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}</span></div>
               )}
             </div>
 
@@ -221,7 +221,7 @@ export default function SignUp() {
               <div style={{ position: "relative" }}>
                 <input
                   type="text"
-                  placeholder="Enter a code to credit your referrer"
+                  placeholder="Have a referral code? Paste it here"
                   value={refCode}
                   onChange={(e) => handleRefCodeChange(e.target.value)}
                   disabled={refLocked}

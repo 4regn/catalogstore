@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CROWN — Premium Hair Collection</title>
+<base href="/templates/crown/">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Didact+Gothic&family=Playfair+Display:ital,wght@1,400&display=swap" rel="stylesheet">
+<style>
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-deep: #0a0908;
+  --bg-elevated: #141210;
+  --bg-card: #1a1816;
+  --gold: #c4a265;
+  --gold-light: #d4b88a;
+  --gold-muted: rgba(196, 162, 101, 0.15);
+  --cream: #f0e6d3;
+  --cream-soft: #e8dcc8;
+  --text-primary: #f0e6d3;
+  --text-secondary: rgba(240, 230, 211, 0.6);
+  --text-muted: rgba(240, 230, 211, 0.35);
+  --font-display: 'Cormorant Garant', serif;
+  --font-accent: 'Playfair Display', serif;
+  --font-body: 'Didact Gothic', sans-serif;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.cursor-glow {
+  position: fixed;
+  width: 400px; height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(196, 162, 101, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 9998;
+  transform: translate(-50%, -50%);
+}
+
+/* ═══ NAV ═══ */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  padding: 28px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.6s var(--ease-out-expo);
+}
+nav.scrolled {
+  background: rgba(10, 9, 8, 0.92);
+  backdrop-filter: blur(20px);
+  padding: 18px 48px;
+  border-bottom: 1px solid rgba(196, 162, 101, 0.08);
+}
+.nav-brand {
+  font-family: var(--font-display);
+  font-size: 28px; font-weight: 300;
+  letter-spacing: 8px; text-transform: uppercase;
+  color: var(--cream); text-decoration: none;
+}
+.nav-brand span { color: var(--gold); }
+.nav-links { display: flex; gap: 40px; list-style: none; }
+.nav-links a {
+  font-family: var(--font-body);
+  font-size: 11px; letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-secondary); text-decoration: none;
+  position: relative; padding-bottom: 4px;
+  transition: color 0.4s;
+}
+.nav-links a::after {
+  content: ''; position: absolute;
+  bottom: 0; left: 0; width: 0; height: 1px;
+  background: var(--gold);
+  transition: width 0.5s var(--ease-out-expo);
+}
+.nav-links a:hover { color: var(--gold-light); }
+.nav-links a:hover::after { width: 100%; }
+
+/* ═══ HERO — SPLIT ═══ */
+.hero {
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.hero-left {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 48px 100px;
+  max-width: 760px;
+}
+.hero-issue {
+  font-family: var(--font-body);
+  font-size: 10px; letter-spacing: 5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 140px;
+}
+.hero-issue::before {
+  content: '';
+  display: block;
+  width: 32px; height: 1px;
+  background: var(--gold); opacity: 0.4;
+}
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(56px, 6.5vw, 96px);
+  font-weight: 300;
+  line-height: .92;
+  letter-spacing: -.01em;
+  color: var(--cream);
+  margin-bottom: 40px;
+  opacity: 0;
+  transform: translateY(30px);
+  animation: fadeUp 1.2s var(--ease-out-expo) 0.4s forwards;
+}
+.hero-title em {
+  font-family: var(--font-accent);
+  font-style: italic; font-weight: 400;
+  color: var(--gold-light); display: block;
+}
+.hero-subtitle {
+  font-size: 13px; line-height: 1.9;
+  color: var(--text-secondary);
+  max-width: 340px; margin-bottom: 48px;
+  opacity: 0; transform: translateY(20px);
+  animation: fadeUp 1s var(--ease-out-expo) 0.7s forwards;
+}
+.hero-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  opacity: 0; transform: translateY(16px);
+  animation: fadeUp 1s var(--ease-out-expo) 0.9s forwards;
+}
+.hero-cta {
+  display: inline-flex;
+  align-items: center; gap: 14px;
+  padding: 16px 42px;
+  background: transparent;
+  border: 1px solid var(--gold);
+  color: var(--gold-light);
+  font-family: var(--font-body);
+  font-size: 11px; letter-spacing: 3px;
+  text-transform: uppercase; text-decoration: none;
+  cursor: pointer; position: relative; overflow: hidden;
+  transition: all 0.5s var(--ease-out-expo);
+}
+.hero-cta::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--gold);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.6s var(--ease-out-expo);
+  z-index: -1;
+}
+.hero-cta:hover { color: var(--bg-deep); }
+.hero-cta:hover::before { transform: scaleX(1); }
+.hero-cta .arrow { transition: transform 0.4s var(--ease-out-expo); }
+.hero-cta:hover .arrow { transform: translateX(6px); }
+
+
+/* Hero right — YOUR IMAGE */
+.hero-right { position: absolute; inset: 0; z-index: 0; }
+.hero-bg {
+  position: absolute; inset: 0;
+  background: url('./crown-01.jpg') center/cover no-repeat;
+  transform: scale(1.05);
+  animation: heroBreath 12s ease-in-out infinite alternate;
+}
+.hero-bg::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(10,9,8,0.85) 0%,
+    rgba(10,9,8,0.4) 50%,
+    rgba(10,9,8,0.2) 100%
+  );
+}
+@keyframes heroBreath {
+  0% { transform: scale(1.05); }
+  100% { transform: scale(1.0); }
+}
+.hero-img-label {
+  position: absolute; bottom: 48px; left: 40px;
+  z-index: 2; opacity: 0; transform: translateY(12px);
+  animation: fadeUp 1s var(--ease-out-expo) 1.2s forwards;
+}
+.hil-tag {
+  font-size: 9px; letter-spacing: 4px;
+  text-transform: uppercase; color: var(--gold);
+  margin-bottom: 8px; display: block;
+}
+.hil-name {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 300;
+  font-style: italic; color: var(--cream);
+}
+.scroll-indicator {
+  position: absolute; bottom: 48px; right: 40px;
+  z-index: 3; display: flex;
+  flex-direction: column; align-items: center; gap: 12px;
+  opacity: 0;
+  animation: fadeUp 1s var(--ease-out-expo) 1.5s forwards;
+}
+.scroll-indicator span {
+  font-size: 9px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--text-muted);
+  writing-mode: vertical-rl;
+}
+.scroll-line {
+  width: 1px; height: 60px;
+  background: linear-gradient(to bottom, var(--gold), transparent);
+  animation: scrollPulse 2s ease-in-out infinite;
+}
+@keyframes scrollPulse {
+  0%, 100% { opacity: 0.3; transform: scaleY(0.6); transform-origin: top; }
+  50% { opacity: 1; transform: scaleY(1); }
+}
+
+/* ═══ SECTION COMMONS ═══ */
+section { padding: 140px 48px; position: relative; }
+.section-label {
+  font-size: 10px; letter-spacing: 5px;
+  text-transform: uppercase; color: var(--gold); margin-bottom: 16px;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 4.5vw, 56px);
+  font-weight: 300; line-height: 1.15; color: var(--cream);
+}
+.section-title em {
+  font-family: var(--font-accent);
+  font-style: italic; color: var(--gold-light);
+}
+
+/* ═══ CIRCLE STRIP — texture filter ═══ */
+.circle-strip {
+  padding: 80px 0 72px;
+  background: var(--bg-elevated);
+  border-top: 1px solid rgba(196, 162, 101, 0.08);
+  border-bottom: 1px solid rgba(196, 162, 101, 0.08);
+  text-align: center; overflow: hidden;
+}
+.circle-strip-label {
+  font-size: 10px; letter-spacing: 5px;
+  text-transform: uppercase; color: var(--gold); margin-bottom: 12px;
+}
+.circle-strip-subtitle {
+  font-family: var(--font-display);
+  font-size: 16px; color: var(--text-secondary);
+  font-weight: 300; margin-bottom: 48px;
+}
+.circle-strip-row {
+  display: flex; gap: 48px;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; padding: 0 48px 16px;
+}
+.circle-strip-row::-webkit-scrollbar { display: none; }
+.circle-strip-item {
+  flex: 0 0 220px;
+  scroll-snap-align: start;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 20px; cursor: pointer;
+}
+.circle-strip-img {
+  width: 220px; height: 220px; border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(196, 162, 101, 0.12);
+  transition: border-color 0.5s, box-shadow 0.5s, transform 0.6s var(--ease-out-expo);
+}
+.circle-strip-item:hover .circle-strip-img {
+  border-color: rgba(196, 162, 101, 0.4);
+  box-shadow: 0 0 60px rgba(196, 162, 101, 0.1);
+  transform: translateY(-6px);
+}
+.circle-strip-img img {
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: center top;
+  transition: transform 0.8s var(--ease-out-expo), filter 0.5s;
+  filter: brightness(0.85) saturate(0.9);
+}
+.circle-strip-item:hover .circle-strip-img img {
+  transform: scale(1.1);
+  filter: brightness(1) saturate(1);
+}
+.circle-strip-name {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 400; color: var(--cream);
+  transition: color 0.4s;
+}
+.circle-strip-item:hover .circle-strip-name { color: var(--gold-light); }
+
+/* ═══ PRODUCT GRID ═══ */
+.products { background: var(--bg-deep); padding: 120px 48px; }
+.products-header {
+  display: flex; align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 64px; padding-bottom: 28px;
+  border-bottom: 1px solid rgba(196, 162, 101, 0.08);
+}
+.products-count {
+  font-family: var(--font-display);
+  font-size: 80px; font-weight: 300;
+  color: rgba(196, 162, 101, 0.07);
+  line-height: 1; letter-spacing: -.02em;
+  margin-bottom: -16px;
+}
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+.prod-card {
+  background: var(--bg-card);
+  cursor: pointer; position: relative; overflow: hidden;
+  border: 1px solid transparent;
+  transition: border-color 0.5s var(--ease-out-expo);
+}
+.prod-card:hover { border-color: rgba(196, 162, 101, 0.2); }
+.prod-img {
+  position: relative; overflow: hidden;
+  aspect-ratio: 3/4;
+}
+.prod-img img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+  display: block;
+  filter: brightness(0.85) saturate(0.9);
+  transition: transform 0.9s var(--ease-out-expo), filter 0.6s;
+}
+.prod-card:hover .prod-img img {
+  transform: scale(1.06);
+  filter: brightness(1) saturate(1);
+}
+.prod-img::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center bottom, rgba(196,162,101,0.12) 0%, transparent 60%);
+  opacity: 0; transition: opacity 0.5s;
+}
+.prod-card:hover .prod-img::after { opacity: 1; }
+.prod-add {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(196, 162, 101, 0.92);
+  backdrop-filter: blur(8px);
+  color: var(--bg-deep); border: none; cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  padding: 14px;
+  transform: translateY(100%);
+  transition: transform 0.4s var(--ease-out-expo);
+}
+.prod-img:hover .prod-add { transform: translateY(0); }
+.prod-info {
+  padding: 20px 20px 24px;
+  border-top: 1px solid rgba(196, 162, 101, 0.06);
+}
+.prod-texture {
+  font-size: 9px; letter-spacing: 4px;
+  text-transform: uppercase; color: var(--gold);
+  margin-bottom: 8px; opacity: 0.7;
+}
+.prod-name {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 300;
+  color: var(--cream); line-height: 1.15; margin-bottom: 10px;
+  transition: color 0.4s;
+}
+.prod-card:hover .prod-name { color: var(--gold-light); }
+.prod-price {
+  font-size: 13px; letter-spacing: 1px;
+  color: var(--text-muted);
+}
+.products-footer {
+  margin-top: 64px; text-align: center;
+  padding-top: 48px;
+  border-top: 1px solid rgba(196, 162, 101, 0.08);
+}
+
+/* ═══ COLLECTIONS ═══ */
+.collections { background: var(--bg-deep); }
+.collections-header {
+  text-align: center; max-width: 560px;
+  margin: 0 auto 80px;
+}
+.collections-header p {
+  font-size: 14px; line-height: 1.9;
+  color: var(--text-secondary); margin-top: 20px;
+}
+.collections-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 32px; max-width: 1200px; margin: 0 auto;
+}
+.collection-card { position: relative; cursor: pointer; }
+.collection-image-wrap {
+  width: 100%; aspect-ratio: 3/4;
+  border-radius: 200px 200px 20px 20px;
+  overflow: hidden; position: relative;
+  border: 1px solid rgba(196, 162, 101, 0.1);
+  transition: border-color 0.5s;
+}
+.collection-card:hover .collection-image-wrap { border-color: rgba(196, 162, 101, 0.3); }
+.collection-image-wrap img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+  transition: transform 1s var(--ease-out-expo), filter 0.6s;
+  filter: brightness(0.85) saturate(0.9);
+}
+.collection-card:hover .collection-image-wrap img {
+  transform: scale(1.08);
+  filter: brightness(1) saturate(1);
+}
+.collection-image-wrap::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 50%, rgba(10,9,8,0.7) 100%);
+}
+.collection-info { text-align: center; padding-top: 24px; }
+.collection-info h3 {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 400;
+  color: var(--cream); margin-bottom: 6px;
+  transition: color 0.4s;
+}
+.collection-card:hover .collection-info h3 { color: var(--gold-light); }
+.collection-info span {
+  font-size: 11px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.collections-cta { text-align: center; margin-top: 64px; }
+
+/* ═══ BUTTONS ═══ */
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 36px;
+  border: 1px solid rgba(196, 162, 101, 0.3);
+  color: var(--gold-light);
+  font-family: var(--font-body);
+  font-size: 11px; letter-spacing: 3px;
+  text-transform: uppercase; text-decoration: none;
+  cursor: pointer; background: transparent;
+  transition: all 0.5s var(--ease-out-expo);
+  position: relative; overflow: hidden;
+}
+.btn-outline::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--gold-muted);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.5s var(--ease-out-expo); z-index: -1;
+}
+.btn-outline:hover { border-color: var(--gold); }
+.btn-outline:hover::before { transform: scaleX(1); }
+.btn-gold {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 18px 48px; background: var(--gold);
+  color: var(--bg-deep);
+  font-family: var(--font-body);
+  font-size: 11px; letter-spacing: 3px;
+  text-transform: uppercase; text-decoration: none;
+  cursor: pointer; border: none;
+  transition: all 0.5s var(--ease-out-expo);
+}
+.btn-gold:hover {
+  background: var(--gold-light);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(196, 162, 101, 0.2);
+}
+
+/* ═══ PROMISE ═══ */
+.promise { background: var(--bg-elevated); overflow: hidden; }
+.promise-layout {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0; max-width: 1400px; margin: 0 auto; min-height: 600px;
+}
+.promise-left {
+  display: flex; flex-direction: column;
+  justify-content: center; padding-right: 80px;
+}
+.promise-left .section-title { margin-bottom: 48px; }
+.promise-values { display: flex; flex-direction: column; gap: 36px; }
+.promise-value { display: flex; gap: 20px; align-items: flex-start; }
+.promise-value .value-num {
+  font-family: var(--font-display);
+  font-size: 32px; font-weight: 300; color: var(--gold);
+  line-height: 1; min-width: 36px; opacity: 0.5;
+}
+.promise-value h4 {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 400; color: var(--cream); margin-bottom: 8px;
+}
+.promise-value p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+.promise-right { position: relative; }
+.promise-mosaic {
+  display: grid; grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr; gap: 8px; height: 100%;
+}
+.promise-mosaic .mosaic-img { overflow: hidden; position: relative; }
+.promise-mosaic .mosaic-img:first-child { border-radius: 80px 8px 8px 8px; }
+.promise-mosaic .mosaic-img:nth-child(2) { border-radius: 8px 80px 8px 8px; }
+.promise-mosaic .mosaic-img:nth-child(3) { border-radius: 8px 8px 8px 80px; }
+.promise-mosaic .mosaic-img:last-child { border-radius: 8px 8px 80px 8px; }
+.promise-mosaic img {
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: center top;
+  transition: transform 1.2s var(--ease-out-expo);
+  filter: brightness(0.8) saturate(0.85);
+}
+.promise-mosaic .mosaic-img:hover img {
+  transform: scale(1.06);
+  filter: brightness(0.95) saturate(1);
+}
+.mosaic-overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 24px;
+  background: linear-gradient(transparent, rgba(10,9,8,0.8));
+}
+.mosaic-overlay span {
+  font-size: 9px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--gold);
+}
+
+/* ═══ STORY ═══ */
+.story { background: var(--bg-elevated); overflow: hidden; }
+.story-layout {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 80px; max-width: 1200px; margin: 0 auto; align-items: center;
+}
+.story-image { position: relative; }
+.story-image-main {
+  width: 100%; aspect-ratio: 4/5;
+  border-radius: 12px; overflow: hidden;
+}
+.story-image-main img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+  filter: brightness(0.85);
+}
+.story-image-accent {
+  position: absolute; top: -30px; right: -30px;
+  width: 120px; height: 120px; border-radius: 50%;
+  border: 1px solid rgba(196, 162, 101, 0.2);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-elevated);
+}
+.story-image-accent svg {
+  width: 40px; height: 40px; color: var(--gold);
+  animation: slowSpin 20s linear infinite;
+}
+@keyframes slowSpin { to { transform: rotate(360deg); } }
+.story-text .section-title { margin-bottom: 32px; }
+.story-text p { font-size: 14px; line-height: 1.9; color: var(--text-secondary); margin-bottom: 20px; }
+.story-signature {
+  margin-top: 40px; padding-top: 28px;
+  border-top: 1px solid rgba(196, 162, 101, 0.1);
+}
+.story-signature .name {
+  font-family: var(--font-display);
+  font-size: 24px; font-weight: 300;
+  color: var(--cream); font-style: italic;
+}
+.story-signature .role {
+  font-size: 11px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-muted); margin-top: 4px;
+}
+
+/* ═══ TESTIMONIALS ═══ */
+.testimonials { background: var(--bg-deep); text-align: center; }
+.testimonials-header { max-width: 500px; margin: 0 auto 72px; }
+.testimonial-card { max-width: 700px; margin: 0 auto; }
+.testimonial-quote {
+  font-family: var(--font-display);
+  font-size: 120px; color: var(--gold);
+  opacity: 0.15; line-height: 0.5;
+  margin-bottom: -20px; user-select: none;
+}
+.testimonial-text {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.5vw, 30px);
+  font-weight: 300; line-height: 1.6;
+  color: var(--cream-soft); font-style: italic; margin-bottom: 36px;
+}
+.testimonial-author { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.testimonial-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  overflow: hidden; border: 1px solid rgba(196, 162, 101, 0.2);
+}
+.testimonial-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.testimonial-name strong {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: 16px; color: var(--cream); display: block;
+}
+.testimonial-name span { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+
+/* ═══ CTA BANNER ═══ */
+.cta-banner {
+  padding: 160px 48px; text-align: center;
+  position: relative; overflow: hidden;
+  background:
+    linear-gradient(180deg, var(--bg-deep) 0%, rgba(10,9,8,0.85) 30%, rgba(10,9,8,0.85) 70%, var(--bg-deep) 100%),
+    url('./crown-01.jpg') center top/cover no-repeat;
+}
+.cta-banner .section-title { margin-bottom: 24px; }
+.cta-banner p {
+  font-size: 14px; line-height: 1.8;
+  color: var(--text-secondary);
+  max-width: 440px; margin: 0 auto 40px;
+}
+
+/* ═══ FOOTER ═══ */
+footer {
+  padding: 80px 48px 40px;
+  background: var(--bg-elevated);
+  border-top: 1px solid rgba(196, 162, 101, 0.06);
+}
+.footer-top {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 60px; max-width: 1200px; margin: 0 auto 60px;
+}
+.footer-brand {
+  font-family: var(--font-display);
+  font-size: 24px; font-weight: 300;
+  letter-spacing: 6px; text-transform: uppercase;
+  color: var(--cream); margin-bottom: 20px;
+}
+.footer-brand span { color: var(--gold); }
+.footer-desc { font-size: 13px; line-height: 1.7; color: var(--text-muted); max-width: 280px; }
+.footer-col h5 {
+  font-size: 10px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--gold); margin-bottom: 20px;
+}
+.footer-col a {
+  display: block; font-size: 13px;
+  color: var(--text-secondary); text-decoration: none;
+  padding: 6px 0; transition: color 0.3s;
+}
+.footer-col a:hover { color: var(--gold-light); }
+.footer-bottom {
+  max-width: 1200px; margin: 0 auto;
+  padding-top: 32px;
+  border-top: 1px solid rgba(196, 162, 101, 0.06);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.footer-bottom span { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+.footer-socials { display: flex; gap: 20px; }
+.footer-socials a {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid rgba(196, 162, 101, 0.15);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); text-decoration: none;
+  font-size: 12px; font-weight: 600; transition: all 0.4s;
+}
+.footer-socials a:hover { border-color: var(--gold); color: var(--gold); background: var(--gold-muted); }
+
+/* ═══ WHATSAPP FLOAT ═══ */
+.wa-float {
+  position: fixed; bottom: 36px; right: 36px; z-index: 500;
+  width: 52px; height: 52px; background: #25d366;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 24px rgba(37,211,102,0.3);
+  cursor: pointer; text-decoration: none;
+  transition: transform 0.3s var(--ease-out-expo), box-shadow 0.3s;
+}
+.wa-float:hover { transform: scale(1.1); box-shadow: 0 8px 32px rgba(37,211,102,0.45); }
+.wa-float svg { width: 24px; height: 24px; fill: #fff; }
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+.reveal {
+  opacity: 0; transform: translateY(40px);
+  transition: opacity 0.9s var(--ease-out-expo), transform 0.9s var(--ease-out-expo);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+
+.particles { position: fixed; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.particle {
+  position: absolute; border-radius: 50%; opacity: 0; background: var(--gold);
+  animation: float var(--dur) var(--delay) ease-in-out infinite;
+}
+@keyframes float {
+  0% { opacity: 0; transform: translateY(100vh) scale(0); }
+  10% { opacity: 0.4; } 90% { opacity: 0.1; }
+  100% { opacity: 0; transform: translateY(-20vh) scale(1); }
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 1024px) {
+  .hero-left { padding: 120px 24px 80px; }
+  .products-grid { grid-template-columns: repeat(2, 1fr); }
+  .collections-grid { grid-template-columns: repeat(2, 1fr); }
+  .promise-layout { grid-template-columns: 1fr; }
+  .promise-right { height: 500px; }
+  .story-layout { grid-template-columns: 1fr; }
+  .footer-top { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  section { padding: 80px 24px; }
+  nav { padding: 20px 24px; }
+  nav.scrolled { padding: 14px 24px; }
+  .nav-links { display: none; }
+  .products { padding: 80px 24px; }
+  .products-grid { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+  .collections-grid { grid-template-columns: 1fr 1fr; }
+  .footer-top { grid-template-columns: 1fr; gap: 36px; }
+  .footer-bottom { flex-direction: column; gap: 20px; text-align: center; }
+  .circle-strip-row { gap: 24px; padding: 0 24px 16px; }
+  .circle-strip-item { flex: 0 0 160px; }
+  .circle-strip-img { width: 160px; height: 160px; }
+}
+
+/* ═══════════ ANNOUNCEMENT BAR ═══════════ */
+.ann-bar {
+  background: var(--gold);
+  color: var(--bg-deep);
+  text-align: center;
+  padding: 10px 20px;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1001;
+}
+.ann-bar b { font-weight: 700; }
+
+/* ═══════════ NAV UPDATES ═══════════ */
+.nav-cart-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 1px solid rgba(196,162,101,0.3);
+  color: var(--gold-light);
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: all 0.4s var(--ease-out-expo);
+  position: relative;
+}
+.nav-cart-btn:hover {
+  border-color: var(--gold);
+  background: var(--gold-muted);
+}
+.cart-badge {
+  background: var(--gold);
+  color: var(--bg-deep);
+  font-size: 9px;
+  font-weight: 700;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s var(--ease-out-expo);
+}
+.cart-badge.bump { animation: badgeBump 0.3s var(--ease-out-expo); }
+@keyframes badgeBump {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* ═══════════ HAMBURGER ═══════════ */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  z-index: 1002;
+}
+.nav-hamburger span {
+  display: block;
+  width: 24px; height: 1px;
+  background: var(--cream);
+  transition: all 0.4s var(--ease-out-expo);
+  transform-origin: center;
+}
+.nav-hamburger.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.nav-hamburger.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+/* Mobile nav drawer */
+.nav-mobile {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10,9,8,0.97);
+  backdrop-filter: blur(20px);
+  z-index: 999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity 0.4s var(--ease-out-expo), transform 0.4s var(--ease-out-expo);
+}
+.nav-mobile.open {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+.nav-mobile a {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 300;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--cream);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+.nav-mobile a:hover { color: var(--gold-light); }
+.nav-mobile-cart {
+  margin-top: 20px;
+  border-top: 1px solid rgba(196,162,101,0.1);
+  padding-top: 32px;
+  width: 200px;
+  text-align: center;
+}
+
+/* ═══════════ CART DRAWER ═══════════ */
+.cart-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+.cart-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.cart-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 420px;
+  max-width: 100vw;
+  background: var(--bg-elevated);
+  border-left: 1px solid rgba(196,162,101,0.1);
+  z-index: 2001;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.5s var(--ease-out-expo);
+}
+.cart-drawer.open { transform: translateX(0); }
+
+.cart-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 32px;
+  border-bottom: 1px solid rgba(196,162,101,0.08);
+}
+.cart-drawer-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 300;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--cream);
+}
+.cart-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  transition: color 0.3s;
+  padding: 4px;
+}
+.cart-close:hover { color: var(--cream); }
+
+.cart-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196,162,101,0.2) transparent;
+}
+
+/* Empty state */
+.cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  text-align: center;
+}
+.cart-empty-icon {
+  font-size: 48px;
+  opacity: 0.2;
+  margin-bottom: 8px;
+}
+.cart-empty p {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 300;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+.cart-empty span {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+/* Cart items */
+.cart-item {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(196,162,101,0.06);
+}
+.cart-item-img {
+  width: 72px; height: 90px;
+  object-fit: cover;
+  object-position: center top;
+  border-radius: 4px;
+  filter: brightness(0.9);
+}
+.cart-item-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--cream);
+  margin-bottom: 4px;
+}
+.cart-item-variant {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.cart-item-qty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.qty-btn {
+  width: 24px; height: 24px;
+  border: 1px solid rgba(196,162,101,0.2);
+  background: none;
+  color: var(--cream);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.qty-btn:hover { border-color: var(--gold); color: var(--gold); }
+.qty-num {
+  font-size: 13px;
+  color: var(--cream);
+  min-width: 16px;
+  text-align: center;
+}
+.cart-item-price {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--gold-light);
+  text-align: right;
+  white-space: nowrap;
+}
+.cart-item-remove {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  margin-top: 4px;
+  transition: color 0.2s;
+  text-align: right;
+}
+.cart-item-remove:hover { color: var(--cream); }
+
+.cart-drawer-footer {
+  padding: 24px 32px;
+  border-top: 1px solid rgba(196,162,101,0.08);
+}
+.cart-subtotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.cart-subtotal-label {
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.cart-subtotal-amount {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--cream);
+}
+.cart-checkout-btn {
+  width: 100%;
+  padding: 18px;
+  background: var(--gold);
+  color: var(--bg-deep);
+  border: none;
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.4s var(--ease-out-expo);
+  margin-bottom: 12px;
+}
+.cart-checkout-btn:hover {
+  background: var(--gold-light);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(196,162,101,0.2);
+}
+.cart-continue {
+  width: 100%;
+  padding: 14px;
+  background: none;
+  color: var(--text-muted);
+  border: 1px solid rgba(196,162,101,0.15);
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.cart-continue:hover { border-color: var(--gold); color: var(--gold-light); }
+.cart-free-shipping {
+  margin-top: 16px;
+  text-align: center;
+}
+.cfs-bar-wrap {
+  height: 2px;
+  background: rgba(196,162,101,0.1);
+  border-radius: 1px;
+  margin: 8px 0;
+}
+.cfs-bar {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 1px;
+  transition: width 0.5s var(--ease-out-expo);
+}
+.cfs-text {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.cfs-text b { color: var(--gold-light); font-weight: 400; }
+
+/* ═══════════ PRODUCT LENGTH SELECTOR ═══════════ */
+.prod-lengths {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.length-btn {
+  background: none;
+  border: 1px solid rgba(196,162,101,0.15);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.length-btn:hover,
+.length-btn.active {
+  border-color: var(--gold);
+  color: var(--gold-light);
+  background: var(--gold-muted);
+}
+
+/* ═══════════ RESPONSIVE UPDATES ═══════════ */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .nav-cart-btn span.cart-label { display: none; }
+  .nav-hamburger { display: flex; }
+  .cart-drawer { width: 100vw; }
+  nav { padding: 16px 24px; }
+  nav.scrolled { padding: 12px 24px; }
+}
+
+
+/* Cart Drawer */
+.cart-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:2000;opacity:0;pointer-events:none;transition:opacity 0.4s}
+.cart-overlay.open{opacity:1;pointer-events:all}
+.cart-drawer{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;background:var(--bg-elevated);border-left:1px solid rgba(196,162,101,0.1);z-index:2001;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.5s var(--ease-out-expo)}
+.cart-drawer.open{transform:translateX(0)}
+.cart-drawer-header{display:flex;align-items:center;justify-content:space-between;padding:28px 32px;border-bottom:1px solid rgba(196,162,101,0.08)}
+.cart-drawer-title{font-family:var(--font-display);font-size:24px;font-weight:300;letter-spacing:4px;text-transform:uppercase;color:var(--cream)}
+.cart-item{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid rgba(196,162,101,0.06)}
+.cart-item-img{width:72px;height:90px;object-fit:cover;object-position:center top;border-radius:4px}
+.cart-item-name{font-family:var(--font-display);font-size:16px;font-weight:300;color:var(--cream);margin-bottom:4px}
+.cart-item-variant{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+.cart-item-price{font-family:var(--font-display);font-size:18px;color:var(--gold-light)}
+.cart-item-remove{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;margin-top:6px;display:block}
+.cart-item-remove:hover{color:var(--gold)}
+.cart-item-qty{display:flex;align-items:center;gap:12px}
+.qty-btn{background:none;border:1px solid rgba(196,162,101,0.2);color:var(--cream);width:28px;height:28px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:border-color 0.3s}
+.qty-btn:hover{border-color:var(--gold)}
+.qty-num{font-family:var(--font-display);font-size:16px;color:var(--cream);min-width:20px;text-align:center}
+@media(max-width:768px){.nav-hamburger{display:flex}}
+
+</style>
+</head>
+<body>
+
+<div class="cursor-glow" id="cursorGlow"></div>
+<div class="particles" id="particles"></div>
+
+<!-- ANNOUNCEMENT BAR -->
+<div class="ann-bar">✦ &nbsp; Free Delivery on Orders Over R800 &nbsp; · &nbsp; <b>New Arrivals Just Dropped</b> &nbsp; ✦</div>
+
+
+<!-- CART OVERLAY -->
+<div class="cart-overlay" id="cartOverlay" onclick="closeCart()"></div>
+<div class="cart-drawer" id="cartDrawer">
+  <div class="cart-drawer-header">
+    <div class="cart-drawer-title">Your Cart</div>
+    <button onclick="closeCart()" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:20px;line-height:1">×</button>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:24px 32px">
+    <div id="cartEmpty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--text-muted);text-align:center;gap:16px">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      <div style="font-family:var(--font-display);font-size:18px;font-weight:300">Your cart is empty</div>
+      <a href="#products" onclick="closeCart()" class="btn-outline" style="font-size:10px;padding:10px 24px">Start Shopping</a>
+    </div>
+    <div id="cartItems"></div>
+  </div>
+  <div id="cartFooter" style="display:none;padding:24px 32px;border-top:1px solid rgba(196,162,101,0.08)">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px" id="shippingText">Add <b>R800</b> more for free shipping</div>
+    <div style="height:2px;background:rgba(255,255,255,0.05);border-radius:2px;margin-bottom:20px">
+      <div id="shippingBar" style="height:100%;background:var(--gold);border-radius:2px;width:0%;transition:width 0.4s"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <span style="font-family:var(--font-display);font-size:18px;font-weight:300;color:var(--cream)">Total</span>
+      <span id="cartTotal" style="font-family:var(--font-display);font-size:24px;font-weight:300;color:var(--gold)">R0</span>
+    </div>
+    <button class="btn-gold" style="width:100%;justify-content:center">Checkout →</button>
+  </div>
+</div>
+
+
+<!-- NAV -->
+<nav id="nav">
+  <a href="#" class="nav-brand">Cr<span>o</span>wn</a>
+  <ul class="nav-links">
+    <li><a href="#products">Shop</a></li>
+    <li><a href="#collections">Collections</a></li>
+    <li><a href="#promise">Our Promise</a></li>
+    <li><a href="#story">Our Story</a></li>
+  </ul>
+  <div style="display:flex;align-items:center;gap:16px">
+    <button class="nav-cart-btn" id="cartBtn" onclick="openCart()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      <span class="cart-label">Cart</span>
+      <span class="cart-badge" id="cartBadge">0</span>
+    </button>
+    <button class="nav-hamburger" id="hamburger" onclick="toggleMobileNav()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- MOBILE NAV -->
+<div class="nav-mobile" id="mobileNav">
+  <a href="#products" onclick="toggleMobileNav()">Shop</a>
+  <a href="#collections" onclick="toggleMobileNav()">Collections</a>
+  <a href="#promise" onclick="toggleMobileNav()">Our Promise</a>
+  <a href="#story" onclick="toggleMobileNav()">Our Story</a>
+  <div class="nav-mobile-cart">
+    <button class="btn-gold" onclick="openCart();toggleMobileNav()" style="font-size:10px;padding:14px 32px">
+      View Cart <span id="mobileBadge">( 0 )</span>
+    </button>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-issue">
+      <span>Premium Hair Collection</span>
+      <span>SA Delivered</span>
+    </div>
+    <h1 class="hero-title">
+      Wear your<br>
+      <em>crown</em><br>
+      with confidence.
+    </h1>
+    <p class="hero-subtitle">
+      Ethically sourced, meticulously crafted hair extensions and wigs. From raw bundles to luxury installs — we redefine premium.
+    </p>
+    <div class="hero-bottom">
+      <a href="#products" class="hero-cta">
+        Explore Collection <span class="arrow">→</span>
+      </a>
+      <div class="hero-stat" style="text-align:right">
+        <div style="font-family:var(--font-display);font-size:32px;font-weight:300;color:var(--cream)">3.2K+</div>
+        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted)">Happy Clients</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="hero-bg" style="background-image:url('./crown-02.jpg');background-size:cover;background-position:center top;transform:scale(1.05);animation:heroBreath 12s ease-in-out infinite alternate"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(10,9,8,0.85) 0%,rgba(10,9,8,0.4) 50%,rgba(10,9,8,0.2) 100%)"></div>
+  </div>
+  <div class="hero-img-label">
+    <span class="hil-tag">Featured</span>
+    <div class="hil-name">Raw Bundles — Premium Grade</div>
+  </div>
+  <div class="scroll-indicator">
+    <span>Scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- CIRCLE STRIP -->
+<div class="circle-strip">
+  <div class="circle-strip-label reveal">Shop by Texture</div>
+  <p class="circle-strip-subtitle reveal">Find your signature — from silky straight to voluminous curls.</p>
+  <div class="circle-strip-row">
+    <div class="circle-strip-item reveal">
+      <div class="circle-strip-img">
+        <img loading="lazy" src="./crown-03.jpg" alt="Straight">
+      </div>
+      <div class="circle-strip-name">Straight</div>
+    </div>
+    <div class="circle-strip-item reveal reveal-delay-1">
+      <div class="circle-strip-img">
+        <img loading="lazy" src="./crown-04.jpg" alt="Body Wave">
+      </div>
+      <div class="circle-strip-name">Body Wave</div>
+    </div>
+    <div class="circle-strip-item reveal reveal-delay-2">
+      <div class="circle-strip-img">
+        <img loading="lazy" src="./crown-05.jpg" alt="Deep Curl">
+      </div>
+      <div class="circle-strip-name">Deep Curl</div>
+    </div>
+    <div class="circle-strip-item reveal reveal-delay-3">
+      <div class="circle-strip-img">
+        <img loading="lazy" src="./crown-06.jpg" alt="Loose Wave">
+      </div>
+      <div class="circle-strip-name">Loose Wave</div>
+    </div>
+    <div class="circle-strip-item reveal reveal-delay-4">
+      <div class="circle-strip-img">
+        <img loading="lazy" src="./crown-07.jpg" alt="Bundles">
+      </div>
+      <div class="circle-strip-name">Bundles</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT GRID -->
+<section class="products" id="products">
+  <div class="products-header reveal">
+    <div>
+      <div class="products-count">15</div>
+      <div class="section-label">The Edit</div>
+      <h2 class="section-title">Latest <em>arrivals</em></h2>
+    </div>
+    <a href="#" class="btn-outline">View All <span>→</span></a>
+  </div>
+  <div class="products-grid">
+
+    <div class="prod-card reveal reveal-delay-1" data-id="1" data-price="1650">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-08.jpg" alt="Honey Blonde Lace Wig">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Body Wave</div>
+        <div class="prod-name">Honey Blonde Lace Wig</div>
+        <div class="prod-price">From R1,650</div>
+      </div>
+    </div>
+
+    <div class="prod-card reveal reveal-delay-2" data-id="2" data-price="1800">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-09.jpg" alt="Auburn Glam Wig">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Voluminous Wave</div>
+        <div class="prod-name">Auburn Glam Wig</div>
+        <div class="prod-price">From R1,800</div>
+      </div>
+    </div>
+
+    <div class="prod-card reveal reveal-delay-3" data-id="3" data-price="1950">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-10.jpg" alt="Emerald Green Lace Wig">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Body Wave</div>
+        <div class="prod-name">Emerald Green Lace Wig</div>
+        <div class="prod-price">From R1,950</div>
+      </div>
+    </div>
+
+    <div class="prod-card reveal reveal-delay-4" data-id="4" data-price="1550">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-11.jpg" alt="Copper Red Body Wave">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Loose Wave</div>
+        <div class="prod-name">Copper Red Body Wave</div>
+        <div class="prod-price">From R1,550</div>
+      </div>
+    </div>
+
+    <div class="prod-card reveal reveal-delay-1" data-id="5" data-price="1750">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-12.jpg" alt="Blonde Highlight Wig">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Body Wave</div>
+        <div class="prod-name">Blonde Highlight Wig</div>
+        <div class="prod-price">From R1,750</div>
+      </div>
+    </div>
+
+    <div class="prod-card reveal reveal-delay-2" data-id="6" data-price="1650">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-13.jpg" alt="Dark Caramel Highlight">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Body Wave</div>
+        <div class="prod-name">Dark Caramel Highlight</div>
+        <div class="prod-price">From R1,650</div>
+      </div>
+    </div>
+
+    <div class="prod-card reveal reveal-delay-3" data-id="7" data-price="1850">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-05.jpg" alt="Highlight Curl Wig">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Deep Curl</div>
+        <div class="prod-name">Highlight Curl Wig</div>
+        <div class="prod-price">From R1,850</div>
+      </div>
+    </div>
+
+    <div class="prod-card reveal reveal-delay-4" data-id="8" data-price="1900">
+      <div class="prod-img">
+        <img loading="lazy" src="./crown-14.jpg" alt="Ash Blonde Lace Wig">
+        <button class="prod-add" onclick="addToCart(this)">Add to Cart</button>
+      </div>
+      <div class="prod-info">
+        <div class="prod-texture">Straight Silk</div>
+        <div class="prod-name">Ash Blonde Lace Wig</div>
+        <div class="prod-price">From R1,900</div>
+      </div>
+    </div>
+
+  </div>
+  <div class="products-footer reveal">
+    <a href="#" class="btn-gold">Shop Full Collection →</a>
+  </div>
+</section>
+
+<!-- COLLECTIONS -->
+<section class="collections" id="collections">
+  <div class="collections-header reveal">
+    <div class="section-label">Featured Collections</div>
+    <h2 class="section-title">Find your <em>signature</em> look</h2>
+    <p>Each piece is hand-selected for density, luster, and longevity. Our collections range from everyday elegance to red-carpet glamour.</p>
+  </div>
+  <div class="collections-grid">
+    <div class="collection-card reveal reveal-delay-1">
+      <div class="collection-image-wrap">
+        <img loading="lazy" src="./crown-04.jpg" alt="Body Wave">
+      </div>
+      <div class="collection-info"><h3>Body Wave</h3><span>From R850</span></div>
+    </div>
+    <div class="collection-card reveal reveal-delay-2">
+      <div class="collection-image-wrap">
+        <img loading="lazy" src="./crown-03.jpg" alt="Straight Silk">
+      </div>
+      <div class="collection-info"><h3>Straight Silk</h3><span>From R950</span></div>
+    </div>
+    <div class="collection-card reveal reveal-delay-3">
+      <div class="collection-image-wrap">
+        <img loading="lazy" src="./crown-15.jpg" alt="Highlighted">
+      </div>
+      <div class="collection-info"><h3>Highlighted</h3><span>From R1,400</span></div>
+    </div>
+    <div class="collection-card reveal reveal-delay-4">
+      <div class="collection-image-wrap">
+        <img loading="lazy" src="./crown-16.jpg" alt="Natural Tones">
+      </div>
+      <div class="collection-info"><h3>Natural Tones</h3><span>From R1,100</span></div>
+    </div>
+  </div>
+  <div class="collections-cta reveal">
+    <a href="#" class="btn-outline">View All Collections <span>→</span></a>
+  </div>
+</section>
+
+<!-- PROMISE -->
+<section class="promise" id="promise">
+  <div class="promise-layout">
+    <div class="promise-left reveal">
+      <div class="section-label">Our Promise</div>
+      <h2 class="section-title">Built on <em>trust</em>,<br>delivered with care</h2>
+      <div class="promise-values">
+        <div class="promise-value">
+          <span class="value-num">01</span>
+          <div><h4>100% Virgin Hair</h4><p>Every bundle sourced from a single donor — unprocessed, unchemically treated, naturally aligned root to tip.</p></div>
+        </div>
+        <div class="promise-value">
+          <span class="value-num">02</span>
+          <div><h4>Ethically Sourced</h4><p>We partner directly with suppliers who prioritize fair trade practices at every step of the chain.</p></div>
+        </div>
+        <div class="promise-value">
+          <span class="value-num">03</span>
+          <div><h4>Colour &amp; Heat Friendly</h4><p>Bleach it, curl it, straighten it. Our hair holds up to heat styling without losing its natural bounce.</p></div>
+        </div>
+        <div class="promise-value">
+          <span class="value-num">04</span>
+          <div><h4>Nationwide Delivery</h4><p>Fast, tracked shipping to every corner of South Africa. Order today, slay by the weekend.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="promise-right reveal reveal-delay-2">
+      <div class="promise-mosaic">
+        <div class="mosaic-img">
+          <img loading="lazy" src="./crown-07.jpg" alt="Quality">
+          <div class="mosaic-overlay"><span>Quality</span></div>
+        </div>
+        <div class="mosaic-img">
+          <img loading="lazy" src="./crown-11.jpg" alt="Texture">
+          <div class="mosaic-overlay"><span>Texture</span></div>
+        </div>
+        <div class="mosaic-img">
+          <img loading="lazy" src="./crown-06.jpg" alt="Volume">
+          <div class="mosaic-overlay"><span>Volume</span></div>
+        </div>
+        <div class="mosaic-img">
+          <img loading="lazy" src="./crown-17.jpg" alt="Colour">
+          <div class="mosaic-overlay"><span>Colour</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STORY -->
+<section class="story" id="story">
+  <div class="story-layout">
+    <div class="story-image reveal">
+      <div class="story-image-main">
+        <img loading="lazy" src="./crown-04.jpg" alt="Our Story">
+      </div>
+      <div class="story-image-accent">
+        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="0.5">
+          <circle cx="50" cy="50" r="45"/>
+          <text x="50" y="46" text-anchor="middle" fill="currentColor" font-family="serif" font-size="8" letter-spacing="2" stroke="none">PREMIUM</text>
+          <text x="50" y="58" text-anchor="middle" fill="currentColor" font-family="serif" font-size="10" stroke="none">2024</text>
+        </svg>
+      </div>
+    </div>
+    <div class="story-text reveal reveal-delay-1">
+      <div class="section-label">Our Journey</div>
+      <h2 class="section-title">From <em>passion</em> to<br>premium</h2>
+      <p>What started as a personal frustration with inconsistent hair quality became a mission — to give every woman access to salon-grade hair without the salon-grade markup.</p>
+      <p>We source directly, cut out the middlemen, and pass the savings on to you. Every bundle is quality-checked by hand before it ships.</p>
+      <div class="story-signature">
+        <div class="name">The Crown Team</div>
+        <div class="role">Founders &amp; Creative Directors</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="testimonials">
+  <div class="testimonials-header reveal">
+    <div class="section-label">What They Say</div>
+    <h2 class="section-title">Words from our <em>queens</em></h2>
+  </div>
+  <div class="testimonial-card reveal reveal-delay-1">
+    <div class="testimonial-quote">"</div>
+    <p class="testimonial-text">I've been buying hair for years and nothing compares. Three months in and my bundles still look fresh out the pack. Crown is the only brand I trust.</p>
+    <div class="testimonial-author">
+      <div class="testimonial-avatar">
+        <img loading="lazy" src="./crown-06.jpg" alt="Thandi M.">
+      </div>
+      <div class="testimonial-name">
+        <strong>Thandi M.</strong>
+        <span>Johannesburg, SA</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<section class="cta-banner" style="background:linear-gradient(180deg,var(--bg-deep) 0%,rgba(10,9,8,0.85) 30%,rgba(10,9,8,0.85) 70%,var(--bg-deep) 100%),url('./crown-09.jpg') center/cover no-repeat fixed">
+  <div class="section-label reveal">Ready?</div>
+  <h2 class="section-title reveal">Your next look<br>starts <em>here</em></h2>
+  <p class="reveal reveal-delay-1">Browse our full collection and find the perfect bundles, closures, and frontals for your signature look.</p>
+  <a href="#products" class="btn-gold reveal reveal-delay-2">Shop Now →</a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-top">
+    <div>
+      <div class="footer-brand">Cr<span>o</span>wn</div>
+      <p class="footer-desc">Premium hair extensions, bundles, and wigs crafted for the queens who refuse to settle for less.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Shop</h5>
+      <a href="#">Body Wave</a>
+      <a href="#">Straight Silk</a>
+      <a href="#">Deep Curl</a>
+      <a href="#">Closures &amp; Frontals</a>
+      <a href="#">Custom Wigs</a>
+    </div>
+    <div class="footer-col">
+      <h5>Help</h5>
+      <a href="#">Texture Guide</a>
+      <a href="#">Length Chart</a>
+      <a href="#">Care Instructions</a>
+      <a href="#">Returns &amp; Refunds</a>
+    </div>
+    <div class="footer-col">
+      <h5>Connect</h5>
+      <a href="#">Instagram</a>
+      <a href="#">TikTok</a>
+      <a href="#">WhatsApp</a>
+      <a href="#">Email Us</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2025 Crown Hair Collection. All rights reserved. · Powered by CatalogStore</span>
+    <div class="footer-socials">
+      <a href="#" aria-label="Instagram">IG</a>
+      <a href="#" aria-label="TikTok">TT</a>
+      <a href="#" aria-label="WhatsApp">WA</a>
+    </div>
+  </div>
+</footer>
+
+<!-- WHATSAPP FLOAT -->
+<a href="https://wa.me/27000000000" class="wa-float" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path fill="#fff" d="M12 0C5.373 0 0 5.373 0 12c0 2.132.558 4.13 1.532 5.862L.054 23.25a.75.75 0 0 0 .917.928l5.453-1.457A11.946 11.946 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22.5c-2.025 0-3.916-.57-5.52-1.556l-.39-.238-4.048 1.082 1.101-4.006-.254-.403A10.44 10.44 0 0 1 1.5 12C1.5 6.21 6.21 1.5 12 1.5S22.5 6.21 22.5 12 17.79 22.5 12 22.5z"/></svg>
+</a>
+
+<script>
+
+// ═══ Cursor Glow ═══
+const glowEl = document.getElementById('cursorGlow');
+let mouseX = 0, mouseY = 0, glowX = 0, glowY = 0;
+document.addEventListener('mousemove', function(e) { mouseX = e.clientX; mouseY = e.clientY; });
+function animateGlow() {
+  glowX += (mouseX - glowX) * 0.08;
+  glowY += (mouseY - glowY) * 0.08;
+  glowEl.style.left = glowX + 'px';
+  glowEl.style.top = glowY + 'px';
+  requestAnimationFrame(animateGlow);
+}
+animateGlow();
+
+// ═══ Nav scroll ═══
+var navEl = document.getElementById('nav');
+window.addEventListener('scroll', function() {
+  navEl.classList.toggle('scrolled', window.scrollY > 80);
+});
+
+// ═══ Reveal on scroll ═══
+var revealObserver = new IntersectionObserver(function(entries) {
+  entries.forEach(function(e) { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+document.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+
+// ═══ Particles ═══
+var particleContainer = document.getElementById('particles');
+for (var i = 0; i < 20; i++) {
+  var p = document.createElement('div');
+  p.className = 'particle';
+  p.style.left = (Math.random() * 100) + '%';
+  p.style.setProperty('--dur', (12 + Math.random() * 18) + 's');
+  p.style.setProperty('--delay', (Math.random() * 15) + 's');
+  var sz = (1 + Math.random() * 2) + 'px';
+  p.style.width = sz;
+  p.style.height = sz;
+  particleContainer.appendChild(p);
+}
+
+// ═══ Smooth scroll ═══
+document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+  a.addEventListener('click', function(e) {
+    var href = a.getAttribute('href');
+    if (href === '#') return;
+    e.preventDefault();
+    var target = document.querySelector(href);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// ═══ Cart State ═══
+var cart = [];
+var FREE_SHIPPING_THRESHOLD = 800;
+
+function getProductInfo(btn) {
+  var card = btn.closest('.prod-card');
+  var imgEl = card.querySelector('.prod-img img');
+  var name = card.querySelector('.prod-name').textContent.trim();
+  var price = card.querySelector('.prod-price').textContent.trim();
+  var texture = card.querySelector('.prod-texture').textContent.trim();
+  var activeLen = card.querySelector('.length-btn.active');
+  var length = activeLen ? activeLen.textContent.trim() : '20"';
+  var imgSrc = imgEl ? imgEl.src : '';
+  var priceNum = parseInt(price.replace(/[^0-9]/g, '')) || 0;
+  return { name: name, texture: texture, length: length, price: price.replace('From ', ''), priceNum: priceNum, imgSrc: imgSrc };
+}
+
+function addToCart(btn) {
+  var info = getProductInfo(btn);
+  var existing = null;
+  for (var i = 0; i < cart.length; i++) {
+    if (cart[i].name === info.name && cart[i].length === info.length) { existing = cart[i]; break; }
+  }
+  if (existing) {
+    existing.qty++;
+  } else {
+    cart.push({ name: info.name, texture: info.texture, length: info.length, price: info.price, priceNum: info.priceNum, imgSrc: info.imgSrc, qty: 1, id: Date.now() });
+  }
+  updateCartUI();
+  openCart();
+}
+
+function removeFromCart(id) {
+  cart = cart.filter(function(i) { return i.id !== id; });
+  updateCartUI();
+}
+
+function changeQty(id, delta) {
+  for (var i = 0; i < cart.length; i++) {
+    if (cart[i].id === id) {
+      cart[i].qty += delta;
+      if (cart[i].qty <= 0) cart.splice(i, 1);
+      break;
+    }
+  }
+  updateCartUI();
+}
+
+function updateCartUI() {
+  var count = 0;
+  var total = 0;
+  for (var i = 0; i < cart.length; i++) {
+    count += cart[i].qty;
+    total += cart[i].priceNum * cart[i].qty;
+  }
+
+  // Badge
+  var badge = document.getElementById('cartBadge');
+  badge.textContent = count;
+  badge.classList.remove('bump');
+  void badge.offsetWidth;
+  badge.classList.add('bump');
+
+  var mobileBadge = document.getElementById('mobileBadge');
+  if (mobileBadge) mobileBadge.textContent = count > 0 ? '( ' + count + ' )' : '( 0 )';
+
+  var itemsEl = document.getElementById('cartItems');
+  var emptyEl = document.getElementById('cartEmpty');
+  var footerEl = document.getElementById('cartFooter');
+
+  if (cart.length === 0) {
+    emptyEl.style.display = 'flex';
+    itemsEl.innerHTML = '';
+    footerEl.style.display = 'none';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  footerEl.style.display = 'block';
+
+  var html = '';
+  for (var j = 0; j < cart.length; j++) {
+    var item = cart[j];
+    html += '<div class="cart-item">';
+    html += '<img loading="lazy" class="cart-item-img" src="' + item.imgSrc + '" alt="' + item.name + '">';
+    html += '<div>';
+    html += '<div class="cart-item-name">' + item.name + '</div>';
+    html += '<div class="cart-item-variant">' + item.texture + ' &middot; ' + item.length + '</div>';
+    html += '<div class="cart-item-qty">';
+    html += '<button class="qty-btn" onclick="changeQty(' + item.id + ', -1)">&#8722;</button>';
+    html += '<span class="qty-num">' + item.qty + '</span>';
+    html += '<button class="qty-btn" onclick="changeQty(' + item.id + ', 1)">+</button>';
+    html += '</div></div>';
+    html += '<div style="text-align:right">';
+    html += '<div class="cart-item-price">' + item.price + '</div>';
+    html += '<button class="cart-item-remove" onclick="removeFromCart(' + item.id + ')">Remove</button>';
+    html += '</div></div>';
+  }
+  itemsEl.innerHTML = html;
+
+  document.getElementById('cartTotal').textContent = 'R' + total.toLocaleString();
+
+  var remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - total);
+  var pct = Math.min(100, (total / FREE_SHIPPING_THRESHOLD) * 100);
+  document.getElementById('shippingBar').style.width = pct + '%';
+  var shippingText = document.getElementById('shippingText');
+  if (remaining === 0) {
+    shippingText.innerHTML = 'You have unlocked <b>free shipping!</b>';
+  } else {
+    shippingText.innerHTML = 'Add <b>R' + remaining + '</b> more for free shipping';
+  }
+}
+
+// ═══ Cart Open/Close ═══
+function openCart() {
+  document.getElementById('cartDrawer').classList.add('open');
+  document.getElementById('cartOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeCart() {
+  document.getElementById('cartDrawer').classList.remove('open');
+  document.getElementById('cartOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeCart(); });
+
+// ═══ Mobile Nav ═══
+function toggleMobileNav() {
+  var mobileNavEl = document.getElementById('mobileNav');
+  var burgerEl = document.getElementById('hamburger');
+  mobileNavEl.classList.toggle('open');
+  burgerEl.classList.toggle('open');
+  document.body.style.overflow = mobileNavEl.classList.contains('open') ? 'hidden' : '';
+}
+
+// ═══ Length Selector ═══
+function selectLength(btn) {
+  var group = btn.closest('.prod-lengths');
+  group.querySelectorAll('.length-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+}
+
+</script>
+</body>
+</html>

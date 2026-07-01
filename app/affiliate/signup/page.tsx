@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+
 const SA_BANKS = [
   { name: "FNB", branch: "250655" },
   { name: "Standard Bank", branch: "051001" },

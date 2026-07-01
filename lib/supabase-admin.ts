@@ -19,3 +19,9 @@ export function getAdmin(): SupabaseClient {
   _client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
   return _client;
 }
+
+export const supabaseAdmin = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getAdmin(), prop, receiver);
+  },
+});

@@ -1,39 +1,63 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { supabase } from "../../../lib/supabase";
-import { useParams } from "next/navigation";
+import { notFound } from "next/navigation";
 import dynamic from "next/dynamic";
+import { supabaseAdmin } from "../../../lib/supabase-admin";
+import StoreUnavailable from "./StoreUnavailable";
 
-const SoftLuxury  = dynamic(() => import("./SoftLuxuryStore"),  { ssr: false });
-const GlassChrome = dynamic(() => import("./GlassChromeStore"), { ssr: false });
-const Crown       = dynamic(() => import("./CrownStore"),       { ssr: false });
+export const revalidate = 60;
 
-export default function StoreRouter() {
-  const params = useParams();
-  const slug = params.slug as string;
-  const [template, setTemplate] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+const SoftLuxury  = dynamic(() => import("./SoftLuxuryStore"));
+const GlassChrome = dynamic(() => import("./GlassChromeStore"));
+const Crown       = dynamic(() => import("./CrownStore"));
+const Heirloom    = dynamic(() => import("./HeirloomStore"));
 
-  useEffect(() => {
-    const check = async () => {
-      const { data } = await supabase
-        .from("sellers").select("template, subscription_status")
-        .eq("subdomain", slug).single();
-      setTemplate(data?.template || "soft-luxury");
-      setLoading(false);
-    };
-    check();
-  }, [slug]);
+const SELLER_COLUMNS =
+  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+const PRODUCT_COLUMNS =
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status";
+const DISCOUNT_COLUMNS =
+  "code, type, value, applies_to, expires_at, product_ids, collection_names";
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0908" }}>
-      <div style={{ width: 32, height: 32, border: "1px solid rgba(196,162,101,0.2)", borderTopColor: "#c4a265", borderRadius: "50%", animation: "spin 0.9s linear infinite" }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
+export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
 
-  if (template === "crown") return <Crown />;
-  if (template === "glass-futuristic" || template === "glass-chrome") return <GlassChrome />;
-  return <SoftLuxury />;
+  const { data: seller } = await supabaseAdmin
+    .from("sellers")
+    .select(SELLER_COLUMNS)
+    .eq("subdomain", slug)
+    .maybeSingle();
+
+  if (!seller) notFound();
+
+  // Frozen store -- subscription expired or seller cancelled. Render a clean
+  // "unavailable" page with the seller's contact info so customers can reach out.
+  if (seller.subscription_status === "expired" || seller.subscription_status === "cancelled") {
+    return <StoreUnavailable seller={seller} />;
+  }
+
+  const [productsRes, discountsRes] = await Promise.all([
+    supabaseAdmin
+      .from("products")
+      .select(PRODUCT_COLUMNS)
+      .eq("seller_id", seller.id)
+      .eq("in_stock", true)
+      .eq("status", "published")
+      .order("sort_order", { ascending: true }),
+    supabaseAdmin
+      .from("discount_codes")
+      .select(DISCOUNT_COLUMNS)
+      .eq("seller_id", seller.id)
+      .eq("active", true)
+      .eq("show_countdown", true)
+      .not("expires_at", "is", null),
+  ]);
+
+  const initialProducts = productsRes.data ?? [];
+  const initialDiscountCodes = discountsRes.data ?? [];
+  const props = { initialSeller: seller, initialProducts, initialDiscountCodes };
+
+  const tpl = seller.template;
+  if (tpl === "crown") return <Crown {...props} />;
+  if (tpl === "glass-futuristic" || tpl === "glass-chrome") return <GlassChrome {...props} />;
+  if (tpl === "heirloom") return <Heirloom {...props} />;
+  return <SoftLuxury {...props} />;
 }
