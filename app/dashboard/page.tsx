@@ -533,7 +533,7 @@ export default function Dashboard() {
             old_price,
             category,
             description,
-            image: imageSrc,
+            _imageSrc: imageSrc,   // temp field — stripped before insert
             in_stock: true,
             status,
             variants: hasVariants ? variants : [],
@@ -569,11 +569,41 @@ export default function Dashboard() {
       }
 
       if (rows.length > 0) {
-        const { data, error } = await supabase.from("products").insert(rows).select();
+        /* Strip temp fields before inserting */
+        const imageSrcs = rows.map((r) => r._imageSrc as string | null);
+        const cleanRows = rows.map(({ _imageSrc: _i, ...rest }) => rest);
+
+        const { data, error } = await supabase.from("products").insert(cleanRows).select();
         if (error) { setCsvResult("Import failed: " + error.message); return; }
         if (data) {
           added = data.length;
-          setProducts((prev) => [...data, ...prev]);
+          /* For Shopify imports: fetch each image URL and re-upload to our storage
+             so they aren't dependent on Shopify's CDN. Run sequentially to avoid
+             hammering rate limits. */
+          const inserted = [...data];
+          if (isShopify) {
+            setCsvResult("Importing images… (0/" + inserted.length + ")");
+            for (let i = 0; i < inserted.length; i++) {
+              const src = imageSrcs[i];
+              if (!src) continue;
+              try {
+                const resp = await fetch(src);
+                if (!resp.ok) continue;
+                const blob = await resp.blob();
+                const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+                const ext = mimeToExt[blob.type] || "jpg";
+                const path = `${seller.id}/${inserted[i].id}/csv-0.${ext}`;
+                const { error: upErr } = await supabase.storage.from("product-images").upload(path, blob, { contentType: blob.type, upsert: true });
+                if (upErr) continue;
+                const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+                const url = urlData.publicUrl;
+                await supabase.from("products").update({ image_url: url, images: [url] }).eq("id", inserted[i].id);
+                inserted[i] = { ...inserted[i], image_url: url, images: [url] };
+              } catch { /* skip failed images silently */ }
+              setCsvResult("Importing images… (" + (i + 1) + "/" + inserted.length + ")");
+            }
+          }
+          setProducts((prev) => [...inserted, ...prev]);
         }
       }
       const formatStr = isShopify ? " (Shopify)" : "";
