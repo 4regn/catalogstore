@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const maxDuration = 60;
+
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
   let cur = ""; let inQuote = false;
@@ -169,43 +171,71 @@ export async function POST(req: NextRequest) {
     let imagesFailed = 0;
 
     if (inserted && isShopify) {
+      const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+
+      const allTasks: { productIdx: number; imgIdx: number; url: string }[] = [];
       for (let i = 0; i < inserted.length; i++) {
         const srcs = allImageSrcs[i];
         if (!srcs || srcs.length === 0) continue;
-        const uploadedUrls: string[] = [];
-
         for (let j = 0; j < srcs.length; j++) {
-          try {
-            const resp = await fetch(srcs[j]);
-            if (!resp.ok) { imagesFailed++; continue; }
-            const buffer = await resp.arrayBuffer();
-            const contentType = resp.headers.get("content-type") || "image/jpeg";
-            const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-            const ext = mimeToExt[contentType] || "jpg";
-            const path = `${sellerId}/${inserted[i].id}/csv-${j}.${ext}`;
-            const { error: upErr } = await supabase.storage
-              .from("product-images")
-              .upload(path, Buffer.from(buffer), { contentType, upsert: true });
-            if (!upErr) {
-              const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
-              uploadedUrls.push(urlData.publicUrl);
-              imagesUploaded++;
-            } else {
-              imagesFailed++;
-            }
-          } catch {
-            imagesFailed++;
-          }
-        }
-
-        if (uploadedUrls.length > 0) {
-          await supabase.from("products").update({
-            image_url: uploadedUrls[0],
-            images: uploadedUrls,
-          }).eq("id", inserted[i].id);
-          inserted[i] = { ...inserted[i], image_url: uploadedUrls[0], images: uploadedUrls };
+          allTasks.push({ productIdx: i, imgIdx: j, url: srcs[j] });
         }
       }
+
+      const results: { productIdx: number; imgIdx: number; publicUrl: string }[] = [];
+      const CONCURRENCY = 10;
+      let cursor = 0;
+
+      async function runTask(task: { productIdx: number; imgIdx: number; url: string }) {
+        try {
+          const resp = await fetch(task.url);
+          if (!resp.ok) { imagesFailed++; return; }
+          const buffer = await resp.arrayBuffer();
+          const contentType = resp.headers.get("content-type") || "image/jpeg";
+          const ext = mimeToExt[contentType] || "jpg";
+          const path = `${sellerId}/${inserted![task.productIdx].id}/csv-${task.imgIdx}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from("product-images")
+            .upload(path, Buffer.from(buffer), { contentType, upsert: true });
+          if (!upErr) {
+            const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+            results.push({ productIdx: task.productIdx, imgIdx: task.imgIdx, publicUrl: urlData.publicUrl });
+            imagesUploaded++;
+          } else {
+            imagesFailed++;
+          }
+        } catch {
+          imagesFailed++;
+        }
+      }
+
+      async function worker() {
+        while (cursor < allTasks.length) {
+          const idx = cursor++;
+          await runTask(allTasks[idx]);
+        }
+      }
+
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, allTasks.length) }, () => worker()));
+
+      const byProduct = new Map<number, { imgIdx: number; publicUrl: string }[]>();
+      for (const r of results) {
+        if (!byProduct.has(r.productIdx)) byProduct.set(r.productIdx, []);
+        byProduct.get(r.productIdx)!.push(r);
+      }
+
+      const updatePromises: Promise<void>[] = [];
+      for (const [pIdx, imgs] of byProduct) {
+        imgs.sort((a, b) => a.imgIdx - b.imgIdx);
+        const urls = imgs.map((m) => m.publicUrl);
+        updatePromises.push(
+          (async () => {
+            await supabase.from("products").update({ image_url: urls[0], images: urls }).eq("id", inserted![pIdx].id);
+            inserted![pIdx] = { ...inserted![pIdx], image_url: urls[0], images: urls };
+          })()
+        );
+      }
+      await Promise.all(updatePromises);
     }
 
     return NextResponse.json({
