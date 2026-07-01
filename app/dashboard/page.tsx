@@ -559,7 +559,7 @@ export default function Dashboard() {
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
   // Pre-launch: one plan, deliberate limits matching the landing page promise.
-  const planLimits = { products: 999, images: 10, collections: 10 };
+  const planLimits = { products: 999, images: 20, collections: 10 };
   const canAddProduct = true;
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;
