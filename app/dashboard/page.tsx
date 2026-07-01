@@ -415,6 +415,21 @@ export default function Dashboard() {
     }
   };
   useEffect(() => { if (products.length > 0 && seller) initSortOrders(); }, [products.length > 0 && seller?.id]);
+
+  /* Billing redirect — must be above the early `if (loading) return` so the
+     hook count is stable across renders. */
+  const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
+  const isSubscribed = seller?.subscription_status === "active";
+  const isExpiredTrial = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date();
+  const isExpired = seller?.subscription_status === "expired" || isExpiredTrial;
+  const hasVerifiedCard = !!seller?.payfast_subscription_token || seller?.subscription_status === "active";
+  const isAdmin = seller?.email === "info@4regn.com";
+  const needsCardVerification = trialActive && !hasVerifiedCard && !isAdmin;
+  const shouldRedirectToBilling = !!seller && (isExpired || needsCardVerification);
+  useEffect(() => {
+    if (shouldRedirectToBilling) router.push("/dashboard/billing");
+  }, [shouldRedirectToBilling, router]);
+
   const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); };
 
   /* Parse a CSV line correctly, handling quoted fields that may contain commas */
@@ -618,26 +633,11 @@ export default function Dashboard() {
 
   if (loading) return <Spinner fullscreen label="Loading dashboard" />;
 
-  const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
-  const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
-  const isSubscribed = seller?.subscription_status === "active";
-  const isExpiredTrial = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date();
-  const isExpired = seller?.subscription_status === "expired" || isExpiredTrial;
-  const hasVerifiedCard = !!seller?.payfast_subscription_token || seller?.subscription_status === "active";
-  const isAdmin = seller?.email === "info@4regn.com";
-  const needsCardVerification = trialActive && !hasVerifiedCard && !isAdmin;
-
-  /* Side effects belong in useEffect, not the render body. In strict mode the
-     render runs twice and this used to fire two assignments to window.location
-     and race with the realtime subscription. */
-  const shouldRedirectToBilling = !!seller && (isExpired || needsCardVerification);
-  useEffect(() => {
-    if (shouldRedirectToBilling) router.push("/dashboard/billing");
-  }, [shouldRedirectToBilling, router]);
   if (shouldRedirectToBilling) {
     return (<div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}><p style={{ color: "rgba(245,245,245,0.35)" }}>{needsCardVerification ? "Please verify your card to continue..." : "Redirecting to billing..."}</p></div>);
   }
 
+  const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const publishedCount = products.filter((p) => p.status === "published" || !p.status).length;
   const draftCount = products.filter((p) => p.status === "draft").length;
   const trashedCount = products.filter((p) => p.status === "trashed").length;
