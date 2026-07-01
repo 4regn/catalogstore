@@ -412,12 +412,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const displayLogo = liveLogoUrl ?? seller.logo_url ?? null;
   const displayAnnouncement = liveAnnouncement ?? config.announcement ?? null;
   const displayHeroImage = liveHeroImage ?? config.hero_image ?? null;
-  const displayHeroIndex = liveHeroIndex ?? config.hero_index ?? `${seller.store_name} · Release 01`;
-  const displayHeroLabel = liveHeroLabel ?? config.hero_label ?? "Pick of the Week";
-  const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? "Built to outlast\nthe season.";
-  const displayHeroEm = config.hero_headline_em ?? "outlast";
-  const displayHeroBody = liveHeroBody ?? config.hero_body ?? (seller.tagline || "Limited-run pieces, made deliberately. New release every Friday at noon.");
-  const displayCtaPrimary = liveHeroCtaPrimary ?? config.hero_cta_primary ?? "Shop the Drop";
+  const displayHeroIndex = liveHeroIndex ?? config.hero_index ?? "";
+  const displayHeroLabel = liveHeroLabel ?? config.hero_label ?? "";
+  const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? "";
+  const displayHeroEm = config.hero_headline_em ?? "";
+  const displayHeroBody = liveHeroBody ?? config.hero_body ?? "";
+  const displayCtaPrimary = liveHeroCtaPrimary ?? config.hero_cta_primary ?? "";
   // Default empty (not "Join Waitlist") -- there's no waitlist feature, so the
   // secondary CTA should only appear if the seller has explicitly set both its
   // label AND a target. Empty label or `none` target hides the button.
@@ -1040,31 +1040,35 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             )}
             <div className="hl-hero-overlay" />
             <div className="hl-hero-left">
-              <div className="hl-hero-index">{displayHeroIndex}</div>
-              <div className="hl-hero-label">{displayHeroLabel}</div>
-              <h1 className="hl-hero-h1">
-                {displayHeroHeadline.split(displayHeroEm).map((part, i, arr) => (
-                  <span key={i}>
-                    {part.split("\n").map((line, j) => (
-                      <span key={j}>{line}{j < part.split("\n").length - 1 && <br />}</span>
-                    ))}
-                    {i < arr.length - 1 && <em>{displayHeroEm}</em>}
-                  </span>
-                ))}
-              </h1>
-              <p className="hl-hero-body">{displayHeroBody}</p>
-              <div className="hl-cta-row">
-                {showCtaPrimary && (
-                  <button className="hl-btn-solid" onClick={ctaClick(displayCtaPrimaryTarget)}>
-                    {displayCtaPrimary}
-                  </button>
-                )}
-                {showCtaSecondary && (
-                  <button className="hl-btn-text" onClick={ctaClick(displayCtaSecondaryTarget)}>
-                    {displayCtaSecondary}
-                  </button>
-                )}
-              </div>
+              {displayHeroIndex && <div className="hl-hero-index">{displayHeroIndex}</div>}
+              {displayHeroLabel && <div className="hl-hero-label">{displayHeroLabel}</div>}
+              {displayHeroHeadline && (
+                <h1 className="hl-hero-h1">
+                  {(displayHeroEm ? displayHeroHeadline.split(displayHeroEm) : [displayHeroHeadline]).map((part, i, arr) => (
+                    <span key={i}>
+                      {part.split("\n").map((line, j) => (
+                        <span key={j}>{line}{j < part.split("\n").length - 1 && <br />}</span>
+                      ))}
+                      {i < arr.length - 1 && <em>{displayHeroEm}</em>}
+                    </span>
+                  ))}
+                </h1>
+              )}
+              {displayHeroBody && <p className="hl-hero-body">{displayHeroBody}</p>}
+              {(showCtaPrimary || showCtaSecondary) && (
+                <div className="hl-cta-row">
+                  {showCtaPrimary && (
+                    <button className="hl-btn-solid" onClick={ctaClick(displayCtaPrimaryTarget)}>
+                      {displayCtaPrimary}
+                    </button>
+                  )}
+                  {showCtaSecondary && (
+                    <button className="hl-btn-text" onClick={ctaClick(displayCtaSecondaryTarget)}>
+                      {displayCtaSecondary}
+                    </button>
+                  )}
+                </div>
+              )}
               {promoCountdown && heroTimerParts && (
                 <div className="hl-timer-row">
                   <div className="hl-timer-note">
