@@ -351,8 +351,9 @@ export default function CrownStore() {
   };
   const handleAddToCart = () => {
     if (!selectedProduct) return;
-    const allSelected = (selectedProduct.variants || []).every(v => selectedVariants[v.name]);
-    if (!allSelected && (selectedProduct.variants || []).length > 0) {
+    const validVariants = (selectedProduct.variants || []).filter(v => v.options?.length > 0);
+    const allSelected = validVariants.every(v => selectedVariants[v.name]);
+    if (!allSelected && validVariants.length > 0) {
       setVariantError(true); return;
     }
     addToCart(selectedProduct, localQty, selectedVariants);
@@ -1239,7 +1240,7 @@ export default function CrownStore() {
                   )}
 
                   {/* Variants */}
-                  {(p.variants || []).map(v => (
+                  {(p.variants || []).filter(v => v.options?.length > 0).map(v => (
                     <div key={v.name} style={{ marginBottom: 24 }}>
                       <div style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: textMuted, marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
                         <span>{v.name}</span>
@@ -1277,8 +1278,9 @@ export default function CrownStore() {
                   </button>
                   <button onClick={() => {
                     if (!selectedProduct) return;
-                    const allSelected = (selectedProduct.variants || []).every((v) => selectedVariants[v.name]);
-                    if (!allSelected && (selectedProduct.variants || []).length > 0) { setVariantError(true); return; }
+                    const vv = (selectedProduct.variants || []).filter((v) => v.options?.length > 0);
+                    const allSelected = vv.every((v) => selectedVariants[v.name]);
+                    if (!allSelected && vv.length > 0) { setVariantError(true); return; }
                     addToCart(selectedProduct, localQty, selectedVariants);
                     setSelectedProduct(null);
                     setCartOpen(false);

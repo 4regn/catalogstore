@@ -518,26 +518,24 @@ export default function Dashboard() {
           const statusRaw = col(first, "status").toLowerCase();
           const status = statusRaw === "draft" ? "draft" : "published";
 
-          /* Build variants array if there are options */
+          /* Build variants in the format the storefront expects:
+             { name: "Size", options: ["S", "M", "L"] }
+             Shopify gives us Option1 Name + per-row Option1 Value, etc. */
           const opt1Name = col(first, "option1 name");
           const opt2Name = col(first, "option2 name");
+          const opt3Name = col(first, "option3 name");
           const hasVariants = opt1Name && opt1Name.toLowerCase() !== "title";
-          const variants: { name: string; price?: number; in_stock: boolean }[] = [];
+          const variants: { name: string; options: string[] }[] = [];
 
           if (hasVariants) {
+            const optGroups: { [key: string]: Set<string> } = {};
             for (const vRow of variantRows) {
-              const v1 = col(vRow, "option1 value");
-              const v2 = col(vRow, "option2 value");
-              const vPriceStr = col(vRow, "variant price");
-              const vPrice = parseFloat(vPriceStr);
-              const variantName = [v1, v2].filter(Boolean).join(" / ");
-              if (variantName) {
-                variants.push({
-                  name: variantName,
-                  price: Number.isFinite(vPrice) ? vPrice : undefined,
-                  in_stock: true,
-                });
-              }
+              if (opt1Name) { if (!optGroups[opt1Name]) optGroups[opt1Name] = new Set(); const v = col(vRow, "option1 value"); if (v) optGroups[opt1Name].add(v); }
+              if (opt2Name) { if (!optGroups[opt2Name]) optGroups[opt2Name] = new Set(); const v = col(vRow, "option2 value"); if (v) optGroups[opt2Name].add(v); }
+              if (opt3Name) { if (!optGroups[opt3Name]) optGroups[opt3Name] = new Set(); const v = col(vRow, "option3 value"); if (v) optGroups[opt3Name].add(v); }
+            }
+            for (const [name, opts] of Object.entries(optGroups)) {
+              if (opts.size > 0) variants.push({ name, options: Array.from(opts) });
             }
           }
 

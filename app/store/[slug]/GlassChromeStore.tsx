@@ -165,7 +165,7 @@ export default function GlassChromeStore() {
   })();
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
+  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options?.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
   const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); };
 
   /* Escape closes the topmost overlay */
@@ -662,9 +662,9 @@ export default function GlassChromeStore() {
                     {selectedProduct.old_price && <span style={{ fontSize: 16, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
                   </div>
                   {selectedProduct.description && <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(255,255,255,0.5)", marginBottom: 24, fontWeight: 300 }}>{selectedProduct.description}</p>}
-                  {selectedProduct.variants?.length > 0 && (
+                  {selectedProduct.variants?.filter((v) => v.options?.length > 0).length > 0 && (
                     <div style={{ marginBottom: 24 }}>
-                      {selectedProduct.variants.map((v) => (
+                      {selectedProduct.variants.filter((v) => v.options?.length > 0).map((v) => (
                         <div key={v.name} style={{ marginBottom: 16 }}>
                           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 8, fontFamily: mono, letterSpacing: "0.1em", textTransform: "uppercase" }}>{v.name}: <strong style={{ color: "#f0f0f0" }}>{selectedVariants[v.name]}</strong></p>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
