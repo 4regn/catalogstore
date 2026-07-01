@@ -372,12 +372,7 @@ export default function Dashboard() {
 
       const isShopify = header.includes("handle") && header.includes("variant price");
 
-      const planLimitsLocal = { products: 20 };
-      const publishedLocal = products.filter((p) => p.status === "published" || !p.status).length;
-      const draftLocal = products.filter((p) => p.status === "draft").length;
-      const remaining = planLimitsLocal.products - (publishedLocal + draftLocal);
-
-      let added = 0; let errors = 0;
+      let errors = 0;
       const rows: any[] = [];
 
       if (isShopify) {
@@ -396,7 +391,6 @@ export default function Dashboard() {
         }
 
         for (const [, variantRows] of handleMap) {
-          if (rows.length >= remaining) break;
           const first = variantRows[0];
           const title = col(first, "title");
           if (!title) { errors++; continue; }
@@ -412,9 +406,16 @@ export default function Dashboard() {
           const bodyHtml = col(first, "body (html)");
           const description = bodyHtml ? stripHtml(bodyHtml) : "";
           const category = col(first, "type") || col(first, "product category") || null;
-          const imageSrc = col(first, "image src") || null;
           const statusRaw = col(first, "status").toLowerCase();
           const status = statusRaw === "draft" ? "draft" : "published";
+
+          /* Collect ALL unique image URLs from every row for this handle */
+          const allImages: string[] = [];
+          const seenUrls = new Set<string>();
+          for (const vRow of variantRows) {
+            const img = col(vRow, "image src");
+            if (img && !seenUrls.has(img)) { seenUrls.add(img); allImages.push(img); }
+          }
 
           const opt1Name = col(first, "option1 name");
           const opt2Name = col(first, "option2 name");
@@ -441,7 +442,7 @@ export default function Dashboard() {
             old_price,
             category,
             description,
-            _imageSrc: imageSrc,
+            _imageSrcs: allImages,
             in_stock: true,
             status,
             variants: hasVariants ? variants : [],
@@ -456,7 +457,7 @@ export default function Dashboard() {
         const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
         if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); return; }
 
-        for (let i = 1; i < lines.length && rows.length < remaining; i++) {
+        for (let i = 1; i < lines.length; i++) {
           const cols = parseCsvLine(lines[i]);
           const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
           if (!name || !Number.isFinite(price) || price < 0) { errors++; continue; }
@@ -470,14 +471,15 @@ export default function Dashboard() {
             in_stock: true,
             status: "published",
             variants: [],
+            _imageSrcs: [],
             sort_order: products.length + rows.length,
           });
         }
       }
 
       if (rows.length > 0) {
-        const imageSrcs = rows.map((r) => r._imageSrc as string | null);
-        const cleanRows = rows.map(({ _imageSrc: _i, ...rest }) => rest);
+        const allImageSrcs = rows.map((r) => r._imageSrcs as string[]);
+        const cleanRows = rows.map(({ _imageSrcs: _i, ...rest }) => rest);
 
         const { data, error } = await supabase.from("products").insert(cleanRows).select();
         if (error) { setCsvResult("Import failed: " + error.message); return; }
@@ -485,33 +487,41 @@ export default function Dashboard() {
           added = data.length;
           const inserted = [...data];
           if (isShopify) {
-            setCsvResult("Importing images… (0/" + inserted.length + ")");
+            let totalImages = allImageSrcs.reduce((s, a) => s + a.length, 0);
+            let doneImages = 0;
+            setCsvResult("Importing images… (0/" + totalImages + ")");
             for (let i = 0; i < inserted.length; i++) {
-              const src = imageSrcs[i];
-              if (!src) continue;
-              try {
-                const resp = await fetch(src);
-                if (!resp.ok) continue;
-                const blob = await resp.blob();
-                const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-                const ext = mimeToExt[blob.type] || "jpg";
-                const path = `${seller.id}/${inserted[i].id}/csv-0.${ext}`;
-                const { error: upErr } = await supabase.storage.from("product-images").upload(path, blob, { contentType: blob.type, upsert: true });
-                if (upErr) continue;
-                const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
-                const url = urlData.publicUrl;
-                await supabase.from("products").update({ image_url: url, images: [url] }).eq("id", inserted[i].id);
-                inserted[i] = { ...inserted[i], image_url: url, images: [url] };
-              } catch { /* skip failed images */ }
-              setCsvResult("Importing images… (" + (i + 1) + "/" + inserted.length + ")");
+              const srcs = allImageSrcs[i];
+              if (!srcs || srcs.length === 0) continue;
+              const uploadedUrls: string[] = [];
+              for (let j = 0; j < srcs.length; j++) {
+                try {
+                  const resp = await fetch(srcs[j]);
+                  if (!resp.ok) { doneImages++; continue; }
+                  const blob = await resp.blob();
+                  const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+                  const ext = mimeToExt[blob.type] || "jpg";
+                  const path = `${seller.id}/${inserted[i].id}/csv-${j}.${ext}`;
+                  const { error: upErr } = await supabase.storage.from("product-images").upload(path, blob, { contentType: blob.type, upsert: true });
+                  if (!upErr) {
+                    const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+                    uploadedUrls.push(urlData.publicUrl);
+                  }
+                } catch { /* skip */ }
+                doneImages++;
+                setCsvResult("Importing images… (" + doneImages + "/" + totalImages + ")");
+              }
+              if (uploadedUrls.length > 0) {
+                await supabase.from("products").update({ image_url: uploadedUrls[0], images: uploadedUrls }).eq("id", inserted[i].id);
+                inserted[i] = { ...inserted[i], image_url: uploadedUrls[0], images: uploadedUrls };
+              }
             }
           }
           setProducts((prev) => [...inserted, ...prev]);
         }
       }
       const formatStr = isShopify ? " (Shopify)" : "";
-      const skipped = Math.max(0, (isShopify ? 0 : lines.length - 1) - remaining);
-      setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + formatStr + (errors > 0 ? ", " + errors + " skipped (invalid)" : "") + (skipped > 0 ? ", " + skipped + " skipped (plan limit)" : "") + ".");
+      setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + formatStr + (errors > 0 ? ", " + errors + " skipped (invalid)" : "") + ".");
     } catch (e: any) {
       setCsvResult("Couldn't read CSV: " + (e?.message || "unknown error"));
     } finally {
@@ -549,10 +559,8 @@ export default function Dashboard() {
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
   // Pre-launch: one plan, deliberate limits matching the landing page promise.
-  // 20 products + 5 photos each caps storage cost; 10 collections is generous-enough
-  // organisation. Higher counts unlock on a future Pro tier.
-  const planLimits = { products: 20, images: 5, collections: 10 };
-  const canAddProduct = publishedCount + draftCount < planLimits.products;
+  const planLimits = { products: 999, images: 10, collections: 10 };
+  const canAddProduct = true;
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;
 
