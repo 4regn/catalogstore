@@ -198,7 +198,7 @@ export default function CheckoutPage() {
 
     if (da.applies_to === "collection") {
       // Match collection names to products, then match cart items
-      const eligibleNames = sellerProducts.filter((p) => da.collection_names?.includes(p.category)).map((p) => p.name.toLowerCase());
+      const eligibleNames = sellerProducts.filter((p) => (p.category || "").split(",").some((c: string) => da.collection_names?.includes(c.trim()))).map((p) => p.name.toLowerCase());
       const eligibleTotal = cart.filter((i) => eligibleNames.includes(i.name.toLowerCase())).reduce((s, i) => s + i.price * i.qty, 0);
       return da.type === "percentage" ? eligibleTotal * (da.value / 100) : Math.min(da.value, eligibleTotal);
     }
@@ -229,7 +229,7 @@ export default function CheckoutPage() {
       if (!hasEligible) { setDiscountError("No eligible products in your cart for this code"); setApplyingDiscount(false); return; }
     }
     if ((data.applies_to === "collection") && data.collection_names?.length > 0) {
-      const eligibleNames = sellerProducts.filter((p) => data.collection_names.includes(p.category)).map((p) => p.name.toLowerCase());
+      const eligibleNames = sellerProducts.filter((p) => (p.category || "").split(",").some((c: string) => data.collection_names.includes(c.trim()))).map((p) => p.name.toLowerCase());
       const hasEligible = cart.some((i) => eligibleNames.includes(i.name.toLowerCase()));
       if (!hasEligible) { setDiscountError("No products from eligible collections in your cart"); setApplyingDiscount(false); return; }
     }

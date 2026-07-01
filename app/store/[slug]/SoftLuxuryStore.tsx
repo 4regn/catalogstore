@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams } from "next/navigation";
 
+const pInCat = (p: { category: string }, cat: string) =>
+  (p.category || "").split(",").map((c) => c.trim()).includes(cat);
+
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
   primary_color: string; logo_url: string; banner_url: string; tagline: string; description: string;
@@ -176,9 +179,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"];
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
   const policyItems = livePolicyItems ?? (cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout for a personal experience." }]);
-  const cats = ["All", ...collections.filter((c) => products.some((p) => p.category === c))];
+  const cats = ["All", ...collections.filter((c) => products.some((p) => pInCat(p, c)))];
   const filtered = (() => {
-    let list = activeCategory === "All" ? [...products] : products.filter((p) => p.category === activeCategory);
+    let list = activeCategory === "All" ? [...products] : products.filter((p) => pInCat(p, activeCategory));
     if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
     else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
     else if (productSort === "latest") list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -439,8 +442,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>Shop by Collection</h2>
             <div className="sl-cols-g" style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(collections.length, 3) + ", 1fr)", gap: 16 }}>
               {collections.slice(0, 3).map((col, i) => {
-                const count = products.filter((p) => p.category === col).length;
-                const colProduct = products.find((p) => p.category === col && p.image_url);
+                const count = products.filter((p) => pInCat(p, col)).length;
+                const colProduct = products.find((p) => pInCat(p, col) && p.image_url);
                 return (
                   <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "relative", aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", cursor: "pointer" }}>
                     {colProduct?.image_url ? (

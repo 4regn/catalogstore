@@ -63,14 +63,13 @@ export default async function CollectionPage({
         .eq("in_stock", true)
         .eq("status", "published")
         .not("category", "is", null);
-      const cats = Array.from(new Set((distinctCats ?? []).map((r: { category: string }) => r.category).filter(Boolean)));
+      const cats = Array.from(new Set((distinctCats ?? []).flatMap((r: { category: string }) => (r.category || "").split(",").map((c) => c.trim())).filter(Boolean)));
       matched = cats.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
     }
 
     if (!matched) notFound();
   }
 
-  // Pull only the products in this collection — saves bytes vs. loading all and filtering client-side.
   const productsQuery = supabaseAdmin
     .from("products")
     .select(PRODUCT_COLUMNS)
@@ -80,7 +79,9 @@ export default async function CollectionPage({
     .order("sort_order", { ascending: true });
 
   const [productsRes, discountsRes] = await Promise.all([
-    isAll ? productsQuery : productsQuery.eq("category", matched!),
+    isAll
+      ? productsQuery
+      : productsQuery.like("category", `%${matched!}%`),
     supabaseAdmin
       .from("discount_codes")
       .select(DISCOUNT_COLUMNS)
@@ -90,10 +91,16 @@ export default async function CollectionPage({
       .not("expires_at", "is", null),
   ]);
 
+  const collectionProducts = isAll
+    ? (productsRes.data ?? [])
+    : (productsRes.data ?? []).filter((p: any) =>
+        (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
+      );
+
   return (
     <Heirloom
       initialSeller={seller}
-      initialProducts={productsRes.data ?? []}
+      initialProducts={collectionProducts}
       initialDiscountCodes={discountsRes.data ?? []}
       mode="collection"
       collectionName={isAll ? "All Products" : matched!}

@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams } from "next/navigation";
 
+const pInCat = (p: { category: string }, cat: string) =>
+  (p.category || "").split(",").map((c) => c.trim()).includes(cat);
+
 /* ─── TYPES ─────────────────────────────────────────────── */
 interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string;
@@ -312,7 +315,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
   /* ─── DERIVED ─── */
   const categories = ["All", ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
   const filtered = (() => {
-    let list = activeCategory === "All" ? [...products] : products.filter(p => p.category === activeCategory);
+    let list = activeCategory === "All" ? [...products] : products.filter(p => pInCat(p, activeCategory));
     if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
     else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
     else if (productSort === "price-low") list.sort((a, b) => a.price - b.price);
@@ -882,8 +885,8 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                 <div key={i} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, cursor: "pointer", flexShrink: 0 }}>
                   <div style={{ width: 180, height: 180, borderRadius: "50%", overflow: "hidden", border: `1px solid ${border}`, background: bgCard, display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.4s, box-shadow 0.4s", boxShadow: activeCategory === cat ? `0 0 40px rgba(196,162,101,0.15)` : "none", borderColor: activeCategory === cat ? gold : border }}>
-                    {products.find(p => p.category === cat)?.image_url ? (
-                      <img src={products.find(p => p.category === cat)!.image_url} alt={cat} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.6s ease" }} />
+                    {products.find(p => pInCat(p, cat))?.image_url ? (
+                      <img src={products.find(p => pInCat(p, cat))!.image_url} alt={cat} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.85)", transition: "transform 0.6s ease" }} />
                     ) : (
                       <span style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 18, color: textMuted }}>◆</span>
                     )}
@@ -1016,8 +1019,8 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
               </div>
               <div className="collections-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(categories.filter(c => c !== "All").length, 4)}, 1fr)`, gap: 28 }}>
                 {orderedCats.slice(0, 4).map((cat, i) => {
-                  const catImg = products.find(p => p.category === cat)?.image_url;
-                  const catCount = products.filter(p => p.category === cat).length;
+                  const catImg = products.find(p => pInCat(p, cat))?.image_url;
+                  const catCount = products.filter(p => pInCat(p, cat)).length;
                   return (
                     <div key={i} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
                       style={{ cursor: "pointer", position: "relative" }}>

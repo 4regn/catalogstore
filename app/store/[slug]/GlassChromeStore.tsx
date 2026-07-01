@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams } from "next/navigation";
 
+const pInCat = (p: { category: string }, cat: string) =>
+  (p.category || "").split(",").map((c) => c.trim()).includes(cat);
+
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
   primary_color: string; logo_url: string; banner_url: string; tagline: string; description: string;
@@ -176,9 +179,9 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"];
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Every piece quality-checked" }, { icon: "\u2708", title: "Fast Shipping", desc: "Nationwide 2-5 days" }, { icon: "\u21BA", title: "Easy Returns", desc: "30-day return policy" }, { icon: "\u26A1", title: "Secure Payments", desc: "Card, EFT & WhatsApp" }];
   const policyItems = livePolicyItems ?? (cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard R65 nationwide. Free over R599. Express available." }, { title: "Returns", desc: "30-day returns on unworn items in original packaging." }, { title: "Payment", desc: "Visa, Mastercard, EFT. All transactions SSL secured." }]);
-  const cats = ["All", ...collections.filter((c) => products.some((p) => p.category === c))];
+  const cats = ["All", ...collections.filter((c) => products.some((p) => pInCat(p, c)))];
   const filtered = (() => {
-    let list = activeCategory === "All" ? [...products] : products.filter((p) => p.category === activeCategory);
+    let list = activeCategory === "All" ? [...products] : products.filter((p) => pInCat(p, activeCategory));
     if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
     else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
     else if (productSort === "latest") list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -456,8 +459,8 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
             <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 50 }}>Collections</h2>
             <div className="gc-cols" style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(collections.length, 3) + ", 1fr)", gap: 16 }}>
               {collections.slice(0, 3).map((col) => {
-                const count = products.filter((p) => p.category === col).length;
-                const colProduct = products.find((p) => p.category === col && p.image_url);
+                const count = products.filter((p) => pInCat(p, col)).length;
+                const colProduct = products.find((p) => pInCat(p, col) && p.image_url);
                 return (
                   <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "relative", aspectRatio: "3/4", borderRadius: 12, overflow: "hidden", cursor: "pointer", background: "#0b0b0f", border: "1px solid " + PB }}>
                     {colProduct?.image_url ? <img src={colProduct.image_url} alt={col} onError={hideOnError} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.4) saturate(0.7)", transition: "transform 0.6s" }} /> : <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg, #14141a, #0a0a0e)" }} />}

@@ -5,6 +5,9 @@ import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
+const pInCat = (p: { category: string }, cat: string) =>
+  (p.category || "").split(",").map((c) => c.trim()).includes(cat);
+
 /* ─── TYPES ─────────────────────────────────────────────── */
 interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string;
@@ -371,7 +374,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   };
 
   /* ─── DERIVED ─── */
-  const allCategories = ["All", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
+  const allCategories = ["All", ...Array.from(new Set(products.flatMap((p) => (p.category || "").split(",").map((c) => c.trim()).filter(Boolean))))];
   const categoryList = allCategories.filter((c) => c !== "All").slice(0, 4);
   // Hamburger menu sourced from the seller's full collections list so it stays consistent
   // across home and collection pages (where `products` only contains one collection).
@@ -382,7 +385,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
   const filtered = isCollectionView
     ? products
-    : (activeCategory === "All" ? products : products.filter((p) => p.category === activeCategory));
+    : (activeCategory === "All" ? products : products.filter((p) => pInCat(p, activeCategory)));
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? 800;
@@ -478,10 +481,10 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
   /* ─── CATEGORY IMAGE: first product image in that category ─── */
   const catImage = (cat: string) => {
-    const p = products.find((p) => p.category === cat && p.image_url);
+    const p = products.find((p) => pInCat(p, cat) && p.image_url);
     return p?.image_url || null;
   };
-  const catCount = (cat: string) => products.filter((p) => p.category === cat).length;
+  const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
 
   /* ─── IMAGE FALLBACK PATTERNS ─── */
   const imgPatternIdx = (i: number) => (i % 8) + 1;

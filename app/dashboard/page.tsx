@@ -6,6 +6,16 @@ import { useRouter } from "next/navigation";
 import { revalidateStore } from "../actions/revalidate-store";
 import Spinner from "../components/Spinner";
 
+const productInCat = (cat: string, product: { category: string }) =>
+  (product.category || "").split(",").map((c) => c.trim()).filter(Boolean).includes(cat);
+const addCat = (current: string, col: string) => {
+  const cats = (current || "").split(",").map((c) => c.trim()).filter(Boolean);
+  if (!cats.includes(col)) cats.push(col);
+  return cats.join(",");
+};
+const removeCat = (current: string, col: string) =>
+  (current || "").split(",").map((c) => c.trim()).filter((c) => c && c !== col).join(",");
+
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 
 interface SocialLinks {
@@ -721,7 +731,7 @@ export default function Dashboard() {
             {selectedCollection ? (
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 900, textTransform: "uppercase" as const, marginBottom: 4 }}>{selectedCollection}</h2>
-                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.25)", marginBottom: 20 }}>{products.filter((p) => p.category === selectedCollection && (p.status || "published") !== "trashed").length} products in this collection</p>
+                <p style={{ fontSize: 13, color: "rgba(245,245,245,0.25)", marginBottom: 20 }}>{products.filter((p) => productInCat(selectedCollection!, p) && (p.status || "published") !== "trashed").length} products in this collection</p>
                 <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const }}>
                   {[{ k: "manual", l: "Manual" }, { k: "az", l: "A-Z" }, { k: "za", l: "Z-A" }, { k: "latest", l: "Latest" }, { k: "oldest", l: "Oldest" }, { k: "price-asc", l: "Price Low" }, { k: "price-desc", l: "Price High" }].map((s) => (
                     <button key={s.k} onClick={() => setProductSort(s.k)} style={{ padding: "6px 14px", borderRadius: 100, background: productSort === s.k ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.02)", border: productSort === s.k ? "1px solid rgba(255,107,53,0.15)" : "1px solid rgba(255,255,255,0.06)", color: productSort === s.k ? N : "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{s.l}</button>
@@ -729,7 +739,7 @@ export default function Dashboard() {
                 </div>
                 <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 12, color: N }}>Products in Collection</h3>
                 {(() => {
-                  let inCollection = products.filter((p) => p.category === selectedCollection && (p.status || "published") !== "trashed");
+                  let inCollection = products.filter((p) => productInCat(selectedCollection!, p) && (p.status || "published") !== "trashed");
                   if (productSort === "az") inCollection.sort((a, b) => a.name.localeCompare(b.name));
                   else if (productSort === "za") inCollection.sort((a, b) => b.name.localeCompare(a.name));
                   else if (productSort === "price-asc") inCollection.sort((a, b) => a.price - b.price);
@@ -742,7 +752,7 @@ export default function Dashboard() {
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>R{p.price}</div></div>
                           </div>
-                          <button onClick={async () => { await supabase.from("products").update({ category: "" }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: "" } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                          <button onClick={async () => { const updated = removeCat(p.category, selectedCollection!); await supabase.from("products").update({ category: updated }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: updated } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.12)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
                         </div>
                       ))}
                     </div>
@@ -750,16 +760,16 @@ export default function Dashboard() {
                 })()}
                 <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 12 }}>Add Products</h3>
                 {(() => {
-                  const available = products.filter((p) => p.category !== selectedCollection && (p.status || "published") !== "trashed");
+                  const available = products.filter((p) => !productInCat(selectedCollection!, p) && (p.status || "published") !== "trashed");
                   return available.length === 0 ? <p style={{ fontSize: 13, color: "rgba(245,245,245,0.2)" }}>All products are already in this collection.</p> : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       {available.map((p) => (
                         <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.03)", borderRadius: 10 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />}
-                            <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>{p.category ? "In: " + p.category : "No collection"}</div></div>
+                            <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>{p.category ? "In: " + p.category.split(",").map(c => c.trim()).filter(Boolean).join(", ") : "No collection"}</div></div>
                           </div>
-                          <button onClick={async () => { await supabase.from("products").update({ category: selectedCollection }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: selectedCollection! } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
+                          <button onClick={async () => { const updated = addCat(p.category, selectedCollection!); await supabase.from("products").update({ category: updated }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: updated } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
                         </div>
                       ))}
                     </div>
@@ -777,8 +787,8 @@ export default function Dashboard() {
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {storeCollections.map((col, i) => {
-                      const count = products.filter((p) => p.category === col && (p.status || "published") !== "trashed").length;
-                      const thumb = products.find((p) => p.category === col && p.image_url);
+                      const count = products.filter((p) => productInCat(col, p) && (p.status || "published") !== "trashed").length;
+                      const thumb = products.find((p) => productInCat(col, p) && p.image_url);
                       return (
                         <div key={i} onClick={() => setSelectedCollection(col)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)"}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
