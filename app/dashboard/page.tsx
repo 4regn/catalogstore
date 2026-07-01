@@ -417,47 +417,157 @@ export default function Dashboard() {
   useEffect(() => { if (products.length > 0 && seller) initSortOrders(); }, [products.length > 0 && seller?.id]);
   const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); };
 
+  /* Parse a CSV line correctly, handling quoted fields that may contain commas */
+  const parseCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let cur = ""; let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+        else { inQuote = !inQuote; }
+      } else if (ch === ',' && !inQuote) {
+        result.push(cur.trim()); cur = "";
+      } else { cur += ch; }
+    }
+    result.push(cur.trim());
+    return result;
+  };
+
+  /* Strip HTML tags from Shopify's Body (HTML) field */
+  const stripHtml = (html: string): string =>
+    html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 2000);
+
   const handleCsvUpload = async (file: File) => {
     if (!seller) return;
     setCsvUploading(true); setCsvResult("");
     try {
-      if (file.size > 2 * 1024 * 1024) { setCsvResult("CSV is too large. Please keep it under 2MB."); return; }
+      if (file.size > 5 * 1024 * 1024) { setCsvResult("CSV is too large. Please keep it under 5MB."); return; }
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter((l) => l.trim());
       if (lines.length < 2) { setCsvResult("CSV must have a header row and at least one product."); return; }
-      const header = lines[0].toLowerCase().split(",").map((h) => h.trim().replace(/"/g, ""));
-      const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
-      const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
-      const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
-      const descIdx = header.findIndex((h) => h === "description" || h === "desc");
-      const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
-      if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); return; }
-      let added = 0; let errors = 0;
+
+      const rawHeader = parseCsvLine(lines[0]);
+      const header = rawHeader.map((h) => h.toLowerCase().replace(/"/g, "").trim());
+
+      /* Detect Shopify CSV by presence of Shopify-specific columns */
+      const isShopify = header.includes("handle") && header.includes("variant price");
+
       const planLimitsLocal = seller?.subscription_plan === "pro" ? { products: 100 } : { products: 15 };
       const publishedLocal = products.filter((p) => p.status === "published" || !p.status).length;
       const draftLocal = products.filter((p) => p.status === "draft").length;
       const remaining = planLimitsLocal.products - (publishedLocal + draftLocal);
-      /* Batch all rows in one insert. The old per-row loop did N round-trips
-         and counted products.length once at the start (so all rows ended up
-         with the same sort_order). */
+
+      let added = 0; let errors = 0;
       const rows: any[] = [];
-      for (let i = 1; i < lines.length && rows.length < remaining; i++) {
-        const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-        const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
-        if (!name || !Number.isFinite(price) || price < 0) { errors++; continue; }
-        rows.push({
-          seller_id: seller.id,
-          name: name.slice(0, 200),
-          price,
-          old_price: oldPriceIdx >= 0 && cols[oldPriceIdx] ? (Number.isFinite(parseFloat(cols[oldPriceIdx])) ? parseFloat(cols[oldPriceIdx]) : null) : null,
-          category: catIdx >= 0 ? (cols[catIdx] || null) : null,
-          description: descIdx >= 0 ? (cols[descIdx] || "").slice(0, 2000) : "",
-          in_stock: true,
-          status: "published",
-          variants: [],
-          sort_order: products.length + rows.length,
-        });
+
+      if (isShopify) {
+        /* Shopify CSV: one row per variant, products span multiple rows sharing the same Handle.
+           First row for a handle has: Title, Body (HTML), Type, Tags, Vendor, Image Src, Status.
+           All rows for a handle have: Option1 Name, Option1 Value, Option2 Name, Option2 Value,
+           Variant Price, Variant Compare At Price, Variant Inventory Qty. */
+        const col = (row: string[], name: string) => {
+          const idx = header.indexOf(name);
+          return idx >= 0 ? (row[idx] || "").trim() : "";
+        };
+
+        /* Group rows by Handle */
+        const handleMap = new Map<string, string[][]>();
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parseCsvLine(lines[i]);
+          const handle = col(cols, "handle");
+          if (!handle) continue;
+          if (!handleMap.has(handle)) handleMap.set(handle, []);
+          handleMap.get(handle)!.push(cols);
+        }
+
+        for (const [, variantRows] of handleMap) {
+          if (rows.length >= remaining) break;
+          const first = variantRows[0];
+          const title = col(first, "title");
+          if (!title) { errors++; continue; }
+
+          /* Use first variant price as the product price */
+          const priceStr = col(first, "variant price");
+          const price = parseFloat(priceStr);
+          if (!Number.isFinite(price) || price < 0) { errors++; continue; }
+
+          const compareStr = col(first, "variant compare at price");
+          const comparePrice = parseFloat(compareStr);
+          const old_price = Number.isFinite(comparePrice) && comparePrice > price ? comparePrice : null;
+
+          const bodyHtml = col(first, "body (html)");
+          const description = bodyHtml ? stripHtml(bodyHtml) : "";
+          const category = col(first, "type") || col(first, "product category") || null;
+          const imageSrc = col(first, "image src") || null;
+          const statusRaw = col(first, "status").toLowerCase();
+          const status = statusRaw === "draft" ? "draft" : "published";
+
+          /* Build variants array if there are options */
+          const opt1Name = col(first, "option1 name");
+          const opt2Name = col(first, "option2 name");
+          const hasVariants = opt1Name && opt1Name.toLowerCase() !== "title";
+          const variants: { name: string; price?: number; in_stock: boolean }[] = [];
+
+          if (hasVariants) {
+            for (const vRow of variantRows) {
+              const v1 = col(vRow, "option1 value");
+              const v2 = col(vRow, "option2 value");
+              const vPriceStr = col(vRow, "variant price");
+              const vPrice = parseFloat(vPriceStr);
+              const variantName = [v1, v2].filter(Boolean).join(" / ");
+              if (variantName) {
+                variants.push({
+                  name: variantName,
+                  price: Number.isFinite(vPrice) ? vPrice : undefined,
+                  in_stock: true,
+                });
+              }
+            }
+          }
+
+          rows.push({
+            seller_id: seller.id,
+            name: title.slice(0, 200),
+            price,
+            old_price,
+            category,
+            description,
+            image: imageSrc,
+            in_stock: true,
+            status,
+            variants: hasVariants ? variants : [],
+            sort_order: products.length + rows.length,
+          });
+        }
+      } else {
+        /* Generic CSV: simple flat format with name + price columns */
+        const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
+        const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
+        const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
+        const descIdx = header.findIndex((h) => h === "description" || h === "desc");
+        const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
+        if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); return; }
+
+        for (let i = 1; i < lines.length && rows.length < remaining; i++) {
+          const cols = parseCsvLine(lines[i]);
+          const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
+          if (!name || !Number.isFinite(price) || price < 0) { errors++; continue; }
+          rows.push({
+            seller_id: seller.id,
+            name: name.slice(0, 200),
+            price,
+            old_price: oldPriceIdx >= 0 && cols[oldPriceIdx] ? (Number.isFinite(parseFloat(cols[oldPriceIdx])) ? parseFloat(cols[oldPriceIdx]) : null) : null,
+            category: catIdx >= 0 ? (cols[catIdx] || null) : null,
+            description: descIdx >= 0 ? (cols[descIdx] || "").slice(0, 2000) : "",
+            in_stock: true,
+            status: "published",
+            variants: [],
+            sort_order: products.length + rows.length,
+          });
+        }
       }
+
       if (rows.length > 0) {
         const { data, error } = await supabase.from("products").insert(rows).select();
         if (error) { setCsvResult("Import failed: " + error.message); return; }
@@ -466,8 +576,9 @@ export default function Dashboard() {
           setProducts((prev) => [...data, ...prev]);
         }
       }
-      const skipped = Math.max(0, lines.length - 1 - remaining);
-      setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + (errors > 0 ? ", " + errors + " row" + (errors > 1 ? "s" : "") + " skipped (invalid)" : "") + (skipped > 0 ? ", " + skipped + " skipped (plan limit)" : "") + ".");
+      const formatStr = isShopify ? " (Shopify)" : "";
+      const skipped = Math.max(0, (isShopify ? 0 : lines.length - 1) - remaining);
+      setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + formatStr + (errors > 0 ? ", " + errors + " skipped (invalid)" : "") + (skipped > 0 ? ", " + skipped + " skipped (plan limit)" : "") + ".");
     } catch (e: any) {
       setCsvResult("Couldn't read CSV: " + (e?.message || "unknown error"));
     } finally {
