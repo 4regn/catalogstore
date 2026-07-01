@@ -338,200 +338,40 @@ export default function Dashboard() {
   useEffect(() => { if (products.length > 0 && seller) initSortOrders(); }, [products.length > 0 && seller?.id]);
   const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); revalidateMyStore(); };
 
-  const parseCsvLine = (line: string): string[] => {
-    const result: string[] = [];
-    let cur = ""; let inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
-        else { inQuote = !inQuote; }
-      } else if (ch === ',' && !inQuote) {
-        result.push(cur.trim()); cur = "";
-      } else { cur += ch; }
-    }
-    result.push(cur.trim());
-    return result;
-  };
-
-  const stripHtml = (html: string): string =>
-    html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 2000);
-
   const handleCsvUpload = async (file: File) => {
     if (!seller) return;
     setCsvUploading(true); setCsvResult("");
-    let added = 0;
     try {
-      if (file.size > 5 * 1024 * 1024) { setCsvResult("CSV is too large. Please keep it under 5MB."); return; }
-      const text = await file.text();
-      const lines = text.split(/\r?\n/).filter((l) => l.trim());
-      if (lines.length < 2) { setCsvResult("CSV must have a header row and at least one product."); return; }
+      if (file.size > 10 * 1024 * 1024) { setCsvResult("CSV is too large. Please keep it under 10MB."); return; }
+      setCsvResult("Uploading and processing CSV…");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) { setCsvResult("Not authenticated. Please refresh and try again."); return; }
 
-      const rawHeader = parseCsvLine(lines[0]);
-      const header = rawHeader.map((h) => h.toLowerCase().replace(/"/g, "").trim());
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("seller_id", seller.id);
+      formData.append("access_token", token);
+      formData.append("existing_count", String(products.length));
 
-      const isShopify = header.includes("handle") && header.includes("variant price");
+      const resp = await fetch("/api/csv-import", { method: "POST", body: formData });
+      const result = await resp.json();
 
-      let errors = 0;
-      const rows: any[] = [];
+      if (!resp.ok) { setCsvResult(result.error || "Import failed"); return; }
 
-      if (isShopify) {
-        const col = (row: string[], name: string) => {
-          const idx = header.indexOf(name);
-          return idx >= 0 ? (row[idx] || "").trim() : "";
-        };
-
-        const handleMap = new Map<string, string[][]>();
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseCsvLine(lines[i]);
-          const handle = col(cols, "handle");
-          if (!handle) continue;
-          if (!handleMap.has(handle)) handleMap.set(handle, []);
-          handleMap.get(handle)!.push(cols);
-        }
-
-        for (const [, variantRows] of handleMap) {
-          const first = variantRows[0];
-          const title = col(first, "title");
-          if (!title) { errors++; continue; }
-
-          const priceStr = col(first, "variant price");
-          const price = parseFloat(priceStr);
-          if (!Number.isFinite(price) || price < 0) { errors++; continue; }
-
-          const compareStr = col(first, "variant compare at price");
-          const comparePrice = parseFloat(compareStr);
-          const old_price = Number.isFinite(comparePrice) && comparePrice > price ? comparePrice : null;
-
-          const bodyHtml = col(first, "body (html)");
-          const description = bodyHtml ? stripHtml(bodyHtml) : "";
-          const category = col(first, "type") || col(first, "product category") || null;
-          const statusRaw = col(first, "status").toLowerCase();
-          const status = statusRaw === "draft" ? "draft" : "published";
-
-          /* Collect ALL unique image URLs from every row for this handle */
-          const allImages: string[] = [];
-          const seenUrls = new Set<string>();
-          for (const vRow of variantRows) {
-            const img = col(vRow, "image src");
-            if (img && !seenUrls.has(img)) { seenUrls.add(img); allImages.push(img); }
-          }
-
-          const opt1Name = col(first, "option1 name");
-          const opt2Name = col(first, "option2 name");
-          const opt3Name = col(first, "option3 name");
-          const hasVariants = opt1Name && opt1Name.toLowerCase() !== "title";
-          const variants: { name: string; options: string[] }[] = [];
-
-          if (hasVariants) {
-            const optGroups: { [key: string]: Set<string> } = {};
-            for (const vRow of variantRows) {
-              if (opt1Name) { if (!optGroups[opt1Name]) optGroups[opt1Name] = new Set(); const v = col(vRow, "option1 value"); if (v) optGroups[opt1Name].add(v); }
-              if (opt2Name) { if (!optGroups[opt2Name]) optGroups[opt2Name] = new Set(); const v = col(vRow, "option2 value"); if (v) optGroups[opt2Name].add(v); }
-              if (opt3Name) { if (!optGroups[opt3Name]) optGroups[opt3Name] = new Set(); const v = col(vRow, "option3 value"); if (v) optGroups[opt3Name].add(v); }
-            }
-            for (const [name, opts] of Object.entries(optGroups)) {
-              if (opts.size > 0) variants.push({ name, options: Array.from(opts) });
-            }
-          }
-
-          rows.push({
-            seller_id: seller.id,
-            name: title.slice(0, 200),
-            price,
-            old_price,
-            category,
-            description,
-            _imageSrcs: allImages,
-            in_stock: true,
-            status,
-            variants: hasVariants ? variants : [],
-            sort_order: products.length + rows.length,
-          });
-        }
-      } else {
-        const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
-        const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
-        const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
-        const descIdx = header.findIndex((h) => h === "description" || h === "desc");
-        const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
-        if (nameIdx < 0 || priceIdx < 0) { setCsvResult("CSV must have 'name' and 'price' columns. Found: " + header.join(", ")); return; }
-
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseCsvLine(lines[i]);
-          const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
-          if (!name || !Number.isFinite(price) || price < 0) { errors++; continue; }
-          rows.push({
-            seller_id: seller.id,
-            name: name.slice(0, 200),
-            price,
-            old_price: oldPriceIdx >= 0 && cols[oldPriceIdx] ? (Number.isFinite(parseFloat(cols[oldPriceIdx])) ? parseFloat(cols[oldPriceIdx]) : null) : null,
-            category: catIdx >= 0 ? (cols[catIdx] || null) : null,
-            description: descIdx >= 0 ? (cols[descIdx] || "").slice(0, 2000) : "",
-            in_stock: true,
-            status: "published",
-            variants: [],
-            _imageSrcs: [],
-            sort_order: products.length + rows.length,
-          });
-        }
+      if (result.products) {
+        setProducts((prev) => [...result.products, ...prev]);
       }
-
-      if (rows.length > 0) {
-        const allImageSrcs = rows.map((r) => r._imageSrcs as string[]);
-        const cleanRows = rows.map(({ _imageSrcs: _i, ...rest }) => rest);
-
-        const { data, error } = await supabase.from("products").insert(cleanRows).select();
-        if (error) { setCsvResult("Import failed: " + error.message); return; }
-        if (data) {
-          added = data.length;
-          const inserted = [...data];
-          if (isShopify) {
-            let totalImages = allImageSrcs.reduce((s, a) => s + a.length, 0);
-            let doneImages = 0;
-            setCsvResult("Importing images… (0/" + totalImages + ")");
-            for (let i = 0; i < inserted.length; i++) {
-              const srcs = allImageSrcs[i];
-              if (!srcs || srcs.length === 0) continue;
-              const uploadedUrls: string[] = [];
-              for (let j = 0; j < srcs.length; j++) {
-                try {
-                  const resp = await fetch("/api/fetch-image", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ url: srcs[j] }),
-                  });
-                  if (!resp.ok) { doneImages++; continue; }
-                  const blob = await resp.blob();
-                  const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-                  const ext = mimeToExt[blob.type] || "jpg";
-                  const path = `${seller.id}/${inserted[i].id}/csv-${j}.${ext}`;
-                  const { error: upErr } = await supabase.storage.from("product-images").upload(path, blob, { contentType: blob.type, upsert: true });
-                  if (!upErr) {
-                    const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
-                    uploadedUrls.push(urlData.publicUrl);
-                  }
-                } catch { /* skip */ }
-                doneImages++;
-                setCsvResult("Importing images… (" + doneImages + "/" + totalImages + ")");
-              }
-              if (uploadedUrls.length > 0) {
-                await supabase.from("products").update({ image_url: uploadedUrls[0], images: uploadedUrls }).eq("id", inserted[i].id);
-                inserted[i] = { ...inserted[i], image_url: uploadedUrls[0], images: uploadedUrls };
-              }
-            }
-          }
-          setProducts((prev) => [...inserted, ...prev]);
-        }
-      }
-      const formatStr = isShopify ? " (Shopify)" : "";
-      setCsvResult(added + " product" + (added !== 1 ? "s" : "") + " imported" + formatStr + (errors > 0 ? ", " + errors + " skipped (invalid)" : "") + ".");
+      const fmt = result.isShopify ? " (Shopify)" : "";
+      const imgInfo = result.imagesUploaded > 0 ? `, ${result.imagesUploaded} images uploaded` : "";
+      const imgFail = result.imagesFailed > 0 ? `, ${result.imagesFailed} images failed` : "";
+      setCsvResult(result.added + " product" + (result.added !== 1 ? "s" : "") + " imported" + fmt + (result.errors > 0 ? ", " + result.errors + " skipped (invalid)" : "") + imgInfo + imgFail + ".");
+      if (result.added > 0) revalidateMyStore();
     } catch (e: any) {
-      setCsvResult("Couldn't read CSV: " + (e?.message || "unknown error"));
+      setCsvResult("Couldn't import CSV: " + (e?.message || "unknown error"));
     } finally {
       setCsvUploading(false);
     }
-    if (added > 0) revalidateMyStore();
   };
 
   if (loading) return <Spinner fullscreen label="Loading dashboard" />;
