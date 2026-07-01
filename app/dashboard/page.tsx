@@ -496,7 +496,11 @@ export default function Dashboard() {
               const uploadedUrls: string[] = [];
               for (let j = 0; j < srcs.length; j++) {
                 try {
-                  const resp = await fetch(srcs[j]);
+                  const resp = await fetch("/api/fetch-image", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url: srcs[j] }),
+                  });
                   if (!resp.ok) { doneImages++; continue; }
                   const blob = await resp.blob();
                   const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
