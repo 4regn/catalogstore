@@ -104,6 +104,7 @@ export default function Dashboard() {
   const [formPreviews, setFormPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [dragImgIdx, setDragImgIdx] = useState<number | null>(null);
+  const [touchDropIdx, setTouchDropIdx] = useState<number | null>(null);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formSaving, setFormSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -264,6 +265,16 @@ export default function Dashboard() {
     const newFiles: File[] = []; const newPreviews: string[] = [];
     combined.forEach((url, i) => { if (combinedFiles[i]) { newFiles.push(combinedFiles[i]); newPreviews.push(url); } });
     setFormImages(newFiles); setFormPreviews(newPreviews);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (dragImgIdx === null) return;
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)?.closest("[data-imgidx]") as HTMLElement | null;
+    setTouchDropIdx(el ? parseInt(el.dataset.imgidx!, 10) : null);
+  };
+  const handleTouchEnd = () => {
+    if (dragImgIdx !== null && touchDropIdx !== null && dragImgIdx !== touchDropIdx) reorderImages(dragImgIdx, touchDropIdx);
+    setDragImgIdx(null); setTouchDropIdx(null);
   };
 
   // ── PARALLEL IMAGE UPLOAD ────────────────────────────────────────────────────
@@ -575,12 +586,16 @@ export default function Dashboard() {
                     {[...existingImages.map((url, i) => ({ type: "existing" as const, src: url, idx: i })), ...formPreviews.map((p, i) => ({ type: "new" as const, src: p, idx: i }))].map((img, combinedIdx) => (
                       <div
                         key={img.type + img.idx}
+                        data-imgidx={combinedIdx}
                         draggable
                         onDragStart={(e) => { setDragImgIdx(combinedIdx); e.dataTransfer.effectAllowed = "move"; }}
                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
                         onDrop={(e) => { e.preventDefault(); if (dragImgIdx !== null && dragImgIdx !== combinedIdx) reorderImages(dragImgIdx, combinedIdx); setDragImgIdx(null); }}
                         onDragEnd={() => setDragImgIdx(null)}
-                        style={{ width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" as const, border: dragImgIdx === combinedIdx ? "2px solid " + N : "1px solid rgba(255,255,255,0.08)", cursor: "grab", opacity: dragImgIdx === combinedIdx ? 0.5 : 1, transition: "opacity 0.15s, border-color 0.15s" }}
+                        onTouchStart={() => setDragImgIdx(combinedIdx)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        style={{ width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" as const, border: (dragImgIdx === combinedIdx || touchDropIdx === combinedIdx) ? "2px solid " + N : "1px solid rgba(255,255,255,0.08)", cursor: "grab", opacity: dragImgIdx === combinedIdx ? 0.5 : 1, transition: "opacity 0.15s, border-color 0.15s", touchAction: "none" }}
                       >
                         <img src={img.src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" as const, pointerEvents: "none" }} />
                         <button type="button" onClick={() => img.type === "existing" ? removeExistingImage(img.idx) : removeNewImage(img.idx)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>
