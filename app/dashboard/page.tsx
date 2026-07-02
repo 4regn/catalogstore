@@ -103,6 +103,7 @@ export default function Dashboard() {
   const [formImages, setFormImages] = useState<File[]>([]);
   const [formPreviews, setFormPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [dragImgIdx, setDragImgIdx] = useState<number | null>(null);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formSaving, setFormSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -250,6 +251,20 @@ export default function Dashboard() {
   };
   const removeNewImage = (i: number) => { setFormImages((p) => p.filter((_, idx) => idx !== i)); setFormPreviews((p) => p.filter((_, idx) => idx !== i)); };
   const removeExistingImage = (i: number) => setExistingImages((p) => p.filter((_, idx) => idx !== i));
+  const reorderImages = (from: number, to: number) => {
+    if (from === to) return;
+    const eLen = existingImages.length;
+    const combined = [...existingImages, ...formPreviews];
+    const combinedFiles = [...Array(eLen).fill(null), ...formImages];
+    const [movedUrl] = combined.splice(from, 1);
+    const [movedFile] = combinedFiles.splice(from, 1);
+    combined.splice(to, 0, movedUrl);
+    combinedFiles.splice(to, 0, movedFile);
+    setExistingImages(combined.filter((_, i) => !combinedFiles[i]));
+    const newFiles: File[] = []; const newPreviews: string[] = [];
+    combined.forEach((url, i) => { if (combinedFiles[i]) { newFiles.push(combinedFiles[i]); newPreviews.push(url); } });
+    setFormImages(newFiles); setFormPreviews(newPreviews);
+  };
 
   // ── PARALLEL IMAGE UPLOAD ────────────────────────────────────────────────────
   const uploadImages = async (sellerId: string, productId: string): Promise<string[]> => {
@@ -557,12 +572,25 @@ export default function Dashboard() {
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Product Photos (max {maxImages})</label>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, marginTop: 8 }}>
-                    {existingImages.map((url, i) => (<div key={"e" + i} style={{ width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" as const, border: "1px solid rgba(255,255,255,0.08)" }}><img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /><button type="button" onClick={() => removeExistingImage(i)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>{i === 0 && formImages.length === 0 && <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>}</div>))}
-                    {formPreviews.map((p, i) => (<div key={"n" + i} style={{ width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" as const, border: "1px solid rgba(255,255,255,0.08)" }}><img src={p} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} /><button type="button" onClick={() => removeNewImage(i)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>{i === 0 && existingImages.length === 0 && <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>}</div>))}
+                    {[...existingImages.map((url, i) => ({ type: "existing" as const, src: url, idx: i })), ...formPreviews.map((p, i) => ({ type: "new" as const, src: p, idx: i }))].map((img, combinedIdx) => (
+                      <div
+                        key={img.type + img.idx}
+                        draggable
+                        onDragStart={(e) => { setDragImgIdx(combinedIdx); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                        onDrop={(e) => { e.preventDefault(); if (dragImgIdx !== null && dragImgIdx !== combinedIdx) reorderImages(dragImgIdx, combinedIdx); setDragImgIdx(null); }}
+                        onDragEnd={() => setDragImgIdx(null)}
+                        style={{ width: 80, height: 80, borderRadius: 10, overflow: "hidden", position: "relative" as const, border: dragImgIdx === combinedIdx ? "2px solid " + N : "1px solid rgba(255,255,255,0.08)", cursor: "grab", opacity: dragImgIdx === combinedIdx ? 0.5 : 1, transition: "opacity 0.15s, border-color 0.15s" }}
+                      >
+                        <img src={img.src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" as const, pointerEvents: "none" }} />
+                        <button type="button" onClick={() => img.type === "existing" ? removeExistingImage(img.idx) : removeNewImage(img.idx)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>
+                        {combinedIdx === 0 && <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>}
+                      </div>
+                    ))}
                     {totalImageSlots < maxImages && (<button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2 }}><span style={{ fontSize: 20, color: "rgba(245,245,245,0.2)" }}>+</span><span style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Photo</span></button>)}
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: "none" }} />
                   </div>
-                  <p style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 6 }}>First photo is the main product image shown in your store.</p>
+                  <p style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 6 }}>Drag photos to reorder. First photo is the main product image.</p>
                 </div>
 
                 {/* 2. NAME & 3. PRICE */}
