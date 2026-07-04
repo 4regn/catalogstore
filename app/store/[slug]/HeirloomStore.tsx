@@ -388,8 +388,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     : (activeCategory === "All" ? products : products.filter((p) => pInCat(p, activeCategory)));
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
-  const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? 800;
-  const freeShipRem = Math.max(0, FREE_SHIP - cartTotal);
+  const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
+  const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
 
   if (loading) {
     return (
@@ -557,9 +557,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-link:hover{color:var(--ink)}
 .hl-logo{font-family:var(--serif);font-style:italic;font-size:26px;letter-spacing:1px;color:var(--ink);text-decoration:none;line-height:1;justify-self:center}
 .hl-logo img{height:32px;width:auto;display:block}
-.hl-progress{position:fixed;top:0;left:0;right:0;height:2px;z-index:200;background:transparent;overflow:hidden;pointer-events:none}
-.hl-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:30%;background:linear-gradient(90deg,transparent 0%,var(--ink) 50%,transparent 100%);animation:hl-progress 1s ease-in-out infinite}
-@keyframes hl-progress{from{transform:translateX(-100%)}to{transform:translateX(450%)}}
+.hl-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:var(--rule);overflow:hidden;pointer-events:none}
+.hl-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:40%;background:var(--ink);border-radius:0 2px 2px 0;animation:hl-progress 0.8s ease-in-out infinite}
+@keyframes hl-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}
 .hl-bag{font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:var(--ink);border:none;border-bottom:1px solid var(--ink);padding:0 0 1px;background:none;cursor:pointer;font-family:var(--sans)}
 .hl-bag:hover{opacity:0.5}
 .hl-bag-count{display:inline-block;margin-left:4px;font-weight:700}
@@ -816,8 +816,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 }
       `}</style>
 
-      <div className="hl-root">
-        {/* TOP PROGRESS BAR — visible while a server-rendered navigation is in flight. */}
+      <div className="hl-root" style={isNavigating ? { opacity: 0.6, pointerEvents: "none", transition: "opacity 0.2s" } : undefined}>
         {isNavigating && <div className="hl-progress" aria-hidden="true" />}
         {/* TICKER */}
         {(displayTicker.length > 0) && (
@@ -910,7 +909,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 <span className="hl-cart-sub-lbl">Subtotal</span>
                 <span className="hl-cart-sub-amt">{fmt(cartTotal)}</span>
               </div>
-              <p className="hl-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>
+              {FREE_SHIP && <p className="hl-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>}
               <button className="hl-cart-checkout" onClick={goToCheckout}>Checkout</button>
               <button className="hl-cart-cont" onClick={() => setCartOpen(false)}>Continue Browsing</button>
             </div>
@@ -1132,12 +1131,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   >
                     <div className="hl-cat-img">
                       {img ? (
-                        <Image
+                        <img
                           src={img}
                           alt={cat}
-                          fill
-                          sizes="(max-width: 900px) 50vw, 25vw"
-                          style={{ objectFit: "cover", objectPosition: "center" }}
+                          loading="lazy"
+                          decoding="async"
+                          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", transition: "transform 0.6s cubic-bezier(0.16,1,0.3,1)" }}
                         />
                       ) : (
                         <div className={"hl-cat-img-inner " + pat}>
@@ -1175,13 +1174,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     {!promo && !onSale && idx === 0 && <span className="hl-ptag">New</span>}
                     <div className="hl-pimg">
                       {p.image_url ? (
-                        <Image
+                        <img
                           src={p.image_url}
                           alt={p.name}
-                          fill
-                          sizes="(max-width: 600px) 50vw, (max-width: 1200px) 33vw, 25vw"
                           loading="lazy"
-                          style={{ objectFit: "cover", objectPosition: "center", transition: "transform 0.6s cubic-bezier(0.16,1,0.3,1)" }}
+                          decoding="async"
+                          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", transition: "transform 0.6s cubic-bezier(0.16,1,0.3,1)" }}
                           className="hl-pimg-img"
                         />
                       ) : (
@@ -1244,13 +1242,11 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     <button key={p.id} className="hl-flash-card" onClick={() => openProduct(p)}>
                       <div className="hl-flash-img">
                         {p.image_url ? (
-                          <Image
+                          <img
                             src={p.image_url}
                             alt={p.name}
-                            fill
-                            sizes="(max-width: 600px) 100vw, 33vw"
                             loading="lazy"
-                            style={{ objectFit: "cover", objectPosition: "center" }}
+                            style={{ objectFit: "cover", objectPosition: "center", position: "absolute", width: "100%", height: "100%" }}
                             className="hl-flash-img-img"
                           />
                         ) : (

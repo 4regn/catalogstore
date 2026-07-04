@@ -213,14 +213,20 @@ export async function POST(req: NextRequest) {
     status: "pending",
   };
 
-  const { data: inserted, error: insErr } = await getAdmin()
+  let { data: inserted, error: insErr } = await getAdmin()
     .from("orders")
     .insert(orderRow)
     .select("id, order_number, total")
     .single();
 
+  if (insErr?.message?.includes("schema cache")) {
+    const { discount_amount, discount_code, shipping_option, fulfillment_method, ...safeRow } = orderRow;
+    const retry = await getAdmin().from("orders").insert(safeRow).select("id, order_number, total").single();
+    inserted = retry.data;
+    insErr = retry.error;
+  }
+
   if (insErr || !inserted) {
-    /* Roll back the discount reservation if order insert failed */
     if (discountRow?.max_uses) {
       await getAdmin()
         .from("discount_codes")
