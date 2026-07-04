@@ -193,37 +193,41 @@ export async function POST(req: NextRequest) {
 
   const total = Math.max(0, subtotal - discountAmount + shippingCost);
 
-  /* Build the order row */
-  const orderRow: any = {
+  /* Build the order row in layers: core columns that every orders table has,
+     then optional columns that may not exist yet (added later via migrations).
+     If the full insert fails with a schema-cache error we retry with fewer
+     columns, stripping one tier at a time until it works. */
+  const coreRow: any = {
     seller_id: seller.id,
     customer_name: `${customer.firstName} ${customer.lastName}`.trim(),
     customer_email: customer.email,
     customer_phone: customer.phone || null,
     items: lineItems.map(({ id, name, price, qty, variant, image }) => ({ id, name, price, qty, variant, image })),
-    subtotal,
-    discount_code: discountRow?.code || null,
-    discount_amount: discountAmount,
-    shipping_cost: shippingCost,
-    shipping_option: shippingLabel,
     total,
-    fulfillment_method: fulfillment,
     shipping_address: fulfillment === "delivery" ? address : null,
+    shipping_cost: shippingCost,
     payment_method: paymentMethod || "eft",
     payment_status: paymentMethod === "eft" ? "awaiting_payment" : "pending",
     status: "pending",
   };
 
-  let { data: inserted, error: insErr } = await getAdmin()
-    .from("orders")
-    .insert(orderRow)
-    .select("id, order_number, total")
-    .single();
+  const tier1 = { subtotal, fulfillment_method: fulfillment };
+  const tier2 = { discount_code: discountRow?.code || null, discount_amount: discountAmount, shipping_option: shippingLabel };
 
-  if (insErr?.message?.includes("schema cache")) {
-    const { discount_amount, discount_code, shipping_option, fulfillment_method, ...safeRow } = orderRow;
-    const retry = await getAdmin().from("orders").insert(safeRow).select("id, order_number, total").single();
-    inserted = retry.data;
-    insErr = retry.error;
+  const attempts = [
+    { ...coreRow, ...tier1, ...tier2 },
+    { ...coreRow, ...tier1 },
+    coreRow,
+  ];
+
+  let inserted: any = null;
+  let insErr: any = null;
+  for (const row of attempts) {
+    const res = await getAdmin().from("orders").insert(row).select("id, order_number, total").single();
+    inserted = res.data;
+    insErr = res.error;
+    if (!insErr) break;
+    if (!insErr.message?.includes("schema cache")) break;
   }
 
   if (insErr || !inserted) {
