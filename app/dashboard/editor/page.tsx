@@ -223,10 +223,8 @@ export default function StoreEditor() {
   /* Heirloom footer fields -- same pattern as the hero, template-aware. */
   const [footerTagline, setFooterTagline]             = useState("");
   const [footerCol1Label, setFooterCol1Label]         = useState("Shop");
-  const [footerCol2Label, setFooterCol2Label]         = useState("Support");
-  const [footerCol3Label, setFooterCol3Label]         = useState("Pay");
-  const [footerSupportLinks, setFooterSupportLinks]   = useState<string[]>(["Shipping", "Returns", "Sizing", "Contact"]);
-  const [footerPayLinks, setFooterPayLinks]           = useState<string[]>(["Card", "EFT", "PayFast", "WhatsApp Order"]);
+  const [shippingPolicy, setShippingPolicy]           = useState("");
+  const [returnPolicy, setReturnPolicy]               = useState("");
 
   /* Editable label above the hero countdown timer. Empty string = default to
      `<CODE> ends in` from the active discount; sellers can override to e.g.
@@ -294,10 +292,8 @@ export default function StoreEditor() {
       // Heirloom footer
       setFooterTagline(s.store_config?.footer_tagline ?? s.description ?? "");
       setFooterCol1Label(s.store_config?.footer_col1_label ?? "Shop");
-      setFooterCol2Label(s.store_config?.footer_col2_label ?? "Support");
-      setFooterCol3Label(s.store_config?.footer_col3_label ?? "Pay");
-      setFooterSupportLinks(s.store_config?.footer_support_links?.length ? s.store_config.footer_support_links : ["Shipping", "Returns", "Sizing", "Contact"]);
-      setFooterPayLinks(s.store_config?.footer_pay_links?.length ? s.store_config.footer_pay_links : ["Card", "EFT", "PayFast", "WhatsApp Order"]);
+      setShippingPolicy(s.store_config?.shipping_policy ?? "");
+      setReturnPolicy(s.store_config?.return_policy ?? "");
       setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
       setLoading(false);
     })();
@@ -372,10 +368,8 @@ export default function StoreEditor() {
   /* Heirloom footer — live updates */
   useEffect(() => { postUpdate({ footerTagline }); }, [footerTagline]);
   useEffect(() => { postUpdate({ footerCol1Label }); }, [footerCol1Label]);
-  useEffect(() => { postUpdate({ footerCol2Label }); }, [footerCol2Label]);
-  useEffect(() => { postUpdate({ footerCol3Label }); }, [footerCol3Label]);
-  useEffect(() => { postUpdate({ footerSupportLinks }); }, [footerSupportLinks]);
-  useEffect(() => { postUpdate({ footerPayLinks }); }, [footerPayLinks]);
+  useEffect(() => { postUpdate({ shippingPolicy }); }, [shippingPolicy]);
+  useEffect(() => { postUpdate({ returnPolicy }); }, [returnPolicy]);
   useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
 
   /* ─── SAVE ─── */
@@ -436,10 +430,8 @@ export default function StoreEditor() {
           // Heirloom footer
           footer_tagline: footerTagline,
           footer_col1_label: footerCol1Label,
-          footer_col2_label: footerCol2Label,
-          footer_col3_label: footerCol3Label,
-          footer_support_links: footerSupportLinks,
-          footer_pay_links: footerPayLinks,
+          shipping_policy: shippingPolicy,
+          return_policy: returnPolicy,
           hero_countdown_label: heroCountdownLabel,
       },
     }).eq("id", seller.id);
@@ -1319,39 +1311,23 @@ export default function StoreEditor() {
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Column 2 Heading</label>
-                  <input value={footerCol2Label} onChange={e => setFooterCol2Label(e.target.value)}
-                    placeholder="Support" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Column 2 Link Labels</label>
-                  {footerSupportLinks.map((txt, i) => (
-                    <input key={i} value={txt}
-                      onChange={e => { const u = [...footerSupportLinks]; u[i] = e.target.value; setFooterSupportLinks(u); }}
-                      placeholder={["Shipping", "Returns", "Sizing", "Contact"][i] || ""}
-                      style={{ ...inputStyle, marginBottom: 6 }} />
-                  ))}
-                  <div style={hintStyle}>Last link auto-links to your WhatsApp number if set.</div>
+                  <label style={labelStyle}>Shipping Policy</label>
+                  <textarea value={shippingPolicy} onChange={e => setShippingPolicy(e.target.value)}
+                    rows={4} placeholder="e.g. We deliver nationwide within 3-5 business days..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 72 }} />
+                  <div style={hintStyle}>Shown in a popup when customers click &quot;Shipping&quot; in the footer.</div>
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Column 3 Heading</label>
-                  <input value={footerCol3Label} onChange={e => setFooterCol3Label(e.target.value)}
-                    placeholder="Pay" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Column 3 Link Labels</label>
-                  {footerPayLinks.map((txt, i) => (
-                    <input key={i} value={txt}
-                      onChange={e => { const u = [...footerPayLinks]; u[i] = e.target.value; setFooterPayLinks(u); }}
-                      placeholder={["Card", "EFT", "PayFast", "WhatsApp Order"][i] || ""}
-                      style={{ ...inputStyle, marginBottom: 6 }} />
-                  ))}
-                  <div style={hintStyle}>Any label containing &quot;WhatsApp&quot; will open the cart on click.</div>
+                  <label style={labelStyle}>Return / Refund Policy</label>
+                  <textarea value={returnPolicy} onChange={e => setReturnPolicy(e.target.value)}
+                    rows={4} placeholder="e.g. We accept returns within 14 days of purchase..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 72 }} />
+                  <div style={hintStyle}>Shown in a popup when customers click &quot;Returns &amp; Refunds&quot; in the footer.</div>
                 </div>
 
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
-                  Social links (Instagram, TikTok, Facebook, X, WhatsApp) appear automatically below the tagline based on what you&apos;ve set in Dashboard → My Store.
+                  Support column shows Shipping, Returns &amp; Refunds, and Contact links. Payment Methods column auto-populates from your checkout settings. Social links and contact info come from Dashboard → My Store.
                 </div>
               </div>
             )}

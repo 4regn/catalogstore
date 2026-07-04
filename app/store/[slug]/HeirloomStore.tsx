@@ -26,6 +26,7 @@ interface StoreConfig {
   announcement?: string;
   show_announcement?: boolean;
   ticker_texts?: string[];
+  marquee_texts?: string[];
   ticker_speed?: number;
   hero_image?: string;
   hero_index?: string;
@@ -35,22 +36,10 @@ interface StoreConfig {
   hero_body?: string;
   hero_cta_primary?: string;
   hero_cta_secondary?: string;
-  // Each CTA can independently link to: the products grid (scroll), a named
-  // collection page, a custom URL, or be hidden entirely.
   hero_cta_primary_target?: CtaTarget;
   hero_cta_secondary_target?: CtaTarget;
-  // Footer text — column headings + link labels. Defaults baked into the
-  // component so existing sellers see the same labels as before.
   footer_tagline?: string;
   footer_col1_label?: string;
-  footer_col2_label?: string;
-  footer_col3_label?: string;
-  footer_support_links?: string[];
-  footer_pay_links?: string[];
-  // Label shown above the hero timer digits. Defaults to "<CODE> ends in"
-  // when a real discount is active. Sellers can override with anything --
-  // "Limited drop ends in", "Black Friday ends in", etc. -- without having
-  // to expose their discount code name in the hero.
   hero_countdown_label?: string;
   featured_product_id?: string;
   flash_sale_label?: string;
@@ -61,6 +50,12 @@ interface StoreConfig {
   newsletter_title?: string;
   newsletter_sub?: string;
   free_ship_threshold?: number;
+  shipping_policy?: string;
+  return_policy?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  operating_hours?: string;
+  physical_address?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -68,6 +63,11 @@ interface Seller {
   logo_url: string; tagline: string; description: string;
   collections: string[]; social_links: SocialLinks;
   store_config: StoreConfig; subscription_status?: string;
+  checkout_config?: {
+    eft_enabled?: boolean;
+    payfast_enabled?: boolean;
+    whatsapp_checkout_enabled?: boolean;
+  };
 }
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
 interface Product {
@@ -154,10 +154,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [liveHeroCtaSecondaryTarget, setLiveHeroCtaSecondaryTarget] = useState<CtaTarget | null>(null);
   const [liveFooterTagline, setLiveFooterTagline] = useState<string | null>(null);
   const [liveFooterCol1Label, setLiveFooterCol1Label] = useState<string | null>(null);
-  const [liveFooterCol2Label, setLiveFooterCol2Label] = useState<string | null>(null);
-  const [liveFooterCol3Label, setLiveFooterCol3Label] = useState<string | null>(null);
-  const [liveFooterSupportLinks, setLiveFooterSupportLinks] = useState<string[] | null>(null);
-  const [liveFooterPayLinks, setLiveFooterPayLinks] = useState<string[] | null>(null);
+  const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
   const [liveHeroCountdownLabel, setLiveHeroCountdownLabel] = useState<string | null>(null);
   const [liveTicker, setLiveTicker] = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed] = useState<number | null>(null);
@@ -284,10 +282,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.heroCtaSecondaryTarget !== undefined) setLiveHeroCtaSecondaryTarget(e.data.heroCtaSecondaryTarget);
       if (e.data.footerTagline !== undefined) setLiveFooterTagline(e.data.footerTagline);
       if (e.data.footerCol1Label !== undefined) setLiveFooterCol1Label(e.data.footerCol1Label);
-      if (e.data.footerCol2Label !== undefined) setLiveFooterCol2Label(e.data.footerCol2Label);
-      if (e.data.footerCol3Label !== undefined) setLiveFooterCol3Label(e.data.footerCol3Label);
-      if (e.data.footerSupportLinks !== undefined) setLiveFooterSupportLinks(e.data.footerSupportLinks);
-      if (e.data.footerPayLinks !== undefined) setLiveFooterPayLinks(e.data.footerPayLinks);
       if (e.data.heroCountdownLabel !== undefined) setLiveHeroCountdownLabel(e.data.heroCountdownLabel);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
@@ -336,6 +330,22 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const removeFromCart = (idx: number) => setCart((prev) => prev.filter((_, i) => i !== idx));
   const changeQty = (idx: number, d: number) =>
     setCart((prev) => prev.map((i, n) => n === idx ? { ...i, qty: Math.max(1, i.qty + d) } : i));
+
+  const orderViaWhatsApp = () => {
+    if (!seller) return;
+    const lines = cart.map(i => {
+      const vars = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(", ");
+      return `• ${i.product.name}${vars ? ` (${vars})` : ""} x ${i.qty} — ${fmt(i.product.price * i.qty)}`;
+    });
+    const msg = [
+      `Hi! I'd like to place an order with ${seller.store_name}:`,
+      "", ...lines, "",
+      `Total: ${fmt(cartTotal)}`,
+    ].join("\n");
+    const num = (seller.whatsapp_number || "").replace(/\D/g, "");
+    if (!num) return;
+    window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, "_blank");
+  };
 
   /* ─── PDP ACTIONS ─── */
   const openProduct = (p: Product) => {
@@ -447,14 +457,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   // back through the chain so legacy data still renders.
   const displayFooterTagline = liveFooterTagline ?? config.footer_tagline ?? liveDescription ?? seller.description ?? seller.tagline ?? "";
   const displayFooterCol1 = liveFooterCol1Label ?? config.footer_col1_label ?? "Shop";
-  const displayFooterCol2 = liveFooterCol2Label ?? config.footer_col2_label ?? "Support";
-  const displayFooterCol3 = liveFooterCol3Label ?? config.footer_col3_label ?? "Pay";
-  const defaultSupport = ["Shipping", "Returns", "Sizing", "Contact"];
-  const defaultPay = ["Card", "EFT", "PayFast", "WhatsApp Order"];
-  const displayFooterSupport = liveFooterSupportLinks ?? (config.footer_support_links?.length ? config.footer_support_links : defaultSupport);
-  const displayFooterPay = liveFooterPayLinks ?? (config.footer_pay_links?.length ? config.footer_pay_links : defaultPay);
-  const defaultTicker = ["Free Delivery Over R800", "New Drop Friday 12PM", "Up to 35% Off Archive", "Restock Alerts Via WhatsApp"];
-  const displayTicker = liveTicker ?? config.ticker_texts ?? defaultTicker;
+  const displayTicker = liveTicker ?? config.ticker_texts ?? config.marquee_texts ?? [];
   const tickerDuration = liveTickerSpeed ?? config.ticker_speed ?? 36;
   const showFlash = config.show_flash_sale ?? true;
   const flashLabel = config.flash_sale_label ?? "Limited Time";
@@ -685,6 +688,22 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-foot-col a{color:var(--ink);font-size:13px;font-weight:300;text-decoration:none;transition:color 0.2s}
 .hl-foot-col a:hover{color:var(--dim)}
 .hl-foot-bot{max-width:1400px;margin:0 auto;padding-top:32px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;font-size:11px;color:var(--dim);letter-spacing:1px}
+.hl-foot-addr{margin-top:20px;font-size:12px;color:var(--dim);line-height:1.6;display:flex;gap:8px;align-items:flex-start}
+.hl-pay-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.hl-pay-icon{width:44px;height:28px;border:1px solid var(--rule);border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fff}
+.hl-pay-label{font-size:11px;color:var(--ink);font-weight:300;cursor:pointer;transition:color 0.2s;background:none;border:none;text-align:left;padding:0}
+.hl-pay-label:hover{color:var(--dim)}
+.hl-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px}
+.hl-modal{background:#fff;border-radius:12px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;padding:40px;position:relative}
+.hl-modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:var(--dim);cursor:pointer;padding:4px 8px;line-height:1}
+.hl-modal h3{font-family:var(--serif);font-style:italic;font-size:22px;color:var(--ink);margin:0 0 16px}
+.hl-modal p{font-size:14px;color:var(--dim);line-height:1.7;margin:0;white-space:pre-wrap}
+.hl-contact-list{list-style:none;margin:0;padding:0}
+.hl-contact-list li{padding:10px 0;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:12px}
+.hl-contact-list li:last-child{border-bottom:none}
+.hl-contact-list a{color:var(--ink);font-size:13px;text-decoration:none;transition:color 0.2s}
+.hl-contact-list a:hover{color:var(--dim)}
+.hl-contact-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);width:80px;flex-shrink:0}
 
 .hl-mm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:998;opacity:0;pointer-events:none;transition:opacity 0.3s}
 .hl-mm-overlay.open{opacity:1;pointer-events:all}
@@ -911,6 +930,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               </div>
               {FREE_SHIP && <p className="hl-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>}
               <button className="hl-cart-checkout" onClick={goToCheckout}>Checkout</button>
+              {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
+                <button className="hl-cart-wa" onClick={orderViaWhatsApp}>Order via WhatsApp</button>
+              )}
               <button className="hl-cart-cont" onClick={() => setCartOpen(false)}>Continue Browsing</button>
             </div>
           )}
@@ -1303,6 +1325,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     <a href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp</a>
                   )}
                 </div>
+                {config.physical_address && (
+                  <div className="hl-foot-addr">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                    <span>{config.physical_address}</span>
+                  </div>
+                )}
               </div>
               <div className="hl-foot-col">
                 <h4>{displayFooterCol1}</h4>
@@ -1323,34 +1351,35 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 </ul>
               </div>
               <div className="hl-foot-col">
-                <h4>{displayFooterCol2}</h4>
+                <h4>Support</h4>
                 <ul>
-                  {displayFooterSupport.map((label, i) => {
-                    const isContact = i === displayFooterSupport.length - 1; // last item = contact
-                    return (
-                      <li key={i}>
-                        {isContact && seller.whatsapp_number ? (
-                          <a href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{label}</a>
-                        ) : <a href="#">{label}</a>}
-                      </li>
-                    );
-                  })}
+                  <li><button className="hl-pay-label" onClick={() => setPolicyModal({ title: "Shipping Policy", content: config.shipping_policy || "Contact us for details about our shipping policy." })}>Shipping</button></li>
+                  <li><button className="hl-pay-label" onClick={() => setPolicyModal({ title: "Returns & Refunds", content: config.return_policy || "Contact us for details about our returns and refund policy." })}>Returns & Refunds</button></li>
+                  <li><button className="hl-pay-label" onClick={() => setContactOpen(true)}>Contact</button></li>
                 </ul>
               </div>
               <div className="hl-foot-col">
-                <h4>{displayFooterCol3}</h4>
-                <ul>
-                  {displayFooterPay.map((label, i) => {
-                    const isWhatsApp = label.toLowerCase().includes("whatsapp");
-                    return (
-                      <li key={i}>
-                        {isWhatsApp ? (
-                          <a href="#" onClick={(e) => { e.preventDefault(); setCartOpen(true); }}>{label}</a>
-                        ) : <a href="#">{label}</a>}
-                      </li>
-                    );
-                  })}
-                </ul>
+                <h4>Payment Methods</h4>
+                <div className="hl-pay-grid">
+                  {seller.checkout_config?.payfast_enabled && (<>
+                    <span className="hl-pay-icon" title="Visa"><svg width="28" height="18" viewBox="0 0 28 18"><path d="M11.2 3.6l-2.4 10.8H6.4L8.8 3.6h2.4zm10.4 7l1.3-3.5.7 3.5h-2zm2.7 3.8h2.2l-1.9-10.8h-2c-.5 0-.9.3-1 .7l-3.6 10.1h2.5l.5-1.4h3l.3 1.4zm-6.3-3.5c0-2.8-3.9-3-3.9-4.2 0-.4.4-.8 1.2-.9.8-.1 2 .1 2.9.6l.5-2.4c-.7-.3-1.6-.5-2.7-.5-2.8 0-4.8 1.5-4.8 3.7 0 1.6 1.4 2.5 2.5 3 1.1.6 1.5.9 1.5 1.4 0 .8-.9 1.1-1.7 1.1-1 0-2.1-.3-3-.7l-.5 2.5c.7.3 2 .6 3.3.6 3 0 5-1.5 5-3.8zM7.2 3.6L3.6 14.4H1l-2-8.6c-.1-.5-.3-.6-.7-.8C-2.4 4.7-3.4 4.3-4.2 4l.1-.4h4c.5 0 1 .4 1.1.9l1 5.3 2.5-6.2h2.5z" transform="translate(4 0)" fill="var(--ink)"/></svg></span>
+                    <span className="hl-pay-icon" title="Mastercard"><svg width="28" height="18" viewBox="0 0 28 18"><circle cx="10" cy="9" r="7" fill="none" stroke="var(--ink)" strokeWidth="1"/><circle cx="18" cy="9" r="7" fill="none" stroke="var(--ink)" strokeWidth="1"/></svg></span>
+                    <span className="hl-pay-icon" title="Amex"><svg width="28" height="18" viewBox="0 0 28 18"><rect x="2" y="2" width="24" height="14" rx="2" fill="none" stroke="var(--ink)" strokeWidth="1"/><text x="14" y="11" textAnchor="middle" fontSize="7" fontWeight="700" fill="var(--ink)" fontFamily="sans-serif">AMEX</text></svg></span>
+                    <span className="hl-pay-icon" title="Apple Pay"><svg width="28" height="18" viewBox="0 0 28 18"><text x="14" y="12" textAnchor="middle" fontSize="7" fontWeight="600" fill="var(--ink)" fontFamily="sans-serif">Pay</text></svg></span>
+                    <span className="hl-pay-icon" title="Google Pay"><svg width="28" height="18" viewBox="0 0 28 18"><text x="14" y="12" textAnchor="middle" fontSize="7" fontWeight="600" fill="var(--ink)" fontFamily="sans-serif">GPay</text></svg></span>
+                  </>)}
+                  {seller.checkout_config?.eft_enabled && (
+                    <button className="hl-pay-label" style={{ marginTop: 4 }} onClick={() => setPolicyModal({ title: "EFT / Direct Deposit", content: "Select EFT/Direct Deposit at checkout. You’ll receive payment instructions to complete your order via EFT." })}>EFT / Direct Deposit</button>
+                  )}
+                  {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
+                    <button className="hl-pay-label" style={{ marginTop: 4 }} onClick={() => setPolicyModal({ title: "WhatsApp Order", content: "Select WhatsApp Order at checkout to complete your order via WhatsApp with us." })}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--ink)"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.468l4.573-1.46A11.93 11.93 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-2.168 0-4.18-.637-5.882-1.727l-.42-.28-3.064.978.992-2.96-.298-.442A9.808 9.808 0 012.182 12c0-5.422 4.396-9.818 9.818-9.818S21.818 6.578 21.818 12 17.422 21.818 12 21.818z"/></svg>
+                        WhatsApp Order
+                      </span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             <div className="hl-foot-bot">
@@ -1360,6 +1389,71 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           </footer>
         </EditSection>
       </div>
+
+      {/* Policy / info modal */}
+      {policyModal && (
+        <div className="hl-modal-overlay" onClick={() => setPolicyModal(null)}>
+          <div className="hl-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="hl-modal-close" onClick={() => setPolicyModal(null)}>✕</button>
+            <h3>{policyModal.title}</h3>
+            <p>{policyModal.content}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Contact modal */}
+      {contactOpen && (
+        <div className="hl-modal-overlay" onClick={() => setContactOpen(false)}>
+          <div className="hl-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="hl-modal-close" onClick={() => setContactOpen(false)}>✕</button>
+            <h3>Contact Us</h3>
+            <ul className="hl-contact-list">
+              {seller.whatsapp_number && (
+                <li>
+                  <span className="hl-contact-label">WhatsApp</span>
+                  <a href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{seller.whatsapp_number}</a>
+                </li>
+              )}
+              {config.contact_email && (
+                <li>
+                  <span className="hl-contact-label">Email</span>
+                  <a href={`mailto:${config.contact_email}`}>{config.contact_email}</a>
+                </li>
+              )}
+              {config.contact_phone && (
+                <li>
+                  <span className="hl-contact-label">Call</span>
+                  <a href={`tel:${config.contact_phone.replace(/\s/g, "")}`}>{config.contact_phone}</a>
+                </li>
+              )}
+              {seller.social_links?.instagram && (
+                <li><span className="hl-contact-label">Instagram</span><a href={seller.social_links.instagram} target="_blank" rel="noreferrer">Instagram</a></li>
+              )}
+              {seller.social_links?.tiktok && (
+                <li><span className="hl-contact-label">TikTok</span><a href={seller.social_links.tiktok} target="_blank" rel="noreferrer">TikTok</a></li>
+              )}
+              {seller.social_links?.facebook && (
+                <li><span className="hl-contact-label">Facebook</span><a href={seller.social_links.facebook} target="_blank" rel="noreferrer">Facebook</a></li>
+              )}
+              {seller.social_links?.twitter && (
+                <li><span className="hl-contact-label">X / Twitter</span><a href={seller.social_links.twitter} target="_blank" rel="noreferrer">X / Twitter</a></li>
+              )}
+              {config.operating_hours && (
+                <li>
+                  <span className="hl-contact-label">Hours</span>
+                  <span style={{ fontSize: 13, color: "var(--ink)" }}>{config.operating_hours}</span>
+                </li>
+              )}
+              {config.physical_address && (
+                <li>
+                  <span className="hl-contact-label">Address</span>
+                  <span style={{ fontSize: 13, color: "var(--ink)" }}>{config.physical_address}</span>
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
     </>
   );
 }
