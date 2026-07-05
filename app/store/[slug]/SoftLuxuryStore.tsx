@@ -119,6 +119,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [livePhysicalAddress, setLivePhysicalAddress] = useState<string | null>(null);
   const [liveOperatingHours, setLiveOperatingHours] = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
+  const [navigating, setNavigating]             = useState(false);
   const [policyModal, setPolicyModal]           = useState<{ title: string; content: string } | null>(null);
   const [contactOpen, setContactOpen]           = useState(false);
   const [productsExpanded, setProductsExpanded] = useState(!initialSeller?.store_config?.products_collapsed);
@@ -471,17 +472,30 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   style={{ background: "none", border: "none", padding: 0, color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
               )}
             </div>
-            <div style={{ textAlign: "center", cursor: isEditMode ? "pointer" : "default" }}
-              onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*") : undefined}>
-              {displayLogoUrl ? (
-                <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
-              ) : (
-                <div>
-                  <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerTransparent ? "#fff" : pageText }}>{seller?.store_name}</div>
-                  {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerTransparent ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
-                </div>
-              )}
-            </div>
+            {isEditMode ? (
+              <div style={{ textAlign: "center", cursor: "pointer" }}
+                onClick={() => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*")}>
+                {displayLogoUrl ? (
+                  <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
+                ) : (
+                  <div>
+                    <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerTransparent ? "#fff" : pageText }}>{seller?.store_name}</div>
+                    {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerTransparent ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <a href={`/store/${slug}`} style={{ textAlign: "center", textDecoration: "none", color: "inherit", display: "block" }}>
+                {displayLogoUrl ? (
+                  <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
+                ) : (
+                  <div>
+                    <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerTransparent ? "#fff" : pageText }}>{seller?.store_name}</div>
+                    {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerTransparent ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
+                  </div>
+                )}
+              </a>
+            )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 20 }}>
               <button onClick={() => setShowSearch(true)} aria-label="Search" style={{ background: "none", border: "none", color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
@@ -667,7 +681,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           ) : (
             <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
               {filtered.map((product) => (
-                <div key={product.id} onClick={() => isEditMode ? openProduct(product) : router.push(`/store/${slug}/p/${product.id}`)} style={{ cursor: "pointer" }}>
+                <div key={product.id} onClick={() => { if (isEditMode) { openProduct(product); } else { setNavigating(true); router.push(`/store/${slug}/p/${product.id}`); } }} style={{ cursor: "pointer" }}>
                   <div style={{ ...(cardRatio !== "auto" ? { aspectRatio: cardRatio } : {}), borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
                     {product.image_url && (
                       <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: cardRatio === "auto" ? "auto" : "100%", objectFit: cardRatio === "auto" ? "contain" : "cover", display: "block", transition: "transform 0.6s" }}
@@ -737,6 +751,72 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         </>)}
+
+        {/* LOADING OVERLAY */}
+        {navigating && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: pageBg + "e6", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+            <div style={{ width: 36, height: 36, border: `2px solid ${pageMuted}30`, borderTopColor: accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        )}
+
+        {/* PRODUCT DETAIL PAGE — full page view when navigated via /p/[productId] */}
+        {selectedProduct && initialProductId && !isEditMode && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 150, background: pageBg, overflow: "auto" }}>
+            <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 20px 60px" }}>
+              <button onClick={() => router.back()} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: pageMuted, fontFamily: fonts.body, fontSize: 13, letterSpacing: "0.04em", marginBottom: 24, padding: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                Back
+              </button>
+              <div style={{ borderRadius: 16, overflow: "hidden", background: pageBg, marginBottom: 20 }}>
+                {selectedProduct.images?.length > 0 ? (
+                  <img src={selectedProduct.images[activeImageIndex]} alt={selectedProduct.name} style={{ width: "100%", maxHeight: 500, objectFit: "contain", display: "block" }} />
+                ) : selectedProduct.image_url ? (
+                  <img src={selectedProduct.image_url} alt={selectedProduct.name} style={{ width: "100%", maxHeight: 500, objectFit: "contain", display: "block" }} />
+                ) : (
+                  <div style={{ width: "100%", height: 400, background: `linear-gradient(145deg, ${pageMuted}20, ${pageMuted}10)` }} />
+                )}
+              </div>
+              {selectedProduct.images?.length > 1 && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto" }}>
+                  {selectedProduct.images.map((img, i) => (
+                    <img key={i} src={img} alt="" onError={hideOnError} onClick={() => setActiveImageIndex(i)} style={{ width: 64, height: 64, borderRadius: 10, objectFit: "cover", cursor: "pointer", border: activeImageIndex === i ? `2px solid ${accent}` : "2px solid transparent", flexShrink: 0 }} />
+                  ))}
+                </div>
+              )}
+              {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{selectedProduct.category}</p>}
+              <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(24px, 4vw, 32px)", fontWeight: 400, letterSpacing: "0.01em", marginBottom: 12 }}>{selectedProduct.name}</h1>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
+                <span style={{ fontSize: 22, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
+                {selectedProduct.old_price && <span style={{ fontSize: 16, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
+              </div>
+              {selectedProduct.description && <p style={{ fontSize: 14, lineHeight: 1.8, color: pageMuted, marginBottom: 28, fontWeight: 300 }}>{selectedProduct.description}</p>}
+              {selectedProduct.variants?.filter((v) => v.options?.length > 0).length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  {selectedProduct.variants.filter((v) => v.options?.length > 0).map((v) => (
+                    <div key={v.name} style={{ marginBottom: 16 }}>
+                      <p style={{ fontSize: 13, color: pageMuted, marginBottom: 8 }}>{v.name}: <strong style={{ color: pageText }}>{selectedVariants[v.name]}</strong></p>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {v.options.map((opt) => (
+                          <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "10px 20px", border: selectedVariants[v.name] === opt ? `2px solid ${pageText}` : "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: pageBg, fontFamily: fonts.body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: pageText }}>{opt}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", marginBottom: 16, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                <span style={{ fontSize: 11, color: pageMuted, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: fonts.body, fontWeight: 500 }}>Quantity</span>
+                <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 100, overflow: "hidden" }}>
+                  <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: fonts.body }}>−</button>
+                  <span style={{ minWidth: 32, textAlign: "center", fontSize: 14, fontWeight: 500, color: pageText }}>{modalQty}</span>
+                  <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: fonts.body }}>+</button>
+                </div>
+              </div>
+              <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
+            </div>
+          </div>
+        )}
 
         {/* FOOTER */}
         <EditSection id="footer">
@@ -817,11 +897,13 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                     <table style={{ fontSize: 12, opacity: 0.45, lineHeight: 1.8, borderCollapse: "collapse" }}>
                       <tbody>
                         {displayOperatingHours.split("\n").filter(Boolean).map((line: string, li: number) => {
-                          const parts = line.split(/[:\-–—]/).map((s: string) => s.trim());
+                          const colonIdx = line.indexOf(":");
+                          const day = colonIdx > 0 ? line.substring(0, colonIdx).trim() : line.trim();
+                          const hours = colonIdx > 0 ? line.substring(colonIdx + 1).trim() : "";
                           return (
                             <tr key={li}>
-                              <td style={{ paddingRight: 16, fontWeight: 400, whiteSpace: "nowrap", verticalAlign: "top" }}>{parts[0]}</td>
-                              <td style={{ fontWeight: 300, verticalAlign: "top" }}>{parts.slice(1).join(" – ") || ""}</td>
+                              <td style={{ paddingRight: 16, fontWeight: 400, whiteSpace: "nowrap", verticalAlign: "top" }}>{day}</td>
+                              <td style={{ fontWeight: 300, verticalAlign: "top" }}>{hours}</td>
                             </tr>
                           );
                         })}
@@ -859,60 +941,6 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </div>
         </footer>
         </EditSection>
-
-        {/* PRODUCT DETAIL PAGE — full page view when navigating to /store/[slug]/p/[productId] */}
-        {selectedProduct && initialProductId && !isEditMode && (
-          <section style={{ padding: "24px 24px 80px", maxWidth: 1200, margin: "0 auto" }}>
-            <button onClick={() => router.back()} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "none", border: "none", color: pageMuted, cursor: "pointer", fontFamily: fonts.body, fontSize: 13, letterSpacing: "0.04em", marginBottom: 24, padding: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="m11 5-5 5 5 5"/><path d="M16 10H6"/></svg>
-              Back
-            </button>
-
-            {/* Image */}
-            <div style={{ borderRadius: 16, overflow: "hidden", background: "#f5f5f5", marginBottom: 16, maxHeight: "70vh" }}>
-              {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt={selectedProduct.name} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "70vh", display: "block", margin: "0 auto" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt={selectedProduct.name} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "70vh", display: "block", margin: "0 auto" }} /> : <div style={{ width: "100%", aspectRatio: "4/5", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }} />}
-            </div>
-            {selectedProduct.images?.length > 1 && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto", paddingBottom: 4 }}>
-                {selectedProduct.images.map((img: string, i: number) => <img key={i} src={img} alt="" onError={hideOnError} onClick={() => setActiveImageIndex(i)} style={{ width: 64, height: 64, borderRadius: 10, objectFit: "cover", cursor: "pointer", border: activeImageIndex === i ? "2px solid " + accent : "2px solid transparent", flexShrink: 0 }} />)}
-              </div>
-            )}
-
-            {/* Product info */}
-            <div style={{ maxWidth: 600 }}>
-              {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>{selectedProduct.category}</p>}
-              <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(26px, 5vw, 38px)", fontWeight: 300, letterSpacing: "0.01em", marginBottom: 14, lineHeight: 1.2 }}>{selectedProduct.name}</h1>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-                <span style={{ fontSize: 26, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
-                {selectedProduct.old_price && <span style={{ fontSize: 18, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
-              </div>
-              {selectedProduct.description && <p style={{ fontSize: 15, lineHeight: 1.8, color: pageMuted, marginBottom: 28, fontWeight: 300 }}>{selectedProduct.description}</p>}
-              {selectedProduct.variants?.filter((v: any) => v.options?.length > 0).length > 0 && (
-                <div style={{ marginBottom: 28 }}>
-                  {selectedProduct.variants.filter((v: any) => v.options?.length > 0).map((v: any) => (
-                    <div key={v.name} style={{ marginBottom: 18 }}>
-                      <p style={{ fontSize: 12, color: pageMuted, marginBottom: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>{v.name}: <strong style={{ color: pageText }}>{selectedVariants[v.name]}</strong></p>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {v.options.map((opt: string) => (
-                          <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "12px 24px", border: selectedVariants[v.name] === opt ? "2px solid " + pageText : "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: pageBg, fontFamily: fonts.body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: pageText }}>{opt}</button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", marginBottom: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                <span style={{ fontSize: 11, color: pageMuted, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: fonts.body, fontWeight: 500 }}>Quantity</span>
-                <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 100, overflow: "hidden" }}>
-                  <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>−</button>
-                  <span style={{ minWidth: 36, textAlign: "center", fontSize: 15, fontWeight: 500, color: pageText }}>{modalQty}</span>
-                  <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>+</button>
-                </div>
-              </div>
-              <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "20px 36px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 14, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
-            </div>
-          </section>
-        )}
 
         {/* PRODUCT MODAL — editor preview only */}
         {selectedProduct && (!initialProductId || isEditMode) && (
@@ -1033,7 +1061,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             {searched && searched.length > 0 && (
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
-                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) { openProduct(p); } else { router.push(`/store/${slug}/p/${p.id}`); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
+                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) { openProduct(p); } else { setNavigating(true); router.push(`/store/${slug}/p/${p.id}`); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
                     {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 15 }}>{p.name}</div><div style={{ fontSize: 13, color: accent }}>{fmt(p.price)}</div></div>
                   </div>
