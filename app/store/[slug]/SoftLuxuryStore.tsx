@@ -626,6 +626,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* PRODUCTS */}
+        <EditSection id="products">
         <section id="products" style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
           <div style={{ textAlign: "center", cursor: productsCollapsed ? "pointer" : "default" }} onClick={productsCollapsed ? () => setProductsExpanded(!productsExpanded) : undefined}>
             <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12 }}>{displayProductsLabel}</div>
@@ -695,6 +696,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           )}
           </>)}
         </section>
+        </EditSection>
 
         {/* ABOUT */}
         {cfg.show_about && (displayDescription || seller?.description) && (
@@ -860,54 +862,54 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
         {/* PRODUCT DETAIL PAGE — full page view when navigating to /store/[slug]/p/[productId] */}
         {selectedProduct && initialProductId && !isEditMode && (
-          <section style={{ padding: "40px 24px 80px", maxWidth: 1200, margin: "0 auto" }}>
-            <button onClick={() => router.push(`/store/${slug}`)} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "none", border: "none", color: pageMuted, cursor: "pointer", fontFamily: fonts.body, fontSize: 13, letterSpacing: "0.04em", marginBottom: 32, padding: 0 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="m11 5-5 5 5 5"/><path d="M16 10H6"/></svg>
-              Back to store
+          <section style={{ padding: "24px 24px 80px", maxWidth: 1200, margin: "0 auto" }}>
+            <button onClick={() => router.back()} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "none", border: "none", color: pageMuted, cursor: "pointer", fontFamily: fonts.body, fontSize: 13, letterSpacing: "0.04em", marginBottom: 24, padding: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="m11 5-5 5 5 5"/><path d="M16 10H6"/></svg>
+              Back
             </button>
-            <div className="sl-modal" style={{ display: "flex", gap: 48, alignItems: "flex-start" }}>
-              <div style={{ flex: 1.2, position: "sticky", top: 100 }}>
-                <div style={{ borderRadius: 16, overflow: "hidden", background: "#f5f5f5", aspectRatio: "4/5" }}>
-                  {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }} />}
-                </div>
-                {selectedProduct.images?.length > 1 && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto" }}>
-                    {selectedProduct.images.map((img: string, i: number) => <img key={i} src={img} alt="" onError={hideOnError} onClick={() => setActiveImageIndex(i)} style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", cursor: "pointer", border: activeImageIndex === i ? "2px solid " + accent : "2px solid transparent", flexShrink: 0 }} />)}
-                  </div>
-                )}
+
+            {/* Image */}
+            <div style={{ borderRadius: 16, overflow: "hidden", background: "#f5f5f5", marginBottom: 16, maxHeight: "70vh" }}>
+              {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt={selectedProduct.name} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "70vh", display: "block", margin: "0 auto" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt={selectedProduct.name} onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "70vh", display: "block", margin: "0 auto" }} /> : <div style={{ width: "100%", aspectRatio: "4/5", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }} />}
+            </div>
+            {selectedProduct.images?.length > 1 && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto", paddingBottom: 4 }}>
+                {selectedProduct.images.map((img: string, i: number) => <img key={i} src={img} alt="" onError={hideOnError} onClick={() => setActiveImageIndex(i)} style={{ width: 64, height: 64, borderRadius: 10, objectFit: "cover", cursor: "pointer", border: activeImageIndex === i ? "2px solid " + accent : "2px solid transparent", flexShrink: 0 }} />)}
               </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>{selectedProduct.category}</p>}
-                <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 3.5vw, 42px)", fontWeight: 300, letterSpacing: "0.01em", marginBottom: 16, lineHeight: 1.2 }}>{selectedProduct.name}</h1>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-                  <span style={{ fontSize: 28, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
-                  {selectedProduct.old_price && <span style={{ fontSize: 20, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
-                </div>
-                {selectedProduct.description && <p style={{ fontSize: 15, lineHeight: 1.8, color: pageMuted, marginBottom: 32, fontWeight: 300 }}>{selectedProduct.description}</p>}
-                {selectedProduct.variants?.filter((v: any) => v.options?.length > 0).length > 0 && (
-                  <div style={{ marginBottom: 32 }}>
-                    {selectedProduct.variants.filter((v: any) => v.options?.length > 0).map((v: any) => (
-                      <div key={v.name} style={{ marginBottom: 20 }}>
-                        <p style={{ fontSize: 12, color: pageMuted, marginBottom: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>{v.name}: <strong style={{ color: pageText }}>{selectedVariants[v.name]}</strong></p>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {v.options.map((opt: string) => (
-                            <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "12px 24px", border: selectedVariants[v.name] === opt ? "2px solid " + pageText : "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: pageBg, fontFamily: fonts.body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: pageText }}>{opt}</button>
-                          ))}
-                        </div>
+            )}
+
+            {/* Product info */}
+            <div style={{ maxWidth: 600 }}>
+              {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>{selectedProduct.category}</p>}
+              <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(26px, 5vw, 38px)", fontWeight: 300, letterSpacing: "0.01em", marginBottom: 14, lineHeight: 1.2 }}>{selectedProduct.name}</h1>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                <span style={{ fontSize: 26, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
+                {selectedProduct.old_price && <span style={{ fontSize: 18, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
+              </div>
+              {selectedProduct.description && <p style={{ fontSize: 15, lineHeight: 1.8, color: pageMuted, marginBottom: 28, fontWeight: 300 }}>{selectedProduct.description}</p>}
+              {selectedProduct.variants?.filter((v: any) => v.options?.length > 0).length > 0 && (
+                <div style={{ marginBottom: 28 }}>
+                  {selectedProduct.variants.filter((v: any) => v.options?.length > 0).map((v: any) => (
+                    <div key={v.name} style={{ marginBottom: 18 }}>
+                      <p style={{ fontSize: 12, color: pageMuted, marginBottom: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>{v.name}: <strong style={{ color: pageText }}>{selectedVariants[v.name]}</strong></p>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {v.options.map((opt: string) => (
+                          <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "12px 24px", border: selectedVariants[v.name] === opt ? "2px solid " + pageText : "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: pageBg, fontFamily: fonts.body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: pageText }}>{opt}</button>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", marginBottom: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                  <span style={{ fontSize: 11, color: pageMuted, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: fonts.body, fontWeight: 500 }}>Quantity</span>
-                  <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 100, overflow: "hidden" }}>
-                    <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>−</button>
-                    <span style={{ minWidth: 36, textAlign: "center", fontSize: 15, fontWeight: 500, color: pageText }}>{modalQty}</span>
-                    <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>+</button>
-                  </div>
+                    </div>
+                  ))}
                 </div>
-                <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "20px 36px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 14, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
+              )}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", marginBottom: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                <span style={{ fontSize: 11, color: pageMuted, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: fonts.body, fontWeight: 500 }}>Quantity</span>
+                <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 100, overflow: "hidden" }}>
+                  <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>−</button>
+                  <span style={{ minWidth: 36, textAlign: "center", fontSize: 15, fontWeight: 500, color: pageText }}>{modalQty}</span>
+                  <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>+</button>
+                </div>
               </div>
+              <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "20px 36px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 14, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
             </div>
           </section>
         )}
