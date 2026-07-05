@@ -33,6 +33,7 @@ interface StorePageProps {
   initialSeller?: Seller;
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
+  initialProductId?: string;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined) => {
@@ -50,7 +51,7 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
   };
 };
 
-export default function GlassChromeStore({ initialSeller, initialProducts, initialDiscountCodes }: StorePageProps = {}) {
+export default function GlassChromeStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
@@ -194,6 +195,12 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
   const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options?.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
+  useEffect(() => {
+    if (initialProductId && products.length > 0 && !selectedProduct) {
+      const p = products.find((pr) => pr.id === initialProductId);
+      if (p) openProduct(p);
+    }
+  }, [initialProductId, products.length]);
   const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); };
 
   /* Escape closes the topmost overlay */

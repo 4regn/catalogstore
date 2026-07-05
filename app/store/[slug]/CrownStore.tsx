@@ -88,6 +88,7 @@ interface StorePageProps {
   initialSeller?: Seller;
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
+  initialProductId?: string;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined) => {
@@ -105,7 +106,7 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
   };
 };
 
-export default function CrownStore({ initialSeller, initialProducts, initialDiscountCodes }: StorePageProps = {}) {
+export default function CrownStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
@@ -377,6 +378,12 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
     setLocalQty(1);
     setVariantError(false);
   };
+  useEffect(() => {
+    if (initialProductId && products.length > 0 && !selectedProduct) {
+      const p = products.find((pr) => pr.id === initialProductId);
+      if (p) openProduct(p);
+    }
+  }, [initialProductId, products.length]);
   const handleAddToCart = () => {
     if (!selectedProduct) return;
     const validVariants = (selectedProduct.variants || []).filter(v => v.options?.length > 0);

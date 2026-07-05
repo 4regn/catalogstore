@@ -113,6 +113,7 @@ interface Seller {
     collection_images?: Record<string, string>;
     footer_about?: string;
     products_collapsed?: boolean;
+    product_card_ratio?: string;
   };
 }
 
@@ -185,6 +186,7 @@ export default function StoreEditor() {
   const [circleSubtitle, setCircleSubtitle]   = useState("Find your signature look");
   const [productsLabel, setProductsLabel]     = useState("The Edit");
   const [productsHeading, setProductsHeading] = useState("Latest arrivals");
+  const [productCardRatio, setProductCardRatio] = useState("3/4");
   const [aboutLabel, setAboutLabel]           = useState("Our Story");
   const [collLabel, setCollLabel]             = useState("Featured Collections");
   const [collSubtitle, setCollSubtitle]       = useState("Find your signature look");
@@ -284,6 +286,7 @@ export default function StoreEditor() {
       const isSL = s.template === "soft-luxury" || s.template === "glass-futuristic";
       setProductsLabel(s.store_config?.products_label || (isSL ? "Browse" : "The Edit"));
       setProductsHeading(s.store_config?.products_heading || (isSL ? "All Collections" : "Latest arrivals"));
+      if (s.store_config?.product_card_ratio) setProductCardRatio(s.store_config.product_card_ratio);
       if (s.store_config?.about_label) setAboutLabel(s.store_config.about_label);
       if (s.store_config?.about_title) setAboutTitle(s.store_config.about_title);
       setCollLabel(s.store_config?.coll_label || (isSL ? "Curated For You" : "Featured Collections"));
@@ -382,6 +385,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ circleSubtitle }); }, [circleSubtitle]);
   useEffect(() => { postUpdate({ productsLabel }); }, [productsLabel]);
   useEffect(() => { postUpdate({ productsHeading }); }, [productsHeading]);
+  useEffect(() => { postUpdate({ productCardRatio }); }, [productCardRatio]);
   useEffect(() => { postUpdate({ aboutLabel }); }, [aboutLabel]);
   useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
   useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
@@ -462,6 +466,7 @@ export default function StoreEditor() {
         circle_subtitle: circleSubtitle,
         products_label: productsLabel,
         products_heading: productsHeading,
+        product_card_ratio: productCardRatio,
         about_label: aboutLabel,
         about_title: aboutTitle,
         coll_label: collLabel,
@@ -1121,6 +1126,16 @@ export default function StoreEditor() {
                   placeholder="e.g. Latest arrivals"
                   style={inputStyle} />
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big heading above your products grid.</div>
+                <label style={labelStyle}>Image Shape</label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                  {[{ v: "3/4", l: "Portrait" }, { v: "1/1", l: "Square" }, { v: "4/3", l: "Landscape" }, { v: "auto", l: "Original" }].map(o => (
+                    <button key={o.v} onClick={() => setProductCardRatio(o.v)}
+                      style={{ padding: "8px 4px", borderRadius: 6, border: productCardRatio === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: productCardRatio === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: productCardRatio === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>How product images are cropped in the grid.</div>
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
                   To add or edit products, go to your <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: G, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0 }}>Dashboard →</button>
                 </div>

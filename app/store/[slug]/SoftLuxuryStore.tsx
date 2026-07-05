@@ -68,6 +68,7 @@ interface StorePageProps {
   initialSeller?: Seller;
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
+  initialProductId?: string;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined) => {
@@ -85,7 +86,7 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
   };
 };
 
-export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes }: StorePageProps = {}) {
+export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
@@ -109,6 +110,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveCollSubtitle, setLiveCollSubtitle]           = useState<string | null>(null);
   const [liveProductsLabel, setLiveProductsLabel]         = useState<string | null>(null);
   const [liveProductsHeading, setLiveProductsHeading]     = useState<string | null>(null);
+  const [liveProductCardRatio, setLiveProductCardRatio]   = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [liveFooterAbout, setLiveFooterAbout]   = useState<string | null>(null);
   const [liveContactEmail, setLiveContactEmail] = useState<string | null>(null);
@@ -182,6 +184,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.collSubtitle !== undefined) setLiveCollSubtitle(e.data.collSubtitle);
       if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
+      if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
       if (e.data.footerAbout !== undefined) setLiveFooterAbout(e.data.footerAbout);
       if (e.data.contactEmail !== undefined) setLiveContactEmail(e.data.contactEmail);
       if (e.data.contactPhone !== undefined) setLiveContactPhone(e.data.contactPhone);
@@ -257,6 +260,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const displayCollSubtitle = liveCollSubtitle ?? (cfg as any).coll_subtitle ?? "Shop by Collection";
   const displayProductsLabel = liveProductsLabel ?? (cfg as any).products_label ?? "Browse";
   const displayProductsHeading = liveProductsHeading ?? (cfg as any).products_heading ?? "All Collections";
+  const cardRatio = liveProductCardRatio ?? (cfg as any).product_card_ratio ?? "3/4";
   const displayFooterAbout = liveFooterAbout ?? (cfg as any).footer_about ?? seller?.description ?? "";
   const displayContactEmail = liveContactEmail ?? (cfg as any).contact_email ?? "";
   const displayContactPhone = liveContactPhone ?? (cfg as any).contact_phone ?? "";
@@ -281,8 +285,15 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   })();
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options?.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); };
-  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); };
+  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options?.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); if (!isEditMode) window.history.replaceState(null, "", `/store/${slug}/p/${p.id}`); };
+  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); if (!isEditMode) window.history.replaceState(null, "", `/store/${slug}`); };
+
+  useEffect(() => {
+    if (initialProductId && products.length > 0 && !selectedProduct) {
+      const p = products.find((pr) => pr.id === initialProductId);
+      if (p) openProduct(p);
+    }
+  }, [initialProductId, products.length]);
 
   /* Escape closes whichever overlay is open. Customers expect this. */
   useEffect(() => {
@@ -640,9 +651,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
               {filtered.map((product) => (
                 <div key={product.id} onClick={() => openProduct(product)} style={{ cursor: "pointer" }}>
-                  <div style={{ aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
+                  <div style={{ ...(cardRatio !== "auto" ? { aspectRatio: cardRatio } : {}), borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
                     {product.image_url && (
-                      <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.6s" }}
+                      <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: cardRatio === "auto" ? "auto" : "100%", objectFit: cardRatio === "auto" ? "contain" : "cover", display: "block", transition: "transform 0.6s" }}
                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     )}
                     <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${pageBg} 0%, ${pageBg}40 12%, transparent 40%)`, pointerEvents: "none" }} />

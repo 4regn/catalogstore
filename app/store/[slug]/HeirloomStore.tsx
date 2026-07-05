@@ -100,6 +100,7 @@ interface StorePageProps {
   initialSeller?: Seller;
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
+  initialProductId?: string;
   // When mode === "collection" the page renders just nav/footer/cart shell + a single
   // collection's products. The hero, categories grid, flash sale and newsletter sections
   // are skipped because they belong on the landing page.
@@ -119,7 +120,7 @@ const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[
   return { discounts: active, countdown: storePromo ? { ...storePromo, timeLeft: "" } : null };
 };
 
-export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes, mode = "home", collectionName }: StorePageProps = {}) {
+export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const params = useParams();
   const searchParams = useSearchParams();
@@ -355,6 +356,12 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     setLocalQty(1);
     setVariantError(false);
   };
+  useEffect(() => {
+    if (initialProductId && products.length > 0 && !selectedProduct) {
+      const p = products.find((pr) => pr.id === initialProductId);
+      if (p) openProduct(p);
+    }
+  }, [initialProductId, products.length]);
   const handleAddToCart = () => {
     if (!selectedProduct) return;
     const validVariants = (selectedProduct.variants || []).filter(v => v.options?.length > 0);
