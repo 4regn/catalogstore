@@ -19,12 +19,35 @@ const FONT_PAIRS: Record<string, { heading: string; body: string; import: string
   "tenor-work": { heading: "'Tenor Sans', sans-serif", body: "'Work Sans', sans-serif", import: "family=Tenor+Sans&family=Work+Sans:wght@300;400;500;600;700" },
 };
 
+const TrustIcon = ({ id, size = 24, color }: { id: string; size?: number; color?: string }) => {
+  const props = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color || "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (id) {
+    case "shield": return <svg {...props}><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/></svg>;
+    case "star": return <svg {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+    case "diamond": return <svg {...props}><path d="M6 3h12l4 6-10 13L2 9z"/><path d="M2 9h20"/><path d="M12 22V9"/><path d="M6 3l6 6 6-6"/></svg>;
+    case "truck": return <svg {...props}><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
+    case "package": return <svg {...props}><path d="M21 10V7a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 7v10a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 17v-3"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+    case "refresh": return <svg {...props}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>;
+    case "lock": return <svg {...props}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>;
+    case "card": return <svg {...props}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>;
+    case "check": return <svg {...props}><polyline points="20 6 9 17 4 12"/></svg>;
+    case "award": return <svg {...props}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>;
+    case "tag": return <svg {...props}><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
+    case "globe": return <svg {...props}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>;
+    case "heart": return <svg {...props}><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>;
+    case "clock": return <svg {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+    case "phone": return <svg {...props}><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.5 19.79 19.79 0 01.04 4.72 2 2 0 012 2.5h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 10a16 16 0 006 6l.36-.36a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>;
+    case "map": return <svg {...props}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+    default: return <span style={{ fontSize: size }}>{id}</span>;
+  }
+};
+
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
   primary_color: string; logo_url: string; banner_url: string; tagline: string; description: string;
   collections: string[];
   social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
-  store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; announcement: string; about_image?: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[] };
+  store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; announcement: string; about_image?: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[]; footer_about?: string; shipping_policy?: string; return_policy?: string; contact_email?: string; contact_phone?: string; operating_hours?: string; physical_address?: string; show_address?: boolean; products_collapsed?: boolean };
   checkout_config?: { whatsapp_checkout_enabled?: boolean };
   subscription_status?: string; trial_ends_at?: string;
 }
@@ -88,6 +111,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveProductsHeading, setLiveProductsHeading]     = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
+  const [policyModal, setPolicyModal]           = useState<{ title: string; content: string } | null>(null);
+  const [contactOpen, setContactOpen]           = useState(false);
+  const [productsExpanded, setProductsExpanded] = useState(!initialSeller?.store_config?.products_collapsed);
 
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
@@ -218,8 +244,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const headerBorder = liveHeaderBorder !== null ? liveHeaderBorder : (cfg as any).header_border !== false;
   const displayCollLabel = liveCollLabel ?? (cfg as any).coll_label ?? "Curated For You";
   const displayCollSubtitle = liveCollSubtitle ?? (cfg as any).coll_subtitle ?? "Shop by Collection";
-  const displayProductsLabel = liveProductsLabel ?? (cfg as any).products_label ?? "The Collection";
-  const displayProductsHeading = liveProductsHeading ?? (cfg as any).products_heading ?? "All Products";
+  const displayProductsLabel = liveProductsLabel ?? (cfg as any).products_label ?? "Browse";
+  const displayProductsHeading = liveProductsHeading ?? (cfg as any).products_heading ?? "All Collections";
+  const displayFooterAbout = (cfg as any).footer_about ?? seller?.description ?? "";
+  const productsCollapsed = (cfg as any).products_collapsed === true;
   const collections = seller?.collections || [];
   const marqueeTexts = (cfg.marquee_texts !== undefined ? cfg.marquee_texts.filter((t: string) => t.trim()) : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"]);
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
@@ -245,7 +273,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (selectedProduct) closeProduct();
+      if (policyModal) setPolicyModal(null);
+      else if (contactOpen) setContactOpen(false);
+      else if (selectedProduct) closeProduct();
       else if (showCart) setShowCart(false);
       else if (showSearch) { setShowSearch(false); setSearchQuery(""); }
     };
@@ -255,11 +285,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
   /* Lock body scroll when any overlay is open */
   useEffect(() => {
-    const open = !!selectedProduct || showCart || showSearch;
+    const open = !!selectedProduct || showCart || showSearch || !!policyModal || contactOpen;
     if (typeof document === "undefined") return;
     document.body.style.overflow = open ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [selectedProduct, showCart, showSearch]);
+  }, [selectedProduct, showCart, showSearch, policyModal, contactOpen]);
 
   const addToCart = (p: Product, qty: number = 1) => {
     const key = JSON.stringify(selectedVariants);
@@ -555,9 +585,17 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
         {/* PRODUCTS */}
         <section id="products" style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>{displayProductsLabel}</div>
-          <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>{displayProductsHeading}</h2>
+          <div style={{ textAlign: "center", cursor: productsCollapsed ? "pointer" : "default" }} onClick={productsCollapsed ? () => setProductsExpanded(!productsExpanded) : undefined}>
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12 }}>{displayProductsLabel}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: productsExpanded ? 48 : 0 }}>
+              <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, letterSpacing: "0.02em" }}>{displayProductsHeading}</h2>
+              {productsCollapsed && (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round" style={{ transition: "transform 0.3s", transform: productsExpanded ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6"/></svg>
+              )}
+            </div>
+          </div>
 
+          {productsExpanded && (<>
           {cats.length > 2 && (
             <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               {cats.map((cat) => (
@@ -613,6 +651,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               ))}
             </div>
           )}
+          </>)}
         </section>
 
         {/* ABOUT */}
@@ -639,12 +678,12 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* TRUST BAR */}
-        {cfg.show_trust_bar && (
+        {cfg.show_trust_bar && displayTrustItems.some(item => item.title?.trim()) && (
           <EditSection id="trust">
-            <div className="sl-trust" style={{ padding: "60px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-              {displayTrustItems.map((item, i) => (
+            <div className="sl-trust" style={{ padding: "60px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: `repeat(${displayTrustItems.filter(item => item.title?.trim()).length}, 1fr)`, gap: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+              {displayTrustItems.filter(item => item.title?.trim()).map((item, i) => (
                 <div key={i} style={{ textAlign: "center", padding: 20 }}>
-                  <div style={{ fontSize: 24, marginBottom: 12, color: accent }}>{item.icon}</div>
+                  <div style={{ marginBottom: 12, color: accent, display: "flex", justifyContent: "center" }}><TrustIcon id={item.icon} size={24} color={accent} /></div>
                   <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>{item.title}</div>
                   <div style={{ fontSize: 12, color: pageMuted, fontWeight: 300 }}>{item.desc}</div>
                 </div>
@@ -658,12 +697,13 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <EditSection id="policies">
           <section className="sl-polg" style={{ padding: "80px 32px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
             <h2 style={{ fontFamily: fonts.heading, fontSize: 32, fontWeight: 300, marginBottom: 40, letterSpacing: "0.02em" }}>Shipping & Policies</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, textAlign: "left" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0, textAlign: "left", maxWidth: 640, margin: "0 auto" }}>
               {policyItems.map((p, i) => (
-                <div key={i}>
-                  <h4 style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, color: accent }}>{p.title}</h4>
-                  <p style={{ fontSize: 13, lineHeight: 1.7, color: pageMuted, fontWeight: 300 }}>{p.desc}</p>
-                </div>
+                <button key={i} onClick={() => setPolicyModal({ title: p.title, content: p.desc })}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: pageText }}>{p.title}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
               ))}
             </div>
           </section>
@@ -677,7 +717,20 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             <div className="sl-fttop" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 40, marginBottom: 48 }}>
               <div>
                 <div style={{ fontFamily: fonts.heading, fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>{seller?.store_name}</div>
-                {(displayDescription || seller?.description) && <p style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", lineHeight: 1.7, fontWeight: 300, maxWidth: 280 }}>{(displayDescription || seller?.description || "").substring(0, 120)}...</p>}
+                {displayFooterAbout && <p style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", lineHeight: 1.7, fontWeight: 300, maxWidth: 280 }}>{displayFooterAbout.substring(0, 160)}{displayFooterAbout.length > 160 ? "..." : ""}</p>}
+                {(social.instagram || social.tiktok || social.facebook || social.twitter) && (
+                  <div style={{ display: "flex", gap: 16, marginTop: 20 }}>
+                    {social.instagram && <a href={socialUrl(social.instagram, "instagram.com/")} target="_blank" rel="noreferrer" style={{ color: "rgba(246,243,239,0.4)", transition: "color 0.2s" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>}
+                    {social.tiktok && <a href={socialUrl(social.tiktok, "tiktok.com/@")} target="_blank" rel="noreferrer" style={{ color: "rgba(246,243,239,0.4)" }}><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg></a>}
+                    {social.facebook && <a href={socialUrl(social.facebook, "facebook.com/")} target="_blank" rel="noreferrer" style={{ color: "rgba(246,243,239,0.4)" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>}
+                  </div>
+                )}
+                {(cfg as any).physical_address && (cfg as any).show_address !== false && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 16, fontSize: 12, color: "rgba(246,243,239,0.4)", lineHeight: 1.6 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>{(cfg as any).physical_address}</span>
+                  </div>
+                )}
               </div>
               <div>
                 <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Shop</h5>
@@ -686,30 +739,26 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                     style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
                 ))}
               </div>
-              {(cfg.show_policies || cfg.show_about) && (
-                <div>
-                  <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Info</h5>
-                  {cfg.show_about && (
-                    <button onClick={() => document.querySelector(".sl-story")?.scrollIntoView({ behavior: "smooth" })}
-                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>About</button>
-                  )}
-                  {cfg.show_policies && (
-                    <button onClick={() => document.querySelector(".sl-polg")?.scrollIntoView({ behavior: "smooth" })}
-                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Shipping & Returns</button>
-                  )}
-                  {seller?.whatsapp_number && (
-                    <a href={waLink} target="_blank" rel="noreferrer"
-                      style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>Contact</a>
-                  )}
-                </div>
-              )}
-              {(social.instagram || social.tiktok || social.facebook || social.twitter || social.whatsapp) && (
+              <div>
+                <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Support</h5>
+                {cfg.show_policies && (
+                  <>
+                    <button onClick={() => setPolicyModal({ title: "Shipping Policy", content: (cfg as any).shipping_policy || policyItems.find(p => p.title.toLowerCase().includes("ship"))?.desc || "Contact us for details about our shipping policy." })}
+                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Shipping</button>
+                    <button onClick={() => setPolicyModal({ title: "Returns & Refunds", content: (cfg as any).return_policy || policyItems.find(p => p.title.toLowerCase().includes("return"))?.desc || "Contact us for details about our returns and refund policy." })}
+                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Returns & Refunds</button>
+                  </>
+                )}
+                <button onClick={() => setContactOpen(true)}
+                  style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Contact</button>
+              </div>
+              {(social.instagram || social.tiktok || social.facebook || social.twitter || social.whatsapp || (cfg as any).contact_email || (cfg as any).contact_phone || (cfg as any).operating_hours) && (
                 <div>
                   <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Connect</h5>
                   {seller?.whatsapp_number && <a href={waLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>WhatsApp</a>}
-                  {social.instagram && <a href={socialUrl(social.instagram, "instagram.com/")} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>Instagram</a>}
-                  {social.tiktok && <a href={socialUrl(social.tiktok, "tiktok.com/@")} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="12" height="14" viewBox="0 0 448 512" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg>TikTok</a>}
-                  {social.facebook && <a href={socialUrl(social.facebook, "facebook.com/")} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>Facebook</a>}
+                  {(cfg as any).contact_email && <a href={`mailto:${(cfg as any).contact_email}`} style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>{(cfg as any).contact_email}</a>}
+                  {(cfg as any).contact_phone && <a href={`tel:${((cfg as any).contact_phone || "").replace(/\s/g, "")}`} style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>{(cfg as any).contact_phone}</a>}
+                  {(cfg as any).operating_hours && <div style={{ fontSize: 12, color: "rgba(246,243,239,0.35)", marginTop: 12, lineHeight: 1.6 }}>{(cfg as any).operating_hours}</div>}
                 </div>
               )}
             </div>
@@ -847,6 +896,59 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* POLICY MODAL */}
+        {policyModal && (
+          <div onClick={() => setPolicyModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: pageBg, borderRadius: 20, maxWidth: 520, width: "100%", padding: "40px 36px", position: "relative" }}>
+              <button onClick={() => setPolicyModal(null)} style={{ position: "absolute", top: 16, right: 16, width: 32, height: 32, borderRadius: "50%", background: "rgba(0,0,0,0.04)", border: "none", fontSize: 14, cursor: "pointer", color: pageMuted, display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+              <h3 style={{ fontFamily: fonts.heading, fontSize: 24, fontWeight: 400, letterSpacing: "0.02em", marginBottom: 20, color: pageText }}>{policyModal.title}</h3>
+              <p style={{ fontSize: 14, lineHeight: 1.85, color: pageMuted, fontWeight: 300, whiteSpace: "pre-wrap" }}>{policyModal.content}</p>
+            </div>
+          </div>
+        )}
+
+        {/* CONTACT MODAL */}
+        {contactOpen && (
+          <div onClick={() => setContactOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: pageBg, borderRadius: 20, maxWidth: 440, width: "100%", padding: "40px 36px", position: "relative" }}>
+              <button onClick={() => setContactOpen(false)} style={{ position: "absolute", top: 16, right: 16, width: 32, height: 32, borderRadius: "50%", background: "rgba(0,0,0,0.04)", border: "none", fontSize: 14, cursor: "pointer", color: pageMuted, display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+              <h3 style={{ fontFamily: fonts.heading, fontSize: 24, fontWeight: 400, letterSpacing: "0.02em", marginBottom: 24, color: pageText }}>Contact Us</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {seller?.whatsapp_number && (
+                  <a href={waLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "rgba(37,211,102,0.06)", border: "1px solid rgba(37,211,102,0.15)", borderRadius: 12, textDecoration: "none", color: pageText, fontSize: 14 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+                    <div><div style={{ fontWeight: 500 }}>WhatsApp</div><div style={{ fontSize: 12, color: pageMuted }}>{seller.whatsapp_number}</div></div>
+                  </a>
+                )}
+                {(cfg as any).contact_email && (
+                  <a href={`mailto:${(cfg as any).contact_email}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 12, textDecoration: "none", color: pageText, fontSize: 14 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
+                    <div><div style={{ fontWeight: 500 }}>Email</div><div style={{ fontSize: 12, color: pageMuted }}>{(cfg as any).contact_email}</div></div>
+                  </a>
+                )}
+                {(cfg as any).contact_phone && (
+                  <a href={`tel:${((cfg as any).contact_phone || "").replace(/\s/g, "")}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 12, textDecoration: "none", color: pageText, fontSize: 14 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.5 19.79 19.79 0 01.04 4.72 2 2 0 012 2.5h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 10a16 16 0 006 6l.36-.36a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                    <div><div style={{ fontWeight: 500 }}>Phone</div><div style={{ fontSize: 12, color: pageMuted }}>{(cfg as any).contact_phone}</div></div>
+                  </a>
+                )}
+                {(cfg as any).operating_hours && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 12, fontSize: 14 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <div><div style={{ fontWeight: 500 }}>Hours</div><div style={{ fontSize: 12, color: pageMuted }}>{(cfg as any).operating_hours}</div></div>
+                  </div>
+                )}
+                {(cfg as any).physical_address && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 12, fontSize: 14 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <div><div style={{ fontWeight: 500 }}>Address</div><div style={{ fontSize: 12, color: pageMuted }}>{(cfg as any).physical_address}</div></div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

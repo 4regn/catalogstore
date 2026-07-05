@@ -111,6 +111,8 @@ interface Seller {
     header_transparent?: boolean;
     header_border?: boolean;
     collection_images?: Record<string, string>;
+    footer_about?: string;
+    products_collapsed?: boolean;
   };
 }
 
@@ -246,6 +248,8 @@ export default function StoreEditor() {
   const [headerTransparent, setHeaderTransparent]     = useState(false);
   const [headerBorder, setHeaderBorder]               = useState(true);
   const [collectionImages, setCollectionImages]       = useState<Record<string, string>>({});
+  const [footerAbout, setFooterAbout]                 = useState("");
+  const [productsCollapsed, setProductsCollapsed]     = useState(false);
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -273,8 +277,8 @@ export default function StoreEditor() {
       if (s.store_config?.circle_title) setCircleTitle(s.store_config.circle_title);
       if (s.store_config?.circle_subtitle) setCircleSubtitle(s.store_config.circle_subtitle);
       const isSL = s.template === "soft-luxury" || s.template === "glass-futuristic";
-      setProductsLabel(s.store_config?.products_label || (isSL ? "The Collection" : "The Edit"));
-      setProductsHeading(s.store_config?.products_heading || (isSL ? "All Products" : "Latest arrivals"));
+      setProductsLabel(s.store_config?.products_label || (isSL ? "Browse" : "The Edit"));
+      setProductsHeading(s.store_config?.products_heading || (isSL ? "All Collections" : "Latest arrivals"));
       if (s.store_config?.about_label) setAboutLabel(s.store_config.about_label);
       if (s.store_config?.about_title) setAboutTitle(s.store_config.about_title);
       setCollLabel(s.store_config?.coll_label || (isSL ? "Curated For You" : "Featured Collections"));
@@ -324,6 +328,8 @@ export default function StoreEditor() {
       setHeaderTransparent(s.store_config?.header_transparent === true);
       setHeaderBorder(s.store_config?.header_border !== false);
       if (s.store_config?.collection_images) setCollectionImages(s.store_config.collection_images);
+      if (s.store_config?.footer_about) setFooterAbout(s.store_config.footer_about);
+      setProductsCollapsed(s.store_config?.products_collapsed === true);
       setLoading(false);
     })();
   }, []);
@@ -481,6 +487,8 @@ export default function StoreEditor() {
           header_transparent: headerTransparent,
           header_border: headerBorder,
           collection_images: collectionImages,
+          footer_about: footerAbout || undefined,
+          products_collapsed: productsCollapsed || undefined,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -1091,6 +1099,16 @@ export default function StoreEditor() {
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
                   To add or edit products, go to your <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: G, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0 }}>Dashboard →</button>
                 </div>
+                {(seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12 }}>Collapsed by default</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Click to expand on the storefront</div>
+                  </div>
+                  <button onClick={() => setProductsCollapsed(!productsCollapsed)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: productsCollapsed ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: productsCollapsed ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
+                </div>
+                )}
+                {seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
@@ -1104,6 +1122,7 @@ export default function StoreEditor() {
                   </div>
                 </div>
                 </div>
+                )}
               </div>
             )}
 
@@ -1181,6 +1200,7 @@ export default function StoreEditor() {
                     Collections come from your product categories. Add products with categories in the dashboard first.
                   </div>
                 )}
+                {seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (<>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
@@ -1207,6 +1227,7 @@ export default function StoreEditor() {
                   </div>
                 </div>
                 </div>
+                </>)}
               </div>
             )}
 
@@ -1278,14 +1299,20 @@ export default function StoreEditor() {
                         </button>
                       ))}
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <input value={item.title} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], title: e.target.value }; setTrustItems(u); }}
                         placeholder="Title" style={{ ...inputStyle, flex: 1 }} />
                       <input value={item.desc} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], desc: e.target.value }; setTrustItems(u); }}
                         placeholder="Description" style={{ ...inputStyle, flex: 2 }} />
+                      {trustItems.length > 1 && <button onClick={() => setTrustItems(trustItems.filter((_, idx) => idx !== i))}
+                        style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>&times;</button>}
                     </div>
                   </div>
                 ))}
+                {trustItems.length < 6 && (
+                  <button onClick={() => setTrustItems([...trustItems, { icon: "shield", title: "", desc: "" }])}
+                    style={{ padding: "8px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", marginTop: 4, letterSpacing: "0.06em" }}>+ Add Item</button>
+                )}
 
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
@@ -1517,8 +1544,41 @@ export default function StoreEditor() {
               </div>
             )}
 
-            {/* FOOTER — Crown / Soft Luxury / Glass Chrome (legacy mapping) */}
-            {activeSection === "footer" && seller?.template !== "heirloom" && (
+            {/* FOOTER — Soft Luxury / Glass Chrome */}
+            {activeSection === "footer" && (seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Footer About Text</label>
+                  <textarea value={footerAbout} onChange={e => setFooterAbout(e.target.value)}
+                    rows={3} placeholder="Short about text for the footer. Leave empty to use your store description."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Separate from the hero description — you can have different text here.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Shipping Policy</label>
+                  <textarea value={shippingPolicy} onChange={e => setShippingPolicy(e.target.value)}
+                    rows={3} placeholder="e.g. We deliver nationwide within 3-5 business days..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Shown in a popup when customers click Shipping in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Return / Refund Policy</label>
+                  <textarea value={returnPolicy} onChange={e => setReturnPolicy(e.target.value)}
+                    rows={3} placeholder="e.g. We accept returns within 14 days of purchase..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Shown in a popup when customers click Returns in the footer.</div>
+                </div>
+
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  Contact info (email, phone, address, hours) is managed in Dashboard → My Store.
+                </div>
+              </div>
+            )}
+
+            {/* FOOTER — Crown (legacy mapping) */}
+            {activeSection === "footer" && seller?.template !== "heirloom" && seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <label style={labelStyle}>Footer Tagline</label>
                 <input value={tagline} onChange={e => setTagline(e.target.value)}
