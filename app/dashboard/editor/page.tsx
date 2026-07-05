@@ -103,6 +103,7 @@ interface Seller {
     footer_support_links?: string[];
     footer_pay_links?: string[];
     hero_countdown_label?: string;
+    hero_cta?: string;
   };
 }
 
@@ -230,6 +231,7 @@ export default function StoreEditor() {
      `<CODE> ends in` from the active discount; sellers can override to e.g.
      "Limited drop ends in". */
   const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
+  const [heroCta, setHeroCta]                         = useState("");
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -299,6 +301,7 @@ export default function StoreEditor() {
       setShippingPolicy(s.store_config?.shipping_policy ?? "");
       setReturnPolicy(s.store_config?.return_policy ?? "");
       setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
+      setHeroCta(s.store_config?.hero_cta ?? "");
       setLoading(false);
     })();
   }, []);
@@ -442,6 +445,7 @@ export default function StoreEditor() {
           shipping_policy: shippingPolicy,
           return_policy: returnPolicy,
           hero_countdown_label: heroCountdownLabel,
+          hero_cta: heroCta || undefined,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -703,9 +707,9 @@ export default function StoreEditor() {
                       reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
                       reader.readAsDataURL(f);
                       const ext = f.name.split(".").pop();
-                      const path = `${seller.id}/hero_image.${ext}`;
+                      const path = `${seller.id}/hero_image_${Date.now()}.${ext}`;
                       const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl + "?t=" + Date.now(); setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
                     }} style={{ display: "none" }} />
                 </div>
 
@@ -799,10 +803,11 @@ export default function StoreEditor() {
                       reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
                       reader.readAsDataURL(f);
                       const ext = f.name.split(".").pop();
-                      const path = `${seller.id}/hero_image.${ext}`;
+                      const path = `${seller.id}/hero_image_${Date.now()}.${ext}`;
                       const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl + "?t=" + Date.now(); setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
                     }} style={{ display: "none" }} />
+                  {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage hero section.</div>
                 </div>
                 <div>
@@ -819,18 +824,12 @@ export default function StoreEditor() {
                     style={{ ...inputStyle, resize: "vertical" }} />
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Shown in the hero section and footer About blurb.</div>
                 </div>
-                <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
-                        <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
-                      </label>
-                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
-                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
-                    </div>
-                  </div>
+                <div>
+                  <label style={labelStyle}>Button Text</label>
+                  <input value={heroCta} onChange={e => setHeroCta(e.target.value)}
+                    placeholder="Shop Now"
+                    style={inputStyle} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>The call-to-action button in your hero. Leave blank for &quot;Shop Now&quot;.</div>
                 </div>
               </div>
             )}

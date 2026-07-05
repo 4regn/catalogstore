@@ -422,14 +422,15 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a8690", marginBottom: 14 }}>— {displayTagline}</div>}
                   <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: "#2a2a2e", letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{seller?.store_name}</h1>
                   {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: "#5a5660", fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
-                  <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid rgba(42,42,46,0.25)", borderRadius: 0, color: "#2a2a2e", fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Ritual &rarr;</a>
+                  <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid rgba(42,42,46,0.25)", borderRadius: 0, color: "#2a2a2e", fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
                 </div>
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a8690", marginBottom: 14 }}>— {displayTagline}</div>}
                 <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{seller?.store_name}</h1>
-                {displayDescription && <p style={{ fontSize: 14, color: "#8a8690", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>{displayDescription}</p>}
+                {displayDescription && <p style={{ fontSize: 14, color: "#8a8690", lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
+                <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid rgba(42,42,46,0.25)", borderRadius: 0, color: "#2a2a2e", fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
               </div>
             )}
           </section>
@@ -504,7 +505,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
               {filtered.map((product) => (
                 <div key={product.id} onClick={() => openProduct(product)} style={{ cursor: "pointer" }}>
-                  <div style={{ aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }}>
+                  <div style={{ aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: "#f6f3ef" }}>
                     {product.image_url && (
                       <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.6s" }}
                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
@@ -537,7 +538,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             <section className="sl-story" style={{ padding: "100px 32px", maxWidth: 1340, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center" }}>
               <div style={{ aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", background: "linear-gradient(145deg, #d4c5b5, #c0b0a0)" }}>
                 {(() => {
-                  const aboutImg = liveAboutImage ?? cfg.about_image ?? products.find((p) => p.image_url)?.image_url;
+                  const aboutImg = liveAboutImage ?? cfg.about_image;
                   return aboutImg ? <img src={aboutImg} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null;
                 })()}
               </div>
