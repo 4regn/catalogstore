@@ -493,65 +493,59 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <section style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
             <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>{displayCollLabel}</div>
             <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 56 }}>{displayCollSubtitle}</h2>
-            {/* Hero collection — first collection wide */}
+            {/* Asymmetric lookbook layout — pairs of collections alternate large/small */}
             {(() => {
-              const first = collections[0];
-              const firstCount = products.filter((p) => pInCat(p, first)).length;
-              const firstImg = products.find((p) => pInCat(p, first) && p.image_url);
-              const rest = collections.slice(1);
-              const cp0 = getCollectionPromo(first);
-              return (
-                <>
-                  <div onClick={() => { setActiveCategory(first); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                    style={{ position: "relative", aspectRatio: "21/9", borderRadius: 16, overflow: "hidden", cursor: "pointer", marginBottom: 16 }}>
-                    {firstImg?.image_url ? (
-                      <img src={firstImg.image_url} alt={first} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg, ${accent}15, ${accent}30)` }} />
-                    )}
-                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(0,0,0,0.45) 0%, transparent 60%)" }} />
-                    <div style={{ position: "absolute", bottom: 0, left: 0, padding: "40px 44px" }}>
-                      <div style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 48px)", color: "#fff", letterSpacing: "0.03em", fontWeight: 300, marginBottom: 6 }}>{first}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", letterSpacing: "0.12em", textTransform: "uppercase" }}>{firstCount} Piece{firstCount !== 1 ? "s" : ""} &mdash; Explore</div>
-                      {cp0 && (
-                        <div style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
-                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{cp0.code} {cp0.type === "percentage" ? cp0.value + "%" : "R" + cp0.value} OFF</span>
-                          <span style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{cp0.timeLeft}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {rest.length > 0 && (
-                    <div className="sl-cols-g" style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(rest.length, 3) + ", 1fr)", gap: 16 }}>
-                      {rest.map((col, i) => {
-                        const count = products.filter((p) => pInCat(p, col)).length;
-                        const colProduct = products.find((p) => pInCat(p, col) && p.image_url);
-                        const cp = getCollectionPromo(col);
-                        return (
-                          <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                            style={{ position: "relative", aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", cursor: "pointer" }}>
-                            {colProduct?.image_url ? (
-                              <img src={colProduct.image_url} alt={col} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            ) : (
-                              <div style={{ width: "100%", height: "100%", background: `linear-gradient(145deg, ${accent}10, ${accent}25)` }} />
-                            )}
-                            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 50%)" }} />
-                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "28px 24px" }}>
-                              <div style={{ fontFamily: fonts.heading, fontSize: 22, color: "#fff", letterSpacing: "0.03em", fontWeight: 300, marginBottom: 4 }}>{col}</div>
-                              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{count} Piece{count !== 1 ? "s" : ""}</div>
-                              {cp && (
-                                <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 10px", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
-                                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.8)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{cp.code} {cp.type === "percentage" ? cp.value + "%" : "R" + cp.value} OFF</span>
-                                  <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{cp.timeLeft}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+              const colData = collections.map((col) => ({
+                name: col,
+                count: products.filter((p) => pInCat(p, col)).length,
+                img: products.find((p) => pInCat(p, col) && p.image_url)?.image_url || "",
+                promo: getCollectionPromo(col),
+              }));
+              const pairs: (typeof colData)[] = [];
+              for (let i = 0; i < colData.length; i += 2) pairs.push(colData.slice(i, i + 2));
+
+              const renderCard = (c: typeof colData[0], tall: boolean, idx: number) => (
+                <div key={c.name} onClick={() => { setActiveCategory(c.name); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ position: "relative", borderRadius: 12, overflow: "hidden", cursor: "pointer", minHeight: tall ? 520 : 340 }}>
+                  {c.img ? (
+                    <img src={c.img} alt={c.name} onError={hideOnError} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ position: "absolute", inset: 0, background: `linear-gradient(145deg, ${accent}12, ${accent}28)` }} />
                   )}
-                </>
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.05) 50%, transparent 100%)" }} />
+                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: tall ? "36px 32px" : "28px 24px" }}>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>{c.count} Piece{c.count !== 1 ? "s" : ""}</div>
+                    <div style={{ fontFamily: fonts.heading, fontSize: tall ? "clamp(24px, 3vw, 36px)" : "clamp(20px, 2.5vw, 28px)", color: "#fff", letterSpacing: "0.04em", fontWeight: 300, marginBottom: 10 }}>{c.name}</div>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                      Explore <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </div>
+                    {c.promo && (
+                      <div style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)" }}>
+                        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.85)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{c.promo.code} {c.promo.type === "percentage" ? c.promo.value + "%" : "R" + c.promo.value} OFF</span>
+                        <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{c.promo.timeLeft}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {pairs.map((pair, pi) => {
+                    if (pair.length === 1) return (
+                      <div key={pi} className="sl-cols-g" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+                        {renderCard(pair[0], true, pi * 2)}
+                      </div>
+                    );
+                    const flip = pi % 2 === 1;
+                    return (
+                      <div key={pi} className="sl-cols-g" style={{ display: "grid", gridTemplateColumns: "7fr 5fr", gap: 16 }}>
+                        {renderCard(pair[flip ? 1 : 0], true, pi * 2)}
+                        {renderCard(pair[flip ? 0 : 1], false, pi * 2 + 1)}
+                      </div>
+                    );
+                  })}
+                </div>
               );
             })()}
           </section>
