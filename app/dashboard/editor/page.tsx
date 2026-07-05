@@ -104,6 +104,7 @@ interface Seller {
     footer_pay_links?: string[];
     hero_countdown_label?: string;
     hero_cta?: string;
+    hero_title?: string;
     text_color?: string;
     muted_color?: string;
   };
@@ -184,7 +185,7 @@ export default function StoreEditor() {
   const [collOrder, setCollOrder]             = useState<string[]>([]);
   const [tickerTexts, setTickerTexts]         = useState<string[]>(["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"]);
   const [tickerSpeed, setTickerSpeed]         = useState(20);
-  const [bgColor, setBgColor]                 = useState("#0a0908");
+  const [bgColor, setBgColor]                 = useState("#f6f3ef");
   const [textColor, setTextColor]             = useState("#2a2a2e");
   const [mutedColor, setMutedColor]           = useState("#8a8690");
   const [heroTextColor, setHeroTextColor]     = useState("#f0e6d3");
@@ -236,6 +237,7 @@ export default function StoreEditor() {
      "Limited drop ends in". */
   const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
   const [heroCta, setHeroCta]                         = useState("");
+  const [heroTitle, setHeroTitle]                     = useState("");
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -308,6 +310,7 @@ export default function StoreEditor() {
       setReturnPolicy(s.store_config?.return_policy ?? "");
       setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
       setHeroCta(s.store_config?.hero_cta ?? "");
+      setHeroTitle(s.store_config?.hero_title !== undefined ? s.store_config.hero_title : (s.store_name || ""));
       setLoading(false);
     })();
   }, []);
@@ -384,6 +387,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ shippingPolicy }); }, [shippingPolicy]);
   useEffect(() => { postUpdate({ returnPolicy }); }, [returnPolicy]);
   useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
+  useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
 
   /* ─── SAVE ─── */
   const save = async () => {
@@ -454,6 +458,7 @@ export default function StoreEditor() {
           return_policy: returnPolicy,
           hero_countdown_label: heroCountdownLabel,
           hero_cta: heroCta || undefined,
+          hero_title: heroTitle,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -824,6 +829,13 @@ export default function StoreEditor() {
                     placeholder="e.g. Elegance redefined"
                     style={inputStyle} />
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 5 }}>The big text in your hero section. 3–6 words works best.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Brand Name (Hero)</label>
+                  <input value={heroTitle} onChange={e => setHeroTitle(e.target.value)}
+                    placeholder="Your store name"
+                    style={inputStyle} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>The large brand name in your hero. Leave blank to hide it.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Description</label>

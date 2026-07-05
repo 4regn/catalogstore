@@ -63,6 +63,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
   const [livePolicyItems, setLivePolicyItems]   = useState<{ title: string; desc: string }[] | null>(null);
   const [liveAboutImage, setLiveAboutImage]     = useState<string | null>(null);
+  const [liveHeroTitle, setLiveHeroTitle]       = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
@@ -116,6 +117,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.policyItems  !== undefined) setLivePolicyItems(e.data.policyItems);
       if (e.data.aboutImage   !== undefined) setLiveAboutImage(e.data.aboutImage || null);
       if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
+      if (e.data.heroTitle   !== undefined) setLiveHeroTitle(e.data.heroTitle);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -282,6 +284,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   /* Live overrides */
   const displayTagline      = liveTagline      ?? seller?.tagline      ?? "";
   const displayDescription  = liveDescription  ?? seller?.description  ?? "";
+  const displayHeroTitle    = liveHeroTitle !== null ? liveHeroTitle : ((cfg as any).hero_title !== undefined ? (cfg as any).hero_title : (seller?.store_name || ""));
   const displayAnnouncement = liveAnnouncement ?? cfg.announcement     ?? "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
   const displayLogoUrl      = liveLogoUrl      ?? seller?.logo_url     ?? "";
@@ -423,7 +426,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-end", padding: "0 48px 60px", maxWidth: 640 }}>
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                  <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{seller?.store_name}</h1>
+                  {displayHeroTitle && <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{displayHeroTitle}</h1>}
                   {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
                   <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
                 </div>
@@ -431,7 +434,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             ) : (
               <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{seller?.store_name}</h1>
+                {displayHeroTitle && <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
                 {displayDescription && <p style={{ fontSize: 14, color: pageMuted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
                 <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
               </div>
