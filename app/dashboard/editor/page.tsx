@@ -110,6 +110,7 @@ interface Seller {
     font_pair?: string;
     header_transparent?: boolean;
     header_border?: boolean;
+    collection_images?: Record<string, string>;
   };
 }
 
@@ -244,6 +245,7 @@ export default function StoreEditor() {
   const [fontPair, setFontPair]                       = useState("cormorant-jost");
   const [headerTransparent, setHeaderTransparent]     = useState(false);
   const [headerBorder, setHeaderBorder]               = useState(true);
+  const [collectionImages, setCollectionImages]       = useState<Record<string, string>>({});
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -321,6 +323,7 @@ export default function StoreEditor() {
       if (s.store_config?.font_pair) setFontPair(s.store_config.font_pair);
       setHeaderTransparent(s.store_config?.header_transparent === true);
       setHeaderBorder(s.store_config?.header_border !== false);
+      if (s.store_config?.collection_images) setCollectionImages(s.store_config.collection_images);
       setLoading(false);
     })();
   }, []);
@@ -477,6 +480,7 @@ export default function StoreEditor() {
           font_pair: fontPair,
           header_transparent: headerTransparent,
           header_border: headerBorder,
+          collection_images: collectionImages,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -1117,7 +1121,7 @@ export default function StoreEditor() {
                 <label style={labelStyle}>Collection Order</label>
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 6 }}>Drag to reorder how collections appear on your store.</div>
                 {collOrder.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {collOrder.map((col, i) => (
                       <div key={col}
                         draggable
@@ -1132,14 +1136,42 @@ export default function StoreEditor() {
                           u.splice(i, 0, item);
                           setCollOrder(u);
                         }}
-                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, cursor: "grab", userSelect: "none" }}>
-                        <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 14 }}>⠿</span>
-                        <span style={{ flex: 1, fontSize: 13 }}>{col}</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <button onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i-1], u[i]] = [u[i], u[i-1]]; setCollOrder(u); }}
-                            style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>▲</button>
-                          <button onClick={() => { if (i === collOrder.length-1) return; const u = [...collOrder]; [u[i], u[i+1]] = [u[i+1], u[i]]; setCollOrder(u); }}
-                            style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>▼</button>
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", cursor: "grab", userSelect: "none" }}>
+                          <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 14 }}>⠿</span>
+                          <span style={{ flex: 1, fontSize: 13 }}>{col}</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            <button onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i-1], u[i]] = [u[i], u[i-1]]; setCollOrder(u); }}
+                              style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>▲</button>
+                            <button onClick={() => { if (i === collOrder.length-1) return; const u = [...collOrder]; [u[i], u[i+1]] = [u[i+1], u[i]]; setCollOrder(u); }}
+                              style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>▼</button>
+                          </div>
+                        </div>
+                        <div style={{ padding: "0 12px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+                          {collectionImages[col] ? (
+                            <img src={collectionImages[col]} alt="" style={{ width: 48, height: 48, borderRadius: 6, objectFit: "cover" }} />
+                          ) : (
+                            <div style={{ width: 48, height: 48, borderRadius: 6, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(245,245,245,0.2)" }}>+</div>
+                          )}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                            <label style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                              {collectionImages[col] ? "Change image" : "Set cover image"}
+                              <input type="file" accept="image/*" onChange={async (e) => {
+                                const f = e.target.files?.[0]; if (!f || !seller) return;
+                                const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
+                                const path = `${seller.id}/collection_${col.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.${ext}`;
+                                const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                                if (!error) {
+                                  const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                                  setCollectionImages(prev => ({ ...prev, [col]: data.publicUrl }));
+                                }
+                              }} style={{ display: "none" }} />
+                            </label>
+                            {collectionImages[col] && (
+                              <button onClick={() => setCollectionImages(prev => { const n = { ...prev }; delete n[col]; return n; })}
+                                style={{ fontSize: 9, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}

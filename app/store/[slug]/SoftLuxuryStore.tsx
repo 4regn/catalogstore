@@ -495,10 +495,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 56 }}>{displayCollSubtitle}</h2>
             {/* Asymmetric lookbook layout — pairs of collections alternate large/small */}
             {(() => {
+              const collImages = (cfg as any).collection_images || {};
               const colData = collections.map((col) => ({
                 name: col,
                 count: products.filter((p) => pInCat(p, col)).length,
-                img: products.find((p) => pInCat(p, col) && p.image_url)?.image_url || "",
+                img: collImages[col] || products.find((p) => pInCat(p, col) && p.image_url)?.image_url || "",
                 promo: getCollectionPromo(col),
               }));
               const pairs: (typeof colData)[] = [];
