@@ -280,6 +280,10 @@ export default function StoreEditor() {
       setLogoPreview(s.logo_url || "");
       setHeroImagePreview(s.store_config?.hero_image || "");
       setHeroImageUrl(s.store_config?.hero_image || "");
+      if (!s.store_config?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
+        setHeroImagePreview(s.banner_url);
+        setHeroImageUrl(s.banner_url);
+      }
       // Heirloom-specific hero fields
       setHeroIndex(s.store_config?.hero_index ?? "");
       setHeroLabel(s.store_config?.hero_label ?? "");
@@ -376,16 +380,21 @@ export default function StoreEditor() {
   const save = async () => {
     if (!seller) return;
     setSaving(true);
-    let logoUrl = seller.logo_url;
+    let logoUrl: string | null = seller.logo_url;
     if (logoFile) {
       const ext = logoFile.name.split(".").pop();
       const path = `logos/${seller.id}-${Date.now()}.${ext}`;
       await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true });
       const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
       logoUrl = data.publicUrl;
+    } else if (!logoPreview && seller.logo_url) {
+      logoUrl = null;
     }
+    const heroUrl = heroImageUrl || heroImagePreview || undefined;
+    const isBannerTemplate = seller.template === "soft-luxury" || seller.template === "glass-futuristic";
     await supabase.from("sellers").update({
       tagline, description, logo_url: logoUrl,
+      ...(isBannerTemplate && heroUrl ? { banner_url: heroUrl } : {}),
       collections: collOrder.length > 0 ? collOrder : seller.collections,
       store_config: {
         ...seller.store_config,
@@ -771,8 +780,8 @@ export default function StoreEditor() {
               </div>
             )}
 
-            {/* HERO — Crown / Soft Luxury / Glass Chrome (legacy mapping) */}
-            {activeSection === "hero" && seller?.template !== "heirloom" && (
+            {/* HERO — Soft Luxury / Glass Chrome (banner_url based) */}
+            {activeSection === "hero" && (seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
                   <label style={labelStyle}>Hero Background Image</label>
@@ -786,15 +795,64 @@ export default function StoreEditor() {
                   <input ref={heroImageRef} type="file" accept="image/*"
                     onChange={async e => {
                       const f = e.target.files?.[0]; if (!f || !seller) return;
-                      // Show preview immediately from local file
                       const reader = new FileReader();
-                      reader.onload = ev => {
-                        const localUrl = ev.target?.result as string;
-                        setHeroImagePreview(localUrl);
-                        postUpdate({ heroImage: localUrl });
-                      };
+                      reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
                       reader.readAsDataURL(f);
-                      // Also upload to storage for persistence
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_image.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl + "?t=" + Date.now(); setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                    }} style={{ display: "none" }} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage hero section.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Tagline (Hero Headline)</label>
+                  <input value={tagline} onChange={e => setTagline(e.target.value)}
+                    placeholder="e.g. Elegance redefined"
+                    style={inputStyle} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 5 }}>The big text in your hero section. 3–6 words works best.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Description</label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)}
+                    rows={3} placeholder="A short sentence about your brand..."
+                    style={{ ...inputStyle, resize: "vertical" }} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Shown in the hero section and footer About blurb.</div>
+                </div>
+                <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                        <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                      </label>
+                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
+                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HERO — Crown (store_config.hero_image based) */}
+            {activeSection === "hero" && seller?.template === "crown" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Hero Background Image</label>
+                  <div onClick={() => heroImageRef.current?.click()}
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroImagePreview
+                      ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>
+                    }
+                  </div>
+                  <input ref={heroImageRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
+                      reader.readAsDataURL(f);
                       const ext = f.name.split(".").pop();
                       const path = `${seller.id}/hero_image.${ext}`;
                       const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
@@ -831,16 +889,16 @@ export default function StoreEditor() {
                 </div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
-                      <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
-                    </label>
-                    <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
-                    <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                        <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                      </label>
+                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
+                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    </div>
                   </div>
-                </div>
                 </div>
               </div>
             )}

@@ -162,6 +162,9 @@ export default function Dashboard() {
   const [bannerPreview, setBannerPreview] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [logoRemoved, setLogoRemoved] = useState(false);
+  const [bannerRemoved, setBannerRemoved] = useState(false);
 
   useEffect(() => { checkAuth(); }, []);
 
@@ -219,17 +222,17 @@ export default function Dashboard() {
     }
     setLoadingMoreOrders(false);
   };
-  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); return; } setLogoFile(f); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
-  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); return; } setBannerFile(f); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); return; } setLogoFile(f); setLogoRemoved(false); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
+  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); return; } setBannerFile(f); setBannerRemoved(false); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
 
   const saveStoreSettings = async () => {
     if (!seller) return; setStoreSaving(true); setStoreSaved(false);
-    let logoUrl = seller.logo_url || ""; let bannerUrl = seller.banner_url || "";
+    let logoUrl: string | null = logoRemoved ? null : (seller.logo_url || ""); let bannerUrl: string | null = bannerRemoved ? null : (seller.banner_url || "");
     if (logoFile) { const ext = logoFile.name.split(".").pop(); const path = seller.id + "/logo." + ext; await supabase.storage.from("store-assets").upload(path, logoFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); logoUrl = data.publicUrl + "?t=" + Date.now(); }
     if (bannerFile) { const ext = bannerFile.name.split(".").pop(); const path = seller.id + "/banner." + ext; await supabase.storage.from("store-assets").upload(path, bannerFile, { upsert: true }); const { data } = supabase.storage.from("store-assets").getPublicUrl(path); bannerUrl = data.publicUrl + "?t=" + Date.now(); }
     const mergedConfig = { ...seller.store_config, ...storeConfig };
     const { error } = await supabase.from("sellers").update({ template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: mergedConfig }).eq("id", seller.id);
-    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl, banner_url: bannerUrl, collections: storeCollections, social_links: socialLinks, store_config: mergedConfig }); setLogoFile(null); setBannerFile(null); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); revalidateMyStore(); }
+    if (!error) { setSeller({ ...seller, template: storeTemplate, primary_color: storeColor, tagline: storeTagline, description: storeDescription, logo_url: logoUrl || "", banner_url: bannerUrl || "", collections: storeCollections, social_links: socialLinks, store_config: mergedConfig }); setLogoFile(null); setBannerFile(null); setLogoRemoved(false); setBannerRemoved(false); setStoreSaved(true); setTimeout(() => setStoreSaved(false), 3000); revalidateMyStore(); }
     setStoreSaving(false);
   };
 
@@ -1051,28 +1054,63 @@ export default function Dashboard() {
           {tab === "mystore" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Edit My Store</h1>
             <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", marginBottom: 32 }}>Customize how your store looks to customers.</p>
-            <div style={{ marginBottom: 40 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16 }}>Choose Template</h3>
-              <div className="templates-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                {TEMPLATES.map((t) => (<button key={t.id} onClick={() => setStoreTemplate(t.id)} style={{ padding: 0, border: storeTemplate === t.id ? "2px solid " + N : "2px solid rgba(255,255,255,0.06)", borderRadius: 14, background: "rgba(255,255,255,0.02)", cursor: "pointer", overflow: "hidden", textAlign: "left" as const }}>
-                  <div style={{ height: 80, background: t.colors.bg, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 12 }}>{[1,2,3].map((n) => <div key={n} style={{ width: 36, height: 48, borderRadius: 4, background: t.colors.card, border: "1px solid " + (t.id === "glass-futuristic" ? "rgba(255,255,255,0.08)" : "#eee") }} />)}</div>
-                  <div style={{ padding: "10px 14px" }}><div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><span style={{ fontSize: 12, fontWeight: 800, color: "#f5f5f5", textTransform: "uppercase" as const }}>{t.name}</span>{storeTemplate === t.id && <span style={{ fontSize: 9, color: N, fontWeight: 800, textTransform: "uppercase" as const }}>Selected</span>}</div><p style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 3 }}>{t.desc}</p></div>
-                </button>))}
-              </div>
-            </div>
-            <div style={{ marginBottom: 40 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16 }}>Brand Color</h3>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, alignItems: "center" }}>
-                {COLOR_PRESETS.map((c) => (<button key={c} onClick={() => setStoreColor(c)} style={{ width: 36, height: 36, borderRadius: 10, background: c, border: storeColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", boxShadow: storeColor === c ? "0 0 0 2px " + c : "none" }} />))}
-                <input type="color" value={storeColor} onChange={(e) => setStoreColor(e.target.value)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", cursor: "pointer", background: "transparent" }} />
-              </div>
+            <div style={{ marginBottom: 40, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, overflow: "hidden" }}>
+              <button onClick={() => setTemplateOpen(!templateOpen)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: "rgba(255,255,255,0.02)", border: "none", cursor: "pointer", color: "#f5f5f5" }}>
+                <span style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Choose Template</span>
+                <span style={{ fontSize: 11, color: "rgba(245,245,245,0.3)", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 10, color: N, fontWeight: 700 }}>{TEMPLATES.find(t => t.id === storeTemplate)?.name}</span>
+                  <span style={{ transform: templateOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s", display: "inline-block" }}>&#9662;</span>
+                </span>
+              </button>
+              {templateOpen && (
+                <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
+                    {TEMPLATES.map((t) => {
+                      const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html" } as Record<string, string>)[t.id];
+                      return (
+                        <button key={t.id} onClick={() => setStoreTemplate(t.id)} style={{ padding: 0, border: storeTemplate === t.id ? "2px solid " + N : "2px solid rgba(255,255,255,0.08)", borderRadius: 14, background: "rgba(255,255,255,0.02)", cursor: "pointer", overflow: "hidden", textAlign: "left" as const, position: "relative" as const }}>
+                          <div style={{ width: "100%", height: 220, background: t.colors.bg, overflow: "hidden", borderRadius: "12px 12px 0 0", position: "relative" as const }}>
+                            <div style={{ position: "absolute" as const, top: 8, left: "50%", transform: "translateX(-50%)", width: 60, height: 6, borderRadius: 3, background: "rgba(0,0,0,0.15)", zIndex: 2 }} />
+                            <div style={{ width: 400, height: 844, transform: "scale(0.38)", transformOrigin: "top left", position: "absolute" as const, top: 0, left: "50%", marginLeft: -76, pointerEvents: "none" as const }}>
+                              <iframe src={previewUrl} style={{ width: 400, height: 844, border: "none" }} tabIndex={-1} />
+                            </div>
+                          </div>
+                          <div style={{ padding: "8px 12px" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: "#f5f5f5", textTransform: "uppercase" as const }}>{t.name}</span>
+                              {storeTemplate === t.id && <span style={{ width: 18, height: 18, borderRadius: "50%", background: N, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 900 }}>&#10003;</span>}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 10 }}>Brand Color</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, alignItems: "center" }}>
+                      {COLOR_PRESETS.map((c) => (<button key={c} onClick={() => setStoreColor(c)} style={{ width: 32, height: 32, borderRadius: 8, background: c, border: storeColor === c ? "3px solid #fff" : "3px solid transparent", cursor: "pointer", boxShadow: storeColor === c ? "0 0 0 2px " + c : "none" }} />))}
+                      <input type="color" value={storeColor} onChange={(e) => setStoreColor(e.target.value)} style={{ width: 32, height: 32, borderRadius: 8, border: "none", cursor: "pointer", background: "transparent" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {seller?.subdomain && (<div style={{ marginBottom: 40 }}><h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 8 }}>Visual Editor</h3><p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p><a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Store Editor &rarr;</a></div>)}
             <div style={{ marginBottom: 40 }}>
               <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16 }}>Logo & Banner</h3>
               <div className="logo-banner-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                <div><label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Store Logo</label><div onClick={() => logoInputRef.current?.click()} style={{ marginTop: 8, width: 100, height: 100, borderRadius: 12, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>{logoPreview ? <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Upload</span>}</div><input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} style={{ display: "none" }} /></div>
-                <div><label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Store Banner</label><div onClick={() => bannerInputRef.current?.click()} style={{ marginTop: 8, width: "100%", height: 100, borderRadius: 12, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>{bannerPreview ? <img src={bannerPreview} alt="Banner" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Upload</span>}</div><input ref={bannerInputRef} type="file" accept="image/*" onChange={handleBannerSelect} style={{ display: "none" }} /></div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Store Logo</label>
+                  <div onClick={() => logoInputRef.current?.click()} style={{ marginTop: 8, width: 100, height: 100, borderRadius: 12, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>{logoPreview ? <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Upload</span>}</div>
+                  <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} style={{ display: "none" }} />
+                  {logoPreview && <button onClick={() => { setLogoPreview(""); setLogoFile(null); setLogoRemoved(true); }} style={{ marginTop: 6, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Remove</button>}
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(245,245,245,0.35)", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Store Banner</label>
+                  <div onClick={() => bannerInputRef.current?.click()} style={{ marginTop: 8, width: "100%", height: 100, borderRadius: 12, border: "1px dashed rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>{bannerPreview ? <img src={bannerPreview} alt="Banner" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Upload</span>}</div>
+                  <input ref={bannerInputRef} type="file" accept="image/*" onChange={handleBannerSelect} style={{ display: "none" }} />
+                  {bannerPreview && <button onClick={() => { setBannerPreview(""); setBannerFile(null); setBannerRemoved(true); }} style={{ marginTop: 6, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Remove</button>}
+                </div>
               </div>
             </div>
             <div style={{ marginBottom: 40 }}>

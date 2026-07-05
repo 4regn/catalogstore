@@ -416,19 +416,20 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
             {seller?.banner_url ? (
               <>
-                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.85)" }} />
-                {cfg.show_banner_text && (
-                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(42,42,46,0) 30%, rgba(42,42,46,0.4) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "0 40px 80px", textAlign: "center" }}>
-                    {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)", marginBottom: 16 }}>{displayTagline}</div>}
-                    <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 72px)", fontWeight: 300, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.1, marginBottom: 20 }}>{seller?.store_name}</h1>
-                    <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 100, color: "#fff", fontSize: 12, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Collection &rarr;</a>
-                  </div>
-                )}
+                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, #f6f3ef 0%, rgba(246,243,239,0.15) 55%, transparent 100%)" }} />
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-end", padding: "0 48px 60px", maxWidth: 640 }}>
+                  {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a8690", marginBottom: 14 }}>— {displayTagline}</div>}
+                  <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: "#2a2a2e", letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{seller?.store_name}</h1>
+                  {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: "#5a5660", fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
+                  <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid rgba(42,42,46,0.25)", borderRadius: 0, color: "#2a2a2e", fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Ritual &rarr;</a>
+                </div>
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
-                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, letterSpacing: "0.04em", marginBottom: 12 }}>{seller?.store_name}</h1>
-                {displayTagline && <p style={{ fontSize: 14, color: "#8a8690", letterSpacing: "0.1em", textTransform: "uppercase" }}>{displayTagline}</p>}
+                {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "#8a8690", marginBottom: 14 }}>— {displayTagline}</div>}
+                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{seller?.store_name}</h1>
+                {displayDescription && <p style={{ fontSize: 14, color: "#8a8690", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>{displayDescription}</p>}
               </div>
             )}
           </section>
