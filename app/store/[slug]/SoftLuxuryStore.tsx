@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -89,6 +89,7 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
 export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
 
@@ -121,6 +122,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [policyModal, setPolicyModal]           = useState<{ title: string; content: string } | null>(null);
   const [contactOpen, setContactOpen]           = useState(false);
   const [productsExpanded, setProductsExpanded] = useState(!initialSeller?.store_config?.products_collapsed);
+  const [collectionsExpanded, setCollectionsExpanded] = useState(!(initialSeller?.store_config as any)?.collections_collapsed);
   const [expandedPolicy, setExpandedPolicy]     = useState<number | null>(null);
 
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
@@ -185,6 +187,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
       if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
+      if (e.data.collectionsCollapsed !== undefined) setCollectionsExpanded(!e.data.collectionsCollapsed);
       if (e.data.footerAbout !== undefined) setLiveFooterAbout(e.data.footerAbout);
       if (e.data.contactEmail !== undefined) setLiveContactEmail(e.data.contactEmail);
       if (e.data.contactPhone !== undefined) setLiveContactPhone(e.data.contactPhone);
@@ -505,6 +508,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </div>
         )}
 
+        {!initialProductId && (<>
         {/* HERO */}
         <EditSection id="hero">
           <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
@@ -547,8 +551,18 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         {cfg.show_collections && collections.length > 0 && (
           <EditSection id="collections">
           <section style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>{displayCollLabel}</div>
-            <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 56 }}>{displayCollSubtitle}</h2>
+            {(() => { const collCollapsed = (cfg as any).collections_collapsed === true; return (
+            <>
+            <div style={{ textAlign: "center", cursor: collCollapsed ? "pointer" : "default" }} onClick={collCollapsed ? () => setCollectionsExpanded(!collectionsExpanded) : undefined}>
+              <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12 }}>{displayCollLabel}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: collectionsExpanded ? 56 : 0 }}>
+                <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, letterSpacing: "0.02em" }}>{displayCollSubtitle}</h2>
+                {collCollapsed && (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round" style={{ transition: "transform 0.3s", transform: collectionsExpanded ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6"/></svg>
+                )}
+              </div>
+            </div>
+            {collectionsExpanded && (<>
             {/* Asymmetric lookbook layout — pairs of collections alternate large/small */}
             {(() => {
               const collImages = (cfg as any).collection_images || {};
@@ -605,6 +619,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 </div>
               );
             })()}
+            </>)}
+            </>); })()}
           </section>
           </EditSection>
         )}
@@ -650,7 +666,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           ) : (
             <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
               {filtered.map((product) => (
-                <div key={product.id} onClick={() => openProduct(product)} style={{ cursor: "pointer" }}>
+                <div key={product.id} onClick={() => isEditMode ? openProduct(product) : router.push(`/store/${slug}/p/${product.id}`)} style={{ cursor: "pointer" }}>
                   <div style={{ ...(cardRatio !== "auto" ? { aspectRatio: cardRatio } : {}), borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
                     {product.image_url && (
                       <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: cardRatio === "auto" ? "auto" : "100%", objectFit: cardRatio === "auto" ? "contain" : "cover", display: "block", transition: "transform 0.6s" }}
@@ -717,6 +733,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             </div>
           </EditSection>
         )}
+
+        </>)}
 
         {/* FOOTER */}
         <EditSection id="footer">
@@ -840,8 +858,62 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         </footer>
         </EditSection>
 
-        {/* PRODUCT MODAL */}
-        {selectedProduct && (
+        {/* PRODUCT DETAIL PAGE — full page view when navigating to /store/[slug]/p/[productId] */}
+        {selectedProduct && initialProductId && !isEditMode && (
+          <section style={{ padding: "40px 24px 80px", maxWidth: 1200, margin: "0 auto" }}>
+            <button onClick={() => router.push(`/store/${slug}`)} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "none", border: "none", color: pageMuted, cursor: "pointer", fontFamily: fonts.body, fontSize: 13, letterSpacing: "0.04em", marginBottom: 32, padding: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="m11 5-5 5 5 5"/><path d="M16 10H6"/></svg>
+              Back to store
+            </button>
+            <div className="sl-modal" style={{ display: "flex", gap: 48, alignItems: "flex-start" }}>
+              <div style={{ flex: 1.2, position: "sticky", top: 100 }}>
+                <div style={{ borderRadius: 16, overflow: "hidden", background: "#f5f5f5", aspectRatio: "4/5" }}>
+                  {selectedProduct.images?.length > 0 ? <img src={selectedProduct.images[activeImageIndex]} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : selectedProduct.image_url ? <img src={selectedProduct.image_url} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg, #e0d5ca, #cdc0b2)" }} />}
+                </div>
+                {selectedProduct.images?.length > 1 && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto" }}>
+                    {selectedProduct.images.map((img: string, i: number) => <img key={i} src={img} alt="" onError={hideOnError} onClick={() => setActiveImageIndex(i)} style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", cursor: "pointer", border: activeImageIndex === i ? "2px solid " + accent : "2px solid transparent", flexShrink: 0 }} />)}
+                  </div>
+                )}
+              </div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>{selectedProduct.category}</p>}
+                <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 3.5vw, 42px)", fontWeight: 300, letterSpacing: "0.01em", marginBottom: 16, lineHeight: 1.2 }}>{selectedProduct.name}</h1>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+                  <span style={{ fontSize: 28, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
+                  {selectedProduct.old_price && <span style={{ fontSize: 20, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
+                </div>
+                {selectedProduct.description && <p style={{ fontSize: 15, lineHeight: 1.8, color: pageMuted, marginBottom: 32, fontWeight: 300 }}>{selectedProduct.description}</p>}
+                {selectedProduct.variants?.filter((v: any) => v.options?.length > 0).length > 0 && (
+                  <div style={{ marginBottom: 32 }}>
+                    {selectedProduct.variants.filter((v: any) => v.options?.length > 0).map((v: any) => (
+                      <div key={v.name} style={{ marginBottom: 20 }}>
+                        <p style={{ fontSize: 12, color: pageMuted, marginBottom: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>{v.name}: <strong style={{ color: pageText }}>{selectedVariants[v.name]}</strong></p>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {v.options.map((opt: string) => (
+                            <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "12px 24px", border: selectedVariants[v.name] === opt ? "2px solid " + pageText : "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: pageBg, fontFamily: fonts.body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: pageText }}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", marginBottom: 20, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                  <span style={{ fontSize: 11, color: pageMuted, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: fonts.body, fontWeight: 500 }}>Quantity</span>
+                  <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 100, overflow: "hidden" }}>
+                    <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>−</button>
+                    <span style={{ minWidth: 36, textAlign: "center", fontSize: 15, fontWeight: 500, color: pageText }}>{modalQty}</span>
+                    <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 40, height: 40, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 18, fontFamily: fonts.body }}>+</button>
+                  </div>
+                </div>
+                <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "20px 36px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 14, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* PRODUCT MODAL — editor preview only */}
+        {selectedProduct && (!initialProductId || isEditMode) && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={closeProduct}>
             <div style={{ background: "#fff", borderRadius: 20, maxWidth: 900, width: "92%", maxHeight: "90vh", overflow: "auto", position: "relative", padding: "32px" }} onClick={(e) => e.stopPropagation()}>
               <button onClick={closeProduct} style={{ position: "absolute", top: 16, right: 16, width: 36, height: 36, borderRadius: "50%", background: "#f5f5f5", border: "none", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#333", zIndex: 10 }}>&times;</button>
@@ -959,7 +1031,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             {searched && searched.length > 0 && (
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
-                  <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
+                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) { openProduct(p); } else { router.push(`/store/${slug}/p/${p.id}`); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
                     {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 15 }}>{p.name}</div><div style={{ fontSize: 13, color: accent }}>{fmt(p.price)}</div></div>
                   </div>

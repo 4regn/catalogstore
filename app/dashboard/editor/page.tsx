@@ -114,7 +114,18 @@ interface Seller {
     footer_about?: string;
     products_collapsed?: boolean;
     product_card_ratio?: string;
+    collections_collapsed?: boolean;
+    operating_hours_structured?: DayHours[];
   };
+}
+
+interface DayHours {
+  day: string;
+  status: "open" | "closed";
+  open: string;
+  close: string;
+  lunch_start: string;
+  lunch_end: string;
 }
 
 // Hero CTA destinations -- mirror the type in HeirloomStore so the editor and
@@ -257,6 +268,23 @@ export default function StoreEditor() {
   const [physicalAddress, setPhysicalAddress]         = useState("");
   const [operatingHours, setOperatingHours]           = useState("");
   const [policyItems, setPolicyItems]                 = useState<{ title: string; desc: string }[]>([]);
+  const [collectionsCollapsed, setCollectionsCollapsed] = useState(false);
+
+  const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const DEFAULT_HOURS: DayHours[] = DAYS.map(d => ({ day: d, status: "open" as const, open: "09:00", close: "17:00", lunch_start: "", lunch_end: "" }));
+  const [hoursStructured, setHoursStructured] = useState<DayHours[]>(DEFAULT_HOURS);
+
+  const TIME_OPTIONS = (() => {
+    const opts: string[] = [];
+    for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m += 30) opts.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    return opts;
+  })();
+
+  const updateDayHours = (idx: number, patch: Partial<DayHours>) => {
+    const u = [...hoursStructured];
+    u[idx] = { ...u[idx], ...patch };
+    setHoursStructured(u);
+  };
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -338,10 +366,12 @@ export default function StoreEditor() {
       if (s.store_config?.collection_images) setCollectionImages(s.store_config.collection_images);
       if (s.store_config?.footer_about) setFooterAbout(s.store_config.footer_about);
       setProductsCollapsed(s.store_config?.products_collapsed === true);
+      setCollectionsCollapsed(s.store_config?.collections_collapsed === true);
       if ((s.store_config as any)?.contact_email) setContactEmail((s.store_config as any).contact_email);
       if ((s.store_config as any)?.contact_phone) setContactPhone((s.store_config as any).contact_phone);
       if ((s.store_config as any)?.physical_address) setPhysicalAddress((s.store_config as any).physical_address);
       if ((s.store_config as any)?.operating_hours) setOperatingHours((s.store_config as any).operating_hours);
+      if ((s.store_config as any)?.operating_hours_structured?.length) setHoursStructured((s.store_config as any).operating_hours_structured);
       setPolicyItems(s.store_config?.policy_items || [
         { title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." },
         { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." },
@@ -436,6 +466,16 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ physicalAddress }); }, [physicalAddress]);
   useEffect(() => { postUpdate({ operatingHours }); }, [operatingHours]);
   useEffect(() => { postUpdate({ policyItems }); }, [policyItems]);
+  useEffect(() => { postUpdate({ collectionsCollapsed }); }, [collectionsCollapsed]);
+  useEffect(() => {
+    const lines = hoursStructured.map(h => {
+      if (h.status === "closed") return `${h.day}: Closed`;
+      let line = `${h.day}: ${h.open} – ${h.close}`;
+      if (h.lunch_start && h.lunch_end) line += ` (Lunch ${h.lunch_start} – ${h.lunch_end})`;
+      return line;
+    }).join("\n");
+    setOperatingHours(lines);
+  }, [hoursStructured]);
 
   /* ─── SAVE ─── */
   const save = async () => {
@@ -514,10 +554,12 @@ export default function StoreEditor() {
           collection_images: collectionImages,
           footer_about: footerAbout || undefined,
           products_collapsed: productsCollapsed || undefined,
+          collections_collapsed: collectionsCollapsed || undefined,
           contact_email: contactEmail || undefined,
           contact_phone: contactPhone || undefined,
           physical_address: physicalAddress || undefined,
           operating_hours: operatingHours || undefined,
+          operating_hours_structured: hoursStructured,
           policy_items: policyItems,
       },
     }).eq("id", seller.id);
@@ -1240,6 +1282,15 @@ export default function StoreEditor() {
                     Collections come from your product categories. Add products with categories in the dashboard first.
                   </div>
                 )}
+                {(seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12 }}>Collapsed by default</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Click to expand on the storefront</div>
+                  </div>
+                  <button onClick={() => setCollectionsCollapsed(!collectionsCollapsed)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: collectionsCollapsed ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: collectionsCollapsed ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
+                </div>
+                )}
                 {seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (<>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
@@ -1634,10 +1685,58 @@ export default function StoreEditor() {
                     </div>
                     <div>
                       <label style={labelStyle}>Operating Hours</label>
-                      <textarea value={operatingHours} onChange={e => setOperatingHours(e.target.value)}
-                        rows={3} placeholder={"Monday - Friday: 9am - 5pm\nSaturday: 10am - 2pm\nSunday & Holidays: Closed"}
-                        style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
-                      <div style={hintStyle}>One line per entry. Format: &quot;Day: Hours&quot;. Displayed as a table in the footer.</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {hoursStructured.map((h, i) => (
+                          <div key={h.day} style={{ padding: "8px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: h.status === "open" ? 6 : 0 }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.7)", minWidth: 70 }}>{h.day.slice(0, 3)}</span>
+                              <select value={h.status} onChange={e => updateDayHours(i, { status: e.target.value as "open" | "closed" })}
+                                style={{ ...inputStyle, padding: "4px 8px", fontSize: 10, width: "auto", minWidth: 70 }}>
+                                <option value="open">Open</option>
+                                <option value="closed">Closed</option>
+                              </select>
+                            </div>
+                            {h.status === "open" && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                  <span style={{ fontSize: 9, color: "rgba(245,245,245,0.3)", minWidth: 36 }}>Hours</span>
+                                  <select value={h.open} onChange={e => updateDayHours(i, { open: e.target.value })}
+                                    style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
+                                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                  </select>
+                                  <span style={{ fontSize: 10, color: "rgba(245,245,245,0.25)" }}>to</span>
+                                  <select value={h.close} onChange={e => updateDayHours(i, { close: e.target.value })}
+                                    style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
+                                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                  <span style={{ fontSize: 9, color: "rgba(245,245,245,0.3)", minWidth: 36 }}>Lunch</span>
+                                  {h.lunch_start ? (
+                                    <>
+                                      <select value={h.lunch_start} onChange={e => updateDayHours(i, { lunch_start: e.target.value })}
+                                        style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
+                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.25)" }}>to</span>
+                                      <select value={h.lunch_end} onChange={e => updateDayHours(i, { lunch_end: e.target.value })}
+                                        style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
+                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                      <button onClick={() => updateDayHours(i, { lunch_start: "", lunch_end: "" })}
+                                        style={{ background: "none", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", padding: 0 }}>&times;</button>
+                                    </>
+                                  ) : (
+                                    <button onClick={() => updateDayHours(i, { lunch_start: "12:00", lunch_end: "13:00" })}
+                                      style={{ background: "none", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 4, color: "rgba(245,245,245,0.3)", fontSize: 9, cursor: "pointer", padding: "2px 8px" }}>+ Add</button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={hintStyle}>Set hours per day. Displayed as a table in the footer.</div>
                     </div>
                   </div>
                 </div>
