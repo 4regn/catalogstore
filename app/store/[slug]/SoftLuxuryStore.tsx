@@ -592,6 +592,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.6s" }}
                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     )}
+                    <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${pageBg} 0%, ${pageBg}40 12%, transparent 40%)`, pointerEvents: "none" }} />
                     {product.old_price && (
                       <div style={{ position: "absolute", top: 12, left: 12, padding: "4px 12px", background: accent, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Sale</div>
                     )}
