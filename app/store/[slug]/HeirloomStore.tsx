@@ -56,6 +56,7 @@ interface StoreConfig {
   contact_phone?: string;
   operating_hours?: string;
   physical_address?: string;
+  products_heading?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -160,6 +161,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [liveHeroCountdownLabel, setLiveHeroCountdownLabel] = useState<string | null>(null);
   const [liveTicker, setLiveTicker] = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed] = useState<number | null>(null);
+  const [liveProductsHeading, setLiveProductsHeading] = useState<string | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
   /* ─── PROMO ─── */
@@ -286,6 +288,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.heroCountdownLabel !== undefined) setLiveHeroCountdownLabel(e.data.heroCountdownLabel);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
+      if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -1187,7 +1190,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         {/* PRODUCTS */}
         <div id="hl-products">
           <div className="hl-rule">
-            <span className="hl-rule-left">{effectiveCategory === "All" ? "Latest Arrivals" : effectiveCategory}</span>
+            <span className="hl-rule-left">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "Latest Arrivals") : effectiveCategory}</span>
             <button className="hl-rule-right">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</button>
           </div>
           <EditSection id="products">

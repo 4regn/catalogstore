@@ -184,8 +184,8 @@ export default function StoreEditor() {
   const [heroSubtext, setHeroSubtext]         = useState("Premium Hair Collection · SA Delivered");
   const [circleTitle, setCircleTitle]         = useState("Shop by Texture");
   const [circleSubtitle, setCircleSubtitle]   = useState("Find your signature look");
-  const [productsLabel, setProductsLabel]     = useState("The Edit");
-  const [productsHeading, setProductsHeading] = useState("Latest arrivals");
+  const [productsLabel, setProductsLabel]     = useState("");
+  const [productsHeading, setProductsHeading] = useState("");
   const [productCardRatio, setProductCardRatio] = useState("3/4");
   const [aboutLabel, setAboutLabel]           = useState("Our Story");
   const [collLabel, setCollLabel]             = useState("Featured Collections");
