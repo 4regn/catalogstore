@@ -104,6 +104,8 @@ interface Seller {
     footer_pay_links?: string[];
     hero_countdown_label?: string;
     hero_cta?: string;
+    text_color?: string;
+    muted_color?: string;
   };
 }
 
@@ -183,6 +185,8 @@ export default function StoreEditor() {
   const [tickerTexts, setTickerTexts]         = useState<string[]>(["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"]);
   const [tickerSpeed, setTickerSpeed]         = useState(20);
   const [bgColor, setBgColor]                 = useState("#0a0908");
+  const [textColor, setTextColor]             = useState("#2a2a2e");
+  const [mutedColor, setMutedColor]           = useState("#8a8690");
   const [heroTextColor, setHeroTextColor]     = useState("#f0e6d3");
   const [circleTextColor, setCircleTextColor] = useState("#f0e6d3");
   const [prodTextColor, setProdTextColor]     = useState("#f0e6d3");
@@ -267,6 +271,8 @@ export default function StoreEditor() {
       if (s.store_config?.ticker_texts?.length) setTickerTexts(s.store_config.ticker_texts);
       if (s.store_config?.ticker_speed) setTickerSpeed(s.store_config.ticker_speed);
       if (s.store_config?.bg_color) setBgColor(s.store_config.bg_color);
+      if (s.store_config?.text_color) setTextColor(s.store_config.text_color);
+      if (s.store_config?.muted_color) setMutedColor(s.store_config.muted_color);
       if (s.store_config?.hero_text_color) setHeroTextColor(s.store_config.hero_text_color);
       if (s.store_config?.circle_text_color) setCircleTextColor(s.store_config.circle_text_color);
       if (s.store_config?.products_text_color) setProdTextColor(s.store_config.products_text_color);
@@ -415,6 +421,8 @@ export default function StoreEditor() {
           ticker_texts: tickerTexts,
           ticker_speed: tickerSpeed,
           bg_color: bgColor,
+          text_color: textColor,
+          muted_color: mutedColor,
           hero_text_color: heroTextColor,
           circle_text_color: circleTextColor,
           products_text_color: prodTextColor,
@@ -830,6 +838,28 @@ export default function StoreEditor() {
                     placeholder="Shop Now"
                     style={inputStyle} />
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>The call-to-action button in your hero. Leave blank for &quot;Shop Now&quot;.</div>
+                </div>
+                <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Color Scheme</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {([
+                      { label: "Page Background", value: bgColor, set: setBgColor, reset: "#f6f3ef" },
+                      { label: "Text Color", value: textColor, set: setTextColor, reset: "#2a2a2e" },
+                      { label: "Muted Text", value: mutedColor, set: setMutedColor, reset: "#8a8690" },
+                    ] as const).map(({ label, value, set, reset }) => (
+                      <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{label}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <label style={{ width: 24, height: 24, borderRadius: 6, background: value, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                            <input type="color" value={value} onChange={e => set(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                          </label>
+                          <span style={{ fontSize: 9, color: "rgba(245,245,245,0.25)", fontFamily: "monospace" }}>{value}</span>
+                          <button onClick={() => set(reset)} style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 8 }}>Customize your store&apos;s palette. Brand color is set in Dashboard &rarr; Edit My Store.</div>
                 </div>
               </div>
             )}
