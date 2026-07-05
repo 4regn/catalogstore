@@ -107,6 +107,9 @@ interface Seller {
     hero_title?: string;
     text_color?: string;
     muted_color?: string;
+    font_pair?: string;
+    header_transparent?: boolean;
+    header_border?: boolean;
   };
 }
 
@@ -238,6 +241,9 @@ export default function StoreEditor() {
   const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
   const [heroCta, setHeroCta]                         = useState("");
   const [heroTitle, setHeroTitle]                     = useState("");
+  const [fontPair, setFontPair]                       = useState("cormorant-jost");
+  const [headerTransparent, setHeaderTransparent]     = useState(false);
+  const [headerBorder, setHeaderBorder]               = useState(true);
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -311,6 +317,9 @@ export default function StoreEditor() {
       setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
       setHeroCta(s.store_config?.hero_cta ?? "");
       setHeroTitle(s.store_config?.hero_title !== undefined ? s.store_config.hero_title : (s.store_name || ""));
+      if (s.store_config?.font_pair) setFontPair(s.store_config.font_pair);
+      setHeaderTransparent(s.store_config?.header_transparent === true);
+      setHeaderBorder(s.store_config?.header_border !== false);
       setLoading(false);
     })();
   }, []);
@@ -388,6 +397,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ returnPolicy }); }, [returnPolicy]);
   useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
+  useEffect(() => { postUpdate({ fontPair }); }, [fontPair]);
 
   /* ─── SAVE ─── */
   const save = async () => {
@@ -459,6 +469,9 @@ export default function StoreEditor() {
           hero_countdown_label: heroCountdownLabel,
           hero_cta: heroCta || undefined,
           hero_title: heroTitle,
+          font_pair: fontPair,
+          header_transparent: headerTransparent,
+          header_border: headerBorder,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -872,6 +885,40 @@ export default function StoreEditor() {
                     ))}
                   </div>
                   <div style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 8 }}>Customize your store&apos;s palette. Brand color is set in Dashboard &rarr; Edit My Store.</div>
+                </div>
+                <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Typography</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {([
+                      { key: "cormorant-jost", heading: "Cormorant Garamond", body: "Jost" },
+                      { key: "playfair-lato", heading: "Playfair Display", body: "Lato" },
+                      { key: "dm-serif-inter", heading: "DM Serif Display", body: "Inter" },
+                      { key: "libre-raleway", heading: "Libre Baskerville", body: "Raleway" },
+                      { key: "fraunces-outfit", heading: "Fraunces", body: "Outfit" },
+                      { key: "eb-garamond-source", heading: "EB Garamond", body: "Source Sans" },
+                      { key: "bodoni-montserrat", heading: "Bodoni Moda", body: "Montserrat" },
+                    ] as const).map((fp) => (
+                      <button key={fp.key} onClick={() => setFontPair(fp.key)}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: fontPair === fp.key ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", border: fontPair === fp.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", width: "100%" }}>
+                        <span style={{ fontSize: 13, color: fontPair === fp.key ? "rgba(245,245,245,0.9)" : "rgba(245,245,245,0.5)", fontWeight: fontPair === fp.key ? 500 : 400 }}>{fp.heading}</span>
+                        <span style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", letterSpacing: "0.04em" }}>{fp.body}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 8 }}>Choose a font pair — changes apply live across your entire store.</div>
+                </div>
+                <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Header</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={headerTransparent} onChange={e => setHeaderTransparent(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Transparent header (overlays hero image)</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={headerBorder} onChange={e => setHeaderBorder(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Show header border line</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             )}

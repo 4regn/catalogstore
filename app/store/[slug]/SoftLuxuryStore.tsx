@@ -7,6 +7,16 @@ import { useParams, useSearchParams } from "next/navigation";
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
 
+const FONT_PAIRS: Record<string, { heading: string; body: string; import: string }> = {
+  "cormorant-jost": { heading: "'Cormorant Garamond', serif", body: "'Jost', sans-serif", import: "family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Jost:wght@300;400;500;600;700" },
+  "playfair-lato": { heading: "'Playfair Display', serif", body: "'Lato', sans-serif", import: "family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lato:wght@300;400;700" },
+  "dm-serif-inter": { heading: "'DM Serif Display', serif", body: "'Inter', sans-serif", import: "family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700" },
+  "libre-raleway": { heading: "'Libre Baskerville', serif", body: "'Raleway', sans-serif", import: "family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Raleway:wght@300;400;500;600;700" },
+  "fraunces-outfit": { heading: "'Fraunces', serif", body: "'Outfit', sans-serif", import: "family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=Outfit:wght@300;400;500;600;700" },
+  "eb-garamond-source": { heading: "'EB Garamond', serif", body: "'Source Sans 3', sans-serif", import: "family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700" },
+  "bodoni-montserrat": { heading: "'Bodoni Moda', serif", body: "'Montserrat', sans-serif", import: "family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;1,6..96,400&family=Montserrat:wght@300;400;500;600;700" },
+};
+
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string; template: string;
   primary_color: string; logo_url: string; banner_url: string; tagline: string; description: string;
@@ -64,6 +74,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [livePolicyItems, setLivePolicyItems]   = useState<{ title: string; desc: string }[] | null>(null);
   const [liveAboutImage, setLiveAboutImage]     = useState<string | null>(null);
   const [liveHeroTitle, setLiveHeroTitle]       = useState<string | null>(null);
+  const [liveFontPair, setLiveFontPair]         = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
@@ -118,6 +129,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.aboutImage   !== undefined) setLiveAboutImage(e.data.aboutImage || null);
       if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
       if (e.data.heroTitle   !== undefined) setLiveHeroTitle(e.data.heroTitle);
+      if (e.data.fontPair    !== undefined) setLiveFontPair(e.data.fontPair);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -180,6 +192,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const pageBg = (cfg as any).bg_color || "#f6f3ef";
   const pageText = (cfg as any).text_color || "#2a2a2e";
   const pageMuted = (cfg as any).muted_color || "#8a8690";
+  const fontPairKey = liveFontPair ?? (cfg as any).font_pair ?? "cormorant-jost";
+  const fonts = FONT_PAIRS[fontPairKey] || FONT_PAIRS["cormorant-jost"];
+  const headerTransparent = (cfg as any).header_transparent === true;
+  const headerBorder = (cfg as any).header_border !== false;
   const collections = seller?.collections || [];
   const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"];
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
@@ -311,31 +327,31 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     );
   };
 
-  if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef" }}><p style={{ color: "#8a8690", fontSize: 15 }}>Loading store...</p></div>;
-  if (notFound) return <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef" }}><h1 style={{ fontSize: 48, fontWeight: 300, color: "#2a2a2e", marginBottom: 8 }}>404</h1><p style={{ color: "#8a8690" }}>This store does not exist.</p></div>;
+  if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: fonts.body, background: "#f6f3ef" }}><p style={{ color: "#8a8690", fontSize: 15 }}>Loading store...</p></div>;
+  if (notFound) return <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: fonts.body, background: "#f6f3ef" }}><h1 style={{ fontSize: 48, fontWeight: 300, color: "#2a2a2e", marginBottom: 8 }}>404</h1><p style={{ color: "#8a8690" }}>This store does not exist.</p></div>;
 
   const storeInactive = seller && seller.subscription_status !== "active" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
   if (storeInactive && !orderStatus) return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Jost', sans-serif", background: "#f6f3ef", padding: "40px 24px", textAlign: "center" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Jost:wght@300;400;500;600;700&display=swap');`}</style>
-      {displayLogoUrl ? <img src={displayLogoUrl} alt="" onError={hideOnError} style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
-      <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 400, color: "#2a2a2e", marginBottom: 12 }}>Store Temporarily Unavailable</h1>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: fonts.body, background: "#f6f3ef", padding: "40px 24px", textAlign: "center" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?${fonts.import}&display=swap');`}</style>
+      {displayLogoUrl ? <img src={displayLogoUrl} alt="" onError={hideOnError} style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
+      <h1 style={{ fontFamily: fonts.heading, fontSize: 32, fontWeight: 400, color: "#2a2a2e", marginBottom: 12 }}>Store Temporarily Unavailable</h1>
       <p style={{ fontSize: 15, color: "#8a8690", maxWidth: 400, lineHeight: 1.6 }}>This store is currently inactive. Please check back soon or contact the seller directly.</p>
     </div>
   );
 
   if (orderStatus === "success" || orderStatus === "cancelled") return (
-    <div style={{ minHeight: "100vh", background: "#f6f3ef", fontFamily: "'Jost', sans-serif", color: "#2a2a2e", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
+    <div style={{ minHeight: "100vh", background: "#f6f3ef", fontFamily: fonts.body, color: "#2a2a2e", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
       <div style={{ maxWidth: 500, width: "100%", textAlign: "center" }}>
-        {displayLogoUrl ? <img src={displayLogoUrl} alt="" onError={hideOnError} style={{ height: 44, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
+        {displayLogoUrl ? <img src={displayLogoUrl} alt="" onError={hideOnError} style={{ height: 44, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
         {orderStatus === "success" ? (<>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Successful!</h1>
+          <h1 style={{ fontFamily: fonts.heading, fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Successful!</h1>
           <p style={{ fontSize: 16, color: "#8a8690", lineHeight: 1.6, marginBottom: 8 }}>Thank you for your order. Your payment has been processed successfully.</p>
           <p style={{ fontSize: 14, color: "#b5b1ac", marginBottom: 40 }}>You will receive a confirmation shortly.</p>
         </>) : (<>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#ff3d6e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Cancelled</h1>
+          <h1 style={{ fontFamily: fonts.heading, fontSize: 36, fontWeight: 400, marginBottom: 12 }}>Payment Cancelled</h1>
           <p style={{ fontSize: 16, color: "#8a8690", lineHeight: 1.6, marginBottom: 8 }}>Your payment was not completed. No charges have been made.</p>
           <p style={{ fontSize: 14, color: "#b5b1ac", marginBottom: 40 }}>You can try again or choose a different payment method.</p>
         </>)}
@@ -348,11 +364,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Jost:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?${fonts.import}&display=swap');
         @keyframes mscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
         @media(max-width:768px){.sl-cols-g{grid-template-columns:1fr!important}.sl-pgrid{grid-template-columns:repeat(2,1fr)!important}.sl-story{grid-template-columns:1fr!important}.sl-trust{grid-template-columns:repeat(2,1fr)!important}.sl-polg{grid-template-columns:1fr!important}.sl-fttop{grid-template-columns:1fr!important}.sl-hero{height:70vh!important;min-height:400px!important}.sl-hnav{display:none!important}.sl-modal{flex-direction:column!important}.sl-header-grid{display:flex!important;justify-content:space-between!important}.sl-logo-img{height:36px!important;max-width:120px!important}}
       `}</style>
-      <div style={{ minHeight: "100vh", background: pageBg, fontFamily: "'Jost', sans-serif", color: pageText }}>
+      <div style={{ minHeight: "100vh", background: pageBg, fontFamily: fonts.body, color: pageText }}>
 
         {/* ANNOUNCEMENT */}
         {displayAnnouncement && (
@@ -362,14 +378,14 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* HEADER */}
-        <header style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(246,243,239,0.92)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+        <header style={{ position: headerTransparent ? "absolute" : "sticky", top: 0, left: 0, right: 0, zIndex: 100, background: headerTransparent ? "transparent" : pageBg + "eb", backdropFilter: headerTransparent ? "none" : "blur(24px)", WebkitBackdropFilter: headerTransparent ? "none" : "blur(24px)", borderBottom: headerBorder && !headerTransparent ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
           <div className="sl-header-grid" style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: 72 }}>
             <div className="sl-hnav" style={{ display: "flex", gap: 32 }}>
               <button onClick={() => { setActiveCategory("All"); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                style={{ background: "none", border: "none", padding: 0, color: pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Shop All</button>
+                style={{ background: "none", border: "none", padding: 0, color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Shop All</button>
               {cats.length > 2 && (
                 <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
-                  style={{ background: "none", border: "none", padding: 0, color: pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
+                  style={{ background: "none", border: "none", padding: 0, color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
               )}
             </div>
             <div style={{ textAlign: "center", cursor: isEditMode ? "pointer" : "default" }}
@@ -378,14 +394,19 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
               ) : (
                 <div>
-                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>{seller?.store_name}</div>
-                  {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
+                  <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerTransparent ? "#fff" : pageText }}>{seller?.store_name}</div>
+                  {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerTransparent ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
                 </div>
               )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 24 }}>
-              <button onClick={() => setShowSearch(true)} style={{ background: "none", border: "none", color: pageMuted, fontSize: 13, letterSpacing: "0.04em", cursor: "pointer", fontFamily: "'Jost', sans-serif" }}>Search</button>
-              <button onClick={() => setShowCart(true)} style={{ background: "none", border: "none", color: pageMuted, fontSize: 13, cursor: "pointer", fontFamily: "'Jost', sans-serif", display: "flex", alignItems: "center", gap: 6 }}>Cart {cartCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: accent, color: "#fff", fontSize: 9, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}</button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 20 }}>
+              <button onClick={() => setShowSearch(true)} aria-label="Search" style={{ background: "none", border: "none", color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+              </button>
+              <button onClick={() => setShowCart(true)} aria-label="Cart" style={{ background: "none", border: "none", color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, cursor: "pointer", padding: 4, display: "flex", alignItems: "center", gap: 4, position: "relative" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                {cartCount > 0 && <span style={{ position: "absolute", top: -2, right: -6, width: 16, height: 16, borderRadius: "50%", background: accent, color: "#fff", fontSize: 8, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}
+              </button>
             </div>
           </div>
         </header>
@@ -395,24 +416,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <div style={{ background: "linear-gradient(90deg, " + accent + "08 0%, rgba(0,0,0,0.01) 50%, " + accent + "08 100%)", borderBottom: "1px solid " + accent + "18", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" as const }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 10, letterSpacing: "0.15em", color: pageMuted, textTransform: "uppercase" as const }}>Limited offer</span>
-              <span style={{ fontFamily: "'Jost', sans-serif", fontSize: 14, fontWeight: 500, color: pageText }}>Use code <span style={{ padding: "3px 10px", background: accent + "10", border: "1px solid " + accent + "20", borderRadius: 4, fontWeight: 700, letterSpacing: "0.06em", fontSize: 13, color: accent }}>{promoCountdown.code}</span> for {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}{promoCountdown.applies_to !== "cart" ? " " + promoCountdown.applies_to : ""}</span>
+              <span style={{ fontFamily: fonts.body, fontSize: 14, fontWeight: 500, color: pageText }}>Use code <span style={{ padding: "3px 10px", background: accent + "10", border: "1px solid " + accent + "20", borderRadius: 4, fontWeight: 700, letterSpacing: "0.06em", fontSize: 13, color: accent }}>{promoCountdown.code}</span> for {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}{promoCountdown.applies_to !== "cart" ? " " + promoCountdown.applies_to : ""}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 10, letterSpacing: "0.12em", color: pageMuted, textTransform: "uppercase" as const }}>Ends in</span>
-              <span style={{ fontFamily: "'Jost', sans-serif", fontSize: 16, fontWeight: 600, color: pageText, letterSpacing: "0.08em", background: accent + "0a", padding: "4px 12px", borderRadius: 6, border: "1px solid " + accent + "15" }}>{promoCountdown.timeLeft}</span>
-            </div>
-          </div>
-        )}
-
-        {/* MARQUEE */}
-        {cfg.show_marquee && (
-          <div style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-            <div style={{ display: "inline-flex", animation: "mscroll 30s linear infinite" }}>
-              {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
-                <span key={r + "-" + i} style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: "italic", color: pageMuted, letterSpacing: "0.08em", padding: "0 40px" }}>
-                  {txt}<em style={{ fontStyle: "normal", color: accent }}> &bull; </em>
-                </span>
-              )))}
+              <span style={{ fontFamily: fonts.body, fontSize: 16, fontWeight: 600, color: pageText, letterSpacing: "0.08em", background: accent + "0a", padding: "4px 12px", borderRadius: 6, border: "1px solid " + accent + "15" }}>{promoCountdown.timeLeft}</span>
             </div>
           </div>
         )}
@@ -426,7 +434,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-end", padding: "0 48px 60px", maxWidth: 640 }}>
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                  {displayHeroTitle && <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{displayHeroTitle}</h1>}
+                  {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{displayHeroTitle}</h1>}
                   {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
                   <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
                 </div>
@@ -434,7 +442,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             ) : (
               <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                {displayHeroTitle && <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
+                {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
                 {displayDescription && <p style={{ fontSize: 14, color: pageMuted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
                 <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
               </div>
@@ -442,12 +450,25 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </section>
         </EditSection>
 
+        {/* MARQUEE */}
+        {cfg.show_marquee && (
+          <div style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+            <div style={{ display: "inline-flex", animation: "mscroll 30s linear infinite" }}>
+              {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
+                <span key={r + "-" + i} style={{ fontFamily: fonts.heading, fontSize: 13, fontStyle: "italic", color: pageMuted, letterSpacing: "0.08em", padding: "0 40px" }}>
+                  {txt}<em style={{ fontStyle: "normal", color: accent }}> &bull; </em>
+                </span>
+              )))}
+            </div>
+          </div>
+        )}
+
         {/* COLLECTIONS */}
         {cfg.show_collections && collections.length > 0 && (
           <EditSection id="collections">
-          <section style={{ padding: "80px 32px", maxWidth: 1340, margin: "0 auto" }}>
+          <section style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
             <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>Curated For You</div>
-            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>Shop by Collection</h2>
+            <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>Shop by Collection</h2>
             <div className="sl-cols-g" style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(collections.length, 3) + ", 1fr)", gap: 16 }}>
               {collections.slice(0, 3).map((col, i) => {
                 const count = products.filter((p) => pInCat(p, col)).length;
@@ -460,7 +481,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <div style={{ width: "100%", height: "100%", background: `linear-gradient(145deg, ${["#d4c5b5,#bfae9c", "#c5bdb5,#a89e94", "#d9cfc5,#c4b8aa"][i % 3]})` }} />
                     )}
                     <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "32px 28px", background: "linear-gradient(180deg, transparent, rgba(42,42,46,0.5))" }}>
-                      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, color: "#fff", letterSpacing: "0.03em", marginBottom: 4 }}>{col}</div>
+                      <div style={{ fontFamily: fonts.heading, fontSize: 24, color: "#fff", letterSpacing: "0.03em", marginBottom: 4 }}>{col}</div>
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{count} Piece{count !== 1 ? "s" : ""}</div>
                       {(() => { const cp = getCollectionPromo(col); return cp ? (
                         <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "rgba(42,42,46,0.7)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
@@ -478,20 +499,20 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* PRODUCTS */}
-        <section id="products" style={{ padding: "80px 32px", maxWidth: 1340, margin: "0 auto" }}>
+        <section id="products" style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
           <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>The Collection</div>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>All Products</h2>
+          <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>All Products</h2>
 
           {cats.length > 2 && (
             <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               {cats.map((cat) => (
-                <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "10px 28px", borderRadius: 100, background: activeCategory === cat ? accent : "transparent", border: activeCategory === cat ? "1px solid " + accent : "1px solid rgba(0,0,0,0.06)", fontFamily: "'Jost', sans-serif", fontSize: 12, color: activeCategory === cat ? "#fff" : pageMuted, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.3s" }}>{cat}</button>
+                <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "10px 28px", borderRadius: 100, background: activeCategory === cat ? accent : "transparent", border: activeCategory === cat ? "1px solid " + accent : "1px solid rgba(0,0,0,0.06)", fontFamily: fonts.body, fontSize: 12, color: activeCategory === cat ? "#fff" : pageMuted, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.3s" }}>{cat}</button>
               ))}
             </div>
           )}
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 32 }}>
-            <select value={productSort} onChange={(e) => setProductSort(e.target.value)} style={{ padding: "8px 16px", background: pageBg, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, color: pageMuted, fontFamily: "'Jost', sans-serif", fontSize: 12, letterSpacing: "0.04em", cursor: "pointer", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(0,0,0,0.2)'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 32 }}>
+            <select value={productSort} onChange={(e) => setProductSort(e.target.value)} style={{ padding: "8px 16px", background: pageBg, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, color: pageMuted, fontFamily: fonts.body, fontSize: 12, letterSpacing: "0.04em", cursor: "pointer", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(0,0,0,0.2)'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 32 }}>
               <option value="default">Default</option>
               <option value="latest">Latest</option>
               <option value="oldest">Oldest</option>
@@ -526,7 +547,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       </div>
                     ) : null; })()}
                   </div>
-                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, marginBottom: 4, letterSpacing: "0.01em" }}>{product.name}</div>
+                  <div style={{ fontFamily: fonts.heading, fontSize: 17, marginBottom: 4, letterSpacing: "0.01em" }}>{product.name}</div>
                   {product.category && <div style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{product.category}</div>}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 16, fontWeight: 500, color: accent }}>{fmt(product.price)}</span>
@@ -552,7 +573,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   )}
                   <div style={{ textAlign: aboutImg ? "left" : "center" }}>
                     <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12 }}>Our Story</div>
-                    <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "clamp(28px, 3.5vw, 42px)", fontWeight: 300, letterSpacing: "0.02em", marginBottom: 24, lineHeight: 1.2 }}>About {seller?.store_name}</h2>
+                    <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 3.5vw, 42px)", fontWeight: 300, letterSpacing: "0.02em", marginBottom: 24, lineHeight: 1.2 }}>About {seller?.store_name}</h2>
                     <p style={{ fontSize: 15, lineHeight: 1.85, color: pageMuted, fontWeight: 300, maxWidth: aboutImg ? 440 : 640, margin: aboutImg ? undefined : "0 auto" }}>{displayDescription || seller?.description}</p>
                   </div>
                 </section>
@@ -580,7 +601,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         {cfg.show_policies && (
           <EditSection id="policies">
           <section className="sl-polg" style={{ padding: "80px 32px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
-            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 300, marginBottom: 40, letterSpacing: "0.02em" }}>Shipping & Policies</h2>
+            <h2 style={{ fontFamily: fonts.heading, fontSize: 32, fontWeight: 300, marginBottom: 40, letterSpacing: "0.02em" }}>Shipping & Policies</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, textAlign: "left" }}>
               {policyItems.map((p, i) => (
                 <div key={i}>
@@ -599,7 +620,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <div style={{ maxWidth: 1340, margin: "0 auto" }}>
             <div className="sl-fttop" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 40, marginBottom: 48 }}>
               <div>
-                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>{seller?.store_name}</div>
+                <div style={{ fontFamily: fonts.heading, fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>{seller?.store_name}</div>
                 {(displayDescription || seller?.description) && <p style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", lineHeight: 1.7, fontWeight: 300, maxWidth: 280 }}>{(displayDescription || seller?.description || "").substring(0, 120)}...</p>}
               </div>
               <div>
@@ -662,7 +683,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 </div>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                   {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{selectedProduct.category}</p>}
-                  <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 400, letterSpacing: "0.01em", marginBottom: 12 }}>{selectedProduct.name}</h2>
+                  <h2 style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 400, letterSpacing: "0.01em", marginBottom: 12 }}>{selectedProduct.name}</h2>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
                     <span style={{ fontSize: 24, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
                     {selectedProduct.old_price && <span style={{ fontSize: 18, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
@@ -675,7 +696,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                           <p style={{ fontSize: 13, color: pageMuted, marginBottom: 8 }}>{v.name}: <strong style={{ color: pageText }}>{selectedVariants[v.name]}</strong></p>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                             {v.options.map((opt) => (
-                              <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "10px 20px", border: selectedVariants[v.name] === opt ? "2px solid " + pageText : "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: pageBg, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: pageText }}>{opt}</button>
+                              <button key={opt} onClick={() => { setSelectedVariants({ ...selectedVariants, [v.name]: opt }); const varImg = v.images?.[opt]; if (varImg && selectedProduct.images?.length > 0) { const imgIdx = selectedProduct.images.indexOf(varImg); if (imgIdx >= 0) setActiveImageIndex(imgIdx); } }} style={{ padding: "10px 20px", border: selectedVariants[v.name] === opt ? "2px solid " + pageText : "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: pageBg, fontFamily: fonts.body, fontSize: 13, fontWeight: selectedVariants[v.name] === opt ? 600 : 400, cursor: "pointer", color: pageText }}>{opt}</button>
                             ))}
                           </div>
                         </div>
@@ -684,14 +705,14 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   )}
                   {/* Quantity picker */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", marginBottom: 16, borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                    <span style={{ fontSize: 11, color: pageMuted, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: "'Jost', sans-serif", fontWeight: 500 }}>Quantity</span>
+                    <span style={{ fontSize: 11, color: pageMuted, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: fonts.body, fontWeight: 500 }}>Quantity</span>
                     <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 100, overflow: "hidden" }}>
-                      <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: "'Jost', sans-serif" }}>−</button>
+                      <button onClick={() => setModalQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: fonts.body }}>−</button>
                       <span style={{ minWidth: 32, textAlign: "center", fontSize: 14, fontWeight: 500, color: pageText }}>{modalQty}</span>
-                      <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: "'Jost', sans-serif" }}>+</button>
+                      <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: fonts.body }}>+</button>
                     </div>
                   </div>
-                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
+                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
                 </div>
               </div>
             </div>
@@ -703,7 +724,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 300 }} onClick={() => setShowCart(false)}>
             <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 420, maxWidth: "90vw", background: pageBg, display: "flex", flexDirection: "column", boxShadow: "-8px 0 40px rgba(0,0,0,0.08)" }} onClick={(e) => e.stopPropagation()}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 28px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 400 }}>Your Cart ({cartCount})</h3>
+                <h3 style={{ fontFamily: fonts.heading, fontSize: 22, fontWeight: 400 }}>Your Cart ({cartCount})</h3>
                 <button onClick={() => setShowCart(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: pageMuted }}>&times;</button>
               </div>
               {cart.length === 0 ? (
@@ -715,7 +736,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <div key={idx} style={{ display: "flex", gap: 16, padding: "20px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
                         {item.product.image_url && <img src={item.product.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 80, height: 100, borderRadius: 10, objectFit: "cover" }} />}
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, marginBottom: 4 }}>{item.product.name}</div>
+                          <div style={{ fontFamily: fonts.heading, fontSize: 16, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 12, color: pageMuted, marginBottom: 8 }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" \u2022 ")}</div>}
                           <div style={{ fontSize: 14, fontWeight: 500, color: accent, marginBottom: 8 }}>{fmt(item.product.price * item.qty)}{item.qty > 1 && <span style={{ fontSize: 11, color: pageMuted, marginLeft: 6, fontWeight: 400 }}>({fmt(item.product.price)} each)</span>}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -737,14 +758,14 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                     )}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                       <span style={{ fontSize: 14, color: pageMuted, letterSpacing: "0.04em", textTransform: "uppercase" }}>Total</span>
-                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500 }}>{fmt(cartTotal)}</span>
+                      <span style={{ fontFamily: fonts.heading, fontSize: 24, fontWeight: 500 }}>{fmt(cartTotal)}</span>
                     </div>
                     <button onClick={() => {
                       const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
                       const encoded = btoa(unescape(encodeURIComponent(payload)));
                       window.location.href = "/store/" + slug + "/checkout?cart=" + encoded;
-                    }} style={{ width: "100%", padding: 18, background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
-                    {seller?.checkout_config?.whatsapp_checkout_enabled !== false && <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 18, background: "#25d366", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Jost', sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>}
+                    }} style={{ width: "100%", padding: 18, background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
+                    {seller?.checkout_config?.whatsapp_checkout_enabled !== false && <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 18, background: "#25d366", color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>}
                     <p style={{ textAlign: "center", fontSize: 11, color: pageMuted, marginTop: 12 }}>You'll be taken to WhatsApp to confirm</p>
                   </div>
                 </>
@@ -757,7 +778,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         {showSearch && (
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, background: pageBg + "f7", backdropFilter: "blur(40px)", padding: "0 32px", minHeight: 80, display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div style={{ width: "100%", maxWidth: 600, display: "flex", alignItems: "center", height: 80 }}>
-              <input type="text" autoFocus placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1, padding: "16px 0", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 300, color: pageText, outline: "none" }} />
+              <input type="text" autoFocus placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1, padding: "16px 0", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontFamily: fonts.heading, fontSize: 24, fontWeight: 300, color: pageText, outline: "none" }} />
               <button onClick={() => { setShowSearch(false); setSearchQuery(""); }} style={{ background: "none", border: "none", fontSize: 24, color: pageMuted, cursor: "pointer", marginLeft: 16 }}>&times;</button>
             </div>
             {searched && searched.length > 0 && (
