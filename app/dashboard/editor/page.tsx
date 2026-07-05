@@ -366,6 +366,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
   useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed]);
   useEffect(() => { postUpdate({ bgColor }); }, [bgColor]);
+  useEffect(() => { postUpdate({ textColor }); }, [textColor]);
+  useEffect(() => { postUpdate({ mutedColor }); }, [mutedColor]);
   useEffect(() => { postUpdate({ heroTextColor }); }, [heroTextColor]);
   useEffect(() => { postUpdate({ circleTextColor }); }, [circleTextColor]);
   useEffect(() => { postUpdate({ prodTextColor }); }, [prodTextColor]);
@@ -398,6 +400,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
   useEffect(() => { postUpdate({ fontPair }); }, [fontPair]);
+  useEffect(() => { postUpdate({ headerTransparent }); }, [headerTransparent]);
+  useEffect(() => { postUpdate({ headerBorder }); }, [headerBorder]);
 
   /* ─── SAVE ─── */
   const save = async () => {

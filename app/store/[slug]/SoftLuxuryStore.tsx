@@ -75,6 +75,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveAboutImage, setLiveAboutImage]     = useState<string | null>(null);
   const [liveHeroTitle, setLiveHeroTitle]       = useState<string | null>(null);
   const [liveFontPair, setLiveFontPair]         = useState<string | null>(null);
+  const [liveHeaderTransparent, setLiveHeaderTransparent] = useState<boolean | null>(null);
+  const [liveHeaderBorder, setLiveHeaderBorder]           = useState<boolean | null>(null);
+  const [liveBgColor, setLiveBgColor]                     = useState<string | null>(null);
+  const [liveTextColor, setLiveTextColor]                 = useState<string | null>(null);
+  const [liveMutedColor, setLiveMutedColor]               = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
@@ -130,13 +135,18 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
       if (e.data.heroTitle   !== undefined) setLiveHeroTitle(e.data.heroTitle);
       if (e.data.fontPair    !== undefined) setLiveFontPair(e.data.fontPair);
+      if (e.data.headerTransparent !== undefined) setLiveHeaderTransparent(e.data.headerTransparent);
+      if (e.data.headerBorder !== undefined) setLiveHeaderBorder(e.data.headerBorder);
+      if (e.data.bgColor     !== undefined) setLiveBgColor(e.data.bgColor);
+      if (e.data.textColor   !== undefined) setLiveTextColor(e.data.textColor);
+      if (e.data.mutedColor  !== undefined) setLiveMutedColor(e.data.mutedColor);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [isEditMode]);
 
   const loadStore = async () => {
-    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
+    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
     if (!sd) { setNotFound(true); setLoading(false); return; }
     setSeller(sd);
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", sd.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
@@ -189,15 +199,15 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "" };
   const social = seller?.social_links || {};
   const accent = seller?.primary_color || "#9c7c62";
-  const pageBg = (cfg as any).bg_color || "#f6f3ef";
-  const pageText = (cfg as any).text_color || "#2a2a2e";
-  const pageMuted = (cfg as any).muted_color || "#8a8690";
+  const pageBg = liveBgColor ?? (cfg as any).bg_color ?? "#f6f3ef";
+  const pageText = liveTextColor ?? (cfg as any).text_color ?? "#2a2a2e";
+  const pageMuted = liveMutedColor ?? (cfg as any).muted_color ?? "#8a8690";
   const fontPairKey = liveFontPair ?? (cfg as any).font_pair ?? "cormorant-jost";
   const fonts = FONT_PAIRS[fontPairKey] || FONT_PAIRS["cormorant-jost"];
-  const headerTransparent = (cfg as any).header_transparent === true;
-  const headerBorder = (cfg as any).header_border !== false;
+  const headerTransparent = liveHeaderTransparent !== null ? liveHeaderTransparent : (cfg as any).header_transparent === true;
+  const headerBorder = liveHeaderBorder !== null ? liveHeaderBorder : (cfg as any).header_border !== false;
   const collections = seller?.collections || [];
-  const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"];
+  const marqueeTexts = (cfg.marquee_texts !== undefined ? cfg.marquee_texts.filter((t: string) => t.trim()) : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"]);
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
   const policyItems = livePolicyItems ?? (cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout for a personal experience." }]);
   const cats = ["All", ...collections.filter((c) => products.some((p) => pInCat(p, c)))];
@@ -451,7 +461,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         </EditSection>
 
         {/* MARQUEE */}
-        {cfg.show_marquee && (
+        {cfg.show_marquee && marqueeTexts.length > 0 && (
           <div style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
             <div style={{ display: "inline-flex", animation: "mscroll 30s linear infinite" }}>
               {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
@@ -529,7 +539,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               <p style={{ fontSize: 14, marginTop: 8 }}>Check back soon!</p>
             </div>
           ) : (
-            <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+            <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
               {filtered.map((product) => (
                 <div key={product.id} onClick={() => openProduct(product)} style={{ cursor: "pointer" }}>
                   <div style={{ aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
@@ -795,7 +805,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* WHATSAPP FLOAT */}
-        {seller?.whatsapp_number && (
+        {seller?.whatsapp_number && seller?.checkout_config?.whatsapp_checkout_enabled !== false && (
           <a href={waLink} target="_blank" rel="noreferrer" aria-label={`Chat with ${seller?.store_name || "us"} on WhatsApp`} style={{ position: "fixed", bottom: 24, right: 24, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
           </a>
