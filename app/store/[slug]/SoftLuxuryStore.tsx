@@ -48,7 +48,7 @@ interface Seller {
   collections: string[];
   social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
   store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; announcement: string; about_image?: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[]; footer_about?: string; shipping_policy?: string; return_policy?: string; contact_email?: string; contact_phone?: string; operating_hours?: string; physical_address?: string; show_address?: boolean; products_collapsed?: boolean };
-  checkout_config?: { whatsapp_checkout_enabled?: boolean };
+  checkout_config?: { whatsapp_checkout_enabled?: boolean; payfast_enabled?: boolean; eft_enabled?: boolean };
   subscription_status?: string; trial_ends_at?: string;
 }
 
@@ -110,10 +110,16 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveProductsLabel, setLiveProductsLabel]         = useState<string | null>(null);
   const [liveProductsHeading, setLiveProductsHeading]     = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
+  const [liveFooterAbout, setLiveFooterAbout]   = useState<string | null>(null);
+  const [liveContactEmail, setLiveContactEmail] = useState<string | null>(null);
+  const [liveContactPhone, setLiveContactPhone] = useState<string | null>(null);
+  const [livePhysicalAddress, setLivePhysicalAddress] = useState<string | null>(null);
+  const [liveOperatingHours, setLiveOperatingHours] = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
   const [policyModal, setPolicyModal]           = useState<{ title: string; content: string } | null>(null);
   const [contactOpen, setContactOpen]           = useState(false);
   const [productsExpanded, setProductsExpanded] = useState(!initialSeller?.store_config?.products_collapsed);
+  const [expandedPolicy, setExpandedPolicy]     = useState<number | null>(null);
 
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
@@ -176,6 +182,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.collSubtitle !== undefined) setLiveCollSubtitle(e.data.collSubtitle);
       if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
+      if (e.data.footerAbout !== undefined) setLiveFooterAbout(e.data.footerAbout);
+      if (e.data.contactEmail !== undefined) setLiveContactEmail(e.data.contactEmail);
+      if (e.data.contactPhone !== undefined) setLiveContactPhone(e.data.contactPhone);
+      if (e.data.physicalAddress !== undefined) setLivePhysicalAddress(e.data.physicalAddress);
+      if (e.data.operatingHours !== undefined) setLiveOperatingHours(e.data.operatingHours);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -246,7 +257,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const displayCollSubtitle = liveCollSubtitle ?? (cfg as any).coll_subtitle ?? "Shop by Collection";
   const displayProductsLabel = liveProductsLabel ?? (cfg as any).products_label ?? "Browse";
   const displayProductsHeading = liveProductsHeading ?? (cfg as any).products_heading ?? "All Collections";
-  const displayFooterAbout = (cfg as any).footer_about ?? seller?.description ?? "";
+  const displayFooterAbout = liveFooterAbout ?? (cfg as any).footer_about ?? seller?.description ?? "";
+  const displayContactEmail = liveContactEmail ?? (cfg as any).contact_email ?? "";
+  const displayContactPhone = liveContactPhone ?? (cfg as any).contact_phone ?? "";
+  const displayPhysicalAddress = livePhysicalAddress ?? (cfg as any).physical_address ?? "";
+  const displayOperatingHours = liveOperatingHours ?? (cfg as any).operating_hours ?? "";
   const productsCollapsed = (cfg as any).products_collapsed === true;
   const collections = seller?.collections || [];
   const marqueeTexts = (cfg.marquee_texts !== undefined ? cfg.marquee_texts.filter((t: string) => t.trim()) : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"]);
@@ -692,43 +707,18 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </EditSection>
         )}
 
-        {/* POLICIES */}
-        {cfg.show_policies && (
-          <EditSection id="policies">
-          <section className="sl-polg" style={{ padding: "80px 32px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
-            <h2 style={{ fontFamily: fonts.heading, fontSize: 32, fontWeight: 300, marginBottom: 40, letterSpacing: "0.02em" }}>Shipping & Policies</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 0, textAlign: "left", maxWidth: 640, margin: "0 auto" }}>
-              {policyItems.map((p, i) => (
-                <button key={i} onClick={() => setPolicyModal({ title: p.title, content: p.desc })}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 0", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: pageText }}>{p.title}</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
-                </button>
-              ))}
-            </div>
-          </section>
-          </EditSection>
-        )}
-
         {/* FOOTER */}
         <EditSection id="footer">
-        <footer style={{ background: "#2a2a2e", color: "#f6f3ef", padding: "60px 32px 40px" }}>
+        <footer style={{ background: pageText, color: pageBg, padding: "60px 32px 40px" }}>
           <div style={{ maxWidth: 1340, margin: "0 auto" }}>
             <div className="sl-fttop" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 40, marginBottom: 48 }}>
               <div>
                 <div style={{ fontFamily: fonts.heading, fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>{seller?.store_name}</div>
-                {displayFooterAbout && <p style={{ fontSize: 13, color: "rgba(246,243,239,0.5)", lineHeight: 1.7, fontWeight: 300, maxWidth: 280 }}>{displayFooterAbout.substring(0, 160)}{displayFooterAbout.length > 160 ? "..." : ""}</p>}
-                {(social.instagram || social.tiktok || social.facebook || social.twitter) && (
-                  <div style={{ display: "flex", gap: 16, marginTop: 20 }}>
-                    {social.instagram && <a href={socialUrl(social.instagram, "instagram.com/")} target="_blank" rel="noreferrer" style={{ color: "rgba(246,243,239,0.4)", transition: "color 0.2s" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>}
-                    {social.tiktok && <a href={socialUrl(social.tiktok, "tiktok.com/@")} target="_blank" rel="noreferrer" style={{ color: "rgba(246,243,239,0.4)" }}><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg></a>}
-                    {social.facebook && <a href={socialUrl(social.facebook, "facebook.com/")} target="_blank" rel="noreferrer" style={{ color: "rgba(246,243,239,0.4)" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>}
-                  </div>
-                )}
-                {(cfg as any).physical_address && (cfg as any).show_address !== false && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 16, fontSize: 12, color: "rgba(246,243,239,0.4)", lineHeight: 1.6 }}>
+                {displayFooterAbout && <p style={{ fontSize: 13, opacity: 0.5, lineHeight: 1.7, fontWeight: 300, maxWidth: 280 }}>{displayFooterAbout.substring(0, 160)}{displayFooterAbout.length > 160 ? "..." : ""}</p>}
+                {displayPhysicalAddress && (cfg as any).show_address !== false && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 16, fontSize: 12, opacity: 0.4, lineHeight: 1.6 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    <span>{(cfg as any).physical_address}</span>
+                    <span>{displayPhysicalAddress}</span>
                   </div>
                 )}
               </div>
@@ -736,35 +726,104 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Shop</h5>
                 {collections.slice(0, 4).map((c) => (
                   <button key={c} onClick={() => { setActiveCategory(c); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                    style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
+                    style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, opacity: 0.5, color: "inherit", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
                 ))}
               </div>
               <div>
                 <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Support</h5>
-                {cfg.show_policies && (
-                  <>
-                    <button onClick={() => setPolicyModal({ title: "Shipping Policy", content: (cfg as any).shipping_policy || policyItems.find(p => p.title.toLowerCase().includes("ship"))?.desc || "Contact us for details about our shipping policy." })}
-                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Shipping</button>
-                    <button onClick={() => setPolicyModal({ title: "Returns & Refunds", content: (cfg as any).return_policy || policyItems.find(p => p.title.toLowerCase().includes("return"))?.desc || "Contact us for details about our returns and refund policy." })}
-                      style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Returns & Refunds</button>
-                  </>
+                {policyItems.map((p, i) => (
+                  <div key={i} style={{ borderBottom: `1px solid ${pageBg}15` }}>
+                    <button onClick={() => setExpandedPolicy(expandedPolicy === i ? null : i)}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", background: "none", border: "none", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left", color: "inherit" }}>
+                      <span style={{ fontSize: 13, fontWeight: 300, opacity: 0.5 }}>{p.title}</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ opacity: 0.4, transition: "transform 0.3s", transform: expandedPolicy === i ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    {expandedPolicy === i && (
+                      <div style={{ padding: "0 0 14px", fontSize: 12, opacity: 0.4, lineHeight: 1.7, fontWeight: 300, whiteSpace: "pre-wrap" }}>{p.desc}</div>
+                    )}
+                  </div>
+                ))}
+                {(cfg as any).shipping_policy && !policyItems.some(p => p.title.toLowerCase().includes("ship")) && (
+                  <div style={{ borderBottom: `1px solid ${pageBg}15` }}>
+                    <button onClick={() => setExpandedPolicy(expandedPolicy === 100 ? null : 100)}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", background: "none", border: "none", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left", color: "inherit" }}>
+                      <span style={{ fontSize: 13, fontWeight: 300, opacity: 0.5 }}>Shipping Policy</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ opacity: 0.4, transition: "transform 0.3s", transform: expandedPolicy === 100 ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    {expandedPolicy === 100 && (
+                      <div style={{ padding: "0 0 14px", fontSize: 12, opacity: 0.4, lineHeight: 1.7, fontWeight: 300, whiteSpace: "pre-wrap" }}>{(cfg as any).shipping_policy}</div>
+                    )}
+                  </div>
                 )}
-                <button onClick={() => setContactOpen(true)}
-                  style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>Contact</button>
+                {(cfg as any).return_policy && !policyItems.some(p => p.title.toLowerCase().includes("return")) && (
+                  <div style={{ borderBottom: `1px solid ${pageBg}15` }}>
+                    <button onClick={() => setExpandedPolicy(expandedPolicy === 101 ? null : 101)}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", background: "none", border: "none", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left", color: "inherit" }}>
+                      <span style={{ fontSize: 13, fontWeight: 300, opacity: 0.5 }}>Returns & Refunds</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ opacity: 0.4, transition: "transform 0.3s", transform: expandedPolicy === 101 ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    {expandedPolicy === 101 && (
+                      <div style={{ padding: "0 0 14px", fontSize: 12, opacity: 0.4, lineHeight: 1.7, fontWeight: 300, whiteSpace: "pre-wrap" }}>{(cfg as any).return_policy}</div>
+                    )}
+                  </div>
+                )}
               </div>
-              {(social.instagram || social.tiktok || social.facebook || social.twitter || social.whatsapp || (cfg as any).contact_email || (cfg as any).contact_phone || (cfg as any).operating_hours) && (
-                <div>
-                  <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Connect</h5>
-                  {seller?.whatsapp_number && <a href={waLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>WhatsApp</a>}
-                  {(cfg as any).contact_email && <a href={`mailto:${(cfg as any).contact_email}`} style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>{(cfg as any).contact_email}</a>}
-                  {(cfg as any).contact_phone && <a href={`tel:${((cfg as any).contact_phone || "").replace(/\s/g, "")}`} style={{ display: "block", fontSize: 13, color: "rgba(246,243,239,0.5)", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>{(cfg as any).contact_phone}</a>}
-                  {(cfg as any).operating_hours && <div style={{ fontSize: 12, color: "rgba(246,243,239,0.35)", marginTop: 12, lineHeight: 1.6 }}>{(cfg as any).operating_hours}</div>}
-                </div>
-              )}
+              <div>
+                <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Connect</h5>
+                {(social.instagram || social.tiktok || social.facebook || social.twitter) && (
+                  <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+                    {social.instagram && <a href={socialUrl(social.instagram, "instagram.com/")} target="_blank" rel="noreferrer" style={{ opacity: 0.5, color: "inherit", transition: "opacity 0.2s" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>}
+                    {social.tiktok && <a href={socialUrl(social.tiktok, "tiktok.com/@")} target="_blank" rel="noreferrer" style={{ opacity: 0.5, color: "inherit" }}><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg></a>}
+                    {social.facebook && <a href={socialUrl(social.facebook, "facebook.com/")} target="_blank" rel="noreferrer" style={{ opacity: 0.5, color: "inherit" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>}
+                  </div>
+                )}
+                {seller?.whatsapp_number && <a href={waLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 13, opacity: 0.5, color: "inherit", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>WhatsApp</a>}
+                {displayContactEmail && <a href={`mailto:${displayContactEmail}`} style={{ display: "block", fontSize: 13, opacity: 0.5, color: "inherit", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>{displayContactEmail}</a>}
+                {displayContactPhone && <a href={`tel:${displayContactPhone.replace(/\s/g, "")}`} style={{ display: "block", fontSize: 13, opacity: 0.5, color: "inherit", marginBottom: 10, fontWeight: 300, textDecoration: "none" }}>{displayContactPhone}</a>}
+                {displayOperatingHours && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4, marginBottom: 8 }}>Hours</div>
+                    <table style={{ fontSize: 12, opacity: 0.45, lineHeight: 1.8, borderCollapse: "collapse" }}>
+                      <tbody>
+                        {displayOperatingHours.split("\n").filter(Boolean).map((line: string, li: number) => {
+                          const parts = line.split(/[:\-–—]/).map((s: string) => s.trim());
+                          return (
+                            <tr key={li}>
+                              <td style={{ paddingRight: 16, fontWeight: 400, whiteSpace: "nowrap", verticalAlign: "top" }}>{parts[0]}</td>
+                              <td style={{ fontWeight: 300, verticalAlign: "top" }}>{parts.slice(1).join(" – ") || ""}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {seller?.checkout_config?.payfast_enabled && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4, marginBottom: 8 }}>Payment</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      <span title="Visa" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="10" viewBox="0 0 50 16"><path d="M19.5 0.5l-4 15h-3.2l4-15h3.2zm16.3 9.7l1.7-4.6 1 4.6h-2.7zm3 5.3h3l-2.6-15h-2.8c-.6 0-1.1.4-1.4 1l-4.8 14h3.4l.7-1.9h4.1l.4 1.9zm-8.5-4.9c0-4-5.4-4.2-5.4-5.9 0-.5.5-1.1 1.6-1.2 1.1-.1 2.7.2 3.9.8l.7-3.2c-.9-.4-2.2-.7-3.6-.7-3.8 0-6.5 2-6.5 5 0 2.2 1.9 3.4 3.4 4.1 1.5.7 2 1.2 2 1.9 0 1-1.2 1.5-2.3 1.5-1.4 0-2.8-.4-4.1-1l-.7 3.3c.9.4 2.7.8 4.5.8 4 0 6.6-2 6.6-5.2zM12.5 0.5l-5 15H4.3L1 3.7c-.2-.7-.4-.9-1-1.2l-3-1.5.1-.5h5.4c.7 0 1.3.5 1.5 1.3l1.3 7.2 3.4-8.5h3.4z" fill="currentColor" opacity="0.7"/></svg></span>
+                      <span title="Mastercard" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="24" height="16" viewBox="0 0 24 16"><circle cx="8.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/><circle cx="15.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/></svg></span>
+                      <span title="Amex" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="16" viewBox="0 0 28 16"><rect x="2" y="1" width="24" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6"/><text x="14" y="10" textAnchor="middle" fontSize="6" fontWeight="700" fill="currentColor" opacity="0.7" fontFamily="sans-serif">AMEX</text></svg></span>
+                      <span title="Apple Pay" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="14" viewBox="0 0 50 21"><path d="M9.4 2.2c-.6.7-1.5 1.3-2.5 1.2-.1-1 .4-2 .9-2.7C8.4.1 9.5-.4 10.4-.5c.1 1.1-.3 2.1-.9 2.7zm.9 1.4c-1.4-.1-2.6.8-3.2.8s-1.7-.8-2.8-.7C2.8 3.7 1.4 4.7.7 6.2c-1.4 2.7-.4 6.6 1 8.8.7 1 1.5 2.2 2.5 2.1 1-.1 1.4-.7 2.6-.7 1.2 0 1.5.7 2.6.6 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.2-.8-2.2-3.3 0-2.1 1.7-3 1.8-3.1-1-1.5-2.5-1.6-3.1-1.7z" fill="currentColor" opacity="0.7"/><path d="M21.8 1c3.4 0 5.7 2.3 5.7 5.8 0 3.4-2.4 5.8-5.8 5.8h-3.7v6h-2.8V1h6.6zm-3.8 9.3h3.1c2.3 0 3.6-1.3 3.6-3.5 0-2.2-1.3-3.5-3.6-3.5h-3.1v7zm11.2 4.5c0-2.2 1.7-3.6 4.7-3.7l3.5-.2v-1c0-1.4-1-2.2-2.5-2.2-1.5 0-2.4.7-2.6 1.8h-2.6c.1-2.4 2.1-4.1 5.3-4.1 3.1 0 5.1 1.6 5.1 4.2v8.8h-2.6v-2.1h-.1c-.8 1.4-2.3 2.3-4 2.3-2.4 0-4.1-1.5-4.1-3.8zm8.2-1.1v-1l-3.1.2c-1.6.1-2.4.8-2.4 1.8 0 1.1.9 1.8 2.3 1.8 1.8 0 3.2-1.2 3.2-2.8zm5 6.3v-2.2c.2 0 .6.1.9.1 1.3 0 2-.5 2.4-1.9l.3-.9L40 5.6h2.9l3.3 10.4h.1L49.5 5.6h2.8L47 18c-1.1 3.2-2.4 4.2-5.1 4.2-.3 0-.9 0-1.3-.1z" fill="currentColor" opacity="0.7"/></svg></span>
+                      <span title="Google Pay" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="14" viewBox="0 0 40 16"><path d="M19.4 7.8v4.7h-1.5V1h3.9c1 0 1.8.3 2.5 1 .7.6 1 1.4 1 2.3 0 1-.3 1.7-1 2.3-.7.6-1.5.9-2.4.9h-2.5zm0-5.4v4h2.5c.6 0 1.1-.2 1.5-.6.4-.4.6-.9.6-1.4 0-.6-.2-1-.6-1.4-.4-.4-.9-.6-1.5-.6h-2.5zm10.8 2c1.1 0 2 .3 2.6.9.6.6 1 1.5 1 2.6v5.3h-1.4v-1.2h-.1c-.6 1-1.4 1.4-2.5 1.4-.9 0-1.7-.3-2.3-.8-.6-.5-.9-1.2-.9-2 0-.9.3-1.6 1-2.1.7-.5 1.6-.7 2.7-.7 1 0 1.8.2 2.3.5v-.4c0-.6-.2-1.1-.7-1.5-.4-.4-1-.6-1.6-.6-.9 0-1.6.4-2.1 1.2l-1.3-.8c.7-1.2 1.8-1.7 3.2-1.7zm-2 6.1c0 .5.2.8.6 1.1.4.3.8.4 1.3.4.7 0 1.4-.3 1.9-.8.5-.5.8-1.1.8-1.7-.5-.4-1.1-.6-2.1-.6-.7 0-1.3.2-1.7.5-.5.3-.8.7-.8 1.2zm11.4-5.8l-4.9 11.3h-1.5l1.8-4-3.2-7.3h1.6l2.3 5.5h0l2.2-5.5h1.6z" fill="currentColor" opacity="0.7"/></svg></span>
+                    </div>
+                  </div>
+                )}
+                {seller?.checkout_config?.eft_enabled && (
+                  <div style={{ fontSize: 12, opacity: 0.45, marginTop: 8 }}>EFT / Direct Deposit</div>
+                )}
+                {seller?.checkout_config?.whatsapp_checkout_enabled && seller?.whatsapp_number && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.45, marginTop: 4 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+                    WhatsApp Order
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 32, borderTop: "1px solid rgba(246,243,239,0.1)", flexWrap: "wrap", gap: 12 }}>
-              <p style={{ fontSize: 11, color: "rgba(246,243,239,0.3)" }}>&copy; {new Date().getFullYear()} {seller?.store_name}</p>
-              <p style={{ fontSize: 10, color: "rgba(246,243,239,0.3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Powered by <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: "none", fontWeight: 500 }}>CatalogStore</a></p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 32, borderTop: `1px solid ${pageBg}15`, flexWrap: "wrap", gap: 12 }}>
+              <p style={{ fontSize: 11, opacity: 0.3 }}>&copy; {new Date().getFullYear()} {seller?.store_name}</p>
+              <p style={{ fontSize: 10, opacity: 0.3, letterSpacing: "0.08em", textTransform: "uppercase" }}>Powered by <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: "none", fontWeight: 500 }}>CatalogStore</a></p>
             </div>
           </div>
         </footer>

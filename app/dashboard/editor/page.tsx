@@ -250,6 +250,11 @@ export default function StoreEditor() {
   const [collectionImages, setCollectionImages]       = useState<Record<string, string>>({});
   const [footerAbout, setFooterAbout]                 = useState("");
   const [productsCollapsed, setProductsCollapsed]     = useState(false);
+  const [contactEmail, setContactEmail]               = useState("");
+  const [contactPhone, setContactPhone]               = useState("");
+  const [physicalAddress, setPhysicalAddress]         = useState("");
+  const [operatingHours, setOperatingHours]           = useState("");
+  const [policyItems, setPolicyItems]                 = useState<{ title: string; desc: string }[]>([]);
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -330,6 +335,15 @@ export default function StoreEditor() {
       if (s.store_config?.collection_images) setCollectionImages(s.store_config.collection_images);
       if (s.store_config?.footer_about) setFooterAbout(s.store_config.footer_about);
       setProductsCollapsed(s.store_config?.products_collapsed === true);
+      if ((s.store_config as any)?.contact_email) setContactEmail((s.store_config as any).contact_email);
+      if ((s.store_config as any)?.contact_phone) setContactPhone((s.store_config as any).contact_phone);
+      if ((s.store_config as any)?.physical_address) setPhysicalAddress((s.store_config as any).physical_address);
+      if ((s.store_config as any)?.operating_hours) setOperatingHours((s.store_config as any).operating_hours);
+      setPolicyItems(s.store_config?.policy_items || [
+        { title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." },
+        { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." },
+        { title: "Payment", desc: "Secure card payments and WhatsApp checkout for a personal experience." },
+      ]);
       setLoading(false);
     })();
   }, []);
@@ -412,6 +426,12 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ fontPair }); }, [fontPair]);
   useEffect(() => { postUpdate({ headerTransparent }); }, [headerTransparent]);
   useEffect(() => { postUpdate({ headerBorder }); }, [headerBorder]);
+  useEffect(() => { postUpdate({ footerAbout }); }, [footerAbout]);
+  useEffect(() => { postUpdate({ contactEmail }); }, [contactEmail]);
+  useEffect(() => { postUpdate({ contactPhone }); }, [contactPhone]);
+  useEffect(() => { postUpdate({ physicalAddress }); }, [physicalAddress]);
+  useEffect(() => { postUpdate({ operatingHours }); }, [operatingHours]);
+  useEffect(() => { postUpdate({ policyItems }); }, [policyItems]);
 
   /* ─── SAVE ─── */
   const save = async () => {
@@ -489,6 +509,11 @@ export default function StoreEditor() {
           collection_images: collectionImages,
           footer_about: footerAbout || undefined,
           products_collapsed: productsCollapsed || undefined,
+          contact_email: contactEmail || undefined,
+          contact_phone: contactPhone || undefined,
+          physical_address: physicalAddress || undefined,
+          operating_hours: operatingHours || undefined,
+          policy_items: policyItems,
       },
     }).eq("id", seller.id);
     setSaved(true);
@@ -1552,27 +1577,54 @@ export default function StoreEditor() {
                   <textarea value={footerAbout} onChange={e => setFooterAbout(e.target.value)}
                     rows={3} placeholder="Short about text for the footer. Leave empty to use your store description."
                     style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Separate from the hero description — you can have different text here.</div>
+                  <div style={hintStyle}>Separate from the hero description — you can have different text here.</div>
                 </div>
 
-                <div>
-                  <label style={labelStyle}>Shipping Policy</label>
-                  <textarea value={shippingPolicy} onChange={e => setShippingPolicy(e.target.value)}
-                    rows={3} placeholder="e.g. We deliver nationwide within 3-5 business days..."
-                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Shown in a popup when customers click Shipping in the footer.</div>
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Policies</div>
+                  {policyItems.map((pol, i) => (
+                    <div key={i} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, marginBottom: 8 }}>
+                      <input value={pol.title} onChange={e => { const u = [...policyItems]; u[i] = { ...u[i], title: e.target.value }; setPolicyItems(u); }}
+                        placeholder="Policy title" style={{ ...inputStyle, fontWeight: 600, marginBottom: 6 }} />
+                      <textarea value={pol.desc} onChange={e => { const u = [...policyItems]; u[i] = { ...u[i], desc: e.target.value }; setPolicyItems(u); }}
+                        placeholder="Policy content..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+                      {policyItems.length > 1 && (
+                        <button onClick={() => setPolicyItems(policyItems.filter((_, idx) => idx !== i))}
+                          style={{ marginTop: 4, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => setPolicyItems([...policyItems, { title: "", desc: "" }])}
+                    style={{ padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, color: "rgba(245,245,245,0.35)", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}>+ Add Policy</button>
+                  <div style={hintStyle}>Policies expand inline in the footer Support column.</div>
                 </div>
 
-                <div>
-                  <label style={labelStyle}>Return / Refund Policy</label>
-                  <textarea value={returnPolicy} onChange={e => setReturnPolicy(e.target.value)}
-                    rows={3} placeholder="e.g. We accept returns within 14 days of purchase..."
-                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Shown in a popup when customers click Returns in the footer.</div>
-                </div>
-
-                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
-                  Contact info (email, phone, address, hours) is managed in Dashboard → My Store.
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Contact Info</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div>
+                      <label style={labelStyle}>Email</label>
+                      <input value={contactEmail} onChange={e => setContactEmail(e.target.value)}
+                        placeholder="e.g. hello@yourstore.co.za" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Phone</label>
+                      <input value={contactPhone} onChange={e => setContactPhone(e.target.value)}
+                        placeholder="e.g. 012 345 6789" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Physical Address</label>
+                      <textarea value={physicalAddress} onChange={e => setPhysicalAddress(e.target.value)}
+                        rows={2} placeholder="e.g. 123 Main Rd, Cape Town" style={{ ...inputStyle, resize: "vertical" }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Operating Hours</label>
+                      <textarea value={operatingHours} onChange={e => setOperatingHours(e.target.value)}
+                        rows={3} placeholder={"Monday - Friday: 9am - 5pm\nSaturday: 10am - 2pm\nSunday & Holidays: Closed"}
+                        style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                      <div style={hintStyle}>One line per entry. Format: &quot;Day: Hours&quot;. Displayed as a table in the footer.</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
