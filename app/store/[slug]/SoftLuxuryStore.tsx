@@ -118,6 +118,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveContactPhone, setLiveContactPhone] = useState<string | null>(null);
   const [livePhysicalAddress, setLivePhysicalAddress] = useState<string | null>(null);
   const [liveOperatingHours, setLiveOperatingHours] = useState<string | null>(null);
+  const [liveFooterTextColor, setLiveFooterTextColor] = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
   const [navigating, setNavigating]             = useState(false);
   const [policyModal, setPolicyModal]           = useState<{ title: string; content: string } | null>(null);
@@ -194,6 +195,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.contactPhone !== undefined) setLiveContactPhone(e.data.contactPhone);
       if (e.data.physicalAddress !== undefined) setLivePhysicalAddress(e.data.physicalAddress);
       if (e.data.operatingHours !== undefined) setLiveOperatingHours(e.data.operatingHours);
+      if (e.data.footerTextColor !== undefined) setLiveFooterTextColor(e.data.footerTextColor);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -265,6 +267,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const displayProductsLabel = liveProductsLabel ?? (cfg as any).products_label ?? "Browse";
   const displayProductsHeading = liveProductsHeading ?? (cfg as any).products_heading ?? "All Collections";
   const cardRatio = liveProductCardRatio ?? (cfg as any).product_card_ratio ?? "3/4";
+  const footerTextColor = liveFooterTextColor ?? (cfg as any).footer_text_color ?? pageBg;
   const displayFooterAbout = liveFooterAbout ?? (cfg as any).footer_about ?? seller?.description ?? "";
   const displayContactEmail = liveContactEmail ?? (cfg as any).contact_email ?? "";
   const displayContactPhone = liveContactPhone ?? (cfg as any).contact_phone ?? "";
@@ -820,7 +823,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
         {/* FOOTER */}
         <EditSection id="footer">
-        <footer style={{ background: pageText, color: pageBg, padding: "60px 32px 40px" }}>
+        <footer style={{ background: pageText, color: footerTextColor, padding: "60px 32px 40px" }}>
           <div style={{ maxWidth: 1340, margin: "0 auto" }}>
             <div className="sl-fttop" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 40, marginBottom: 48 }}>
               <div>
@@ -843,7 +846,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               <div>
                 <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Support</h5>
                 {policyItems.map((p, i) => (
-                  <div key={i} style={{ borderBottom: `1px solid ${pageBg}15` }}>
+                  <div key={i} style={{ borderBottom: `1px solid ${footerTextColor}15` }}>
                     <button onClick={() => setExpandedPolicy(expandedPolicy === i ? null : i)}
                       style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", background: "none", border: "none", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left", color: "inherit" }}>
                       <span style={{ fontSize: 13, fontWeight: 300, opacity: 0.5 }}>{p.title}</span>
@@ -855,7 +858,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   </div>
                 ))}
                 {(cfg as any).shipping_policy && !policyItems.some(p => p.title.toLowerCase().includes("ship")) && (
-                  <div style={{ borderBottom: `1px solid ${pageBg}15` }}>
+                  <div style={{ borderBottom: `1px solid ${footerTextColor}15` }}>
                     <button onClick={() => setExpandedPolicy(expandedPolicy === 100 ? null : 100)}
                       style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", background: "none", border: "none", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left", color: "inherit" }}>
                       <span style={{ fontSize: 13, fontWeight: 300, opacity: 0.5 }}>Shipping Policy</span>
@@ -867,7 +870,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   </div>
                 )}
                 {(cfg as any).return_policy && !policyItems.some(p => p.title.toLowerCase().includes("return")) && (
-                  <div style={{ borderBottom: `1px solid ${pageBg}15` }}>
+                  <div style={{ borderBottom: `1px solid ${footerTextColor}15` }}>
                     <button onClick={() => setExpandedPolicy(expandedPolicy === 101 ? null : 101)}
                       style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", background: "none", border: "none", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "left", color: "inherit" }}>
                       <span style={{ fontSize: 13, fontWeight: 300, opacity: 0.5 }}>Returns & Refunds</span>
@@ -915,11 +918,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   <div style={{ marginTop: 16 }}>
                     <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4, marginBottom: 8 }}>Payment</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      <span title="Visa" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="10" viewBox="0 0 50 16"><path d="M19.5 0.5l-4 15h-3.2l4-15h3.2zm16.3 9.7l1.7-4.6 1 4.6h-2.7zm3 5.3h3l-2.6-15h-2.8c-.6 0-1.1.4-1.4 1l-4.8 14h3.4l.7-1.9h4.1l.4 1.9zm-8.5-4.9c0-4-5.4-4.2-5.4-5.9 0-.5.5-1.1 1.6-1.2 1.1-.1 2.7.2 3.9.8l.7-3.2c-.9-.4-2.2-.7-3.6-.7-3.8 0-6.5 2-6.5 5 0 2.2 1.9 3.4 3.4 4.1 1.5.7 2 1.2 2 1.9 0 1-1.2 1.5-2.3 1.5-1.4 0-2.8-.4-4.1-1l-.7 3.3c.9.4 2.7.8 4.5.8 4 0 6.6-2 6.6-5.2zM12.5 0.5l-5 15H4.3L1 3.7c-.2-.7-.4-.9-1-1.2l-3-1.5.1-.5h5.4c.7 0 1.3.5 1.5 1.3l1.3 7.2 3.4-8.5h3.4z" fill="currentColor" opacity="0.7"/></svg></span>
-                      <span title="Mastercard" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="24" height="16" viewBox="0 0 24 16"><circle cx="8.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/><circle cx="15.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/></svg></span>
-                      <span title="Amex" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="16" viewBox="0 0 28 16"><rect x="2" y="1" width="24" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6"/><text x="14" y="10" textAnchor="middle" fontSize="6" fontWeight="700" fill="currentColor" opacity="0.7" fontFamily="sans-serif">AMEX</text></svg></span>
-                      <span title="Apple Pay" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="14" viewBox="0 0 50 21"><path d="M9.4 2.2c-.6.7-1.5 1.3-2.5 1.2-.1-1 .4-2 .9-2.7C8.4.1 9.5-.4 10.4-.5c.1 1.1-.3 2.1-.9 2.7zm.9 1.4c-1.4-.1-2.6.8-3.2.8s-1.7-.8-2.8-.7C2.8 3.7 1.4 4.7.7 6.2c-1.4 2.7-.4 6.6 1 8.8.7 1 1.5 2.2 2.5 2.1 1-.1 1.4-.7 2.6-.7 1.2 0 1.5.7 2.6.6 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.2-.8-2.2-3.3 0-2.1 1.7-3 1.8-3.1-1-1.5-2.5-1.6-3.1-1.7z" fill="currentColor" opacity="0.7"/><path d="M21.8 1c3.4 0 5.7 2.3 5.7 5.8 0 3.4-2.4 5.8-5.8 5.8h-3.7v6h-2.8V1h6.6zm-3.8 9.3h3.1c2.3 0 3.6-1.3 3.6-3.5 0-2.2-1.3-3.5-3.6-3.5h-3.1v7zm11.2 4.5c0-2.2 1.7-3.6 4.7-3.7l3.5-.2v-1c0-1.4-1-2.2-2.5-2.2-1.5 0-2.4.7-2.6 1.8h-2.6c.1-2.4 2.1-4.1 5.3-4.1 3.1 0 5.1 1.6 5.1 4.2v8.8h-2.6v-2.1h-.1c-.8 1.4-2.3 2.3-4 2.3-2.4 0-4.1-1.5-4.1-3.8zm8.2-1.1v-1l-3.1.2c-1.6.1-2.4.8-2.4 1.8 0 1.1.9 1.8 2.3 1.8 1.8 0 3.2-1.2 3.2-2.8zm5 6.3v-2.2c.2 0 .6.1.9.1 1.3 0 2-.5 2.4-1.9l.3-.9L40 5.6h2.9l3.3 10.4h.1L49.5 5.6h2.8L47 18c-1.1 3.2-2.4 4.2-5.1 4.2-.3 0-.9 0-1.3-.1z" fill="currentColor" opacity="0.7"/></svg></span>
-                      <span title="Google Pay" style={{ width: 42, height: 26, border: `1px solid ${pageBg}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: pageBg + "10" }}><svg width="28" height="14" viewBox="0 0 40 16"><path d="M19.4 7.8v4.7h-1.5V1h3.9c1 0 1.8.3 2.5 1 .7.6 1 1.4 1 2.3 0 1-.3 1.7-1 2.3-.7.6-1.5.9-2.4.9h-2.5zm0-5.4v4h2.5c.6 0 1.1-.2 1.5-.6.4-.4.6-.9.6-1.4 0-.6-.2-1-.6-1.4-.4-.4-.9-.6-1.5-.6h-2.5zm10.8 2c1.1 0 2 .3 2.6.9.6.6 1 1.5 1 2.6v5.3h-1.4v-1.2h-.1c-.6 1-1.4 1.4-2.5 1.4-.9 0-1.7-.3-2.3-.8-.6-.5-.9-1.2-.9-2 0-.9.3-1.6 1-2.1.7-.5 1.6-.7 2.7-.7 1 0 1.8.2 2.3.5v-.4c0-.6-.2-1.1-.7-1.5-.4-.4-1-.6-1.6-.6-.9 0-1.6.4-2.1 1.2l-1.3-.8c.7-1.2 1.8-1.7 3.2-1.7zm-2 6.1c0 .5.2.8.6 1.1.4.3.8.4 1.3.4.7 0 1.4-.3 1.9-.8.5-.5.8-1.1.8-1.7-.5-.4-1.1-.6-2.1-.6-.7 0-1.3.2-1.7.5-.5.3-.8.7-.8 1.2zm11.4-5.8l-4.9 11.3h-1.5l1.8-4-3.2-7.3h1.6l2.3 5.5h0l2.2-5.5h1.6z" fill="currentColor" opacity="0.7"/></svg></span>
+                      <span title="Visa" style={{ width: 42, height: 26, border: `1px solid ${footerTextColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerTextColor + "10" }}><svg width="28" height="10" viewBox="0 0 50 16"><path d="M19.5 0.5l-4 15h-3.2l4-15h3.2zm16.3 9.7l1.7-4.6 1 4.6h-2.7zm3 5.3h3l-2.6-15h-2.8c-.6 0-1.1.4-1.4 1l-4.8 14h3.4l.7-1.9h4.1l.4 1.9zm-8.5-4.9c0-4-5.4-4.2-5.4-5.9 0-.5.5-1.1 1.6-1.2 1.1-.1 2.7.2 3.9.8l.7-3.2c-.9-.4-2.2-.7-3.6-.7-3.8 0-6.5 2-6.5 5 0 2.2 1.9 3.4 3.4 4.1 1.5.7 2 1.2 2 1.9 0 1-1.2 1.5-2.3 1.5-1.4 0-2.8-.4-4.1-1l-.7 3.3c.9.4 2.7.8 4.5.8 4 0 6.6-2 6.6-5.2zM12.5 0.5l-5 15H4.3L1 3.7c-.2-.7-.4-.9-1-1.2l-3-1.5.1-.5h5.4c.7 0 1.3.5 1.5 1.3l1.3 7.2 3.4-8.5h3.4z" fill="currentColor" opacity="0.7"/></svg></span>
+                      <span title="Mastercard" style={{ width: 42, height: 26, border: `1px solid ${footerTextColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerTextColor + "10" }}><svg width="24" height="16" viewBox="0 0 24 16"><circle cx="8.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/><circle cx="15.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/></svg></span>
+                      <span title="Amex" style={{ width: 42, height: 26, border: `1px solid ${footerTextColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerTextColor + "10" }}><svg width="28" height="16" viewBox="0 0 28 16"><rect x="2" y="1" width="24" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6"/><text x="14" y="10" textAnchor="middle" fontSize="6" fontWeight="700" fill="currentColor" opacity="0.7" fontFamily="sans-serif">AMEX</text></svg></span>
+                      <span title="Apple Pay" style={{ width: 42, height: 26, border: `1px solid ${footerTextColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerTextColor + "10" }}><svg width="28" height="14" viewBox="0 0 50 21"><path d="M9.4 2.2c-.6.7-1.5 1.3-2.5 1.2-.1-1 .4-2 .9-2.7C8.4.1 9.5-.4 10.4-.5c.1 1.1-.3 2.1-.9 2.7zm.9 1.4c-1.4-.1-2.6.8-3.2.8s-1.7-.8-2.8-.7C2.8 3.7 1.4 4.7.7 6.2c-1.4 2.7-.4 6.6 1 8.8.7 1 1.5 2.2 2.5 2.1 1-.1 1.4-.7 2.6-.7 1.2 0 1.5.7 2.6.6 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.2-.8-2.2-3.3 0-2.1 1.7-3 1.8-3.1-1-1.5-2.5-1.6-3.1-1.7z" fill="currentColor" opacity="0.7"/><path d="M21.8 1c3.4 0 5.7 2.3 5.7 5.8 0 3.4-2.4 5.8-5.8 5.8h-3.7v6h-2.8V1h6.6zm-3.8 9.3h3.1c2.3 0 3.6-1.3 3.6-3.5 0-2.2-1.3-3.5-3.6-3.5h-3.1v7zm11.2 4.5c0-2.2 1.7-3.6 4.7-3.7l3.5-.2v-1c0-1.4-1-2.2-2.5-2.2-1.5 0-2.4.7-2.6 1.8h-2.6c.1-2.4 2.1-4.1 5.3-4.1 3.1 0 5.1 1.6 5.1 4.2v8.8h-2.6v-2.1h-.1c-.8 1.4-2.3 2.3-4 2.3-2.4 0-4.1-1.5-4.1-3.8zm8.2-1.1v-1l-3.1.2c-1.6.1-2.4.8-2.4 1.8 0 1.1.9 1.8 2.3 1.8 1.8 0 3.2-1.2 3.2-2.8zm5 6.3v-2.2c.2 0 .6.1.9.1 1.3 0 2-.5 2.4-1.9l.3-.9L40 5.6h2.9l3.3 10.4h.1L49.5 5.6h2.8L47 18c-1.1 3.2-2.4 4.2-5.1 4.2-.3 0-.9 0-1.3-.1z" fill="currentColor" opacity="0.7"/></svg></span>
+                      <span title="Google Pay" style={{ width: 42, height: 26, border: `1px solid ${footerTextColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerTextColor + "10" }}><svg width="28" height="14" viewBox="0 0 40 16"><path d="M19.4 7.8v4.7h-1.5V1h3.9c1 0 1.8.3 2.5 1 .7.6 1 1.4 1 2.3 0 1-.3 1.7-1 2.3-.7.6-1.5.9-2.4.9h-2.5zm0-5.4v4h2.5c.6 0 1.1-.2 1.5-.6.4-.4.6-.9.6-1.4 0-.6-.2-1-.6-1.4-.4-.4-.9-.6-1.5-.6h-2.5zm10.8 2c1.1 0 2 .3 2.6.9.6.6 1 1.5 1 2.6v5.3h-1.4v-1.2h-.1c-.6 1-1.4 1.4-2.5 1.4-.9 0-1.7-.3-2.3-.8-.6-.5-.9-1.2-.9-2 0-.9.3-1.6 1-2.1.7-.5 1.6-.7 2.7-.7 1 0 1.8.2 2.3.5v-.4c0-.6-.2-1.1-.7-1.5-.4-.4-1-.6-1.6-.6-.9 0-1.6.4-2.1 1.2l-1.3-.8c.7-1.2 1.8-1.7 3.2-1.7zm-2 6.1c0 .5.2.8.6 1.1.4.3.8.4 1.3.4.7 0 1.4-.3 1.9-.8.5-.5.8-1.1.8-1.7-.5-.4-1.1-.6-2.1-.6-.7 0-1.3.2-1.7.5-.5.3-.8.7-.8 1.2zm11.4-5.8l-4.9 11.3h-1.5l1.8-4-3.2-7.3h1.6l2.3 5.5h0l2.2-5.5h1.6z" fill="currentColor" opacity="0.7"/></svg></span>
                     </div>
                   </div>
                 )}
@@ -934,7 +937,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 )}
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 32, borderTop: `1px solid ${pageBg}15`, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 32, borderTop: `1px solid ${footerTextColor}15`, flexWrap: "wrap", gap: 12 }}>
               <p style={{ fontSize: 11, opacity: 0.3 }}>&copy; {new Date().getFullYear()} {seller?.store_name}</p>
               <p style={{ fontSize: 10, opacity: 0.3, letterSpacing: "0.08em", textTransform: "uppercase" }}>Powered by <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: "none", fontWeight: 500 }}>CatalogStore</a></p>
             </div>
