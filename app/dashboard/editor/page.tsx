@@ -270,12 +270,13 @@ export default function StoreEditor() {
       if (s.store_config?.hero_subtext) setHeroSubtext(s.store_config.hero_subtext);
       if (s.store_config?.circle_title) setCircleTitle(s.store_config.circle_title);
       if (s.store_config?.circle_subtitle) setCircleSubtitle(s.store_config.circle_subtitle);
-      if (s.store_config?.products_label) setProductsLabel(s.store_config.products_label);
-      if (s.store_config?.products_heading) setProductsHeading(s.store_config.products_heading);
+      const isSL = s.template === "soft-luxury" || s.template === "glass-futuristic";
+      setProductsLabel(s.store_config?.products_label || (isSL ? "The Collection" : "The Edit"));
+      setProductsHeading(s.store_config?.products_heading || (isSL ? "All Products" : "Latest arrivals"));
       if (s.store_config?.about_label) setAboutLabel(s.store_config.about_label);
       if (s.store_config?.about_title) setAboutTitle(s.store_config.about_title);
-      if (s.store_config?.coll_label) setCollLabel(s.store_config.coll_label);
-      if (s.store_config?.coll_subtitle) setCollSubtitle(s.store_config.coll_subtitle);
+      setCollLabel(s.store_config?.coll_label || (isSL ? "Curated For You" : "Featured Collections"));
+      setCollSubtitle(s.store_config?.coll_subtitle || (isSL ? "Shop by Collection" : "Find your signature look"));
       if (s.store_config?.ticker_texts?.length) setTickerTexts(s.store_config.ticker_texts);
       if (s.store_config?.ticker_speed) setTickerSpeed(s.store_config.ticker_speed);
       if (s.store_config?.bg_color) setBgColor(s.store_config.bg_color);
@@ -901,6 +902,8 @@ export default function StoreEditor() {
                       { key: "fraunces-outfit", heading: "Fraunces", body: "Outfit" },
                       { key: "eb-garamond-source", heading: "EB Garamond", body: "Source Sans" },
                       { key: "bodoni-montserrat", heading: "Bodoni Moda", body: "Montserrat" },
+                      { key: "josefin-sans", heading: "Josefin Sans", body: "Josefin Sans" },
+                      { key: "tenor-work", heading: "Tenor Sans", body: "Work Sans" },
                     ] as const).map((fp) => (
                       <button key={fp.key} onClick={() => setFontPair(fp.key)}
                         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: fontPair === fp.key ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", border: fontPair === fp.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", width: "100%" }}>

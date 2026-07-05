@@ -15,6 +15,8 @@ const FONT_PAIRS: Record<string, { heading: string; body: string; import: string
   "fraunces-outfit": { heading: "'Fraunces', serif", body: "'Outfit', sans-serif", import: "family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=Outfit:wght@300;400;500;600;700" },
   "eb-garamond-source": { heading: "'EB Garamond', serif", body: "'Source Sans 3', sans-serif", import: "family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700" },
   "bodoni-montserrat": { heading: "'Bodoni Moda', serif", body: "'Montserrat', sans-serif", import: "family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;1,6..96,400&family=Montserrat:wght@300;400;500;600;700" },
+  "josefin-sans": { heading: "'Josefin Sans', sans-serif", body: "'Josefin Sans', sans-serif", import: "family=Josefin+Sans:wght@100;200;300;400;500;600;700" },
+  "tenor-work": { heading: "'Tenor Sans', sans-serif", body: "'Work Sans', sans-serif", import: "family=Tenor+Sans&family=Work+Sans:wght@300;400;500;600;700" },
 };
 
 interface Seller {
@@ -80,6 +82,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveBgColor, setLiveBgColor]                     = useState<string | null>(null);
   const [liveTextColor, setLiveTextColor]                 = useState<string | null>(null);
   const [liveMutedColor, setLiveMutedColor]               = useState<string | null>(null);
+  const [liveCollLabel, setLiveCollLabel]                 = useState<string | null>(null);
+  const [liveCollSubtitle, setLiveCollSubtitle]           = useState<string | null>(null);
+  const [liveProductsLabel, setLiveProductsLabel]         = useState<string | null>(null);
+  const [liveProductsHeading, setLiveProductsHeading]     = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
@@ -140,6 +146,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.bgColor     !== undefined) setLiveBgColor(e.data.bgColor);
       if (e.data.textColor   !== undefined) setLiveTextColor(e.data.textColor);
       if (e.data.mutedColor  !== undefined) setLiveMutedColor(e.data.mutedColor);
+      if (e.data.collLabel   !== undefined) setLiveCollLabel(e.data.collLabel);
+      if (e.data.collSubtitle !== undefined) setLiveCollSubtitle(e.data.collSubtitle);
+      if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
+      if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -206,6 +216,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const fonts = FONT_PAIRS[fontPairKey] || FONT_PAIRS["cormorant-jost"];
   const headerTransparent = liveHeaderTransparent !== null ? liveHeaderTransparent : (cfg as any).header_transparent === true;
   const headerBorder = liveHeaderBorder !== null ? liveHeaderBorder : (cfg as any).header_border !== false;
+  const displayCollLabel = liveCollLabel ?? (cfg as any).coll_label ?? "Curated For You";
+  const displayCollSubtitle = liveCollSubtitle ?? (cfg as any).coll_subtitle ?? "Shop by Collection";
+  const displayProductsLabel = liveProductsLabel ?? (cfg as any).products_label ?? "The Collection";
+  const displayProductsHeading = liveProductsHeading ?? (cfg as any).products_heading ?? "All Products";
   const collections = seller?.collections || [];
   const marqueeTexts = (cfg.marquee_texts !== undefined ? cfg.marquee_texts.filter((t: string) => t.trim()) : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"]);
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
@@ -477,41 +491,77 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         {cfg.show_collections && collections.length > 0 && (
           <EditSection id="collections">
           <section style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>Curated For You</div>
-            <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>Shop by Collection</h2>
-            <div className="sl-cols-g" style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(collections.length, 3) + ", 1fr)", gap: 16 }}>
-              {collections.slice(0, 3).map((col, i) => {
-                const count = products.filter((p) => pInCat(p, col)).length;
-                const colProduct = products.find((p) => pInCat(p, col) && p.image_url);
-                return (
-                  <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "relative", aspectRatio: "3/4", borderRadius: 16, overflow: "hidden", cursor: "pointer" }}>
-                    {colProduct?.image_url ? (
-                      <img src={colProduct.image_url} alt={col} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.8s" }} />
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>{displayCollLabel}</div>
+            <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 56 }}>{displayCollSubtitle}</h2>
+            {/* Hero collection — first collection wide */}
+            {(() => {
+              const first = collections[0];
+              const firstCount = products.filter((p) => pInCat(p, first)).length;
+              const firstImg = products.find((p) => pInCat(p, first) && p.image_url);
+              const rest = collections.slice(1);
+              const cp0 = getCollectionPromo(first);
+              return (
+                <>
+                  <div onClick={() => { setActiveCategory(first); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                    style={{ position: "relative", aspectRatio: "21/9", borderRadius: 16, overflow: "hidden", cursor: "pointer", marginBottom: 16 }}>
+                    {firstImg?.image_url ? (
+                      <img src={firstImg.image_url} alt={first} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (
-                      <div style={{ width: "100%", height: "100%", background: `linear-gradient(145deg, ${["#d4c5b5,#bfae9c", "#c5bdb5,#a89e94", "#d9cfc5,#c4b8aa"][i % 3]})` }} />
+                      <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg, ${accent}15, ${accent}30)` }} />
                     )}
-                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "32px 28px", background: "linear-gradient(180deg, transparent, rgba(42,42,46,0.5))" }}>
-                      <div style={{ fontFamily: fonts.heading, fontSize: 24, color: "#fff", letterSpacing: "0.03em", marginBottom: 4 }}>{col}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{count} Piece{count !== 1 ? "s" : ""}</div>
-                      {(() => { const cp = getCollectionPromo(col); return cp ? (
-                        <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "rgba(42,42,46,0.7)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
-                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{cp.code} {cp.type === "percentage" ? cp.value + "%" : "R" + cp.value} OFF</span>
-                          <span style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{cp.timeLeft}</span>
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(0,0,0,0.45) 0%, transparent 60%)" }} />
+                    <div style={{ position: "absolute", bottom: 0, left: 0, padding: "40px 44px" }}>
+                      <div style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 48px)", color: "#fff", letterSpacing: "0.03em", fontWeight: 300, marginBottom: 6 }}>{first}</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", letterSpacing: "0.12em", textTransform: "uppercase" }}>{firstCount} Piece{firstCount !== 1 ? "s" : ""} &mdash; Explore</div>
+                      {cp0 && (
+                        <div style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
+                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{cp0.code} {cp0.type === "percentage" ? cp0.value + "%" : "R" + cp0.value} OFF</span>
+                          <span style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{cp0.timeLeft}</span>
                         </div>
-                      ) : null; })()}
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                  {rest.length > 0 && (
+                    <div className="sl-cols-g" style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(rest.length, 3) + ", 1fr)", gap: 16 }}>
+                      {rest.map((col, i) => {
+                        const count = products.filter((p) => pInCat(p, col)).length;
+                        const colProduct = products.find((p) => pInCat(p, col) && p.image_url);
+                        const cp = getCollectionPromo(col);
+                        return (
+                          <div key={col} onClick={() => { setActiveCategory(col); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                            style={{ position: "relative", aspectRatio: "4/5", borderRadius: 16, overflow: "hidden", cursor: "pointer" }}>
+                            {colProduct?.image_url ? (
+                              <img src={colProduct.image_url} alt={col} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              <div style={{ width: "100%", height: "100%", background: `linear-gradient(145deg, ${accent}10, ${accent}25)` }} />
+                            )}
+                            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 50%)" }} />
+                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "28px 24px" }}>
+                              <div style={{ fontFamily: fonts.heading, fontSize: 22, color: "#fff", letterSpacing: "0.03em", fontWeight: 300, marginBottom: 4 }}>{col}</div>
+                              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{count} Piece{count !== 1 ? "s" : ""}</div>
+                              {cp && (
+                                <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 10px", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
+                                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.8)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{cp.code} {cp.type === "percentage" ? cp.value + "%" : "R" + cp.value} OFF</span>
+                                  <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{cp.timeLeft}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </section>
           </EditSection>
         )}
 
         {/* PRODUCTS */}
         <section id="products" style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>The Collection</div>
-          <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>All Products</h2>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12, textAlign: "center" }}>{displayProductsLabel}</div>
+          <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, textAlign: "center", letterSpacing: "0.02em", marginBottom: 48 }}>{displayProductsHeading}</h2>
 
           {cats.length > 2 && (
             <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
