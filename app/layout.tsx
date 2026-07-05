@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s · CatalogStore",
   },
   description:
-    "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders. R149/month, zero commission. Built for South African sellers.",
+    "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders. 14-day free trial, then R149/month. Zero commission. Built for South African sellers.",
   keywords: [
     "online store builder South Africa",
     "WhatsApp catalog to store",

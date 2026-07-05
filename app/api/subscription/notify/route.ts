@@ -93,52 +93,15 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (paymentStatus === "COMPLETE") {
-
-      // Work out which charge this is based on amount.
-      // R49 = first promotional month after trial; anything higher = the recurring R149.
-      const isFirstCharge = amountGross <= 49;
-      const nextBillingDate = new Date();
-      nextBillingDate.setDate(nextBillingDate.getDate() + 30);
-
-      // Successful charge clears any grace period the seller may have been in.
       await supabase.from("sellers").update({
         subscription_status: "active",
         subscription_plan: planId,
         subscription_started_at: new Date().toISOString(),
         plan: planId,
         payfast_subscription_token: token || null,
-        trial_ends_at: null, // Clear trial once active
-        subscription_grace_until: null, // Clear grace -- payment recovered
+        trial_ends_at: null,
+        subscription_grace_until: null,
       }).eq("id", sellerId);
-
-      // If this was the R49 first charge, update the PayFast subscription so that from
-      // the next cycle onwards we charge the full recurring R149/mo.
-      if (isFirstCharge && token && planId === "starter") {
-        try {
-          const merchantId = process.env.PAYFAST_MERCHANT_ID!;
-          const merchantKey = process.env.PAYFAST_MERCHANT_KEY!;
-
-          // Update the subscription recurring amount to R149.
-          await fetch(`https://api.payfast.co.za/subscriptions/${token}/update`, {
-            method: "PUT",
-            headers: {
-              "merchant-id": merchantId,
-              "version": "v1",
-              "timestamp": new Date().toISOString(),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              cycles: 0,
-              frequency: 3,
-              run_date: nextBillingDate.toISOString().split("T")[0],
-              amount: 14900, // R149 in cents
-            }),
-          });
-        } catch (updateErr) {
-          // Log but don't fail — seller is still activated, we'll catch up later.
-          console.error("Failed to update subscription to R149:", updateErr);
-        }
-      }
 
       return NextResponse.json({ status: "ok", action: "activated" });
     }

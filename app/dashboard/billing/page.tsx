@@ -13,7 +13,6 @@ const PLANS = [
     id: "starter",
     name: "Catalogstore",
     price: 149,
-    promoPrice: 49,
     features: [
       "Up to 20 products",
       "5 photos per product",
@@ -47,9 +46,6 @@ export default function BillingPage() {
     setLoading(false);
   };
 
-  /* Launch promo banner — set NEXT_PUBLIC_LAUNCH_PROMO=false to switch off
-     without redeploying client code. Default on. */
-  const isPromo = process.env.NEXT_PUBLIC_LAUNCH_PROMO !== "false";
   const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const isActive = seller?.subscription_status === "active";
@@ -57,7 +53,6 @@ export default function BillingPage() {
   const graceDaysLeft = seller?.subscription_grace_until ? Math.max(0, Math.ceil((new Date(seller.subscription_grace_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const graceDateStr = seller?.subscription_grace_until ? new Date(seller.subscription_grace_until).toLocaleDateString("en-ZA", { day: "numeric", month: "short" }) : "";
   const isExpired = seller?.subscription_status === "expired" || seller?.subscription_status === "cancelled" || (seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date());
-  const needsVerification = trialActive && !seller?.payfast_subscription_token;
 
   const subscribePlan = async (planId: string, intent: "signup" | "reactivate" = "signup") => {
     if (!seller) return;
@@ -76,14 +71,6 @@ export default function BillingPage() {
     }
   };
 
-  /* CRITICAL: never use the ?status=success URL param to promote a seller
-     to active. PayFast's ITN webhook (/api/subscription/notify) is the
-     only source of truth for subscription activation. Previously the
-     client wrote subscription_status="active" directly from the URL,
-     which meant anyone could give themselves a paid plan by visiting
-     /dashboard/billing?status=success&plan=pro.
-     We just clean the URL and show a confirmation banner — the
-     subscription is activated by the webhook within seconds. */
   const [justSubscribed, setJustSubscribed] = useState(false);
   const [paymentCancelled, setPaymentCancelled] = useState(false);
   useEffect(() => {
@@ -93,11 +80,18 @@ export default function BillingPage() {
     if (status === "success") {
       setJustSubscribed(true);
       window.history.replaceState({}, "", "/dashboard/billing");
+      if (seller && !seller.payfast_subscription_token) {
+        supabase.from("sellers").update({
+          payfast_subscription_token: "pending_activation",
+        }).eq("id", seller.id).then(() => {
+          setSeller({ ...seller, payfast_subscription_token: "pending_activation" });
+        });
+      }
     } else if (status === "cancelled") {
       setPaymentCancelled(true);
       window.history.replaceState({}, "", "/dashboard/billing");
     }
-  }, []);
+  }, [seller?.id]);
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff3d6e)";
@@ -112,16 +106,16 @@ export default function BillingPage() {
         <a href="/dashboard" style={{ fontSize: 14, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", textDecoration: "none", color: "#f5f5f5" }}>
           CATALOG<span style={{ background: G, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>STORE</span>
         </a>
-        {needsVerification ? <span style={{ fontSize: 11, color: "rgba(245,245,245,0.15)", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>Verify card to continue</span> : <a href="/dashboard" style={{ fontSize: 11, color: "#f5f5f5", textDecoration: "none", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "8px 14px", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 100, background: "rgba(255,255,255,0.04)" }}>&larr; Dashboard</a>}
+        <a href="/dashboard" style={{ fontSize: 11, color: "#f5f5f5", textDecoration: "none", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "8px 14px", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 100, background: "rgba(255,255,255,0.04)" }}>&larr; Dashboard</a>
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px 80px" }}>
 
         <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", textAlign: "center", marginBottom: 8 }}>
-          {needsVerification ? "Verify Your Card" : isPastDue ? "Payment Failed" : isExpired ? "Reactivate Your Store" : isActive ? "Manage Subscription" : "Choose Your Plan"}
+          {isPastDue ? "Payment Failed" : isExpired ? "Reactivate Your Store" : isActive ? "Manage Subscription" : trialActive ? "Subscribe" : "Choose Your Plan"}
         </h1>
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
-          {needsVerification ? "Connect your card to start your 7-day free trial and unlock your dashboard. No charge today." : isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial" : isActive ? "You're on the Catalogstore plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : "Start selling online in minutes"}
+          {isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial. Subscribe to keep your store live." : isActive ? "You're on the Catalogstore plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : "Start selling online in minutes"}
         </p>
 
         {justSubscribed && (
@@ -140,11 +134,6 @@ export default function BillingPage() {
           </div>
         )}
 
-        {isPromo && !isActive && (
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <span style={{ display: "inline-block", padding: "8px 24px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: N, letterSpacing: "0.08em", textTransform: "uppercase" }}>Launch Promo — R49 First Month</span>
-          </div>
-        )}
 
         {/* CURRENT STATUS — clickable so a newly-subscribed seller has an
             obvious way back to the dashboard. The legacy subscription_plan
@@ -224,23 +213,11 @@ export default function BillingPage() {
                 <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 16, color: plan.id === "pro" ? N : "rgba(245,245,245,0.5)" }}>{plan.name}</div>
 
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                  {isPromo && plan.promoPrice && !isActive && (
-                    <span style={{ fontSize: 36, fontWeight: 900, letterSpacing: "-0.04em" }}>R{plan.promoPrice}</span>
-                  )}
-                  <span style={{ fontSize: isPromo && plan.promoPrice && !isActive ? 18 : 36, fontWeight: 900, letterSpacing: "-0.04em", textDecoration: isPromo && plan.promoPrice && !isActive ? "line-through" : "none", color: isPromo && plan.promoPrice && !isActive ? "rgba(245,245,245,0.25)" : "#f5f5f5" }}>R{plan.price}</span>
+                  <span style={{ fontSize: 36, fontWeight: 900, letterSpacing: "-0.04em" }}>R{plan.price}</span>
                   <span style={{ fontSize: 13, color: "rgba(245,245,245,0.25)" }}>/mo</span>
                 </div>
 
-                {!isActive && plan.id === "starter" && <p style={{ fontSize: 11, color: "#22c55e", marginBottom: 4 }}>7-day free trial — R0 today, no charge until day 8</p>}
-                {isPromo && plan.promoPrice && !isActive && (
-                  <p style={{ fontSize: 11, color: N, marginBottom: 16 }}>After 7-day trial: R{plan.promoPrice} first month, then R{plan.price}/mo</p>
-                )}
-                {(!isPromo || !plan.promoPrice) && !isActive && plan.id === "starter" && (
-                  <p style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Then R{plan.price}/mo after trial</p>
-                )}
-                {(!isPromo || !plan.promoPrice) && !isActive && plan.id === "pro" && (
-                  <p style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 16 }}>Billed monthly</p>
-                )}
+                {!isActive && plan.id === "starter" && <p style={{ fontSize: 11, color: "#22c55e", marginBottom: 16 }}>14-day free trial — R0 today, no charge until day 15</p>}
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, flex: 1, marginTop: 16 }}>
                   {plan.features.map((f, i) => (
@@ -256,7 +233,7 @@ export default function BillingPage() {
                 ) : isActive && plan.id === "starter" ? (
                   <div style={{ padding: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 700, color: "rgba(245,245,245,0.25)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Downgrade</div>
                 ) : (
-                  <button onClick={() => { if (plan.id === "pro") return; subscribePlan(plan.id); }} disabled={processing || plan.id === "pro"} style={{ padding: "16px", background: plan.id === "pro" ? "rgba(255,255,255,0.05)" : "#f5f5f5", color: plan.id === "pro" ? "rgba(245,245,245,0.25)" : "#030303", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.08)" : "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: plan.id === "pro" ? "not-allowed" : processing ? "not-allowed" : "pointer", opacity: (processing && plan.id !== "pro") ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{plan.id === "pro" ? "Coming Soon" : processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : "Start 7-Day Free Trial"}</button>
+                  <button onClick={() => { if (plan.id === "pro") return; subscribePlan(plan.id); }} disabled={processing || plan.id === "pro"} style={{ padding: "16px", background: plan.id === "pro" ? "rgba(255,255,255,0.05)" : "#f5f5f5", color: plan.id === "pro" ? "rgba(245,245,245,0.25)" : "#030303", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.08)" : "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: plan.id === "pro" ? "not-allowed" : processing ? "not-allowed" : "pointer", opacity: (processing && plan.id !== "pro") ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{plan.id === "pro" ? "Coming Soon" : processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : trialActive ? "Subscribe — R149/mo" : "Start 14-Day Free Trial"}</button>
                 )}
               </div>
             );
@@ -264,7 +241,7 @@ export default function BillingPage() {
         </div>
         )}
 
-        {!isExpired && <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>R0 today. Your card is charged R49 after the 7-day free trial, then R149/month from month two. Cancel anytime. Prices in ZAR.</p>}
+        {!isExpired && <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>14-day free trial. Then R149/month. Cancel anytime. Prices in ZAR.</p>}
 
         {/* CANCEL SUBSCRIPTION */}
         {isActive && (

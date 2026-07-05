@@ -119,7 +119,7 @@ export default function SignUp() {
     if (authError) { setError(authError.message); setLoading(false); return; }
 
     if (authData.user) {
-      const trialEnd = new Date(); trialEnd.setDate(trialEnd.getDate() + 7);
+      const trialEnd = new Date(); trialEnd.setDate(trialEnd.getDate() + 14);
       const { error: profileError } = await supabase.from("sellers").insert({
         id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
         subscription_status: "trial", subscription_plan: "starter", trial_ends_at: trialEnd.toISOString(),

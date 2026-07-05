@@ -428,13 +428,11 @@ export default function Dashboard() {
   const isSubscribed = seller?.subscription_status === "active";
   const isExpiredTrial = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date();
   const isExpired = seller?.subscription_status === "expired" || isExpiredTrial;
-  const hasVerifiedCard = !!seller?.payfast_subscription_token || seller?.subscription_status === "active";
   const isAdmin = seller?.email === "info@4regn.com";
-  const needsCardVerification = trialActive && !hasVerifiedCard && !isAdmin;
 
-  if ((isExpired || needsCardVerification) && typeof window !== "undefined") {
+  if (isExpired && typeof window !== "undefined") {
     window.location.href = "/dashboard/billing";
-    return (<div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}><p style={{ color: "rgba(245,245,245,0.35)" }}>{needsCardVerification ? "Please verify your card to continue..." : "Redirecting to billing..."}</p></div>);
+    return (<div style={{ minHeight: "100vh", background: "#030303", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Schibsted Grotesk', sans-serif" }}><p style={{ color: "rgba(245,245,245,0.35)" }}>Redirecting to billing...</p></div>);
   }
 
   const publishedCount = products.filter((p) => p.status === "published" || !p.status).length;

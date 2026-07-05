@@ -651,10 +651,10 @@ export default function StorePreview() {
             Ready to go live?
           </h3>
           <p style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 28, position: "relative" }}>
-            Your store is one click away. Start your 7-day free trial — no credit card needed.
+            Your store is one click away. Start your 14-day free trial — no credit card needed.
           </p>
           <Link href="/signup" style={{ display: "inline-block", padding: "18px 48px", borderRadius: 100, background: "var(--grad)", color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", textDecoration: "none", boxShadow: "0 0 40px rgba(255,107,53,0.25)" }}>
-            Start Free Trial — R49 First Month
+            Start 14-Day Free Trial
           </Link>
         </div>
       </div>

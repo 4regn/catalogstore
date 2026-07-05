@@ -23,12 +23,11 @@ function rateLimit(ip: string): boolean {
 // 'Catalogstore Plan'. Pro tier removed -- the Pro features got merged into Starter
 // (all templates, custom domain support, no 'Powered by CatalogStore' badge, personal
 // onboarding). When we have proof we can sell, we can add a higher tier back.
-const PLANS: Record<string, { name: string; firstAmount: number; recurringAmount: number; trialDays: number }> = {
+const PLANS: Record<string, { name: string; recurringAmount: number; trialDays: number }> = {
   starter: {
     name: "Catalogstore",
-    firstAmount: 49.00,      // R49 promotional first month after 7-day trial
-    recurringAmount: 149.00, // R149/mo recurring after first month
-    trialDays: 7,
+    recurringAmount: 149.00,
+    trialDays: 14,
   },
 };
 
@@ -50,16 +49,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid plan." }, { status: 400 });
     }
 
-    // Reactivation = a frozen seller paying to bring their store back online.
-    // They already used the R49 promo + 7-day trial on signup, so this is a
-    // fresh subscription at the full R149 charging today.
     const isReactivation = intent === "reactivate";
 
-    // Get seller details from Supabase (server side — keys never exposed)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data: seller, error } = await supabase
       .from("sellers")
-      .select("id, email, store_name")
+      .select("id, email, store_name, trial_ends_at")
       .eq("id", sellerId)
       .single();
 
@@ -70,9 +65,6 @@ export async function POST(req: NextRequest) {
     const merchantId = process.env.PAYFAST_MERCHANT_ID!;
     const merchantKey = process.env.PAYFAST_MERCHANT_KEY!;
     const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
-    /* Validate the returnOrigin from the browser. notify_url is always
-       APP_ORIGIN — never client-derived — so PayFast's ITN can't be
-       redirected to an attacker's host. */
     const safeOrigin = (raw: unknown): string => {
       if (typeof raw !== "string") return APP_ORIGIN;
       try {
@@ -88,29 +80,26 @@ export async function POST(req: NextRequest) {
     const escAttr = (v: unknown): string => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     const origin = safeOrigin(returnOrigin);
 
-    // Signup flow: 7-day trial, R0 today, first charge of R49 at end of trial.
-    // Reactivation flow: charge full R149 today, then R149/mo recurring -- no trial,
-    // no promo, since the seller already used both on the original signup.
+    // Reactivation: charge R149 today. New signup during trial: R0 today,
+    // first R149 charge after trial ends.
     const billingDate = new Date();
     if (!isReactivation) {
-      billingDate.setDate(billingDate.getDate() + plan.trialDays);
+      if (seller.trial_ends_at) {
+        const trialEnd = new Date(seller.trial_ends_at);
+        if (trialEnd > billingDate) billingDate.setTime(trialEnd.getTime());
+        else billingDate.setDate(billingDate.getDate() + plan.trialDays);
+      } else {
+        billingDate.setDate(billingDate.getDate() + plan.trialDays);
+      }
     }
-    const billingDateStr = billingDate.toISOString().split("T")[0]; // YYYY-MM-DD
+    const billingDateStr = billingDate.toISOString().split("T")[0];
 
     const todayAmount = isReactivation ? plan.recurringAmount.toFixed(2) : "0.00";
-    const recurringAmount = isReactivation
-      ? plan.recurringAmount.toFixed(2)
-      : plan.firstAmount.toFixed(2);
-    // PayFast shows item_name prominently on the checkout page; we use it to
-    // communicate the pricing schedule because PayFast's own "Future recurring
-    // amount" field only reflects the current recurring_amount (R49 at signup,
-    // bumped to R149 via the subscription update API after the first charge).
-    const itemName = isReactivation
-      ? `CatalogStore — R${plan.recurringAmount.toFixed(0)}/month`
-      : `CatalogStore — R${plan.firstAmount.toFixed(0)} first month, then R${plan.recurringAmount.toFixed(0)}/month`;
+    const recurringAmount = plan.recurringAmount.toFixed(2);
+    const itemName = `CatalogStore — R${plan.recurringAmount.toFixed(0)}/month`;
     const itemDescription = isReactivation
       ? `R${plan.recurringAmount.toFixed(0)}/month subscription. Cancel anytime from your dashboard.`
-      : `7-day free trial (R0 today). After the trial, R${plan.firstAmount.toFixed(0)} is debited as your first month, then R${plan.recurringAmount.toFixed(0)}/month from month two onwards. Cancel anytime from your dashboard.`;
+      : `14-day free trial (R0 today). After the trial, R${plan.recurringAmount.toFixed(0)}/month. Cancel anytime from your dashboard.`;
 
     const fields: Record<string, string> = {
       merchant_id: merchantId,
@@ -135,8 +124,7 @@ export async function POST(req: NextRequest) {
          an attacker-controlled host. */
       notify_url: `${APP_ORIGIN}/api/subscription/notify`,
 
-      // Subscription settings. Signup uses R49 first charge + R149 PUT after trial;
-      // reactivation jumps straight to R149 today with no PUT needed.
+      // Subscription settings
       subscription_type: "1",                              // Recurring subscription
       recurring_amount: recurringAmount,
       frequency: "3",                                      // Monthly
