@@ -169,11 +169,35 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       setOrderStatus(p.get("order"));
     }
     if (initialSeller) {
-      if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
+      if (isEditMode) {
+        window.parent.postMessage({ type: "IFRAME_READY" }, "*");
+        /* The SSR props are cached for up to 60s (export const revalidate = 60
+           on the store route), so a discount code created or activated moments
+           ago may not show yet in the editor preview. Refetch discounts live
+           (bypasses the page cache entirely) so the preview reflects the
+           current DB state immediately. */
+        refetchPromos(initialSeller.id);
+      }
       return;
     }
     loadStore();
   }, [slug]);
+
+  const refetchPromos = async (sellerId: string) => {
+    const { data: dcs } = await supabase.from("discount_codes").select("*").eq("seller_id", sellerId).eq("active", true).eq("show_countdown", true).not("expires_at", "is", null);
+    if (dcs && dcs.length > 0) {
+      const activePromos = dcs.filter((d: any) => new Date(d.expires_at) > new Date()).map((d: any) => ({
+        code: d.code, type: d.type, value: d.value, applies_to: d.applies_to || "cart",
+        expires_at: d.expires_at, product_ids: d.product_ids || [], collection_names: d.collection_names || [], description: d.description || "", timeLeft: ""
+      }));
+      setPromoDiscounts(activePromos);
+      const storePromo = activePromos.find((d: any) => d.applies_to === "cart" || d.applies_to === "shipping");
+      setPromoCountdown(storePromo ? { code: storePromo.code, type: storePromo.type, value: storePromo.value, applies_to: storePromo.applies_to, expires_at: storePromo.expires_at, description: storePromo.description, timeLeft: "" } : null);
+    } else {
+      setPromoDiscounts([]);
+      setPromoCountdown(null);
+    }
+  };
 
   useEffect(() => {
     if (!orderStatus) return;
