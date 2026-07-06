@@ -3,6 +3,7 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import AffiliateRefTracker from "./components/AffiliateRefTracker";
 import AffiliateReferralBanner from "./components/AffiliateReferralBanner";
+import SupportChat from "./components/SupportChat";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za"),
@@ -85,6 +86,7 @@ export default function RootLayout({
       <body>
         <AffiliateRefTracker />
         <AffiliateReferralBanner />
+        <SupportChat />
         {children}
         <Analytics />
       </body>
