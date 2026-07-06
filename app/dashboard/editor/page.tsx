@@ -1056,6 +1056,40 @@ export default function StoreEditor() {
                     </label>
                   </div>
                 </div>
+
+                {seller?.template === "soft-luxury" && (
+                  <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Countdown Pill</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Shown just under the header when a discount code has "Show countdown" enabled. Only one discount displays at a time — it needs "Applies To" set to Cart or Shipping, Active, and a future expiry date.</div>
+
+                    <label style={labelStyle}>Background Style</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10 }}>
+                      {([{ v: "glass", l: "Glass" }, { v: "transparent", l: "Transparent" }, { v: "color", l: "Color" }] as const).map(o => (
+                        <button key={o.v} onClick={() => setPromoBgStyle(o.v)}
+                          style={{ padding: "8px 4px", borderRadius: 6, border: promoBgStyle === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: promoBgStyle === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: promoBgStyle === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+
+                    {[
+                      ...(promoBgStyle === "color" ? [{ label: "Background", value: promoBgColor, setValue: setPromoBgColor, fallback: "", fallbackLabel: "auto" }] : []),
+                      { label: "Text", value: promoTextColor, setValue: setPromoTextColor, fallback: textColor, fallbackLabel: "default" },
+                      { label: "Timer", value: promoTimerColor, setValue: setPromoTimerColor, fallback: seller?.primary_color || "#9c7c62", fallbackLabel: "brand color" },
+                    ].map((c) => (
+                      <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ width: 28, height: 28, borderRadius: 6, background: c.value || c.fallback || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                            <input type="color" value={c.value || c.fallback || "#9c7c62"} onChange={e => c.setValue(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                          </label>
+                          <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{c.value || `(${c.fallbackLabel})`}</span>
+                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1274,39 +1308,6 @@ export default function StoreEditor() {
                   </div>
                 )}
 
-                {seller?.template === "soft-luxury" && (
-                  <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Hero Countdown</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Shown in your hero section when a discount code has "Show countdown" enabled. Only one discount displays at a time — it needs "Applies To" set to Cart or Shipping, Active, and a future expiry date.</div>
-
-                    <label style={labelStyle}>Background Style</label>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10 }}>
-                      {([{ v: "glass", l: "Glass" }, { v: "transparent", l: "Transparent" }, { v: "color", l: "Color" }] as const).map(o => (
-                        <button key={o.v} onClick={() => setPromoBgStyle(o.v)}
-                          style={{ padding: "8px 4px", borderRadius: 6, border: promoBgStyle === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: promoBgStyle === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: promoBgStyle === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
-                          {o.l}
-                        </button>
-                      ))}
-                    </div>
-
-                    {[
-                      ...(promoBgStyle === "color" ? [{ label: "Background", value: promoBgColor, setValue: setPromoBgColor, fallback: "", fallbackLabel: "auto" }] : []),
-                      { label: "Text", value: promoTextColor, setValue: setPromoTextColor, fallback: textColor, fallbackLabel: "default" },
-                      { label: "Timer", value: promoTimerColor, setValue: setPromoTimerColor, fallback: seller?.primary_color || "#9c7c62", fallbackLabel: "brand color" },
-                    ].map((c) => (
-                      <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <label style={{ width: 28, height: 28, borderRadius: 6, background: c.value || c.fallback || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
-                            <input type="color" value={c.value || c.fallback || "#9c7c62"} onChange={e => c.setValue(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
-                          </label>
-                          <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{c.value || `(${c.fallbackLabel})`}</span>
-                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
                 {seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
