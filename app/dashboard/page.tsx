@@ -16,7 +16,7 @@ const addCat = (current: string, col: string) => {
 const removeCat = (current: string, col: string) =>
   (current || "").split(",").map((c) => c.trim()).filter((c) => c && c !== col).join(",");
 
-interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
+interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
 
 interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string;
@@ -119,6 +119,12 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [showBulkPrice, setShowBulkPrice] = useState(false);
+  const [bulkMode, setBulkMode] = useState<"percent" | "flat" | "set">("percent");
+  const [bulkDirection, setBulkDirection] = useState<"increase" | "decrease">("increase");
+  const [bulkValue, setBulkValue] = useState("");
+  const [bulkApplying, setBulkApplying] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [csvUploading, setCsvUploading] = useState(false);
@@ -332,7 +338,7 @@ export default function Dashboard() {
     return results.filter(Boolean) as string[];
   };
 
-  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {} })).filter((x) => x.options.length > 0);
+  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {}, priceDelta: x.priceDelta || {} })).filter((x) => x.options.length > 0);
 
   // The variant-image picker shows existing URLs alongside FileReader base64 previews of newly added files.
   // If the seller picks a fresh-upload preview, that base64 must be remapped to the eventual Storage URL
@@ -390,6 +396,64 @@ export default function Dashboard() {
   const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); revalidateMyStore(); };
   const restoreProduct = async (id: string) => { await supabase.from("products").update({ status: "published" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "published" } : p)); revalidateMyStore(); };
   const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); revalidateMyStore(); };
+  const duplicateProduct = async (p: Product) => {
+    if (!seller) return;
+    if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Starter for up to 50 products." : "")); return; }
+    const { data, error } = await supabase.from("products").insert({
+      seller_id: seller.id,
+      name: p.name + " (Copy)",
+      price: p.price,
+      old_price: p.old_price,
+      category: p.category,
+      description: p.description,
+      in_stock: p.in_stock,
+      variants: p.variants || [],
+      status: "draft",
+      images: p.images || [],
+      image_url: p.image_url,
+    }).select().single();
+    if (!error && data) { setProducts([data, ...products]); }
+  };
+
+  const toggleProductSelected = (id: string) => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const applyBulkPrice = async () => {
+    const value = parseFloat(bulkValue);
+    if (!Number.isFinite(value) || value < 0) { alert("Enter a valid number."); return; }
+    const targets = products.filter((p) => selectedProductIds.has(p.id));
+    if (targets.length === 0) return;
+    setBulkApplying(true);
+    try {
+      const updates = targets.map((p) => {
+        let newPrice = p.price;
+        if (bulkMode === "percent") {
+          const factor = value / 100;
+          newPrice = bulkDirection === "increase" ? p.price * (1 + factor) : p.price * (1 - factor);
+        } else if (bulkMode === "flat") {
+          newPrice = bulkDirection === "increase" ? p.price + value : p.price - value;
+        } else {
+          newPrice = value;
+        }
+        newPrice = Math.max(0, Math.round(newPrice * 100) / 100);
+        return { id: p.id, price: newPrice };
+      });
+      await Promise.all(updates.map((u) => supabase.from("products").update({ price: u.price }).eq("id", u.id)));
+      const priceById = new Map(updates.map((u) => [u.id, u.price]));
+      setProducts(products.map((p) => priceById.has(p.id) ? { ...p, price: priceById.get(p.id)! } : p));
+      revalidateMyStore();
+      setShowBulkPrice(false);
+      setSelectedProductIds(new Set());
+      setBulkValue("");
+    } finally {
+      setBulkApplying(false);
+    }
+  };
   const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); revalidateMyStore(); };
   const reorderProduct = async (id: string, direction: "up" | "down") => {
     const list = [...products].filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
@@ -662,8 +726,15 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 20, display: "flex", gap: 12, flexWrap: "wrap" as const, alignItems: "center" }}>
               <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: "100%", maxWidth: 400, padding: "11px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+              {selectedProductIds.size > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px 8px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: N }}>{selectedProductIds.size} selected</span>
+                  <button onClick={() => setShowBulkPrice(true)} style={{ padding: "8px 16px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Bulk Edit Prices</button>
+                  <button onClick={() => setSelectedProductIds(new Set())} style={{ padding: "8px 12px", background: "transparent", border: "none", color: "var(--muted)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Clear</button>
+                </div>
+              )}
             </div>
 
             {productFilter === "trashed" && trashedCount > 0 && (
@@ -734,6 +805,34 @@ export default function Dashboard() {
                       {v.options.map((o, oi) => (<div key={oi} style={{ display: "flex", alignItems: "center", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}><input type="text" placeholder="e.g. Large" value={o} onChange={(e) => updateVariantOption(vi, oi, e.target.value)} style={{ width: 80, padding: "8px 10px", background: "transparent", border: "none", color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{v.options.length > 1 && <button type="button" onClick={() => removeVariantOption(vi, oi)} style={{ padding: 8, background: "transparent", border: "none", borderLeft: "1px solid var(--border)", color: "var(--muted-2)", fontSize: 10, cursor: "pointer" }}>&#10005;</button>}</div>))}
                       <button type="button" onClick={() => addVariantOption(vi)} style={{ padding: "8px 12px", background: "transparent", border: "1px dashed var(--border)", borderRadius: 8, color: "var(--muted-2)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
                     </div>
+                    {v.options.some((o) => o.trim()) && (
+                      <div style={{ marginTop: 12, padding: "12px", background: "var(--panel)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 8 }}>Price adjustment per {v.name} option</div>
+                        <p style={{ fontSize: 10, color: "var(--muted-2)", marginBottom: 8 }}>Optional. Adds to the base price when a customer picks that option — leave at 0 for no change.</p>
+                        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
+                          {v.options.filter((o) => o.trim()).map((opt, oi) => (
+                            <div key={oi} style={{ display: "flex", alignItems: "center", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                              <span style={{ padding: "8px 0 8px 10px", fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{opt}</span>
+                              <span style={{ padding: "8px 2px 8px 8px", fontSize: 11, color: "var(--muted-2)" }}>+R</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0"
+                                value={v.priceDelta?.[opt] ?? ""}
+                                onChange={(e) => {
+                                  const u = [...formVariants];
+                                  if (!u[vi].priceDelta) u[vi].priceDelta = {};
+                                  const n = parseFloat(e.target.value);
+                                  u[vi].priceDelta![opt] = Number.isFinite(n) ? n : 0;
+                                  setFormVariants(u);
+                                }}
+                                style={{ width: 60, padding: "8px 10px 8px 0", background: "transparent", border: "none", color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {(existingImages.length > 0 || formPreviews.length > 0) && v.options.some((o) => o.trim()) && (
                       <div style={{ marginTop: 12, padding: "12px", background: "var(--panel)", borderRadius: 8, border: "1px solid var(--border)" }}>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 8 }}>Assign images to {v.name} options</div>
@@ -827,6 +926,9 @@ export default function Dashboard() {
                 {filteredProducts.map((product) => (
                   <div key={product.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, opacity: product.status === "trashed" ? 0.6 : 1 }} className="product-row-inner">
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                      {productFilter !== "trashed" && (
+                        <input type="checkbox" checked={selectedProductIds.has(product.id)} onChange={() => toggleProductSelected(product.id)} style={{ width: 16, height: 16, flexShrink: 0, cursor: "pointer", accentColor: N }} />
+                      )}
                       {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" as const, border: "1px solid var(--border)", flexShrink: 0 }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--panel)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 16, color: "var(--muted-2)" }}>&#9633;</span></div>}
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{product.name}</div>
@@ -852,6 +954,7 @@ export default function Dashboard() {
                           <button onClick={() => reorderProduct(product.id, "down")} style={{ width: 22, height: 18, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--muted-2)", fontSize: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u25BC"}</button>
                         </div>
                         <button onClick={() => startEdit(product)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Edit</button>
+                        <button onClick={() => duplicateProduct(product)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Duplicate</button>
                         <button onClick={() => toggleDraft(product.id, product.status || "published")} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: product.status === "draft" ? "#fbbf24" : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.status === "draft" ? "Publish" : "Draft"}</button>
                         <button onClick={() => toggleStock(product.id, product.in_stock)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.in_stock ? "Sold Out" : "In Stock"}</button>
                         <button onClick={() => trashProduct(product.id)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "#ff3d6e", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Trash</button></>
@@ -859,6 +962,41 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {showBulkPrice && (
+              <div onClick={() => setShowBulkPrice(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 20, maxWidth: 420, width: "100%", padding: "28px 24px" }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.02em", marginBottom: 4 }}>Bulk Edit Prices</h3>
+                  <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>Applies to {selectedProductIds.size} selected product{selectedProductIds.size !== 1 ? "s" : ""}.</p>
+
+                  <label style={{ ...labelStyle, marginBottom: 8 }}>Adjustment type</label>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                    {([{ key: "percent", label: "Percentage" }, { key: "flat", label: "Flat Amount" }, { key: "set", label: "Set Price" }] as const).map((m) => (
+                      <button key={m.key} onClick={() => setBulkMode(m.key)} style={{ flex: 1, padding: "10px 8px", background: bulkMode === m.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkMode === m.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkMode === m.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{m.label}</button>
+                    ))}
+                  </div>
+
+                  {bulkMode !== "set" && (
+                    <>
+                      <label style={{ ...labelStyle, marginBottom: 8 }}>Direction</label>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                        {([{ key: "increase", label: "Increase" }, { key: "decrease", label: "Decrease" }] as const).map((d) => (
+                          <button key={d.key} onClick={() => setBulkDirection(d.key)} style={{ flex: 1, padding: "10px 8px", background: bulkDirection === d.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkDirection === d.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkDirection === d.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{d.label}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <label style={labelStyle}>{bulkMode === "percent" ? "Percentage (%)" : bulkMode === "flat" ? "Amount (R)" : "New price (R)"}</label>
+                  <input type="number" min="0" step="0.01" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkMode === "percent" ? "e.g. 10" : "e.g. 50"} style={inputStyle} />
+
+                  <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+                    <button onClick={() => setShowBulkPrice(false)} style={{ flex: 1, padding: "12px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Cancel</button>
+                    <button onClick={applyBulkPrice} disabled={bulkApplying || !bulkValue} style={{ flex: 1, padding: "12px", background: G, border: "none", borderRadius: 100, color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bulkApplying || !bulkValue ? "not-allowed" : "pointer", opacity: bulkApplying || !bulkValue ? 0.6 : 1, textTransform: "uppercase" as const }}>{bulkApplying ? "Applying..." : "Apply"}</button>
+                  </div>
+                </div>
               </div>
             )}
           </div>)}

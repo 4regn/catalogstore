@@ -70,7 +70,7 @@ interface Seller {
     whatsapp_checkout_enabled?: boolean;
   };
 }
-interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
+interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
@@ -89,6 +89,17 @@ interface PromoDiscount {
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 const fmt = (n: number) => "R " + n.toLocaleString("en-ZA");
+/* Sums each variant group's priceDelta for the currently selected option.
+   Groups/options with no delta entry contribute 0 — base price is untouched
+   unless the seller explicitly set a surcharge for that option. */
+const variantDelta = (product: Product, selected: { [key: string]: string }): number =>
+  (product.variants || []).reduce((sum, v) => {
+    const chosen = selected[v.name];
+    const d = chosen ? v.priceDelta?.[chosen] : undefined;
+    return sum + (typeof d === "number" ? d : 0);
+  }, 0);
+const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
+  Math.max(0, product.price + variantDelta(product, selected));
 const pad = (n: number) => String(n).padStart(2, "0");
 const slugify = (s: string) => s.toLowerCase().split(" — ")[0].split(" ")[0];
 
@@ -339,7 +350,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     if (!seller) return;
     const lines = cart.map(i => {
       const vars = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(", ");
-      return `• ${i.product.name}${vars ? ` (${vars})` : ""} x ${i.qty} — ${fmt(i.product.price * i.qty)}`;
+      return `• ${i.product.name}${vars ? ` (${vars})` : ""} x ${i.qty} — ${fmt(effectivePrice(i.product, i.selectedVariants) * i.qty)}`;
     });
     const msg = [
       `Hi! I'd like to place an order with ${seller.store_name}:`,
@@ -383,11 +394,13 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   // Match the encoding the other templates already use so checkout receives our items.
   const goToCheckout = () => {
     const payload = cart.map((i) => ({
+      id: i.product.id,
       name: i.product.name,
-      price: i.product.price,
+      price: effectivePrice(i.product, i.selectedVariants),
       qty: i.qty,
       variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
       image: i.product.image_url || "",
+      selectedVariants: i.selectedVariants,
     }));
     const encoded = btoa(JSON.stringify(payload));
     window.location.href = `/store/${slug}/checkout?cart=${encoded}`;
@@ -406,7 +419,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const filtered = isCollectionView
     ? products
     : (activeCategory === "All" ? products : products.filter((p) => pInCat(p, activeCategory)));
-  const cartTotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const cartTotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
   const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
@@ -924,7 +937,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div className="hl-cart-item-price">{fmt(i.product.price * i.qty)}</div>
+                      <div className="hl-cart-item-price">{fmt(effectivePrice(i.product, i.selectedVariants) * i.qty)}</div>
                       <button className="hl-cart-item-rm" onClick={() => removeFromCart(idx)}>Remove</button>
                     </div>
                   </div>
@@ -994,7 +1007,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     <div className="hl-pdp-cat">{p.category}</div>
                     <h2 className="hl-pdp-name">{p.name}</h2>
                     <div className="hl-pdp-prow">
-                      <span className="hl-pdp-price">{fmt(p.price)}</span>
+                      <span className="hl-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="hl-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
                     {p.description && <p className="hl-pdp-desc">{p.description}</p>}
@@ -1017,7 +1030,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     {variantError && <div className="hl-pdp-err">Please select all options</div>}
                     <div className="hl-pdp-actions">
                       <button className="hl-pdp-add" onClick={handleAddToCart}>
-                        Add to Bag — {fmt(p.price * localQty)}
+                        Add to Bag — {fmt(effectivePrice(p, selectedVariants) * localQty)}
                       </button>
                     </div>
                   </div>

@@ -67,7 +67,7 @@ interface Seller {
   trial_ends_at?: string | null;
   checkout_config?: CheckoutConfig;
 }
-interface Variant { name: string; options: string[]; }
+interface Variant { name: string; options: string[]; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string; images: string[];
@@ -81,6 +81,17 @@ interface CartItem {
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 const fmt = (n: number) => "R" + n.toLocaleString("en-ZA");
+/* Sums each variant group's priceDelta for the currently selected option.
+   Groups/options with no delta entry contribute 0 — base price is untouched
+   unless the seller explicitly set a surcharge for that option. */
+const variantDelta = (product: Product, selected: { [key: string]: string }): number =>
+  (product.variants || []).reduce((sum, v) => {
+    const chosen = selected[v.name];
+    const d = chosen ? v.priceDelta?.[chosen] : undefined;
+    return sum + (typeof d === "number" ? d : 0);
+  }, 0);
+const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
+  Math.max(0, product.price + variantDelta(product, selected));
 const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = "none"; };
 const FREE_SHIP = 800;
 
@@ -326,7 +337,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
   const searched = searchQuery.trim()
     ? products.filter(p => p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     : null;
-  const subtotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const subtotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   /* Promo discount calculation */
@@ -335,7 +346,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
     const collectionPromo = item.product.category ? getCollectionPromo(item.product.category) : undefined;
     const promo = productPromo || collectionPromo;
     if (!promo) return sum;
-    const lineTotal = item.product.price * item.qty;
+    const lineTotal = effectivePrice(item.product, item.selectedVariants) * item.qty;
     const off = promo.type === "percentage" ? lineTotal * (promo.value / 100) : Math.min(promo.value, lineTotal);
     return sum + off;
   }, 0);
@@ -421,7 +432,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
       const items = cart.map(i => ({
         name: i.product.name,
         qty: i.qty,
-        price: i.product.price,
+        price: effectivePrice(i.product, i.selectedVariants),
         variants: i.selectedVariants,
       }));
 
@@ -431,10 +442,11 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
           cart.map((i) => ({
             id: i.product.id,
             name: i.product.name,
-            price: i.product.price,
+            price: effectivePrice(i.product, i.selectedVariants),
             qty: i.qty,
             variant: Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(", "),
             image: i.product.image_url || "",
+            selectedVariants: i.selectedVariants,
           }))
         ))));
         window.location.href = `/store/${slug}/checkout?cart=${encoded}`;
@@ -474,7 +486,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
     if (!seller) return;
     const lines = cart.map(i => {
       const vars = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(", ");
-      return `• ${i.product.name}${vars ? ` (${vars})` : ""} × ${i.qty} — ${fmt(i.product.price * i.qty)}`;
+      return `• ${i.product.name}${vars ? ` (${vars})` : ""} × ${i.qty} — ${fmt(effectivePrice(i.product, i.selectedVariants) * i.qty)}`;
     });
     const msg = [
       `Hi! I'd like to place an order with ${seller.store_name}:`,
@@ -1267,7 +1279,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                   {p.category && <div style={{ fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>{p.category}</div>}
                   <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(28px,3.5vw,42px)", fontWeight: 300, color: cream, lineHeight: 1.05, marginBottom: 10 }}>{p.name}</h2>
                   <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 26, fontWeight: 300, color: goldLight, marginBottom: 20 }}>
-                    {fmt(p.price)}
+                    {fmt(effectivePrice(p, selectedVariants))}
                     {p.old_price && <span style={{ fontSize: 14, color: textMuted, textDecoration: "line-through", marginLeft: 10, fontFamily: "'Didact Gothic', sans-serif" }}>{fmt(p.old_price)}</span>}
                   </div>
                   {p.description && (
@@ -1380,7 +1392,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 17, fontWeight: 300, color: goldLight, marginBottom: 4 }}>{fmt(item.product.price * item.qty)}</div>
+                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 17, fontWeight: 300, color: goldLight, marginBottom: 4 }}>{fmt(effectivePrice(item.product, item.selectedVariants) * item.qty)}</div>
                         <button onClick={() => removeFromCart(idx)} style={{ fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: textMuted, background: "none", border: "none", cursor: "pointer" }}>Remove</button>
                       </div>
                     </div>
@@ -1610,7 +1622,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                         return (
                           <div key={i} style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                             <span style={{ fontSize: 13, color: textSecondary }}>{item.product.name} {varText && `(${varText})`} × {item.qty}</span>
-                            <span style={{ fontSize: 13, color: cream }}>{fmt(item.product.price * item.qty)}</span>
+                            <span style={{ fontSize: 13, color: cream }}>{fmt(effectivePrice(item.product, item.selectedVariants) * item.qty)}</span>
                           </div>
                         );
                       })}

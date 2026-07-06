@@ -17,11 +17,27 @@ import { getAdmin } from "../../../../lib/supabase-admin";
      server says it owes
 */
 
-type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string };
+type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string> };
 type ApplyTo = "cart" | "product" | "collection" | "shipping";
+type ProductVariant = { name: string; options: string[]; priceDelta?: Record<string, number> };
 
 const isUuid = (s: unknown): s is string =>
   typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
+/* Server-computed variant surcharge — never trust a client-sent price.
+   Sums the priceDelta for each selected option across the product's
+   variant groups; unknown groups/options or missing deltas contribute 0. */
+function variantPriceDelta(productVariants: unknown, selectedVariants: Record<string, string> | undefined): number {
+  if (!selectedVariants || !Array.isArray(productVariants)) return 0;
+  let delta = 0;
+  for (const group of productVariants as ProductVariant[]) {
+    const chosen = selectedVariants[group?.name];
+    if (chosen && group?.priceDelta && typeof group.priceDelta[chosen] === "number") {
+      delta += group.priceDelta[chosen];
+    }
+  }
+  return delta;
+}
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req);
@@ -78,10 +94,10 @@ export async function POST(req: NextRequest) {
 
   const [byId, byName] = await Promise.all([
     itemIds.length
-      ? getAdmin().from("products").select("id, name, price, in_stock, status, category").in("id", itemIds).eq("seller_id", seller.id)
+      ? getAdmin().from("products").select("id, name, price, in_stock, status, category, variants").in("id", itemIds).eq("seller_id", seller.id)
       : Promise.resolve({ data: [] as any[] }),
     itemNames.length
-      ? getAdmin().from("products").select("id, name, price, in_stock, status, category").in("name", itemNames).eq("seller_id", seller.id)
+      ? getAdmin().from("products").select("id, name, price, in_stock, status, category, variants").in("name", itemNames).eq("seller_id", seller.id)
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
@@ -107,10 +123,12 @@ export async function POST(req: NextRequest) {
     if (product.in_stock === false) {
       return NextResponse.json({ error: `Out of stock: ${product.name}` }, { status: 409 });
     }
+    const basePrice = Number(product.price) || 0;
+    const delta = variantPriceDelta(product.variants, raw.selectedVariants);
     lineItems.push({
       id: product.id,
       name: product.name,
-      price: Number(product.price) || 0,
+      price: Math.max(0, basePrice + delta),
       qty,
       variant: typeof raw.variant === "string" ? raw.variant.slice(0, 200) : "",
       image: typeof raw.image === "string" ? raw.image.slice(0, 500) : "",

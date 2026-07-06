@@ -17,7 +17,7 @@ interface Seller {
   subscription_status?: string; trial_ends_at?: string; payfast_subscription_token?: string;
 }
 
-interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
+interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean; description: string;
@@ -27,6 +27,17 @@ interface Product {
 interface CartItem { product: Product; qty: number; selectedVariants: { [key: string]: string }; }
 
 const fmt = (n: number) => "R" + Math.round(n).toLocaleString("en-ZA");
+/* Sums each variant group's priceDelta for the currently selected option.
+   Groups/options with no delta entry contribute 0 — base price is untouched
+   unless the seller explicitly set a surcharge for that option. */
+const variantDelta = (product: Product, selected: { [key: string]: string }): number =>
+  (product.variants || []).reduce((sum, v) => {
+    const chosen = selected[v.name];
+    const d = chosen ? v.priceDelta?.[chosen] : undefined;
+    return sum + (typeof d === "number" ? d : 0);
+  }, 0);
+const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
+  Math.max(0, product.price + variantDelta(product, selected));
 const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = "none"; };
 
 interface StorePageProps {
@@ -233,7 +244,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
 
   const removeFromCart = (i: number) => setCart(cart.filter((_, idx) => idx !== i));
   const updateQty = (i: number, d: number) => { const u = [...cart]; u[i].qty += d; if (u[i].qty < 1) u[i].qty = 1; setCart(u); };
-  const subtotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const subtotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   /* Promo discount */
@@ -242,7 +253,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
     const collectionPromo = item.product.category ? getCollectionPromo(item.product.category) : undefined;
     const promo = productPromo || collectionPromo;
     if (!promo) return sum;
-    const lt = item.product.price * item.qty;
+    const lt = effectivePrice(item.product, item.selectedVariants) * item.qty;
     return sum + (promo.type === "percentage" ? lt * (promo.value / 100) : Math.min(promo.value, lt));
   }, 0);
   const cartPromo = promoDiscounts.find((d) => d.applies_to === "cart");
@@ -264,7 +275,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const checkoutWhatsApp = () => {
     if (!seller?.whatsapp_number) return;
     let msg = "Hi! I'd like to order:\n\n";
-    cart.forEach((i) => { msg += "- " + i.product.name; const v = Object.entries(i.selectedVariants); if (v.length > 0) msg += " (" + v.map(([k, val]) => k + ": " + val).join(", ") + ")"; msg += " x" + i.qty + " - " + fmt(i.product.price * i.qty) + "\n"; });
+    cart.forEach((i) => { msg += "- " + i.product.name; const v = Object.entries(i.selectedVariants); if (v.length > 0) msg += " (" + v.map(([k, val]) => k + ": " + val).join(", ") + ")"; msg += " x" + i.qty + " - " + fmt(effectivePrice(i.product, i.selectedVariants) * i.qty) + "\n"; });
     if (totalDiscount > 0) msg += "\nDiscount: -" + fmt(totalDiscount);
     msg += "\nTotal: " + fmt(cartTotal);
     const phone = normalizeWa(seller.whatsapp_number);
@@ -693,7 +704,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                   {selectedProduct.category && <p style={{ fontFamily: mono, fontSize: 10, color: "rgba(255,255,255,0.28)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>{selectedProduct.category}</p>}
                   <h2 style={{ fontFamily: display, fontSize: 32, letterSpacing: "0.02em", marginBottom: 12, textTransform: "uppercase" }}>{selectedProduct.name}</h2>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 20 }}>
-                    <span style={{ fontSize: 24, fontWeight: 600 }}>{fmt(selectedProduct.price)}</span>
+                    <span style={{ fontSize: 24, fontWeight: 600 }}>{fmt(effectivePrice(selectedProduct, selectedVariants))}</span>
                     {selectedProduct.old_price && <span style={{ fontSize: 16, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
                   </div>
                   {selectedProduct.description && <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(255,255,255,0.5)", marginBottom: 24, fontWeight: 300 }}>{selectedProduct.description}</p>}
@@ -720,7 +731,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                       <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 34, height: 34, background: "none", border: "none", color: "#f0f0f0", cursor: "pointer", fontSize: 14, fontFamily: body }}>+</button>
                     </div>
                   </div>
-                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "16px 32px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(selectedProduct.price * modalQty)}</button>
+                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "16px 32px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
                 </div>
               </div>
             </div>
@@ -746,7 +757,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 8, fontFamily: mono, letterSpacing: "0.05em" }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" / ")}</div>}
-                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{fmt(item.product.price * item.qty)}{item.qty > 1 && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 8, fontWeight: 400, fontFamily: mono }}>({fmt(item.product.price)} ea)</span>}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{fmt(effectivePrice(item.product, item.selectedVariants) * item.qty)}{item.qty > 1 && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 8, fontWeight: 400, fontFamily: mono }}>({fmt(effectivePrice(item.product, item.selectedVariants))} ea)</span>}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <button onClick={() => updateQty(idx, -1)} style={{ width: 28, height: 28, borderRadius: 4, border: "1px solid " + PB, background: "none", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", color: "#f0f0f0" }}>-</button>
                             <span style={{ fontSize: 14, fontWeight: 500, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
@@ -769,7 +780,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                       <span style={{ fontFamily: display, fontSize: 28 }}>{fmt(cartTotal)}</span>
                     </div>
                     <button onClick={() => {
-                      const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
+                      const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "", selectedVariants: i.selectedVariants })));
                       const encoded = btoa(unescape(encodeURIComponent(payload)));
                       window.location.href = "/store/" + slug + "/checkout?cart=" + encoded;
                     }} style={{ width: "100%", padding: 16, background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>

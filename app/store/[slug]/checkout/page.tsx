@@ -18,7 +18,7 @@ interface Seller {
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; qty: number; variant: string; image: string; }
+interface CartItem { id?: string; name: string; price: number; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; }
 
 const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo", "Mpumalanga", "North West", "Northern Cape", "Western Cape"];
 
@@ -129,6 +129,7 @@ export default function CheckoutPage() {
             qty: Math.max(1, Math.floor(Number(i.qty)) || 1),
             variant: typeof i.variant === "string" ? i.variant : "",
             image: typeof i.image === "string" ? i.image : "",
+            selectedVariants: i.selectedVariants && typeof i.selectedVariants === "object" ? i.selectedVariants : undefined,
           }))
           .filter((i: any) => i.name);
         if (clean.length > 0) setCart(clean);
@@ -267,7 +268,7 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug,
-          items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image })),
+          items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image, selectedVariants: i.selectedVariants })),
           customer: { firstName, lastName, email, phone },
           address: fulfillment === "delivery"
             ? { address, apartment, city, province, postal_code: postalCode }

@@ -52,7 +52,7 @@ interface Seller {
   subscription_status?: string; trial_ends_at?: string;
 }
 
-interface Variant { name: string; options: string[]; images?: { [option: string]: string }; }
+interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean; description: string;
@@ -62,6 +62,17 @@ interface Product {
 interface CartItem { product: Product; qty: number; selectedVariants: { [key: string]: string }; }
 
 const fmt = (n: number) => "R" + Math.round(n).toLocaleString("en-ZA");
+/* Sums each variant group's priceDelta for the currently selected option.
+   Groups/options with no delta entry contribute 0 — base price is untouched
+   unless the seller explicitly set a surcharge for that option. */
+const variantDelta = (product: Product, selected: { [key: string]: string }): number =>
+  (product.variants || []).reduce((sum, v) => {
+    const chosen = selected[v.name];
+    const d = chosen ? v.priceDelta?.[chosen] : undefined;
+    return sum + (typeof d === "number" ? d : 0);
+  }, 0);
+const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
+  Math.max(0, product.price + variantDelta(product, selected));
 const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = "none"; };
 
 interface StorePageProps {
@@ -334,7 +345,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
   const removeFromCart = (i: number) => setCart(cart.filter((_, idx) => idx !== i));
   const updateQty = (i: number, d: number) => { const u = [...cart]; u[i].qty += d; if (u[i].qty < 1) u[i].qty = 1; setCart(u); };
-  const subtotal = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const subtotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   /* Promo discount */
@@ -343,7 +354,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     const collectionPromo = item.product.category ? getCollectionPromo(item.product.category) : undefined;
     const promo = productPromo || collectionPromo;
     if (!promo) return sum;
-    const lt = item.product.price * item.qty;
+    const lt = effectivePrice(item.product, item.selectedVariants) * item.qty;
     return sum + (promo.type === "percentage" ? lt * (promo.value / 100) : Math.min(promo.value, lt));
   }, 0);
   const cartPromo = promoDiscounts.find((d) => d.applies_to === "cart");
@@ -365,7 +376,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const checkoutWhatsApp = () => {
     if (!seller?.whatsapp_number) return;
     let msg = "Hi! I'd like to order:\n\n";
-    cart.forEach((i) => { msg += "- " + i.product.name; const v = Object.entries(i.selectedVariants); if (v.length > 0) msg += " (" + v.map(([k, val]) => k + ": " + val).join(", ") + ")"; msg += " x" + i.qty + " - " + fmt(i.product.price * i.qty) + "\n"; });
+    cart.forEach((i) => { msg += "- " + i.product.name; const v = Object.entries(i.selectedVariants); if (v.length > 0) msg += " (" + v.map(([k, val]) => k + ": " + val).join(", ") + ")"; msg += " x" + i.qty + " - " + fmt(effectivePrice(i.product, i.selectedVariants) * i.qty) + "\n"; });
     if (totalDiscount > 0) msg += "\nDiscount: -" + fmt(totalDiscount);
     msg += "\nTotal: " + fmt(cartTotal);
     const phone = normalizeWa(seller.whatsapp_number);
@@ -789,7 +800,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{selectedProduct.category}</p>}
               <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(24px, 4vw, 32px)", fontWeight: 400, letterSpacing: "0.01em", marginBottom: 12 }}>{selectedProduct.name}</h1>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
-                <span style={{ fontSize: 22, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
+                <span style={{ fontSize: 22, fontWeight: 500, color: accent }}>{fmt(effectivePrice(selectedProduct, selectedVariants))}</span>
                 {selectedProduct.old_price && <span style={{ fontSize: 16, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
               </div>
               {selectedProduct.description && <p style={{ fontSize: 14, lineHeight: 1.8, color: pageMuted, marginBottom: 28, fontWeight: 300 }}>{selectedProduct.description}</p>}
@@ -815,7 +826,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: fonts.body }}>+</button>
                 </div>
               </div>
-              <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
+              <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
             </div>
           </div>
         )}
@@ -964,7 +975,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   {selectedProduct.category && <p style={{ fontSize: 11, color: pageMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{selectedProduct.category}</p>}
                   <h2 style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 400, letterSpacing: "0.01em", marginBottom: 12 }}>{selectedProduct.name}</h2>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-                    <span style={{ fontSize: 24, fontWeight: 500, color: accent }}>{fmt(selectedProduct.price)}</span>
+                    <span style={{ fontSize: 24, fontWeight: 500, color: accent }}>{fmt(effectivePrice(selectedProduct, selectedVariants))}</span>
                     {selectedProduct.old_price && <span style={{ fontSize: 18, color: pageMuted, textDecoration: "line-through" }}>{fmt(selectedProduct.old_price)}</span>}
                   </div>
                   {selectedProduct.description && <p style={{ fontSize: 14, lineHeight: 1.7, color: pageMuted, marginBottom: 24 }}>{selectedProduct.description}</p>}
@@ -991,7 +1002,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 36, height: 36, background: "none", border: "none", color: pageText, cursor: "pointer", fontSize: 16, fontFamily: fonts.body }}>+</button>
                     </div>
                   </div>
-                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(selectedProduct.price * modalQty)}</button>
+                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
                 </div>
               </div>
             </div>
@@ -1017,7 +1028,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                         <div style={{ flex: 1 }}>
                           <div style={{ fontFamily: fonts.heading, fontSize: 16, marginBottom: 4 }}>{item.product.name}</div>
                           {Object.keys(item.selectedVariants).length > 0 && <div style={{ fontSize: 12, color: pageMuted, marginBottom: 8 }}>{Object.entries(item.selectedVariants).map(([k, v]) => k + ": " + v).join(" \u2022 ")}</div>}
-                          <div style={{ fontSize: 14, fontWeight: 500, color: accent, marginBottom: 8 }}>{fmt(item.product.price * item.qty)}{item.qty > 1 && <span style={{ fontSize: 11, color: pageMuted, marginLeft: 6, fontWeight: 400 }}>({fmt(item.product.price)} each)</span>}</div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: accent, marginBottom: 8 }}>{fmt(effectivePrice(item.product, item.selectedVariants) * item.qty)}{item.qty > 1 && <span style={{ fontSize: 11, color: pageMuted, marginLeft: 6, fontWeight: 400 }}>({fmt(effectivePrice(item.product, item.selectedVariants))} each)</span>}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <button onClick={() => updateQty(idx, -1)} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid rgba(0,0,0,0.1)", background: "none", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
                             <span style={{ fontSize: 14, fontWeight: 500, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
@@ -1040,7 +1051,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <span style={{ fontFamily: fonts.heading, fontSize: 24, fontWeight: 500 }}>{fmt(cartTotal)}</span>
                     </div>
                     <button onClick={() => {
-                      const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: i.product.price, qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "" })));
+                      const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "", selectedVariants: i.selectedVariants })));
                       const encoded = btoa(unescape(encodeURIComponent(payload)));
                       window.location.href = "/store/" + slug + "/checkout?cart=" + encoded;
                     }} style={{ width: "100%", padding: 18, background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
