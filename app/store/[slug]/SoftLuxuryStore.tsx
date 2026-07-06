@@ -542,24 +542,41 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </div>
         </header>
 
-        {/* PROMO COUNTDOWN */}
-        {promoCountdown && promoCountdown.timeLeft && (
-          <div style={{ background: promoBgColor || ("linear-gradient(90deg, " + accent + "08 0%, rgba(0,0,0,0.01) 50%, " + accent + "08 100%)"), borderBottom: "1px solid " + (promoBgColor ? promoTextColor + "20" : accent + "18"), padding: "14px 20px", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" as const }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 10, letterSpacing: "0.15em", color: promoTextColor + "99", textTransform: "uppercase" as const }}>Limited offer</span>
-                <span style={{ fontFamily: fonts.body, fontSize: 14, fontWeight: 500, color: promoTextColor }}>Use code <span style={{ padding: "3px 10px", background: accent + "10", border: "1px solid " + accent + "20", borderRadius: 4, fontWeight: 700, letterSpacing: "0.06em", fontSize: 13, color: accent }}>{promoCountdown.code}</span> for {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}{promoCountdown.applies_to !== "cart" ? " " + promoCountdown.applies_to : ""}</span>
+        {/* PROMO COUNTDOWN — floats below the header over the hero image when
+            the header is set to transparent, matching the header's own
+            floating behavior; otherwise sits in normal flow below it. */}
+        {promoCountdown && promoCountdown.timeLeft && (() => {
+          const floatOverHero = headerTransparent;
+          const bannerText = floatOverHero ? "rgba(255,255,255,0.95)" : promoTextColor;
+          const bannerMuted = floatOverHero ? "rgba(255,255,255,0.7)" : promoTextColor + "99";
+          const bannerDescColor = floatOverHero ? "rgba(255,255,255,0.85)" : promoTextColor + "cc";
+          return (
+            <div style={{
+              position: floatOverHero ? "absolute" : "static",
+              top: floatOverHero ? 72 : undefined,
+              left: floatOverHero ? 0 : undefined,
+              right: floatOverHero ? 0 : undefined,
+              zIndex: floatOverHero ? 99 : undefined,
+              background: floatOverHero ? "transparent" : (promoBgColor || ("linear-gradient(90deg, " + accent + "08 0%, rgba(0,0,0,0.01) 50%, " + accent + "08 100%)")),
+              borderBottom: floatOverHero ? "none" : "1px solid " + (promoBgColor ? promoTextColor + "20" : accent + "18"),
+              padding: "14px 20px", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 6,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" as const }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 10, letterSpacing: "0.15em", color: bannerMuted, textTransform: "uppercase" as const }}>Limited offer</span>
+                  <span style={{ fontFamily: fonts.body, fontSize: 14, fontWeight: 500, color: bannerText }}>Use code <span style={{ padding: "3px 10px", background: accent + "10", border: "1px solid " + accent + "20", borderRadius: 4, fontWeight: 700, letterSpacing: "0.06em", fontSize: 13, color: accent }}>{promoCountdown.code}</span> for {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}{promoCountdown.applies_to !== "cart" ? " " + promoCountdown.applies_to : ""}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 10, letterSpacing: "0.12em", color: bannerMuted, textTransform: "uppercase" as const }}>Ends in</span>
+                  <span style={{ fontFamily: fonts.body, fontSize: 16, fontWeight: 600, color: bannerText, letterSpacing: "0.08em", background: accent + "0a", padding: "4px 12px", borderRadius: 6, border: "1px solid " + accent + "15" }}>{promoCountdown.timeLeft}</span>
+                </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 10, letterSpacing: "0.12em", color: promoTextColor + "99", textTransform: "uppercase" as const }}>Ends in</span>
-                <span style={{ fontFamily: fonts.body, fontSize: 16, fontWeight: 600, color: promoTextColor, letterSpacing: "0.08em", background: accent + "0a", padding: "4px 12px", borderRadius: 6, border: "1px solid " + accent + "15" }}>{promoCountdown.timeLeft}</span>
-              </div>
+              {promoCountdown.description && (
+                <p style={{ fontFamily: fonts.heading, fontSize: 13, fontStyle: "italic", fontWeight: 400, color: bannerDescColor, margin: 0, textAlign: "center" as const }}>{promoCountdown.description}</p>
+              )}
             </div>
-            {promoCountdown.description && (
-              <p style={{ fontFamily: fonts.heading, fontSize: 13, fontStyle: "italic", fontWeight: 400, color: promoTextColor + "cc", margin: 0, textAlign: "center" as const }}>{promoCountdown.description}</p>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {!initialProductId && (<>
         {/* HERO */}
