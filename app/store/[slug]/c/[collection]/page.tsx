@@ -15,7 +15,7 @@ const SELLER_COLUMNS =
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status";
 const DISCOUNT_COLUMNS =
-  "code, type, value, applies_to, expires_at, product_ids, collection_names";
+  "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
 const slugify = (s: string) =>
   s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");

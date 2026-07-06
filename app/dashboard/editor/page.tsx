@@ -214,7 +214,16 @@ export default function StoreEditor() {
   const [collTextColor, setCollTextColor]     = useState("#f0e6d3");
   const [ctaTextColor, setCtaTextColor]       = useState("#f0e6d3");
   const [trustTextColor, setTrustTextColor]     = useState("#f0e6d3");
-  const [footerTextColor, setFooterTextColor]   = useState("#f0e6d3");
+  /* Footer colors default to "" (not a fixed hex) so an untouched seller
+     keeps inheriting the site's bg/text/muted colors dynamically at
+     render time, instead of a hardcoded value getting baked into
+     store_config the next time they hit Save. */
+  const [footerTextColor, setFooterTextColor]   = useState("");
+  const [footerBgColor, setFooterBgColor]       = useState("");
+  const [footerMutedColor, setFooterMutedColor] = useState("");
+  const [promoBgColor, setPromoBgColor]         = useState("");
+  const [promoTextColor, setPromoTextColor]     = useState("");
+  const [salePillColor, setSalePillColor]       = useState("");
   const [promiseLabel, setPromiseLabel]         = useState("Our Promise");
   const [promiseTitle, setPromiseTitle]         = useState("Built on trust, delivered with care");
   const [promiseItems, setPromiseItems]         = useState([
@@ -332,6 +341,11 @@ export default function StoreEditor() {
       if (s.store_config?.cta_text_color) setCtaTextColor(s.store_config.cta_text_color);
       if (s.store_config?.trust_text_color) setTrustTextColor(s.store_config.trust_text_color);
       if (s.store_config?.footer_text_color) setFooterTextColor(s.store_config.footer_text_color);
+      if (s.store_config?.footer_bg_color) setFooterBgColor(s.store_config.footer_bg_color);
+      if (s.store_config?.footer_muted_color) setFooterMutedColor(s.store_config.footer_muted_color);
+      if (s.store_config?.promo_bg_color) setPromoBgColor(s.store_config.promo_bg_color);
+      if (s.store_config?.promo_text_color) setPromoTextColor(s.store_config.promo_text_color);
+      if (s.store_config?.sale_pill_color) setSalePillColor(s.store_config.sale_pill_color);
       if (s.store_config?.promise_label) setPromiseLabel(s.store_config.promise_label);
       if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
       if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
@@ -434,6 +448,11 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ ctaTextColor }); }, [ctaTextColor]);
   useEffect(() => { postUpdate({ trustTextColor }); }, [trustTextColor]);
   useEffect(() => { postUpdate({ footerTextColor }); }, [footerTextColor]);
+  useEffect(() => { postUpdate({ footerBgColor }); }, [footerBgColor]);
+  useEffect(() => { postUpdate({ footerMutedColor }); }, [footerMutedColor]);
+  useEffect(() => { postUpdate({ promoBgColor }); }, [promoBgColor]);
+  useEffect(() => { postUpdate({ promoTextColor }); }, [promoTextColor]);
+  useEffect(() => { postUpdate({ salePillColor }); }, [salePillColor]);
   useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel]);
   useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
   useEffect(() => { postUpdate({ promiseItems }); }, [promiseItems]);
@@ -523,7 +542,17 @@ export default function StoreEditor() {
           coll_text_color: collTextColor,
           cta_text_color: ctaTextColor,
           trust_text_color: trustTextColor,
-          footer_text_color: footerTextColor,
+          // These default to "" (no override) in state — save null rather than
+          // an empty string so the storefront's site-color fallback kicks in,
+          // and so a previously-saved value gets actively cleared once the
+          // seller resets it here (an empty string alone wouldn't overwrite
+          // a stale hex value already sitting in store_config).
+          footer_text_color: footerTextColor || null,
+          footer_bg_color: footerBgColor || null,
+          footer_muted_color: footerMutedColor || null,
+          promo_bg_color: promoBgColor || null,
+          promo_text_color: promoTextColor || null,
+          sale_pill_color: salePillColor || null,
           hero_image: heroImageUrl || heroImagePreview || undefined,
           promise_label: promiseLabel,
           promise_title: promiseTitle,
@@ -1190,6 +1219,45 @@ export default function StoreEditor() {
                   <button onClick={() => setProductsCollapsed(!productsCollapsed)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: productsCollapsed ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: productsCollapsed ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
                 </div>
                 )}
+
+                {seller?.template === "soft-luxury" && (
+                  <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Sale Pill</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Pill Color</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <label style={{ width: 28, height: 28, borderRadius: 6, background: salePillColor || seller?.primary_color || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                          <input type="color" value={salePillColor || seller?.primary_color || "#9c7c62"} onChange={e => setSalePillColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                        </label>
+                        <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{salePillColor || seller?.primary_color || "#9c7c62"}{!salePillColor && " (brand color)"}</span>
+                        {salePillColor && <button onClick={() => setSalePillColor("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 6 }}>Shows a "-20%" pill on the top right of discounted product cards.</div>
+                  </div>
+                )}
+
+                {seller?.template === "soft-luxury" && (
+                  <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Promo Banner</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Shown at the top of your store when a discount code has "Show countdown" enabled.</div>
+                    {[
+                      { label: "Background", value: promoBgColor, setValue: setPromoBgColor, fallback: "", fallbackLabel: "auto" },
+                      { label: "Text", value: promoTextColor, setValue: setPromoTextColor, fallback: textColor, fallbackLabel: "default" },
+                    ].map((c) => (
+                      <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ width: 28, height: 28, borderRadius: 6, background: c.value || c.fallback || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                            <input type="color" value={c.value || c.fallback || "#9c7c62"} onChange={e => c.setValue(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                          </label>
+                          <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{c.value || `(${c.fallbackLabel})`}</span>
+                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
@@ -1740,6 +1808,29 @@ export default function StoreEditor() {
                     </div>
                   </div>
                 </div>
+
+                {seller?.template === "soft-luxury" && (
+                  <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Footer Colors</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Defaults to your site's colors above — only change these to make the footer stand out on its own.</div>
+                    {[
+                      { label: "Background", value: footerBgColor, setValue: setFooterBgColor, fallback: bgColor },
+                      { label: "Text", value: footerTextColor, setValue: setFooterTextColor, fallback: textColor },
+                      { label: "Muted Text", value: footerMutedColor, setValue: setFooterMutedColor, fallback: mutedColor },
+                    ].map((c) => (
+                      <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
+                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ width: 28, height: 28, borderRadius: 6, background: c.value || c.fallback, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                            <input type="color" value={c.value || c.fallback} onChange={e => c.setValue(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                          </label>
+                          <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{c.value || c.fallback}{!c.value && " (default)"}</span>
+                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
