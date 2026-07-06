@@ -11,10 +11,10 @@ import Spinner from "../../components/Spinner";
 const PLANS = [
   {
     id: "starter",
-    name: "Catalogstore",
+    name: "Pro",
     price: 199,
     features: [
-      "Up to 50 products",
+      "Up to 100 products",
       "Up to 10 collections",
       "All 4 store templates",
       "Personal onboarding — we set you up 1-on-1",
@@ -24,7 +24,7 @@ const PLANS = [
       "Card, EFT, Apple Pay, WhatsApp checkout",
       "Cancel anytime",
     ],
-    limits: { products: 50, images: 20, collections: 10, templates: 4 },
+    limits: { products: 100, images: 20, collections: 10, templates: 4 },
   },
 ];
 
@@ -125,7 +125,7 @@ export default function BillingPage() {
           {isPastDue ? "Payment Failed" : isExpired ? "Reactivate Your Store" : isActive ? "Manage Subscription" : trialActive ? "Subscribe" : isFree ? "Upgrade Your Store" : "Choose Your Plan"}
         </h1>
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
-          {isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial. Subscribe to keep your store live." : isActive ? "You're on the Catalogstore plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : isFree ? "You're on the Free plan. Upgrade to Starter for more products, templates, and a custom domain." : "Start selling online in minutes"}
+          {isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial. Subscribe to keep your store live." : isActive ? "You're on the Pro plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : isFree ? "You're on the Free plan. Upgrade to Pro for more products, templates, and a custom domain." : "Start selling online in minutes"}
         </p>
 
         {justSubscribed && (
@@ -169,7 +169,7 @@ export default function BillingPage() {
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(34,197,94,0.06)"; e.currentTarget.style.borderColor = "rgba(34,197,94,0.15)"; }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Active Subscription</div>
-            <div style={{ fontSize: 24, fontWeight: 900, textTransform: "uppercase" }}>Catalogstore Plan</div>
+            <div style={{ fontSize: 24, fontWeight: 900, textTransform: "uppercase" }}>Pro Plan</div>
             {seller?.subscription_started_at && <div style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Active since {new Date(seller.subscription_started_at).toLocaleDateString()}</div>}
             <div style={{ marginTop: 14, fontSize: 11, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Go to dashboard &rarr;</div>
           </a>
@@ -187,7 +187,7 @@ export default function BillingPage() {
           <div style={{ padding: "24px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(245,245,245,0.5)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Free Plan</div>
             <div style={{ fontSize: 20, fontWeight: 900 }}>1 template · 4 products · 5 photos each</div>
-            <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Upgrade to Starter for all 4 templates, 50 products, and a custom domain</p>
+            <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Upgrade to Pro for all 4 templates, 100 products, and a custom domain</p>
           </div>
         )}
 

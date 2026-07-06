@@ -14,7 +14,7 @@ const TICKER_ITEMS = [
 ];
 
 // Two tiers: Free (GlassChrome only, capped) to get a real store live with
-// zero commitment, and Starter (all 4 templates, higher limits, custom
+// zero commitment, and Pro (all 4 templates, higher limits, custom
 // domain) as the paid upsell once a seller is ready to grow.
 const FREE_PLAN_FEATURES = [
   "Up to 4 products",
@@ -26,7 +26,7 @@ const FREE_PLAN_FEATURES = [
   "No credit card required",
 ];
 const PLAN_FEATURES = [
-  "Up to 50 products",
+  "Up to 100 products",
   "20 photos per product",
   "Up to 10 collections",
   "All 4 store templates",
@@ -121,7 +121,7 @@ const FAQS = [
   },
   {
     q: "Do you take a percentage of my sales?",
-    a: "Never. You're either on the Free plan (R0) or Starter (a flat R199/month). 100% of your sales revenue goes directly to your account either way.",
+    a: "Never. You're either on the Free plan (R0) or Pro (a flat R199/month). 100% of your sales revenue goes directly to your account either way.",
   },
   {
     q: "What happens after my 14-day free trial?",
@@ -129,11 +129,11 @@ const FAQS = [
   },
   {
     q: "Can I use my own custom domain?",
-    a: "Yes — Starter plan stores include custom domain support. If you own yourbrand.co.za we'll personally help you connect it so customers find you directly. Every store, on any plan, always has a free store link (catalogstore.co.za/store) too.",
+    a: "Custom domains are a Pro plan feature — if you own yourbrand.co.za we'll personally help you connect it so customers find you directly. The Free plan doesn't include custom domain support, but every store on any plan always has a free store link (catalogstore.co.za/store) too.",
   },
   {
     q: "How do I add my products?",
-    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. The Free plan includes up to 4 products to get started; Starter goes up to 50.",
+    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. The Free plan includes up to 4 products to get started; Pro goes up to 100.",
   },
   {
     q: "What if I get stuck?",
@@ -1408,7 +1408,7 @@ ${collections.length > 0 ? `
             <div className="glass-card grad-border" style={{ padding: "44px 36px", borderRadius: 20, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)" }} />
               <span style={{ position: "absolute", top: 20, right: 20, padding: "4px 12px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100, fontSize: 9, fontWeight: 800, color: "var(--neon)", letterSpacing: "0.06em", textTransform: "uppercase" }}>14-Day Trial</span>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Starter Plan</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Pro Plan</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, justifyContent: "center" }}>
                 <span className="price-num" style={{ fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em" }}>R199</span>
                 <span style={{ fontSize: 14, color: "var(--text-dim)" }}>/mo</span>

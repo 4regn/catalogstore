@@ -399,7 +399,7 @@ export default function Dashboard() {
   const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); revalidateMyStore(); };
   const duplicateProduct = async (p: Product) => {
     if (!seller) return;
-    if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Starter for up to 50 products." : "")); return; }
+    if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Pro for up to 100 products." : "")); return; }
     const { data, error } = await supabase.from("products").insert({
       seller_id: seller.id,
       name: p.name + " (Copy)",
@@ -566,7 +566,7 @@ export default function Dashboard() {
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
     ? { products: 4, images: 5, collections: 10, templates: 1 }
-    : { products: 50, images: 20, collections: 10, templates: 4 };
+    : { products: 100, images: 20, collections: 10, templates: 4 };
   const activeProductCount = products.filter((p) => p.status !== "trashed").length;
   const canAddProduct = activeProductCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
@@ -704,7 +704,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Products</h1><p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Manage the products in your store.</p></div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
-                <button onClick={() => { if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Starter for up to 50 products." : "")); return; } if (showForm) resetForm(); else { resetForm(); setShowForm(true); setProductFilter("published"); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>{showForm ? "Cancel" : "+ Add Product"}</button>
+                <button onClick={() => { if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Pro for up to 100 products." : "")); return; } if (showForm) resetForm(); else { resetForm(); setShowForm(true); setProductFilter("published"); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>{showForm ? "Cancel" : "+ Add Product"}</button>
                 <label style={{ padding: "12px 18px", background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.12)", borderRadius: 100, color: "#2563eb", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 6 }}>
                   {csvUploading ? "Importing..." : "Import CSV"}
                   <input type="file" accept=".csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsvUpload(f); e.target.value = ""; }} style={{ display: "none" }} />
@@ -1304,7 +1304,7 @@ export default function Dashboard() {
                       const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html" } as Record<string, string>)[t.id];
                       const locked = isFreePlan && t.id !== "glass-futuristic";
                       return (
-                        <button key={t.id} onClick={async () => { if (locked) { alert("Upgrade to Starter to unlock all 4 templates."); return; } if (t.id === storeTemplate) return; setStoreTemplate(t.id); if (seller && confirm("Switch to " + t.name + "? This will save immediately.")) { const { error } = await supabase.from("sellers").update({ template: t.id }).eq("id", seller.id); if (!error) { setSeller({ ...seller, template: t.id }); revalidateMyStore(); } } }} style={{ padding: 0, border: storeTemplate === t.id ? "2px solid " + N : "2px solid var(--border)", borderRadius: 16, background: "var(--panel)", cursor: locked ? "not-allowed" : "pointer", overflow: "hidden", textAlign: "left" as const, position: "relative" as const, opacity: locked ? 0.5 : 1 }}>
+                        <button key={t.id} onClick={async () => { if (locked) { alert("Upgrade to Pro to unlock all 4 templates."); return; } if (t.id === storeTemplate) return; setStoreTemplate(t.id); if (seller && confirm("Switch to " + t.name + "? This will save immediately.")) { const { error } = await supabase.from("sellers").update({ template: t.id }).eq("id", seller.id); if (!error) { setSeller({ ...seller, template: t.id }); revalidateMyStore(); } } }} style={{ padding: 0, border: storeTemplate === t.id ? "2px solid " + N : "2px solid var(--border)", borderRadius: 16, background: "var(--panel)", cursor: locked ? "not-allowed" : "pointer", overflow: "hidden", textAlign: "left" as const, position: "relative" as const, opacity: locked ? 0.5 : 1 }}>
                           <div style={{ width: "100%", height: 220, background: t.colors.bg, overflow: "hidden", borderRadius: "12px 12px 0 0", position: "relative" as const }}>
                             <div style={{ position: "absolute" as const, top: 8, left: "50%", transform: "translateX(-50%)", width: 60, height: 6, borderRadius: 3, background: "rgba(0,0,0,0.15)", zIndex: 2 }} />
                             <div style={{ width: 400, height: 844, transform: "scale(0.38)", transformOrigin: "top left", position: "absolute" as const, top: 0, left: "50%", marginLeft: -76, pointerEvents: "none" as const }}>
