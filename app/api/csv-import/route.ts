@@ -162,6 +162,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No valid products found in CSV.", errors }, { status: 400 });
     }
 
+    /* Enforce the plan's product cap server-side — the dashboard button also
+       checks this, but CSV import is a separate path and must not be able
+       to bypass it. */
+    const { data: sellerRow } = await supabase.from("sellers").select("subscription_status").eq("id", sellerId).maybeSingle();
+    const productCap = sellerRow?.subscription_status === "free" ? 4 : 50;
+    const remainingSlots = Math.max(0, productCap - existingCount);
+    let skippedForPlanLimit = 0;
+    if (rows.length > remainingSlots) {
+      skippedForPlanLimit = rows.length - remainingSlots;
+      rows.length = remainingSlots;
+      allImageSrcs.length = remainingSlots;
+    }
+    if (rows.length === 0) {
+      return NextResponse.json({ error: `You've reached your plan's limit of ${productCap} products.` }, { status: 400 });
+    }
+
     const { data: inserted, error: insertErr } = await supabase.from("products").insert(rows).select();
     if (insertErr) {
       return NextResponse.json({ error: "Import failed: " + insertErr.message }, { status: 500 });
@@ -244,6 +260,7 @@ export async function POST(req: NextRequest) {
       isShopify,
       imagesUploaded,
       imagesFailed,
+      skippedForPlanLimit,
       products: inserted,
     });
   } catch (e: any) {

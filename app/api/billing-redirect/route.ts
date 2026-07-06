@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data: seller, error } = await supabase
       .from("sellers")
-      .select("id, email, store_name, trial_ends_at")
+      .select("id, email, store_name, trial_ends_at, subscription_status")
       .eq("id", sellerId)
       .single();
 
@@ -104,6 +104,17 @@ export async function POST(req: NextRequest) {
       }
     }
     const billingDateStr = billingDate.toISOString().split("T")[0];
+
+    // Upgrading from the Free plan: move them onto the Starter trial the
+    // moment they start checkout, so the dashboard reflects the trial
+    // countdown immediately rather than waiting on the PayFast round-trip.
+    if (!isReactivation && seller.subscription_status === "free") {
+      await supabase.from("sellers").update({
+        subscription_status: "trial",
+        subscription_plan: "starter",
+        trial_ends_at: billingDate.toISOString(),
+      }).eq("id", sellerId);
+    }
 
     const todayAmount = isReactivation ? monthlyAmount.toFixed(2) : "0.00";
     const recurringAmount = monthlyAmount.toFixed(2);

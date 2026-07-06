@@ -7,6 +7,19 @@ import { supabase } from "../../../lib/supabase";
 // Helpers
 const fromCents = (c: number) => (c / 100).toFixed(0);
 
+const SA_BANKS = [
+  { name: "FNB", branch: "250655" },
+  { name: "Standard Bank", branch: "051001" },
+  { name: "Absa", branch: "632005" },
+  { name: "Capitec", branch: "470010" },
+  { name: "Nedbank", branch: "198765" },
+  { name: "TymeBank", branch: "678910" },
+  { name: "Discovery Bank", branch: "679000" },
+  { name: "African Bank", branch: "430000" },
+  { name: "Investec", branch: "580105" },
+  { name: "Bidvest Bank", branch: "462005" },
+];
+
 /* Commission policy lives here, not sprinkled as magic numbers. */
 const COMMISSION_MONTHS = 6;
 const MIN_WITHDRAW_CENTS = 15000; // R150
@@ -24,6 +37,9 @@ type Affiliate = {
   totalPaidOut: number;
   bankName: string | null;
   accountNumber: string | null;
+  accountHolder: string | null;
+  accountType: "cheque" | "savings" | null;
+  branchCode: string | null;
 };
 
 type Referral = {
@@ -63,9 +79,32 @@ export default function AffiliateDashboard() {
   const [tab, setTab] = useState<"all" | "active" | "trial">("all");
   const [toast, setToast] = useState("");
 
+  // Settings modal — referral code + banking details
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"code" | "banking">("code");
+  const [slugInput, setSlugInput] = useState("");
+  const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "taken" | "unchanged">("idle");
+  const [slugTimer, setSlugTimer] = useState<NodeJS.Timeout | null>(null);
+  const [savingSlug, setSavingSlug] = useState(false);
+  const [bankName, setBankName] = useState(SA_BANKS[0].name);
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [accountType, setAccountType] = useState<"cheque" | "savings">("cheque");
+  const [savingBanking, setSavingBanking] = useState(false);
+  const [settingsError, setSettingsError] = useState("");
+
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  useEffect(() => {
+    if (!affiliate) return;
+    setSlugInput(affiliate.slug);
+    setBankName(affiliate.bankName || SA_BANKS[0].name);
+    setAccountNumber(affiliate.accountNumber || "");
+    setAccountHolder(affiliate.accountHolder || "");
+    setAccountType(affiliate.accountType || "cheque");
+  }, [affiliate]);
 
   async function loadDashboard() {
     try {
@@ -142,6 +181,98 @@ export default function AffiliateDashboard() {
     router.push("/affiliate/login");
   }
 
+  function handleSlugChange(value: string) {
+    const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+    setSlugInput(cleaned);
+    setSlugStatus("idle");
+    if (slugTimer) clearTimeout(slugTimer);
+    if (!affiliate) return;
+    if (cleaned === affiliate.slug) { setSlugStatus("unchanged"); return; }
+    if (cleaned.length >= 2) {
+      setSlugStatus("checking");
+      const t = setTimeout(async () => {
+        const { data } = await supabase
+          .from("affiliate_public_profile")
+          .select("slug")
+          .eq("slug", cleaned)
+          .maybeSingle();
+        setSlugStatus(data ? "taken" : "available");
+      }, 400);
+      setSlugTimer(t);
+    }
+  }
+
+  async function authedFetch(path: string, init: RequestInit = {}) {
+    const { data: { session } } = await supabase.auth.getSession();
+    return fetch(path, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token || ""}`,
+        ...(init.headers || {}),
+      },
+    });
+  }
+
+  async function saveSlug() {
+    if (!affiliate || slugStatus === "taken" || slugInput.length < 2) return;
+    if (slugInput === affiliate.slug) return;
+    setSavingSlug(true);
+    setSettingsError("");
+    try {
+      const res = await authedFetch("/api/affiliate/me", {
+        method: "PATCH",
+        body: JSON.stringify({ slug: slugInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSettingsError(data.error || "Could not save referral code"); return; }
+      setAffiliate({ ...affiliate, slug: data.slug });
+      showToast("Referral code updated");
+    } catch {
+      setSettingsError("Network error — please try again");
+    } finally {
+      setSavingSlug(false);
+    }
+  }
+
+  async function saveBanking() {
+    if (!affiliate) return;
+    if (!accountNumber.trim() || accountNumber.trim().length < 6) {
+      setSettingsError("Enter a valid account number");
+      return;
+    }
+    if (!accountHolder.trim()) {
+      setSettingsError("Enter the account holder name");
+      return;
+    }
+    setSavingBanking(true);
+    setSettingsError("");
+    try {
+      const branchCode = SA_BANKS.find((b) => b.name === bankName)?.branch || "";
+      const res = await authedFetch("/api/affiliate/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          bankName,
+          accountNumber: accountNumber.trim(),
+          accountHolder: accountHolder.trim(),
+          accountType,
+          branchCode,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSettingsError(data.error || "Could not save banking details"); return; }
+      setAffiliate({
+        ...affiliate,
+        bankName, accountNumber: accountNumber.trim(), accountHolder: accountHolder.trim(), accountType,
+      });
+      showToast("Banking details updated");
+    } catch {
+      setSettingsError("Network error — please try again");
+    } finally {
+      setSavingBanking(false);
+    }
+  }
+
   if (loading) {
     return (
       <div style={styles.loading}>
@@ -201,9 +332,21 @@ export default function AffiliateDashboard() {
           Catalog<span style={styles.navLogoAccent}>Store</span>
           <span style={styles.navPill}>Affiliate</span>
         </div>
-        <button onClick={signOut} style={styles.navAvatar} title={affiliate.fullName}>
-          {initials}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={() => { setShowSettings(true); setSettingsTab("code"); setSettingsError(""); }}
+            style={styles.navSettingsBtn}
+            title="Settings"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+          <button onClick={signOut} style={styles.navAvatar} title={affiliate.fullName}>
+            {initials}
+          </button>
+        </div>
       </nav>
 
       <main style={styles.main}>
@@ -514,6 +657,109 @@ export default function AffiliateDashboard() {
 
       {/* TOAST */}
       {toast && <div style={styles.toast}>✓ {toast}</div>}
+
+      {/* SETTINGS MODAL */}
+      {showSettings && (
+        <div style={styles.modalOverlay} onClick={() => setShowSettings(false)}>
+          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Settings</h3>
+              <button onClick={() => setShowSettings(false)} style={styles.modalClose}>&times;</button>
+            </div>
+
+            <div style={styles.modalTabs}>
+              <button
+                onClick={() => { setSettingsTab("code"); setSettingsError(""); }}
+                style={{ ...styles.modalTabBtn, ...(settingsTab === "code" ? styles.modalTabBtnActive : {}) }}
+              >
+                Referral Code
+              </button>
+              <button
+                onClick={() => { setSettingsTab("banking"); setSettingsError(""); }}
+                style={{ ...styles.modalTabBtn, ...(settingsTab === "banking" ? styles.modalTabBtnActive : {}) }}
+              >
+                Banking Details
+              </button>
+            </div>
+
+            {settingsTab === "code" ? (
+              <div style={styles.modalBody}>
+                <label style={styles.modalLabel}>Your referral code</label>
+                <input
+                  type="text"
+                  value={slugInput}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  style={{
+                    ...styles.modalInput,
+                    ...(slugStatus === "taken" ? { borderColor: "rgba(255,61,110,0.5)" } : {}),
+                    ...(slugStatus === "available" ? { borderColor: "rgba(34,197,94,0.5)" } : {}),
+                  }}
+                />
+                <p style={styles.modalHint}>
+                  Your link: <strong style={{ color: "#fff" }}>{appOrigin}/?ref={slugInput || "…"}</strong>
+                </p>
+                {slugStatus === "checking" && <p style={styles.modalStatusMuted}>Checking availability...</p>}
+                {slugStatus === "available" && <p style={styles.modalStatusOk}>✓ Available</p>}
+                {slugStatus === "taken" && <p style={styles.modalStatusErr}>✕ Already taken — try another code</p>}
+                {slugStatus !== "taken" && slugInput !== affiliate.slug && slugInput.length >= 2 && (
+                  <p style={styles.modalStatusWarn}>
+                    ⚠ Changing your code breaks any links you've already shared using "{affiliate.slug}" — they'll no longer attribute new sign-ups to you.
+                  </p>
+                )}
+                {settingsError && <p style={styles.modalStatusErr}>{settingsError}</p>}
+                <button
+                  onClick={saveSlug}
+                  disabled={savingSlug || slugStatus === "taken" || slugInput === affiliate.slug || slugInput.length < 2}
+                  style={{ ...styles.modalSaveBtn, opacity: (savingSlug || slugStatus === "taken" || slugInput === affiliate.slug || slugInput.length < 2) ? 0.5 : 1 }}
+                >
+                  {savingSlug ? "Saving..." : "Save Referral Code"}
+                </button>
+              </div>
+            ) : (
+              <div style={styles.modalBody}>
+                <label style={styles.modalLabel}>Bank</label>
+                <select value={bankName} onChange={(e) => setBankName(e.target.value)} style={styles.modalInput}>
+                  {SA_BANKS.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
+                </select>
+
+                <label style={styles.modalLabel}>Account number</label>
+                <input
+                  type="text"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                  style={styles.modalInput}
+                />
+
+                <label style={styles.modalLabel}>Account holder name</label>
+                <input
+                  type="text"
+                  value={accountHolder}
+                  onChange={(e) => setAccountHolder(e.target.value)}
+                  style={styles.modalInput}
+                />
+
+                <label style={styles.modalLabel}>Account type</label>
+                <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                  {(["cheque", "savings"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setAccountType(t)}
+                      style={{ ...styles.modalToggleBtn, ...(accountType === t ? styles.modalToggleBtnActive : {}) }}
+                    >
+                      {t === "cheque" ? "Cheque" : "Savings"}
+                    </button>
+                  ))}
+                </div>
+
+                {settingsError && <p style={styles.modalStatusErr}>{settingsError}</p>}
+                <button onClick={saveBanking} disabled={savingBanking} style={{ ...styles.modalSaveBtn, opacity: savingBanking ? 0.5 : 1, marginTop: 12 }}>
+                  {savingBanking ? "Saving..." : "Save Banking Details"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -651,6 +897,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
     fontFamily: "inherit",
+  },
+  navSettingsBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    color: "rgba(245,245,245,0.6)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   main: { position: "relative", zIndex: 1, maxWidth: 520, margin: "0 auto", padding: "20px 18px 100px" },
   ph: { marginBottom: 20 },
@@ -905,5 +1163,58 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
     cursor: "pointer",
+  },
+  modalOverlay: {
+    position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000,
+    display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+  },
+  modalCard: {
+    background: "#0e0e14", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20,
+    maxWidth: 420, width: "100%", maxHeight: "85vh", overflowY: "auto",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+  },
+  modalHeader: {
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "20px 24px 0",
+  },
+  modalTitle: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em" },
+  modalClose: {
+    background: "rgba(255,255,255,0.06)", border: "none", color: "rgba(245,245,245,0.6)",
+    width: 28, height: 28, borderRadius: "50%", fontSize: 16, cursor: "pointer",
+  },
+  modalTabs: {
+    display: "flex", gap: 6, padding: "16px 24px 0", borderBottom: "1px solid rgba(255,255,255,0.06)",
+  },
+  modalTabBtn: {
+    padding: "10px 4px", marginRight: 16, background: "none", border: "none",
+    borderBottom: "2px solid transparent", color: "rgba(245,245,245,0.4)",
+    fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", cursor: "pointer", fontFamily: "inherit",
+  },
+  modalTabBtnActive: { color: "#fff", borderBottomColor: "#ff6b35" },
+  modalBody: { padding: "20px 24px 24px", display: "flex", flexDirection: "column" },
+  modalLabel: {
+    fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+    color: "rgba(245,245,245,0.4)", marginBottom: 6, marginTop: 14,
+  },
+  modalInput: {
+    padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "inherit", outline: "none",
+  },
+  modalHint: { fontSize: 11, color: "rgba(245,245,245,0.4)", marginTop: 8, wordBreak: "break-all" },
+  modalStatusMuted: { fontSize: 11, color: "rgba(245,245,245,0.35)", marginTop: 6, fontWeight: 600 },
+  modalStatusOk: { fontSize: 11, color: "#22c55e", marginTop: 6, fontWeight: 700 },
+  modalStatusErr: { fontSize: 11, color: "#ff3d6e", marginTop: 6, fontWeight: 700 },
+  modalStatusWarn: { fontSize: 11, color: "#fbbf24", marginTop: 8, lineHeight: 1.5, fontWeight: 600 },
+  modalSaveBtn: {
+    marginTop: 16, padding: 14, background: "linear-gradient(135deg,#ff6b35,#ff3d6e)", color: "#fff",
+    border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, letterSpacing: "0.04em",
+    textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit",
+  },
+  modalToggleBtn: {
+    flex: 1, padding: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 10, color: "rgba(245,245,245,0.5)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+  },
+  modalToggleBtnActive: {
+    background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.3)", color: "#ff6b35",
   },
 };

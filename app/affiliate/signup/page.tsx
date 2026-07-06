@@ -17,13 +17,14 @@ const SA_BANKS = [
   { name: "Bidvest Bank", branch: "462005" },
 ];
 
+// Default referral code is just the first name — keeps the shareable link
+// short (catalogstore.co.za/?ref=thandi rather than ?ref=thandi-mokoena).
+// The signup API still auto-suffixes (thandi2, thandi3...) if it's taken.
 function slugify(name: string) {
-  return name
+  const firstName = name.trim().split(/\s+/)[0] || name;
+  return firstName
     .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
     .slice(0, 24);
 }
 

@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getAdmin } from "../../../../lib/supabase-admin";
 
+const SA_BANKS = new Set([
+  "FNB", "Standard Bank", "Absa", "Capitec", "Nedbank", "TymeBank",
+  "Discovery Bank", "African Bank", "Investec", "Bidvest Bank",
+]);
+
+async function getAuthedAffiliate(req: NextRequest) {
+  const cookieStore = await cookies();
+  const accessToken =
+    cookieStore.get("sb-access-token")?.value ||
+    req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!accessToken) return { ok: false as const, status: 401, error: "Not authenticated" };
+
+  const { data: userData, error: userErr } = await getAdmin().auth.getUser(accessToken);
+  if (userErr || !userData.user) return { ok: false as const, status: 401, error: "Invalid session" };
+
+  const { data: affiliate, error: affErr } = await getAdmin()
+    .from("affiliates")
+    .select("id, slug")
+    .eq("user_id", userData.user.id)
+    .maybeSingle();
+  if (affErr || !affiliate) return { ok: false as const, status: 404, error: "No affiliate account found" };
+
+  return { ok: true as const, affiliateId: affiliate.id, currentSlug: affiliate.slug };
+}
+
 export async function GET(req: NextRequest) {
   try {
     // ─── 1. Get auth token from cookies ──────────────────
@@ -101,6 +126,9 @@ export async function GET(req: NextRequest) {
         totalPaidOut: affiliate.total_paid_out,
         bankName: affiliate.bank_name,
         accountNumber: affiliate.account_number,
+        accountHolder: affiliate.account_holder,
+        accountType: affiliate.account_type,
+        branchCode: affiliate.branch_code,
         emailVerified: affiliate.email_verified,
         status: affiliate.status,
       },
@@ -120,4 +148,86 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/* Affiliate self-service updates: referral code (slug) and banking details.
+   Both are edited from the affiliate's own settings screen. Slug changes
+   are uniqueness-checked the same way as signup; existing referral links
+   using the OLD slug stop attributing once changed, so the UI should warn
+   about that before submitting. */
+export async function PATCH(req: NextRequest) {
+  const auth = await getAuthedAffiliate(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  let body: any;
+  try { body = await req.json(); } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+
+  if (body.slug !== undefined) {
+    const cleaned = String(body.slug).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+    if (cleaned.length < 2) {
+      return NextResponse.json({ error: "Referral code must be at least 2 characters." }, { status: 400 });
+    }
+    if (cleaned !== auth.currentSlug) {
+      const { data: taken } = await getAdmin()
+        .from("affiliates")
+        .select("id")
+        .eq("slug", cleaned)
+        .maybeSingle();
+      if (taken) {
+        return NextResponse.json({ error: "That referral code is already taken." }, { status: 409 });
+      }
+      updates.slug = cleaned;
+    }
+  }
+
+  if (body.bankName !== undefined) {
+    if (!SA_BANKS.has(body.bankName)) {
+      return NextResponse.json({ error: "Invalid bank." }, { status: 400 });
+    }
+    updates.bank_name = body.bankName;
+  }
+  if (body.accountNumber !== undefined) {
+    const acc = String(body.accountNumber).trim();
+    if (acc.length < 6) {
+      return NextResponse.json({ error: "Invalid account number." }, { status: 400 });
+    }
+    updates.account_number = acc;
+  }
+  if (body.accountHolder !== undefined) {
+    const holder = String(body.accountHolder).trim();
+    if (!holder) {
+      return NextResponse.json({ error: "Account holder name is required." }, { status: 400 });
+    }
+    updates.account_holder = holder;
+  }
+  if (body.accountType !== undefined) {
+    if (body.accountType !== "cheque" && body.accountType !== "savings") {
+      return NextResponse.json({ error: "Invalid account type." }, { status: 400 });
+    }
+    updates.account_type = body.accountType;
+  }
+  if (body.branchCode !== undefined) {
+    updates.branch_code = String(body.branchCode).trim();
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "No changes supplied." }, { status: 400 });
+  }
+
+  const { error: updateErr } = await getAdmin()
+    .from("affiliates")
+    .update(updates)
+    .eq("id", auth.affiliateId);
+
+  if (updateErr) {
+    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, slug: (updates.slug as string) || auth.currentSlug });
 }

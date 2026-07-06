@@ -13,21 +13,19 @@ const TICKER_ITEMS = [
   "Make Money While You Sleep", "Zero Coding Required",
 ];
 
-// One plan, everything currently buildable -- a Pro tier comes later as the real upsell
-// once there's more to upsell to (more products beyond 20, new templates beyond the
-// current 4). Limits here are deliberate: 20 products keeps storage + perf costs
-// predictable on the current tier; sellers who outgrow them upgrade.
+// One paid plan, everything currently buildable -- a Pro tier comes later as the
+// real upsell once there's more to upsell to. Limits here are deliberate: 50
+// products keeps storage + perf costs predictable on the current tier; sellers
+// who outgrow them upgrade.
 const PLAN_FEATURES = [
-  "Up to 20 products",
-  "5 photos per product",
+  "Up to 50 products",
   "Up to 10 collections",
   "All 4 store templates",
   "Personal onboarding — we set you up 1-on-1",
   "Custom domain support — we help you connect it",
-  "Free subdomain (yourstore.catalogstore.co.za)",
+  "Free store link (catalogstore.co.za/store/yourstore)",
   "Visual store editor",
   "Card, EFT, Apple Pay, WhatsApp checkout",
-  "Order notifications by email",
   "Cancel anytime",
 ];
 
@@ -114,19 +112,19 @@ const FAQS = [
   },
   {
     q: "Do you take a percentage of my sales?",
-    a: "Never. We charge a flat R199/month (R149/month if you signed up with an affiliate referral code). 100% of your sales revenue goes directly to your account.",
+    a: "Never. We charge a flat R199/month. 100% of your sales revenue goes directly to your account.",
   },
   {
     q: "What happens after my 14-day free trial?",
-    a: "After your 14-day free trial, you're charged R199/month — or R149/month for life if you signed up with an affiliate referral code. Cancel anytime — no contracts, no penalties.",
+    a: "After your 14-day free trial, you're charged R199/month. Cancel anytime — no contracts, no penalties.",
   },
   {
     q: "Can I use my own custom domain?",
-    a: "Yes — every store includes custom domain support. If you own yourbrand.co.za we'll personally help you connect it so customers find you directly. Your free subdomain (yourstore.catalogstore.co.za) is always included as a fallback.",
+    a: "Yes — every store includes custom domain support. If you own yourbrand.co.za we'll personally help you connect it so customers find you directly. Your free store link (catalogstore.co.za/store/yourstore) is always included as a fallback.",
   },
   {
     q: "How do I add my products?",
-    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. Your plan includes up to 20 products — plenty to launch with.",
+    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. Your plan includes up to 50 products — plenty to launch with.",
   },
   {
     q: "What if I get stuck?",
@@ -1316,7 +1314,7 @@ ${collections.length > 0 ? `
               <Link href="/signup" className="glow-btn">Start 14-Day Free Trial</Link>
               <a href="#ai-preview" className="outline-btn">✦ Try the AI Preview</a>
             </div>
-            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>R0 today · R199/month after 14 days · Only R149/month with a referral code · Cancel anytime</p>
+            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>R0 today · R199/month after 14 days · Cancel anytime</p>
             <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap" }}>
               {[{ val: "14 Days", label: "Free Trial" }, { val: "0%", label: "Commission" }, { val: "Online", label: "Card Payments" }].map((stat, i) => (
                 <div key={i} style={{ display: "flex", gap: 48, alignItems: "center" }}>
@@ -1390,7 +1388,7 @@ ${collections.length > 0 ? `
                 <span className="price-num" style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-0.05em" }}>R199</span>
                 <span style={{ fontSize: 14, color: "var(--text-dim)" }}>/mo</span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 32, fontWeight: 600, textAlign: "center" }}>14 days free, then R199/month — or R149/month with a referral code</div>
+              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 32, fontWeight: 600, textAlign: "center" }}>14 days free, then R199/month</div>
               <ul style={{ listStyle: "none", marginBottom: 36 }}>
                 {PLAN_FEATURES.map(f => (
                   <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>

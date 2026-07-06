@@ -19,6 +19,7 @@ export default function SignUp() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [plan, setPlan] = useState<"free" | "starter">("starter");
 
   const passwordChecks = {
     length: password.length >= 8,
@@ -119,11 +120,13 @@ export default function SignUp() {
     if (authError) { setError(authError.message); setLoading(false); return; }
 
     if (authData.user) {
-      const trialEnd = new Date(); trialEnd.setDate(trialEnd.getDate() + 14);
-      const { error: profileError } = await supabase.from("sellers").insert({
-        id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
-        subscription_status: "trial", subscription_plan: "starter", trial_ends_at: trialEnd.toISOString(),
-      });
+      const sellerRow = plan === "free"
+        ? { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
+            subscription_status: "free", subscription_plan: "free", trial_ends_at: null }
+        : { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
+            subscription_status: "trial", subscription_plan: "starter",
+            trial_ends_at: (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString(); })() };
+      const { error: profileError } = await supabase.from("sellers").insert(sellerRow);
       if (profileError) {
         /* The seller insert failed (race condition on subdomain, RLS, etc).
            The auth user is now orphaned. Surface a clear message and the
@@ -144,16 +147,18 @@ export default function SignUp() {
         document.cookie = `affiliate_ref=${refCode}; expires=${expires.toUTCString()}; path=/; SameSite=Lax${domain}`;
       }
 
-      // Attribute affiliate referral. Fire-and-forget — never block signup.
+      // Attribute affiliate referral. Never block signup on failure.
       try {
+        const accessToken = authData.session?.access_token || "";
         await fetch("/api/affiliate/attribute", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify({ sellerId: authData.user.id }),
         });
       } catch {}
 
-      router.push("/dashboard/billing");
+      // Free plan skips card verification entirely — straight to the dashboard.
+      router.push(plan === "free" ? "/dashboard" : "/dashboard/billing");
     }
     setLoading(false);
   };
@@ -182,6 +187,41 @@ export default function SignUp() {
           {error && <div style={s.error}>{error}</div>}
 
           <form onSubmit={handleSignUp} style={s.form}>
+            <div style={s.field}>
+              <label style={s.label}>CHOOSE YOUR PLAN</label>
+              <div style={s.planGrid}>
+                <button
+                  type="button"
+                  onClick={() => setPlan("free")}
+                  style={{ ...s.planCard, ...(plan === "free" ? s.planCardActive : {}) }}
+                >
+                  <div style={s.planName}>Free</div>
+                  <div style={s.planPrice}>R0<span style={s.planPriceSuffix}>/mo</span></div>
+                  <ul style={s.planFeatures}>
+                    <li style={s.planFeatureItem}>1 store template</li>
+                    <li style={s.planFeatureItem}>Up to 4 products</li>
+                    <li style={s.planFeatureItem}>5 photos per product</li>
+                    <li style={s.planFeatureItem}>No custom domain</li>
+                  </ul>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlan("starter")}
+                  style={{ ...s.planCard, ...(plan === "starter" ? s.planCardActive : {}) }}
+                >
+                  <div style={s.planPopular}>14-day free trial</div>
+                  <div style={s.planName}>Starter</div>
+                  <div style={s.planPrice}>R199<span style={s.planPriceSuffix}>/mo</span></div>
+                  <ul style={s.planFeatures}>
+                    <li style={s.planFeatureItem}>All 4 store templates</li>
+                    <li style={s.planFeatureItem}>Up to 50 products</li>
+                    <li style={s.planFeatureItem}>20 photos per product</li>
+                    <li style={s.planFeatureItem}>Custom domain support</li>
+                  </ul>
+                </button>
+              </div>
+            </div>
+
             <div style={s.field}>
               <label style={s.label}>STORE NAME</label>
               <input type="text" placeholder="e.g. NALA Studio" value={storeName} onChange={(e) => setStoreName(e.target.value)} required style={s.input} />
@@ -221,7 +261,7 @@ export default function SignUp() {
               <div style={{ position: "relative" }}>
                 <input
                   type="text"
-                  placeholder="Have a referral code? Pay R149/mo instead of R199/mo"
+                  placeholder="Have a referral code? Paste it here"
                   value={refCode}
                   onChange={(e) => handleRefCodeChange(e.target.value)}
                   disabled={refLocked}
@@ -310,7 +350,7 @@ export default function SignUp() {
             </div>
 
             <button type="submit" disabled={loading || !allChecksPassed || !passwordsMatch} style={{ ...s.btn, opacity: loading || !allChecksPassed || !passwordsMatch ? 0.4 : 1, cursor: loading || !allChecksPassed || !passwordsMatch ? "not-allowed" : "pointer" }}>
-              {loading ? "CREATING YOUR STORE..." : "CREATE MY STORE"}
+              {loading ? "CREATING YOUR STORE..." : plan === "free" ? "CREATE MY FREE STORE" : "START MY 14-DAY FREE TRIAL"}
             </button>
           </form>
 
@@ -343,6 +383,15 @@ const s: { [key: string]: React.CSSProperties } = {
   hint: { fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 2 },
   btn: { width: "100%", padding: "16px 24px", background: "linear-gradient(135deg, #ff6b35, #ff3d6e)", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, fontWeight: 800, textAlign: "center" as const, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginTop: 8, boxShadow: "0 0 30px rgba(255,107,53,0.15)" },
   error: { padding: "12px 16px", background: "rgba(255,61,110,0.08)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 12, color: "#ff3d6e", fontSize: 13, marginBottom: 8 },
+  planGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  planCard: { position: "relative" as const, textAlign: "left" as const, padding: "16px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, cursor: "pointer", fontFamily: "'Schibsted Grotesk', sans-serif", display: "flex", flexDirection: "column" as const, gap: 4 },
+  planCardActive: { background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.35)" },
+  planPopular: { position: "absolute" as const, top: -9, left: 12, padding: "2px 10px", background: "linear-gradient(135deg, #ff6b35, #ff3d6e)", color: "#fff", borderRadius: 100, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" as const },
+  planName: { fontSize: 12, fontWeight: 800, color: "#f5f5f5", textTransform: "uppercase" as const, letterSpacing: "0.04em", marginTop: 2 },
+  planPrice: { fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" },
+  planPriceSuffix: { fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.35)" },
+  planFeatures: { listStyle: "none", padding: 0, margin: "6px 0 0", display: "flex", flexDirection: "column" as const, gap: 3 },
+  planFeatureItem: { fontSize: 10, color: "rgba(245,245,245,0.4)", fontWeight: 500 },
   footer: { textAlign: "center" as const, fontSize: 13, color: "rgba(245,245,245,0.25)", marginTop: 24 },
   link: { color: "#ff6b35", textDecoration: "none", fontWeight: 700 },
 };

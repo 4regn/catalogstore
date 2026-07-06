@@ -14,19 +14,17 @@ const PLANS = [
     name: "Catalogstore",
     price: 199,
     features: [
-      "Up to 20 products",
-      "5 photos per product",
+      "Up to 50 products",
       "Up to 10 collections",
       "All 4 store templates",
       "Personal onboarding — we set you up 1-on-1",
       "Custom domain support — we help you connect it",
-      "Free subdomain (yourstore.catalogstore.co.za)",
+      "Free store link (catalogstore.co.za/store/yourstore)",
       "Visual store editor",
       "Card, EFT, Apple Pay, WhatsApp checkout",
-      "Order notifications by email",
       "Cancel anytime",
     ],
-    limits: { products: 20, images: 5, collections: 10, templates: 4 },
+    limits: { products: 50, images: 20, collections: 10, templates: 4 },
   },
 ];
 
@@ -64,6 +62,7 @@ export default function BillingPage() {
   const graceDaysLeft = seller?.subscription_grace_until ? Math.max(0, Math.ceil((new Date(seller.subscription_grace_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
   const graceDateStr = seller?.subscription_grace_until ? new Date(seller.subscription_grace_until).toLocaleDateString("en-ZA", { day: "numeric", month: "short" }) : "";
   const isExpired = seller?.subscription_status === "expired" || seller?.subscription_status === "cancelled" || (seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) <= new Date());
+  const isFree = seller?.subscription_status === "free";
 
   const subscribePlan = async (planId: string, intent: "signup" | "reactivate" = "signup") => {
     if (!seller) return;
@@ -123,10 +122,10 @@ export default function BillingPage() {
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px 80px" }}>
 
         <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase", textAlign: "center", marginBottom: 8 }}>
-          {isPastDue ? "Payment Failed" : isExpired ? "Reactivate Your Store" : isActive ? "Manage Subscription" : trialActive ? "Subscribe" : "Choose Your Plan"}
+          {isPastDue ? "Payment Failed" : isExpired ? "Reactivate Your Store" : isActive ? "Manage Subscription" : trialActive ? "Subscribe" : isFree ? "Upgrade Your Store" : "Choose Your Plan"}
         </h1>
         <p style={{ fontSize: 14, color: "rgba(245,245,245,0.35)", textAlign: "center", marginBottom: 12 }}>
-          {isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial. Subscribe to keep your store live." : isActive ? "You're on the Catalogstore plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : "Start selling online in minutes"}
+          {isPastDue ? "We couldn't charge your card. PayFast is retrying automatically." : trialActive ? "You have " + trialDaysLeft + " days left on your free trial. Subscribe to keep your store live." : isActive ? "You're on the Catalogstore plan" : isExpired ? "Your store is currently offline. Reactivate to bring it back." : isFree ? "You're on the Free plan. Upgrade to Starter for more products, templates, and a custom domain." : "Start selling online in minutes"}
         </p>
 
         {justSubscribed && (
@@ -181,6 +180,14 @@ export default function BillingPage() {
             <div style={{ fontSize: 14, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Free Trial</div>
             <div style={{ fontSize: 20, fontWeight: 900 }}>{trialDaysLeft} days remaining</div>
             <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Subscribe now to keep your store live after your trial ends</p>
+          </div>
+        )}
+
+        {isFree && (
+          <div style={{ padding: "24px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(245,245,245,0.5)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Free Plan</div>
+            <div style={{ fontSize: 20, fontWeight: 900 }}>1 template · 4 products · 5 photos each</div>
+            <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Upgrade to Starter for all 4 templates, 50 products, and a custom domain</p>
           </div>
         )}
 
@@ -246,7 +253,7 @@ export default function BillingPage() {
                 ) : isActive && plan.id === "starter" ? (
                   <div style={{ padding: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 700, color: "rgba(245,245,245,0.25)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Downgrade</div>
                 ) : (
-                  <button onClick={() => { if (plan.id === "pro") return; subscribePlan(plan.id); }} disabled={processing || plan.id === "pro"} style={{ padding: "16px", background: plan.id === "pro" ? "rgba(255,255,255,0.05)" : "#f5f5f5", color: plan.id === "pro" ? "rgba(245,245,245,0.25)" : "#030303", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.08)" : "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: plan.id === "pro" ? "not-allowed" : processing ? "not-allowed" : "pointer", opacity: (processing && plan.id !== "pro") ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{plan.id === "pro" ? "Coming Soon" : processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : trialActive ? `Subscribe — R${monthlyPrice}/mo` : "Start 14-Day Free Trial"}</button>
+                  <button onClick={() => { if (plan.id === "pro") return; subscribePlan(plan.id); }} disabled={processing || plan.id === "pro"} style={{ padding: "16px", background: plan.id === "pro" ? "rgba(255,255,255,0.05)" : "#f5f5f5", color: plan.id === "pro" ? "rgba(245,245,245,0.25)" : "#030303", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.08)" : "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: plan.id === "pro" ? "not-allowed" : processing ? "not-allowed" : "pointer", opacity: (processing && plan.id !== "pro") ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{plan.id === "pro" ? "Coming Soon" : processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : trialActive ? `Subscribe — R${monthlyPrice}/mo` : isFree ? "Upgrade to " + plan.name : "Start 14-Day Free Trial"}</button>
                 )}
               </div>
             );
