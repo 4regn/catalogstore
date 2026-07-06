@@ -135,6 +135,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [livePromoBgColor, setLivePromoBgColor] = useState<string | null>(null);
   const [livePromoTextColor, setLivePromoTextColor] = useState<string | null>(null);
   const [liveSalePillColor, setLiveSalePillColor] = useState<string | null>(null);
+  const [livePercentOffPillColor, setLivePercentOffPillColor] = useState<string | null>(null);
   const [liveShowPercentOffPill, setLiveShowPercentOffPill] = useState<boolean | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
   const [navigating, setNavigating]             = useState(false);
@@ -242,6 +243,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.promoBgColor !== undefined) setLivePromoBgColor(e.data.promoBgColor);
       if (e.data.promoTextColor !== undefined) setLivePromoTextColor(e.data.promoTextColor);
       if (e.data.salePillColor !== undefined) setLiveSalePillColor(e.data.salePillColor);
+      if (e.data.percentOffPillColor !== undefined) setLivePercentOffPillColor(e.data.percentOffPillColor);
       if (e.data.showPercentOffPill !== undefined) setLiveShowPercentOffPill(e.data.showPercentOffPill);
     };
     window.addEventListener("message", handler);
@@ -325,6 +327,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const promoBgColor = livePromoBgColor || (cfg as any).promo_bg_color || "";
   const promoTextColor = livePromoTextColor || (cfg as any).promo_text_color || pageText;
   const salePillColor = liveSalePillColor || (cfg as any).sale_pill_color || accent;
+  const percentOffPillColor = livePercentOffPillColor || (cfg as any).percent_off_pill_color || accent;
   const showPercentOffPill = liveShowPercentOffPill !== null ? liveShowPercentOffPill : (cfg as any).show_percent_off_pill !== false;
   const displayFooterAbout = liveFooterAbout ?? (cfg as any).footer_about ?? seller?.description ?? "";
   const displayContactEmail = liveContactEmail ?? (cfg as any).contact_email ?? "";
@@ -775,7 +778,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <div style={{ position: "absolute", top: 12, left: 12, padding: "4px 12px", background: salePillColor, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Sale</div>
                     )}
                     {showPercentOffPill && product.old_price && product.old_price > product.price && (
-                      <div style={{ position: "absolute", top: 12, right: 12, padding: "4px 12px", background: salePillColor, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, letterSpacing: "0.05em" }}>-{Math.round((1 - product.price / product.old_price) * 100)}%</div>
+                      <div style={{ position: "absolute", top: 12, right: 12, padding: "4px 12px", background: percentOffPillColor, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, letterSpacing: "0.05em" }}>-{Math.round((1 - product.price / product.old_price) * 100)}%</div>
                     )}
                     {(() => { const pp = getProductPromo(product.id); return pp ? (
                       <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(42,42,46,0.75)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>

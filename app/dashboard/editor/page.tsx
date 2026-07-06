@@ -224,6 +224,7 @@ export default function StoreEditor() {
   const [promoBgColor, setPromoBgColor]         = useState("");
   const [promoTextColor, setPromoTextColor]     = useState("");
   const [salePillColor, setSalePillColor]       = useState("");
+  const [percentOffPillColor, setPercentOffPillColor] = useState("");
   const [showPercentOffPill, setShowPercentOffPill] = useState(true);
   const [promiseLabel, setPromiseLabel]         = useState("Our Promise");
   const [promiseTitle, setPromiseTitle]         = useState("Built on trust, delivered with care");
@@ -347,6 +348,7 @@ export default function StoreEditor() {
       if (s.store_config?.promo_bg_color) setPromoBgColor(s.store_config.promo_bg_color);
       if (s.store_config?.promo_text_color) setPromoTextColor(s.store_config.promo_text_color);
       if (s.store_config?.sale_pill_color) setSalePillColor(s.store_config.sale_pill_color);
+      if (s.store_config?.percent_off_pill_color) setPercentOffPillColor(s.store_config.percent_off_pill_color);
       if (s.store_config?.show_percent_off_pill === false) setShowPercentOffPill(false);
       if (s.store_config?.promise_label) setPromiseLabel(s.store_config.promise_label);
       if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
@@ -455,6 +457,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ promoBgColor }); }, [promoBgColor]);
   useEffect(() => { postUpdate({ promoTextColor }); }, [promoTextColor]);
   useEffect(() => { postUpdate({ salePillColor }); }, [salePillColor]);
+  useEffect(() => { postUpdate({ percentOffPillColor }); }, [percentOffPillColor]);
   useEffect(() => { postUpdate({ showPercentOffPill }); }, [showPercentOffPill]);
   useEffect(() => { postUpdate({ promiseLabel }); }, [promiseLabel]);
   useEffect(() => { postUpdate({ promiseTitle }); }, [promiseTitle]);
@@ -556,6 +559,7 @@ export default function StoreEditor() {
           promo_bg_color: promoBgColor || null,
           promo_text_color: promoTextColor || null,
           sale_pill_color: salePillColor || null,
+          percent_off_pill_color: percentOffPillColor || null,
           show_percent_off_pill: showPercentOffPill,
           hero_image: heroImageUrl || heroImagePreview || undefined,
           promise_label: promiseLabel,
@@ -1228,15 +1232,8 @@ export default function StoreEditor() {
                   <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Sale Pills</div>
                     <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Discounted products always show a "Sale" pill on the top left.</div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0" }}>
-                      <div>
-                        <div style={{ fontSize: 12 }}>Show % off pill</div>
-                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Adds a "-20%" pill on the top right too</div>
-                      </div>
-                      <button onClick={() => setShowPercentOffPill(!showPercentOffPill)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: showPercentOffPill ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: showPercentOffPill ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Pill Color</span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Sale Pill Color</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <label style={{ width: 28, height: 28, borderRadius: 6, background: salePillColor || seller?.primary_color || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                           <input type="color" value={salePillColor || seller?.primary_color || "#9c7c62"} onChange={e => setSalePillColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
@@ -1245,7 +1242,27 @@ export default function StoreEditor() {
                         {salePillColor && <button onClick={() => setSalePillColor("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
                       </div>
                     </div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 6 }}>Applies to both the Sale and % off pills.</div>
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", marginTop: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 12 }}>Show % off pill</div>
+                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Adds a "-20%" pill on the top right too</div>
+                      </div>
+                      <button onClick={() => setShowPercentOffPill(!showPercentOffPill)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: showPercentOffPill ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: showPercentOffPill ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
+                    </div>
+                    {showPercentOffPill && (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>% Off Pill Color</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ width: 28, height: 28, borderRadius: 6, background: percentOffPillColor || seller?.primary_color || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                            <input type="color" value={percentOffPillColor || seller?.primary_color || "#9c7c62"} onChange={e => setPercentOffPillColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                          </label>
+                          <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{percentOffPillColor || seller?.primary_color || "#9c7c62"}{!percentOffPillColor && " (brand color)"}</span>
+                          {percentOffPillColor && <button onClick={() => setPercentOffPillColor("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 6 }}>Each pill has its own color — changing one won't affect the other.</div>
                   </div>
                 )}
 

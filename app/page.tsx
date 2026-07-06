@@ -13,17 +13,26 @@ const TICKER_ITEMS = [
   "Make Money While You Sleep", "Zero Coding Required",
 ];
 
-// One paid plan, everything currently buildable -- a Pro tier comes later as the
-// real upsell once there's more to upsell to. Limits here are deliberate: 50
-// products keeps storage + perf costs predictable on the current tier; sellers
-// who outgrow them upgrade.
+// Two tiers: Free (GlassChrome only, capped) to get a real store live with
+// zero commitment, and Starter (all 4 templates, higher limits, custom
+// domain) as the paid upsell once a seller is ready to grow.
+const FREE_PLAN_FEATURES = [
+  "Up to 4 products",
+  "5 photos per product",
+  "GlassChrome template",
+  "Free store link (catalogstore.co.za/store)",
+  "Visual store editor",
+  "Card, EFT, Apple Pay, WhatsApp checkout",
+  "No credit card required",
+];
 const PLAN_FEATURES = [
   "Up to 50 products",
+  "20 photos per product",
   "Up to 10 collections",
   "All 4 store templates",
   "Personal onboarding — we set you up 1-on-1",
   "Custom domain support — we help you connect it",
-  "Free store link (catalogstore.co.za/store/yourstore)",
+  "Free store link (catalogstore.co.za/store)",
   "Visual store editor",
   "Card, EFT, Apple Pay, WhatsApp checkout",
   "Cancel anytime",
@@ -112,7 +121,7 @@ const FAQS = [
   },
   {
     q: "Do you take a percentage of my sales?",
-    a: "Never. We charge a flat R199/month. 100% of your sales revenue goes directly to your account.",
+    a: "Never. You're either on the Free plan (R0) or Starter (a flat R199/month). 100% of your sales revenue goes directly to your account either way.",
   },
   {
     q: "What happens after my 14-day free trial?",
@@ -120,11 +129,11 @@ const FAQS = [
   },
   {
     q: "Can I use my own custom domain?",
-    a: "Yes — every store includes custom domain support. If you own yourbrand.co.za we'll personally help you connect it so customers find you directly. Your free store link (catalogstore.co.za/store/yourstore) is always included as a fallback.",
+    a: "Yes — Starter plan stores include custom domain support. If you own yourbrand.co.za we'll personally help you connect it so customers find you directly. Every store, on any plan, always has a free store link (catalogstore.co.za/store) too.",
   },
   {
     q: "How do I add my products?",
-    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. Your plan includes up to 50 products — plenty to launch with.",
+    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. The Free plan includes up to 4 products to get started; Starter goes up to 50.",
   },
   {
     q: "What if I get stuck?",
@@ -1373,23 +1382,39 @@ ${collections.length > 0 ? `
             upsell; we have to prove we can sell at all first. Everything's included. */}
         <section id="pricing" style={{ padding: "120px 0 100px" }}>
           <div className="section-label reveal">Pricing</div>
-          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(32px,5vw,56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase", marginBottom: 16 }}>One plan. Everything included.</h2>
-          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 20, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>No tiers, no upsells. Every seller gets the full platform — including 1-on-1 onboarding from us.</p>
-          <div className="reveal" style={{ textAlign: "center", marginBottom: 56 }}>
-            <span style={{ display: "inline-block", padding: "8px 24px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 100, fontSize: 11, fontWeight: 800, color: "var(--neon)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              14-Day Free Trial
-            </span>
-          </div>
-          <div className="reveal" style={{ maxWidth: 520, margin: "0 auto" }}>
-            <div className="glass-card grad-border" style={{ padding: "52px 40px", borderRadius: 20, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)" }} />
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Catalogstore Plan</div>
+          <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(32px,5vw,56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase", marginBottom: 16 }}>Start free. Upgrade when ready.</h2>
+          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 56, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>Card payments, EFT, Apple Pay, and WhatsApp checkout are available on every plan — including Free.</p>
+
+          <div className="reveal pricing-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 920, margin: "0 auto" }}>
+            {/* FREE PLAN */}
+            <div className="glass-card" style={{ padding: "44px 36px", borderRadius: 20, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--text-dim)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Free Plan</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, justifyContent: "center" }}>
-                <span className="price-num" style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-0.05em" }}>R199</span>
+                <span className="price-num" style={{ fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em" }}>R0</span>
                 <span style={{ fontSize: 14, color: "var(--text-dim)" }}>/mo</span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 32, fontWeight: 600, textAlign: "center" }}>14 days free, then R199/month</div>
-              <ul style={{ listStyle: "none", marginBottom: 36 }}>
+              <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 28, fontWeight: 600, textAlign: "center" }}>Free forever — no trial, no card</div>
+              <ul style={{ listStyle: "none", marginBottom: 32, flex: 1 }}>
+                {FREE_PLAN_FEATURES.map(f => (
+                  <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link href="/signup" style={{ display: "block", width: "100%", padding: 18, borderRadius: 100, textAlign: "center", fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "rgba(255,255,255,0.06)", color: "#f5f5f5", border: "1px solid var(--glass-b)" }}>
+                Start For Free
+              </Link>
+            </div>
+
+            {/* STARTER PLAN */}
+            <div className="glass-card grad-border" style={{ padding: "44px 36px", borderRadius: 20, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)" }} />
+              <span style={{ position: "absolute", top: 20, right: 20, padding: "4px 12px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100, fontSize: 9, fontWeight: 800, color: "var(--neon)", letterSpacing: "0.06em", textTransform: "uppercase" }}>14-Day Trial</span>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Starter Plan</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, justifyContent: "center" }}>
+                <span className="price-num" style={{ fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em" }}>R199</span>
+                <span style={{ fontSize: 14, color: "var(--text-dim)" }}>/mo</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 28, fontWeight: 600, textAlign: "center" }}>14 days free, then R199/month</div>
+              <ul style={{ listStyle: "none", marginBottom: 32, flex: 1 }}>
                 {PLAN_FEATURES.map(f => (
                   <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>
                 ))}
@@ -1398,15 +1423,9 @@ ${collections.length > 0 ? `
                 Start Your 14-Day Free Trial
               </Link>
               <div style={{ marginTop: 16, textAlign: "center", fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
-                14 days free · No credit card needed · Cancel anytime
+                No credit card needed for the trial · Cancel anytime
               </div>
             </div>
-            {/* GROWTH HINT — signals to sellers that there's a roadmap so they don't worry
-                about hitting the limits later. Not a 'Coming Soon' card because Pro isn't
-                built; just a soft acknowledgement that we're expanding. */}
-            <p className="reveal" style={{ textAlign: "center", marginTop: 32, fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", letterSpacing: "0.02em" }}>
-              Outgrowing the limits? A higher tier with more products and new templates is coming. Early sellers get grandfathered pricing.
-            </p>
           </div>
         </section>
 
