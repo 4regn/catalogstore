@@ -1268,8 +1268,8 @@ export default function StoreEditor() {
 
                 {seller?.template === "soft-luxury" && (
                   <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Promo Banner</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Shown at the top of your store when a discount code has "Show countdown" enabled.</div>
+                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Hero Countdown</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Shown in your hero section when a discount code has "Show countdown" enabled. Only one discount displays at a time.</div>
                     {[
                       { label: "Background", value: promoBgColor, setValue: setPromoBgColor, fallback: "", fallbackLabel: "auto" },
                       { label: "Text", value: promoTextColor, setValue: setPromoTextColor, fallback: textColor, fallbackLabel: "default" },

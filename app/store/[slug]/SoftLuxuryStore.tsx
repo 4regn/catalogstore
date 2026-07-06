@@ -573,42 +573,6 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </div>
         </header>
 
-        {/* PROMO COUNTDOWN — floats below the header over the hero image when
-            the header is set to transparent, matching the header's own
-            floating behavior; otherwise sits in normal flow below it. */}
-        {promoCountdown && promoCountdown.timeLeft && (() => {
-          const floatOverHero = headerTransparent;
-          const bannerText = floatOverHero ? "rgba(255,255,255,0.95)" : promoTextColor;
-          const bannerMuted = floatOverHero ? "rgba(255,255,255,0.7)" : promoTextColor + "99";
-          const bannerDescColor = floatOverHero ? "rgba(255,255,255,0.85)" : promoTextColor + "cc";
-          return (
-            <div style={{
-              position: floatOverHero ? "absolute" : "static",
-              top: floatOverHero ? 72 : undefined,
-              left: floatOverHero ? 0 : undefined,
-              right: floatOverHero ? 0 : undefined,
-              zIndex: floatOverHero ? 99 : undefined,
-              background: floatOverHero ? "transparent" : (promoBgColor || ("linear-gradient(90deg, " + accent + "08 0%, rgba(0,0,0,0.01) 50%, " + accent + "08 100%)")),
-              borderBottom: floatOverHero ? "none" : "1px solid " + (promoBgColor ? promoTextColor + "20" : accent + "18"),
-              padding: "14px 20px", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 6,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" as const }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 10, letterSpacing: "0.15em", color: bannerMuted, textTransform: "uppercase" as const }}>Limited offer</span>
-                  <span style={{ fontFamily: fonts.body, fontSize: 14, fontWeight: 500, color: bannerText }}>Use code <span style={{ padding: "3px 10px", background: accent + "10", border: "1px solid " + accent + "20", borderRadius: 4, fontWeight: 700, letterSpacing: "0.06em", fontSize: 13, color: accent }}>{promoCountdown.code}</span> for {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}{promoCountdown.applies_to !== "cart" ? " " + promoCountdown.applies_to : ""}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 10, letterSpacing: "0.12em", color: bannerMuted, textTransform: "uppercase" as const }}>Ends in</span>
-                  <span style={{ fontFamily: fonts.body, fontSize: 16, fontWeight: 600, color: bannerText, letterSpacing: "0.08em", background: accent + "0a", padding: "4px 12px", borderRadius: 6, border: "1px solid " + accent + "15" }}>{promoCountdown.timeLeft}</span>
-                </div>
-              </div>
-              {promoCountdown.description && (
-                <p style={{ fontFamily: fonts.heading, fontSize: 13, fontStyle: "italic", fontWeight: 400, color: bannerDescColor, margin: 0, textAlign: "center" as const }}>{promoCountdown.description}</p>
-              )}
-            </div>
-          );
-        })()}
-
         {!initialProductId && (<>
         {/* HERO */}
         <EditSection id="hero">
@@ -618,18 +582,38 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                 <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-end", padding: "0 48px 60px", maxWidth: 640 }}>
+                  {promoCountdown && promoCountdown.timeLeft && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", marginBottom: 18, borderRadius: 100, border: `1px solid ${promoTextColor}30`, background: promoBgColor || "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+                      <span style={{ fontFamily: fonts.heading, fontStyle: "italic", fontSize: 14, fontWeight: 500, color: promoTextColor }}>{promoCountdown.code} — {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}</span>
+                      <span style={{ width: 1, height: 12, background: `${promoTextColor}40` }} />
+                      <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, color: promoTextColor + "cc" }}>{promoCountdown.timeLeft}</span>
+                    </div>
+                  )}
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                   {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{displayHeroTitle}</h1>}
                   {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
                   <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
+                  {promoCountdown?.description && (
+                    <p style={{ fontFamily: fonts.heading, fontSize: 12, fontStyle: "italic", fontWeight: 400, color: pageMuted, margin: "14px 0 0" }}>{promoCountdown.description}</p>
+                  )}
                 </div>
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
+                {promoCountdown && promoCountdown.timeLeft && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", marginBottom: 18, borderRadius: 100, border: `1px solid ${accent}30`, background: promoBgColor || "transparent" }}>
+                    <span style={{ fontFamily: fonts.heading, fontStyle: "italic", fontSize: 14, fontWeight: 500, color: accent }}>{promoCountdown.code} — {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}</span>
+                    <span style={{ width: 1, height: 12, background: `${accent}30` }} />
+                    <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, color: pageMuted }}>{promoCountdown.timeLeft}</span>
+                  </div>
+                )}
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                 {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
                 {displayDescription && <p style={{ fontSize: 14, color: pageMuted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
                 <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
+                {promoCountdown?.description && (
+                  <p style={{ fontFamily: fonts.heading, fontSize: 12, fontStyle: "italic", fontWeight: 400, color: pageMuted, margin: "14px 0 0" }}>{promoCountdown.description}</p>
+                )}
               </div>
             )}
           </section>
