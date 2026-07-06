@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       accountType,
       branchCode,
       slug: requestedSlug,
+      customSlug,
     } = body;
 
     // ─── 1. VALIDATE ───────────────────────────────────────
@@ -70,25 +71,51 @@ export async function POST(req: NextRequest) {
       );
 
     // ─── 3. RESOLVE A UNIQUE SLUG ─────────────────────────
-    let slug = requestedSlug || "";
-    if (!slug) slug = "user";
-    let candidateSlug = slug;
-    let suffix = 1;
-    while (true) {
+    // customSlug = the affiliate explicitly chose their referral code. It must
+    // be available as-is — we error rather than silently renaming it, since
+    // the whole point is a code they picked (their brand, their handle).
+    let slug: string;
+    if (customSlug) {
+      const cleaned = String(customSlug).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+      if (cleaned.length < 2) {
+        return NextResponse.json(
+          { error: "Custom referral code must be at least 2 characters (letters, numbers, - or _)." },
+          { status: 400 }
+        );
+      }
       const { data: slugTaken } = await getAdmin()
         .from("affiliates")
         .select("id")
-        .eq("slug", candidateSlug)
+        .eq("slug", cleaned)
         .maybeSingle();
-      if (!slugTaken) break;
-      suffix += 1;
-      candidateSlug = `${slug}${suffix}`;
-      if (suffix > 99) {
-        candidateSlug = `${slug}-${Date.now().toString(36)}`;
-        break;
+      if (slugTaken) {
+        return NextResponse.json(
+          { error: "That referral code is already taken — try another one." },
+          { status: 409 }
+        );
       }
+      slug = cleaned;
+    } else {
+      // Auto-generated from full name: silently suffix until unique.
+      let base = requestedSlug || "user";
+      let candidateSlug = base;
+      let suffix = 1;
+      while (true) {
+        const { data: slugTaken } = await getAdmin()
+          .from("affiliates")
+          .select("id")
+          .eq("slug", candidateSlug)
+          .maybeSingle();
+        if (!slugTaken) break;
+        suffix += 1;
+        candidateSlug = `${base}${suffix}`;
+        if (suffix > 99) {
+          candidateSlug = `${base}-${Date.now().toString(36)}`;
+          break;
+        }
+      }
+      slug = candidateSlug;
     }
-    slug = candidateSlug;
 
     // ─── 4. CREATE AUTH USER ──────────────────────────────
     const { data: authData, error: authErr } = await getAdmin().auth.admin.createUser({

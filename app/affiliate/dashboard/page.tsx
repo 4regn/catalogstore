@@ -300,7 +300,7 @@ export default function AffiliateDashboard() {
             <button
               style={styles.shareBtn}
               onClick={async () => {
-                const caption = `Open a real online store and take card payments online 👀\nBuilt for SA sellers — R99/month, zero commission.\n\n${refLink(affiliate.slug)}`;
+                const caption = `Open a real online store and take card payments online 👀\nBuilt for SA sellers — zero commission.\nSign up with my link and pay R149/month instead of R199/month 🎉\n\n${refLink(affiliate.slug)}`;
                 try {
                   await navigator.clipboard.writeText(caption);
                   showToast("Caption copied");

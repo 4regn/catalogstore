@@ -38,6 +38,9 @@ export default function AffiliateSignup() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [customCode, setCustomCode] = useState("");
+  const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [codeTimer, setCodeTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Step 2: Banking
   const [bankName, setBankName] = useState(SA_BANKS[0].name);
@@ -48,12 +51,33 @@ export default function AffiliateSignup() {
 
   const branchCode = SA_BANKS.find((b) => b.name === bankName)?.branch || "";
 
+  function handleCustomCodeChange(value: string) {
+    const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+    setCustomCode(cleaned);
+    setCodeStatus("idle");
+    if (codeTimer) clearTimeout(codeTimer);
+    if (cleaned.length >= 2) {
+      setCodeStatus("checking");
+      const t = setTimeout(async () => {
+        const { data } = await supabase
+          .from("affiliate_public_profile")
+          .select("slug")
+          .eq("slug", cleaned)
+          .maybeSingle();
+        setCodeStatus(data ? "taken" : "available");
+      }, 400);
+      setCodeTimer(t);
+    }
+  }
+
   function validateStep1() {
     if (!fullName.trim() || fullName.trim().length < 2) return "Enter your full name";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Enter a valid email";
     if (!/^(\+27|0)[6-8][0-9]{8}$/.test(phone.replace(/\s/g, "")))
       return "Enter a valid SA phone number";
     if (password.length < 8) return "Password must be at least 8 characters";
+    if (customCode && customCode.length < 2) return "Referral code must be at least 2 characters";
+    if (customCode && codeStatus === "taken") return "That referral code is already taken";
     return "";
   }
 
@@ -92,6 +116,7 @@ export default function AffiliateSignup() {
           accountType,
           branchCode,
           slug: slugify(fullName),
+          customSlug: customCode || undefined,
         }),
       });
 
@@ -193,6 +218,33 @@ export default function AffiliateSignup() {
                   placeholder="At least 8 characters"
                   style={styles.input}
                 />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>
+                  Custom referral code <span style={{ opacity: 0.4, textTransform: "none", letterSpacing: 0 }}>(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={customCode}
+                  onChange={(e) => handleCustomCodeChange(e.target.value)}
+                  placeholder="e.g. thandi-deals — leave blank to auto-generate"
+                  style={{
+                    ...styles.input,
+                    ...(codeStatus === "taken" ? { borderColor: "rgba(255,61,110,0.5)" } : {}),
+                    ...(codeStatus === "available" ? { borderColor: "rgba(34,197,94,0.5)" } : {}),
+                  }}
+                />
+                {customCode.length >= 2 && (
+                  <p style={{
+                    marginTop: 6, fontSize: 12, fontWeight: 600,
+                    color: codeStatus === "taken" ? "#ff3d6e" : codeStatus === "available" ? "#22c55e" : "rgba(245,245,245,0.35)",
+                  }}>
+                    {codeStatus === "checking" && "Checking availability..."}
+                    {codeStatus === "available" && `✓ Available — your link will be catalogstore.co.za/?ref=${customCode}`}
+                    {codeStatus === "taken" && "✕ Already taken — try another code"}
+                  </p>
+                )}
               </div>
 
               {error && <div style={styles.error}>{error}</div>}

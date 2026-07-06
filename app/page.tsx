@@ -114,11 +114,11 @@ const FAQS = [
   },
   {
     q: "Do you take a percentage of my sales?",
-    a: "Never. We charge a flat R149/month. 100% of your sales revenue goes directly to your account.",
+    a: "Never. We charge a flat R199/month (R149/month if you signed up with an affiliate referral code). 100% of your sales revenue goes directly to your account.",
   },
   {
     q: "What happens after my 14-day free trial?",
-    a: "After your 14-day free trial, you're charged R149/month. Cancel anytime — no contracts, no penalties.",
+    a: "After your 14-day free trial, you're charged R199/month — or R149/month for life if you signed up with an affiliate referral code. Cancel anytime — no contracts, no penalties.",
   },
   {
     q: "Can I use my own custom domain?",
@@ -1304,19 +1304,19 @@ ${collections.length > 0 ? `
           <div style={{ maxWidth: 820, width: "100%" }}>
             <div className="fu1 live-badge" style={{ marginBottom: 40 }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--neon)", animation: "pulse-ring 2s infinite", flexShrink: 0 }} />
-              14-Day Free Trial, Then R149/month
+              14-Day Free Trial, Then R199/month
             </div>
             <h1 className="fu2" style={{ fontSize: "clamp(46px,9vw,104px)", fontWeight: 900, lineHeight: 0.92, letterSpacing: "-0.06em", textTransform: "uppercase", marginBottom: 32 }}>
               Built for <span className="shimmer-text">South African sellers.</span>
             </h1>
             <p className="fu3" style={{ fontSize: 17, lineHeight: 1.85, color: "var(--text-dim)", maxWidth: 560, margin: "0 auto 52px", fontWeight: 400 }}>
-              Open a real online store in minutes. Your customers shop and pay with their cards — no more chasing WhatsApp orders. 14 days free, then R149/month. Zero commission.
+              Open a real online store in minutes. Your customers shop and pay with their cards — no more chasing WhatsApp orders. 14 days free, then R199/month. Zero commission.
             </p>
             <div className="fu4 hero-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
               <Link href="/signup" className="glow-btn">Start 14-Day Free Trial</Link>
               <a href="#ai-preview" className="outline-btn">✦ Try the AI Preview</a>
             </div>
-            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>R0 today · R149/month after 14 days · Cancel anytime</p>
+            <p className="fu5" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, letterSpacing: "0.04em" }}>R0 today · R199/month after 14 days · Only R149/month with a referral code · Cancel anytime</p>
             <div className="fu5" style={{ display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap" }}>
               {[{ val: "14 Days", label: "Free Trial" }, { val: "0%", label: "Commission" }, { val: "Online", label: "Card Payments" }].map((stat, i) => (
                 <div key={i} style={{ display: "flex", gap: 48, alignItems: "center" }}>
@@ -1387,10 +1387,10 @@ ${collections.length > 0 ? `
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--grad)" }} />
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--neon)", fontWeight: 800, marginBottom: 20, textAlign: "center" }}>Catalogstore Plan</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, justifyContent: "center" }}>
-                <span className="price-num" style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-0.05em" }}>R149</span>
+                <span className="price-num" style={{ fontSize: 72, fontWeight: 900, letterSpacing: "-0.05em" }}>R199</span>
                 <span style={{ fontSize: 14, color: "var(--text-dim)" }}>/mo</span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 32, fontWeight: 600, textAlign: "center" }}>14 days free, then R149/month</div>
+              <div style={{ fontSize: 12, color: "var(--neon)", marginBottom: 32, fontWeight: 600, textAlign: "center" }}>14 days free, then R199/month — or R149/month with a referral code</div>
               <ul style={{ listStyle: "none", marginBottom: 36 }}>
                 {PLAN_FEATURES.map(f => (
                   <li key={f} className="check-item"><span className="check-mark">✓</span>{f}</li>
@@ -1776,7 +1776,7 @@ ${collections.length > 0 ? `
                   <div style={{ marginTop: 16, padding: "36px 32px", background: "var(--neon-soft)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 16, textAlign: "center", position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 0%,rgba(255,107,53,0.1) 0%,transparent 60%)", pointerEvents: "none" }} />
                     <h3 style={{ fontSize: "clamp(18px,2.5vw,26px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.03em", marginBottom: 10, position: "relative" }}>Ready to go live?</h3>
-                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 24, position: "relative" }}>Start your 14-day free trial — R0 today, R149/month after day 14.</p>
+                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 24, position: "relative" }}>Start your 14-day free trial — R0 today, R199/month after day 14.</p>
                     <Link href="/signup" style={{ display: "inline-block", padding: "16px 40px", borderRadius: 100, background: "var(--grad)", color: "#fff", fontFamily: "'Schibsted Grotesk',sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", textDecoration: "none", boxShadow: "0 0 32px rgba(255,107,53,0.25)", position: "relative" }}>
                       Start 14-Day Free Trial
                     </Link>

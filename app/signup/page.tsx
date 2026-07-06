@@ -221,7 +221,7 @@ export default function SignUp() {
               <div style={{ position: "relative" }}>
                 <input
                   type="text"
-                  placeholder="Have a referral code? Paste it here"
+                  placeholder="Have a referral code? Pay R149/mo instead of R199/mo"
                   value={refCode}
                   onChange={(e) => handleRefCodeChange(e.target.value)}
                   disabled={refLocked}
@@ -264,7 +264,7 @@ export default function SignUp() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
-                  Referred by {refAffiliateName}
+                  Referred by {refAffiliateName} — you&apos;ll pay R149/month instead of R199/month
                 </div>
               )}
             </div>

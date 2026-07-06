@@ -103,6 +103,62 @@ export async function POST(req: NextRequest) {
         subscription_grace_until: null,
       }).eq("id", sellerId);
 
+      /* Affiliate commission: 50% of each payment from a referred seller,
+         for that seller's first 6 paid months. Idempotent via the unique
+         pf_payment_id on affiliate_commission_events — PayFast may retry
+         the same ITN, but the second insert conflicts and we skip. */
+      if (amountGross > 0) {
+        try {
+          const { data: referral } = await supabase
+            .from("affiliate_referrals")
+            .select("id, affiliate_id, payments_counted, total_earned_from_seller, first_payment_at")
+            .eq("seller_id", sellerId)
+            .maybeSingle();
+
+          if (referral && (referral.payments_counted || 0) < 6) {
+            const pfPaymentId = data.pf_payment_id || data.m_payment_id + "-" + (data.billing_date || new Date().toISOString().split("T")[0]);
+            const commissionCents = Math.round(amountGross * 100 * 0.5);
+
+            const { error: eventErr } = await supabase.from("affiliate_commission_events").insert({
+              affiliate_id: referral.affiliate_id,
+              referral_id: referral.id,
+              seller_id: sellerId,
+              pf_payment_id: pfPaymentId,
+              amount_gross_cents: Math.round(amountGross * 100),
+              commission_cents: commissionCents,
+            });
+
+            // Unique-violation (or any insert failure) = already processed; skip accrual.
+            if (!eventErr) {
+              const nowIso = new Date().toISOString();
+              await supabase.from("affiliate_referrals").update({
+                status: "active",
+                payments_counted: (referral.payments_counted || 0) + 1,
+                total_earned_from_seller: (referral.total_earned_from_seller || 0) + commissionCents,
+                first_payment_at: referral.first_payment_at || nowIso,
+                last_payment_at: nowIso,
+                last_payment_status: "complete",
+              }).eq("id", referral.id);
+
+              const { data: aff } = await supabase
+                .from("affiliates")
+                .select("pending_balance, total_earned")
+                .eq("id", referral.affiliate_id)
+                .maybeSingle();
+              if (aff) {
+                await supabase.from("affiliates").update({
+                  pending_balance: (aff.pending_balance || 0) + commissionCents,
+                  total_earned: (aff.total_earned || 0) + commissionCents,
+                }).eq("id", referral.affiliate_id);
+              }
+            }
+          }
+        } catch (commErr) {
+          // Never fail the ITN over commission bookkeeping — seller is already activated.
+          console.error("Affiliate commission accrual failed:", commErr);
+        }
+      }
+
       return NextResponse.json({ status: "ok", action: "activated" });
     }
 

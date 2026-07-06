@@ -12,7 +12,7 @@ const PLANS = [
   {
     id: "starter",
     name: "Catalogstore",
-    price: 149,
+    price: 199,
     features: [
       "Up to 20 products",
       "5 photos per product",
@@ -35,6 +35,7 @@ export default function BillingPage() {
   const [seller, setSeller] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [pricing, setPricing] = useState<{ referred: boolean; price: number } | null>(null);
 
   useEffect(() => { load(); }, []);
 
@@ -44,7 +45,17 @@ export default function BillingPage() {
     const { data } = await supabase.from("sellers").select("*").eq("id", user.id).single();
     if (data) setSeller(data);
     setLoading(false);
+    // Referred sellers pay a permanently discounted rate — fetch which applies.
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token || "";
+      const res = await fetch("/api/subscription/pricing", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setPricing(await res.json());
+    } catch { /* fall back to standard price */ }
   };
+
+  const monthlyPrice = pricing?.price ?? 199;
+  const isReferred = pricing?.referred === true;
 
   const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
@@ -180,7 +191,7 @@ export default function BillingPage() {
               Your store goes offline in {graceDaysLeft} {graceDaysLeft === 1 ? "day" : "days"}{graceDateStr ? ` (${graceDateStr})` : ""}
             </div>
             <p style={{ fontSize: 13, color: "rgba(245,245,245,0.5)", maxWidth: 420, margin: "0 auto", lineHeight: 1.5 }}>
-              Your last R149 charge didn&apos;t go through. PayFast will keep retrying your card over the next {graceDaysLeft} {graceDaysLeft === 1 ? "day" : "days"}. Make sure your card has funds, or update it on PayFast — your store stays live in the meantime.
+              Your last R{monthlyPrice} charge didn&apos;t go through. PayFast will keep retrying your card over the next {graceDaysLeft} {graceDaysLeft === 1 ? "day" : "days"}. Make sure your card has funds, or update it on PayFast — your store stays live in the meantime.
             </p>
           </div>
         )}
@@ -196,7 +207,7 @@ export default function BillingPage() {
               disabled={processing}
               style={{ padding: "16px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}
             >
-              {processing ? "Redirecting..." : "Reactivate Store — R149"}
+              {processing ? "Redirecting..." : `Reactivate Store — R${monthlyPrice}`}
             </button>
           </div>
         )}
@@ -213,10 +224,12 @@ export default function BillingPage() {
                 <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 16, color: plan.id === "pro" ? N : "rgba(245,245,245,0.5)" }}>{plan.name}</div>
 
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 36, fontWeight: 900, letterSpacing: "-0.04em" }}>R{plan.price}</span>
+                  <span style={{ fontSize: 36, fontWeight: 900, letterSpacing: "-0.04em" }}>R{monthlyPrice}</span>
+                  {isReferred && <span style={{ fontSize: 18, fontWeight: 900, textDecoration: "line-through", color: "rgba(245,245,245,0.25)" }}>R{plan.price}</span>}
                   <span style={{ fontSize: 13, color: "rgba(245,245,245,0.25)" }}>/mo</span>
                 </div>
 
+                {isReferred && <p style={{ fontSize: 11, color: N, marginBottom: 4, fontWeight: 700 }}>Referral discount — R{monthlyPrice}/month for life</p>}
                 {!isActive && plan.id === "starter" && <p style={{ fontSize: 11, color: "#22c55e", marginBottom: 16 }}>14-day free trial — R0 today, no charge until day 15</p>}
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, flex: 1, marginTop: 16 }}>
@@ -233,7 +246,7 @@ export default function BillingPage() {
                 ) : isActive && plan.id === "starter" ? (
                   <div style={{ padding: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, textAlign: "center", fontSize: 12, fontWeight: 700, color: "rgba(245,245,245,0.25)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Downgrade</div>
                 ) : (
-                  <button onClick={() => { if (plan.id === "pro") return; subscribePlan(plan.id); }} disabled={processing || plan.id === "pro"} style={{ padding: "16px", background: plan.id === "pro" ? "rgba(255,255,255,0.05)" : "#f5f5f5", color: plan.id === "pro" ? "rgba(245,245,245,0.25)" : "#030303", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.08)" : "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: plan.id === "pro" ? "not-allowed" : processing ? "not-allowed" : "pointer", opacity: (processing && plan.id !== "pro") ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{plan.id === "pro" ? "Coming Soon" : processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : trialActive ? "Subscribe — R149/mo" : "Start 14-Day Free Trial"}</button>
+                  <button onClick={() => { if (plan.id === "pro") return; subscribePlan(plan.id); }} disabled={processing || plan.id === "pro"} style={{ padding: "16px", background: plan.id === "pro" ? "rgba(255,255,255,0.05)" : "#f5f5f5", color: plan.id === "pro" ? "rgba(245,245,245,0.25)" : "#030303", border: plan.id === "pro" ? "1px solid rgba(255,255,255,0.08)" : "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: plan.id === "pro" ? "not-allowed" : processing ? "not-allowed" : "pointer", opacity: (processing && plan.id !== "pro") ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>{plan.id === "pro" ? "Coming Soon" : processing ? "Redirecting..." : isActive ? "Upgrade to " + plan.name : trialActive ? `Subscribe — R${monthlyPrice}/mo` : "Start 14-Day Free Trial"}</button>
                 )}
               </div>
             );
@@ -241,7 +254,7 @@ export default function BillingPage() {
         </div>
         )}
 
-        {!isExpired && <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>14-day free trial. Then R149/month. Cancel anytime. Prices in ZAR.</p>}
+        {!isExpired && <p style={{ textAlign: "center", fontSize: 11, color: "rgba(245,245,245,0.15)", marginTop: 24 }}>14-day free trial. Then R{monthlyPrice}/month{isReferred ? " with your referral discount" : ""}. Cancel anytime. Prices in ZAR.</p>}
 
         {/* CANCEL SUBSCRIPTION */}
         {isActive && (

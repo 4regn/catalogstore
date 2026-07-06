@@ -23,10 +23,13 @@ function rateLimit(ip: string): boolean {
 // 'Catalogstore Plan'. Pro tier removed -- the Pro features got merged into Starter
 // (all templates, custom domain support, no 'Powered by CatalogStore' badge, personal
 // onboarding). When we have proof we can sell, we can add a higher tier back.
-const PLANS: Record<string, { name: string; recurringAmount: number; trialDays: number }> = {
+// Referred sellers (signed up with an affiliate code) pay the discounted
+// referredAmount permanently; everyone else pays standardAmount.
+const PLANS: Record<string, { name: string; standardAmount: number; referredAmount: number; trialDays: number }> = {
   starter: {
     name: "Catalogstore",
-    recurringAmount: 149.00,
+    standardAmount: 199.00,
+    referredAmount: 149.00,
     trialDays: 14,
   },
 };
@@ -62,6 +65,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Seller not found." }, { status: 404 });
     }
 
+    // Referral pricing: sellers attributed to an affiliate pay the discounted rate.
+    const { data: referral } = await supabase
+      .from("affiliate_referrals")
+      .select("id")
+      .eq("seller_id", sellerId)
+      .maybeSingle();
+    const monthlyAmount = referral ? plan.referredAmount : plan.standardAmount;
+
     const merchantId = process.env.PAYFAST_MERCHANT_ID!;
     const merchantKey = process.env.PAYFAST_MERCHANT_KEY!;
     const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
@@ -80,8 +91,8 @@ export async function POST(req: NextRequest) {
     const escAttr = (v: unknown): string => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     const origin = safeOrigin(returnOrigin);
 
-    // Reactivation: charge R149 today. New signup during trial: R0 today,
-    // first R149 charge after trial ends.
+    // Reactivation: charge today. New signup during trial: R0 today,
+    // first charge after trial ends.
     const billingDate = new Date();
     if (!isReactivation) {
       if (seller.trial_ends_at) {
@@ -94,12 +105,12 @@ export async function POST(req: NextRequest) {
     }
     const billingDateStr = billingDate.toISOString().split("T")[0];
 
-    const todayAmount = isReactivation ? plan.recurringAmount.toFixed(2) : "0.00";
-    const recurringAmount = plan.recurringAmount.toFixed(2);
-    const itemName = `CatalogStore — R${plan.recurringAmount.toFixed(0)}/month`;
+    const todayAmount = isReactivation ? monthlyAmount.toFixed(2) : "0.00";
+    const recurringAmount = monthlyAmount.toFixed(2);
+    const itemName = `CatalogStore — R${monthlyAmount.toFixed(0)}/month`;
     const itemDescription = isReactivation
-      ? `R${plan.recurringAmount.toFixed(0)}/month subscription. Cancel anytime from your dashboard.`
-      : `14-day free trial (R0 today). After the trial, R${plan.recurringAmount.toFixed(0)}/month. Cancel anytime from your dashboard.`;
+      ? `R${monthlyAmount.toFixed(0)}/month subscription. Cancel anytime from your dashboard.`
+      : `14-day free trial (R0 today). After the trial, R${monthlyAmount.toFixed(0)}/month${referral ? " (referral discount applied)" : ""}. Cancel anytime from your dashboard.`;
 
     const fields: Record<string, string> = {
       merchant_id: merchantId,
