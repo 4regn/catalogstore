@@ -135,6 +135,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [livePromoBgColor, setLivePromoBgColor] = useState<string | null>(null);
   const [livePromoTextColor, setLivePromoTextColor] = useState<string | null>(null);
   const [liveSalePillColor, setLiveSalePillColor] = useState<string | null>(null);
+  const [liveShowPercentOffPill, setLiveShowPercentOffPill] = useState<boolean | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
   const [navigating, setNavigating]             = useState(false);
   const [policyModal, setPolicyModal]           = useState<{ title: string; content: string } | null>(null);
@@ -217,6 +218,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.promoBgColor !== undefined) setLivePromoBgColor(e.data.promoBgColor);
       if (e.data.promoTextColor !== undefined) setLivePromoTextColor(e.data.promoTextColor);
       if (e.data.salePillColor !== undefined) setLiveSalePillColor(e.data.salePillColor);
+      if (e.data.showPercentOffPill !== undefined) setLiveShowPercentOffPill(e.data.showPercentOffPill);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -299,6 +301,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const promoBgColor = livePromoBgColor || (cfg as any).promo_bg_color || "";
   const promoTextColor = livePromoTextColor || (cfg as any).promo_text_color || pageText;
   const salePillColor = liveSalePillColor || (cfg as any).sale_pill_color || accent;
+  const showPercentOffPill = liveShowPercentOffPill !== null ? liveShowPercentOffPill : (cfg as any).show_percent_off_pill !== false;
   const displayFooterAbout = liveFooterAbout ?? (cfg as any).footer_about ?? seller?.description ?? "";
   const displayContactEmail = liveContactEmail ?? (cfg as any).contact_email ?? "";
   const displayContactPhone = liveContactPhone ?? (cfg as any).contact_phone ?? "";
@@ -307,7 +310,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const productsCollapsed = (cfg as any).products_collapsed === true;
   const collections = seller?.collections || [];
   const marqueeTexts = (cfg.marquee_texts !== undefined ? cfg.marquee_texts.filter((t: string) => t.trim()) : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"]);
-  const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "\u2605", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "\u2708", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "\u21BA", title: "Easy Returns", desc: "14-day policy" }, { icon: "\u26A1", title: "Secure Payment", desc: "Card & WhatsApp" }];
+  const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }];
   const policyItems = livePolicyItems ?? (cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout for a personal experience." }]);
   const cats = ["All", ...collections.filter((c) => products.some((p) => pInCat(p, c)))];
   const filtered = (() => {
@@ -436,8 +439,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         style={{ position: "relative", outline: isHovered ? `2px solid ${accentColor}` : "2px solid transparent", outlineOffset: -2, cursor: "pointer", transition: "outline-color 0.2s", ...style }}
       >
         {isHovered && (
-          <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", background: accentColor, color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 12px", borderRadius: 100, zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
-            ✏️ Click to edit
+          <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", background: accentColor, color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 12px", borderRadius: 100, zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", gap: 5 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+            Click to edit
           </div>
         )}
         {children}
@@ -744,6 +748,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     )}
                     {product.old_price && product.old_price > product.price && (
+                      <div style={{ position: "absolute", top: 12, left: 12, padding: "4px 12px", background: salePillColor, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Sale</div>
+                    )}
+                    {showPercentOffPill && product.old_price && product.old_price > product.price && (
                       <div style={{ position: "absolute", top: 12, right: 12, padding: "4px 12px", background: salePillColor, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, letterSpacing: "0.05em" }}>-{Math.round((1 - product.price / product.old_price) * 100)}%</div>
                     )}
                     {(() => { const pp = getProductPromo(product.id); return pp ? (

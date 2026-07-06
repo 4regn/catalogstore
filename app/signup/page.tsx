@@ -122,7 +122,7 @@ export default function SignUp() {
     if (authData.user) {
       const sellerRow = plan === "free"
         ? { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
-            subscription_status: "free", subscription_plan: "free", trial_ends_at: null }
+            subscription_status: "free", subscription_plan: "free", trial_ends_at: null, template: "glass-futuristic" }
         : { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
             subscription_status: "trial", subscription_plan: "starter",
             trial_ends_at: (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString(); })() };
