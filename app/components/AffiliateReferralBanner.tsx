@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { supabase } from "../../lib/supabase";
+
+/* Hidden once a visitor is inside the app proper — a seller working in their
+   own dashboard/editor has already signed up; showing "Referred by X" there
+   is stale noise, not a trust signal, and on /dashboard/editor it competes
+   with the iframe for header space. */
+const HIDDEN_PREFIXES = ["/store", "/dashboard", "/admin", "/affiliate", "/checkout"];
 
 /**
  * AffiliateReferralBanner
@@ -16,6 +23,7 @@ import { supabase } from "../../lib/supabase";
  * - Renders nothing if no cookie or invalid slug
  */
 export default function AffiliateReferralBanner() {
+  const pathname = usePathname();
   const [name, setName] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -60,6 +68,7 @@ export default function AffiliateReferralBanner() {
   }
 
   if (!mounted || !name || dismissed) return null;
+  if (!pathname || HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
 
   return (
     <div style={styles.banner}>

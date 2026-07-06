@@ -133,7 +133,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveFooterBgColor, setLiveFooterBgColor] = useState<string | null>(null);
   const [liveFooterMutedColor, setLiveFooterMutedColor] = useState<string | null>(null);
   const [livePromoBgColor, setLivePromoBgColor] = useState<string | null>(null);
+  const [livePromoBgStyle, setLivePromoBgStyle] = useState<string | null>(null);
   const [livePromoTextColor, setLivePromoTextColor] = useState<string | null>(null);
+  const [livePromoTimerColor, setLivePromoTimerColor] = useState<string | null>(null);
   const [liveSalePillColor, setLiveSalePillColor] = useState<string | null>(null);
   const [livePercentOffPillColor, setLivePercentOffPillColor] = useState<string | null>(null);
   const [liveShowPercentOffPill, setLiveShowPercentOffPill] = useState<boolean | null>(null);
@@ -241,7 +243,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.footerBgColor !== undefined) setLiveFooterBgColor(e.data.footerBgColor);
       if (e.data.footerMutedColor !== undefined) setLiveFooterMutedColor(e.data.footerMutedColor);
       if (e.data.promoBgColor !== undefined) setLivePromoBgColor(e.data.promoBgColor);
+      if (e.data.promoBgStyle !== undefined) setLivePromoBgStyle(e.data.promoBgStyle);
       if (e.data.promoTextColor !== undefined) setLivePromoTextColor(e.data.promoTextColor);
+      if (e.data.promoTimerColor !== undefined) setLivePromoTimerColor(e.data.promoTimerColor);
       if (e.data.salePillColor !== undefined) setLiveSalePillColor(e.data.salePillColor);
       if (e.data.percentOffPillColor !== undefined) setLivePercentOffPillColor(e.data.percentOffPillColor);
       if (e.data.showPercentOffPill !== undefined) setLiveShowPercentOffPill(e.data.showPercentOffPill);
@@ -325,9 +329,21 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const footerTextColor = liveFooterTextColor || (cfg as any).footer_text_color || pageText;
   const footerMutedColor = liveFooterMutedColor || (cfg as any).footer_muted_color || pageMuted;
   const promoBgColor = livePromoBgColor || (cfg as any).promo_bg_color || "";
+  const promoBgStyle = livePromoBgStyle || (cfg as any).promo_bg_style || "glass";
   const promoTextColor = livePromoTextColor || (cfg as any).promo_text_color || pageText;
+  const promoTimerColor = livePromoTimerColor || (cfg as any).promo_timer_color || accent;
   const salePillColor = liveSalePillColor || (cfg as any).sale_pill_color || accent;
   const percentOffPillColor = livePercentOffPillColor || (cfg as any).percent_off_pill_color || accent;
+  /* Hero countdown chip background — three modes so a seller with a bold
+     pill color isn't stuck with a clashing glass tint underneath it. */
+  const promoChipStyle = (overImage: boolean): React.CSSProperties => {
+    if (promoBgStyle === "transparent") return { background: "transparent" };
+    if (promoBgStyle === "color") return { background: promoBgColor || accent + "12" };
+    return {
+      background: overImage ? "rgba(255,255,255,0.1)" : pageBg + "80",
+      backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+    };
+  };
   const showPercentOffPill = liveShowPercentOffPill !== null ? liveShowPercentOffPill : (cfg as any).show_percent_off_pill !== false;
   const displayFooterAbout = liveFooterAbout ?? (cfg as any).footer_about ?? seller?.description ?? "";
   const displayContactEmail = liveContactEmail ?? (cfg as any).contact_email ?? "";
@@ -583,10 +599,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-end", padding: "0 48px 60px", maxWidth: 640 }}>
                   {promoCountdown && promoCountdown.timeLeft && (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", marginBottom: 18, borderRadius: 100, border: `1px solid ${promoTextColor}30`, background: promoBgColor || "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", marginBottom: 18, borderRadius: 100, border: `1px solid ${promoTextColor}30`, ...promoChipStyle(true) }}>
                       <span style={{ fontFamily: fonts.heading, fontStyle: "italic", fontSize: 14, fontWeight: 500, color: promoTextColor }}>{promoCountdown.code} — {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}</span>
                       <span style={{ width: 1, height: 12, background: `${promoTextColor}40` }} />
-                      <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, color: promoTextColor + "cc" }}>{promoCountdown.timeLeft}</span>
+                      <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, fontWeight: 600, color: promoTimerColor }}>{promoCountdown.timeLeft}</span>
                     </div>
                   )}
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
@@ -601,10 +617,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             ) : (
               <div style={{ textAlign: "center", padding: "80px 40px 60px" }}>
                 {promoCountdown && promoCountdown.timeLeft && (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", marginBottom: 18, borderRadius: 100, border: `1px solid ${accent}30`, background: promoBgColor || "transparent" }}>
-                    <span style={{ fontFamily: fonts.heading, fontStyle: "italic", fontSize: 14, fontWeight: 500, color: accent }}>{promoCountdown.code} — {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}</span>
-                    <span style={{ width: 1, height: 12, background: `${accent}30` }} />
-                    <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, color: pageMuted }}>{promoCountdown.timeLeft}</span>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", marginBottom: 18, borderRadius: 100, border: `1px solid ${promoTextColor}30`, ...promoChipStyle(false) }}>
+                    <span style={{ fontFamily: fonts.heading, fontStyle: "italic", fontSize: 14, fontWeight: 500, color: promoTextColor }}>{promoCountdown.code} — {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}</span>
+                    <span style={{ width: 1, height: 12, background: `${promoTextColor}30` }} />
+                    <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, fontWeight: 600, color: promoTimerColor }}>{promoCountdown.timeLeft}</span>
                   </div>
                 )}
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}

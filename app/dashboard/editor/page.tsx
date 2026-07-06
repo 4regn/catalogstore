@@ -222,7 +222,9 @@ export default function StoreEditor() {
   const [footerBgColor, setFooterBgColor]       = useState("");
   const [footerMutedColor, setFooterMutedColor] = useState("");
   const [promoBgColor, setPromoBgColor]         = useState("");
+  const [promoBgStyle, setPromoBgStyle]         = useState<"glass" | "transparent" | "color">("glass");
   const [promoTextColor, setPromoTextColor]     = useState("");
+  const [promoTimerColor, setPromoTimerColor]   = useState("");
   const [salePillColor, setSalePillColor]       = useState("");
   const [percentOffPillColor, setPercentOffPillColor] = useState("");
   const [showPercentOffPill, setShowPercentOffPill] = useState(true);
@@ -346,7 +348,9 @@ export default function StoreEditor() {
       if (s.store_config?.footer_bg_color) setFooterBgColor(s.store_config.footer_bg_color);
       if (s.store_config?.footer_muted_color) setFooterMutedColor(s.store_config.footer_muted_color);
       if (s.store_config?.promo_bg_color) setPromoBgColor(s.store_config.promo_bg_color);
+      if (s.store_config?.promo_bg_style) setPromoBgStyle(s.store_config.promo_bg_style);
       if (s.store_config?.promo_text_color) setPromoTextColor(s.store_config.promo_text_color);
+      if (s.store_config?.promo_timer_color) setPromoTimerColor(s.store_config.promo_timer_color);
       if (s.store_config?.sale_pill_color) setSalePillColor(s.store_config.sale_pill_color);
       if (s.store_config?.percent_off_pill_color) setPercentOffPillColor(s.store_config.percent_off_pill_color);
       if (s.store_config?.show_percent_off_pill === false) setShowPercentOffPill(false);
@@ -455,7 +459,9 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ footerBgColor }); }, [footerBgColor]);
   useEffect(() => { postUpdate({ footerMutedColor }); }, [footerMutedColor]);
   useEffect(() => { postUpdate({ promoBgColor }); }, [promoBgColor]);
+  useEffect(() => { postUpdate({ promoBgStyle }); }, [promoBgStyle]);
   useEffect(() => { postUpdate({ promoTextColor }); }, [promoTextColor]);
+  useEffect(() => { postUpdate({ promoTimerColor }); }, [promoTimerColor]);
   useEffect(() => { postUpdate({ salePillColor }); }, [salePillColor]);
   useEffect(() => { postUpdate({ percentOffPillColor }); }, [percentOffPillColor]);
   useEffect(() => { postUpdate({ showPercentOffPill }); }, [showPercentOffPill]);
@@ -557,7 +563,9 @@ export default function StoreEditor() {
           footer_bg_color: footerBgColor || null,
           footer_muted_color: footerMutedColor || null,
           promo_bg_color: promoBgColor || null,
+          promo_bg_style: promoBgStyle,
           promo_text_color: promoTextColor || null,
+          promo_timer_color: promoTimerColor || null,
           sale_pill_color: salePillColor || null,
           percent_off_pill_color: percentOffPillColor || null,
           show_percent_off_pill: showPercentOffPill,
@@ -1269,10 +1277,22 @@ export default function StoreEditor() {
                 {seller?.template === "soft-luxury" && (
                   <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Hero Countdown</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Shown in your hero section when a discount code has "Show countdown" enabled. Only one discount displays at a time.</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Shown in your hero section when a discount code has "Show countdown" enabled. Only one discount displays at a time — it needs "Applies To" set to Cart or Shipping, Active, and a future expiry date.</div>
+
+                    <label style={labelStyle}>Background Style</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10 }}>
+                      {([{ v: "glass", l: "Glass" }, { v: "transparent", l: "Transparent" }, { v: "color", l: "Color" }] as const).map(o => (
+                        <button key={o.v} onClick={() => setPromoBgStyle(o.v)}
+                          style={{ padding: "8px 4px", borderRadius: 6, border: promoBgStyle === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: promoBgStyle === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: promoBgStyle === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+
                     {[
-                      { label: "Background", value: promoBgColor, setValue: setPromoBgColor, fallback: "", fallbackLabel: "auto" },
+                      ...(promoBgStyle === "color" ? [{ label: "Background", value: promoBgColor, setValue: setPromoBgColor, fallback: "", fallbackLabel: "auto" }] : []),
                       { label: "Text", value: promoTextColor, setValue: setPromoTextColor, fallback: textColor, fallbackLabel: "default" },
+                      { label: "Timer", value: promoTimerColor, setValue: setPromoTimerColor, fallback: seller?.primary_color || "#9c7c62", fallbackLabel: "brand color" },
                     ].map((c) => (
                       <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
                         <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
