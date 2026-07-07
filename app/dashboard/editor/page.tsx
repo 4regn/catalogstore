@@ -114,6 +114,7 @@ interface Seller {
     muted_color?: string;
     font_pair?: string;
     header_transparent?: boolean;
+    header_transparent_color?: string;
     header_border?: boolean;
     collection_images?: Record<string, string>;
     footer_about?: string;
@@ -272,6 +273,7 @@ export default function StoreEditor() {
   const [heroTitle, setHeroTitle]                     = useState("");
   const [fontPair, setFontPair]                       = useState("cormorant-jost");
   const [headerTransparent, setHeaderTransparent]     = useState(false);
+  const [headerTransparentColor, setHeaderTransparentColor] = useState("#ffffff");
   const [headerBorder, setHeaderBorder]               = useState(true);
   const [collectionImages, setCollectionImages]       = useState<Record<string, string>>({});
   const [footerAbout, setFooterAbout]                 = useState("");
@@ -388,6 +390,7 @@ export default function StoreEditor() {
       setHeroTitle(s.store_config?.hero_title !== undefined ? s.store_config.hero_title : (s.store_name || ""));
       if (s.store_config?.font_pair) setFontPair(s.store_config.font_pair);
       setHeaderTransparent(s.store_config?.header_transparent === true);
+      setHeaderTransparentColor(s.store_config?.header_transparent_color || "#ffffff");
       setHeaderBorder(s.store_config?.header_border !== false);
       if (s.store_config?.collection_images) setCollectionImages(s.store_config.collection_images);
       if (s.store_config?.footer_about) setFooterAbout(s.store_config.footer_about);
@@ -497,6 +500,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
   useEffect(() => { postUpdate({ fontPair }); }, [fontPair]);
   useEffect(() => { postUpdate({ headerTransparent }); }, [headerTransparent]);
+  useEffect(() => { postUpdate({ headerTransparentColor }); }, [headerTransparentColor]);
   useEffect(() => { postUpdate({ headerBorder }); }, [headerBorder]);
   useEffect(() => { postUpdate({ footerAbout }); }, [footerAbout]);
   useEffect(() => { postUpdate({ contactEmail }); }, [contactEmail]);
@@ -607,6 +611,7 @@ export default function StoreEditor() {
           hero_title: heroTitle,
           font_pair: fontPair,
           header_transparent: headerTransparent,
+          header_transparent_color: headerTransparentColor,
           header_border: headerBorder,
           collection_images: collectionImages,
           footer_about: footerAbout || undefined,
@@ -1091,6 +1096,21 @@ export default function StoreEditor() {
                       <input type="checkbox" checked={headerTransparent} onChange={e => setHeaderTransparent(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
                       <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Transparent header (overlays hero image)</span>
                     </label>
+                    {headerTransparent && (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Icon &amp; Text Color</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <label style={{ width: 24, height: 24, borderRadius: 6, background: headerTransparentColor, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                            <input type="color" value={headerTransparentColor} onChange={e => setHeaderTransparentColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                          </label>
+                          <span style={{ fontSize: 9, color: "rgba(245,245,245,0.25)", fontFamily: "monospace" }}>{headerTransparentColor}</span>
+                          <button onClick={() => setHeaderTransparentColor("#ffffff")} style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
+                        </div>
+                      </div>
+                    )}
+                    {headerTransparent && (
+                      <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", padding: "0 2px" }}>Only used while the header is overlapping your hero image. Switch to a dark color if your banner is light.</div>
+                    )}
                     <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
                       <input type="checkbox" checked={headerBorder} onChange={e => setHeaderBorder(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
                       <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Show header border line</span>
