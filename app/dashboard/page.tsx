@@ -777,7 +777,11 @@ export default function Dashboard() {
                       >
                         <img src={img.src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" as const, pointerEvents: "none" }} />
                         <button type="button" onClick={() => img.type === "existing" ? removeExistingImage(img.idx) : removeNewImage(img.idx)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>
-                        {combinedIdx === 0 && <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>}
+                        {combinedIdx === 0 ? (
+                          <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>
+                        ) : (
+                          <button type="button" onClick={() => reorderImages(combinedIdx, 0)} title="Set as main image" style={{ position: "absolute" as const, bottom: 3, left: 3, right: 3, padding: "1px 4px", background: "rgba(0,0,0,0.65)", border: "none", color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const, cursor: "pointer", whiteSpace: "nowrap" as const, overflow: "hidden" as const, textOverflow: "ellipsis" as const }}>Set Main</button>
+                        )}
                       </div>
                     ))}
                     {totalImageSlots < maxImages && (<button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 12, border: "1px dashed var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2 }}><span style={{ fontSize: 20, color: "var(--muted-2)" }}>+</span><span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Photo</span></button>)}
