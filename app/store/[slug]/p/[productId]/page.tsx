@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
+import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata } from "next";
 
@@ -86,7 +87,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const initialProducts = productsRes.data ?? [];
   const initialDiscountCodes = discountsRes.data ?? [];
-  const props = { initialSeller: seller, initialProducts, initialDiscountCodes, initialProductId: productId };
+  const isSubdomain = await isStoreSubdomainRequest();
+  const props = { initialSeller: seller, initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
 
   const tpl = seller.template;
   if (tpl === "crown") return <Crown {...props} />;

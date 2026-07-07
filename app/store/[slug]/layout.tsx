@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
+import { isStoreSubdomainRequest } from "../../../lib/store-host";
 
 export const revalidate = 60;
 
@@ -31,7 +32,8 @@ export async function generateMetadata({
   };
 
   if (seller.logo_url) {
-    const url = `/store/${slug}/favicon`;
+    const isSubdomain = await isStoreSubdomainRequest();
+    const url = isSubdomain ? "/favicon" : `/store/${slug}/favicon`;
     meta.icons = {
       icon: [{ url }],
       shortcut: [{ url }],

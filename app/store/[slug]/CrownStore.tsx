@@ -100,6 +100,7 @@ interface StorePageProps {
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
   initialProductId?: string;
+  isSubdomain?: boolean;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined) => {
@@ -117,10 +118,11 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
   };
 };
 
-export default function CrownStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId }: StorePageProps = {}) {
+export default function CrownStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
   const isEditMode = searchParams.get("editMode") === "true";
 
   const [seller, setSeller]     = useState<Seller | null>(initialSeller ?? null);
@@ -449,7 +451,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
             selectedVariants: i.selectedVariants,
           }))
         ))));
-        window.location.href = `/store/${slug}/checkout?cart=${encoded}`;
+        window.location.href = sp(`/checkout?cart=${encoded}`);
         return;
       }
 

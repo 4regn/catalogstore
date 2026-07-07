@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import dynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
+import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
@@ -40,8 +41,10 @@ export default async function CollectionPage({
     return <StoreUnavailable seller={seller} />;
   }
 
+  const isSubdomain = await isStoreSubdomainRequest();
+
   // Only Heirloom renders collection pages. Other templates send the visitor home.
-  if (seller.template !== "heirloom") redirect(`/store/${slug}`);
+  if (seller.template !== "heirloom") redirect(isSubdomain ? "/" : `/store/${slug}`);
 
   // Special-case "all": render every published in-stock product without a category filter.
   const isAll = collection.toLowerCase() === "all";
@@ -104,6 +107,7 @@ export default async function CollectionPage({
       initialDiscountCodes={discountsRes.data ?? []}
       mode="collection"
       collectionName={isAll ? "All Products" : matched!}
+      isSubdomain={isSubdomain}
     />
   );
 }

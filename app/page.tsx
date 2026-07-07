@@ -20,7 +20,7 @@ const FREE_PLAN_FEATURES = [
   "Up to 15 products",
   "5 photos per product",
   "Soft Luxury template",
-  "Free store link (catalogstore.co.za/store)",
+  "Free store link (yourstore.catalogstore.co.za)",
   "Visual store editor",
   "Card, EFT, Apple Pay, WhatsApp checkout",
   "No credit card required",
@@ -32,7 +32,7 @@ const PLAN_FEATURES = [
   "All 4 store templates",
   "Personal onboarding — we set you up 1-on-1",
   "Custom domain support — we help you connect it",
-  "Free store link (catalogstore.co.za/store)",
+  "Free store link (yourstore.catalogstore.co.za)",
   "Visual store editor",
   "Card, EFT, Apple Pay, WhatsApp checkout",
   "Cancel anytime",
@@ -129,7 +129,7 @@ const FAQS = [
   },
   {
     q: "Can I use my own custom domain?",
-    a: "Custom domains are a Pro plan feature — if you own yourbrand.co.za we'll personally help you connect it so customers find you directly. The Free plan doesn't include custom domain support, but every store on any plan always has a free store link (catalogstore.co.za/store) too.",
+    a: "Custom domains are a Pro plan feature — if you own yourbrand.co.za we'll personally help you connect it so customers find you directly. The Free plan doesn't include custom domain support, but every store on any plan always has a free store link (yourstore.catalogstore.co.za) too.",
   },
   {
     q: "How do I add my products?",

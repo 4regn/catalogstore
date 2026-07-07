@@ -118,6 +118,7 @@ interface StorePageProps {
   // are skipped because they belong on the landing page.
   mode?: "home" | "collection";
   collectionName?: string;
+  isSubdomain?: boolean;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[]; countdown: PromoDiscount | null } => {
@@ -132,7 +133,7 @@ const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[
   return { discounts: active, countdown: storePromo ? { ...storePromo, timeLeft: "" } : null };
 };
 
-export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName }: StorePageProps = {}) {
+export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName, isSubdomain }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const params = useParams();
   const searchParams = useSearchParams();
@@ -144,6 +145,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const navigate = (path: string) => startNavigation(() => router.push(path));
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
+  const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
 
   /* ─── DATA ─── */
   const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
@@ -403,7 +405,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       selectedVariants: i.selectedVariants,
     }));
     const encoded = btoa(JSON.stringify(payload));
-    window.location.href = `/store/${slug}/checkout?cart=${encoded}`;
+    window.location.href = sp(`/checkout?cart=${encoded}`);
   };
 
   /* ─── DERIVED ─── */
@@ -466,7 +468,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     if (target.type === "products") {
       document.getElementById("hl-products")?.scrollIntoView({ behavior: "smooth" });
     } else if (target.type === "collection") {
-      navigate(`/store/${slug}/c/${target.collection}`);
+      navigate(sp(`/c/${target.collection}`));
     } else if (target.type === "url") {
       if (target.url) window.open(target.url, "_blank", "noopener");
     }
@@ -892,7 +894,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   // Both "All" and named collections go to /c/<slug>. The home page is the
                   // marketing landing (hero + categories grid + flash sale + newsletter);
                   // the All Products view is its own focused page.
-                  navigate(`/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
+                  navigate(sp(`/c/${cat === "All" ? "all" : collectionSlug(cat)}`));
                 }}
               >
                 {cat === "All" ? "All Products" : cat}
@@ -1056,7 +1058,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           <div className="hl-nav-left">
             <button className="hl-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu"><span /><span /><span /></button>
           </div>
-          <a href={`/store/${slug}`} className="hl-logo">
+          <a href={sp()} className="hl-logo">
             {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
           </a>
           <div className="hl-nav-right">
@@ -1147,7 +1149,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               onClick={() => {
                 // Use browser-native back if there's history; otherwise fall back to the landing page.
                 if (typeof window !== "undefined" && window.history.length > 1) router.back();
-                else navigate(`/store/${slug}`);
+                else navigate(sp());
               }}
             >
               ← Back
@@ -1172,7 +1174,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   <button
                     key={cat}
                     className="hl-cat-item"
-                    onClick={() => navigate(`/store/${slug}/c/${collectionSlug(cat)}`)}
+                    onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))}
                   >
                     <div className="hl-cat-img">
                       {img ? (
@@ -1359,7 +1361,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 <h4>{displayFooterCol1}</h4>
                 <ul>
                   {menuCategories.slice(0, 5).map((cat) => {
-                    const target = `/store/${slug}/c/${cat === "All" ? "all" : collectionSlug(cat)}`;
+                    const target = sp(`/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
                     return (
                     <li key={cat}>
                       <a

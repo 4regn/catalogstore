@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import { canonicalStoreUrl } from "../../lib/store-url";
 
 const ADMIN_EMAIL = "info@4regn.com";
 
@@ -491,7 +492,7 @@ export default function AdminDashboard() {
                     <div style={{ ...card, padding: 20 }}>
                       <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12, color: N }}>Quick Actions</h3>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {selectedSeller.subdomain && <a href={"/store/" + selectedSeller.subdomain} target="_blank" rel="noreferrer" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 10, color: N, fontSize: 12, fontWeight: 700, textAlign: "center", textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.06em" }}>Visit Store</a>}
+                        {selectedSeller.subdomain && <a href={canonicalStoreUrl(selectedSeller.subdomain)} target="_blank" rel="noreferrer" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 10, color: N, fontSize: 12, fontWeight: 700, textAlign: "center", textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.06em" }}>Visit Store</a>}
                         <a href={"/dashboard/editor?assist=" + selectedSeller.id} target="_blank" rel="noreferrer" style={{ display: "block", padding: "12px 16px", background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10, color: "#8b5cf6", fontSize: 12, fontWeight: 700, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", cursor: "pointer", fontFamily: F }} title="Open the visual editor for this seller. Their payment + bank details are never loaded.">🛡 Admin Assistance</a>
                       </div>
                     </div>
@@ -692,7 +693,7 @@ export default function AdminDashboard() {
                                           <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", fontWeight: 700, textTransform: "uppercase", color: "var(--text)" }}>{r.sellers?.store_name || "Unknown store"}</td>
                                           <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
                                             {r.sellers?.subdomain ? (
-                                              <a href={"/store/" + r.sellers.subdomain} target="_blank" rel="noreferrer" style={{ color: N, textDecoration: "none", fontWeight: 600 }}>{r.sellers.subdomain}</a>
+                                              <a href={canonicalStoreUrl(r.sellers.subdomain)} target="_blank" rel="noreferrer" style={{ color: N, textDecoration: "none", fontWeight: 600 }}>{r.sellers.subdomain}</a>
                                             ) : <span style={{ color: "var(--muted-2)" }}>-</span>}
                                           </td>
                                           <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
+import { isSubdomainHost } from "../../../../lib/store-url";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -25,6 +26,12 @@ const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Li
 export default function CheckoutPage() {
   const params = useParams();
   const slug = params.slug as string;
+  // Entirely client-rendered (no SSR data), so reading window.location here
+  // carries no hydration-mismatch risk.
+  const sp = (suffix: string = "") =>
+    typeof window !== "undefined" && isSubdomainHost(window.location.hostname)
+      ? suffix || "/"
+      : `/store/${slug}${suffix}`;
   const [seller, setSeller] = useState<Seller | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<{ id: string; name: string; category: string }[]>([]);
@@ -368,7 +375,7 @@ export default function CheckoutPage() {
           </div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <a href={"/store/" + slug} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Continue Shopping</a>
+          <a href={sp()} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Continue Shopping</a>
         </div>
       </div>
     </div>
@@ -396,7 +403,7 @@ export default function CheckoutPage() {
           {cc.eft_instructions && <div style={{ marginTop: 20, padding: 20, background: T.selectBg, borderRadius: 12, fontSize: 14, lineHeight: 1.7, color: T.text, whiteSpace: "pre-wrap" }}>{cc.eft_instructions}</div>}
         </div>
         <div style={{ textAlign: "center" }}>
-          <a href={"/store/" + slug} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
+          <a href={sp()} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
         </div>
       </div>
     </div>
@@ -409,7 +416,7 @@ export default function CheckoutPage() {
       {/* HEADER */}
       <div style={{ borderBottom: "1px solid " + T.summaryBorder, padding: "16px 24px", background: T.stickyBg, backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <a href={"/store/" + slug} style={{ textDecoration: "none" }}>
+          <a href={sp()} style={{ textDecoration: "none" }}>
             {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 36, objectFit: "contain" }} /> : <span style={{ fontFamily: T.headFont, fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", color: T.text }}>{seller?.store_name}</span>}
           </a>
           <button onClick={() => setShowSummary(!showSummary)} style={{ background: "none", border: "none", fontSize: 13, color: accent, cursor: "pointer", fontFamily: T.bodyFont, display: "flex", alignItems: "center", gap: 6 }}>
@@ -592,7 +599,7 @@ export default function CheckoutPage() {
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <a href={"/store/" + slug} style={{ fontSize: 13, color: accent, textDecoration: "none" }}>&larr; Return to store</a>
+            <a href={sp()} style={{ fontSize: 13, color: accent, textDecoration: "none" }}>&larr; Return to store</a>
             <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#22c55e", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "payfast" ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
           </div>
         </div>

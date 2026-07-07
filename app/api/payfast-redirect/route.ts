@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { getAdmin } from "../../../lib/supabase-admin";
+import { storePath } from "../../../lib/store-url";
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
 
 /* Strict HTML attribute escaping — the previous version only handled `"`,
@@ -81,8 +82,8 @@ export async function POST(req: NextRequest) {
       name_last: lastName || "",
       email_address: email || "",
       cell_number: phone || "",
-      return_url: origin + "/store/" + slug + "/checkout?paid=" + orderId,
-      cancel_url: origin + "/store/" + slug + "/checkout?cancelled=1&cart=" + cartEncoded,
+      return_url: origin + storePath(origin, slug, "/checkout?paid=" + orderId),
+      cancel_url: origin + storePath(origin, slug, "/checkout?cancelled=1&cart=" + cartEncoded),
       /* notify_url is always our own configured APP_ORIGIN, not derived
          from the request — defense against attackers setting their own
          host as the ITN destination. */

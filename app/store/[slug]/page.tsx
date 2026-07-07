@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
+import { isStoreSubdomainRequest } from "../../../lib/store-host";
 import StoreUnavailable from "./StoreUnavailable";
 
 export const revalidate = 60;
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const description =
     seller.tagline || seller.description || `Shop ${seller.store_name}'s online store.`;
-  const image = seller.banner_url || seller.logo_url;
+  const image = seller.logo_url || seller.banner_url;
 
   return {
     title: seller.store_name,
@@ -90,7 +91,8 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
   const initialProducts = productsRes.data ?? [];
   const initialDiscountCodes = discountsRes.data ?? [];
-  const props = { initialSeller: seller, initialProducts, initialDiscountCodes };
+  const isSubdomain = await isStoreSubdomainRequest();
+  const props = { initialSeller: seller, initialProducts, initialDiscountCodes, isSubdomain };
 
   const tpl = seller.template;
   if (tpl === "crown") return <Crown {...props} />;

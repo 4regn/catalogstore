@@ -80,6 +80,7 @@ interface StorePageProps {
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
   initialProductId?: string;
+  isSubdomain?: boolean;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined) => {
@@ -97,12 +98,16 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
   };
 };
 
-export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId }: StorePageProps = {}) {
+export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
+  // Builds an in-app link matching however this page is currently being
+  // served -- clean subdomain (mystore.catalogstore.co.za/p/123) or the
+  // legacy path form (catalogstore.co.za/store/mystore/p/123).
+  const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
 
   /* Live edit overrides from postMessage */
   const [liveTagline, setLiveTagline]           = useState<string | null>(null);
@@ -205,7 +210,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   useEffect(() => {
     if (!orderStatus) return;
     const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
-    const redirect = setTimeout(() => { window.location.href = "/store/" + slug; }, 5000);
+    const redirect = setTimeout(() => { window.location.href = sp(); }, 5000);
     return () => { clearInterval(timer); clearTimeout(redirect); };
   }, [orderStatus, slug]);
 
@@ -369,8 +374,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   })();
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options?.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); if (!isEditMode) window.history.replaceState(null, "", `/store/${slug}/p/${p.id}`); };
-  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); if (!isEditMode) window.history.replaceState(null, "", `/store/${slug}`); };
+  const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options?.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); if (!isEditMode) window.history.replaceState(null, "", sp(`/p/${p.id}`)); };
+  const closeProduct = () => { setSelectedProduct(null); setSelectedVariants({}); setModalQty(1); if (!isEditMode) window.history.replaceState(null, "", sp()); };
 
   useEffect(() => {
     if (initialProductId && products.length > 0 && !selectedProduct) {
@@ -520,7 +525,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <p style={{ fontSize: 16, color: "#8a8690", lineHeight: 1.6, marginBottom: 8 }}>Your payment was not completed. No charges have been made.</p>
           <p style={{ fontSize: 14, color: "#b5b1ac", marginBottom: 40 }}>You can try again or choose a different payment method.</p>
         </>)}
-        <a href={"/store/" + slug} style={{ display: "inline-block", padding: "16px 40px", background: "#2a2a2e", color: "#f6f3ef", borderRadius: 100, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
+        <a href={sp()} style={{ display: "inline-block", padding: "16px 40px", background: "#2a2a2e", color: "#f6f3ef", borderRadius: 100, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
         <p style={{ fontSize: 12, color: "#b5b1ac", marginTop: 16 }}>Redirecting in {countdown > 0 ? countdown : 0}s...</p>
       </div>
     </div>
@@ -566,7 +571,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 )}
               </div>
             ) : (
-              <a href={`/store/${slug}`} style={{ textAlign: "center", textDecoration: "none", color: "inherit", display: "block" }}>
+              <a href={sp()} style={{ textAlign: "center", textDecoration: "none", color: "inherit", display: "block" }}>
                 {displayLogoUrl ? (
                   <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
                 ) : (
@@ -760,7 +765,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           ) : (
             <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
               {filtered.map((product) => (
-                <div key={product.id} onClick={() => { if (isEditMode) { openProduct(product); } else { setNavigating(true); router.push(`/store/${slug}/p/${product.id}`); } }} style={{ cursor: "pointer" }}>
+                <div key={product.id} onClick={() => { if (isEditMode) { openProduct(product); } else { setNavigating(true); router.push(sp(`/p/${product.id}`)); } }} style={{ cursor: "pointer" }}>
                   <div style={{ ...(cardRatio !== "auto" ? { aspectRatio: cardRatio } : {}), borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
                     {product.image_url && (
                       <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: cardRatio === "auto" ? "auto" : "100%", objectFit: cardRatio === "auto" ? "contain" : "cover", display: "block", transition: "transform 0.6s" }}
@@ -1121,7 +1126,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                     <button onClick={() => {
                       const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "", selectedVariants: i.selectedVariants })));
                       const encoded = btoa(unescape(encodeURIComponent(payload)));
-                      window.location.href = "/store/" + slug + "/checkout?cart=" + encoded;
+                      window.location.href = sp("/checkout?cart=" + encoded);
                     }} style={{ width: "100%", padding: 18, background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
                     {seller?.checkout_config?.whatsapp_checkout_enabled !== false && <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 18, background: "#25d366", color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>}
                     <p style={{ textAlign: "center", fontSize: 11, color: pageMuted, marginTop: 12 }}>You'll be taken to WhatsApp to confirm</p>
@@ -1142,7 +1147,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             {searched && searched.length > 0 && (
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
-                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) { openProduct(p); } else { setNavigating(true); router.push(`/store/${slug}/p/${p.id}`); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
+                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) { openProduct(p); } else { setNavigating(true); router.push(sp(`/p/${p.id}`)); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
                     {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 15 }}>{p.name}</div><div style={{ fontSize: 13, color: accent }}>{fmt(p.price)}</div></div>
                   </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { getAdmin } from "../../../lib/supabase-admin";
+import { canonicalStoreUrl } from "../../../lib/store-url";
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIP(req);
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     // 2. Send confirmation email to CUSTOMER
     if (resendKey && order.customer_email) {
       try {
-        const storeUrl = `https://catalogstore.co.za/store/${seller.subdomain}`;
+        const storeUrl = canonicalStoreUrl(seller.subdomain);
         const accent = seller.primary_color || "#ff6b35";
         await fetch("https://api.resend.com/emails", {
           method: "POST",

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { revalidateStore } from "../actions/revalidate-store";
+import { canonicalStoreUrl } from "../../lib/store-url";
 import Spinner from "../components/Spinner";
 
 const productInCat = (cat: string, product: { category: string }) =>
@@ -637,7 +638,7 @@ export default function Dashboard() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
             <a href="/dashboard/editor" style={{ display: "block", padding: "12px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Store Editor</a>
-            {seller?.subdomain && <a href={"/store/" + seller.subdomain} target="_blank" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 12, color: N, fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>View My Store</a>}
+            {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 12, color: N, fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>View My Store</a>}
             <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : seller?.subscription_status === "trial" ? "rgba(251,191,36,0.06)" : seller?.subscription_status === "past_due" ? "rgba(251,191,36,0.1)" : "rgba(255,61,110,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : seller?.subscription_status === "trial" ? "1px solid rgba(251,191,36,0.12)" : seller?.subscription_status === "past_due" ? "1px solid rgba(251,191,36,0.3)" : "1px solid rgba(255,61,110,0.12)", borderRadius: 12, textDecoration: "none", textAlign: "center" as const }}>
               <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: seller?.subscription_status === "active" ? "#22c55e" : seller?.subscription_status === "trial" ? "#fbbf24" : seller?.subscription_status === "past_due" ? "#fbbf24" : "#ff3d6e" }}>{seller?.subscription_status === "active" ? "Active Plan" : seller?.subscription_status === "trial" ? "Free Trial" : seller?.subscription_status === "past_due" ? "Payment Failed" : "Inactive"}</div>
               <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>{seller?.subscription_status === "active" ? "Click to view plan or upgrade" : seller?.subscription_status === "trial" ? "Click to choose a plan" : seller?.subscription_status === "past_due" ? "Update card before store goes offline" : "Click to reactivate or upgrade"}</div>
@@ -1432,7 +1433,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" as const }}>
               <button onClick={saveStoreSettings} disabled={storeSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: storeSaving ? "not-allowed" : "pointer", opacity: storeSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{storeSaving ? "Saving..." : "Save Changes"}</button>
               {storeSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
-              {seller?.subdomain && <a href={"/store/" + seller.subdomain} target="_blank" style={{ color: "var(--muted-2)", fontSize: 11, textDecoration: "underline", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Preview Store</a>}
+              {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ color: "var(--muted-2)", fontSize: 11, textDecoration: "underline", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Preview Store</a>}
             </div>
           </div>)}
 

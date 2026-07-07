@@ -45,6 +45,7 @@ interface StorePageProps {
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
   initialProductId?: string;
+  isSubdomain?: boolean;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined) => {
@@ -62,11 +63,12 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
   };
 };
 
-export default function GlassChromeStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId }: StorePageProps = {}) {
+export default function GlassChromeStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
+  const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
 
   /* Live edit overrides from postMessage */
   const [liveTagline, setLiveTagline]           = useState<string | null>(null);
@@ -113,7 +115,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   useEffect(() => {
     if (!orderStatus) return;
     const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
-    const redirect = setTimeout(() => { window.location.href = "/store/" + slug; }, 5000);
+    const redirect = setTimeout(() => { window.location.href = sp(); }, 5000);
     return () => { clearInterval(timer); clearTimeout(redirect); };
   }, [orderStatus, slug]);
 
@@ -358,7 +360,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
           <h1 style={{ fontFamily: display, fontSize: 48, marginBottom: 12 }}>PAYMENT CANCELLED</h1>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.4)", lineHeight: 1.6, marginBottom: 40 }}>No charges were made. You can try again.</p>
         </>)}
-        <a href={"/store/" + slug} style={{ display: "inline-block", padding: "14px 36px", background: "#fff", color: "#000", borderRadius: 6, fontFamily: mono, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
+        <a href={sp()} style={{ display: "inline-block", padding: "14px 36px", background: "#fff", color: "#000", borderRadius: 6, fontFamily: mono, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Return to Store</a>
         <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", marginTop: 16, fontFamily: mono, letterSpacing: "0.1em" }}>Redirecting in {countdown > 0 ? countdown : 0}s...</p>
       </div>
     </div>
@@ -783,7 +785,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                     <button onClick={() => {
                       const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "", selectedVariants: i.selectedVariants })));
                       const encoded = btoa(unescape(encodeURIComponent(payload)));
-                      window.location.href = "/store/" + slug + "/checkout?cart=" + encoded;
+                      window.location.href = sp("/checkout?cart=" + encoded);
                     }} style={{ width: "100%", padding: 16, background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
                     {seller?.checkout_config?.whatsapp_checkout_enabled !== false && <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 16, background: "#25d366", color: "#fff", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>}
                     <p style={{ textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.28)", marginTop: 12, fontFamily: mono, letterSpacing: "0.08em", textTransform: "uppercase" }}>Secure checkout</p>

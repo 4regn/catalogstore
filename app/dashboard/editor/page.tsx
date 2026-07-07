@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { revalidateStore } from "../../actions/revalidate-store";
+import { canonicalStoreUrl } from "../../../lib/store-url";
 
 // Mirror HeirloomStore's collectionSlug. Inlined (not imported) so the editor
 // bundle doesn't have to drag the whole 1300-line storefront component just
@@ -712,7 +713,7 @@ export default function StoreEditor() {
 
           {/* Open in new tab */}
           {seller?.subdomain && (
-            <a href={`/store/${seller.subdomain}`} target="_blank" rel="noreferrer"
+            <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" rel="noreferrer"
               style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(245,245,245,0.6)", textDecoration: "none", padding: "8px 14px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8, transition: "color 0.15s, border-color 0.15s" }}>
               Open Store <EditorIcon name="external" size={13} />
             </a>

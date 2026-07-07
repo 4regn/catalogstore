@@ -19,7 +19,7 @@ const PLANS = [
       "All 4 store templates",
       "Personal onboarding — we set you up 1-on-1",
       "Custom domain support — we help you connect it",
-      "Free store link (catalogstore.co.za/store)",
+      "Free store link (yourstore.catalogstore.co.za)",
       "Visual store editor",
       "Card, EFT, Apple Pay, WhatsApp checkout",
       "Cancel anytime",
