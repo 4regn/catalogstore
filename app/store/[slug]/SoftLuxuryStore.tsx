@@ -341,6 +341,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const fontPairKey = liveFontPair ?? (cfg as any).font_pair ?? "cormorant-jost";
   const fonts = FONT_PAIRS[fontPairKey] || FONT_PAIRS["cormorant-jost"];
   const headerTransparent = liveHeaderTransparent !== null ? liveHeaderTransparent : (cfg as any).header_transparent === true;
+  // Light-colored header text/icons only make sense when the header is
+  // floating over a dark hero photo. Without a banner image, a "transparent"
+  // header just exposes the page background (often white), and white-on-white
+  // icons/text disappear even though they still work when tapped.
+  const headerOverImage = headerTransparent && !!seller?.banner_url;
   const headerBorder = liveHeaderBorder !== null ? liveHeaderBorder : (cfg as any).header_border !== false;
   const displayCollLabel = liveCollLabel ?? (cfg as any).coll_label ?? "Curated For You";
   const displayCollSubtitle = liveCollSubtitle ?? (cfg as any).coll_subtitle ?? "Shop by Collection";
@@ -593,14 +598,14 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           <div className="sl-header-grid" style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: 72 }}>
             <div className="sl-hnav" style={{ display: "flex", alignItems: "center", gap: 32 }}>
               <button className="sl-hamburger" onClick={() => setMobileMenuOpen(true)} aria-label="Menu"
-                style={{ background: "none", border: "none", padding: 4, margin: "-4px", color: headerTransparent ? "rgba(255,255,255,0.9)" : pageText, cursor: "pointer", alignItems: "center" }}>
+                style={{ background: "none", border: "none", padding: 4, margin: "-4px", color: headerOverImage ? "rgba(255,255,255,0.9)" : pageText, cursor: "pointer", alignItems: "center" }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
               </button>
               <button className="sl-hnav-link" onClick={() => { setActiveCategory("All"); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                style={{ background: "none", border: "none", padding: 0, color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Shop All</button>
+                style={{ background: "none", border: "none", padding: 0, color: headerOverImage ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Shop All</button>
               {cats.length > 2 && (
                 <button className="sl-hnav-link" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
-                  style={{ background: "none", border: "none", padding: 0, color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
+                  style={{ background: "none", border: "none", padding: 0, color: headerOverImage ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
               )}
             </div>
             {isEditMode ? (
@@ -610,8 +615,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
                 ) : (
                   <div>
-                    <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerTransparent ? "#fff" : pageText }}>{seller?.store_name}</div>
-                    {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerTransparent ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
+                    <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerOverImage ? "#fff" : pageText }}>{seller?.store_name}</div>
+                    {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerOverImage ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
                   </div>
                 )}
               </div>
@@ -621,17 +626,17 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 44, maxWidth: 160, objectFit: "contain" }} />
                 ) : (
                   <div>
-                    <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerTransparent ? "#fff" : pageText }}>{seller?.store_name}</div>
-                    {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerTransparent ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
+                    <div style={{ fontFamily: fonts.heading, fontSize: 28, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase", color: headerOverImage ? "#fff" : pageText }}>{seller?.store_name}</div>
+                    {displayTagline && <div style={{ fontSize: 9, letterSpacing: "0.2em", color: headerOverImage ? "rgba(255,255,255,0.6)" : pageMuted, textTransform: "uppercase", marginTop: -2 }}>{displayTagline}</div>}
                   </div>
                 )}
               </a>
             )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 20 }}>
-              <button onClick={() => setShowSearch(true)} aria-label="Search" style={{ background: "none", border: "none", color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+              <button onClick={() => setShowSearch(true)} aria-label="Search" style={{ background: "none", border: "none", color: headerOverImage ? "rgba(255,255,255,0.7)" : pageMuted, cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
               </button>
-              <button onClick={() => setShowCart(true)} aria-label="Cart" style={{ background: "none", border: "none", color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, cursor: "pointer", padding: 4, display: "flex", alignItems: "center", gap: 4, position: "relative" }}>
+              <button onClick={() => setShowCart(true)} aria-label="Cart" style={{ background: "none", border: "none", color: headerOverImage ? "rgba(255,255,255,0.7)" : pageMuted, cursor: "pointer", padding: 4, display: "flex", alignItems: "center", gap: 4, position: "relative" }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
                 {cartCount > 0 && <span style={{ position: "absolute", top: -2, right: -6, width: 16, height: 16, borderRadius: "50%", background: accent, color: "#fff", fontSize: 8, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}
               </button>
