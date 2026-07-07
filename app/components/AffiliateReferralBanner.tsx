@@ -3,11 +3,15 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "../../lib/supabase";
+import { isSubdomainHost } from "../../lib/store-url";
 
 /* Hidden once a visitor is inside the app proper — a seller working in their
    own dashboard/editor has already signed up; showing "Referred by X" there
    is stale noise, not a trust signal, and on /dashboard/editor it competes
-   with the iframe for header space. */
+   with the iframe for header space. Also hidden on any seller's own
+   storefront subdomain (mystore.catalogstore.co.za) -- their customers were
+   never referred to CatalogStore, so the banner has no business appearing
+   there regardless of path. */
 const HIDDEN_PREFIXES = ["/store", "/dashboard", "/admin", "/affiliate", "/checkout"];
 
 /**
@@ -27,9 +31,11 @@ export default function AffiliateReferralBanner() {
   const [name, setName] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [onSellerSubdomain, setOnSellerSubdomain] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    setOnSellerSubdomain(isSubdomainHost(window.location.hostname));
     try {
       const wasDismissed = sessionStorage.getItem("affiliate_banner_dismissed");
       if (wasDismissed === "1") {
@@ -67,7 +73,7 @@ export default function AffiliateReferralBanner() {
     setDismissed(true);
   }
 
-  if (!mounted || !name || dismissed) return null;
+  if (!mounted || !name || dismissed || onSellerSubdomain) return null;
   if (!pathname || HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
 
   return (

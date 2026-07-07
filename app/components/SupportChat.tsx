@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { isSubdomainHost } from "../../lib/store-url";
 
 /**
  * SupportChat
@@ -66,6 +67,7 @@ export default function SupportChat() {
   const pathname = usePathname();
 
   const [mounted, setMounted] = useState(false);
+  const [onSellerSubdomain, setOnSellerSubdomain] = useState(false);
   const [open, setOpen] = useState(false);
   const [visitorId, setVisitorId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -85,6 +87,7 @@ export default function SupportChat() {
   // ---- identity bootstrap ------------------------------------------------
   useEffect(() => {
     setMounted(true);
+    setOnSellerSubdomain(isSubdomainHost(window.location.hostname));
     try {
       let vid = localStorage.getItem(VISITOR_KEY);
       if (!vid || vid.length < 16) {
@@ -222,7 +225,7 @@ export default function SupportChat() {
   }
 
   // ---- visibility --------------------------------------------------------
-  if (!mounted || !pathname) return null;
+  if (!mounted || !pathname || onSellerSubdomain) return null;
   if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
 
   const hasMessages = messages.length > 0;
