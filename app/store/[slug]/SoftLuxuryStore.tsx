@@ -466,6 +466,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     heroCtaTarget.type === "none" ? null :
     "#products";
   const heroCtaIsExternal = heroCtaTarget.type === "url";
+  const heroImagePosition = (cfg as any).hero_image_position || "center";
+  const heroImageObjectPosition = heroImagePosition === "top" ? "center top" : heroImagePosition === "bottom" ? "center bottom" : "center center";
+  const heroImageBehavior = (cfg as any).hero_image_behavior || "still";
+  const heroImageAnimation = heroImageBehavior === "breathing" ? "sl-hero-breathing 16s ease-in-out infinite" : heroImageBehavior === "ambient" ? "sl-hero-ambient 22s ease-in-out infinite" : undefined;
   const displayAnnouncement = liveAnnouncement ?? cfg.announcement     ?? "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
   const displayLogoUrl      = liveLogoUrl      ?? seller?.logo_url     ?? "";
@@ -532,7 +536,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       <style>{`
         @import url('https://fonts.googleapis.com/css2?${fonts.import}&display=swap');
         @keyframes mscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-        @media(max-width:768px){.sl-cols-g{grid-template-columns:1fr!important}.sl-pgrid{grid-template-columns:repeat(2,1fr)!important}.sl-story{grid-template-columns:1fr!important}.sl-trust{grid-template-columns:repeat(2,1fr)!important}.sl-polg{grid-template-columns:1fr!important}.sl-fttop{grid-template-columns:1fr!important}.sl-hero{height:70vh!important;min-height:400px!important}.sl-hnav{display:none!important}.sl-modal{flex-direction:column!important}.sl-header-grid{display:flex!important;justify-content:space-between!important}.sl-logo-img{height:36px!important;max-width:120px!important}}
+        @keyframes sl-hero-breathing{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
+        @keyframes sl-hero-ambient{0%,100%{transform:scale(1.04) translate(0,0)}50%{transform:scale(1.07) translate(-1.5%,-1%)}}
+        @media(max-width:768px){.sl-cols-g{grid-template-columns:1fr!important}.sl-cols-grid{grid-template-columns:repeat(2,1fr)!important}.sl-pgrid{grid-template-columns:repeat(2,1fr)!important}.sl-story{grid-template-columns:1fr!important}.sl-trust{grid-template-columns:repeat(2,1fr)!important}.sl-polg{grid-template-columns:1fr!important}.sl-fttop{grid-template-columns:1fr!important}.sl-hero{height:70vh!important;min-height:400px!important}.sl-hnav{display:none!important}.sl-modal{flex-direction:column!important}.sl-header-grid{display:flex!important;justify-content:space-between!important}.sl-logo-img{height:36px!important;max-width:120px!important}}
       `}</style>
       <div style={{ minHeight: "100vh", background: pageBg, fontFamily: fonts.body, color: pageText }}>
 
@@ -608,7 +614,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             )}
             {seller?.banner_url ? (
               <>
-                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: heroImageObjectPosition, animation: heroImageAnimation }} />
                 <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-end", padding: "0 48px 60px", maxWidth: 640 }}>
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
@@ -657,7 +663,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               </div>
             </div>
             {collectionsExpanded && (<>
-            {/* Asymmetric lookbook layout — pairs of collections alternate large/small */}
+            {/* Three layouts to choose from in the editor's Collections section, so stores
+                don't all look identical: asymmetric lookbook (default), circular grid, uniform grid. */}
             {(() => {
               const collImages = (cfg as any).collection_images || {};
               const colData = collections.map((col) => ({
@@ -666,6 +673,59 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 img: collImages[col] || products.find((p) => pInCat(p, col) && p.image_url)?.image_url || "",
                 promo: getCollectionPromo(col),
               }));
+              const collectionsLayout = (cfg as any).collections_layout || "lookbook";
+              const goToCollection = (name: string) => { setActiveCategory(name); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); };
+
+              if (collectionsLayout === "circles") {
+                return (
+                  <div className="sl-cols-circles" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "40px 32px", maxWidth: 600, margin: "0 auto" }}>
+                    {colData.map((c) => (
+                      <div key={c.name} onClick={() => goToCollection(c.name)} style={{ textAlign: "center", cursor: "pointer" }}>
+                        <div style={{ width: "100%", aspectRatio: "1", borderRadius: "50%", overflow: "hidden", position: "relative", marginBottom: 16, border: `1px solid ${pageText}14` }}>
+                          {c.img ? (
+                            <img src={c.img} alt={c.name} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <div style={{ width: "100%", height: "100%", background: `linear-gradient(145deg, ${accent}12, ${accent}28)` }} />
+                          )}
+                        </div>
+                        <div style={{ fontFamily: fonts.heading, fontSize: 20, fontWeight: 300, letterSpacing: "0.02em", color: pageText, marginBottom: 4 }}>{c.name}</div>
+                        <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: pageMuted }}>{c.count} Piece{c.count !== 1 ? "s" : ""}</div>
+                        {c.promo && (
+                          <div style={{ marginTop: 8, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: accent, fontWeight: 600 }}>{c.promo.code} {c.promo.type === "percentage" ? c.promo.value + "%" : "R" + c.promo.value} OFF</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+
+              if (collectionsLayout === "grid") {
+                return (
+                  <div className="sl-cols-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+                    {colData.map((c) => (
+                      <div key={c.name} onClick={() => goToCollection(c.name)} style={{ position: "relative", borderRadius: 12, overflow: "hidden", cursor: "pointer", aspectRatio: "3 / 4" }}>
+                        {c.img ? (
+                          <img src={c.img} alt={c.name} onError={hideOnError} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(145deg, ${accent}12, ${accent}28)` }} />
+                        )}
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.05) 50%, transparent 100%)" }} />
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "22px 20px" }}>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.55)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>{c.count} Piece{c.count !== 1 ? "s" : ""}</div>
+                          <div style={{ fontFamily: fonts.heading, fontSize: "clamp(18px, 2vw, 24px)", color: "#fff", letterSpacing: "0.04em", fontWeight: 300 }}>{c.name}</div>
+                          {c.promo && (
+                            <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", padding: "4px 10px", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)" }}>
+                              <span style={{ fontSize: 8, color: "rgba(255,255,255,0.85)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{c.promo.code} {c.promo.type === "percentage" ? c.promo.value + "%" : "R" + c.promo.value} OFF</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+
+              // "lookbook" (default) -- pairs of collections alternate large/small
               const pairs: (typeof colData)[] = [];
               for (let i = 0; i < colData.length; i += 2) pairs.push(colData.slice(i, i + 2));
 

@@ -73,6 +73,9 @@ interface Seller {
     about_title?: string;
     coll_label?: string;
     coll_subtitle?: string;
+    collections_layout?: string;
+    hero_image_position?: string;
+    hero_image_behavior?: string;
     ticker_texts?: string[];
     ticker_speed?: number;
     bg_color?: string;
@@ -194,6 +197,7 @@ export default function StoreEditor() {
   const [aboutLabel, setAboutLabel]           = useState("Our Story");
   const [collLabel, setCollLabel]             = useState("Featured Collections");
   const [collSubtitle, setCollSubtitle]       = useState("Find your signature look");
+  const [collectionsLayout, setCollectionsLayout] = useState("lookbook");
   const [collOrder, setCollOrder]             = useState<string[]>([]);
   const [tickerTexts, setTickerTexts]         = useState<string[]>(["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"]);
   const [tickerSpeed, setTickerSpeed]         = useState(20);
@@ -326,6 +330,7 @@ export default function StoreEditor() {
       if (s.store_config?.about_title) setAboutTitle(s.store_config.about_title);
       setCollLabel(s.store_config?.coll_label || (isSL ? "Curated For You" : "Featured Collections"));
       setCollSubtitle(s.store_config?.coll_subtitle || (isSL ? "Shop by Collection" : "Find your signature look"));
+      setCollectionsLayout(s.store_config?.collections_layout || "lookbook");
       if (s.store_config?.ticker_texts?.length) setTickerTexts(s.store_config.ticker_texts);
       if (s.store_config?.ticker_speed) setTickerSpeed(s.store_config.ticker_speed);
       if (s.store_config?.bg_color) setBgColor(s.store_config.bg_color);
@@ -436,6 +441,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ aboutLabel }); }, [aboutLabel]);
   useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
   useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
+  useEffect(() => { postUpdate({ collectionsLayout }); }, [collectionsLayout]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
@@ -537,6 +543,7 @@ export default function StoreEditor() {
         about_title: aboutTitle,
         coll_label: collLabel,
         coll_subtitle: collSubtitle,
+        collections_layout: collectionsLayout,
           ticker_texts: tickerTexts,
           ticker_speed: tickerSpeed,
           bg_color: bgColor,
@@ -1338,6 +1345,27 @@ export default function StoreEditor() {
                 <input value={collSubtitle} onChange={e => setCollSubtitle(e.target.value)}
                   placeholder="e.g. Find your signature look"
                   style={inputStyle} />
+
+                {seller?.template === "soft-luxury" && (
+                  <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <label style={labelStyle}>Layout</label>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 10 }}>Pick how your collections are displayed — a nice way to make your store feel less like everyone else's.</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {([
+                        { key: "lookbook", name: "Lookbook", desc: "Alternating large/small pairs — editorial feel" },
+                        { key: "circles", name: "Circles", desc: "Round thumbnails, two per row" },
+                        { key: "grid", name: "Grid", desc: "Clean, uniform three-column grid" },
+                      ] as const).map((opt) => (
+                        <button key={opt.key} onClick={() => setCollectionsLayout(opt.key)}
+                          style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start", padding: "10px 12px", background: collectionsLayout === opt.key ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", border: collectionsLayout === opt.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", width: "100%", textAlign: "left" }}>
+                          <span style={{ fontSize: 13, color: collectionsLayout === opt.key ? "rgba(245,245,245,0.9)" : "rgba(245,245,245,0.5)", fontWeight: collectionsLayout === opt.key ? 500 : 400 }}>{opt.name}</span>
+                          <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)" }}>{opt.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <label style={labelStyle}>Collection Order</label>
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 6 }}>Drag to reorder how collections appear on your store.</div>
                 {collOrder.length > 0 ? (
