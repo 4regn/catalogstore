@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import dynamic from "next/dynamic";
+import { cache } from "react";
+import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
 import StoreUnavailable from "./StoreUnavailable";
 
@@ -17,14 +19,49 @@ const PRODUCT_COLUMNS =
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
-export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-
-  const { data: seller } = await supabaseAdmin
+// cache() dedupes this per-request so generateMetadata and the page body
+// share one DB round trip instead of two.
+const getSeller = cache(async (slug: string) => {
+  const { data } = await supabaseAdmin
     .from("sellers")
     .select(SELLER_COLUMNS)
     .eq("subdomain", slug)
     .maybeSingle();
+  return data;
+});
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const seller = await getSeller(slug);
+  if (!seller) return {};
+
+  const description =
+    seller.tagline || seller.description || `Shop ${seller.store_name}'s online store.`;
+  const image = seller.banner_url || seller.logo_url;
+
+  return {
+    title: seller.store_name,
+    description,
+    openGraph: {
+      type: "website",
+      siteName: seller.store_name,
+      title: seller.store_name,
+      description,
+      images: image ? [{ url: image }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: seller.store_name,
+      description,
+      images: image ? [image] : undefined,
+    },
+  };
+}
+
+export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+
+  const seller = await getSeller(slug);
 
   if (!seller) notFound();
 
