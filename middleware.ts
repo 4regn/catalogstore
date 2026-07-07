@@ -29,8 +29,12 @@ export function middleware(req: NextRequest) {
 
   // Subdomain routing: mystore.catalogstore.co.za/p/123 internally becomes
   // /store/mystore/p/123, which is what the existing route files match.
-  // API routes are host-agnostic and must never get the /store prefix.
-  if (isSubdomainHost(hostname) && !pathname.startsWith("/api/")) {
+  // API routes and static files (anything with a file extension -- images,
+  // fonts, etc. served from /public) are host-agnostic and must never get
+  // the /store prefix. Our own app routes never have a dot in the last
+  // path segment, so this is a safe general-purpose exclusion.
+  const isStaticFile = /\.[a-zA-Z0-9]+$/.test(pathname);
+  if (isSubdomainHost(hostname) && !pathname.startsWith("/api/") && !isStaticFile) {
     const sub = hostname.slice(0, -(`.${STORE_ROOT_DOMAIN}`.length));
     if (SLUG_PATTERN.test(sub)) {
       const url = req.nextUrl.clone();

@@ -239,6 +239,8 @@ export default function StoreEditor() {
   const [logoPreview, setLogoPreview]   = useState("");
   const [heroImagePreview, setHeroImagePreview] = useState("");
   const [heroImageUrl, setHeroImageUrl]           = useState("");
+  const [heroImagePosition, setHeroImagePosition] = useState("center");
+  const [heroImageBehavior, setHeroImageBehavior] = useState("still");
   const heroImageRef = useRef<HTMLInputElement>(null);
 
   /* Heirloom-specific hero fields. The previous editor reused Crown's mapping
@@ -331,6 +333,8 @@ export default function StoreEditor() {
       setCollLabel(s.store_config?.coll_label || (isSL ? "Curated For You" : "Featured Collections"));
       setCollSubtitle(s.store_config?.coll_subtitle || (isSL ? "Shop by Collection" : "Find your signature look"));
       setCollectionsLayout(s.store_config?.collections_layout || "lookbook");
+      setHeroImagePosition(s.store_config?.hero_image_position || "center");
+      setHeroImageBehavior(s.store_config?.hero_image_behavior || "still");
       if (s.store_config?.ticker_texts?.length) setTickerTexts(s.store_config.ticker_texts);
       if (s.store_config?.ticker_speed) setTickerSpeed(s.store_config.ticker_speed);
       if (s.store_config?.bg_color) setBgColor(s.store_config.bg_color);
@@ -442,6 +446,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ collLabel }); }, [collLabel]);
   useEffect(() => { postUpdate({ collSubtitle }); }, [collSubtitle]);
   useEffect(() => { postUpdate({ collectionsLayout }); }, [collectionsLayout]);
+  useEffect(() => { postUpdate({ heroImagePosition }); }, [heroImagePosition]);
+  useEffect(() => { postUpdate({ heroImageBehavior }); }, [heroImageBehavior]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
@@ -544,6 +550,8 @@ export default function StoreEditor() {
         coll_label: collLabel,
         coll_subtitle: collSubtitle,
         collections_layout: collectionsLayout,
+        hero_image_position: heroImagePosition,
+        hero_image_behavior: heroImageBehavior,
           ticker_texts: tickerTexts,
           ticker_speed: tickerSpeed,
           bg_color: bgColor,
@@ -973,6 +981,30 @@ export default function StoreEditor() {
                   {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage hero section.</div>
                 </div>
+                {seller?.template === "soft-luxury" && (
+                  <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <label style={labelStyle}>Banner Position</label>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Fixes portrait banners getting cropped oddly on wide screens.</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 16 }}>
+                      {([{ v: "top", l: "Top" }, { v: "center", l: "Center" }, { v: "bottom", l: "Bottom" }] as const).map(o => (
+                        <button key={o.v} onClick={() => setHeroImagePosition(o.v)}
+                          style={{ padding: "8px 4px", borderRadius: 6, border: heroImagePosition === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: heroImagePosition === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: heroImagePosition === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+                    <label style={labelStyle}>Banner Motion</label>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>See how each option looks live in the preview.</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                      {([{ v: "still", l: "Still" }, { v: "ambient", l: "Ambient" }, { v: "breathing", l: "Breathing" }] as const).map(o => (
+                        <button key={o.v} onClick={() => setHeroImageBehavior(o.v)}
+                          style={{ padding: "8px 4px", borderRadius: 6, border: heroImageBehavior === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: heroImageBehavior === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: heroImageBehavior === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label style={labelStyle}>Tagline (Hero Headline)</label>
                   <input value={tagline} onChange={e => setTagline(e.target.value)}

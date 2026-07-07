@@ -87,6 +87,26 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
   };
 };
 
+// Ticks its own local state every second instead of lifting the string up
+// into the page's state, so a countdown never forces the whole storefront
+// (product images, trust bar, footer) to re-render every second.
+function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: (timeLeft: string | null) => React.ReactNode }) {
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => {
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft(null); return; }
+      const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft((d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0"));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+  return <>{children(timeLeft)}</>;
+}
+
 export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -114,6 +134,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveMutedColor, setLiveMutedColor]               = useState<string | null>(null);
   const [liveCollLabel, setLiveCollLabel]                 = useState<string | null>(null);
   const [liveCollSubtitle, setLiveCollSubtitle]           = useState<string | null>(null);
+  const [liveCollectionsLayout, setLiveCollectionsLayout] = useState<string | null>(null);
+  const [liveHeroImagePosition, setLiveHeroImagePosition] = useState<string | null>(null);
+  const [liveHeroImageBehavior, setLiveHeroImageBehavior] = useState<string | null>(null);
   const [liveProductsLabel, setLiveProductsLabel]         = useState<string | null>(null);
   const [liveProductsHeading, setLiveProductsHeading]     = useState<string | null>(null);
   const [liveProductCardRatio, setLiveProductCardRatio]   = useState<string | null>(null);
@@ -224,6 +247,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.mutedColor  !== undefined) setLiveMutedColor(e.data.mutedColor);
       if (e.data.collLabel   !== undefined) setLiveCollLabel(e.data.collLabel);
       if (e.data.collSubtitle !== undefined) setLiveCollSubtitle(e.data.collSubtitle);
+      if (e.data.collectionsLayout !== undefined) setLiveCollectionsLayout(e.data.collectionsLayout);
+      if (e.data.heroImagePosition !== undefined) setLiveHeroImagePosition(e.data.heroImagePosition);
+      if (e.data.heroImageBehavior !== undefined) setLiveHeroImageBehavior(e.data.heroImageBehavior);
       if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
       if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
@@ -268,36 +294,26 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
   };
 
-  // Promo countdown ticker
+  // Prune expired promos. Deliberately infrequent (not a 1s tick) -- the
+  // live-ticking display itself lives in the isolated <PromoCountdown>
+  // component below so a second-by-second re-render never touches the
+  // rest of the page (product images, trust bar, footer were all
+  // re-rendering every second before this, which read as "blinking").
   useEffect(() => {
     if (promoDiscounts.length === 0 && !promoCountdown?.expires_at) return;
-    const tick = () => {
-      const now = new Date().getTime();
-      if (promoCountdown?.expires_at) {
-        const diff = new Date(promoCountdown.expires_at).getTime() - now;
-        if (diff <= 0) { setPromoCountdown(null); }
-        else {
-          const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
-          const tl = (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-          setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
-        }
+    const prune = () => {
+      const now = Date.now();
+      if (promoCountdown?.expires_at && new Date(promoCountdown.expires_at).getTime() - now <= 0) {
+        setPromoCountdown(null);
       }
-      setPromoDiscounts((prev) => prev.map((p) => {
-        const diff = new Date(p.expires_at).getTime() - now;
-        if (diff <= 0) return { ...p, timeLeft: "EXPIRED" };
-        const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
-        return { ...p, timeLeft: (d > 0 ? d + "d " : "") + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") };
-      }).filter((p) => p.timeLeft !== "EXPIRED"));
+      setPromoDiscounts((prev) => prev.filter((p) => new Date(p.expires_at).getTime() - now > 0));
     };
-    tick();
-    const interval = setInterval(tick, 1000);
+    const interval = setInterval(prune, 30000);
     return () => clearInterval(interval);
   }, [promoDiscounts.length, promoCountdown?.expires_at]);
 
-  const getProductPromo = (productId: string) => promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId) && d.timeLeft);
-  const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName) && d.timeLeft);
+  const getProductPromo = (productId: string) => promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
+  const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName));
 
   const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "" };
   const social = seller?.social_links || {};
@@ -466,9 +482,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     heroCtaTarget.type === "none" ? null :
     "#products";
   const heroCtaIsExternal = heroCtaTarget.type === "url";
-  const heroImagePosition = (cfg as any).hero_image_position || "center";
+  const heroImagePosition = liveHeroImagePosition ?? (cfg as any).hero_image_position ?? "center";
   const heroImageObjectPosition = heroImagePosition === "top" ? "center top" : heroImagePosition === "bottom" ? "center bottom" : "center center";
-  const heroImageBehavior = (cfg as any).hero_image_behavior || "still";
+  const heroImageBehavior = liveHeroImageBehavior ?? (cfg as any).hero_image_behavior ?? "still";
   const heroImageAnimation = heroImageBehavior === "breathing" ? "sl-hero-breathing 16s ease-in-out infinite" : heroImageBehavior === "ambient" ? "sl-hero-ambient 22s ease-in-out infinite" : undefined;
   const displayAnnouncement = liveAnnouncement ?? cfg.announcement     ?? "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
@@ -600,17 +616,21 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         {/* HERO */}
         <EditSection id="hero">
           <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
-            {promoCountdown && promoCountdown.timeLeft && (
-              <div style={{ position: "absolute", top: headerTransparent ? 88 : 20, left: 0, right: 0, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "0 24px" }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", borderRadius: 100, border: `1px solid ${promoTextColor}30`, ...promoChipStyle(!!seller?.banner_url) }}>
-                  <span style={{ fontFamily: fonts.heading, fontStyle: "italic", fontSize: 14, fontWeight: 500, color: promoTextColor }}>{promoCountdown.code} — {promoCountdown.type === "percentage" ? promoCountdown.value + "% off" : "R" + promoCountdown.value + " off"}</span>
-                  <span style={{ width: 1, height: 12, background: `${promoTextColor}40` }} />
-                  <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, fontWeight: 600, color: promoTimerColor }}>{promoCountdown.timeLeft}</span>
-                </div>
-                {promoCountdown.description && (
-                  <p style={{ fontFamily: fonts.heading, fontSize: 12, fontStyle: "italic", fontWeight: 400, color: promoTextColor, margin: 0, textAlign: "center" as const, maxWidth: 420 }}>{promoCountdown.description}</p>
+            {promoCountdown && (
+              <PromoCountdown expiresAt={promoCountdown.expires_at}>
+                {(timeLeft) => timeLeft && (
+                  <div style={{ position: "absolute", top: headerTransparent ? 88 : 20, left: 0, right: 0, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "0 24px" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "9px 18px", borderRadius: 100, border: `1px solid ${promoTextColor}30`, ...promoChipStyle(!!seller?.banner_url) }}>
+                      <span style={{ fontFamily: fonts.heading, fontStyle: "italic", fontSize: 14, fontWeight: 500, color: promoTextColor }}>{promoCountdown!.code} — {promoCountdown!.type === "percentage" ? promoCountdown!.value + "% off" : "R" + promoCountdown!.value + " off"}</span>
+                      <span style={{ width: 1, height: 12, background: `${promoTextColor}40` }} />
+                      <span style={{ fontSize: 11, letterSpacing: "0.1em", fontFamily: fonts.body, fontWeight: 600, color: promoTimerColor }}>{timeLeft}</span>
+                    </div>
+                    {promoCountdown!.description && (
+                      <p style={{ fontFamily: fonts.heading, fontSize: 12, fontStyle: "italic", fontWeight: 400, color: promoTextColor, margin: 0, textAlign: "center" as const, maxWidth: 420 }}>{promoCountdown!.description}</p>
+                    )}
+                  </div>
                 )}
-              </div>
+              </PromoCountdown>
             )}
             {seller?.banner_url ? (
               <>
@@ -624,7 +644,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 </div>
               </>
             ) : (
-              <div style={{ textAlign: "center", padding: promoCountdown && promoCountdown.timeLeft ? "128px 40px 60px" : "80px 40px 60px" }}>
+              <div style={{ textAlign: "center", padding: promoCountdown ? "128px 40px 60px" : "80px 40px 60px" }}>
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                 {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
                 {displayDescription && <p style={{ fontSize: 14, color: pageMuted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
@@ -673,7 +693,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 img: collImages[col] || products.find((p) => pInCat(p, col) && p.image_url)?.image_url || "",
                 promo: getCollectionPromo(col),
               }));
-              const collectionsLayout = (cfg as any).collections_layout || "lookbook";
+              const collectionsLayout = liveCollectionsLayout ?? (cfg as any).collections_layout ?? "lookbook";
               const goToCollection = (name: string) => { setActiveCategory(name); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); };
 
               if (collectionsLayout === "circles") {
@@ -745,10 +765,14 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       Explore <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </div>
                     {c.promo && (
-                      <div style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)" }}>
-                        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.85)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{c.promo.code} {c.promo.type === "percentage" ? c.promo.value + "%" : "R" + c.promo.value} OFF</span>
-                        <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{c.promo.timeLeft}</span>
-                      </div>
+                      <PromoCountdown expiresAt={c.promo.expires_at}>
+                        {(timeLeft) => timeLeft && (
+                          <div style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.12)" }}>
+                            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.85)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{c.promo!.code} {c.promo!.type === "percentage" ? c.promo!.value + "%" : "R" + c.promo!.value} OFF</span>
+                            <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{timeLeft}</span>
+                          </div>
+                        )}
+                      </PromoCountdown>
                     )}
                   </div>
                 </div>
@@ -834,10 +858,14 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <div style={{ position: "absolute", top: 12, right: 12, padding: "4px 12px", background: percentOffPillColor, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 600, letterSpacing: "0.05em" }}>-{Math.round((1 - product.price / product.old_price) * 100)}%</div>
                     )}
                     {(() => { const pp = getProductPromo(product.id); return pp ? (
+                      <PromoCountdown expiresAt={pp.expires_at}>
+                        {(timeLeft) => timeLeft && (
                       <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(42,42,46,0.75)", backdropFilter: "blur(10px)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }}>
                         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{pp.code} {pp.type === "percentage" ? pp.value + "%" : "R" + pp.value} OFF</span>
-                        <span style={{ fontSize: 12, color: "#fff", fontWeight: 700, letterSpacing: "0.04em" }}>{pp.timeLeft}</span>
+                        <span style={{ fontSize: 12, color: "#fff", fontWeight: 700, letterSpacing: "0.04em" }}>{timeLeft}</span>
                       </div>
+                        )}
+                      </PromoCountdown>
                     ) : null; })()}
                   </div>
                   <div style={{ fontFamily: fonts.heading, fontSize: 17, marginBottom: 4, letterSpacing: "0.01em" }}>{product.name}</div>
@@ -1061,7 +1089,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <span title="Mastercard" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="24" height="16" viewBox="0 0 24 16"><circle cx="8.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/><circle cx="15.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/></svg></span>
                       <span title="Amex" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="28" height="16" viewBox="0 0 28 16"><rect x="2" y="1" width="24" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6"/><text x="14" y="10" textAnchor="middle" fontSize="6" fontWeight="700" fill="currentColor" opacity="0.7" fontFamily="sans-serif">AMEX</text></svg></span>
                       <span title="Apple Pay" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="28" height="14" viewBox="0 0 50 21"><path d="M9.4 2.2c-.6.7-1.5 1.3-2.5 1.2-.1-1 .4-2 .9-2.7C8.4.1 9.5-.4 10.4-.5c.1 1.1-.3 2.1-.9 2.7zm.9 1.4c-1.4-.1-2.6.8-3.2.8s-1.7-.8-2.8-.7C2.8 3.7 1.4 4.7.7 6.2c-1.4 2.7-.4 6.6 1 8.8.7 1 1.5 2.2 2.5 2.1 1-.1 1.4-.7 2.6-.7 1.2 0 1.5.7 2.6.6 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.2-.8-2.2-3.3 0-2.1 1.7-3 1.8-3.1-1-1.5-2.5-1.6-3.1-1.7z" fill="currentColor" opacity="0.7"/><path d="M21.8 1c3.4 0 5.7 2.3 5.7 5.8 0 3.4-2.4 5.8-5.8 5.8h-3.7v6h-2.8V1h6.6zm-3.8 9.3h3.1c2.3 0 3.6-1.3 3.6-3.5 0-2.2-1.3-3.5-3.6-3.5h-3.1v7zm11.2 4.5c0-2.2 1.7-3.6 4.7-3.7l3.5-.2v-1c0-1.4-1-2.2-2.5-2.2-1.5 0-2.4.7-2.6 1.8h-2.6c.1-2.4 2.1-4.1 5.3-4.1 3.1 0 5.1 1.6 5.1 4.2v8.8h-2.6v-2.1h-.1c-.8 1.4-2.3 2.3-4 2.3-2.4 0-4.1-1.5-4.1-3.8zm8.2-1.1v-1l-3.1.2c-1.6.1-2.4.8-2.4 1.8 0 1.1.9 1.8 2.3 1.8 1.8 0 3.2-1.2 3.2-2.8zm5 6.3v-2.2c.2 0 .6.1.9.1 1.3 0 2-.5 2.4-1.9l.3-.9L40 5.6h2.9l3.3 10.4h.1L49.5 5.6h2.8L47 18c-1.1 3.2-2.4 4.2-5.1 4.2-.3 0-.9 0-1.3-.1z" fill="currentColor" opacity="0.7"/></svg></span>
-                      <span title="Google Pay" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="28" height="14" viewBox="0 0 40 16"><path d="M19.4 7.8v4.7h-1.5V1h3.9c1 0 1.8.3 2.5 1 .7.6 1 1.4 1 2.3 0 1-.3 1.7-1 2.3-.7.6-1.5.9-2.4.9h-2.5zm0-5.4v4h2.5c.6 0 1.1-.2 1.5-.6.4-.4.6-.9.6-1.4 0-.6-.2-1-.6-1.4-.4-.4-.9-.6-1.5-.6h-2.5zm10.8 2c1.1 0 2 .3 2.6.9.6.6 1 1.5 1 2.6v5.3h-1.4v-1.2h-.1c-.6 1-1.4 1.4-2.5 1.4-.9 0-1.7-.3-2.3-.8-.6-.5-.9-1.2-.9-2 0-.9.3-1.6 1-2.1.7-.5 1.6-.7 2.7-.7 1 0 1.8.2 2.3.5v-.4c0-.6-.2-1.1-.7-1.5-.4-.4-1-.6-1.6-.6-.9 0-1.6.4-2.1 1.2l-1.3-.8c.7-1.2 1.8-1.7 3.2-1.7zm-2 6.1c0 .5.2.8.6 1.1.4.3.8.4 1.3.4.7 0 1.4-.3 1.9-.8.5-.5.8-1.1.8-1.7-.5-.4-1.1-.6-2.1-.6-.7 0-1.3.2-1.7.5-.5.3-.8.7-.8 1.2zm11.4-5.8l-4.9 11.3h-1.5l1.8-4-3.2-7.3h1.6l2.3 5.5h0l2.2-5.5h1.6z" fill="currentColor" opacity="0.7"/></svg></span>
+                      <span title="Google Pay" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="34" height="14" viewBox="0 0 48 16"><circle cx="7" cy="8" r="6.3" fill="none" stroke="currentColor" strokeWidth="1.3" opacity="0.7"/><path d="M7 8h5.2" stroke="currentColor" strokeWidth="1.3" opacity="0.7"/><path d="M7 8V4.8" stroke="currentColor" strokeWidth="1.3" opacity="0.7"/><text x="30" y="11.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="currentColor" opacity="0.7" fontFamily="sans-serif">Pay</text></svg></span>
                     </div>
                   </div>
                 )}
