@@ -495,7 +495,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: fonts.body, background: "#f6f3ef" }}><p style={{ color: "#8a8690", fontSize: 15 }}>Loading store...</p></div>;
   if (notFound) return <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: fonts.body, background: "#f6f3ef" }}><h1 style={{ fontSize: 48, fontWeight: 300, color: "#2a2a2e", marginBottom: 8 }}>404</h1><p style={{ color: "#8a8690" }}>This store does not exist.</p></div>;
 
-  const storeInactive = seller && seller.subscription_status !== "active" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
+  const storeInactive = seller && seller.subscription_status !== "active" && seller.subscription_status !== "free" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
   if (storeInactive && !orderStatus) return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: fonts.body, background: "#f6f3ef", padding: "40px 24px", textAlign: "center" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?${fonts.import}&display=swap');`}</style>

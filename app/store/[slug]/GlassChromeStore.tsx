@@ -335,7 +335,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: body, background: "#030305" }}><p style={{ color: "rgba(255,255,255,0.4)", fontFamily: mono, fontSize: 12, letterSpacing: "0.15em", textTransform: "uppercase" }}>Loading store...</p></div>;
   if (notFound) return <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: body, background: "#030305" }}><h1 style={{ fontFamily: display, fontSize: 96, background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 8 }}>404</h1><p style={{ color: "rgba(255,255,255,0.4)" }}>This store does not exist.</p></div>;
 
-  const storeInactive = seller && seller.subscription_status !== "active" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
+  const storeInactive = seller && seller.subscription_status !== "active" && seller.subscription_status !== "free" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
   if (storeInactive && !orderStatus) return (
     <div style={{ minHeight: "100vh", background: "#030305", fontFamily: body, color: "#f0f0f0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Share+Tech+Mono&display=swap');`}</style>

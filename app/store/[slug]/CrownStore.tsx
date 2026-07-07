@@ -524,7 +524,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
   );
 
   /* Subscription gate: store goes dark unless seller is active or in a live trial. */
-  const storeInactive = seller && seller.subscription_status !== "active" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
+  const storeInactive = seller && seller.subscription_status !== "active" && seller.subscription_status !== "free" && !(seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
   if (storeInactive && !isEditMode) return (
     <div style={{ minHeight: "100vh", background: "#0a0908", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#f0e6d3", fontFamily: "'Cormorant Garant', serif", textAlign: "center", padding: "40px 24px" }}>
       {seller?.logo_url ? <img src={seller.logo_url} alt="" onError={hideOnError} style={{ height: 48, objectFit: "contain", marginBottom: 32 }} /> : <h2 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 28, fontWeight: 300, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 32 }}>{seller?.store_name}</h2>}
