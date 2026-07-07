@@ -6,10 +6,11 @@ import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
 
-// Heirloom is the only template that supports dedicated collection pages today.
-// If a seller on another template ends up here (e.g. someone shared a deep link),
-// fall back to the main storefront so they don't see a broken page.
+// Heirloom and Soft Luxury support dedicated collection pages today. If a
+// seller on another template ends up here (e.g. someone shared a deep
+// link), fall back to the main storefront so they don't see a broken page.
 const Heirloom = dynamic(() => import("../../HeirloomStore"));
+const SoftLuxury = dynamic(() => import("../../SoftLuxuryStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
@@ -43,8 +44,11 @@ export default async function CollectionPage({
 
   const isSubdomain = await isStoreSubdomainRequest();
 
-  // Only Heirloom renders collection pages. Other templates send the visitor home.
-  if (seller.template !== "heirloom") redirect(isSubdomain ? "/" : `/store/${slug}`);
+  // Only Heirloom and Soft Luxury render collection pages. Other templates
+  // send the visitor home.
+  if (seller.template !== "heirloom" && seller.template !== "soft-luxury") {
+    redirect(isSubdomain ? "/" : `/store/${slug}`);
+  }
 
   // Special-case "all": render every published in-stock product without a category filter.
   const isAll = collection.toLowerCase() === "all";
@@ -100,14 +104,15 @@ export default async function CollectionPage({
         (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
       );
 
-  return (
-    <Heirloom
-      initialSeller={seller}
-      initialProducts={collectionProducts}
-      initialDiscountCodes={discountsRes.data ?? []}
-      mode="collection"
-      collectionName={isAll ? "All Products" : matched!}
-      isSubdomain={isSubdomain}
-    />
-  );
+  const props = {
+    initialSeller: seller,
+    initialProducts: collectionProducts,
+    initialDiscountCodes: discountsRes.data ?? [],
+    mode: "collection" as const,
+    collectionName: isAll ? "All Products" : matched!,
+    isSubdomain,
+  };
+
+  if (seller.template === "soft-luxury") return <SoftLuxury {...props} />;
+  return <Heirloom {...props} />;
 }

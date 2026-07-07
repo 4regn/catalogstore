@@ -5,6 +5,12 @@ import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FONT_PAIRS } from "../../../lib/font-pairs";
 
+// Mirror HeirloomStore's collectionSlug. Inlined (not imported) so this
+// bundle doesn't have to drag in the whole other storefront component just
+// to compute a slug.
+const collectionSlug = (name: string) =>
+  name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
 
@@ -70,6 +76,12 @@ interface StorePageProps {
   initialDiscountCodes?: any[];
   initialProductId?: string;
   isSubdomain?: boolean;
+  // When mode === "collection" the page renders just the header, that one
+  // collection's products (paginated), and footer -- the hero, marquee, and
+  // "browse all collections" section are skipped since they don't make
+  // sense on a page that's already inside a specific collection.
+  mode?: "home" | "collection";
+  collectionName?: string;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined) => {
@@ -107,7 +119,8 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
   return <>{children(timeLeft)}</>;
 }
 
-export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
+export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain, mode = "home", collectionName }: StorePageProps = {}) {
+  const isCollectionView = mode === "collection";
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -169,7 +182,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
   const [loading, setLoading] = useState(!initialSeller);
   const [notFound, setNotFound] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeCategory, setActiveCategory] = useState(collectionName || "All");
   const [productSort, setProductSort] = useState("default");
   const [productsPage, setProductsPage] = useState(1);
   const PRODUCTS_PER_PAGE = 24;
@@ -180,6 +193,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [promoCountdown, setPromoCountdown] = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; description?: string; timeLeft: string } | null>(() => buildInitialPromos(initialDiscountCodes).countdown);
@@ -560,7 +574,10 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         @keyframes mscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
         @keyframes sl-hero-breathing{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
         @keyframes sl-hero-ambient{0%,100%{transform:scale(1.04) translate(0,0)}50%{transform:scale(1.07) translate(-1.5%,-1%)}}
-        @media(max-width:768px){.sl-cols-g{grid-template-columns:1fr!important}.sl-cols-grid{grid-template-columns:repeat(2,1fr)!important}.sl-pgrid{grid-template-columns:repeat(2,1fr)!important}.sl-story{grid-template-columns:1fr!important}.sl-trust{grid-template-columns:repeat(2,1fr)!important}.sl-polg{grid-template-columns:1fr!important}.sl-fttop{grid-template-columns:1fr!important}.sl-hero{height:70vh!important;min-height:400px!important}.sl-hnav{display:none!important}.sl-modal{flex-direction:column!important}.sl-header-grid{display:flex!important;justify-content:space-between!important}.sl-logo-img{height:36px!important;max-width:120px!important}}
+        @media(max-width:768px){.sl-cols-g{grid-template-columns:1fr!important}.sl-cols-grid{grid-template-columns:repeat(2,1fr)!important}.sl-pgrid{grid-template-columns:repeat(2,1fr)!important}.sl-story{grid-template-columns:1fr!important}.sl-trust{grid-template-columns:repeat(2,1fr)!important}.sl-polg{grid-template-columns:1fr!important}.sl-fttop{grid-template-columns:1fr!important}.sl-hero{height:70vh!important;min-height:400px!important}.sl-hnav-link{display:none!important}.sl-modal{flex-direction:column!important}.sl-header-grid{display:flex!important;justify-content:space-between!important}.sl-logo-img{height:36px!important;max-width:120px!important}.sl-hamburger{display:flex!important}}
+        .sl-hamburger{display:none}
+        @keyframes sl-drawer-in{0%{transform:translateX(-100%)}100%{transform:translateX(0)}}
+        @keyframes sl-overlay-in{0%{opacity:0}100%{opacity:1}}
       `}</style>
       <div style={{ minHeight: "100vh", background: pageBg, fontFamily: fonts.body, color: pageText }}>
 
@@ -574,11 +591,15 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         {/* HEADER */}
         <header style={{ position: headerTransparent ? "absolute" : "sticky", top: 0, left: 0, right: 0, zIndex: 100, background: headerTransparent ? "transparent" : pageBg + "eb", backdropFilter: headerTransparent ? "none" : "blur(24px)", WebkitBackdropFilter: headerTransparent ? "none" : "blur(24px)", borderBottom: headerBorder && !headerTransparent ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
           <div className="sl-header-grid" style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: 72 }}>
-            <div className="sl-hnav" style={{ display: "flex", gap: 32 }}>
-              <button onClick={() => { setActiveCategory("All"); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+            <div className="sl-hnav" style={{ display: "flex", alignItems: "center", gap: 32 }}>
+              <button className="sl-hamburger" onClick={() => setMobileMenuOpen(true)} aria-label="Menu"
+                style={{ background: "none", border: "none", padding: 4, margin: "-4px", color: headerTransparent ? "rgba(255,255,255,0.9)" : pageText, cursor: "pointer", alignItems: "center" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+              </button>
+              <button className="sl-hnav-link" onClick={() => { setActiveCategory("All"); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
                 style={{ background: "none", border: "none", padding: 0, color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Shop All</button>
               {cats.length > 2 && (
-                <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
+                <button className="sl-hnav-link" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
                   style={{ background: "none", border: "none", padding: 0, color: headerTransparent ? "rgba(255,255,255,0.7)" : pageMuted, fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
               )}
             </div>
@@ -618,7 +639,45 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </div>
         </header>
 
+        {/* MOBILE MENU DRAWER -- opens from the hamburger button. Lists
+            All Products + every collection (with a thumbnail where one's
+            available); future pages (e.g. a blog) get added here too. */}
+        {mobileMenuOpen && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 200 }}>
+            <div onClick={() => setMobileMenuOpen(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", animation: "sl-overlay-in 0.25s ease" }} />
+            <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: "min(320px, 84vw)", background: pageBg, boxShadow: "4px 0 40px rgba(0,0,0,0.25)", animation: "sl-drawer-in 0.3s cubic-bezier(0.16,1,0.3,1)", display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 20px 16px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                <span style={{ fontFamily: fonts.heading, fontSize: 18, fontWeight: 400, color: pageText }}>Menu</span>
+                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" style={{ background: "none", border: "none", color: pageMuted, cursor: "pointer", padding: 4 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="m5 5 14 14M19 5 5 19"/></svg>
+                </button>
+              </div>
+              <div style={{ overflowY: "auto", flex: 1, padding: "8px 0" }}>
+                <a href={sp("/c/all")} onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", textDecoration: "none", color: pageText }}>
+                  <span style={{ width: 44, height: 44, borderRadius: 10, background: `linear-gradient(145deg, ${accent}12, ${accent}28)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>All Products</span>
+                </a>
+                {collections.filter((c) => products.some((p) => pInCat(p, c))).map((col) => {
+                  const collImages = (cfg as any).collection_images || {};
+                  const img = collImages[col] || products.find((p) => pInCat(p, col) && p.image_url)?.image_url || "";
+                  return (
+                    <a key={col} href={sp(`/c/${collectionSlug(col)}`)} onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", textDecoration: "none", color: pageText }}>
+                      <span style={{ width: 44, height: 44, borderRadius: 10, overflow: "hidden", flexShrink: 0, background: `linear-gradient(145deg, ${accent}12, ${accent}28)` }}>
+                        {img && <img src={img} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 500 }}>{col}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {!initialProductId && (<>
+        {!isCollectionView && (<>
         {/* HERO */}
         <EditSection id="hero">
           <section className="sl-hero" style={{ position: "relative", height: seller?.banner_url ? "92vh" : "auto", minHeight: seller?.banner_url ? 500 : "auto", overflow: "hidden" }}>
@@ -808,23 +867,28 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           </section>
           </EditSection>
         )}
+        </>)}
 
         {/* PRODUCTS */}
         <EditSection id="products">
         <section id="products" style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", cursor: productsCollapsed ? "pointer" : "default" }} onClick={productsCollapsed ? () => setProductsExpanded(!productsExpanded) : undefined}>
-            <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12 }}>{displayProductsLabel}</div>
+          {isCollectionView && (
+            <a href={sp()} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: pageMuted, textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 20 }}>&larr; All Collections</a>
+          )}
+          <div style={{ textAlign: "center", cursor: productsCollapsed && !isCollectionView ? "pointer" : "default" }} onClick={productsCollapsed && !isCollectionView ? () => setProductsExpanded(!productsExpanded) : undefined}>
+            {!isCollectionView && <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12 }}>{displayProductsLabel}</div>}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 24 }}>
-              <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, letterSpacing: "0.02em" }}>{displayProductsHeading}</h2>
-              {productsCollapsed && (
+              <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, letterSpacing: "0.02em" }}>{isCollectionView ? collectionName : displayProductsHeading}</h2>
+              {productsCollapsed && !isCollectionView && (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round" style={{ transition: "transform 0.3s", transform: productsExpanded ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6"/></svg>
               )}
             </div>
           </div>
 
           {/* Category chips always visible even when the section is collapsed by
-              default -- picking a category (including "All") is what expands it. */}
-          {cats.length > 2 && (
+              default -- picking a category (including "All") is what expands it.
+              Hidden entirely on a dedicated collection page -- already scoped. */}
+          {cats.length > 2 && !isCollectionView && (
             <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: productsExpanded ? 16 : 0, flexWrap: "wrap" }}>
               {cats.map((cat) => (
                 <button key={cat} onClick={() => { setActiveCategory(cat); setProductsExpanded(true); }} style={{ padding: "10px 28px", borderRadius: 100, background: activeCategory === cat && productsExpanded ? accent : "transparent", border: activeCategory === cat && productsExpanded ? "1px solid " + accent : "1px solid rgba(0,0,0,0.06)", fontFamily: fonts.body, fontSize: 12, color: activeCategory === cat && productsExpanded ? "#fff" : pageMuted, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.3s" }}>{cat}</button>
@@ -832,7 +896,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             </div>
           )}
 
-          {productsExpanded && (<>
+          {(productsExpanded || isCollectionView) && (<>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 32 }}>
             <select value={productSort} onChange={(e) => setProductSort(e.target.value)} style={{ padding: "8px 16px", background: pageBg, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, color: pageMuted, fontFamily: fonts.body, fontSize: 12, letterSpacing: "0.04em", cursor: "pointer", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(0,0,0,0.2)'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 32 }}>
               <option value="default">Default</option>
