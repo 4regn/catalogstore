@@ -505,6 +505,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ operatingHours }); }, [operatingHours]);
   useEffect(() => { postUpdate({ policyItems }); }, [policyItems]);
   useEffect(() => { postUpdate({ collectionsCollapsed }); }, [collectionsCollapsed]);
+  useEffect(() => { postUpdate({ productsCollapsed }); }, [productsCollapsed]);
   useEffect(() => {
     const lines = hoursStructured.map(h => {
       if (h.status === "closed") return `${h.day}: Closed`;
@@ -638,8 +639,8 @@ export default function StoreEditor() {
   const logoRef = useRef<HTMLInputElement>(null);
 
   /* ─── STYLES ─── */
-  const G = "#ff3d6e";
-  const N = "#ff3d6e";
+  const G = "#ff6b35";
+  const N = "#ff6b35";
   const inputStyle: React.CSSProperties = {
     width: "100%", padding: "10px 12px",
     background: "rgba(255,255,255,0.06)",
@@ -676,7 +677,7 @@ export default function StoreEditor() {
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#0a0a0e", fontFamily: "'Schibsted Grotesk', sans-serif", overflow: "hidden" }}>
 
       {/* ── TOP BAR ── */}
-      <div style={{ height: 52, background: "#111116", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0, zIndex: 100 }}>
+      <div style={{ height: 52, background: "#0a0a0e", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <button onClick={() => router.push("/dashboard")} aria-label="Back to dashboard"
             style={{ background: "none", border: "none", color: "rgba(245,245,245,0.4)", cursor: "pointer", padding: "6px 8px", borderRadius: 6, display: "flex", alignItems: "center" }}>
@@ -781,7 +782,7 @@ export default function StoreEditor() {
           bottom: panelVisible ? 24 : -400,
           left: "50%", transform: "translateX(-50%)",
           width: "min(520px, calc(100vw - 48px))",
-          background: "#1a1a22",
+          background: "#0d0d11",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: 20,
           boxShadow: "0 -4px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)",

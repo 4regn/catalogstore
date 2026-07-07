@@ -171,6 +171,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [notFound, setNotFound] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
   const [productSort, setProductSort] = useState("default");
+  const [productsPage, setProductsPage] = useState(1);
+  const PRODUCTS_PER_PAGE = 24;
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
@@ -254,6 +256,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
       if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
       if (e.data.collectionsCollapsed !== undefined) setCollectionsExpanded(!e.data.collectionsCollapsed);
+      if (e.data.productsCollapsed !== undefined) setProductsExpanded(!e.data.productsCollapsed);
       if (e.data.footerAbout !== undefined) setLiveFooterAbout(e.data.footerAbout);
       if (e.data.contactEmail !== undefined) setLiveContactEmail(e.data.contactEmail);
       if (e.data.contactPhone !== undefined) setLiveContactPhone(e.data.contactPhone);
@@ -377,6 +380,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     else list.sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
     return list;
   })();
+  const productsTotalPages = Math.max(1, Math.ceil(filtered.length / PRODUCTS_PER_PAGE));
+  const paginatedProducts = filtered.slice((productsPage - 1) * PRODUCTS_PER_PAGE, productsPage * PRODUCTS_PER_PAGE);
+  useEffect(() => { setProductsPage(1); }, [activeCategory, productSort]);
   const searched = searchQuery ? products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
   const openProduct = (p: Product) => { setSelectedProduct(p); setActiveImageIndex(0); setModalQty(1); const d: { [k: string]: string } = {}; (p.variants || []).forEach((v) => { if (v.options?.length > 0) d[v.name] = v.options[0]; }); setSelectedVariants(d); if (!isEditMode) window.history.replaceState(null, "", sp(`/p/${p.id}`)); };
@@ -808,7 +814,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         <section id="products" style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
           <div style={{ textAlign: "center", cursor: productsCollapsed ? "pointer" : "default" }} onClick={productsCollapsed ? () => setProductsExpanded(!productsExpanded) : undefined}>
             <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: pageMuted, marginBottom: 12 }}>{displayProductsLabel}</div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: productsExpanded ? 48 : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 24 }}>
               <h2 style={{ fontFamily: fonts.heading, fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 300, letterSpacing: "0.02em" }}>{displayProductsHeading}</h2>
               {productsCollapsed && (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pageMuted} strokeWidth="1.5" strokeLinecap="round" style={{ transition: "transform 0.3s", transform: productsExpanded ? "rotate(180deg)" : "rotate(0)" }}><path d="M6 9l6 6 6-6"/></svg>
@@ -816,15 +822,17 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             </div>
           </div>
 
-          {productsExpanded && (<>
+          {/* Category chips always visible even when the section is collapsed by
+              default -- picking a category (including "All") is what expands it. */}
           {cats.length > 2 && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: productsExpanded ? 16 : 0, flexWrap: "wrap" }}>
               {cats.map((cat) => (
-                <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: "10px 28px", borderRadius: 100, background: activeCategory === cat ? accent : "transparent", border: activeCategory === cat ? "1px solid " + accent : "1px solid rgba(0,0,0,0.06)", fontFamily: fonts.body, fontSize: 12, color: activeCategory === cat ? "#fff" : pageMuted, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.3s" }}>{cat}</button>
+                <button key={cat} onClick={() => { setActiveCategory(cat); setProductsExpanded(true); }} style={{ padding: "10px 28px", borderRadius: 100, background: activeCategory === cat && productsExpanded ? accent : "transparent", border: activeCategory === cat && productsExpanded ? "1px solid " + accent : "1px solid rgba(0,0,0,0.06)", fontFamily: fonts.body, fontSize: 12, color: activeCategory === cat && productsExpanded ? "#fff" : pageMuted, cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.3s" }}>{cat}</button>
               ))}
             </div>
           )}
 
+          {productsExpanded && (<>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 32 }}>
             <select value={productSort} onChange={(e) => setProductSort(e.target.value)} style={{ padding: "8px 16px", background: pageBg, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, color: pageMuted, fontFamily: fonts.body, fontSize: 12, letterSpacing: "0.04em", cursor: "pointer", outline: "none", appearance: "none" as const, WebkitAppearance: "none" as const, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(0,0,0,0.2)'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 32 }}>
               <option value="default">Default</option>
@@ -844,7 +852,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             </div>
           ) : (
             <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
-              {filtered.map((product) => (
+              {paginatedProducts.map((product) => (
                 <div key={product.id} onClick={() => { if (isEditMode) { openProduct(product); } else { setNavigating(true); router.push(sp(`/p/${product.id}`)); } }} style={{ cursor: "pointer" }}>
                   <div style={{ ...(cardRatio !== "auto" ? { aspectRatio: cardRatio } : {}), borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
                     {product.image_url && (
@@ -876,6 +884,19 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {productsTotalPages > 1 && (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 48 }}>
+              <button onClick={() => { setProductsPage((p) => Math.max(1, p - 1)); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} disabled={productsPage === 1}
+                style={{ padding: "10px 18px", borderRadius: 100, border: "1px solid rgba(0,0,0,0.1)", background: "transparent", color: pageMuted, fontFamily: fonts.body, fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", cursor: productsPage === 1 ? "default" : "pointer", opacity: productsPage === 1 ? 0.35 : 1 }}>&larr; Prev</button>
+              {Array.from({ length: productsTotalPages }, (_, i) => i + 1).map((n) => (
+                <button key={n} onClick={() => { setProductsPage(n); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ width: 34, height: 34, borderRadius: "50%", border: productsPage === n ? "1px solid " + accent : "1px solid rgba(0,0,0,0.1)", background: productsPage === n ? accent : "transparent", color: productsPage === n ? "#fff" : pageMuted, fontFamily: fonts.body, fontSize: 12, cursor: "pointer" }}>{n}</button>
+              ))}
+              <button onClick={() => { setProductsPage((p) => Math.min(productsTotalPages, p + 1)); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }} disabled={productsPage === productsTotalPages}
+                style={{ padding: "10px 18px", borderRadius: 100, border: "1px solid rgba(0,0,0,0.1)", background: "transparent", color: pageMuted, fontFamily: fonts.body, fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", cursor: productsPage === productsTotalPages ? "default" : "pointer", opacity: productsPage === productsTotalPages ? 0.35 : 1 }}>Next &rarr;</button>
             </div>
           )}
           </>)}
@@ -1089,7 +1110,6 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       <span title="Mastercard" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="24" height="16" viewBox="0 0 24 16"><circle cx="8.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/><circle cx="15.5" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6"/></svg></span>
                       <span title="Amex" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="28" height="16" viewBox="0 0 28 16"><rect x="2" y="1" width="24" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6"/><text x="14" y="10" textAnchor="middle" fontSize="6" fontWeight="700" fill="currentColor" opacity="0.7" fontFamily="sans-serif">AMEX</text></svg></span>
                       <span title="Apple Pay" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="28" height="14" viewBox="0 0 50 21"><path d="M9.4 2.2c-.6.7-1.5 1.3-2.5 1.2-.1-1 .4-2 .9-2.7C8.4.1 9.5-.4 10.4-.5c.1 1.1-.3 2.1-.9 2.7zm.9 1.4c-1.4-.1-2.6.8-3.2.8s-1.7-.8-2.8-.7C2.8 3.7 1.4 4.7.7 6.2c-1.4 2.7-.4 6.6 1 8.8.7 1 1.5 2.2 2.5 2.1 1-.1 1.4-.7 2.6-.7 1.2 0 1.5.7 2.6.6 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.2-.8-2.2-3.3 0-2.1 1.7-3 1.8-3.1-1-1.5-2.5-1.6-3.1-1.7z" fill="currentColor" opacity="0.7"/><path d="M21.8 1c3.4 0 5.7 2.3 5.7 5.8 0 3.4-2.4 5.8-5.8 5.8h-3.7v6h-2.8V1h6.6zm-3.8 9.3h3.1c2.3 0 3.6-1.3 3.6-3.5 0-2.2-1.3-3.5-3.6-3.5h-3.1v7zm11.2 4.5c0-2.2 1.7-3.6 4.7-3.7l3.5-.2v-1c0-1.4-1-2.2-2.5-2.2-1.5 0-2.4.7-2.6 1.8h-2.6c.1-2.4 2.1-4.1 5.3-4.1 3.1 0 5.1 1.6 5.1 4.2v8.8h-2.6v-2.1h-.1c-.8 1.4-2.3 2.3-4 2.3-2.4 0-4.1-1.5-4.1-3.8zm8.2-1.1v-1l-3.1.2c-1.6.1-2.4.8-2.4 1.8 0 1.1.9 1.8 2.3 1.8 1.8 0 3.2-1.2 3.2-2.8zm5 6.3v-2.2c.2 0 .6.1.9.1 1.3 0 2-.5 2.4-1.9l.3-.9L40 5.6h2.9l3.3 10.4h.1L49.5 5.6h2.8L47 18c-1.1 3.2-2.4 4.2-5.1 4.2-.3 0-.9 0-1.3-.1z" fill="currentColor" opacity="0.7"/></svg></span>
-                      <span title="Google Pay" style={{ width: 42, height: 26, border: `1px solid ${footerMutedColor}20`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: footerMutedColor + "10" }}><svg width="34" height="14" viewBox="0 0 48 16"><circle cx="7" cy="8" r="6.3" fill="none" stroke="currentColor" strokeWidth="1.3" opacity="0.7"/><path d="M7 8h5.2" stroke="currentColor" strokeWidth="1.3" opacity="0.7"/><path d="M7 8V4.8" stroke="currentColor" strokeWidth="1.3" opacity="0.7"/><text x="30" y="11.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="currentColor" opacity="0.7" fontFamily="sans-serif">Pay</text></svg></span>
                     </div>
                   </div>
                 )}
