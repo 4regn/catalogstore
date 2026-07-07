@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
        checks this, but CSV import is a separate path and must not be able
        to bypass it. */
     const { data: sellerRow } = await supabase.from("sellers").select("subscription_status").eq("id", sellerId).maybeSingle();
-    const productCap = sellerRow?.subscription_status === "free" ? 4 : 100;
+    const productCap = sellerRow?.subscription_status === "free" ? 15 : 100;
     const remainingSlots = Math.max(0, productCap - existingCount);
     let skippedForPlanLimit = 0;
     if (rows.length > remainingSlots) {

@@ -565,7 +565,7 @@ export default function Dashboard() {
   ];
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
-    ? { products: 4, images: 5, collections: 10, templates: 1 }
+    ? { products: 15, images: 5, collections: 10, templates: 1 }
     : { products: 100, images: 20, collections: 10, templates: 4 };
   const activeProductCount = products.filter((p) => p.status !== "trashed").length;
   const canAddProduct = activeProductCount < planLimits.products;
@@ -1302,7 +1302,7 @@ export default function Dashboard() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
                     {TEMPLATES.map((t, ti) => {
                       const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html" } as Record<string, string>)[t.id];
-                      const locked = isFreePlan && t.id !== "glass-futuristic";
+                      const locked = isFreePlan && t.id !== "soft-luxury";
                       return (
                         <button key={t.id} onClick={async () => { if (locked) { alert("Upgrade to Pro to unlock all 4 templates."); return; } if (t.id === storeTemplate) return; setStoreTemplate(t.id); if (seller && confirm("Switch to " + t.name + "? This will save immediately.")) { const { error } = await supabase.from("sellers").update({ template: t.id }).eq("id", seller.id); if (!error) { setSeller({ ...seller, template: t.id }); revalidateMyStore(); } } }} style={{ padding: 0, border: storeTemplate === t.id ? "2px solid " + N : "2px solid var(--border)", borderRadius: 16, background: "var(--panel)", cursor: locked ? "not-allowed" : "pointer", overflow: "hidden", textAlign: "left" as const, position: "relative" as const, opacity: locked ? 0.5 : 1 }}>
                           <div style={{ width: "100%", height: 220, background: t.colors.bg, overflow: "hidden", borderRadius: "12px 12px 0 0", position: "relative" as const }}>

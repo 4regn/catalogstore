@@ -13,13 +13,13 @@ const TICKER_ITEMS = [
   "Make Money While You Sleep", "Zero Coding Required",
 ];
 
-// Two tiers: Free (GlassChrome only, capped) to get a real store live with
+// Two tiers: Free (Soft Luxury only, capped) to get a real store live with
 // zero commitment, and Pro (all 4 templates, higher limits, custom
 // domain) as the paid upsell once a seller is ready to grow.
 const FREE_PLAN_FEATURES = [
-  "Up to 4 products",
+  "Up to 15 products",
   "5 photos per product",
-  "GlassChrome template",
+  "Soft Luxury template",
   "Free store link (catalogstore.co.za/store)",
   "Visual store editor",
   "Card, EFT, Apple Pay, WhatsApp checkout",
@@ -133,7 +133,7 @@ const FAQS = [
   },
   {
     q: "How do I add my products?",
-    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. The Free plan includes up to 4 products to get started; Pro goes up to 100.",
+    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. The Free plan includes up to 15 products to get started; Pro goes up to 100.",
   },
   {
     q: "What if I get stuck?",
