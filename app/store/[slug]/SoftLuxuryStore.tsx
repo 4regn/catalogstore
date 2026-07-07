@@ -3,21 +3,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { FONT_PAIRS } from "../../../lib/font-pairs";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
-
-const FONT_PAIRS: Record<string, { heading: string; body: string; import: string }> = {
-  "cormorant-jost": { heading: "'Cormorant Garamond', serif", body: "'Jost', sans-serif", import: "family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Jost:wght@300;400;500;600;700" },
-  "playfair-lato": { heading: "'Playfair Display', serif", body: "'Lato', sans-serif", import: "family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lato:wght@300;400;700" },
-  "dm-serif-inter": { heading: "'DM Serif Display', serif", body: "'Inter', sans-serif", import: "family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700" },
-  "libre-raleway": { heading: "'Libre Baskerville', serif", body: "'Raleway', sans-serif", import: "family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Raleway:wght@300;400;500;600;700" },
-  "fraunces-outfit": { heading: "'Fraunces', serif", body: "'Outfit', sans-serif", import: "family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=Outfit:wght@300;400;500;600;700" },
-  "eb-garamond-source": { heading: "'EB Garamond', serif", body: "'Source Sans 3', sans-serif", import: "family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700" },
-  "bodoni-montserrat": { heading: "'Bodoni Moda', serif", body: "'Montserrat', sans-serif", import: "family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;1,6..96,400&family=Montserrat:wght@300;400;500;600;700" },
-  "josefin-sans": { heading: "'Josefin Sans', sans-serif", body: "'Josefin Sans', sans-serif", import: "family=Josefin+Sans:wght@100;200;300;400;500;600;700" },
-  "tenor-work": { heading: "'Tenor Sans', sans-serif", body: "'Work Sans', sans-serif", import: "family=Tenor+Sans&family=Work+Sans:wght@300;400;500;600;700" },
-};
 
 const TrustIcon = ({ id, size = 24, color }: { id: string; size?: number; color?: string }) => {
   const props = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color || "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -470,6 +459,13 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const displayTagline      = liveTagline      ?? seller?.tagline      ?? "";
   const displayDescription  = liveDescription  ?? seller?.description  ?? "";
   const displayHeroTitle    = liveHeroTitle !== null ? liveHeroTitle : ((cfg as any).hero_title !== undefined ? (cfg as any).hero_title : (seller?.store_name || ""));
+  const heroCtaTarget = (cfg as any).hero_cta_target || { type: "products" };
+  const heroCtaHref =
+    heroCtaTarget.type === "collection" && heroCtaTarget.collection ? sp(`/c/${heroCtaTarget.collection}`) :
+    heroCtaTarget.type === "url" && heroCtaTarget.url ? heroCtaTarget.url :
+    heroCtaTarget.type === "none" ? null :
+    "#products";
+  const heroCtaIsExternal = heroCtaTarget.type === "url";
   const displayAnnouncement = liveAnnouncement ?? cfg.announcement     ?? "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
   const displayLogoUrl      = liveLogoUrl      ?? seller?.logo_url     ?? "";
@@ -618,7 +614,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                   {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{displayHeroTitle}</h1>}
                   {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
-                  <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
+                  {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>}
                 </div>
               </>
             ) : (
@@ -626,7 +622,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                 {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
                 {displayDescription && <p style={{ fontSize: 14, color: pageMuted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
-                <a href="#products" style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>
+                {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>}
               </div>
             )}
           </section>

@@ -5,6 +5,8 @@ import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { revalidateStore } from "../actions/revalidate-store";
 import { canonicalStoreUrl } from "../../lib/store-url";
+import { FONT_PAIRS, DEFAULT_FONT_PAIR_KEY } from "../../lib/font-pairs";
+import CtaTargetPicker, { type CtaTarget } from "../components/CtaTargetPicker";
 import Spinner from "../components/Spinner";
 
 const productInCat = (cat: string, product: { category: string }) =>
@@ -36,6 +38,10 @@ interface StoreConfig {
   shipping_policy?: string;
   return_policy?: string;
   free_ship_threshold?: number | null;
+  hero_title?: string;
+  hero_cta?: string;
+  hero_cta_target?: CtaTarget;
+  font_pair?: string;
 }
 
 interface CheckoutConfig {
@@ -153,7 +159,7 @@ export default function Dashboard() {
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
-  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }] });
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }], hero_title: "", hero_cta: "", hero_cta_target: { type: "products" }, font_pair: DEFAULT_FONT_PAIR_KEY });
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeSaved, setStoreSaved] = useState(false);
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
@@ -221,7 +227,7 @@ export default function Dashboard() {
       supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
     ]);
     const sd = sellerRes.data;
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", free_ship_threshold: c.free_ship_threshold ?? null }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", free_ship_threshold: c.free_ship_threshold ?? null, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
     if (pdResult.data) setProducts(pdResult.data);
     if (odResult.data) {
       setOrders(odResult.data);
@@ -562,7 +568,7 @@ export default function Dashboard() {
         { key: "discounts", name: "Discounts", count: discountCodes.length },
       ],
     },
-    { label: "Store", items: [{ key: "mystore", name: "My Store" }, { key: "checkout", name: "Checkout" }] },
+    { label: "Edit My Store", items: [{ key: "mystore", name: "My Store" }, { key: "checkout", name: "Checkout" }] },
   ];
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
@@ -637,7 +643,7 @@ export default function Dashboard() {
             </nav>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
-            <a href="/dashboard/editor" style={{ display: "block", padding: "12px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Store Editor</a>
+            <a href="/dashboard/editor" style={{ display: "block", padding: "12px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Online Visual Editor</a>
             {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ display: "block", padding: "12px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 12, color: N, fontSize: 12, fontWeight: 700, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>View My Store</a>}
             <a href="/dashboard/billing" style={{ display: "block", padding: "12px 16px", background: seller?.subscription_status === "active" ? "rgba(34,197,94,0.06)" : seller?.subscription_status === "trial" ? "rgba(251,191,36,0.06)" : seller?.subscription_status === "past_due" ? "rgba(251,191,36,0.1)" : "rgba(255,61,110,0.06)", border: seller?.subscription_status === "active" ? "1px solid rgba(34,197,94,0.12)" : seller?.subscription_status === "trial" ? "1px solid rgba(251,191,36,0.12)" : seller?.subscription_status === "past_due" ? "1px solid rgba(251,191,36,0.3)" : "1px solid rgba(255,61,110,0.12)", borderRadius: 12, textDecoration: "none", textAlign: "center" as const }}>
               <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: seller?.subscription_status === "active" ? "#22c55e" : seller?.subscription_status === "trial" ? "#fbbf24" : seller?.subscription_status === "past_due" ? "#fbbf24" : "#ff3d6e" }}>{seller?.subscription_status === "active" ? "Active Plan" : seller?.subscription_status === "trial" ? "Free Trial" : seller?.subscription_status === "past_due" ? "Payment Failed" : "Inactive"}</div>
@@ -1330,20 +1336,13 @@ export default function Dashboard() {
                       );
                     })}
                   </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 10 }}>Brand Color</div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, alignItems: "center" }}>
-                      {COLOR_PRESETS.map((c) => (<button key={c} onClick={() => setStoreColor(c)} style={{ width: 32, height: 32, borderRadius: 8, background: c, border: storeColor === c ? "3px solid var(--panel-solid)" : "3px solid transparent", cursor: "pointer", boxShadow: storeColor === c ? "0 0 0 2px " + c : "none" }} />))}
-                      <input type="color" value={storeColor} onChange={(e) => setStoreColor(e.target.value)} style={{ width: 32, height: 32, borderRadius: 8, border: "none", cursor: "pointer", background: "transparent" }} />
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
-            {seller?.subdomain && (<div style={sectionCard}><h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Visual Editor</h3><p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p><a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Store Editor &rarr;</a></div>)}
+            {seller?.subdomain && (<div style={sectionCard}><h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Online Visual Editor</h3><p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p><a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Online Visual Editor &rarr;</a></div>)}
             <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 16 }}>Logo & Banner</h3>
-              <div className="logo-banner-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 16 }}>Branding</h3>
+              <div className="logo-banner-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
                 <div>
                   <label style={{ ...labelStyle, marginBottom: 0 }}>Store Logo</label>
                   <div onClick={() => logoInputRef.current?.click()} style={{ marginTop: 8, width: 100, height: 100, borderRadius: 12, border: "1px dashed var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>{logoPreview ? <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Upload</span>}</div>
@@ -1357,12 +1356,63 @@ export default function Dashboard() {
                   {bannerPreview && <button onClick={() => { setBannerPreview(""); setBannerFile(null); setBannerRemoved(true); }} style={{ marginTop: 6, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Remove</button>}
                 </div>
               </div>
+
+              <div style={{ paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 10 }}>Brand Color</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, alignItems: "center", marginBottom: 10 }}>
+                  {COLOR_PRESETS.map((c) => (<button key={c} onClick={() => setStoreColor(c)} style={{ width: 32, height: 32, borderRadius: 8, background: c, border: storeColor === c ? "3px solid var(--panel-solid)" : "3px solid transparent", cursor: "pointer", boxShadow: storeColor === c ? "0 0 0 2px " + c : "none" }} />))}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8 }}>
+                  <span style={{ fontSize: 11, color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase" as const }}>Exact Color</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 28, height: 28, borderRadius: 6, background: storeColor, border: "1px solid var(--border)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                      <input type="color" value={storeColor} onChange={(e) => setStoreColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                    </label>
+                    <span style={{ fontSize: 11, color: "var(--muted-2)", fontFamily: "monospace" }}>{storeColor}</span>
+                    <button onClick={() => setStoreColor("#ff6b35")} style={{ fontSize: 11, color: "var(--muted-2)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 8 }}>Click the swatch to open the full color picker — pick from the spectrum, use the sliders, or type an exact hex code.</div>
+              </div>
+
+              <div style={{ paddingTop: 20, marginTop: 20, borderTop: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 10 }}>Typography</div>
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
+                  {Object.entries(FONT_PAIRS).map(([key, fp]) => {
+                    const active = (storeConfig.font_pair || DEFAULT_FONT_PAIR_KEY) === key;
+                    return (
+                      <button key={key} onClick={() => setStoreConfig({ ...storeConfig, font_pair: key })}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: active ? "var(--panel-solid)" : "var(--panel)", border: active ? "1px solid " + N : "1px solid var(--border)", borderRadius: 8, cursor: "pointer", width: "100%" }}>
+                        <span style={{ fontSize: 13, color: active ? "var(--text)" : "var(--muted)", fontWeight: active ? 700 : 400 }}>{fp.heading.split(",")[0].replace(/'/g, "")}</span>
+                        <span style={{ fontSize: 10, color: "var(--muted-2)" }}>{fp.body.split(",")[0].replace(/'/g, "")}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 8 }}>Applies to the Soft Luxury template. Changes take effect across your storefront and checkout.</div>
+              </div>
             </div>
             <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 16 }}>Store Info</h3>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Hero Section</h3>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>These match what you see in the hero section of the Online Visual Editor. Leave a field empty and it won&apos;t display on your store.</p>
               <div style={{ display: "flex", flexDirection: "column" as const, gap: 16 }}>
                 <div><label style={labelStyle}>Tagline</label><input type="text" placeholder="e.g. Premium streetwear for the culture" value={storeTagline} onChange={(e) => setStoreTagline(e.target.value)} style={inputStyle} /></div>
+                {storeTemplate === "soft-luxury" && (
+                  <div><label style={labelStyle}>Brand Name</label><input type="text" placeholder="Your store name" value={storeConfig.hero_title ?? ""} onChange={(e) => setStoreConfig({ ...storeConfig, hero_title: e.target.value })} style={inputStyle} /></div>
+                )}
                 <div><label style={labelStyle}>Description</label><textarea placeholder="Tell your customers what your brand is about..." value={storeDescription} onChange={(e) => setStoreDescription(e.target.value)} rows={4} style={{ ...inputStyle, resize: "vertical" as const }} /></div>
+                {storeTemplate === "soft-luxury" && (
+                  <div>
+                    <label style={labelStyle}>Button Text</label>
+                    <input type="text" placeholder="Shop Now" value={storeConfig.hero_cta ?? ""} onChange={(e) => setStoreConfig({ ...storeConfig, hero_cta: e.target.value })} style={inputStyle} />
+                    <div style={{ height: 10 }} />
+                    <CtaTargetPicker
+                      target={storeConfig.hero_cta_target || { type: "products" }}
+                      onChange={(t) => setStoreConfig({ ...storeConfig, hero_cta_target: t })}
+                      collections={storeCollections}
+                    />
+                  </div>
+                )}
               </div>
             </div>
             {storeTemplate !== "heirloom" && (<div style={sectionCard}>

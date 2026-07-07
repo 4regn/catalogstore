@@ -5,6 +5,7 @@ import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { revalidateStore } from "../../actions/revalidate-store";
 import { canonicalStoreUrl } from "../../../lib/store-url";
+import CtaTargetPicker, { type CtaTarget } from "../../components/CtaTargetPicker";
 
 // Mirror HeirloomStore's collectionSlug. Inlined (not imported) so the editor
 // bundle doesn't have to drag the whole 1300-line storefront component just
@@ -128,15 +129,6 @@ interface DayHours {
   lunch_start: string;
   lunch_end: string;
 }
-
-// Hero CTA destinations -- mirror the type in HeirloomStore so the editor and
-// the storefront agree. Adding new targets here requires updating the
-// storefront's switch statement too.
-type CtaTarget =
-  | { type: "products" }
-  | { type: "collection"; collection: string }
-  | { type: "url"; url: string }
-  | { type: "none" };
 
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
@@ -270,6 +262,7 @@ export default function StoreEditor() {
      "Limited drop ends in". */
   const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
   const [heroCta, setHeroCta]                         = useState("");
+  const [heroCtaTarget, setHeroCtaTarget]             = useState<CtaTarget>({ type: "products" });
   const [heroTitle, setHeroTitle]                     = useState("");
   const [fontPair, setFontPair]                       = useState("cormorant-jost");
   const [headerTransparent, setHeaderTransparent]     = useState(false);
@@ -382,6 +375,7 @@ export default function StoreEditor() {
       setReturnPolicy(s.store_config?.return_policy ?? "");
       setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
       setHeroCta(s.store_config?.hero_cta ?? "");
+      setHeroCtaTarget(s.store_config?.hero_cta_target ?? { type: "products" });
       setHeroTitle(s.store_config?.hero_title !== undefined ? s.store_config.hero_title : (s.store_name || ""));
       if (s.store_config?.font_pair) setFontPair(s.store_config.font_pair);
       setHeaderTransparent(s.store_config?.header_transparent === true);
@@ -593,6 +587,7 @@ export default function StoreEditor() {
           return_policy: returnPolicy,
           hero_countdown_label: heroCountdownLabel,
           hero_cta: heroCta || undefined,
+          hero_cta_target: heroCtaTarget,
           hero_title: heroTitle,
           font_pair: fontPair,
           header_transparent: headerTransparent,
@@ -998,6 +993,8 @@ export default function StoreEditor() {
                     placeholder="Shop Now"
                     style={inputStyle} />
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>The call-to-action button in your hero. Leave blank for &quot;Shop Now&quot;.</div>
+                  <div style={{ height: 10 }} />
+                  <CtaTargetPicker target={heroCtaTarget} onChange={setHeroCtaTarget} collections={seller?.collections || []} />
                 </div>
                 <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Color Scheme</div>
@@ -1034,6 +1031,9 @@ export default function StoreEditor() {
                       { key: "bodoni-montserrat", heading: "Bodoni Moda", body: "Montserrat" },
                       { key: "josefin-sans", heading: "Josefin Sans", body: "Josefin Sans" },
                       { key: "tenor-work", heading: "Tenor Sans", body: "Work Sans" },
+                      { key: "cinzel-nunito", heading: "Cinzel", body: "Nunito Sans" },
+                      { key: "spectral-manrope", heading: "Spectral", body: "Manrope" },
+                      { key: "unbounded-karla", heading: "Unbounded", body: "Karla" },
                     ] as const).map((fp) => (
                       <button key={fp.key} onClick={() => setFontPair(fp.key)}
                         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: fontPair === fp.key ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", border: fontPair === fp.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", width: "100%" }}>
@@ -1978,90 +1978,6 @@ export default function StoreEditor() {
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; margin: 0; padding: 0; }
       `}</style>
-    </div>
-  );
-}
-
-
-/* ─── CTA TARGET PICKER ───────────────────────────────────
-   Lets the seller pick what a hero button does: scroll to products,
-   navigate to a specific collection page, open a custom URL, or hide
-   the button entirely. Reused for both primary and secondary CTAs. */
-function CtaTargetPicker({
-  target,
-  onChange,
-  collections,
-}: {
-  target: CtaTarget;
-  onChange: (t: CtaTarget) => void;
-  collections: string[];
-}) {
-  const baseInput: React.CSSProperties = {
-    width: "100%", padding: "9px 11px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 8, color: "#f5f5f5",
-    fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
-    outline: "none",
-  };
-  const labelMini: React.CSSProperties = {
-    fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
-    textTransform: "uppercase", color: "rgba(245,245,245,0.35)",
-    display: "block", marginBottom: 5,
-  };
-  return (
-    <div>
-      <label style={labelMini}>Link to</label>
-      <select
-        value={target.type}
-        onChange={e => {
-          const t = e.target.value as CtaTarget["type"];
-          if (t === "products") onChange({ type: "products" });
-          else if (t === "collection") onChange({ type: "collection", collection: target.type === "collection" ? target.collection : "" });
-          else if (t === "url") onChange({ type: "url", url: target.type === "url" ? target.url : "" });
-          else onChange({ type: "none" });
-        }}
-        style={baseInput}
-      >
-        <option value="products">↓ Scroll to products section</option>
-        <option value="collection">Collection page</option>
-        <option value="url">Custom URL</option>
-        <option value="none">No link — hide button</option>
-      </select>
-
-      {target.type === "collection" && (
-        <div style={{ marginTop: 8 }}>
-          <label style={labelMini}>Collection</label>
-          <select
-            value={target.collection}
-            onChange={e => onChange({ type: "collection", collection: e.target.value })}
-            style={baseInput}
-          >
-            <option value="">— Choose a collection —</option>
-            {collections.map(c => (
-              <option key={c} value={collectionSlug(c)}>{c}</option>
-            ))}
-          </select>
-          {collections.length === 0 && (
-            <div style={{ fontSize: 10, color: "rgba(245,245,245,0.4)", marginTop: 4 }}>
-              Add collections in the dashboard to link to them here.
-            </div>
-          )}
-        </div>
-      )}
-
-      {target.type === "url" && (
-        <div style={{ marginTop: 8 }}>
-          <label style={labelMini}>URL</label>
-          <input
-            type="url"
-            value={target.url}
-            placeholder="https://..."
-            onChange={e => onChange({ type: "url", url: e.target.value })}
-            style={baseInput}
-          />
-        </div>
-      )}
     </div>
   );
 }

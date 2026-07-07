@@ -41,5 +41,7 @@ export async function GET(req: NextRequest) {
     subscription_status: seller.subscription_status || null,
     trial_ends_at: seller.trial_ends_at || null,
     checkout_config: safeCheckoutConfig,
+    // Styling/content only (fonts, colors, copy) -- no secrets live here.
+    store_config: seller.store_config || {},
   });
 }

@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
 import { isSubdomainHost } from "../../../../lib/store-url";
+import { getFontPair } from "../../../../lib/font-pairs";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
   primary_color: string; logo_url: string; template: string;
   subscription_status?: string | null;
   trial_ends_at?: string | null;
+  store_config?: any;
   checkout_config: {
     eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
     eft_branch_code: string; eft_account_type: string; eft_instructions: string;
@@ -152,6 +154,7 @@ export default function CheckoutPage() {
   const accent = seller?.primary_color || "#9c7c62";
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
   const isHL = seller?.template === "heirloom";
+  const slFontPair = getFontPair(seller?.store_config?.font_pair);
   const T = isGC ? {
     bg: "#030305", card: "#0b0b0f", text: "#f0f0f0", muted: "rgba(255,255,255,0.4)", border: "rgba(255,255,255,0.08)",
     inputBg: "rgba(255,255,255,0.04)", inputBorder: "rgba(255,255,255,0.1)", inputText: "#f0f0f0",
@@ -178,9 +181,9 @@ export default function CheckoutPage() {
     bg: "#f6f3ef", card: "#fff", text: "#2a2a2e", muted: "#8a8690", border: "rgba(0,0,0,0.12)",
     inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: "#2a2a2e",
     btnBg: "#2a2a2e", btnText: "#f6f3ef", btnRadius: "100px",
-    headFont: "'Cormorant Garamond', serif", bodyFont: "'Jost', sans-serif",
+    headFont: slFontPair.heading, bodyFont: slFontPair.body,
     selectBg: "rgba(156,124,98,0.04)", eftBg: "#f6f3ef",
-    fonts: "@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Jost:wght@300;400;500;600;700&display=swap');",
+    fonts: `@import url('https://fonts.googleapis.com/css2?${slFontPair.import}&display=swap');`,
     summaryBg: "rgba(0,0,0,0.015)", summaryBorder: "rgba(0,0,0,0.06)",
     badgeBg: "#8a8690", badgeText: "#fff",
     stickyBg: "rgba(246,243,239,0.95)", emptyImg: "#e0d5ca", payCardBg: "#fff",
