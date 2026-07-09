@@ -80,6 +80,14 @@ export default function AffiliateDashboard() {
   const [tab, setTab] = useState<"all" | "active" | "trial">("all");
   const [toast, setToast] = useState("");
 
+  // Earnings graph
+  const [earningsRange, setEarningsRange] = useState<"7" | "30" | "custom">("30");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [earningsPoints, setEarningsPoints] = useState<{ date: string; cents: number }[]>([]);
+  const [earningsLoading, setEarningsLoading] = useState(false);
+  const [hoverPoint, setHoverPoint] = useState<{ date: string; cents: number; x: number; y: number } | null>(null);
+
   // Profile popover — photo + log out
   const [showProfile, setShowProfile] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -208,6 +216,26 @@ export default function AffiliateDashboard() {
       setSlugTimer(t);
     }
   }
+
+  useEffect(() => {
+    if (!affiliate) return;
+    if (earningsRange === "custom" && (!customFrom || !customTo)) return;
+    (async () => {
+      setEarningsLoading(true);
+      try {
+        const params = earningsRange === "custom"
+          ? `from=${customFrom}&to=${customTo}`
+          : `range=${earningsRange}`;
+        const res = await authedFetch(`/api/affiliate/earnings?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEarningsPoints(data.points || []);
+        }
+      } catch { /* keep last-known points on network hiccup */ }
+      setEarningsLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [affiliate, earningsRange, customFrom, customTo]);
 
   async function authedFetch(path: string, init: RequestInit = {}) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -349,17 +377,16 @@ export default function AffiliateDashboard() {
       {/* NAV */}
       <nav style={styles.nav}>
         <div style={styles.navLogo}>
-          <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
-            <path
-              d="M22 12C22 6.48 17.52 2 12 2S2 6.48 2 12s4.48 10 10 10c2.83 0 5.39-1.18 7.21-3.07l-2.13-2.13A6.99 6.99 0 0 1 12 19c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7h-3l4 4 4-4h-3z"
-              fill="url(#g)"
-            />
+          <svg width={20} height={20} viewBox="0 0 72 72" fill="none">
             <defs>
-              <linearGradient id="g" x1="0" y1="0" x2="24" y2="24">
-                <stop offset="0" stopColor="#ff6b35" />
-                <stop offset="1" stopColor="#ff3d6e" />
+              <linearGradient id="navLg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#ff5a36" />
+                <stop offset="100%" stopColor="#ff3d6e" />
               </linearGradient>
             </defs>
+            <path d="M54 12 A26 26 0 1 0 54 60" stroke="url(#navLg)" strokeWidth={9} strokeLinecap="round" fill="none" />
+            <circle cx="57" cy="36" r="6" fill="url(#navLg)" />
+            <circle cx="57" cy="36" r="2.4" fill="#08080c" />
           </svg>
           Catalog<span style={styles.navLogoAccent}>Store</span>
           <span style={styles.navPill}>Affiliate</span>
@@ -375,8 +402,29 @@ export default function AffiliateDashboard() {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
-          <div style={{ position: "relative" }}>
-            <button onClick={() => setShowProfile((v) => !v)} style={{ ...styles.navAvatar, ...(affiliate.photoUrl ? { padding: 0, overflow: "hidden" } : {}) }} title={affiliate.fullName}>
+        </div>
+      </nav>
+
+      <main style={styles.main}>
+        {/* HEADER */}
+        <div style={{ ...styles.ph, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div style={styles.phGreet}>Welcome back</div>
+            <h1 style={styles.phTitle}>
+              Hey <em style={styles.phTitleEm}>{firstName}</em>
+            </h1>
+            <div style={styles.phSub}>
+              {stats && stats.activePaying > 0 ? (
+                <>
+                  You're earning from <strong style={{ color: "#fff" }}>{stats.activePaying} seller{stats.activePaying === 1 ? "" : "s"}</strong>.
+                </>
+              ) : (
+                <>Share your link below to start earning <strong style={{ color: "#fff" }}>50%</strong> per seller.</>
+              )}
+            </div>
+          </div>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button onClick={() => setShowProfile((v) => !v)} style={{ ...styles.navAvatar, width: 48, height: 48, fontSize: 15, ...(affiliate.photoUrl ? { padding: 0, overflow: "hidden" } : {}) }} title={affiliate.fullName}>
               {affiliate.photoUrl ? <img src={affiliate.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : initials}
             </button>
             {showProfile && (
@@ -400,25 +448,6 @@ export default function AffiliateDashboard() {
                   <button onClick={signOut} style={styles.profileLogoutBtn}>Log Out</button>
                 </div>
               </>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      <main style={styles.main}>
-        {/* HEADER */}
-        <div style={styles.ph}>
-          <div style={styles.phGreet}>Welcome back</div>
-          <h1 style={styles.phTitle}>
-            Hey <em style={styles.phTitleEm}>{firstName}</em>
-          </h1>
-          <div style={styles.phSub}>
-            {stats && stats.activePaying > 0 ? (
-              <>
-                You're earning from <strong style={{ color: "#fff" }}>{stats.activePaying} seller{stats.activePaying === 1 ? "" : "s"}</strong>.
-              </>
-            ) : (
-              <>Share your link below to start earning <strong style={{ color: "#fff" }}>50%</strong> per seller.</>
             )}
           </div>
         </div>
@@ -460,6 +489,18 @@ export default function AffiliateDashboard() {
             </span>
           </div>
         </section>
+
+        {/* EARNINGS GRAPH */}
+        <EarningsChart
+          points={earningsPoints}
+          loading={earningsLoading}
+          range={earningsRange}
+          setRange={setEarningsRange}
+          customFrom={customFrom}
+          customTo={customTo}
+          setCustomFrom={setCustomFrom}
+          setCustomTo={setCustomTo}
+        />
 
         {/* REFERRAL LINK */}
         <section style={styles.refCard}>
@@ -541,31 +582,55 @@ export default function AffiliateDashboard() {
         </section>
 
         {/* STATS */}
-        <section style={styles.stats}>
+        <section style={{ ...styles.stats, gridTemplateColumns: "repeat(3,1fr)" }}>
           <div style={styles.stat}>
+            <div style={styles.statIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#ff6b35" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                <path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19" /><circle cx="9.5" cy="7.5" r="3.5" /><path d="M19 19v-1.5a3 3 0 0 0-2-2.83" /><path d="M14.5 4.2a3.5 3.5 0 0 1 0 6.6" />
+              </svg>
+            </div>
             <div style={styles.statLabel}>Referred</div>
             <div style={styles.statValue}>{stats?.totalReferred || 0}</div>
           </div>
           <div style={styles.stat}>
+            <div style={styles.statIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                <path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19" /><circle cx="9.5" cy="7.5" r="3.5" /><path d="m15 11 2 2 3.5-3.5" />
+              </svg>
+            </div>
             <div style={styles.statLabel}>Paying</div>
             <div style={styles.statValue}>{stats?.activePaying || 0}</div>
           </div>
           <div style={styles.stat}>
+            <div style={styles.statIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#ff6b35" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                <path d="M3 17 9 11l4 4 8-8" /><path d="M15 7h6v6" />
+              </svg>
+            </div>
             <div style={styles.statLabel}>Conversion</div>
             <div style={styles.statValue}>
               {stats?.conversionRate || 0}
               <span style={styles.statSmall}>%</span>
             </div>
           </div>
-          <div style={styles.stat}>
-            <div style={styles.statLabel}>Avg / seller</div>
-            <div style={styles.statValue}>
-              <span style={styles.statSmall}>R</span>
-              {stats && stats.activePaying > 0
-                ? Math.round((affiliate.totalEarned / 100) / stats.activePaying).toLocaleString()
-                : "—"}
-            </div>
-          </div>
+        </section>
+
+        {/* SELLER BREAKDOWN RINGS */}
+        <section style={styles.stats}>
+          <StatRing
+            label="Paying vs Free"
+            value={stats?.activePaying || 0}
+            total={stats?.totalReferred || 0}
+            color="#22c55e"
+            subLabel="of referred sellers are paying"
+          />
+          <StatRing
+            label="Active vs Inactive"
+            value={referrals.filter((r) => r.status !== "disconnected").length}
+            total={stats?.totalReferred || 0}
+            color="#ff6b35"
+            subLabel="still active (not disconnected)"
+          />
         </section>
 
         {/* SELLERS LIST */}
@@ -833,6 +898,136 @@ export default function AffiliateDashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+// A ring is a stat tile, not a categorical pie — one accent arc against a
+// receded track, with the number as the actual headline. See dataviz skill's
+// "emphasis: highlight one, gray the rest" pattern for why this reads better
+// than a 2-slice pie for exactly two buckets.
+function StatRing({ label, value, total, color, subLabel }: { label: string; value: number; total: number; color: string; subLabel: string }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  const r = 40;
+  const c = 2 * Math.PI * r;
+  return (
+    <div style={styles.stat}>
+      <div style={styles.statLabel}>{label}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10 }}>
+        <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
+          <svg width={72} height={72} viewBox="0 0 96 96">
+            <circle cx="48" cy="48" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={10} />
+            {total > 0 && (
+              <circle
+                cx="48" cy="48" r={r} fill="none" stroke={color} strokeWidth={10} strokeLinecap="round"
+                strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)}
+                transform="rotate(-90 48 48)" style={{ transition: "stroke-dashoffset 0.4s" }}
+              />
+            )}
+          </svg>
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, color: "#f5f5f5" }}>{pct}%</div>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em", color: "#f5f5f5" }}>
+            {value}<span style={{ fontSize: 12, color: "rgba(245,245,245,0.32)", fontWeight: 600 }}> / {total}</span>
+          </div>
+          <div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", lineHeight: 1.4 }}>{subLabel}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EarningsChart({ points, loading, range, setRange, customFrom, customTo, setCustomFrom, setCustomTo }: {
+  points: { date: string; cents: number }[];
+  loading: boolean;
+  range: "7" | "30" | "custom";
+  setRange: (r: "7" | "30" | "custom") => void;
+  customFrom: string; customTo: string;
+  setCustomFrom: (v: string) => void; setCustomTo: (v: string) => void;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
+  const W = 600, H = 180, PAD_L = 6, PAD_R = 6, PAD_T = 14, PAD_B = 22;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  const n = points.length;
+  const maxCents = Math.max(1, ...points.map((p) => p.cents));
+  const xAt = (i: number) => PAD_L + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+  const yAt = (cents: number) => PAD_T + plotH - (cents / maxCents) * plotH;
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(p.cents).toFixed(1)}`).join(" ");
+  const areaPath = n > 0 ? `${linePath} L ${xAt(n - 1).toFixed(1)} ${(PAD_T + plotH).toFixed(1)} L ${xAt(0).toFixed(1)} ${(PAD_T + plotH).toFixed(1)} Z` : "";
+  const totalCents = points.reduce((s, p) => s + p.cents, 0);
+
+  const handleMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (n === 0 || !svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const relX = ((e.clientX - rect.left) / rect.width) * W;
+    let closest = 0, closestDist = Infinity;
+    for (let i = 0; i < n; i++) { const d = Math.abs(xAt(i) - relX); if (d < closestDist) { closestDist = d; closest = i; } }
+    setHover({ i: closest, x: xAt(closest), y: yAt(points[closest].cents) });
+  };
+
+  const fmtDate = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-ZA", { day: "numeric", month: "short", timeZone: "UTC" });
+
+  return (
+    <section style={styles.hero}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+        <div style={styles.heroLabel}><span style={styles.heroDot} />Earnings over time</div>
+        <div style={{ display: "flex", gap: 3, background: "#08080c", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, padding: 3 }}>
+          {(["7", "30", "custom"] as const).map((r) => (
+            <button key={r} onClick={() => setRange(r)} style={{ padding: "6px 12px", borderRadius: 100, border: "none", background: range === r ? "rgba(255,107,53,0.12)" : "transparent", color: range === r ? "#ff6b35" : "rgba(245,245,245,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" }}>
+              {r === "7" ? "7D" : r === "30" ? "30D" : "Custom"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {range === "custom" && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <input type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} style={styles.dateInput} />
+          <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} style={styles.dateInput} />
+        </div>
+      )}
+      <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em", marginBottom: 12 }}>
+        R{fromCents(totalCents).toLocaleString()} <span style={{ fontSize: 11, color: "rgba(245,245,245,0.35)", fontWeight: 600 }}>in this range</span>
+      </div>
+      {loading ? (
+        <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={styles.spinner} /></div>
+      ) : n === 0 ? (
+        <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(245,245,245,0.35)", fontSize: 12 }}>No earnings in this range yet</div>
+      ) : (
+        <div style={{ position: "relative" }}>
+          <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%" height={180} onMouseMove={handleMove} onMouseLeave={() => setHover(null)} style={{ display: "block", overflow: "visible", cursor: "crosshair" }}>
+            <defs>
+              <linearGradient id="earningsFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ff6b35" stopOpacity="0.32" />
+                <stop offset="100%" stopColor="#ff6b35" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {[0.25, 0.5, 0.75].map((f) => (
+              <line key={f} x1={PAD_L} x2={W - PAD_R} y1={PAD_T + plotH * f} y2={PAD_T + plotH * f} stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
+            ))}
+            <path d={areaPath} fill="url(#earningsFill)" stroke="none" />
+            <path d={linePath} fill="none" stroke="#ff6b35" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            {hover && (
+              <>
+                <line x1={hover.x} x2={hover.x} y1={PAD_T} y2={PAD_T + plotH} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
+                <circle cx={hover.x} cy={hover.y} r={4} fill="#ff6b35" stroke="#0e0e14" strokeWidth={2} />
+              </>
+            )}
+            <text x={PAD_L} y={H - 6} fontSize="9" fill="rgba(245,245,245,0.3)">{fmtDate(points[0].date)}</text>
+            <text x={W - PAD_R} y={H - 6} fontSize="9" fill="rgba(245,245,245,0.3)" textAnchor="end">{fmtDate(points[n - 1].date)}</text>
+          </svg>
+          {hover && (
+            <div style={{ position: "absolute", left: `${(hover.x / W) * 100}%`, top: 0, transform: hover.x > W * 0.7 ? "translateX(-100%)" : "translateX(0)", pointerEvents: "none" }}>
+              <div style={{ background: "#181820", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "8px 12px", fontSize: 11, whiteSpace: "nowrap", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+                <div style={{ color: "rgba(245,245,245,0.5)", marginBottom: 2 }}>{fmtDate(points[hover.i].date)}</div>
+                <div style={{ fontWeight: 800, color: "#fff" }}>R{fromCents(points[hover.i].cents)}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1152,6 +1347,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stats: { display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 14 },
   stat: { background: "#0e0e14", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, padding: 16 },
+  statIcon: { width: 30, height: 30, borderRadius: 9, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  dateInput: { padding: "9px 12px", background: "#08080c", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, color: "#f5f5f5", fontSize: 12, fontFamily: "inherit", outline: "none", colorScheme: "dark" as const },
   statLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600, color: "rgba(245,245,245,0.32)", marginBottom: 10 },
   statValue: { fontSize: 30, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1, color: "#f5f5f5" },
   statSmall: { fontSize: "0.55em", color: "rgba(245,245,245,0.32)", fontWeight: 600 },
