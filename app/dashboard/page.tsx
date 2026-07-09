@@ -64,6 +64,34 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
   }
 }
 
+// Renders a live iframe of a real page scaled down to fit an arbitrary-width
+// container while still loading at its true device width -- so the site's
+// own responsive breakpoints (desktop layout vs mobile layout) fire
+// correctly instead of just being squeezed into a narrow frame.
+function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexGrow, label }: { src: string; deviceWidth: number; deviceHeight: number; frameHeight: number; flexGrow: number; label: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setScale(el.offsetWidth / deviceWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [deviceWidth]);
+  return (
+    <div style={{ flex: flexGrow, minWidth: 0 }}>
+      <div ref={containerRef} style={{ width: "100%", height: frameHeight, overflow: "hidden", borderRadius: 12, border: "1px solid var(--border)", background: "var(--panel-2)", position: "relative" as const }}>
+        {scale > 0 && (
+          <iframe src={src} title={label + " preview"} tabIndex={-1} loading="lazy" style={{ width: deviceWidth, height: deviceHeight, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" as const }} />
+        )}
+      </div>
+      <div style={{ fontSize: 10, color: "var(--muted-2)", textAlign: "center" as const, marginTop: 6, textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>{label}</div>
+    </div>
+  );
+}
+
 function formatRelativeTime(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -165,7 +193,7 @@ const TEMPLATES = [
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -813,7 +841,7 @@ export default function Dashboard() {
         { key: "analytics", name: "Analytics", icon: "analytics", pro: true },
         { key: "overview", name: "Share Store", icon: "share", action: () => setShareModalOpen(true) },
         { key: "qrcode", name: "QR Code", icon: "qrcode" },
-        { key: "overview", name: "Affiliate Partners", icon: "affiliate", pro: true, action: () => window.open("/affiliate/signup", "_blank") },
+        { key: "affiliate", name: "Affiliate Partners", icon: "affiliate", pro: true },
         { key: "overview", name: "Marketing Tools", icon: "megaphone", pro: true, disabled: true },
         { key: "overview", name: "Store Health", icon: "health", action: () => switchTab("overview") },
       ],
@@ -1038,25 +1066,25 @@ export default function Dashboard() {
 
   const HeroCard = () => (
     <div className="hero-row" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginBottom: 24 }}>
-      <div style={{ position: "relative" as const, borderRadius: 16, overflow: "hidden", background: "var(--panel)", border: "1px solid var(--border)", minHeight: 190, display: "flex", alignItems: "flex-end" }}>
-        {seller?.banner_url ? (
-          <img src={seller.banner_url} alt="" style={{ position: "absolute" as const, inset: 0, width: "100%", height: "100%", objectFit: "cover" as const }} />
-        ) : (
-          <div style={{ position: "absolute" as const, inset: 0, background: `linear-gradient(135deg, ${storeColor}33, ${storeColor}08)` }} />
-        )}
-        <div style={{ position: "absolute" as const, inset: 0, background: "linear-gradient(0deg, rgba(0,0,0,0.75), rgba(0,0,0,0.05) 65%)" }} />
-        <div style={{ position: "relative" as const, padding: "18px 20px", width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" as const }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" as const }}>
-              <span style={{ fontSize: 16, fontWeight: 900, color: "#fff", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{heroDomainLabel}</span>
-              {heroLive && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, color: "#4ade80" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80" }} />Live</span>}
-            </div>
+      <div style={{ borderRadius: 16, background: "var(--panel)", border: "1px solid var(--border)", padding: "16px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, marginBottom: 14 }}>
+          <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
+            <span style={{ fontSize: 15, fontWeight: 900, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{heroDomainLabel || "Live Preview"}</span>
+            {heroLive && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, color: "#22c55e" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e" }} />Live</span>}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {heroStoreUrl && <a href={heroStoreUrl} target="_blank" style={{ padding: "9px 18px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>Visit Store</a>}
-            <button onClick={() => { if (!heroStoreUrl) return; navigator.clipboard.writeText(heroStoreUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "9px 18px", background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
+            <button onClick={() => { if (!heroStoreUrl) return; navigator.clipboard.writeText(heroStoreUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "9px 18px", background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
           </div>
         </div>
+        {heroStoreUrl ? (
+          <div style={{ display: "flex", gap: 12 }}>
+            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={1280} deviceHeight={800} frameHeight={210} flexGrow={3} label="Desktop" />
+            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={390} deviceHeight={780} frameHeight={210} flexGrow={1} label="Mobile" />
+          </div>
+        ) : (
+          <div style={{ padding: "30px 20px", textAlign: "center" as const, color: "var(--muted-2)", fontSize: 12 }}>Your live store preview will appear here once your subdomain is set up.</div>
+        )}
       </div>
 
       {isFreePlan ? (
@@ -2100,18 +2128,11 @@ export default function Dashboard() {
 
               <div style={{ paddingTop: 20, marginTop: 20, borderTop: "1px solid var(--border)" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 10 }}>Typography</div>
-                <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
-                  {Object.entries(FONT_PAIRS).map(([key, fp]) => {
-                    const active = (storeConfig.font_pair || DEFAULT_FONT_PAIR_KEY) === key;
-                    return (
-                      <button key={key} onClick={() => setStoreConfig({ ...storeConfig, font_pair: key })}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: active ? "var(--panel-solid)" : "var(--panel)", border: active ? "1px solid " + N : "1px solid var(--border)", borderRadius: 8, cursor: "pointer", width: "100%" }}>
-                        <span style={{ fontSize: 13, color: active ? "var(--text)" : "var(--muted)", fontWeight: active ? 700 : 400 }}>{fp.heading.split(",")[0].replace(/'/g, "")}</span>
-                        <span style={{ fontSize: 10, color: "var(--muted-2)" }}>{fp.body.split(",")[0].replace(/'/g, "")}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <select value={storeConfig.font_pair || DEFAULT_FONT_PAIR_KEY} onChange={(e) => setStoreConfig({ ...storeConfig, font_pair: e.target.value })} style={{ ...inputStyle, appearance: "none" as const, WebkitAppearance: "none" as const }}>
+                  {Object.entries(FONT_PAIRS).map(([key, fp]) => (
+                    <option key={key} value={key}>{fp.heading.split(",")[0].replace(/'/g, "")} / {fp.body.split(",")[0].replace(/'/g, "")}</option>
+                  ))}
+                </select>
                 <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 8 }}>Applies to the Soft Luxury template. Changes take effect across your storefront and checkout.</div>
               </div>
             </div>
@@ -2323,6 +2344,14 @@ export default function Dashboard() {
               <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>QR codes are coming soon</h3>
               <p style={{ fontSize: 13, color: "var(--muted-2)", maxWidth: 360, margin: "0 auto 16px" }}>In the meantime, share your store link directly.</p>
               <button onClick={() => setShareModalOpen(true)} style={{ padding: "10px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Share Store</button>
+            </div>
+          </div>)}
+
+          {tab === "affiliate" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Affiliate Partners</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Earn commission by referring other sellers to CatalogStore. This runs on a separate affiliate account from your store login, embedded below so you never have to leave your dashboard.</p>
+            <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--border)", height: "calc(100vh - 260px)", minHeight: 560 }}>
+              <iframe src="/affiliate/signup" title="CatalogStore Affiliate Program" style={{ width: "100%", height: "100%", border: "none" }} />
             </div>
           </div>)}
 
