@@ -18,7 +18,7 @@ type DashIconName =
   | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
   | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
   | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
-  | "eye" | "box" | "sparkle";
+  | "eye" | "box" | "sparkle" | "drag";
 
 function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
@@ -51,6 +51,7 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
     case "eye": return <svg {...c}><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10Z"/><circle cx="10" cy="10" r="2.3"/></svg>;
     case "box": return <svg {...c}><path d="M10 2.5 17 6v8l-7 3.5L3 14V6l7-3.5Z"/><path d="M3 6l7 3.5L17 6"/><path d="M10 9.5V17"/></svg>;
     case "sparkle": return <svg {...c}><path d="M10 2v4M10 14v4M2 10h4M14 10h4"/><path d="m5 5 2 2M13 13l2 2M15 5l-2 2M7 13l-2 2"/></svg>;
+    case "drag": return <svg {...c} strokeWidth={0} fill="currentColor"><circle cx="7" cy="5" r="1.3"/><circle cx="13" cy="5" r="1.3"/><circle cx="7" cy="10" r="1.3"/><circle cx="13" cy="10" r="1.3"/><circle cx="7" cy="15" r="1.3"/><circle cx="13" cy="15" r="1.3"/></svg>;
   }
 }
 
@@ -198,6 +199,8 @@ export default function Dashboard() {
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [dragImgIdx, setDragImgIdx] = useState<number | null>(null);
   const [touchDropIdx, setTouchDropIdx] = useState<number | null>(null);
+  const [dragProductIdx, setDragProductIdx] = useState<number | null>(null);
+  const [positionInput, setPositionInput] = useState<{ id: string; value: string } | null>(null);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formSaving, setFormSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -577,16 +580,20 @@ export default function Dashboard() {
     }
   };
   const toggleDraft = async (id: string, currentStatus: string) => { const newStatus = currentStatus === "draft" ? "published" : "draft"; await supabase.from("products").update({ status: newStatus }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: newStatus } : p)); revalidateMyStore(); };
-  const reorderProduct = async (id: string, direction: "up" | "down") => {
-    const list = [...products].filter((p) => (p.status || "published") !== "trashed").sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
-    const idx = list.findIndex((p) => p.id === id); if (idx < 0) return;
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= list.length) return;
-    const updates = list.map((p, i) => ({ ...p, sort_order: i }));
-    const a = updates[idx]; const b = updates[swapIdx];
-    updates[idx] = { ...b, sort_order: idx }; updates[swapIdx] = { ...a, sort_order: swapIdx };
-    await Promise.all([supabase.from("products").update({ sort_order: swapIdx }).eq("id", a.id), supabase.from("products").update({ sort_order: idx }).eq("id", b.id)]);
-    setProducts(products.map((p) => { if (p.id === a.id) return { ...p, sort_order: swapIdx }; if (p.id === b.id) return { ...p, sort_order: idx }; return p; }));
+  // Reindexes the currently-visible (filtered) list to 0..n-1 so drag/drop
+  // and the numeric position field both just move an item to a target index
+  // within whatever the seller is looking at.
+  const moveProduct = async (fromId: string, toIndex: number) => {
+    const list = [...filteredProducts];
+    const fromIndex = list.findIndex((p) => p.id === fromId);
+    if (fromIndex < 0) return;
+    const clamped = Math.max(0, Math.min(list.length - 1, toIndex));
+    if (fromIndex === clamped) return;
+    const [moved] = list.splice(fromIndex, 1);
+    list.splice(clamped, 0, moved);
+    const updates = list.map((p, i) => ({ id: p.id, sort_order: i }));
+    await Promise.all(updates.map((u) => supabase.from("products").update({ sort_order: u.sort_order }).eq("id", u.id)));
+    setProducts(products.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, sort_order: u.sort_order } : p; }));
     revalidateMyStore();
   };
   const initSortOrders = async () => {
@@ -1324,16 +1331,29 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {filteredProducts.map((product) => (
-                  <div key={product.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, opacity: product.status === "trashed" ? 0.6 : 1 }} className="product-row-inner">
+                {filteredProducts.map((product, productIdx) => (
+                  <div
+                    key={product.id}
+                    draggable={productFilter !== "trashed"}
+                    onDragStart={() => setDragProductIdx(productIdx)}
+                    onDragOver={(e) => { if (productFilter !== "trashed") e.preventDefault(); }}
+                    onDrop={(e) => { e.preventDefault(); if (dragProductIdx !== null && dragProductIdx !== productIdx) moveProduct(filteredProducts[dragProductIdx].id, productIdx); setDragProductIdx(null); }}
+                    onDragEnd={() => setDragProductIdx(null)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, opacity: product.status === "trashed" ? 0.6 : dragProductIdx === productIdx ? 0.4 : 1 }}
+                    className="product-row-inner"
+                  >
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                      {productFilter !== "trashed" && (
+                        <span title="Drag to reorder" style={{ cursor: "grab", color: "var(--muted-2)", flexShrink: 0, display: "flex" }}><DashIcon name="drag" size={16} /></span>
+                      )}
                       {productFilter !== "trashed" && (
                         <input type="checkbox" checked={selectedProductIds.has(product.id)} onChange={() => toggleProductSelected(product.id)} style={{ width: 16, height: 16, flexShrink: 0, cursor: "pointer", accentColor: N }} />
                       )}
                       {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" as const, border: "1px solid var(--border)", flexShrink: 0 }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--panel)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 16, color: "var(--muted-2)" }}>&#9633;</span></div>}
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{product.name}</div>
-                        <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600, flexWrap: "wrap" as const }}>
+                        <div style={{ display: "flex", gap: 8, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600, flexWrap: "wrap" as const, alignItems: "center" }}>
+                          {(product.status || "published") === "published" && <span style={{ background: "#037401", color: "#fff", padding: "2px 8px", borderRadius: 100, fontWeight: 700 }}>Active</span>}
                           {product.category && <span>{product.category}</span>}
                           {product.status === "draft" && <span style={{ color: "#fbbf24" }}>Draft</span>}
                           {product.status !== "trashed" && <span style={{ color: product.in_stock ? N : "#ff6b35" }}>{product.in_stock ? "In Stock" : "Sold Out"}</span>}
@@ -1350,15 +1370,23 @@ export default function Dashboard() {
                         <><button onClick={() => restoreProduct(product.id)} style={{ padding: "7px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Restore</button>
                         <button onClick={() => deleteForever(product.id)} style={{ padding: "7px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Delete Forever</button></>
                       ) : (
-                        <><div style={{ display: "flex", flexDirection: "column" as const, gap: 2 }}>
-                          <button onClick={() => reorderProduct(product.id, "up")} style={{ width: 22, height: 18, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--muted-2)", fontSize: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u25B2"}</button>
-                          <button onClick={() => reorderProduct(product.id, "down")} style={{ width: 22, height: 18, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--muted-2)", fontSize: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u25BC"}</button>
-                        </div>
+                        <><input
+                          type="number"
+                          min={1}
+                          max={filteredProducts.length}
+                          title="Position in list"
+                          value={positionInput?.id === product.id ? positionInput.value : String(productIdx + 1)}
+                          onChange={(e) => setPositionInput({ id: product.id, value: e.target.value })}
+                          onFocus={() => setPositionInput({ id: product.id, value: String(productIdx + 1) })}
+                          onBlur={() => { if (positionInput?.id === product.id) { const n = parseInt(positionInput.value, 10); if (!isNaN(n)) moveProduct(product.id, n - 1); setPositionInput(null); } }}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                          style={{ width: 40, height: 30, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", fontSize: 11, fontWeight: 700, textAlign: "center" as const, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }}
+                        />
                         <button onClick={() => startEdit(product)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Edit</button>
                         <button onClick={() => duplicateProduct(product)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Duplicate</button>
                         <button onClick={() => toggleDraft(product.id, product.status || "published")} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: product.status === "draft" ? "#fbbf24" : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.status === "draft" ? "Publish" : "Draft"}</button>
                         <button onClick={() => toggleStock(product.id, product.in_stock)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{product.in_stock ? "Sold Out" : "In Stock"}</button>
-                        <button onClick={() => trashProduct(product.id)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Trash</button></>
+                        <button onClick={() => trashProduct(product.id)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Delete</button></>
                       )}
                     </div>
                   </div>
