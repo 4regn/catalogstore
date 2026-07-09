@@ -131,6 +131,7 @@ export async function GET(req: NextRequest) {
         branchCode: affiliate.branch_code,
         emailVerified: affiliate.email_verified,
         status: affiliate.status,
+        photoUrl: affiliate.photo_url,
       },
       referrals: referrals || [],
       withdrawals: withdrawals || [],
@@ -214,6 +215,9 @@ export async function PATCH(req: NextRequest) {
   }
   if (body.branchCode !== undefined) {
     updates.branch_code = String(body.branchCode).trim();
+  }
+  if (body.photoUrl !== undefined) {
+    updates.photo_url = body.photoUrl ? String(body.photoUrl).slice(0, 500) : null;
   }
 
   if (Object.keys(updates).length === 0) {

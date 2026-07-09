@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 
@@ -40,6 +40,7 @@ type Affiliate = {
   accountHolder: string | null;
   accountType: "cheque" | "savings" | null;
   branchCode: string | null;
+  photoUrl: string | null;
 };
 
 type Referral = {
@@ -78,6 +79,12 @@ export default function AffiliateDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [tab, setTab] = useState<"all" | "active" | "trial">("all");
   const [toast, setToast] = useState("");
+
+  // Profile popover — photo + log out
+  const [showProfile, setShowProfile] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Settings modal — referral code + banking details
   const [showSettings, setShowSettings] = useState(false);
@@ -235,6 +242,31 @@ export default function AffiliateDashboard() {
     }
   }
 
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !affiliate) return;
+    if (file.size > 5 * 1024 * 1024) { setPhotoError("Photo must be under 5MB"); return; }
+    setUploadingPhoto(true);
+    setPhotoError("");
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `affiliate/${affiliate.id}/photo-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
+      if (uploadErr) { setPhotoError("Could not upload photo"); return; }
+      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+      const photoUrl = data.publicUrl;
+      const res = await authedFetch("/api/affiliate/me", { method: "PATCH", body: JSON.stringify({ photoUrl }) });
+      if (!res.ok) { setPhotoError("Could not save photo"); return; }
+      setAffiliate({ ...affiliate, photoUrl });
+      showToast("Photo updated");
+    } catch {
+      setPhotoError("Network error — please try again");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
   async function saveBanking() {
     if (!affiliate) return;
     if (!accountNumber.trim() || accountNumber.trim().length < 6) {
@@ -343,9 +375,33 @@ export default function AffiliateDashboard() {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
-          <button onClick={signOut} style={styles.navAvatar} title={affiliate.fullName}>
-            {initials}
-          </button>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowProfile((v) => !v)} style={{ ...styles.navAvatar, ...(affiliate.photoUrl ? { padding: 0, overflow: "hidden" } : {}) }} title={affiliate.fullName}>
+              {affiliate.photoUrl ? <img src={affiliate.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : initials}
+            </button>
+            {showProfile && (
+              <>
+                <div onClick={() => setShowProfile(false)} style={{ position: "fixed", inset: 0, zIndex: 59 }} />
+                <div style={styles.profilePopover}>
+                  <div style={styles.profilePopoverPhotoWrap}>
+                    {affiliate.photoUrl ? (
+                      <img src={affiliate.photoUrl} alt="" style={styles.profilePopoverPhoto} />
+                    ) : (
+                      <div style={{ ...styles.profilePopoverPhoto, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, background: "linear-gradient(135deg,#ff6b35,#ff3d6e)" }}>{initials}</div>
+                    )}
+                    <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto} style={styles.profilePhotoBtn}>
+                      {uploadingPhoto ? "Uploading..." : "Change Photo"}
+                    </button>
+                    <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: "none" }} />
+                    {photoError && <p style={{ ...styles.modalStatusErr, textAlign: "center" }}>{photoError}</p>}
+                  </div>
+                  <div style={styles.profilePopoverName}>{affiliate.fullName}</div>
+                  <div style={styles.profilePopoverEmail}>{affiliate.email}</div>
+                  <button onClick={signOut} style={styles.profileLogoutBtn}>Log Out</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -411,6 +467,22 @@ export default function AffiliateDashboard() {
           <p style={styles.refSub}>
             Share anywhere. Sellers earn you <strong style={{ color: "#fff" }}>50%</strong> for {COMMISSION_MONTHS} months.
           </p>
+
+          <div style={styles.refCodeRow}>
+            <div>
+              <div style={styles.refCodeLabel}>Your Code</div>
+              <div style={styles.refCodeValue}>{affiliate.slug.toUpperCase()}</div>
+            </div>
+            <button
+              onClick={async () => {
+                try { await navigator.clipboard.writeText(affiliate.slug.toUpperCase()); showToast("Code copied"); }
+                catch { showToast("Copy failed — code unavailable in this browser"); }
+              }}
+              style={styles.refCodeCopyBtn}
+            >
+              Copy
+            </button>
+          </div>
 
           <div style={styles.refLinkInput}>
             <span style={styles.refLinkText}>
@@ -897,6 +969,36 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
     fontFamily: "inherit",
+  },
+  profilePopover: {
+    position: "absolute", top: "calc(100% + 10px)", right: 0, zIndex: 60,
+    width: 240, background: "#0e0e14", border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 16, padding: 18, boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+    display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+  },
+  profilePopoverPhotoWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 8 },
+  profilePopoverPhoto: { width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(255,107,53,0.4)", color: "#fff" },
+  profilePhotoBtn: {
+    padding: "6px 12px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 100, color: "#f5f5f5", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+  },
+  profilePopoverName: { fontSize: 13, fontWeight: 800, textAlign: "center" },
+  profilePopoverEmail: { fontSize: 11, color: "rgba(245,245,245,0.4)", textAlign: "center", marginBottom: 12, wordBreak: "break-all" },
+  profileLogoutBtn: {
+    width: "100%", padding: 12, background: "rgba(255,61,110,0.08)", border: "1px solid rgba(255,61,110,0.2)",
+    borderRadius: 10, color: "#ff3d6e", fontSize: 12, fontWeight: 800, letterSpacing: "0.04em",
+    textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit",
+  },
+  refCodeRow: {
+    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+    background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.18)",
+    borderRadius: 12, padding: "10px 14px", marginBottom: 12,
+  },
+  refCodeLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, color: "rgba(245,245,245,0.4)", marginBottom: 2 },
+  refCodeValue: { fontSize: 16, fontWeight: 900, letterSpacing: "0.04em", color: "#ff6b35" },
+  refCodeCopyBtn: {
+    padding: "8px 16px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 100, color: "#f5f5f5", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
   },
   navSettingsBtn: {
     width: 30,
