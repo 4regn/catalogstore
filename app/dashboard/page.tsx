@@ -19,7 +19,7 @@ type DashIconName =
   | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
   | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
   | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
-  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink";
+  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu";
 
 function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
@@ -55,6 +55,7 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
     case "drag": return <svg {...c} strokeWidth={0} fill="currentColor"><circle cx="7" cy="5" r="1.3"/><circle cx="13" cy="5" r="1.3"/><circle cx="7" cy="10" r="1.3"/><circle cx="13" cy="10" r="1.3"/><circle cx="7" cy="15" r="1.3"/><circle cx="13" cy="15" r="1.3"/></svg>;
     case "expand": return <svg {...c}><path d="M8 3H3v5"/><path d="M12 17h5v-5"/><path d="m3 3 6 6"/><path d="m17 17-6-6"/></svg>;
     case "shrink": return <svg {...c}><path d="M3 8h5V3"/><path d="M17 12h-5v5"/><path d="m3 3 6 6"/><path d="m17 17-6-6"/></svg>;
+    case "menu": return <svg {...c}><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg>;
   }
 }
 
@@ -835,8 +836,8 @@ export default function Dashboard() {
       <style>{`
         [data-theme="dark"] { ${themeVars("dark")} color-scheme: dark; }
         [data-theme="light"] { ${themeVars("light")} color-scheme: light; }
-        @media (min-width: 769px) { .mobile-topbar { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } .desktop-topbar { display: flex !important; } }
-        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
+        @media (min-width: 769px) { .mobile-topbar { display: none !important; } .mobile-bottom-nav { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } .desktop-topbar { display: flex !important; } }
+        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
@@ -864,6 +865,24 @@ export default function Dashboard() {
             {theme === "dark"
               ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>
               : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>}
+          </button>
+        </div>
+
+        <div className="mobile-bottom-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 90, display: "none", alignItems: "center", justifyContent: "space-around", padding: "8px 6px", paddingBottom: "max(8px, env(safe-area-inset-bottom))", background: "var(--topbar)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: "1px solid var(--border)" }}>
+          {([
+            { key: "overview" as TabKey, name: "Home", icon: "overview" as DashIconName },
+            { key: "products" as TabKey, name: "Products", icon: "products" as DashIconName },
+            { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName },
+            { key: "mystore" as TabKey, name: "My Store", icon: "store" as DashIconName },
+          ]).map((item) => (
+            <button key={item.key} onClick={() => switchTab(item.key)} style={{ flex: 1, display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3, padding: "6px 4px", background: "none", border: "none", color: tab === item.key ? N : "var(--muted-2)", cursor: "pointer" }}>
+              <DashIcon name={item.icon} size={19} stroke={tab === item.key ? 1.8 : 1.5} />
+              <span style={{ fontSize: 9, fontWeight: tab === item.key ? 800 : 600, textTransform: "uppercase" as const, letterSpacing: "0.02em" }}>{item.name}</span>
+            </button>
+          ))}
+          <button onClick={() => setSidebarOpen(true)} style={{ flex: 1, display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 3, padding: "6px 4px", background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer" }}>
+            <DashIcon name="menu" size={19} stroke={1.5} />
+            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.02em" }}>More</span>
           </button>
         </div>
 
