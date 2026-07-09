@@ -9,6 +9,51 @@ import { FONT_PAIRS, DEFAULT_FONT_PAIR_KEY } from "../../lib/font-pairs";
 import CtaTargetPicker, { type CtaTarget } from "../components/CtaTargetPicker";
 import Spinner from "../components/Spinner";
 
+// Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
+// currentColor, 20x20 viewBox. Mirrors the icon component already
+// established in the Online Visual Editor so both surfaces feel like one
+// product instead of mixing hand-drawn icons with emoji.
+type DashIconName =
+  | "overview" | "launch" | "health" | "products" | "collections" | "orders"
+  | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
+  | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
+  | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
+  | "eye" | "box" | "sparkle";
+
+function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
+  const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
+  switch (name) {
+    case "overview": return <svg {...c}><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>;
+    case "launch": return <svg {...c}><path d="M10 2c2 1.5 3.5 4 3.5 7 0 2-1 4-3.5 6-2.5-2-3.5-4-3.5-6 0-3 1.5-5.5 3.5-7Z"/><circle cx="10" cy="8" r="1.3"/><path d="M7 13.5 5 17l3-1.2"/><path d="M13 13.5 15 17l-3-1.2"/></svg>;
+    case "health": return <svg {...c}><path d="M10 3a4 4 0 0 1 7 2.5c0 3.5-4 6-7 9.5-3-3.5-7-6-7-9.5A4 4 0 0 1 10 3Z"/><path d="M5.5 9h2l1.2-2.2L10 11l1.2-2h2.3"/></svg>;
+    case "products": return <svg {...c}><path d="M4 6h12l-1 11H5L4 6Z"/><path d="M7 6V4a3 3 0 0 1 6 0v2"/></svg>;
+    case "collections": return <svg {...c}><path d="M3 6a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Z"/></svg>;
+    case "orders": return <svg {...c}><path d="M5 4h10l1 13H4L5 4Z"/><path d="M7.5 4v-.5a2.5 2.5 0 0 1 5 0V4"/><path d="M7 9h6"/></svg>;
+    case "cart": return <svg {...c}><circle cx="7" cy="16" r="1.2"/><circle cx="14" cy="16" r="1.2"/><path d="M2 3h2l1.6 9.3a1.5 1.5 0 0 0 1.5 1.2h7a1.5 1.5 0 0 0 1.47-1.2L17 6H4.5"/></svg>;
+    case "discount": return <svg {...c}><path d="M4 10.5V5a1 1 0 0 1 1-1h5.5L17 10.5 10.5 17 4 10.5Z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>;
+    case "editor": return <svg {...c}><path d="m4 16 1-3 9-9a1.5 1.5 0 0 1 2.5 1.5l-9 9-3 1Z"/><path d="m12 5 2.5 2.5"/></svg>;
+    case "theme": return <svg {...c}><circle cx="10" cy="10" r="7"/><circle cx="7.2" cy="8" r="1"/><circle cx="9.5" cy="5.8" r="1"/><circle cx="13" cy="7" r="1"/><path d="M10 17a7 7 0 0 0 1-13.9"/></svg>;
+    case "store": return <svg {...c}><path d="M3 8l1-4h12l1 4"/><path d="M3 8a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/><path d="M4 8v8h12V8"/><path d="M8 16v-4h4v4"/></svg>;
+    case "domain": return <svg {...c}><circle cx="10" cy="10" r="7"/><path d="M3 10h14"/><path d="M10 3a11 11 0 0 1 0 14"/><path d="M10 3a11 11 0 0 0 0 14"/></svg>;
+    case "payment": return <svg {...c}><rect x="2" y="5" width="16" height="11" rx="1.5"/><path d="M2 8.5h16"/><path d="M5 12.5h3"/></svg>;
+    case "analytics": return <svg {...c}><path d="M4 16V9"/><path d="M10 16V4"/><path d="M16 16v-6"/><path d="M3 16h14"/></svg>;
+    case "share": return <svg {...c}><circle cx="15" cy="5" r="2"/><circle cx="5" cy="10" r="2"/><circle cx="15" cy="15" r="2"/><path d="m6.8 9 6.4-3"/><path d="m6.8 11 6.4 3"/></svg>;
+    case "qrcode": return <svg {...c}><rect x="3" y="3" width="5" height="5" rx="0.8"/><rect x="12" y="3" width="5" height="5" rx="0.8"/><rect x="3" y="12" width="5" height="5" rx="0.8"/><path d="M12 12h2v2h-2z"/><path d="M15 12h2v5h-4v-2"/><path d="M12 17h1"/></svg>;
+    case "settings": return <svg {...c}><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.1 4.9l-1.4 1.4M6.3 13.7l-1.4 1.4M15.1 15.1l-1.4-1.4M6.3 6.3 4.9 4.9"/></svg>;
+    case "account": return <svg {...c}><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>;
+    case "check": return <svg {...c}><path d="m4 10 4 4 8-8"/></svg>;
+    case "warning": return <svg {...c}><path d="M10 3 2.5 16.5h15L10 3Z"/><path d="M10 8.5v3.5"/><circle cx="10" cy="14.3" r="0.4" fill="currentColor"/></svg>;
+    case "pending": return <svg {...c}><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 1.5"/></svg>;
+    case "external": return <svg {...c}><path d="M7 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-3"/><path d="M11 3h6v6"/><path d="m17 3-7 7"/></svg>;
+    case "bell": return <svg {...c}><path d="M10 3a4 4 0 0 0-4 4v2.5c0 1-.4 2-1.2 2.7L4 13h12l-.8-.8c-.8-.7-1.2-1.7-1.2-2.7V7a4 4 0 0 0-4-4Z"/><path d="M8 16a2 2 0 0 0 4 0"/></svg>;
+    case "chevron-down": return <svg {...c}><path d="m5 7.5 5 5 5-5"/></svg>;
+    case "trend-up": return <svg {...c}><path d="M3 13.5 8 9l3 3 6-6.5"/><path d="M13 5.5h4v4"/></svg>;
+    case "eye": return <svg {...c}><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10Z"/><circle cx="10" cy="10" r="2.3"/></svg>;
+    case "box": return <svg {...c}><path d="M10 2.5 17 6v8l-7 3.5L3 14V6l7-3.5Z"/><path d="M3 6l7 3.5L17 6"/><path d="M10 9.5V17"/></svg>;
+    case "sparkle": return <svg {...c}><path d="M10 2v4M10 14v4M2 10h4M14 10h4"/><path d="m5 5 2 2M13 13l2 2M15 5l-2 2M7 13l-2 2"/></svg>;
+  }
+}
+
 const productInCat = (cat: string, product: { category: string }) =>
   (product.category || "").split(",").map((c) => c.trim()).filter(Boolean).includes(cat);
 const addCat = (current: string, col: string) => {
@@ -100,7 +145,7 @@ const TEMPLATES = [
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains";
+type TabKey = "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -176,6 +221,8 @@ export default function Dashboard() {
   const [domainError, setDomainError] = useState("");
   const [domainUrlCopied, setDomainUrlCopied] = useState(false);
   const [domainTabLoaded, setDomainTabLoaded] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
   const [checkoutSaving, setCheckoutSaving] = useState(false);
   const [checkoutSaved, setCheckoutSaved] = useState(false);
@@ -634,6 +681,9 @@ export default function Dashboard() {
   const launchDoneCount = launchSteps.filter((s) => s.done).length;
   const launchPercent = Math.round((launchDoneCount / launchSteps.length) * 100);
   const launchComplete = launchPercent === 100;
+  const nextLaunchStep = launchSteps.find((s) => !s.done);
+  const healthSignals = [storeCustomized, hasProduct, shippingConfigured, paymentConfigured, testCheckoutPassed];
+  const healthScore = Math.round((healthSignals.filter(Boolean).length / healthSignals.length) * 100);
 
   const runTestCheckout = async () => {
     const issues: string[] = [];
@@ -670,21 +720,49 @@ export default function Dashboard() {
   );
   const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 800, color: "var(--muted-2)", textTransform: "uppercase", letterSpacing: "0.12em", padding: "0 12px", marginBottom: 6 };
 
-  const navSections: { label: string | null; items: { key: TabKey; name: string; count?: number }[] }[] = [
-    { label: null, items: [{ key: "overview", name: "Overview" }] },
+  const navSections: { label: string | null; items: { key: TabKey; name: string; icon: DashIconName; count?: number; badge?: string; action?: () => void }[] }[] = [
+    { label: null, items: [{ key: "overview", name: "Overview", icon: "overview" }] },
+    {
+      label: "Launch",
+      items: [
+        { key: "overview", name: "Launch Progress", icon: "launch", badge: `${launchDoneCount}/${launchSteps.length}` },
+        { key: "overview", name: "Store Health", icon: "health" },
+      ],
+    },
     {
       label: "Sell",
       items: [
-        { key: "products", name: "Products", count: publishedCount },
-        { key: "collections", name: "Collections", count: storeCollections.length },
-        { key: "orders", name: "Orders", count: visibleOrders.length },
-        { key: "abandoned", name: "Abandoned", count: abandonedOrders.length },
-        { key: "discounts", name: "Discounts", count: discountCodes.length },
-        { key: "checkout", name: "Checkout" },
+        { key: "products", name: "Products", icon: "products", count: publishedCount },
+        { key: "collections", name: "Collections", icon: "collections", count: storeCollections.length },
+        { key: "orders", name: "Orders", icon: "orders", count: visibleOrders.length },
+        { key: "abandoned", name: "Abandoned Carts", icon: "cart", count: abandonedOrders.length },
+        { key: "discounts", name: "Discounts", icon: "discount", count: discountCodes.length },
       ],
     },
-    { label: "My Store", items: [{ key: "mystore", name: "Edit My Store" }, { key: "domains", name: "Domains" }] },
+    {
+      label: "Design",
+      items: [
+        { key: "mystore", name: "Themes", icon: "theme", action: () => { switchTab("mystore"); setTemplateOpen(true); } },
+      ],
+    },
+    {
+      label: "Store",
+      items: [
+        { key: "mystore", name: "My Store", icon: "store" },
+        { key: "domains", name: "Domain", icon: "domain" },
+        { key: "checkout", name: "Payments", icon: "payment" },
+      ],
+    },
+    {
+      label: "Grow",
+      items: [
+        { key: "analytics", name: "Analytics", icon: "analytics" },
+        { key: "overview", name: "Share Store", icon: "share", action: () => setShareModalOpen(true) },
+        { key: "qrcode", name: "QR Code", icon: "qrcode" },
+      ],
+    },
   ];
+  const storeInitials = (seller?.store_name || "CS").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
     ? { products: 15, images: 5, collections: 10, templates: 1 }
@@ -699,8 +777,8 @@ export default function Dashboard() {
       <style>{`
         [data-theme="dark"] { ${themeVars("dark")} color-scheme: dark; }
         [data-theme="light"] { ${themeVars("light")} color-scheme: light; }
-        @media (min-width: 769px) { .mobile-topbar { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } }
-        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
+        @media (min-width: 769px) { .mobile-topbar { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } .desktop-topbar { display: flex !important; } }
+        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
@@ -734,21 +812,40 @@ export default function Dashboard() {
         {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 99 }} />}
 
         <aside className={"sidebar" + (sidebarOpen ? " open" : "")} style={{ width: 260, borderRight: "1px solid var(--border)", padding: "24px 16px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 24, position: "fixed", top: 0, left: 0, bottom: 0, background: "var(--panel-solid)", zIndex: 100, transition: "transform 0.3s ease", overflowY: "auto" as const }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, padding: "0 4px" }}>CATALOG<span style={{ background: G, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>STORE</span></div>
-            <div style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 2, textTransform: "uppercase" as const, letterSpacing: "-0.02em" }}>{seller?.store_name || "My Store"}</div>
-              <div style={{ fontSize: 11, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>{seller?.plan || "Free"} plan</div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px" }}>
+              <div style={{ width: 38, height: 38, borderRadius: "50%", background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{storeInitials}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{seller?.store_name || "My Store"}</span>
+                  {(seller?.subscription_status === "active" || seller?.subscription_status === "trial") && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e" }} />Live</span>
+                  )}
+                </div>
+                {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--muted-2)", textDecoration: "none" }}>{seller.subdomain}.catalogstore.co.za <DashIcon name="external" size={10} /></a>}
+              </div>
             </div>
+
+            {isFreePlan && (
+              <div style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: "var(--muted-2)", marginBottom: 4 }}>Free Plan</div>
+                <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 10, lineHeight: 1.5 }}>Upgrade to unlock more features and grow your business.</div>
+                <a href="/dashboard/billing" style={{ display: "block", padding: "9px 0", background: "transparent", border: "1px solid " + N, borderRadius: 8, color: N, fontSize: 11, fontWeight: 800, textAlign: "center" as const, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Upgrade Plan</a>
+              </div>
+            )}
+
             <nav style={{ display: "flex", flexDirection: "column" }}>
               {navSections.map((section, si) => (
                 <div key={si} style={{ marginTop: si === 0 ? 0 : 18, display: "flex", flexDirection: "column", gap: 2 }}>
                   {section.label && <div style={sectionLabel}>{section.label}</div>}
                   {section.items.map((item) => {
-                    const active = tab === item.key;
+                    const active = !item.action && tab === item.key;
                     return (
-                      <button key={item.key} onClick={() => { switchTab(item.key); if (item.key === "collections") setSelectedCollection(null); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", background: active ? "rgba(255,107,53,0.08)" : "transparent", border: "none", borderLeft: active ? "2px solid " + N : "2px solid transparent", borderRadius: "0 10px 10px 0", color: active ? "var(--text)" : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: active ? 800 : 600, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em", transition: "all 0.2s" }}>
-                        <span>{item.name}</span>
+                      <button key={item.name} onClick={() => { if (item.action) { item.action(); return; } switchTab(item.key); if (item.key === "collections") setSelectedCollection(null); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "9px 12px", background: active ? "rgba(255,107,53,0.08)" : "transparent", border: "none", borderLeft: active ? "2px solid " + N : "2px solid transparent", borderRadius: "0 10px 10px 0", color: active ? "var(--text)" : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: active ? 800 : 600, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em", transition: "all 0.2s" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 9 }}><DashIcon name={item.icon} size={14} className="dash-nav-icon" />{item.name}</span>
+                        {item.badge && <span style={{ padding: "2px 8px", borderRadius: 100, fontSize: 10, fontWeight: 800, background: active ? "rgba(255,107,53,0.15)" : "var(--panel-2)", border: "1px solid " + (active ? "rgba(255,107,53,0.15)" : "var(--border)"), color: active ? N : "var(--muted-2)" }}>{item.badge}</span>}
                         {typeof item.count === "number" && item.count > 0 && <span style={{ padding: "2px 8px", borderRadius: 100, fontSize: 10, fontWeight: 800, background: active ? "rgba(255,107,53,0.15)" : "var(--panel-2)", border: "1px solid " + (active ? "rgba(255,107,53,0.15)" : "var(--border)"), color: active ? N : "var(--muted-2)" }}>{item.count}</span>}
                       </button>
                     );
@@ -779,6 +876,34 @@ export default function Dashboard() {
 
         <main className="main-content" style={{ flex: 1, marginLeft: 260, padding: "36px 40px" }}>
 
+          <div className="desktop-topbar" style={{ display: "none", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 28 }}>
+            <button onClick={toggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{ width: 38, height: 38, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {theme === "dark"
+                ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>
+                : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>}
+            </button>
+            <div style={{ position: "relative", width: 38, height: 38, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <DashIcon name="bell" size={16} />
+              {orderNotification && <span style={{ position: "absolute", top: 7, right: 7, width: 7, height: 7, borderRadius: "50%", background: N, border: "1.5px solid var(--panel)" }} />}
+            </div>
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setProfileMenuOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px 6px 6px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, cursor: "pointer" }}>
+                <span style={{ width: 26, height: 26, borderRadius: "50%", background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{storeInitials}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{seller?.store_name || "My Store"}</span>
+                <DashIcon name="chevron-down" size={12} className="dash-muted-icon" />
+              </button>
+              {profileMenuOpen && (
+                <>
+                  <div onClick={() => setProfileMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 149 }} />
+                  <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: 180, background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.18)", zIndex: 150, overflow: "hidden" }}>
+                    <button onClick={() => { setProfileMenuOpen(false); switchTab("mystore"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", background: "none", border: "none", color: "var(--text)", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" as const }}><DashIcon name="settings" size={13} /> Settings</button>
+                    <button onClick={handleLogout} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", background: "none", border: "none", borderTop: "1px solid var(--border)", color: "var(--muted)", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" as const }}><DashIcon name="external" size={13} /> Log Out</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
           {trialActive && !isSubscribed && (
             <a href="/dashboard/billing" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 12, marginBottom: 24, textDecoration: "none", flexWrap: "wrap" as const, gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -807,60 +932,42 @@ export default function Dashboard() {
 
             {!launchComplete ? (
               <div style={{ marginBottom: 24, padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Launch Progress</h3>
-                  <span style={{ fontSize: 13, fontWeight: 900, color: N }}>{launchPercent}%</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                  <span style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(255,107,53,0.1)", color: N, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <DashIcon name="launch" size={22} stroke={1.6} />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 2 }}>Launch Your Store</h3>
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>{launchDoneCount} of {launchSteps.length} steps complete</p>
+                  </div>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: N, flexShrink: 0 }}>{launchPercent}%</span>
                 </div>
-                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14 }}>Everything below is what it takes to receive a real order today.</p>
-                <div style={{ height: 8, borderRadius: 100, background: "var(--toggle-off)", overflow: "hidden", marginBottom: 20 }}>
+                <div style={{ height: 8, borderRadius: 100, background: "var(--toggle-off)", overflow: "hidden", marginBottom: nextLaunchStep ? 18 : 0 }}>
                   <div style={{ height: "100%", width: `${launchPercent}%`, background: G, borderRadius: 100, transition: "width 0.3s" }} />
                 </div>
-
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 12 }}>
-                  <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#22c55e", color: "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 }}>&#10003;</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🎉 Your online store is ready</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10, wordBreak: "break-all" as const }}>{seller?.subdomain ? `${seller.subdomain}.catalogstore.co.za` : ""}</div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 10 }}>
-                      {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ padding: "8px 16px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Visit Store</a>}
-                      <button onClick={() => { if (seller?.subdomain) { navigator.clipboard.writeText(canonicalStoreUrl(seller.subdomain)); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); } }} style={{ padding: "8px 16px", background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
+                {nextLaunchStep && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, padding: "16px 18px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.18)", borderRadius: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: N, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 4 }}>Next Step</div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{nextLaunchStep.label}</div>
                     </div>
-                    {isFreePlan && <div style={{ fontSize: 11, color: "var(--muted-2)", paddingTop: 10, borderTop: "1px solid var(--border)" }}>Want your own branded domain? <a href="/dashboard/billing" style={{ color: N, textDecoration: "none", fontWeight: 700 }}>Upgrade to Pro</a> to connect yourstore.co.za (subject to availability).</div>}
-                  </div>
-                </div>
-
-                {launchSteps.slice(1).map((step) => (
-                  <div key={step.key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
-                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: step.done ? "#22c55e" : "var(--toggle-off)", color: step.done ? "#fff" : "var(--muted-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 }}>{step.done ? "✓" : ""}</span>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: step.done ? "var(--muted)" : "var(--text)" }}>{step.label}</span>
-                    {!step.done && step.key === "test" && (
-                      <button onClick={runTestCheckout} style={{ padding: "7px 16px", background: N, color: "#fff", border: "none", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Run Test</button>
-                    )}
-                    {!step.done && "tab" in step && step.tab && (
-                      <button onClick={() => switchTab(step.tab as TabKey)} style={{ padding: "7px 16px", background: "transparent", border: "1px solid " + N, color: N, borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Set Up</button>
-                    )}
-                  </div>
-                ))}
-
-                {testCheckoutResult && (
-                  <div style={{ marginTop: 14, padding: "14px 16px", background: testCheckoutResult.passed ? "rgba(34,197,94,0.06)" : "rgba(255,107,53,0.06)", border: "1px solid " + (testCheckoutResult.passed ? "rgba(34,197,94,0.2)" : "rgba(255,107,53,0.2)"), borderRadius: 12 }}>
-                    {testCheckoutResult.passed ? (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#22c55e" }}>✅ Test checkout passed — your store is ready to receive an order.</div>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 8 }}>Not quite ready yet:</div>
-                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--muted)" }}>
-                          {testCheckoutResult.issues.map((issue, i) => <li key={i} style={{ marginBottom: 4 }}>{issue}</li>)}
-                        </ul>
-                      </>
-                    )}
+                    <button onClick={() => { if (nextLaunchStep.key === "test") runTestCheckout(); else if ("tab" in nextLaunchStep && nextLaunchStep.tab) switchTab(nextLaunchStep.tab); }} style={{ padding: "10px 20px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+                      {nextLaunchStep.key === "test" ? "Run Test" : "Continue"}
+                    </button>
                   </div>
                 )}
               </div>
             ) : (
               <div style={{ marginBottom: 24, padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 4 }}>Grow Your Business</h3>
-                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>🎉 You're ready to sell. Here's how to grow from here — none of this is required.</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                  <span style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(255,107,53,0.1)", color: N, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <DashIcon name="sparkle" size={22} stroke={1.6} />
+                  </span>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 2 }}>Grow Your Business</h3>
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>You're ready to sell. Here's how to grow from here — none of this is required.</p>
+                  </div>
+                </div>
                 <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
                   {[
                     { label: "Connect Custom Domain", desc: "Use yourstore.co.za instead of the free subdomain", fn: () => router.push("/dashboard/billing") },
@@ -879,20 +986,99 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--muted-2)", marginBottom: 12 }}>Quick Actions</h3>
+            <div className="quick-actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
+              {[
+                { icon: "products" as DashIconName, label: "Add Product", fn: () => { switchTab("products"); resetForm(); setShowForm(true); } },
+                { icon: "orders" as DashIconName, label: "View Orders", fn: () => switchTab("orders") },
+                { icon: "store" as DashIconName, label: "Edit My Store", fn: () => switchTab("mystore") },
+                { icon: "share" as DashIconName, label: "Share Store", fn: () => setShareModalOpen(true) },
+                { icon: "analytics" as DashIconName, label: "Analytics", fn: () => switchTab("analytics") },
+              ].map((a, i) => (
+                <button key={i} onClick={a.fn} style={{ padding: "18px 10px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>
+                  <span style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,107,53,0.1)", color: N, display: "flex", alignItems: "center", justifyContent: "center" }}><DashIcon name={a.icon} size={17} /></span>
+                  <span>{a.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="overview-panels-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+              <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 14 }}>Launch Progress</h3>
+                <div>
+                  {launchSteps.map((step) => (
+                    <div key={step.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
+                      <span style={{ width: 18, height: 18, borderRadius: "50%", background: step.done ? "#22c55e" : "var(--toggle-off)", color: step.done ? "#fff" : "var(--muted-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900 }}>{step.done ? "✓" : ""}</span>
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: step.done ? "var(--muted)" : "var(--text)" }}>{step.label}</span>
+                      {!step.done && step.key === "test" && (
+                        <button onClick={runTestCheckout} style={{ padding: "5px 12px", background: N, color: "#fff", border: "none", borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>Run</button>
+                      )}
+                      {!step.done && "tab" in step && step.tab && (
+                        <button onClick={() => switchTab(step.tab as TabKey)} style={{ padding: "5px 12px", background: "transparent", border: "1px solid " + N, color: N, borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>Set Up</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {testCheckoutResult && (
+                  <div style={{ marginTop: 12, padding: "12px 14px", background: testCheckoutResult.passed ? "rgba(34,197,94,0.06)" : "rgba(255,107,53,0.06)", border: "1px solid " + (testCheckoutResult.passed ? "rgba(34,197,94,0.2)" : "rgba(255,107,53,0.2)"), borderRadius: 12 }}>
+                    {testCheckoutResult.passed ? (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#22c55e" }}>Test checkout passed — your store is ready to receive an order.</div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: N, marginBottom: 6 }}>Not quite ready yet:</div>
+                        <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: "var(--muted)" }}>
+                          {testCheckoutResult.issues.map((issue, i) => <li key={i} style={{ marginBottom: 3 }}>{issue}</li>)}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column" as const, alignItems: "center" }}>
+                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 14, alignSelf: "flex-start" }}>Store Health</h3>
+                <div style={{ position: "relative" as const, width: 120, height: 120, marginBottom: 14 }}>
+                  <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="var(--toggle-off)" strokeWidth="10" />
+                    <circle cx="60" cy="60" r="50" fill="none" stroke={N} strokeWidth="10" strokeLinecap="round" strokeDasharray={2 * Math.PI * 50} strokeDashoffset={2 * Math.PI * 50 * (1 - healthScore / 100)} transform="rotate(-90 60 60)" style={{ transition: "stroke-dashoffset 0.3s" }} />
+                  </svg>
+                  <div style={{ position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: "-0.03em" }}>{healthScore}%</span>
+                    <span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>{healthScore === 100 ? "Healthy" : healthScore >= 60 ? "Good" : "Needs Work"}</span>
+                  </div>
+                </div>
+                <p style={{ fontSize: 11, color: "var(--muted-2)", textAlign: "center" as const }}>
+                  {healthScore === 100 ? "Everything's set up and running smoothly." : `${healthSignals.filter(Boolean).length} of ${healthSignals.length} checks passing.`}
+                </p>
+              </div>
+
+              <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 14 }}>Store Preview</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  {seller?.logo_url ? (
+                    <img src={seller.logo_url} alt="" style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover", border: "1px solid var(--border)" }} />
+                  ) : (
+                    <span style={{ width: 44, height: 44, borderRadius: 12, background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 900, flexShrink: 0 }}>{storeInitials}</span>
+                  )}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{seller?.store_name}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{seller?.subdomain ? `${seller.subdomain}.catalogstore.co.za` : ""}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ flex: 1, textAlign: "center" as const, padding: "9px 14px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Visit Store</a>}
+                  <button onClick={() => switchTab("mystore")} style={{ padding: "9px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Edit</button>
+                </div>
+              </div>
+            </div>
+
+            <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--muted-2)", marginBottom: 12 }}>Today's Overview</h3>
+            <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
               {[{ n: publishedCount, l: "Published" }, { n: visibleOrders.length, l: "Total Orders" }, { n: todayOrders.length, l: "Orders Today" }, { n: "R" + totalRevenue.toFixed(0), l: "Revenue", c: N }].map((s, i) => (
                 <div key={i} style={{ padding: 20, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
                   <div style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 900, letterSpacing: "-0.04em", marginBottom: 4, color: s.c || "var(--text)" }}>{s.n}</div>
                   <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>{s.l}</div>
                 </div>
-              ))}
-            </div>
-            <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--muted-2)", marginBottom: 12 }}>Quick Actions</h3>
-            <div className="actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-              {[{ icon: "+", label: "Add Product", fn: () => { switchTab("products"); resetForm(); setShowForm(true); } }, { icon: "\u2630", label: "View Orders", fn: () => switchTab("orders") }, { icon: "\u2699", label: "Edit My Store", fn: () => switchTab("mystore") }].map((a, i) => (
-                <button key={i} onClick={a.fn} style={{ padding: "20px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
-                  <span style={{ fontSize: 24 }}>{a.icon}</span><span>{a.label}</span>
-                </button>
               ))}
             </div>
           </div>)}
@@ -1809,6 +1995,27 @@ export default function Dashboard() {
             )}
           </div>)}
 
+          {tab === "analytics" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Analytics</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Visitors, conversion, and revenue trends.</p>
+            <div style={{ ...sectionCard, textAlign: "center" as const, padding: "60px 20px" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: "rgba(255,107,53,0.08)", color: N, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><DashIcon name="analytics" size={22} /></div>
+              <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Analytics is coming soon</h3>
+              <p style={{ fontSize: 13, color: "var(--muted-2)", maxWidth: 360, margin: "0 auto" }}>Visitor tracking, conversion rate, and revenue trends are next on the roadmap. Orders and revenue are already tracked live on your Overview page.</p>
+            </div>
+          </div>)}
+
+          {tab === "qrcode" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>QR Code</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>A scannable code customers can use to open your store.</p>
+            <div style={{ ...sectionCard, textAlign: "center" as const, padding: "60px 20px" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: "rgba(255,107,53,0.08)", color: N, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><DashIcon name="qrcode" size={22} /></div>
+              <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>QR codes are coming soon</h3>
+              <p style={{ fontSize: 13, color: "var(--muted-2)", maxWidth: 360, margin: "0 auto 16px" }}>In the meantime, share your store link directly.</p>
+              <button onClick={() => setShareModalOpen(true)} style={{ padding: "10px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Share Store</button>
+            </div>
+          </div>)}
+
           {tab === "checkout" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Checkout & Payments</h1>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Configure how customers pay and receive their orders.</p>
@@ -1861,6 +2068,24 @@ export default function Dashboard() {
 
         </main>
       </div>
+
+      {shareModalOpen && seller?.subdomain && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={() => setShareModalOpen(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }} />
+          <div style={{ position: "relative", width: "min(400px, 100%)", background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 20, padding: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 800 }}>Share Your Store</h3>
+              <button onClick={() => setShareModalOpen(false)} style={{ background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer", padding: 4 }}><DashIcon name="external" size={16} /></button>
+            </div>
+            <div style={{ padding: "12px 14px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12, color: "var(--text)", wordBreak: "break-all" as const, marginBottom: 14 }}>{canonicalStoreUrl(seller.subdomain)}</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <button onClick={() => { navigator.clipboard.writeText(canonicalStoreUrl(seller.subdomain!)); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ flex: 1, padding: "12px 0", background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
+              <a href={`https://wa.me/?text=${encodeURIComponent("Check out my store: " + canonicalStoreUrl(seller.subdomain))}`} target="_blank" rel="noreferrer" style={{ flex: 1, padding: "12px 0", background: "#25d366", color: "#fff", borderRadius: 100, fontSize: 12, fontWeight: 800, textDecoration: "none", textAlign: "center" as const, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>WhatsApp</a>
+            </div>
+            <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ display: "block", textAlign: "center" as const, padding: "10px 0", color: "var(--muted-2)", fontSize: 11, textDecoration: "underline", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Preview Store</a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
