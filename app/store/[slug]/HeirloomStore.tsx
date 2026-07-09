@@ -301,6 +301,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.heroCountdownLabel !== undefined) setLiveHeroCountdownLabel(e.data.heroCountdownLabel);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
+      if (e.data.marqueeTexts !== undefined) setLiveTicker(e.data.marqueeTexts);
+      if (e.data.marqueeSpeed !== undefined) setLiveTickerSpeed(e.data.marqueeSpeed);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
     };
     window.addEventListener("message", handler);
@@ -864,13 +866,15 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         {isNavigating && <div className="hl-progress" aria-hidden="true" />}
         {/* TICKER */}
         {(displayTicker.length > 0) && (
-          <div className="hl-ticker">
-            <div className="hl-ticker-inner">
-              {[...displayTicker, ...displayTicker].map((t, i) => (
-                <span key={i}>{t}</span>
-              ))}
+          <EditSection id="ticker">
+            <div className="hl-ticker">
+              <div className="hl-ticker-inner">
+                {[...displayTicker, ...displayTicker].map((t, i) => (
+                  <span key={i}>{t}</span>
+                ))}
+              </div>
             </div>
-          </div>
+          </EditSection>
         )}
         {displayAnnouncement && (
           <div style={{ background: "#1a1715", color: "#f0e8d8", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center" }}>

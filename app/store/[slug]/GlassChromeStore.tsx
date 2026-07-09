@@ -436,7 +436,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
 
         {/* MARQUEE */}
         {cfg.show_marquee && (
-          <div style={{ borderBottom: "1px solid " + PB, overflow: "hidden", padding: "12px 0", background: "#0b0b0f" }}>
+          <EditSection id="ticker" style={{ borderBottom: "1px solid " + PB, overflow: "hidden", padding: "12px 0", background: "#0b0b0f" }}>
             <div style={{ display: "flex", whiteSpace: "nowrap", animation: "ticker 28s linear infinite" }}>
               {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
                 <span key={r + "-" + i} style={{ fontFamily: display, fontSize: 15, letterSpacing: "0.08em", color: "rgba(255,255,255,0.28)", paddingRight: 60, display: "inline-flex", alignItems: "center", gap: 24 }}>
@@ -444,7 +444,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                 </span>
               )))}
             </div>
-          </div>
+          </EditSection>
         )}
 
         {/* HERO */}

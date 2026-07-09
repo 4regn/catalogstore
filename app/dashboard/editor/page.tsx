@@ -701,7 +701,7 @@ export default function StoreEditor() {
     display: "block", marginBottom: 6,
   };
   const hintStyle: React.CSSProperties = {
-    fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4, lineHeight: 1.45,
+    fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4, lineHeight: 1.45,
   };
   const ctaCardStyle: React.CSSProperties = {
     padding: 12, background: "rgba(255,255,255,0.025)",
@@ -888,7 +888,7 @@ export default function StoreEditor() {
                 <input value={announcement} onChange={e => setAnnouncement(e.target.value)}
                   placeholder="e.g. Free delivery on orders over R800 🎉"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Shows as the bar at the very top of your store.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Shows as the bar at the very top of your store.</div>
               </div>
             )}
 
@@ -904,7 +904,7 @@ export default function StoreEditor() {
                   }
                 </div>
                 <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Your logo shows in the top-left nav and the footer. If you leave it empty your store name will appear there instead.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Your logo shows in the top-left nav and the footer. If you leave it empty your store name will appear there instead.</div>
                 {logoPreview && (
                   <button onClick={() => { setLogoPreview(""); setLogoFile(null); }}
                     style={{ padding: "8px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 6, color: "#ff6b35", cursor: "pointer", fontSize: 11 }}>
@@ -999,15 +999,15 @@ export default function StoreEditor() {
 
                 {/* Text color (shared) */}
                 <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                         <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                       </label>
                       <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
-                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                     </div>
                   </div>
                 </div>
@@ -1038,12 +1038,12 @@ export default function StoreEditor() {
                       if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
                     }} style={{ display: "none" }} />
                   {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage hero section.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>Full-screen background on your homepage hero section.</div>
                 </div>
                 {seller?.template === "soft-luxury" && (
                   <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <label style={labelStyle}>Banner Position</label>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Fixes portrait banners getting cropped oddly on wide screens.</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>Fixes portrait banners getting cropped oddly on wide screens.</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 16 }}>
                       {([{ v: "top", l: "Top" }, { v: "center", l: "Center" }, { v: "bottom", l: "Bottom" }] as const).map(o => (
                         <button key={o.v} onClick={() => setHeroImagePosition(o.v)}
@@ -1053,7 +1053,7 @@ export default function StoreEditor() {
                       ))}
                     </div>
                     <label style={labelStyle}>Banner Motion</label>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>See how each option looks live in the preview.</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>See how each option looks live in the preview.</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
                       {([{ v: "still", l: "Still" }, { v: "ambient", l: "Ambient" }, { v: "breathing", l: "Breathing" }] as const).map(o => (
                         <button key={o.v} onClick={() => setHeroImageBehavior(o.v)}
@@ -1069,33 +1069,33 @@ export default function StoreEditor() {
                   <input value={tagline} onChange={e => setTagline(e.target.value)}
                     placeholder="e.g. Elegance redefined"
                     style={inputStyle} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 5 }}>The big text in your hero section. 3–6 words works best.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 5 }}>The big text in your hero section. 3–6 words works best.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Brand Name (Hero)</label>
                   <input value={heroTitle} onChange={e => setHeroTitle(e.target.value)}
                     placeholder="Your store name"
                     style={inputStyle} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>The large brand name in your hero. Leave blank to hide it.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>The large brand name in your hero. Leave blank to hide it.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Description</label>
                   <textarea value={description} onChange={e => setDescription(e.target.value)}
                     rows={3} placeholder="A short sentence about your brand..."
                     style={{ ...inputStyle, resize: "vertical" }} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Shown in the hero section and footer About blurb.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>Shown in the hero section and footer About blurb.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Button Text</label>
                   <input value={heroCta} onChange={e => setHeroCta(e.target.value)}
                     placeholder="Shop Now"
                     style={inputStyle} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>The call-to-action button in your hero. Leave blank for &quot;Shop Now&quot;.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>The call-to-action button in your hero. Leave blank for &quot;Shop Now&quot;.</div>
                   <div style={{ height: 10 }} />
                   <CtaTargetPicker target={heroCtaTarget} onChange={setHeroCtaTarget} collections={seller?.collections || []} />
                 </div>
                 <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Color Scheme</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Color Scheme</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {([
                       { label: "Page Background", value: bgColor, set: setBgColor, reset: "#f6f3ef" },
@@ -1103,23 +1103,23 @@ export default function StoreEditor() {
                       { label: "Muted Text", value: mutedColor, set: setMutedColor, reset: "#8a8690" },
                     ] as const).map(({ label, value, set, reset }) => (
                       <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
-                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{label}</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <label style={{ width: 24, height: 24, borderRadius: 6, background: value, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                             <input type="color" value={value} onChange={e => set(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                           </label>
-                          <span style={{ fontSize: 9, color: "rgba(245,245,245,0.25)", fontFamily: "monospace" }}>{value}</span>
-                          <button onClick={() => set(reset)} style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
+                          <span style={{ fontSize: 9, color: "rgba(245,245,245,0.42)", fontFamily: "monospace" }}>{value}</span>
+                          <button onClick={() => set(reset)} style={{ fontSize: 9, color: "rgba(245,245,245,0.35)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 8 }}>Customize your store&apos;s palette. Brand color is set in Dashboard &rarr; Edit My Store.</div>
+                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", marginTop: 8 }}>Customize your store&apos;s palette. Brand color is set in Dashboard &rarr; Edit My Store.</div>
                 </div>
                 <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Typography</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {([
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Typography</div>
+                  {(() => {
+                    const FONT_PAIR_OPTIONS = [
                       { key: "cormorant-jost", heading: "Cormorant Garamond", body: "Jost" },
                       { key: "playfair-lato", heading: "Playfair Display", body: "Lato" },
                       { key: "dm-serif-inter", heading: "DM Serif Display", body: "Inter" },
@@ -1132,18 +1132,23 @@ export default function StoreEditor() {
                       { key: "cinzel-nunito", heading: "Cinzel", body: "Nunito Sans" },
                       { key: "spectral-manrope", heading: "Spectral", body: "Manrope" },
                       { key: "unbounded-karla", heading: "Unbounded", body: "Karla" },
-                    ] as const).map((fp) => (
-                      <button key={fp.key} onClick={() => setFontPair(fp.key)}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: fontPair === fp.key ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", border: fontPair === fp.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", width: "100%" }}>
-                        <span style={{ fontSize: 13, color: fontPair === fp.key ? "rgba(245,245,245,0.9)" : "rgba(245,245,245,0.5)", fontWeight: fontPair === fp.key ? 500 : 400 }}>{fp.heading}</span>
-                        <span style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", letterSpacing: "0.04em" }}>{fp.body}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.2)", marginTop: 8 }}>Choose a font pair — changes apply live across your entire store.</div>
+                    ] as const;
+                    return (
+                      <select
+                        value={fontPair}
+                        onChange={(e) => setFontPair(e.target.value as typeof fontPair)}
+                        style={{ ...inputStyle, colorScheme: "dark" }}
+                      >
+                        {FONT_PAIR_OPTIONS.map((fp) => (
+                          <option key={fp.key} value={fp.key}>{fp.heading} / {fp.body}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
+                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", marginTop: 8 }}>Choose a font pair — changes apply live across your entire store.</div>
                 </div>
                 <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Header</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Header</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
                       <input type="checkbox" checked={headerTransparent} onChange={e => setHeaderTransparent(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
@@ -1151,18 +1156,18 @@ export default function StoreEditor() {
                     </label>
                     {headerTransparent && (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
-                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Icon &amp; Text Color</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Icon &amp; Text Color</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <label style={{ width: 24, height: 24, borderRadius: 6, background: headerTransparentColor, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                             <input type="color" value={headerTransparentColor} onChange={e => setHeaderTransparentColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                           </label>
-                          <span style={{ fontSize: 9, color: "rgba(245,245,245,0.25)", fontFamily: "monospace" }}>{headerTransparentColor}</span>
-                          <button onClick={() => setHeaderTransparentColor("#ffffff")} style={{ fontSize: 9, color: "rgba(245,245,245,0.2)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
+                          <span style={{ fontSize: 9, color: "rgba(245,245,245,0.42)", fontFamily: "monospace" }}>{headerTransparentColor}</span>
+                          <button onClick={() => setHeaderTransparentColor("#ffffff")} style={{ fontSize: 9, color: "rgba(245,245,245,0.35)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
                         </div>
                       </div>
                     )}
                     {headerTransparent && (
-                      <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", padding: "0 2px" }}>Only used while the header is overlapping your hero image. Switch to a dark color if your banner is light.</div>
+                      <div style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", padding: "0 2px" }}>Only used while the header is overlapping your hero image. Switch to a dark color if your banner is light.</div>
                     )}
                     <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
                       <input type="checkbox" checked={headerBorder} onChange={e => setHeaderBorder(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
@@ -1173,8 +1178,8 @@ export default function StoreEditor() {
 
                 {seller?.template === "soft-luxury" && (
                   <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Countdown Pill</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 12 }}>Shown just under the header when a discount code has "Show countdown" enabled. Only one discount displays at a time — it needs "Applies To" set to Cart or Shipping, Active, and a future expiry date.</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 4 }}>Countdown Pill</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 12 }}>Shown just under the header when a discount code has "Show countdown" enabled. Only one discount displays at a time — it needs "Applies To" set to Cart or Shipping, Active, and a future expiry date.</div>
 
                     <label style={labelStyle}>Background Style</label>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10 }}>
@@ -1192,13 +1197,13 @@ export default function StoreEditor() {
                       { label: "Timer", value: promoTimerColor, setValue: setPromoTimerColor, fallback: seller?.primary_color || "#9c7c62", fallbackLabel: "brand color" },
                     ].map((c) => (
                       <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <label style={{ width: 28, height: 28, borderRadius: 6, background: c.value || c.fallback || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                             <input type="color" value={c.value || c.fallback || "#9c7c62"} onChange={e => c.setValue(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                           </label>
                           <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{c.value || `(${c.fallbackLabel})`}</span>
-                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
                         </div>
                       </div>
                     ))}
@@ -1237,21 +1242,21 @@ export default function StoreEditor() {
                       }
                     }}
                     style={{ display: "none" }} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage. Different from your logo.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>Full-screen background on your homepage. Different from your logo.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Tagline (Hero Headline)</label>
                   <input value={tagline} onChange={e => setTagline(e.target.value)}
                     placeholder="e.g. Wear your crown with confidence"
                     style={inputStyle} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 5 }}>The big text on your homepage. 5–8 words works best.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 5 }}>The big text on your homepage. 5–8 words works best.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Hero Subtext</label>
                   <input value={heroSubtext} onChange={e => setHeroSubtext(e.target.value)}
                     placeholder="e.g. Premium Hair Collection · SA Delivered"
                     style={inputStyle} />
-                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Small uppercase text above the main headline. Leave empty to hide.</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>Small uppercase text above the main headline. Leave empty to hide.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Subtitle</label>
@@ -1260,15 +1265,15 @@ export default function StoreEditor() {
                     style={{ ...inputStyle, resize: "vertical" }} />
                 </div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Headline Color</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <label style={{ width: 28, height: 28, borderRadius: 6, background: heroTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                         <input type="color" value={heroTextColor} onChange={e => setHeroTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                       </label>
                       <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{heroTextColor}</span>
-                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                      <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                     </div>
                   </div>
                 </div>
@@ -1279,7 +1284,7 @@ export default function StoreEditor() {
             {activeSection === "ticker" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <label style={labelStyle}>Marquee Messages</label>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>These scroll across the top of your store. One message per line.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>These scroll across the top of your store. One message per line.</div>
                 {marqueeTexts.map((txt, i) => (
                   <div key={i} style={{ display: "flex", gap: 8 }}>
                     <input value={txt}
@@ -1303,7 +1308,7 @@ export default function StoreEditor() {
                   </label>
                   <input type="range" min={8} max={60} value={marqueeSpeed} onChange={e => setMarqueeSpeed(Number(e.target.value))}
                     style={{ width: "100%", marginTop: 6, accentColor: "#c4a265" }} />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "rgba(245,245,245,0.42)", marginTop: 2 }}>
                     <span>Fast</span><span>Slow</span>
                   </div>
                 </div>
@@ -1326,22 +1331,22 @@ export default function StoreEditor() {
                 <input value={circleTitle} onChange={e => setCircleTitle(e.target.value)}
                   placeholder="e.g. Shop by Texture"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase label above the circles. Leave empty to hide.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Small uppercase label above the circles. Leave empty to hide.</div>
                 <label style={labelStyle}>Section Subtitle</label>
                 <input value={circleSubtitle} onChange={e => setCircleSubtitle(e.target.value)}
                   placeholder="e.g. Find your signature look"
                   style={inputStyle} />
 
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: circleTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={circleTextColor} onChange={e => setCircleTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{circleTextColor}</span>
-                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
@@ -1355,12 +1360,12 @@ export default function StoreEditor() {
                 <input value={productsLabel} onChange={e => setProductsLabel(e.target.value)}
                   placeholder="e.g. The Edit"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase text above the heading.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Small uppercase text above the heading.</div>
                 <label style={labelStyle}>Section Heading</label>
                 <input value={productsHeading} onChange={e => setProductsHeading(e.target.value)}
                   placeholder="e.g. Latest arrivals"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big heading above your products grid.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>The big heading above your products grid.</div>
                 <label style={labelStyle}>Image Shape</label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                   {[{ v: "3/4", l: "Portrait" }, { v: "1/1", l: "Square" }, { v: "4/3", l: "Landscape" }, { v: "auto", l: "Original" }].map(o => (
@@ -1370,7 +1375,7 @@ export default function StoreEditor() {
                     </button>
                   ))}
                 </div>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>How product images are cropped in the grid.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>How product images are cropped in the grid.</div>
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
                   To add or edit products, go to your <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: G, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0 }}>Dashboard →</button>
                 </div>
@@ -1378,7 +1383,7 @@ export default function StoreEditor() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 12 }}>
                   <div>
                     <div style={{ fontSize: 12 }}>Collapsed by default</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Click to expand on the storefront</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Click to expand on the storefront</div>
                   </div>
                   <button onClick={() => setProductsCollapsed(!productsCollapsed)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: productsCollapsed ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: productsCollapsed ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
                 </div>
@@ -1386,53 +1391,53 @@ export default function StoreEditor() {
 
                 {seller?.template === "soft-luxury" && (
                   <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Sale Pills</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Discounted products always show a "Sale" pill on the top left.</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Sale Pills</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>Discounted products always show a "Sale" pill on the top left.</div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
-                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Sale Pill Color</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Sale Pill Color</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <label style={{ width: 28, height: 28, borderRadius: 6, background: salePillColor || seller?.primary_color || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                           <input type="color" value={salePillColor || seller?.primary_color || "#9c7c62"} onChange={e => setSalePillColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                         </label>
                         <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{salePillColor || seller?.primary_color || "#9c7c62"}{!salePillColor && " (brand color)"}</span>
-                        {salePillColor && <button onClick={() => setSalePillColor("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                        {salePillColor && <button onClick={() => setSalePillColor("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
                       </div>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", marginTop: 8 }}>
                       <div>
                         <div style={{ fontSize: 12 }}>Show % off pill</div>
-                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Adds a "-20%" pill on the top right too</div>
+                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Adds a "-20%" pill on the top right too</div>
                       </div>
                       <button onClick={() => setShowPercentOffPill(!showPercentOffPill)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: showPercentOffPill ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: showPercentOffPill ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
                     </div>
                     {showPercentOffPill && (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
-                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>% Off Pill Color</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>% Off Pill Color</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <label style={{ width: 28, height: 28, borderRadius: 6, background: percentOffPillColor || seller?.primary_color || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                             <input type="color" value={percentOffPillColor || seller?.primary_color || "#9c7c62"} onChange={e => setPercentOffPillColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                           </label>
                           <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{percentOffPillColor || seller?.primary_color || "#9c7c62"}{!percentOffPillColor && " (brand color)"}</span>
-                          {percentOffPillColor && <button onClick={() => setPercentOffPillColor("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                          {percentOffPillColor && <button onClick={() => setPercentOffPillColor("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
                         </div>
                       </div>
                     )}
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 6 }}>Each pill has its own color — changing one won't affect the other.</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 6 }}>Each pill has its own color — changing one won't affect the other.</div>
                   </div>
                 )}
 
                 {seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: prodTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={prodTextColor} onChange={e => setProdTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{prodTextColor}</span>
-                    <button onClick={() => setProdTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setProdTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
@@ -1455,7 +1460,7 @@ export default function StoreEditor() {
                 {seller?.template === "soft-luxury" && (
                   <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <label style={labelStyle}>Layout</label>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 10 }}>Pick how your collections are displayed — a nice way to make your store feel less like everyone else's.</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 10 }}>Pick how your collections are displayed — a nice way to make your store feel less like everyone else's.</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {([
                         { key: "lookbook", name: "Lookbook", desc: "Alternating large/small pairs — editorial feel" },
@@ -1473,7 +1478,7 @@ export default function StoreEditor() {
                 )}
 
                 <label style={labelStyle}>Collection Order</label>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 6 }}>Drag to reorder how collections appear on your store.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 6 }}>Drag to reorder how collections appear on your store.</div>
                 {collOrder.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {collOrder.map((col, i) => (
@@ -1505,7 +1510,7 @@ export default function StoreEditor() {
                           {collectionImages[col] ? (
                             <img src={collectionImages[col]} alt="" style={{ width: 48, height: 48, borderRadius: 6, objectFit: "cover" }} />
                           ) : (
-                            <div style={{ width: 48, height: 48, borderRadius: 6, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(245,245,245,0.2)" }}>+</div>
+                            <div style={{ width: 48, height: 48, borderRadius: 6, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(245,245,245,0.35)" }}>+</div>
                           )}
                           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                             <label style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
@@ -1539,35 +1544,35 @@ export default function StoreEditor() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 12 }}>
                   <div>
                     <div style={{ fontSize: 12 }}>Collapsed by default</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Click to expand on the storefront</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Click to expand on the storefront</div>
                   </div>
                   <button onClick={() => setCollectionsCollapsed(!collectionsCollapsed)} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative", background: collectionsCollapsed ? G : "rgba(255,255,255,0.08)", transition: "background 0.2s" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: collectionsCollapsed ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
                 </div>
                 )}
                 {seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (<>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: circleTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={circleTextColor} onChange={e => setCircleTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{circleTextColor}</span>
-                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setCircleTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: collTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={collTextColor} onChange={e => setCollTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{collTextColor}</span>
-                    <button onClick={() => setCollTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setCollTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
@@ -1582,28 +1587,28 @@ export default function StoreEditor() {
                 <input value={aboutLabel} onChange={e => setAboutLabel(e.target.value)}
                   placeholder="e.g. Our Story"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase text above the heading. Leave empty to hide.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Small uppercase text above the heading. Leave empty to hide.</div>
                 <label style={labelStyle}>Section Heading</label>
                 <input value={aboutTitle} onChange={e => setAboutTitle(e.target.value)}
                   placeholder="e.g. Hair that moves with you."
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Leave empty to show no heading.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>Leave empty to show no heading.</div>
                 <label style={labelStyle}>Brand Story / About Text</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)}
                   rows={5} placeholder="Tell your customers who you are, what you sell, and why they should trust you..."
                   style={{ ...inputStyle, resize: "vertical" }} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>This shows in the About section. Be genuine — 2 to 4 sentences is enough.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>This shows in the About section. Be genuine — 2 to 4 sentences is enough.</div>
 
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: aboutTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={aboutTextColor} onChange={e => setAboutTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{aboutTextColor}</span>
-                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
@@ -1614,7 +1619,7 @@ export default function StoreEditor() {
             {activeSection === "trust" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <label style={labelStyle}>Trust Bar Items</label>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Click an icon to pick it. Leave title empty to hide an item.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Click an icon to pick it. Leave title empty to hide an item.</div>
                 {trustItems.map((item, i) => (
                   <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1659,15 +1664,15 @@ export default function StoreEditor() {
                 )}
 
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: trustTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={trustTextColor} onChange={e => setTrustTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{trustTextColor}</span>
-                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
@@ -1681,7 +1686,7 @@ export default function StoreEditor() {
                 <textarea value={testimonialText} onChange={e => setTestimonialText(e.target.value)}
                   rows={4} placeholder="What your best customer said..."
                   style={{ ...inputStyle, resize: "vertical" }} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Use a real review from a happy customer. Short and specific works better than long and vague.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Use a real review from a happy customer. Short and specific works better than long and vague.</div>
               </div>
             )}
 
@@ -1692,48 +1697,48 @@ export default function StoreEditor() {
                 <input value={ctaHeadline} onChange={e => setCtaHeadline(e.target.value)}
                   placeholder="e.g. Your next look starts here"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big text in the full-width banner near the bottom of the page.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>The big text in the full-width banner near the bottom of the page.</div>
                 <label style={labelStyle}>CTA Subtext</label>
                 <textarea value={ctaSubtext} onChange={e => setCtaSubtext(e.target.value)}
                   rows={3} placeholder="e.g. Browse our full collection..."
                   style={{ ...inputStyle, resize: "vertical" }} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>The smaller descriptive text below the headline.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>The smaller descriptive text below the headline.</div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: aboutTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={aboutTextColor} onChange={e => setAboutTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{aboutTextColor}</span>
-                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setAboutTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: trustTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={trustTextColor} onChange={e => setTrustTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{trustTextColor}</span>
-                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setTrustTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Text Color</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Text Color</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: ctaTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={ctaTextColor} onChange={e => setCtaTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{ctaTextColor}</span>
-                    <button onClick={() => setCtaTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setCtaTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>
@@ -1747,12 +1752,12 @@ export default function StoreEditor() {
                 <input value={promiseLabel} onChange={e => setPromiseLabel(e.target.value)}
                   placeholder="e.g. Our Promise"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Small uppercase text above the heading. Leave empty to hide.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Small uppercase text above the heading. Leave empty to hide.</div>
                 <label style={labelStyle}>Section Heading</label>
                 <input value={promiseTitle} onChange={e => setPromiseTitle(e.target.value)}
                   placeholder="e.g. Built on trust, delivered with care"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>The big heading at the top of this section.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>The big heading at the top of this section.</div>
                 <label style={labelStyle}>Promise Items</label>
                 {promiseItems.map((item, i) => (
                   <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1771,7 +1776,7 @@ export default function StoreEditor() {
                         style={{ width: "100%", height: 72, borderRadius: 8, border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                         {promiseImages[i]
                           ? <img src={promiseImages[i]!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          : <div style={{ fontSize: 10, color: "rgba(245,245,245,0.25)" }}>Click to upload image</div>
+                          : <div style={{ fontSize: 10, color: "rgba(245,245,245,0.42)" }}>Click to upload image</div>
                         }
                       </div>
                       <input ref={promiseImgRefs[i]} type="file" accept="image/*"
@@ -1797,7 +1802,7 @@ export default function StoreEditor() {
             {activeSection === "policies" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <label style={labelStyle}>Shipping & Policies</label>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
                 {(seller?.store_config?.policy_items || [
                   { title: "Shipping", desc: "" },
                   { title: "Returns",  desc: "" },
@@ -1838,7 +1843,7 @@ export default function StoreEditor() {
                     </div>
                   );
                 })}
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Changes save automatically when you click out of a field.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Changes save automatically when you click out of a field.</div>
               </div>
             )}
 
@@ -1900,7 +1905,7 @@ export default function StoreEditor() {
                 </div>
 
                 <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Policies</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Policies</div>
                   {policyItems.map((pol, i) => (
                     <div key={i} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, marginBottom: 8 }}>
                       <input value={pol.title} onChange={e => { const u = [...policyItems]; u[i] = { ...u[i], title: e.target.value }; setPolicyItems(u); }}
@@ -1919,7 +1924,7 @@ export default function StoreEditor() {
                 </div>
 
                 <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 12 }}>Contact Info</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Contact Info</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <div>
                       <label style={labelStyle}>Email</label>
@@ -1957,7 +1962,7 @@ export default function StoreEditor() {
                                     style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
                                     {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                                   </select>
-                                  <span style={{ fontSize: 10, color: "rgba(245,245,245,0.25)" }}>to</span>
+                                  <span style={{ fontSize: 10, color: "rgba(245,245,245,0.42)" }}>to</span>
                                   <select value={h.close} onChange={e => updateDayHours(i, { close: e.target.value })}
                                     style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
                                     {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -1971,7 +1976,7 @@ export default function StoreEditor() {
                                         style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
                                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                                       </select>
-                                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.25)" }}>to</span>
+                                      <span style={{ fontSize: 10, color: "rgba(245,245,245,0.42)" }}>to</span>
                                       <select value={h.lunch_end} onChange={e => updateDayHours(i, { lunch_end: e.target.value })}
                                         style={{ ...inputStyle, padding: "3px 6px", fontSize: 10, flex: 1 }}>
                                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -1996,21 +2001,21 @@ export default function StoreEditor() {
 
                 {seller?.template === "soft-luxury" && (
                   <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 4 }}>Footer Colors</div>
-                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>Defaults to your site's colors above — only change these to make the footer stand out on its own.</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 4 }}>Footer Colors</div>
+                    <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>Defaults to your site's colors above — only change these to make the footer stand out on its own.</div>
                     {[
                       { label: "Background", value: footerBgColor, setValue: setFooterBgColor, fallback: bgColor },
                       { label: "Text", value: footerTextColor, setValue: setFooterTextColor, fallback: textColor },
                       { label: "Muted Text", value: footerMutedColor, setValue: setFooterMutedColor, fallback: mutedColor },
                     ].map((c) => (
                       <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{c.label}</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <label style={{ width: 28, height: 28, borderRadius: 6, background: c.value || c.fallback, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                             <input type="color" value={c.value || c.fallback} onChange={e => c.setValue(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                           </label>
                           <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{c.value || c.fallback}{!c.value && " (default)"}</span>
-                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                          {c.value && <button onClick={() => c.setValue("")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
                         </div>
                       </div>
                     ))}
@@ -2026,30 +2031,30 @@ export default function StoreEditor() {
                 <input value={tagline} onChange={e => setTagline(e.target.value)}
                   placeholder="e.g. Premium quality. Delivered across SA."
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 8 }}>The short line under your name/logo in the footer.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>The short line under your name/logo in the footer.</div>
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
                   Your logo (if uploaded) will show automatically in the footer. Social links are managed in Dashboard → My Store.
                 </div>
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.3)", marginBottom: 8 }}>Colors</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 8 }}>Colors</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Text Color</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: footerTextColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={footerTextColor} onChange={e => setFooterTextColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{footerTextColor}</span>
-                    <button onClick={() => setFooterTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setFooterTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.45)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Page Background</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Page Background</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <label style={{ width: 28, height: 28, borderRadius: 6, background: bgColor as string, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
                       <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
                     </label>
                     <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)", fontFamily: "monospace" }}>{bgColor}</span>
-                    <button onClick={() => setBgColor("#0a0908")} style={{ fontSize: 10, color: "rgba(245,245,245,0.25)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
+                    <button onClick={() => setBgColor("#0a0908")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                   </div>
                 </div>
                 </div>

@@ -744,7 +744,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
         {/* MARQUEE */}
         {cfg.show_marquee && marqueeTexts.length > 0 && (
-          <div style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+          <EditSection id="ticker" style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
             <div style={{ display: "inline-flex", animation: `mscroll ${marqueeSpeed}s linear infinite` }}>
               {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
                 <span key={r + "-" + i} style={{ fontFamily: fonts.heading, fontSize: 13, fontStyle: "italic", color: pageMuted, letterSpacing: "0.08em", padding: "0 40px" }}>
@@ -752,7 +752,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 </span>
               )))}
             </div>
-          </div>
+          </EditSection>
         )}
 
         {/* COLLECTIONS */}
