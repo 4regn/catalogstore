@@ -19,7 +19,7 @@ type DashIconName =
   | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
   | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
   | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
-  | "eye" | "box" | "sparkle" | "drag";
+  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink";
 
 function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
@@ -53,6 +53,8 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
     case "box": return <svg {...c}><path d="M10 2.5 17 6v8l-7 3.5L3 14V6l7-3.5Z"/><path d="M3 6l7 3.5L17 6"/><path d="M10 9.5V17"/></svg>;
     case "sparkle": return <svg {...c}><path d="M10 2v4M10 14v4M2 10h4M14 10h4"/><path d="m5 5 2 2M13 13l2 2M15 5l-2 2M7 13l-2 2"/></svg>;
     case "drag": return <svg {...c} strokeWidth={0} fill="currentColor"><circle cx="7" cy="5" r="1.3"/><circle cx="13" cy="5" r="1.3"/><circle cx="7" cy="10" r="1.3"/><circle cx="13" cy="10" r="1.3"/><circle cx="7" cy="15" r="1.3"/><circle cx="13" cy="15" r="1.3"/></svg>;
+    case "expand": return <svg {...c}><path d="M8 3H3v5"/><path d="M12 17h5v-5"/><path d="m3 3 6 6"/><path d="m17 17-6-6"/></svg>;
+    case "shrink": return <svg {...c}><path d="M3 8h5V3"/><path d="M17 12h-5v5"/><path d="m3 3 6 6"/><path d="m17 17-6-6"/></svg>;
   }
 }
 
@@ -267,6 +269,7 @@ export default function Dashboard() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const [templateOpen, setTemplateOpen] = useState(true);
+  const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [logoRemoved, setLogoRemoved] = useState(false);
   const [bannerRemoved, setBannerRemoved] = useState(false);
 
@@ -1745,13 +1748,20 @@ export default function Dashboard() {
                               <iframe src={previewUrl} style={{ width: 400, height: 844, border: "none" }} tabIndex={-1} />
                             </div>
                             {locked && (
-                              <div style={{ position: "absolute" as const, top: 8, right: 8, zIndex: 3 }}>
+                              <div style={{ position: "absolute" as const, top: 8, right: 44, zIndex: 3 }}>
                                 <span style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "rgba(0,0,0,0.75)", borderRadius: 100, fontSize: 9, fontWeight: 800, color: "#fff", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>
                                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="9" rx="1.5"/><path d="M7.5 11V7.5a4.5 4.5 0 0 1 9 0V11"/></svg>
                                   Preview &middot; Pro to unlock
                                 </span>
                               </div>
                             )}
+                            <span
+                              onClick={(e) => { e.stopPropagation(); setExpandedTemplateId(t.id); }}
+                              title="View full size"
+                              style={{ position: "absolute" as const, top: 8, right: 8, zIndex: 3, width: 28, height: 28, borderRadius: "50%", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                            >
+                              <DashIcon name="expand" size={13} />
+                            </span>
                           </div>
                           <div style={{ padding: "8px 12px" }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -2117,6 +2127,27 @@ export default function Dashboard() {
 
         </main>
       </div>
+
+      {expandedTemplateId && (() => {
+        const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html" } as Record<string, string>)[expandedTemplateId];
+        const t = TEMPLATES.find((x) => x.id === expandedTemplateId);
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20, gap: 16 }}>
+            <div onClick={() => setExpandedTemplateId(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)" }} />
+            <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{t?.name}</span>
+              <button onClick={() => setExpandedTemplateId(null)} title="Shrink" style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <DashIcon name="shrink" size={14} />
+              </button>
+            </div>
+            <div style={{ position: "relative", width: 340, maxWidth: "92vw", aspectRatio: "9 / 19", borderRadius: 32, border: "8px solid #111", background: "#111", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}>
+              <div style={{ width: 400, height: 844, transform: "scale(0.85)", transformOrigin: "top left" }}>
+                <iframe src={previewUrl} style={{ width: 400, height: 844, border: "none" }} tabIndex={-1} />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {shareModalOpen && seller?.subdomain && (
         <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
