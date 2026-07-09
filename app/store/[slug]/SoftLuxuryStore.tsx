@@ -135,6 +135,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveTagline, setLiveTagline]           = useState<string | null>(null);
   const [liveDescription, setLiveDescription]   = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
+  const [liveShowAnnouncement, setLiveShowAnnouncement] = useState<boolean | null>(null);
   const [liveTrustItems, setLiveTrustItems]     = useState<{ icon: string; title: string; desc: string }[] | null>(null);
   const [livePolicyItems, setLivePolicyItems]   = useState<{ title: string; desc: string }[] | null>(null);
   const [liveAboutImage, setLiveAboutImage]     = useState<string | null>(null);
@@ -149,6 +150,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveTextColor, setLiveTextColor]                 = useState<string | null>(null);
   const [liveMutedColor, setLiveMutedColor]               = useState<string | null>(null);
   const [liveCollLabel, setLiveCollLabel]                 = useState<string | null>(null);
+  const [liveMarqueeTexts, setLiveMarqueeTexts]           = useState<string[] | null>(null);
+  const [liveMarqueeSpeed, setLiveMarqueeSpeed]           = useState<number | null>(null);
   const [liveCollSubtitle, setLiveCollSubtitle]           = useState<string | null>(null);
   const [liveCollectionsLayout, setLiveCollectionsLayout] = useState<string | null>(null);
   const [liveHeroImagePosition, setLiveHeroImagePosition] = useState<string | null>(null);
@@ -253,6 +256,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.tagline      !== undefined) setLiveTagline(e.data.tagline);
       if (e.data.description  !== undefined) setLiveDescription(e.data.description);
       if (e.data.announcement !== undefined) setLiveAnnouncement(e.data.announcement);
+      if (e.data.showAnnouncement !== undefined) setLiveShowAnnouncement(e.data.showAnnouncement);
       if (e.data.trustItems   !== undefined) setLiveTrustItems(e.data.trustItems);
       if (e.data.policyItems  !== undefined) setLivePolicyItems(e.data.policyItems);
       if (e.data.aboutImage   !== undefined) setLiveAboutImage(e.data.aboutImage || null);
@@ -268,6 +272,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.textColor   !== undefined) setLiveTextColor(e.data.textColor);
       if (e.data.mutedColor  !== undefined) setLiveMutedColor(e.data.mutedColor);
       if (e.data.collLabel   !== undefined) setLiveCollLabel(e.data.collLabel);
+      if (e.data.marqueeTexts !== undefined) setLiveMarqueeTexts(e.data.marqueeTexts);
+      if (e.data.marqueeSpeed !== undefined) setLiveMarqueeSpeed(e.data.marqueeSpeed);
       if (e.data.collSubtitle !== undefined) setLiveCollSubtitle(e.data.collSubtitle);
       if (e.data.collectionsLayout !== undefined) setLiveCollectionsLayout(e.data.collectionsLayout);
       if (e.data.heroImagePosition !== undefined) setLiveHeroImagePosition(e.data.heroImagePosition);
@@ -393,7 +399,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const displayOperatingHours = liveOperatingHours ?? (cfg as any).operating_hours ?? "";
   const productsCollapsed = (cfg as any).products_collapsed === true;
   const collections = seller?.collections || [];
-  const marqueeTexts = (cfg.marquee_texts !== undefined ? cfg.marquee_texts.filter((t: string) => t.trim()) : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"]);
+  const marqueeTexts = liveMarqueeTexts ?? (cfg.marquee_texts !== undefined ? cfg.marquee_texts.filter((t: string) => t.trim()) : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"]);
+  const marqueeSpeed = liveMarqueeSpeed ?? (cfg as any).marquee_speed ?? 20;
   const trustItems = cfg.trust_items?.length ? cfg.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }];
   const policyItems = livePolicyItems ?? (cfg.policy_items?.length ? cfg.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." }, { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." }, { title: "Payment", desc: "Secure card payments and WhatsApp checkout for a personal experience." }]);
   const cats = ["All", ...collections.filter((c) => products.some((p) => pInCat(p, c)))];
@@ -521,7 +528,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const heroImageObjectPosition = heroImagePosition === "top" ? "center top" : heroImagePosition === "bottom" ? "center bottom" : "center center";
   const heroImageBehavior = liveHeroImageBehavior ?? (cfg as any).hero_image_behavior ?? "still";
   const heroImageAnimation = heroImageBehavior === "breathing" ? "sl-hero-breathing 16s ease-in-out infinite" : heroImageBehavior === "ambient" ? "sl-hero-ambient 22s ease-in-out infinite" : undefined;
-  const displayAnnouncement = liveAnnouncement ?? cfg.announcement     ?? "";
+  const showAnnouncement = liveShowAnnouncement ?? (cfg as any).show_announcement === true;
+  const displayAnnouncement = showAnnouncement ? (liveAnnouncement ?? cfg.announcement ?? "") : "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
   const displayLogoUrl      = liveLogoUrl      ?? seller?.logo_url     ?? "";
   const accentColor         = seller?.primary_color || "#9c7c62";
@@ -737,7 +745,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         {/* MARQUEE */}
         {cfg.show_marquee && marqueeTexts.length > 0 && (
           <div style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-            <div style={{ display: "inline-flex", animation: "mscroll 30s linear infinite" }}>
+            <div style={{ display: "inline-flex", animation: `mscroll ${marqueeSpeed}s linear infinite` }}>
               {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
                 <span key={r + "-" + i} style={{ fontFamily: fonts.heading, fontSize: 13, fontStyle: "italic", color: pageMuted, letterSpacing: "0.08em", padding: "0 40px" }}>
                   {txt}<em style={{ fontStyle: "normal", color: accent }}> &bull; </em>
@@ -748,7 +756,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* COLLECTIONS */}
-        {cfg.show_collections && collections.length > 0 && (
+        {collections.length > 0 && (
           <EditSection id="collections">
           <section style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
             {(() => { const collCollapsed = (cfg as any).collections_collapsed === true; return (

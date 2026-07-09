@@ -62,6 +62,7 @@ interface Seller {
   whatsapp_number: string; primary_color: string; collections: string[];
   store_config: {
     announcement?: string;
+    show_announcement?: boolean;
     trust_items?: { icon: string; title: string; desc: string }[];
     policy_items?: { title: string; desc: string }[];
     hero_subtext?: string;
@@ -78,6 +79,8 @@ interface Seller {
     hero_image_behavior?: string;
     ticker_texts?: string[];
     ticker_speed?: number;
+    marquee_texts?: string[];
+    marquee_speed?: number;
     bg_color?: string;
     hero_text_color?: string;
     circle_text_color?: string;
@@ -143,7 +146,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   announcement: { icon: "announcement", label: "Announcement Bar" },
   logo:         { icon: "logo",         label: "Store Logo" },
   hero:         { icon: "hero",         label: "Hero Section" },
-  ticker:       { icon: "ticker",       label: "Promo Ticker" },
+  ticker:       { icon: "ticker",       label: "Marquee Ticker" },
   circle:       { icon: "circle",       label: "Browse by Category" },
   products:     { icon: "products",     label: "Products" },
   collections:  { icon: "collections",  label: "Collections" },
@@ -184,6 +187,7 @@ export default function StoreEditor() {
   const [tagline, setTagline]           = useState("");
   const [description, setDescription]   = useState("");
   const [announcement, setAnnouncement] = useState("");
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
   const [trustItems, setTrustItems]     = useState<{ icon: string; title: string; desc: string }[]>([]);
   const [testimonialText, setTestimonialText] = useState("I've been buying hair for years and nothing compares. Three months in and my bundles still look freshly installed. This is the one.");
   const [ctaHeadline, setCtaHeadline]         = useState("Your next look starts here");
@@ -200,8 +204,14 @@ export default function StoreEditor() {
   const [collSubtitle, setCollSubtitle]       = useState("Find your signature look");
   const [collectionsLayout, setCollectionsLayout] = useState("lookbook");
   const [collOrder, setCollOrder]             = useState<string[]>([]);
-  const [tickerTexts, setTickerTexts]         = useState<string[]>(["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"]);
-  const [tickerSpeed, setTickerSpeed]         = useState(20);
+  // Named "marquee" (not "ticker") to match the field the storefronts
+  // actually render (store_config.marquee_texts) -- this used to save to a
+  // disconnected `ticker_texts` field that Soft Luxury and Glass Chrome
+  // never read, so editing "Promo Ticker" here had zero effect on either.
+  // Still dual-writes ticker_texts on save so Crown/Heirloom (which read
+  // that field) keep working without needing their own migration today.
+  const [marqueeTexts, setMarqueeTexts]       = useState<string[]>(["FREE DELIVERY ON ORDERS OVER R800", "UP TO 35% SALE RUNNING", "NEW ARRIVALS JUST DROPPED"]);
+  const [marqueeSpeed, setMarqueeSpeed]       = useState(20);
   const [bgColor, setBgColor]                 = useState("#f6f3ef");
   const [textColor, setTextColor]             = useState("#2a2a2e");
   const [mutedColor, setMutedColor]           = useState("#8a8690");
@@ -316,6 +326,7 @@ export default function StoreEditor() {
       setTagline(s.tagline || "");
       setDescription(s.description || "");
       setAnnouncement(s.store_config?.announcement || "");
+      setShowAnnouncement(s.store_config?.show_announcement === true);
       setTrustItems(s.store_config?.trust_items || [
         { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
         { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
@@ -337,8 +348,10 @@ export default function StoreEditor() {
       setCollectionsLayout(s.store_config?.collections_layout || "lookbook");
       setHeroImagePosition(s.store_config?.hero_image_position || "center");
       setHeroImageBehavior(s.store_config?.hero_image_behavior || "still");
-      if (s.store_config?.ticker_texts?.length) setTickerTexts(s.store_config.ticker_texts);
-      if (s.store_config?.ticker_speed) setTickerSpeed(s.store_config.ticker_speed);
+      if (s.store_config?.marquee_texts?.length) setMarqueeTexts(s.store_config.marquee_texts);
+      else if (s.store_config?.ticker_texts?.length) setMarqueeTexts(s.store_config.ticker_texts);
+      if (s.store_config?.marquee_speed) setMarqueeSpeed(s.store_config.marquee_speed);
+      else if (s.store_config?.ticker_speed) setMarqueeSpeed(s.store_config.ticker_speed);
       if (s.store_config?.bg_color) setBgColor(s.store_config.bg_color);
       if (s.store_config?.text_color) setTextColor(s.store_config.text_color);
       if (s.store_config?.muted_color) setMutedColor(s.store_config.muted_color);
@@ -434,6 +447,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ tagline }); }, [tagline]);
   useEffect(() => { postUpdate({ description }); }, [description]);
   useEffect(() => { postUpdate({ announcement }); }, [announcement]);
+  useEffect(() => { postUpdate({ showAnnouncement }); }, [showAnnouncement]);
   useEffect(() => { postUpdate({ trustItems }); }, [trustItems]);
   useEffect(() => { postUpdate({ testimonialText }); }, [testimonialText]);
   useEffect(() => { postUpdate({ ctaHeadline }); }, [ctaHeadline]);
@@ -453,8 +467,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroImageBehavior }); }, [heroImageBehavior]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
-  useEffect(() => { postUpdate({ ticker: tickerTexts }); }, [tickerTexts]);
-  useEffect(() => { postUpdate({ tickerSpeed }); }, [tickerSpeed]);
+  useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
+  useEffect(() => { postUpdate({ marqueeSpeed }); }, [marqueeSpeed]);
   useEffect(() => { postUpdate({ bgColor }); }, [bgColor]);
   useEffect(() => { postUpdate({ textColor }); }, [textColor]);
   useEffect(() => { postUpdate({ mutedColor }); }, [mutedColor]);
@@ -545,6 +559,7 @@ export default function StoreEditor() {
       store_config: {
         ...seller.store_config,
         announcement,
+        show_announcement: showAnnouncement,
         trust_items: trustItems,
         hero_subtext: heroSubtext,
         circle_title: circleTitle,
@@ -559,8 +574,11 @@ export default function StoreEditor() {
         collections_layout: collectionsLayout,
         hero_image_position: heroImagePosition,
         hero_image_behavior: heroImageBehavior,
-          ticker_texts: tickerTexts,
-          ticker_speed: tickerSpeed,
+          marquee_texts: marqueeTexts,
+          marquee_speed: marqueeSpeed,
+          // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
+          ticker_texts: marqueeTexts,
+          ticker_speed: marqueeSpeed,
           bg_color: bgColor,
           text_color: textColor,
           muted_color: mutedColor,
@@ -833,11 +851,15 @@ export default function StoreEditor() {
             {/* ANNOUNCEMENT */}
             {activeSection === "announcement" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                  <input type="checkbox" checked={showAnnouncement} onChange={e => setShowAnnouncement(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                  <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Show announcement bar</span>
+                </label>
                 <label style={labelStyle}>Announcement Text</label>
                 <input value={announcement} onChange={e => setAnnouncement(e.target.value)}
                   placeholder="e.g. Free delivery on orders over R800 🎉"
                   style={inputStyle} />
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Shows as the gold bar at the very top of your store. Leave empty to hide it.</div>
+                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Shows as the bar at the very top of your store.</div>
               </div>
             )}
 
@@ -1227,30 +1249,30 @@ export default function StoreEditor() {
             {/* PROMO TICKER */}
             {activeSection === "ticker" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <label style={labelStyle}>Promo Messages</label>
+                <label style={labelStyle}>Marquee Messages</label>
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginBottom: 4 }}>These scroll across the top of your store. One message per line.</div>
-                {tickerTexts.map((txt, i) => (
+                {marqueeTexts.map((txt, i) => (
                   <div key={i} style={{ display: "flex", gap: 8 }}>
                     <input value={txt}
-                      onChange={e => { const u = [...tickerTexts]; u[i] = e.target.value; setTickerTexts(u); }}
+                      onChange={e => { const u = [...marqueeTexts]; u[i] = e.target.value; setMarqueeTexts(u); }}
                       placeholder="e.g. FREE DELIVERY OVER R500"
                       style={{ ...inputStyle, flex: 1 }} />
-                    {tickerTexts.length > 1 && (
-                      <button onClick={() => setTickerTexts(tickerTexts.filter((_, j) => j !== i))}
+                    {marqueeTexts.length > 1 && (
+                      <button onClick={() => setMarqueeTexts(marqueeTexts.filter((_, j) => j !== i))}
                         style={{ width: 32, height: 38, background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 14 }}>×</button>
                     )}
                   </div>
                 ))}
-                <button onClick={() => setTickerTexts([...tickerTexts, ""])}
+                <button onClick={() => setMarqueeTexts([...marqueeTexts, ""])}
                   style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, color: "rgba(245,245,245,0.4)", cursor: "pointer", fontSize: 12 }}>
                   + Add message
                 </button>
                 <div style={{ marginTop: 8 }}>
                   <label style={{ ...labelStyle, display: "flex", justifyContent: "space-between" }}>
                     <span>Scroll Speed</span>
-                    <span style={{ color: "rgba(245,245,245,0.4)" }}>{tickerSpeed}s</span>
+                    <span style={{ color: "rgba(245,245,245,0.4)" }}>{marqueeSpeed}s</span>
                   </label>
-                  <input type="range" min={8} max={60} value={tickerSpeed} onChange={e => setTickerSpeed(Number(e.target.value))}
+                  <input type="range" min={8} max={60} value={marqueeSpeed} onChange={e => setMarqueeSpeed(Number(e.target.value))}
                     style={{ width: "100%", marginTop: 6, accentColor: "#c4a265" }} />
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "rgba(245,245,245,0.25)", marginTop: 2 }}>
                     <span>Fast</span><span>Slow</span>
@@ -1259,7 +1281,7 @@ export default function StoreEditor() {
                 <div>
                   <label style={{ ...labelStyle, marginBottom: 6 }}>Suggested</label>
                   {["FREE DELIVERY ON ORDERS OVER R500", "UP TO 50% OFF ON SELECTED ITEMS", "NEW ARRIVALS JUST DROPPED", "LIMITED STOCK — ORDER NOW"].map(preset => (
-                    <button key={preset} onClick={() => { if (!tickerTexts.includes(preset)) setTickerTexts([...tickerTexts, preset]); }}
+                    <button key={preset} onClick={() => { if (!marqueeTexts.includes(preset)) setMarqueeTexts([...marqueeTexts, preset]); }}
                       style={{ display: "block", width: "100%", marginBottom: 4, padding: "7px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6, color: "rgba(245,245,245,0.4)", cursor: "pointer", fontSize: 10, textAlign: "left", letterSpacing: "0.04em" }}>
                       + {preset}
                     </button>
