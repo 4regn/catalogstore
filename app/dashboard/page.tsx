@@ -20,7 +20,7 @@ type DashIconName =
   | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
   | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
   | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
-  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu";
+  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu" | "crown" | "affiliate" | "megaphone" | "lock";
 
 function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
@@ -57,7 +57,21 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
     case "expand": return <svg {...c}><path d="M8 3H3v5"/><path d="M12 17h5v-5"/><path d="m3 3 6 6"/><path d="m17 17-6-6"/></svg>;
     case "shrink": return <svg {...c}><path d="M3 8h5V3"/><path d="M17 12h-5v5"/><path d="m3 3 6 6"/><path d="m17 17-6-6"/></svg>;
     case "menu": return <svg {...c}><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg>;
+    case "crown": return <svg {...c}><path d="M3 15h14l1-8-4.5 3L10 4 6.5 10 2 7l1 8Z"/></svg>;
+    case "affiliate": return <svg {...c}><circle cx="7" cy="7" r="3"/><circle cx="14" cy="13" r="3"/><path d="m8.8 8.8 4.4 2.4"/></svg>;
+    case "megaphone": return <svg {...c}><path d="M3 8v4l5 1V7L3 8Z"/><path d="M8 7l8-3.5v13L8 13"/><path d="M5.5 13 6 17h2l-.3-3.5"/></svg>;
+    case "lock": return <svg {...c}><rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M6.5 9V6a3.5 3.5 0 0 1 7 0v3"/></svg>;
   }
+}
+
+function formatRelativeTime(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Today";
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays > 1 && diffDays < 7) return `${diffDays} days ago`;
+  return d.toLocaleDateString();
 }
 
 const productInCat = (cat: string, product: { category: string }) =>
@@ -760,7 +774,7 @@ export default function Dashboard() {
   );
   const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 800, color: "var(--muted-2)", textTransform: "uppercase", letterSpacing: "0.12em", padding: "0 12px", marginBottom: 6 };
 
-  const navSections: { label: string | null; items: { key: TabKey; name: string; icon: DashIconName; count?: number; badge?: string; action?: () => void }[] }[] = [
+  const navSections: { label: string | null; items: { key: TabKey; name: string; icon: DashIconName; count?: number; badge?: string; pro?: boolean; disabled?: boolean; action?: () => void }[] }[] = [
     { label: null, items: [{ key: "overview", name: "Overview", icon: "overview" }] },
     {
       label: "Launch",
@@ -772,7 +786,7 @@ export default function Dashboard() {
       label: "My Store",
       items: [
         { key: "mystore", name: "My Store", icon: "store" },
-        { key: "domains", name: "Domain", icon: "domain" },
+        { key: "domains", name: "Domain", icon: "domain", pro: true },
         { key: "checkout", name: "Payments", icon: "payment", action: () => { setCheckoutView("payments"); switchTab("checkout"); } },
         { key: "checkout", name: "Shipping", icon: "box", action: () => { setCheckoutView("shipping"); switchTab("checkout"); } },
       ],
@@ -796,9 +810,12 @@ export default function Dashboard() {
     {
       label: "Grow",
       items: [
-        { key: "analytics", name: "Analytics", icon: "analytics" },
+        { key: "analytics", name: "Analytics", icon: "analytics", pro: true },
         { key: "overview", name: "Share Store", icon: "share", action: () => setShareModalOpen(true) },
         { key: "qrcode", name: "QR Code", icon: "qrcode" },
+        { key: "overview", name: "Affiliate Partners", icon: "affiliate", pro: true, action: () => window.open("/affiliate/signup", "_blank") },
+        { key: "overview", name: "Marketing Tools", icon: "megaphone", pro: true, disabled: true },
+        { key: "overview", name: "Store Health", icon: "health", action: () => switchTab("overview") },
       ],
     },
   ];
@@ -907,13 +924,178 @@ export default function Dashboard() {
     </div>
   );
 
+  const LaunchCompleteCard = () => (
+    <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Launch Progress</h3>
+        <span style={{ fontSize: 12, fontWeight: 900, color: "#22c55e" }}>100%</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 100, background: "var(--toggle-off)", overflow: "hidden", marginBottom: 16 }}>
+        <div style={{ height: "100%", width: "100%", background: "#22c55e", borderRadius: 100 }} />
+      </div>
+      <div style={{ padding: "14px 16px", background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.18)", borderRadius: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span style={{ color: "#22c55e", display: "flex" }}><DashIcon name="sparkle" size={16} stroke={1.8} /></span>
+          <span style={{ fontSize: 13, fontWeight: 800 }}>Congratulations!</span>
+        </div>
+        <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Your store is ready to receive orders.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+          {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ padding: "8px 16px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Visit Store</a>}
+          <button onClick={() => setShareModalOpen(true)} style={{ padding: "8px 16px", background: "transparent", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Share Store</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const StoreHealthCard = () => (
+    <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column" as const, alignItems: "center" }}>
+      <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 14, alignSelf: "flex-start" }}>Store Health</h3>
+      <div style={{ position: "relative" as const, width: 120, height: 120, marginBottom: 14 }}>
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="var(--toggle-off)" strokeWidth="10" />
+          <circle cx="60" cy="60" r="50" fill="none" stroke={N} strokeWidth="10" strokeLinecap="round" strokeDasharray={2 * Math.PI * 50} strokeDashoffset={2 * Math.PI * 50 * (1 - healthScore / 100)} transform="rotate(-90 60 60)" style={{ transition: "stroke-dashoffset 0.3s" }} />
+        </svg>
+        <div style={{ position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: "-0.03em" }}>{healthScore}%</span>
+          <span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>{healthScore === 100 ? "Healthy" : healthScore >= 60 ? "Good" : "Needs Work"}</span>
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: "var(--muted-2)", textAlign: "center" as const }}>
+        {healthScore === 100 ? "Everything's set up and running smoothly." : `${healthSignals.filter(Boolean).length} of ${healthSignals.length} checks passing.`}
+      </p>
+    </div>
+  );
+
+  const RecentOrdersCard = () => (
+    <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Recent Orders</h3>
+        <button onClick={() => switchTab("orders")} style={{ background: "none", border: "none", color: N, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>View All Orders</button>
+      </div>
+      {visibleOrders.length === 0 ? (
+        <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No orders yet — they'll show up here as they come in.</p>
+      ) : (
+        <div>
+          {visibleOrders.slice(0, 4).map((order, i) => (
+            <div key={order.id} onClick={() => { setSelectedOrder(order); switchTab("orders"); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderBottom: i < Math.min(visibleOrders.length, 4) - 1 ? "1px solid var(--border)" : "none", cursor: "pointer" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{order.customer_name || "Customer"}</div>
+                <div style={{ fontSize: 10, color: "var(--muted-2)" }}>{formatRelativeTime(order.created_at)}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 800 }}>R{order.total}</span>
+                <span style={{ padding: "3px 9px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, background: order.payment_status === "paid" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: order.payment_status === "paid" ? "#22c55e" : "#fbbf24" }}>{order.payment_status?.replace("_", " ")}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const topProducts = (() => {
+    const map = new Map<string, { name: string; qty: number; revenue: number; image?: string }>();
+    orders.filter((o) => o.payment_status === "paid").forEach((o) => {
+      (o.items || []).forEach((item) => {
+        const existing = map.get(item.name) || { name: item.name, qty: 0, revenue: 0, image: item.image };
+        existing.qty += item.qty;
+        existing.revenue += item.qty * item.price;
+        if (!existing.image && item.image) existing.image = item.image;
+        map.set(item.name, existing);
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 4);
+  })();
+
+  const TopProductsCard = () => (
+    <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Top Products</h3>
+        <button onClick={() => switchTab("products")} style={{ background: "none", border: "none", color: N, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>View Products</button>
+      </div>
+      {topProducts.length === 0 ? (
+        <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No sales yet — your best sellers will show up here.</p>
+      ) : (
+        <div>
+          {topProducts.map((p, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < topProducts.length - 1 ? "1px solid var(--border)" : "none" }}>
+              {p.image ? <img src={p.image} style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover" as const, flexShrink: 0 }} /> : <span style={{ width: 34, height: 34, borderRadius: 8, background: "var(--panel-2)", flexShrink: 0 }} />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                <div style={{ fontSize: 10, color: "var(--muted-2)" }}>{p.qty} sold</div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, flexShrink: 0 }}>R{p.revenue.toFixed(0)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const heroLive = seller?.subscription_status === "active" || seller?.subscription_status === "trial";
+  const heroDomainLabel = domainConnected && seller?.custom_domain ? seller.custom_domain : seller?.subdomain ? `${seller.subdomain}.catalogstore.co.za` : "";
+  const heroStoreUrl = domainConnected && seller?.custom_domain ? `https://${seller.custom_domain}` : seller?.subdomain ? canonicalStoreUrl(seller.subdomain) : "";
+
+  const HeroCard = () => (
+    <div className="hero-row" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginBottom: 24 }}>
+      <div style={{ position: "relative" as const, borderRadius: 16, overflow: "hidden", background: "var(--panel)", border: "1px solid var(--border)", minHeight: 190, display: "flex", alignItems: "flex-end" }}>
+        {seller?.banner_url ? (
+          <img src={seller.banner_url} alt="" style={{ position: "absolute" as const, inset: 0, width: "100%", height: "100%", objectFit: "cover" as const }} />
+        ) : (
+          <div style={{ position: "absolute" as const, inset: 0, background: `linear-gradient(135deg, ${storeColor}33, ${storeColor}08)` }} />
+        )}
+        <div style={{ position: "absolute" as const, inset: 0, background: "linear-gradient(0deg, rgba(0,0,0,0.75), rgba(0,0,0,0.05) 65%)" }} />
+        <div style={{ position: "relative" as const, padding: "18px 20px", width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" as const }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" as const }}>
+              <span style={{ fontSize: 16, fontWeight: 900, color: "#fff", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{heroDomainLabel}</span>
+              {heroLive && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, color: "#4ade80" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80" }} />Live</span>}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {heroStoreUrl && <a href={heroStoreUrl} target="_blank" style={{ padding: "9px 18px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>Visit Store</a>}
+            <button onClick={() => { if (!heroStoreUrl) return; navigator.clipboard.writeText(heroStoreUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "9px 18px", background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
+          </div>
+        </div>
+      </div>
+
+      {isFreePlan ? (
+        <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column" as const, justifyContent: "center" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(251,191,36,0.12)", color: "#d4a017", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}><DashIcon name="crown" size={19} /></div>
+          <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Ready to build your brand?</h3>
+          <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14, lineHeight: 1.5 }}>Upgrade to Pro and connect your own custom domain, such as <span style={{ color: N, fontWeight: 700 }}>{seller?.subdomain || "yourstore"}.com</span> (subject to availability).</p>
+          <button onClick={() => router.push("/dashboard/billing")} style={{ padding: "11px 0", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Upgrade to Pro</button>
+        </div>
+      ) : (
+        <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column" as const, justifyContent: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <span style={{ width: 26, height: 26, borderRadius: 8, background: "rgba(251,191,36,0.12)", color: "#d4a017", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><DashIcon name="crown" size={13} /></span>
+            <h3 style={{ fontSize: 14, fontWeight: 800 }}>You're a Pro</h3>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14, lineHeight: 1.5 }}>Thank you for being a Pro member. You have access to all premium features and priority support.</p>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 6, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11 }}>
+              <span style={{ color: "var(--muted-2)" }}>Custom Domain</span>
+              <span style={{ color: domainConnected ? "#22c55e" : "var(--muted-2)", fontWeight: 700 }}>{domainConnected ? "Active" : "Not connected"}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11 }}>
+              <span style={{ color: "var(--muted-2)" }}>SSL Certificate</span>
+              <span style={{ color: domainConnected ? "#22c55e" : "var(--muted-2)", fontWeight: 700 }}>{domainConnected ? "Active" : "—"}</span>
+            </div>
+          </div>
+          <button onClick={() => router.push("/dashboard/billing")} style={{ padding: "11px 0", background: "transparent", border: "1px solid " + N, color: N, borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Explore Pro Features</button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div data-theme={theme}>
       <style>{`
         [data-theme="dark"] { ${themeVars("dark")} color-scheme: dark; }
         [data-theme="light"] { ${themeVars("light")} color-scheme: light; }
         @media (min-width: 769px) { .mobile-topbar { display: none !important; } .mobile-bottom-nav { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } .desktop-topbar { display: flex !important; } }
-        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
+        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .hero-row { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
@@ -994,12 +1176,16 @@ export default function Dashboard() {
                 <div key={si} style={{ marginTop: si === 0 ? 0 : 18, display: "flex", flexDirection: "column", gap: 2 }}>
                   {section.label && <div style={sectionLabel}>{section.label}</div>}
                   {section.items.map((item) => {
-                    const active = !item.action && tab === item.key;
+                    const active = !item.action && !item.disabled && tab === item.key;
                     return (
-                      <button key={item.name} onClick={() => { if (item.action) { item.action(); return; } switchTab(item.key); if (item.key === "collections") setSelectedCollection(null); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "9px 12px", background: active ? "rgba(255,107,53,0.08)" : "transparent", border: "none", borderLeft: active ? "2px solid " + N : "2px solid transparent", borderRadius: "0 10px 10px 0", color: active ? "var(--text)" : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: active ? 800 : 600, textAlign: "left" as const, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em", transition: "all 0.2s" }}>
+                      <button key={item.name} disabled={item.disabled} onClick={() => { if (item.disabled) return; if (item.action) { item.action(); return; } switchTab(item.key); if (item.key === "collections") setSelectedCollection(null); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "9px 12px", background: active ? "rgba(255,107,53,0.08)" : "transparent", border: "none", borderLeft: active ? "2px solid " + N : "2px solid transparent", borderRadius: "0 10px 10px 0", color: item.disabled ? "var(--muted-2)" : active ? "var(--text)" : "var(--muted)", opacity: item.disabled ? 0.6 : 1, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: active ? 800 : 600, textAlign: "left" as const, cursor: item.disabled ? "default" : "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em", transition: "all 0.2s" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 9 }}><DashIcon name={item.icon} size={14} className="dash-nav-icon" />{item.name}</span>
-                        {item.badge && <span style={{ padding: "2px 8px", borderRadius: 100, fontSize: 10, fontWeight: 800, background: active ? "rgba(255,107,53,0.15)" : "var(--panel-2)", border: "1px solid " + (active ? "rgba(255,107,53,0.15)" : "var(--border)"), color: active ? N : "var(--muted-2)" }}>{item.badge}</span>}
-                        {typeof item.count === "number" && item.count > 0 && <span style={{ padding: "2px 8px", borderRadius: 100, fontSize: 10, fontWeight: 800, background: active ? "rgba(255,107,53,0.15)" : "var(--panel-2)", border: "1px solid " + (active ? "rgba(255,107,53,0.15)" : "var(--border)"), color: active ? N : "var(--muted-2)" }}>{item.count}</span>}
+                        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          {item.disabled && <span style={{ padding: "2px 8px", borderRadius: 100, fontSize: 9, fontWeight: 800, background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--muted-2)", letterSpacing: "0.03em" }}>Soon</span>}
+                          {item.pro && !item.disabled && <span style={{ padding: "2px 7px", borderRadius: 100, fontSize: 9, fontWeight: 800, background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.25)", color: "#d4a017", letterSpacing: "0.03em" }}>Pro</span>}
+                          {item.badge && <span style={{ padding: "2px 8px", borderRadius: 100, fontSize: 10, fontWeight: 800, background: active ? "rgba(255,107,53,0.15)" : "var(--panel-2)", border: "1px solid " + (active ? "rgba(255,107,53,0.15)" : "var(--border)"), color: active ? N : "var(--muted-2)" }}>{item.badge}</span>}
+                          {typeof item.count === "number" && item.count > 0 && <span style={{ padding: "2px 8px", borderRadius: 100, fontSize: 10, fontWeight: 800, background: active ? "rgba(255,107,53,0.15)" : "var(--panel-2)", border: "1px solid " + (active ? "rgba(255,107,53,0.15)" : "var(--border)"), color: active ? N : "var(--muted-2)" }}>{item.count}</span>}
+                        </span>
                       </button>
                     );
                   })}
@@ -1084,7 +1270,14 @@ export default function Dashboard() {
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Overview</h1>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Welcome back, {seller?.store_name} — here's a quick look at your store.</p>
 
-            {!launchComplete && (
+            <HeroCard />
+
+            {launchComplete ? (
+              <div className="overview-panels-grid" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 24 }}>
+                <LaunchCompleteCard />
+                <StoreHealthCard />
+              </div>
+            ) : (
               <div style={{ marginBottom: 24 }}>
                 <LaunchProgressCard />
               </div>
@@ -1096,6 +1289,8 @@ export default function Dashboard() {
                 { icon: "products" as DashIconName, label: "Add Product", fn: () => { switchTab("products"); resetForm(); setShowForm(true); } },
                 { icon: "orders" as DashIconName, label: "View Orders", fn: () => switchTab("orders") },
                 { icon: "store" as DashIconName, label: "Edit My Store", fn: () => switchTab("mystore") },
+                { icon: "discount" as DashIconName, label: "Create Discount", fn: () => switchTab("discounts") },
+                { icon: "collections" as DashIconName, label: "Add Collection", fn: () => switchTab("collections") },
                 { icon: "share" as DashIconName, label: "Share Store", fn: () => setShareModalOpen(true) },
                 { icon: "analytics" as DashIconName, label: "Analytics", fn: () => switchTab("analytics") },
               ].map((a, i) => (
@@ -1114,6 +1309,11 @@ export default function Dashboard() {
                   <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>{s.l}</div>
                 </div>
               ))}
+            </div>
+
+            <div className="overview-panels-grid" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 24 }}>
+              <RecentOrdersCard />
+              {launchComplete ? <TopProductsCard /> : <StoreHealthCard />}
             </div>
 
             {launchComplete && !growComplete && !growDismissed && (
@@ -1138,23 +1338,6 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-
-            <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column" as const, alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 14, alignSelf: "flex-start" }}>Store Health</h3>
-              <div style={{ position: "relative" as const, width: 120, height: 120, marginBottom: 14 }}>
-                <svg width="120" height="120" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="var(--toggle-off)" strokeWidth="10" />
-                  <circle cx="60" cy="60" r="50" fill="none" stroke={N} strokeWidth="10" strokeLinecap="round" strokeDasharray={2 * Math.PI * 50} strokeDashoffset={2 * Math.PI * 50 * (1 - healthScore / 100)} transform="rotate(-90 60 60)" style={{ transition: "stroke-dashoffset 0.3s" }} />
-                </svg>
-                <div style={{ position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: "-0.03em" }}>{healthScore}%</span>
-                  <span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>{healthScore === 100 ? "Healthy" : healthScore >= 60 ? "Good" : "Needs Work"}</span>
-                </div>
-              </div>
-              <p style={{ fontSize: 11, color: "var(--muted-2)", textAlign: "center" as const }}>
-                {healthScore === 100 ? "Everything's set up and running smoothly." : `${healthSignals.filter(Boolean).length} of ${healthSignals.length} checks passing.`}
-              </p>
-            </div>
           </div>)}
 
           {tab === "launch" && (<div>
