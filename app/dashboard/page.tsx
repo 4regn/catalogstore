@@ -32,6 +32,7 @@ interface StoreConfig {
   marquee_texts: string[]; trust_items: { icon: string; title: string; desc: string }[];
   policy_items: { title: string; desc: string }[];
   footer_about?: string;
+  test_checkout_passed?: boolean;
   contact_email?: string;
   contact_phone?: string;
   operating_hours?: string;
@@ -162,9 +163,11 @@ export default function Dashboard() {
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
-  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, show_announcement: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }], footer_about: "", hero_title: "", hero_cta: "", hero_cta_target: { type: "products" }, font_pair: DEFAULT_FONT_PAIR_KEY, hero_image_position: "center", hero_image_behavior: "still" });
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, show_announcement: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }], footer_about: "", test_checkout_passed: false, hero_title: "", hero_cta: "", hero_cta_target: { type: "products" }, font_pair: DEFAULT_FONT_PAIR_KEY, hero_image_position: "center", hero_image_behavior: "still" });
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeSaved, setStoreSaved] = useState(false);
+  const [testCheckoutResult, setTestCheckoutResult] = useState<{ passed: boolean; issues: string[] } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
   const [checkoutSaving, setCheckoutSaving] = useState(false);
   const [checkoutSaved, setCheckoutSaved] = useState(false);
@@ -230,7 +233,7 @@ export default function Dashboard() {
       supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
     ]);
     const sd = sellerRes.data;
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", free_ship_threshold: c.free_ship_threshold ?? null, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c = sd.store_config || {} as any; setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", free_ship_threshold: c.free_ship_threshold ?? null, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
     if (pdResult.data) setProducts(pdResult.data);
     if (odResult.data) {
       setOrders(odResult.data);
@@ -550,6 +553,48 @@ export default function Dashboard() {
   const totalImageSlots = existingImages.length + formImages.length;
   const filteredProducts = products.filter((p) => { const status = p.status || "published"; if (status !== productFilter) return false; if (searchQuery) { const q = searchQuery.toLowerCase(); return p.name.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q); } return true; }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
+  // ── LAUNCH PROGRESS ── "Can this merchant successfully receive an order
+  // today?" Everything counted here is required for a real sale; anything
+  // that just helps the merchant grow belongs in Grow Your Business instead.
+  const hasLogo = !!seller?.logo_url;
+  const hasHeroCustomized = !!(storeTagline.trim() || storeDescription.trim() || (storeConfig.hero_title || "").trim());
+  const hasBrandColor = storeColor !== "#ff6b35";
+  const storeCustomized = hasLogo && hasHeroCustomized && hasBrandColor;
+  const hasProduct = products.length > 0;
+  const shippingConfigured = checkoutConfig.delivery_enabled || (checkoutConfig.pickup_enabled && !!checkoutConfig.pickup_address.trim());
+  const paymentConfigured = (checkoutConfig.eft_enabled && !!checkoutConfig.eft_account_number.trim()) || (checkoutConfig.payfast_enabled && !!checkoutConfig.payfast_merchant_id.trim() && !!checkoutConfig.payfast_merchant_key.trim());
+  const testCheckoutPassed = !!storeConfig.test_checkout_passed && hasProduct && shippingConfigured && paymentConfigured;
+  const launchSteps = [
+    { key: "account", label: "Account Created", done: true },
+    { key: "customize", label: "Customize Your Store", done: storeCustomized, tab: "mystore" as TabKey },
+    { key: "product", label: "Add First Product", done: hasProduct, tab: "products" as TabKey },
+    { key: "shipping", label: "Configure Shipping or Pickup", done: shippingConfigured, tab: "checkout" as TabKey },
+    { key: "payment", label: "Configure Payment Method", done: paymentConfigured, tab: "checkout" as TabKey },
+    { key: "test", label: "Run Test Checkout", done: testCheckoutPassed },
+    { key: "ready", label: "Ready To Sell", done: hasProduct && shippingConfigured && paymentConfigured && testCheckoutPassed },
+  ];
+  const launchDoneCount = launchSteps.filter((s) => s.done).length;
+  const launchPercent = Math.round((launchDoneCount / launchSteps.length) * 100);
+  const launchComplete = launchPercent === 100;
+
+  const runTestCheckout = async () => {
+    const issues: string[] = [];
+    if (!hasProduct) issues.push("Add at least one product.");
+    if (!shippingConfigured) issues.push("Enable delivery, or enable pickup with a pickup address.");
+    if (!paymentConfigured) issues.push("Enable EFT with your account number, or enable PayFast with your merchant credentials.");
+    if (issues.length > 0) {
+      setTestCheckoutResult({ passed: false, issues });
+      return;
+    }
+    setTestCheckoutResult({ passed: true, issues: [] });
+    if (seller) {
+      const updatedConfig = { ...storeConfig, test_checkout_passed: true };
+      setStoreConfig(updatedConfig);
+      await supabase.from("sellers").update({ store_config: { ...seller.store_config, test_checkout_passed: true } }).eq("id", seller.id);
+      setSeller({ ...seller, store_config: { ...seller.store_config, test_checkout_passed: true } });
+    }
+  };
+
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff6b35)";
 
@@ -701,6 +746,81 @@ export default function Dashboard() {
           {tab === "overview" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Overview</h1>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Welcome back, {seller?.store_name} — here's a quick look at your store.</p>
+
+            {!launchComplete ? (
+              <div style={{ marginBottom: 24, padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Launch Progress</h3>
+                  <span style={{ fontSize: 13, fontWeight: 900, color: N }}>{launchPercent}%</span>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14 }}>Everything below is what it takes to receive a real order today.</p>
+                <div style={{ height: 8, borderRadius: 100, background: "var(--toggle-off)", overflow: "hidden", marginBottom: 20 }}>
+                  <div style={{ height: "100%", width: `${launchPercent}%`, background: G, borderRadius: 100, transition: "width 0.3s" }} />
+                </div>
+
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 12 }}>
+                  <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#22c55e", color: "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 }}>&#10003;</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🎉 Your online store is ready</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10, wordBreak: "break-all" as const }}>{seller?.subdomain ? `${seller.subdomain}.catalogstore.co.za` : ""}</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 10 }}>
+                      {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ padding: "8px 16px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Visit Store</a>}
+                      <button onClick={() => { if (seller?.subdomain) { navigator.clipboard.writeText(canonicalStoreUrl(seller.subdomain)); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); } }} style={{ padding: "8px 16px", background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
+                    </div>
+                    {isFreePlan && <div style={{ fontSize: 11, color: "var(--muted-2)", paddingTop: 10, borderTop: "1px solid var(--border)" }}>Want your own branded domain? <a href="/dashboard/billing" style={{ color: N, textDecoration: "none", fontWeight: 700 }}>Upgrade to Pro</a> to connect yourstore.co.za (subject to availability).</div>}
+                  </div>
+                </div>
+
+                {launchSteps.slice(1).map((step) => (
+                  <div key={step.key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: step.done ? "#22c55e" : "var(--toggle-off)", color: step.done ? "#fff" : "var(--muted-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 }}>{step.done ? "✓" : ""}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: step.done ? "var(--muted)" : "var(--text)" }}>{step.label}</span>
+                    {!step.done && step.key === "test" && (
+                      <button onClick={runTestCheckout} style={{ padding: "7px 16px", background: N, color: "#fff", border: "none", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Run Test</button>
+                    )}
+                    {!step.done && "tab" in step && step.tab && (
+                      <button onClick={() => switchTab(step.tab as TabKey)} style={{ padding: "7px 16px", background: "transparent", border: "1px solid " + N, color: N, borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Set Up</button>
+                    )}
+                  </div>
+                ))}
+
+                {testCheckoutResult && (
+                  <div style={{ marginTop: 14, padding: "14px 16px", background: testCheckoutResult.passed ? "rgba(34,197,94,0.06)" : "rgba(255,107,53,0.06)", border: "1px solid " + (testCheckoutResult.passed ? "rgba(34,197,94,0.2)" : "rgba(255,107,53,0.2)"), borderRadius: 12 }}>
+                    {testCheckoutResult.passed ? (
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#22c55e" }}>✅ Test checkout passed — your store is ready to receive an order.</div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 8 }}>Not quite ready yet:</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--muted)" }}>
+                          {testCheckoutResult.issues.map((issue, i) => <li key={i} style={{ marginBottom: 4 }}>{issue}</li>)}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ marginBottom: 24, padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 4 }}>Grow Your Business</h3>
+                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>🎉 You're ready to sell. Here's how to grow from here — none of this is required.</p>
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {[
+                    { label: "Connect Custom Domain", desc: "Use yourstore.co.za instead of the free subdomain", fn: () => router.push("/dashboard/billing") },
+                    { label: "Unlock Premium Templates", desc: "3 more storefront designs beyond Soft Luxury", fn: () => switchTab("mystore") },
+                    { label: "Increase Product Limits", desc: "Up to 100 products instead of 15", fn: () => router.push("/dashboard/billing") },
+                    { label: "Advanced Analytics", desc: "Coming soon on the Pro plan", fn: () => router.push("/dashboard/billing") },
+                    { label: "Order Tracking", desc: "Coming soon on the Pro plan", fn: () => router.push("/dashboard/billing") },
+                    { label: "Additional Product Images", desc: "20 photos per product instead of 5", fn: () => router.push("/dashboard/billing") },
+                  ].map((item) => (
+                    <button key={item.label} onClick={item.fn} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", textAlign: "left" as const }}>
+                      <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{item.label}</div><div style={{ fontSize: 11, color: "var(--muted-2)" }}>{item.desc}</div></div>
+                      <span style={{ fontSize: 11, color: N, fontWeight: 800, textTransform: "uppercase" as const, flexShrink: 0, marginLeft: 12 }}>Upgrade &rarr;</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
               {[{ n: publishedCount, l: "Published" }, { n: visibleOrders.length, l: "Total Orders" }, { n: todayOrders.length, l: "Orders Today" }, { n: "R" + totalRevenue.toFixed(0), l: "Revenue", c: N }].map((s, i) => (
                 <div key={i} style={{ padding: 20, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
