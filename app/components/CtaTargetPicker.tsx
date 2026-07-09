@@ -40,7 +40,7 @@ export default function CtaTargetPicker({
         border: "1px solid rgba(255,255,255,0.08)",
         borderRadius: 8, color: "#f5f5f5",
         fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
-        outline: "none",
+        outline: "none", colorScheme: "dark",
       }
     : {
         width: "100%", padding: "9px 11px",
@@ -48,7 +48,7 @@ export default function CtaTargetPicker({
         border: "1px solid var(--border)",
         borderRadius: 8, color: "var(--text)",
         fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
-        outline: "none",
+        outline: "none", colorScheme: "light",
       };
   const labelMini: React.CSSProperties = dark
     ? {
