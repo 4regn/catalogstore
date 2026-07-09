@@ -151,7 +151,7 @@ const TEMPLATES = [
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -765,7 +765,7 @@ export default function Dashboard() {
     {
       label: "Launch",
       items: [
-        { key: "overview", name: "Launch Progress", icon: "launch", badge: `${launchDoneCount}/${launchSteps.length}` },
+        { key: "launch", name: "Launch Progress", icon: "launch", badge: `${launchDoneCount}/${launchSteps.length}` },
       ],
     },
     {
@@ -803,6 +803,12 @@ export default function Dashboard() {
     },
   ];
   const storeInitials = (seller?.store_name || "CS").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const StoreAvatar = ({ size, fontSize }: { size: number; fontSize: number }) =>
+    seller?.logo_url ? (
+      <img src={seller.logo_url} alt={seller?.store_name || "Store logo"} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover" as const, flexShrink: 0 }} />
+    ) : (
+      <span style={{ width: size, height: size, borderRadius: "50%", background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize, fontWeight: 800, flexShrink: 0 }}>{storeInitials}</span>
+    );
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
     ? { products: 15, images: 5, collections: 10, templates: 1 }
@@ -820,7 +826,7 @@ export default function Dashboard() {
   const growComplete = !isFreePlan && domainConnected;
   const growItems: { label: string; desc: React.ReactNode; fn: () => void; cta: string }[] = [];
   if (isFreePlan) {
-    growItems.push({ label: "Connect Custom Domain", desc: "Use yourstore.co.za instead of the free subdomain", fn: () => router.push("/dashboard/billing"), cta: "Upgrade" });
+    growItems.push({ label: "Connect Custom Domain", desc: `Use ${seller?.subdomain || "yourstore"}.com instead of the free subdomain`, fn: () => router.push("/dashboard/billing"), cta: "Upgrade" });
   } else if (!domainConnected) {
     growItems.push({
       label: "Connect Custom Domain",
@@ -849,6 +855,57 @@ export default function Dashboard() {
     }
   }
   const dismissGrow = () => { localStorage.setItem("cs_grow_dismissed", "1"); setGrowDismissed(true); };
+
+  const LaunchProgressCard = () => (
+    <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Launch Progress</h3>
+        <span style={{ fontSize: 12, fontWeight: 900, color: N }}>{launchPercent}%</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 100, background: "var(--toggle-off)", overflow: "hidden", marginBottom: 14 }}>
+        <div style={{ height: "100%", width: `${launchPercent}%`, background: G, borderRadius: 100, transition: "width 0.3s" }} />
+      </div>
+      {nextLaunchStep && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, padding: "12px 14px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.18)", borderRadius: 12, marginBottom: 14 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, color: N, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 3 }}>Next Step</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{nextLaunchStep.label}</div>
+          </div>
+          <button onClick={() => { if (nextLaunchStep.key === "test") runTestCheckout(); else goToLaunchStep(nextLaunchStep); }} style={{ padding: "8px 16px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+            {nextLaunchStep.key === "test" ? "Run Test" : "Continue"}
+          </button>
+        </div>
+      )}
+      <div>
+        {launchSteps.map((step) => (
+          <div key={step.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
+            <span style={{ width: 18, height: 18, borderRadius: "50%", background: step.done ? "#22c55e" : "var(--toggle-off)", color: step.done ? "#fff" : "var(--muted-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900 }}>{step.done ? "✓" : ""}</span>
+            <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: step.done ? "var(--muted)" : "var(--text)" }}>{step.label}</span>
+            {!step.done && step.key === "test" && (
+              <button onClick={runTestCheckout} style={{ padding: "5px 12px", background: N, color: "#fff", border: "none", borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>Run</button>
+            )}
+            {!step.done && "tab" in step && step.tab && (
+              <button onClick={() => goToLaunchStep(step)} style={{ padding: "5px 12px", background: "transparent", border: "1px solid " + N, color: N, borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>Set Up</button>
+            )}
+          </div>
+        ))}
+      </div>
+      {testCheckoutResult && (
+        <div style={{ marginTop: 12, padding: "12px 14px", background: testCheckoutResult.passed ? "rgba(34,197,94,0.06)" : "rgba(255,107,53,0.06)", border: "1px solid " + (testCheckoutResult.passed ? "rgba(34,197,94,0.2)" : "rgba(255,107,53,0.2)"), borderRadius: 12 }}>
+          {testCheckoutResult.passed ? (
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#22c55e" }}>Test checkout passed — your store is ready to receive an order.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: N, marginBottom: 6 }}>Not quite ready yet:</div>
+              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: "var(--muted)" }}>
+                {testCheckoutResult.issues.map((issue, i) => <li key={i} style={{ marginBottom: 3 }}>{issue}</li>)}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div data-theme={theme}>
@@ -912,7 +969,7 @@ export default function Dashboard() {
             <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, padding: "0 4px" }}>CATALOG<span style={{ background: G, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>STORE</span></div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px" }}>
-              <div style={{ width: 38, height: 38, borderRadius: "50%", background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{storeInitials}</div>
+              <StoreAvatar size={38} fontSize={13} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 13, fontWeight: 800, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{seller?.store_name || "My Store"}</span>
@@ -985,7 +1042,7 @@ export default function Dashboard() {
             </div>
             <div style={{ position: "relative" }}>
               <button onClick={() => setProfileMenuOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px 6px 6px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, cursor: "pointer" }}>
-                <span style={{ width: 26, height: 26, borderRadius: "50%", background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{storeInitials}</span>
+                <StoreAvatar size={26} fontSize={11} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{seller?.store_name || "My Store"}</span>
                 <DashIcon name="chevron-down" size={12} className="dash-muted-icon" />
               </button>
@@ -1026,6 +1083,12 @@ export default function Dashboard() {
           {tab === "overview" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Overview</h1>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Welcome back, {seller?.store_name} — here's a quick look at your store.</p>
+
+            {!launchComplete && (
+              <div style={{ marginBottom: 24 }}>
+                <LaunchProgressCard />
+              </div>
+            )}
 
             <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--muted-2)", marginBottom: 12 }}>Quick Actions</h3>
             <div className="quick-actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
@@ -1076,73 +1139,28 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="overview-panels-grid" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 24 }}>
-              <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Launch Progress</h3>
-                  <span style={{ fontSize: 12, fontWeight: 900, color: N }}>{launchPercent}%</span>
+            <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column" as const, alignItems: "center", marginBottom: 24 }}>
+              <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 14, alignSelf: "flex-start" }}>Store Health</h3>
+              <div style={{ position: "relative" as const, width: 120, height: 120, marginBottom: 14 }}>
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="var(--toggle-off)" strokeWidth="10" />
+                  <circle cx="60" cy="60" r="50" fill="none" stroke={N} strokeWidth="10" strokeLinecap="round" strokeDasharray={2 * Math.PI * 50} strokeDashoffset={2 * Math.PI * 50 * (1 - healthScore / 100)} transform="rotate(-90 60 60)" style={{ transition: "stroke-dashoffset 0.3s" }} />
+                </svg>
+                <div style={{ position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: "-0.03em" }}>{healthScore}%</span>
+                  <span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>{healthScore === 100 ? "Healthy" : healthScore >= 60 ? "Good" : "Needs Work"}</span>
                 </div>
-                <div style={{ height: 6, borderRadius: 100, background: "var(--toggle-off)", overflow: "hidden", marginBottom: 14 }}>
-                  <div style={{ height: "100%", width: `${launchPercent}%`, background: G, borderRadius: 100, transition: "width 0.3s" }} />
-                </div>
-                {nextLaunchStep && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, padding: "12px 14px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.18)", borderRadius: 12, marginBottom: 14 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, color: N, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 3 }}>Next Step</div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{nextLaunchStep.label}</div>
-                    </div>
-                    <button onClick={() => { if (nextLaunchStep.key === "test") runTestCheckout(); else goToLaunchStep(nextLaunchStep); }} style={{ padding: "8px 16px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-                      {nextLaunchStep.key === "test" ? "Run Test" : "Continue"}
-                    </button>
-                  </div>
-                )}
-                <div>
-                  {launchSteps.map((step) => (
-                    <div key={step.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
-                      <span style={{ width: 18, height: 18, borderRadius: "50%", background: step.done ? "#22c55e" : "var(--toggle-off)", color: step.done ? "#fff" : "var(--muted-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900 }}>{step.done ? "✓" : ""}</span>
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: step.done ? "var(--muted)" : "var(--text)" }}>{step.label}</span>
-                      {!step.done && step.key === "test" && (
-                        <button onClick={runTestCheckout} style={{ padding: "5px 12px", background: N, color: "#fff", border: "none", borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>Run</button>
-                      )}
-                      {!step.done && "tab" in step && step.tab && (
-                        <button onClick={() => goToLaunchStep(step)} style={{ padding: "5px 12px", background: "transparent", border: "1px solid " + N, color: N, borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>Set Up</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {testCheckoutResult && (
-                  <div style={{ marginTop: 12, padding: "12px 14px", background: testCheckoutResult.passed ? "rgba(34,197,94,0.06)" : "rgba(255,107,53,0.06)", border: "1px solid " + (testCheckoutResult.passed ? "rgba(34,197,94,0.2)" : "rgba(255,107,53,0.2)"), borderRadius: 12 }}>
-                    {testCheckoutResult.passed ? (
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#22c55e" }}>Test checkout passed — your store is ready to receive an order.</div>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: N, marginBottom: 6 }}>Not quite ready yet:</div>
-                        <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: "var(--muted)" }}>
-                          {testCheckoutResult.issues.map((issue, i) => <li key={i} style={{ marginBottom: 3 }}>{issue}</li>)}
-                        </ul>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
-
-              <div style={{ padding: "20px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column" as const, alignItems: "center" }}>
-                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 14, alignSelf: "flex-start" }}>Store Health</h3>
-                <div style={{ position: "relative" as const, width: 120, height: 120, marginBottom: 14 }}>
-                  <svg width="120" height="120" viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="50" fill="none" stroke="var(--toggle-off)" strokeWidth="10" />
-                    <circle cx="60" cy="60" r="50" fill="none" stroke={N} strokeWidth="10" strokeLinecap="round" strokeDasharray={2 * Math.PI * 50} strokeDashoffset={2 * Math.PI * 50 * (1 - healthScore / 100)} transform="rotate(-90 60 60)" style={{ transition: "stroke-dashoffset 0.3s" }} />
-                  </svg>
-                  <div style={{ position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: "-0.03em" }}>{healthScore}%</span>
-                    <span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>{healthScore === 100 ? "Healthy" : healthScore >= 60 ? "Good" : "Needs Work"}</span>
-                  </div>
-                </div>
-                <p style={{ fontSize: 11, color: "var(--muted-2)", textAlign: "center" as const }}>
-                  {healthScore === 100 ? "Everything's set up and running smoothly." : `${healthSignals.filter(Boolean).length} of ${healthSignals.length} checks passing.`}
-                </p>
-              </div>
+              <p style={{ fontSize: 11, color: "var(--muted-2)", textAlign: "center" as const }}>
+                {healthScore === 100 ? "Everything's set up and running smoothly." : `${healthSignals.filter(Boolean).length} of ${healthSignals.length} checks passing.`}
+              </p>
             </div>
+          </div>)}
+
+          {tab === "launch" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Launch Progress</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Everything you need to start receiving real orders.</p>
+            <LaunchProgressCard />
           </div>)}
 
           {tab === "products" && (<div>
@@ -2049,7 +2067,7 @@ export default function Dashboard() {
             {isFreePlan ? (
               <div style={sectionCard}>
                 <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Custom Domain</h3>
-                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Connect your own domain (e.g. yourstore.co.za) instead of the free subdomain.</p>
+                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Connect your own domain (e.g. {seller?.subdomain || "yourstore"}.com) — domain is subject to availability.</p>
                 <a href="/dashboard/billing" style={{ display: "inline-flex", padding: "12px 28px", background: G, color: "#fff", borderRadius: 100, fontSize: 12, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Upgrade to Pro</a>
               </div>
             ) : (
