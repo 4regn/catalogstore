@@ -182,6 +182,27 @@ export default function StoreEditor() {
   const [activeSection, setActiveSection] = useState<ActiveSection>(null);
   const [panelVisible, setPanelVisible]   = useState(false);
   const [iframeReady, setIframeReady]     = useState(false);
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [deviceMode, setDeviceMode] = useState<"desktop" | "mobile">("desktop");
+  // Landing-page template showcase phones are ~340-430px wide depending on
+  // viewport; "expanded" mobile preview targets the wider end of that range
+  // instead of the compact 390px default editing frame.
+  const applyDeviceStyle = (mode: "desktop" | "mobile", expanded: boolean) => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    if (mode === "mobile") {
+      iframe.style.width = expanded ? "430px" : "390px";
+      iframe.style.margin = "0 auto";
+      iframe.style.display = "block";
+      iframe.style.borderRadius = expanded ? "32px" : "20px";
+      iframe.style.border = expanded ? "10px solid #222" : "8px solid #222";
+    } else {
+      iframe.style.width = "100%";
+      iframe.style.margin = "0";
+      iframe.style.borderRadius = "0";
+      iframe.style.border = "none";
+    }
+  };
 
   /* Local editable state */
   const [tagline, setTagline]           = useState("");
@@ -726,26 +747,34 @@ export default function StoreEditor() {
             ]).map(d => (
               <button key={d.name} title={d.label} aria-label={`${d.label} preview`}
                 onClick={() => {
-                  const iframe = iframeRef.current;
-                  if (!iframe) return;
-                  if (d.name === "mobile") {
-                    iframe.style.width = "390px";
-                    iframe.style.margin = "0 auto";
-                    iframe.style.display = "block";
-                    iframe.style.borderRadius = "20px";
-                    iframe.style.border = "8px solid #222";
-                  } else {
-                    iframe.style.width = "100%";
-                    iframe.style.margin = "0";
-                    iframe.style.borderRadius = "0";
-                    iframe.style.border = "none";
-                  }
+                  setDeviceMode(d.name);
+                  applyDeviceStyle(d.name, previewExpanded);
                 }}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 12px", color: "rgba(245,245,245,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ background: deviceMode === d.name ? "rgba(255,255,255,0.06)" : "none", border: "none", cursor: "pointer", padding: "8px 12px", color: deviceMode === d.name ? "#fff" : "rgba(245,245,245,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <EditorIcon name={d.name} size={16} />
               </button>
             ))}
           </div>
+
+          {/* Expand/Collapse Preview -- only meaningful in Mobile mode, where it
+              enlarges the phone preview closer to the size used on the landing
+              page's template showcase instead of the default compact frame. */}
+          {deviceMode === "mobile" && (
+            <button title={previewExpanded ? "Collapse Preview" : "Expand Preview"} aria-label={previewExpanded ? "Collapse Preview" : "Expand Preview"}
+              onClick={() => {
+                const next = !previewExpanded;
+                setPreviewExpanded(next);
+                applyDeviceStyle("mobile", next);
+              }}
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", padding: "8px 12px", color: "rgba(245,245,245,0.6)", display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              {previewExpanded ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              )}
+              {previewExpanded ? "Collapse" : "Expand"}
+            </button>
+          )}
 
           {/* Open in new tab */}
           {seller?.subdomain && (
@@ -878,7 +907,7 @@ export default function StoreEditor() {
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)" }}>Your logo shows in the top-left nav and the footer. If you leave it empty your store name will appear there instead.</div>
                 {logoPreview && (
                   <button onClick={() => { setLogoPreview(""); setLogoFile(null); }}
-                    style={{ padding: "8px", background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 11 }}>
+                    style={{ padding: "8px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 6, color: "#ff6b35", cursor: "pointer", fontSize: 11 }}>
                     Remove logo
                   </button>
                 )}
@@ -1008,7 +1037,7 @@ export default function StoreEditor() {
                       const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
                       if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
                     }} style={{ display: "none" }} />
-                  {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                  {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.25)", marginTop: 4 }}>Full-screen background on your homepage hero section.</div>
                 </div>
                 {seller?.template === "soft-luxury" && (
@@ -1259,7 +1288,7 @@ export default function StoreEditor() {
                       style={{ ...inputStyle, flex: 1 }} />
                     {marqueeTexts.length > 1 && (
                       <button onClick={() => setMarqueeTexts(marqueeTexts.filter((_, j) => j !== i))}
-                        style={{ width: 32, height: 38, background: "rgba(255,61,110,0.06)", border: "1px solid rgba(255,61,110,0.15)", borderRadius: 6, color: "#ff3d6e", cursor: "pointer", fontSize: 14 }}>×</button>
+                        style={{ width: 32, height: 38, background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 6, color: "#ff6b35", cursor: "pointer", fontSize: 14 }}>×</button>
                     )}
                   </div>
                 ))}
@@ -1494,7 +1523,7 @@ export default function StoreEditor() {
                             </label>
                             {collectionImages[col] && (
                               <button onClick={() => setCollectionImages(prev => { const n = { ...prev }; delete n[col]; return n; })}
-                                style={{ fontSize: 9, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>
+                                style={{ fontSize: 9, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>
                             )}
                           </div>
                         </div>
@@ -1620,7 +1649,7 @@ export default function StoreEditor() {
                       <input value={item.desc} onChange={e => { const u = [...trustItems]; u[i] = { ...u[i], desc: e.target.value }; setTrustItems(u); }}
                         placeholder="Description" style={{ ...inputStyle, flex: 2 }} />
                       {trustItems.length > 1 && <button onClick={() => setTrustItems(trustItems.filter((_, idx) => idx !== i))}
-                        style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,61,110,0.06)", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>&times;</button>}
+                        style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>&times;</button>}
                     </div>
                   </div>
                 ))}
@@ -1880,7 +1909,7 @@ export default function StoreEditor() {
                         placeholder="Policy content..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
                       {policyItems.length > 1 && (
                         <button onClick={() => setPolicyItems(policyItems.filter((_, idx) => idx !== i))}
-                          style={{ marginTop: 4, fontSize: 10, color: "#ff3d6e", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>
+                          style={{ marginTop: 4, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>
                       )}
                     </div>
                   ))}
@@ -1948,7 +1977,7 @@ export default function StoreEditor() {
                                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                                       </select>
                                       <button onClick={() => updateDayHours(i, { lunch_start: "", lunch_end: "" })}
-                                        style={{ background: "none", border: "none", color: "#ff3d6e", fontSize: 12, cursor: "pointer", padding: 0 }}>&times;</button>
+                                        style={{ background: "none", border: "none", color: "#ff6b35", fontSize: 12, cursor: "pointer", padding: 0 }}>&times;</button>
                                     </>
                                   ) : (
                                     <button onClick={() => updateDayHours(i, { lunch_start: "12:00", lunch_end: "13:00" })}
