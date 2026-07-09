@@ -7,6 +7,38 @@ import { supabase } from "../../../lib/supabase";
 // Helpers
 const fromCents = (c: number) => (c / 100).toFixed(0);
 
+// Light/dark theme — same role names as the main dashboard's THEME map,
+// scoped to this page's own CSS custom properties so its hardcoded dark
+// styles object can flip without a full rewrite of every inline color.
+const AFFILIATE_THEME = {
+  dark: {
+    "--a-bg": "#08080c", "--a-card": "#0e0e14",
+    "--a-border": "rgba(255,255,255,0.06)", "--a-border-md": "rgba(255,255,255,0.08)",
+    "--a-border-strong": "rgba(255,255,255,0.1)", "--a-border-strong2": "rgba(255,255,255,0.12)",
+    "--a-text": "#f5f5f5", "--a-text-2": "rgba(245,245,245,0.55)",
+    "--a-muted": "rgba(245,245,245,0.32)", "--a-muted-2": "rgba(245,245,245,0.4)",
+    "--a-input": "rgba(255,255,255,0.04)", "--a-input-strong": "#08080c",
+    "--a-hover": "rgba(255,255,255,0.06)", "--a-nav": "rgba(8,8,12,0.85)",
+    "--a-tooltip": "#181820", "--a-tooltip-border": "rgba(255,255,255,0.12)",
+    "--a-chart-grid": "rgba(255,255,255,0.05)", "--a-chart-axis": "rgba(245,245,245,0.3)",
+    "--a-atmosphere-2": "rgba(255,61,110,0.04)",
+  },
+  light: {
+    "--a-bg": "#f5f5f6", "--a-card": "#ffffff",
+    "--a-border": "rgba(0,0,0,0.08)", "--a-border-md": "rgba(0,0,0,0.1)",
+    "--a-border-strong": "rgba(0,0,0,0.12)", "--a-border-strong2": "rgba(0,0,0,0.14)",
+    "--a-text": "#131316", "--a-text-2": "rgba(19,19,22,0.65)",
+    "--a-muted": "rgba(19,19,22,0.42)", "--a-muted-2": "rgba(19,19,22,0.52)",
+    "--a-input": "rgba(0,0,0,0.035)", "--a-input-strong": "#eeede9",
+    "--a-hover": "rgba(0,0,0,0.05)", "--a-nav": "rgba(245,245,246,0.85)",
+    "--a-tooltip": "#ffffff", "--a-tooltip-border": "rgba(0,0,0,0.1)",
+    "--a-chart-grid": "rgba(0,0,0,0.07)", "--a-chart-axis": "rgba(19,19,22,0.4)",
+    "--a-atmosphere-2": "rgba(255,61,110,0.05)",
+  },
+} as const;
+const affiliateThemeVars = (t: keyof typeof AFFILIATE_THEME) =>
+  Object.entries(AFFILIATE_THEME[t]).map(([k, v]) => `${k}:${v};`).join("");
+
 const SA_BANKS = [
   { name: "FNB", branch: "250655" },
   { name: "Standard Bank", branch: "051001" },
@@ -73,6 +105,13 @@ export default function AffiliateDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  useEffect(() => {
+    const saved = localStorage.getItem("cs_affiliate_theme");
+    if (saved === "light" || saved === "dark") setTheme(saved);
+  }, []);
+  const toggleTheme = () => setTheme((t) => { const next = t === "dark" ? "light" : "dark"; localStorage.setItem("cs_affiliate_theme", next); return next; });
   const [affiliate, setAffiliate] = useState<Affiliate | null>(null);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
@@ -88,11 +127,18 @@ export default function AffiliateDashboard() {
   const [earningsLoading, setEarningsLoading] = useState(false);
   const [hoverPoint, setHoverPoint] = useState<{ date: string; cents: number; x: number; y: number } | null>(null);
 
-  // Profile popover — photo + log out
+  // Profile popover — photo, name, log out
   const [showProfile, setShowProfile] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState("");
+
+  // Inline referral-code editing on the main page (mirrors the Settings modal)
+  const [editingCodeInline, setEditingCodeInline] = useState(false);
 
   // Settings modal — referral code + banking details
   const [showSettings, setShowSettings] = useState(false);
@@ -119,7 +165,29 @@ export default function AffiliateDashboard() {
     setAccountNumber(affiliate.accountNumber || "");
     setAccountHolder(affiliate.accountHolder || "");
     setAccountType(affiliate.accountType || "cheque");
+    const nameParts = affiliate.fullName.trim().split(/\s+/);
+    setEditFirstName(nameParts[0] || "");
+    setEditLastName(nameParts.slice(1).join(" "));
   }, [affiliate]);
+
+  async function saveName() {
+    if (!affiliate) return;
+    const combined = `${editFirstName.trim()} ${editLastName.trim()}`.trim();
+    if (!combined) { setNameError("Enter at least a first name"); return; }
+    setSavingName(true);
+    setNameError("");
+    try {
+      const res = await authedFetch("/api/affiliate/me", { method: "PATCH", body: JSON.stringify({ fullName: combined }) });
+      const data = await res.json();
+      if (!res.ok) { setNameError(data.error || "Could not save name"); return; }
+      setAffiliate({ ...affiliate, fullName: combined });
+      showToast("Name updated");
+    } catch {
+      setNameError("Network error — please try again");
+    } finally {
+      setSavingName(false);
+    }
+  }
 
   async function loadDashboard() {
     try {
@@ -249,9 +317,9 @@ export default function AffiliateDashboard() {
     });
   }
 
-  async function saveSlug() {
-    if (!affiliate || slugStatus === "taken" || slugInput.length < 2) return;
-    if (slugInput === affiliate.slug) return;
+  async function saveSlug(): Promise<boolean> {
+    if (!affiliate || slugStatus === "taken" || slugInput.length < 2) return false;
+    if (slugInput === affiliate.slug) return true;
     setSavingSlug(true);
     setSettingsError("");
     try {
@@ -260,11 +328,13 @@ export default function AffiliateDashboard() {
         body: JSON.stringify({ slug: slugInput }),
       });
       const data = await res.json();
-      if (!res.ok) { setSettingsError(data.error || "Could not save referral code"); return; }
+      if (!res.ok) { setSettingsError(data.error || "Could not save referral code"); return false; }
       setAffiliate({ ...affiliate, slug: data.slug });
       showToast("Referral code updated");
+      return true;
     } catch {
       setSettingsError("Network error — please try again");
+      return false;
     } finally {
       setSavingSlug(false);
     }
@@ -371,7 +441,11 @@ export default function AffiliateDashboard() {
   const canWithdraw = affiliate.availableBalance >= MIN_WITHDRAW_CENTS;
 
   return (
-    <div style={styles.page}>
+    <div style={styles.page} data-theme={theme}>
+      <style>{`
+        [data-theme="dark"] { ${affiliateThemeVars("dark")} color-scheme: dark; }
+        [data-theme="light"] { ${affiliateThemeVars("light")} color-scheme: light; }
+      `}</style>
       <div style={styles.atmosphere} />
 
       {/* NAV */}
@@ -386,12 +460,17 @@ export default function AffiliateDashboard() {
             </defs>
             <path d="M54 12 A26 26 0 1 0 54 60" stroke="url(#navLg)" strokeWidth={9} strokeLinecap="round" fill="none" />
             <circle cx="57" cy="36" r="6" fill="url(#navLg)" />
-            <circle cx="57" cy="36" r="2.4" fill="#08080c" />
+            <circle cx="57" cy="36" r="2.4" fill="var(--a-bg)" />
           </svg>
           Catalog<span style={styles.navLogoAccent}>Store</span>
           <span style={styles.navPill}>Affiliate</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={toggleTheme} style={styles.navSettingsBtn} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+            {theme === "dark"
+              ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" style={{ width: 15, height: 15 }}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>
+              : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>}
+          </button>
           <button
             onClick={() => { setShowSettings(true); setSettingsTab("code"); setSettingsError(""); }}
             style={styles.navSettingsBtn}
@@ -416,15 +495,15 @@ export default function AffiliateDashboard() {
             <div style={styles.phSub}>
               {stats && stats.activePaying > 0 ? (
                 <>
-                  You're earning from <strong style={{ color: "#fff" }}>{stats.activePaying} seller{stats.activePaying === 1 ? "" : "s"}</strong>.
+                  You're earning from <strong style={{ color: "var(--a-text)" }}>{stats.activePaying} seller{stats.activePaying === 1 ? "" : "s"}</strong>.
                 </>
               ) : (
-                <>Share your link below to start earning <strong style={{ color: "#fff" }}>50%</strong> per seller.</>
+                <>Share your link below to start earning <strong style={{ color: "var(--a-text)" }}>50%</strong> per seller.</>
               )}
             </div>
           </div>
           <div style={{ position: "relative", flexShrink: 0 }}>
-            <button onClick={() => setShowProfile((v) => !v)} style={{ ...styles.navAvatar, width: 48, height: 48, fontSize: 15, ...(affiliate.photoUrl ? { padding: 0, overflow: "hidden" } : {}) }} title={affiliate.fullName}>
+            <button onClick={() => setShowProfile((v) => !v)} style={{ ...styles.navAvatar, width: 60, height: 60, fontSize: 19, ...(affiliate.photoUrl ? { padding: 0, overflow: "hidden" } : {}) }} title={affiliate.fullName}>
               {affiliate.photoUrl ? <img src={affiliate.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : initials}
             </button>
             {showProfile && (
@@ -443,7 +522,26 @@ export default function AffiliateDashboard() {
                     <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: "none" }} />
                     {photoError && <p style={{ ...styles.modalStatusErr, textAlign: "center" }}>{photoError}</p>}
                   </div>
-                  <div style={styles.profilePopoverName}>{affiliate.fullName}</div>
+                  <div style={styles.profileNameRow}>
+                    <input
+                      value={editFirstName}
+                      onChange={(e) => setEditFirstName(e.target.value)}
+                      placeholder="First name"
+                      style={styles.profileNameInput}
+                    />
+                    <input
+                      value={editLastName}
+                      onChange={(e) => setEditLastName(e.target.value)}
+                      placeholder="Last name"
+                      style={styles.profileNameInput}
+                    />
+                  </div>
+                  {nameError && <p style={{ ...styles.modalStatusErr, textAlign: "center" }}>{nameError}</p>}
+                  {(editFirstName.trim() !== affiliate.fullName.trim().split(/\s+/)[0] || editLastName.trim() !== affiliate.fullName.trim().split(/\s+/).slice(1).join(" ")) && (
+                    <button onClick={saveName} disabled={savingName} style={styles.profileSaveNameBtn}>
+                      {savingName ? "Saving..." : "Save Name"}
+                    </button>
+                  )}
                   <div style={styles.profilePopoverEmail}>{affiliate.email}</div>
                   <button onClick={signOut} style={styles.profileLogoutBtn}>Log Out</button>
                 </div>
@@ -506,23 +604,65 @@ export default function AffiliateDashboard() {
         <section style={styles.refCard}>
           <div style={styles.refTitle}>Your referral link</div>
           <p style={styles.refSub}>
-            Share anywhere. Sellers earn you <strong style={{ color: "#fff" }}>50%</strong> for {COMMISSION_MONTHS} months.
+            Share anywhere. Sellers earn you <strong style={{ color: "var(--a-text)" }}>50%</strong> for {COMMISSION_MONTHS} months.
           </p>
 
-          <div style={styles.refCodeRow}>
-            <div>
+          <div style={{ ...styles.refCodeRow, alignItems: editingCodeInline ? "flex-start" : "center" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={styles.refCodeLabel}>Your Code</div>
-              <div style={styles.refCodeValue}>{affiliate.slug.toUpperCase()}</div>
+              {editingCodeInline ? (
+                <>
+                  <input
+                    value={slugInput}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    autoFocus
+                    style={styles.refCodeEditInput}
+                  />
+                  <div style={{ marginTop: 4 }}>
+                    {slugStatus === "checking" && <span style={styles.modalStatusMuted}>Checking availability...</span>}
+                    {slugStatus === "available" && <span style={styles.modalStatusOk}>Available</span>}
+                    {slugStatus === "taken" && <span style={styles.modalStatusErr}>Already taken</span>}
+                    {settingsError && <span style={styles.modalStatusErr}>{settingsError}</span>}
+                  </div>
+                </>
+              ) : (
+                <div style={styles.refCodeValue}>{affiliate.slug.toUpperCase()}</div>
+              )}
             </div>
-            <button
-              onClick={async () => {
-                try { await navigator.clipboard.writeText(affiliate.slug.toUpperCase()); showToast("Code copied"); }
-                catch { showToast("Copy failed — code unavailable in this browser"); }
-              }}
-              style={styles.refCodeCopyBtn}
-            >
-              Copy
-            </button>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              {editingCodeInline ? (
+                <>
+                  <button
+                    onClick={async () => { const ok = await saveSlug(); if (ok) setEditingCodeInline(false); }}
+                    disabled={savingSlug || slugStatus === "taken" || slugInput.length < 2}
+                    style={{ ...styles.refCodeCopyBtn, opacity: (savingSlug || slugStatus === "taken" || slugInput.length < 2) ? 0.5 : 1 }}
+                  >
+                    {savingSlug ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => { setSlugInput(affiliate.slug); setSlugStatus("idle"); setSettingsError(""); setEditingCodeInline(false); }}
+                    style={{ ...styles.refCodeCopyBtn, background: "transparent" }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setEditingCodeInline(true)} style={styles.refCodeCopyBtn} title="Edit referral code">
+                    Edit
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(affiliate.slug.toUpperCase()); showToast("Code copied"); }
+                      catch { showToast("Copy failed — code unavailable in this browser"); }
+                    }}
+                    style={styles.refCodeCopyBtn}
+                  >
+                    Copy
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div style={styles.refLinkInput}>
@@ -833,7 +973,7 @@ export default function AffiliateDashboard() {
                   }}
                 />
                 <p style={styles.modalHint}>
-                  Your link: <strong style={{ color: "#fff" }}>{appOrigin}/?ref={slugInput || "…"}</strong>
+                  Your link: <strong style={{ color: "var(--a-text)" }}>{appOrigin}/?ref={slugInput || "…"}</strong>
                 </p>
                 {slugStatus === "checking" && <p style={styles.modalStatusMuted}>Checking availability...</p>}
                 {slugStatus === "available" && <p style={styles.modalStatusOk}>✓ Available</p>}
@@ -915,7 +1055,7 @@ function StatRing({ label, value, total, color, subLabel }: { label: string; val
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10 }}>
         <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
           <svg width={72} height={72} viewBox="0 0 96 96">
-            <circle cx="48" cy="48" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={10} />
+            <circle cx="48" cy="48" r={r} fill="none" stroke="var(--a-border-strong)" strokeWidth={10} />
             {total > 0 && (
               <circle
                 cx="48" cy="48" r={r} fill="none" stroke={color} strokeWidth={10} strokeLinecap="round"
@@ -924,13 +1064,13 @@ function StatRing({ label, value, total, color, subLabel }: { label: string; val
               />
             )}
           </svg>
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, color: "#f5f5f5" }}>{pct}%</div>
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, color: "var(--a-text)" }}>{pct}%</div>
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em", color: "#f5f5f5" }}>
-            {value}<span style={{ fontSize: 12, color: "rgba(245,245,245,0.32)", fontWeight: 600 }}> / {total}</span>
+          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em", color: "var(--a-text)" }}>
+            {value}<span style={{ fontSize: 12, color: "var(--a-muted)", fontWeight: 600 }}> / {total}</span>
           </div>
-          <div style={{ fontSize: 11, color: "rgba(245,245,245,0.5)", lineHeight: 1.4 }}>{subLabel}</div>
+          <div style={{ fontSize: 11, color: "var(--a-text-2)", lineHeight: 1.4 }}>{subLabel}</div>
         </div>
       </div>
     </div>
@@ -973,9 +1113,9 @@ function EarningsChart({ points, loading, range, setRange, customFrom, customTo,
     <section style={styles.hero}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={styles.heroLabel}><span style={styles.heroDot} />Earnings over time</div>
-        <div style={{ display: "flex", gap: 3, background: "#08080c", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, padding: 3 }}>
+        <div style={{ display: "flex", gap: 3, background: "var(--a-input-strong)", border: "1px solid var(--a-border-md)", borderRadius: 100, padding: 3 }}>
           {(["7", "30", "custom"] as const).map((r) => (
-            <button key={r} onClick={() => setRange(r)} style={{ padding: "6px 12px", borderRadius: 100, border: "none", background: range === r ? "rgba(255,107,53,0.12)" : "transparent", color: range === r ? "#ff6b35" : "rgba(245,245,245,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" }}>
+            <button key={r} onClick={() => setRange(r)} style={{ padding: "6px 12px", borderRadius: 100, border: "none", background: range === r ? "rgba(255,107,53,0.12)" : "transparent", color: range === r ? "#ff6b35" : "var(--a-muted-2)", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" }}>
               {r === "7" ? "7D" : r === "30" ? "30D" : "Custom"}
             </button>
           ))}
@@ -987,13 +1127,13 @@ function EarningsChart({ points, loading, range, setRange, customFrom, customTo,
           <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} style={styles.dateInput} />
         </div>
       )}
-      <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em", marginBottom: 12 }}>
-        R{fromCents(totalCents).toLocaleString()} <span style={{ fontSize: 11, color: "rgba(245,245,245,0.35)", fontWeight: 600 }}>in this range</span>
+      <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em", marginBottom: 12, color: "var(--a-text)" }}>
+        R{fromCents(totalCents).toLocaleString()} <span style={{ fontSize: 11, color: "var(--a-muted)", fontWeight: 600 }}>in this range</span>
       </div>
       {loading ? (
         <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={styles.spinner} /></div>
       ) : n === 0 ? (
-        <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(245,245,245,0.35)", fontSize: 12 }}>No earnings in this range yet</div>
+        <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--a-muted)", fontSize: 12 }}>No earnings in this range yet</div>
       ) : (
         <div style={{ position: "relative" }}>
           <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%" height={180} onMouseMove={handleMove} onMouseLeave={() => setHover(null)} style={{ display: "block", overflow: "visible", cursor: "crosshair" }}>
@@ -1004,24 +1144,24 @@ function EarningsChart({ points, loading, range, setRange, customFrom, customTo,
               </linearGradient>
             </defs>
             {[0.25, 0.5, 0.75].map((f) => (
-              <line key={f} x1={PAD_L} x2={W - PAD_R} y1={PAD_T + plotH * f} y2={PAD_T + plotH * f} stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
+              <line key={f} x1={PAD_L} x2={W - PAD_R} y1={PAD_T + plotH * f} y2={PAD_T + plotH * f} stroke="var(--a-chart-grid)" strokeWidth={1} />
             ))}
             <path d={areaPath} fill="url(#earningsFill)" stroke="none" />
             <path d={linePath} fill="none" stroke="#ff6b35" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
             {hover && (
               <>
-                <line x1={hover.x} x2={hover.x} y1={PAD_T} y2={PAD_T + plotH} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
-                <circle cx={hover.x} cy={hover.y} r={4} fill="#ff6b35" stroke="#0e0e14" strokeWidth={2} />
+                <line x1={hover.x} x2={hover.x} y1={PAD_T} y2={PAD_T + plotH} stroke="var(--a-border-strong2)" strokeWidth={1} />
+                <circle cx={hover.x} cy={hover.y} r={4} fill="#ff6b35" stroke="var(--a-card)" strokeWidth={2} />
               </>
             )}
-            <text x={PAD_L} y={H - 6} fontSize="9" fill="rgba(245,245,245,0.3)">{fmtDate(points[0].date)}</text>
-            <text x={W - PAD_R} y={H - 6} fontSize="9" fill="rgba(245,245,245,0.3)" textAnchor="end">{fmtDate(points[n - 1].date)}</text>
+            <text x={PAD_L} y={H - 6} fontSize="9" fill="var(--a-chart-axis)">{fmtDate(points[0].date)}</text>
+            <text x={W - PAD_R} y={H - 6} fontSize="9" fill="var(--a-chart-axis)" textAnchor="end">{fmtDate(points[n - 1].date)}</text>
           </svg>
           {hover && (
             <div style={{ position: "absolute", left: `${(hover.x / W) * 100}%`, top: 0, transform: hover.x > W * 0.7 ? "translateX(-100%)" : "translateX(0)", pointerEvents: "none" }}>
-              <div style={{ background: "#181820", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "8px 12px", fontSize: 11, whiteSpace: "nowrap", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
-                <div style={{ color: "rgba(245,245,245,0.5)", marginBottom: 2 }}>{fmtDate(points[hover.i].date)}</div>
-                <div style={{ fontWeight: 800, color: "#fff" }}>R{fromCents(points[hover.i].cents)}</div>
+              <div style={{ background: "var(--a-tooltip)", border: "1px solid var(--a-tooltip-border)", borderRadius: 10, padding: "8px 12px", fontSize: 11, whiteSpace: "nowrap", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                <div style={{ color: "var(--a-text-2)", marginBottom: 2 }}>{fmtDate(points[hover.i].date)}</div>
+                <div style={{ fontWeight: 800, color: "var(--a-text)" }}>R{fromCents(points[hover.i].cents)}</div>
               </div>
             </div>
           )}
@@ -1066,9 +1206,9 @@ function getBadgeStyle(status: string): React.CSSProperties {
     };
   return {
     ...base,
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(245,245,245,0.32)",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "var(--a-input)",
+    color: "var(--a-muted)",
+    border: "1px solid var(--a-border)",
   };
 }
 
@@ -1083,8 +1223,8 @@ function getBadgeLabel(status: string) {
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#08080c",
-    color: "#f5f5f5",
+    background: "var(--a-bg)",
+    color: "var(--a-text)",
     fontFamily: "'Schibsted Grotesk', sans-serif",
     position: "relative",
     overflowX: "hidden",
@@ -1093,7 +1233,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: "fixed",
     inset: 0,
     background:
-      "radial-gradient(ellipse 80% 40% at 50% -10%,rgba(255,107,53,0.08) 0%,transparent 60%),radial-gradient(ellipse 60% 30% at 0% 30%,rgba(255,61,110,0.04) 0%,transparent 60%)",
+      "radial-gradient(ellipse 80% 40% at 50% -10%,rgba(255,107,53,0.08) 0%,transparent 60%),radial-gradient(ellipse 60% 30% at 0% 30%,var(--a-atmosphere-2) 0%,transparent 60%)",
     pointerEvents: "none",
     zIndex: 0,
   },
@@ -1122,10 +1262,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "14px 18px",
-    background: "rgba(8,8,12,0.85)",
+    background: "var(--a-nav)",
     backdropFilter: "blur(20px)",
     WebkitBackdropFilter: "blur(20px)",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid var(--a-border)",
   },
   navLogo: {
     display: "flex",
@@ -1135,6 +1275,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     letterSpacing: "-0.02em",
     textTransform: "uppercase",
+    color: "var(--a-text)",
   },
   navLogoAccent: {
     background: "linear-gradient(135deg,#ff6b35,#ff3d6e)",
@@ -1158,7 +1299,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 30,
     borderRadius: "50%",
     background: "linear-gradient(135deg,#ff6b35,#ff3d6e)",
-    border: "1px solid rgba(255,255,255,0.1)",
+    border: "1px solid var(--a-border-strong)",
     color: "#fff",
     fontSize: 10,
     fontWeight: 800,
@@ -1167,18 +1308,28 @@ const styles: Record<string, React.CSSProperties> = {
   },
   profilePopover: {
     position: "absolute", top: "calc(100% + 10px)", right: 0, zIndex: 60,
-    width: 240, background: "#0e0e14", border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 16, padding: 18, boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+    width: 240, background: "var(--a-card)", border: "1px solid var(--a-border-strong)",
+    borderRadius: 16, padding: 18, boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
     display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
   },
   profilePopoverPhotoWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 8 },
   profilePopoverPhoto: { width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(255,107,53,0.4)", color: "#fff" },
   profilePhotoBtn: {
-    padding: "6px 12px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 100, color: "#f5f5f5", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+    padding: "6px 12px", background: "var(--a-hover)", border: "1px solid var(--a-border-strong)",
+    borderRadius: 100, color: "var(--a-text)", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
   },
-  profilePopoverName: { fontSize: 13, fontWeight: 800, textAlign: "center" },
-  profilePopoverEmail: { fontSize: 11, color: "rgba(245,245,245,0.4)", textAlign: "center", marginBottom: 12, wordBreak: "break-all" },
+  profilePopoverName: { fontSize: 13, fontWeight: 800, textAlign: "center", color: "var(--a-text)" },
+  profileNameRow: { display: "flex", gap: 6, width: "100%", marginBottom: 4 },
+  profileNameInput: {
+    flex: 1, minWidth: 0, padding: "8px 10px", background: "var(--a-input)", border: "1px solid var(--a-border-strong)",
+    borderRadius: 8, color: "var(--a-text)", fontSize: 12, fontFamily: "inherit", outline: "none", textAlign: "center",
+  },
+  profileSaveNameBtn: {
+    width: "100%", padding: 9, background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.25)",
+    borderRadius: 100, color: "#ff6b35", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em",
+    textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit", marginBottom: 10,
+  },
+  profilePopoverEmail: { fontSize: 11, color: "var(--a-muted-2)", textAlign: "center", marginBottom: 12, wordBreak: "break-all" },
   profileLogoutBtn: {
     width: "100%", padding: 12, background: "rgba(255,61,110,0.08)", border: "1px solid rgba(255,61,110,0.2)",
     borderRadius: 10, color: "#ff3d6e", fontSize: 12, fontWeight: 800, letterSpacing: "0.04em",
@@ -1189,19 +1340,23 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.18)",
     borderRadius: 12, padding: "10px 14px", marginBottom: 12,
   },
-  refCodeLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, color: "rgba(245,245,245,0.4)", marginBottom: 2 },
+  refCodeLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, color: "var(--a-muted-2)", marginBottom: 2 },
   refCodeValue: { fontSize: 16, fontWeight: 900, letterSpacing: "0.04em", color: "#ff6b35" },
+  refCodeEditInput: {
+    width: "100%", padding: "6px 8px", background: "var(--a-input-strong)", border: "1px solid rgba(255,107,53,0.4)",
+    borderRadius: 8, color: "#ff6b35", fontSize: 16, fontWeight: 900, letterSpacing: "0.04em", fontFamily: "inherit", outline: "none",
+  },
   refCodeCopyBtn: {
-    padding: "8px 16px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 100, color: "#f5f5f5", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+    padding: "8px 16px", background: "var(--a-hover)", border: "1px solid var(--a-border-strong)",
+    borderRadius: 100, color: "var(--a-text)", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
   },
   navSettingsBtn: {
     width: 30,
     height: 30,
     borderRadius: "50%",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    color: "rgba(245,245,245,0.6)",
+    background: "var(--a-input)",
+    border: "1px solid var(--a-border-md)",
+    color: "var(--a-text-2)",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -1213,11 +1368,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10,
     letterSpacing: "0.18em",
     textTransform: "uppercase",
-    color: "rgba(245,245,245,0.32)",
+    color: "var(--a-muted)",
     marginBottom: 4,
     fontWeight: 600,
   },
-  phTitle: { fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, marginBottom: 8 },
+  phTitle: { fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, marginBottom: 8, color: "var(--a-text)" },
   phTitleEm: {
     fontStyle: "normal",
     background: "linear-gradient(135deg,#ff6b35,#ff3d6e)",
@@ -1225,11 +1380,11 @@ const styles: Record<string, React.CSSProperties> = {
     WebkitTextFillColor: "transparent",
     fontWeight: 900,
   },
-  phSub: { fontSize: 13, color: "rgba(245,245,245,0.55)", lineHeight: 1.5 },
+  phSub: { fontSize: 13, color: "var(--a-text-2)", lineHeight: 1.5 },
   hero: {
     position: "relative",
-    background: "#0e0e14",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "var(--a-card)",
+    border: "1px solid var(--a-border)",
     borderRadius: 20,
     padding: 22,
     marginBottom: 14,
@@ -1256,13 +1411,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     lineHeight: 0.92,
     letterSpacing: "-0.04em",
-    background: "linear-gradient(135deg,#fff 0%,#ff6b35 70%,#ff3d6e 100%)",
+    background: "linear-gradient(135deg,var(--a-text) 0%,#ff6b35 70%,#ff3d6e 100%)",
     WebkitBackgroundClip: "text",
     WebkitTextFillColor: "transparent",
     marginBottom: 6,
   },
-  heroCurrency: { fontSize: "0.5em", fontWeight: 600, color: "rgba(245,245,245,0.32)", WebkitTextFillColor: "rgba(245,245,245,0.32)", marginRight: 3 },
-  heroMeta: { fontSize: 13, color: "rgba(245,245,245,0.55)", lineHeight: 1.5, marginBottom: 18 },
+  heroCurrency: { fontSize: "0.5em", fontWeight: 600, color: "var(--a-muted)", WebkitTextFillColor: "var(--a-muted)", marginRight: 3 },
+  heroMeta: { fontSize: 13, color: "var(--a-text-2)", lineHeight: 1.5, marginBottom: 18 },
   withdrawBtn: {
     display: "flex",
     alignItems: "center",
@@ -1283,23 +1438,23 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 0 0 1px rgba(255,255,255,0.1) inset, 0 12px 32px rgba(255,107,53,0.25)",
   },
   withdrawBtnDisabled: {
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(245,245,245,0.32)",
+    background: "var(--a-input)",
+    color: "var(--a-muted)",
     boxShadow: "none",
     cursor: "not-allowed",
   },
-  progressRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" },
-  progressLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600, color: "rgba(245,245,245,0.32)" },
-  progressText: { fontSize: 11, color: "#f5f5f5", fontWeight: 700 },
-  progressTarget: { color: "rgba(245,245,245,0.32)", fontWeight: 500 },
-  refCard: { background: "#0e0e14", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 20, padding: 22, marginBottom: 14 },
-  refTitle: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 },
-  refSub: { fontSize: 12, color: "rgba(245,245,245,0.55)", marginBottom: 16, lineHeight: 1.5 },
+  progressRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--a-border)" },
+  progressLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600, color: "var(--a-muted)" },
+  progressText: { fontSize: 11, color: "var(--a-text)", fontWeight: 700 },
+  progressTarget: { color: "var(--a-muted)", fontWeight: 500 },
+  refCard: { background: "var(--a-card)", border: "1px solid var(--a-border)", borderRadius: 20, padding: 22, marginBottom: 14 },
+  refTitle: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4, color: "var(--a-text)" },
+  refSub: { fontSize: 12, color: "var(--a-text-2)", marginBottom: 16, lineHeight: 1.5 },
   refLinkInput: {
     display: "flex",
     alignItems: "center",
-    background: "#08080c",
-    border: "1px solid rgba(255,255,255,0.12)",
+    background: "var(--a-input-strong)",
+    border: "1px solid var(--a-border-strong2)",
     borderRadius: 12,
     padding: "6px 6px 6px 14px",
     gap: 8,
@@ -1308,13 +1463,13 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     fontSize: 12,
     fontWeight: 600,
-    color: "#f5f5f5",
+    color: "var(--a-text)",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
     padding: "8px 0",
   },
-  refLinkDomain: { color: "rgba(245,245,245,0.32)", fontWeight: 500 },
+  refLinkDomain: { color: "var(--a-muted)", fontWeight: 500 },
   copyBtn: {
     display: "flex",
     alignItems: "center",
@@ -1335,10 +1490,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 5,
     padding: "10px 4px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "var(--a-input)",
+    border: "1px solid var(--a-border)",
     borderRadius: 10,
-    color: "rgba(245,245,245,0.55)",
+    color: "var(--a-text-2)",
     cursor: "pointer",
     fontFamily: "inherit",
     fontSize: 9,
@@ -1346,38 +1501,38 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "0.04em",
   },
   stats: { display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 14 },
-  stat: { background: "#0e0e14", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, padding: 16 },
-  statIcon: { width: 30, height: 30, borderRadius: 9, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 },
-  dateInput: { padding: "9px 12px", background: "#08080c", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, color: "#f5f5f5", fontSize: 12, fontFamily: "inherit", outline: "none", colorScheme: "dark" as const },
-  statLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600, color: "rgba(245,245,245,0.32)", marginBottom: 10 },
-  statValue: { fontSize: 30, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1, color: "#f5f5f5" },
-  statSmall: { fontSize: "0.55em", color: "rgba(245,245,245,0.32)", fontWeight: 600 },
+  stat: { background: "var(--a-card)", border: "1px solid var(--a-border)", borderRadius: 16, padding: 16 },
+  statIcon: { width: 30, height: 30, borderRadius: 9, background: "var(--a-input)", border: "1px solid var(--a-border-md)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  dateInput: { padding: "9px 12px", background: "var(--a-input-strong)", border: "1px solid var(--a-border-strong)", borderRadius: 10, color: "var(--a-text)", fontSize: 12, fontFamily: "inherit", outline: "none" },
+  statLabel: { fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600, color: "var(--a-muted)", marginBottom: 10 },
+  statValue: { fontSize: 30, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--a-text)" },
+  statSmall: { fontSize: "0.55em", color: "var(--a-muted)", fontWeight: 600 },
   sectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", margin: "24px 0 10px" },
-  sectionTitle: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", display: "flex", alignItems: "baseline", gap: 8 },
-  sectionCount: { fontSize: 11, color: "rgba(245,245,245,0.32)", fontWeight: 600 },
-  sectionTabs: { display: "flex", gap: 3, background: "#0e0e14", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 100, padding: 3 },
+  sectionTitle: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", display: "flex", alignItems: "baseline", gap: 8, color: "var(--a-text)" },
+  sectionCount: { fontSize: 11, color: "var(--a-muted)", fontWeight: 600 },
+  sectionTabs: { display: "flex", gap: 3, background: "var(--a-card)", border: "1px solid var(--a-border)", borderRadius: 100, padding: 3 },
   sectionTab: {
     padding: "5px 10px",
     fontSize: 10,
     fontWeight: 700,
-    color: "rgba(245,245,245,0.32)",
+    color: "var(--a-muted)",
     background: "transparent",
     border: "none",
     cursor: "pointer",
     borderRadius: 100,
     fontFamily: "inherit",
   },
-  sectionTabActive: { background: "rgba(255,255,255,0.06)", color: "#f5f5f5" },
-  sellers: { background: "#0e0e14", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 18, overflow: "hidden" },
+  sectionTabActive: { background: "var(--a-hover)", color: "var(--a-text)" },
+  sellers: { background: "var(--a-card)", border: "1px solid var(--a-border)", borderRadius: 18, overflow: "hidden" },
   empty: { padding: "32px 20px", textAlign: "center" },
   emptyIcon: { fontSize: 32, color: "#ff6b35", marginBottom: 10, opacity: 0.5 },
-  emptyTitle: { fontSize: 14, fontWeight: 700, marginBottom: 4 },
-  emptySub: { fontSize: 12, color: "rgba(245,245,245,0.55)" },
+  emptyTitle: { fontSize: 14, fontWeight: 700, marginBottom: 4, color: "var(--a-text)" },
+  emptySub: { fontSize: 12, color: "var(--a-text-2)" },
   seller: {
     display: "flex",
     alignItems: "center",
     padding: "14px 16px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid var(--a-border)",
     gap: 12,
   },
   sAvatar: {
@@ -1394,22 +1549,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sMain: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 },
   sTopRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  sName: { fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  sEarned: { fontSize: 14, fontWeight: 800, whiteSpace: "nowrap", flexShrink: 0 },
-  sEarnedZero: { color: "rgba(245,245,245,0.32)", fontWeight: 600 },
-  sCurrency: { fontSize: "0.7em", color: "rgba(245,245,245,0.32)", fontWeight: 600, marginRight: 1 },
+  sName: { fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--a-text)" },
+  sEarned: { fontSize: 14, fontWeight: 800, whiteSpace: "nowrap", flexShrink: 0, color: "var(--a-text)" },
+  sEarnedZero: { color: "var(--a-muted)", fontWeight: 600 },
+  sCurrency: { fontSize: "0.7em", color: "var(--a-muted)", fontWeight: 600, marginRight: 1 },
   sBottomRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 },
   sBadgeDot: { width: 4, height: 4, borderRadius: "50%", background: "currentColor" },
-  sWindow: { flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "rgba(245,245,245,0.32)", fontWeight: 600 },
-  sWindowBar: { flex: 1, height: 3, background: "rgba(255,255,255,0.05)", borderRadius: 100, overflow: "hidden" },
+  sWindow: { flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--a-muted)", fontWeight: 600 },
+  sWindowBar: { flex: 1, height: 3, background: "var(--a-hover)", borderRadius: 100, overflow: "hidden" },
   sWindowFill: { height: "100%", background: "linear-gradient(135deg,#ff6b35,#ff3d6e)", borderRadius: 100 },
   sWindowText: { whiteSpace: "nowrap", flexShrink: 0 },
-  history: { background: "#0e0e14", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 18, overflow: "hidden" },
+  history: { background: "var(--a-card)", border: "1px solid var(--a-border)", borderRadius: 18, overflow: "hidden" },
   hRow: {
     display: "flex",
     alignItems: "center",
     padding: "14px 16px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid var(--a-border)",
     gap: 12,
   },
   hIcon: {
@@ -1429,27 +1584,27 @@ const styles: Record<string, React.CSSProperties> = {
   hIconPending: { background: "rgba(255,107,53,0.08)", borderColor: "rgba(255,107,53,0.15)", color: "#ff6b35" },
   hInfo: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 },
   hTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  hAmt: { fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em" },
-  hCurrency: { fontSize: "0.65em", color: "rgba(245,245,245,0.32)", fontWeight: 600, marginRight: 1 },
+  hAmt: { fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--a-text)" },
+  hCurrency: { fontSize: "0.65em", color: "var(--a-muted)", fontWeight: 600, marginRight: 1 },
   hStatus: { fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 8px", borderRadius: 100, border: "1px solid", flexShrink: 0 },
   hStatusPaid: { color: "#22c55e", borderColor: "rgba(34,197,94,0.2)", background: "rgba(34,197,94,0.08)" },
   hStatusPending: { color: "#ff6b35", borderColor: "rgba(255,107,53,0.2)", background: "rgba(255,107,53,0.08)" },
-  hBottom: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11, color: "rgba(245,245,245,0.32)", fontWeight: 500 },
+  hBottom: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11, color: "var(--a-muted)", fontWeight: 500 },
   toast: {
     position: "fixed",
     bottom: 24,
     left: "50%",
     transform: "translateX(-50%)",
-    background: "rgba(20,20,28,0.96)",
+    background: "var(--a-tooltip)",
     backdropFilter: "blur(16px)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#f5f5f5",
+    border: "1px solid var(--a-tooltip-border)",
+    color: "var(--a-text)",
     padding: "11px 18px",
     borderRadius: 100,
     fontSize: 11,
     fontWeight: 700,
     letterSpacing: "0.04em",
-    boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+    boxShadow: "0 16px 40px rgba(0,0,0,0.3)",
     zIndex: 1000,
   },
   btnSecondary: {
@@ -1468,39 +1623,39 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
   },
   modalCard: {
-    background: "#0e0e14", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20,
+    background: "var(--a-card)", border: "1px solid var(--a-border-strong)", borderRadius: 20,
     maxWidth: 420, width: "100%", maxHeight: "85vh", overflowY: "auto",
-    boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
   },
   modalHeader: {
     display: "flex", alignItems: "center", justifyContent: "space-between",
     padding: "20px 24px 0",
   },
-  modalTitle: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em" },
+  modalTitle: { fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--a-text)" },
   modalClose: {
-    background: "rgba(255,255,255,0.06)", border: "none", color: "rgba(245,245,245,0.6)",
+    background: "var(--a-hover)", border: "none", color: "var(--a-text-2)",
     width: 28, height: 28, borderRadius: "50%", fontSize: 16, cursor: "pointer",
   },
   modalTabs: {
-    display: "flex", gap: 6, padding: "16px 24px 0", borderBottom: "1px solid rgba(255,255,255,0.06)",
+    display: "flex", gap: 6, padding: "16px 24px 0", borderBottom: "1px solid var(--a-border)",
   },
   modalTabBtn: {
     padding: "10px 4px", marginRight: 16, background: "none", border: "none",
-    borderBottom: "2px solid transparent", color: "rgba(245,245,245,0.4)",
+    borderBottom: "2px solid transparent", color: "var(--a-muted-2)",
     fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", cursor: "pointer", fontFamily: "inherit",
   },
-  modalTabBtnActive: { color: "#fff", borderBottomColor: "#ff6b35" },
+  modalTabBtnActive: { color: "var(--a-text)", borderBottomColor: "#ff6b35" },
   modalBody: { padding: "20px 24px 24px", display: "flex", flexDirection: "column" },
   modalLabel: {
     fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-    color: "rgba(245,245,245,0.4)", marginBottom: 6, marginTop: 14,
+    color: "var(--a-muted-2)", marginBottom: 6, marginTop: 14,
   },
   modalInput: {
-    padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 10, color: "#f5f5f5", fontSize: 13, fontFamily: "inherit", outline: "none",
+    padding: "12px 14px", background: "var(--a-input)", border: "1px solid var(--a-border-strong)",
+    borderRadius: 10, color: "var(--a-text)", fontSize: 13, fontFamily: "inherit", outline: "none",
   },
-  modalHint: { fontSize: 11, color: "rgba(245,245,245,0.4)", marginTop: 8, wordBreak: "break-all" },
-  modalStatusMuted: { fontSize: 11, color: "rgba(245,245,245,0.35)", marginTop: 6, fontWeight: 600 },
+  modalHint: { fontSize: 11, color: "var(--a-muted-2)", marginTop: 8, wordBreak: "break-all" },
+  modalStatusMuted: { fontSize: 11, color: "var(--a-muted)", marginTop: 6, fontWeight: 600 },
   modalStatusOk: { fontSize: 11, color: "#22c55e", marginTop: 6, fontWeight: 700 },
   modalStatusErr: { fontSize: 11, color: "#ff3d6e", marginTop: 6, fontWeight: 700 },
   modalStatusWarn: { fontSize: 11, color: "#fbbf24", marginTop: 8, lineHeight: 1.5, fontWeight: 600 },
@@ -1510,8 +1665,8 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit",
   },
   modalToggleBtn: {
-    flex: 1, padding: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 10, color: "rgba(245,245,245,0.5)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+    flex: 1, padding: 12, background: "var(--a-input)", border: "1px solid var(--a-border-md)",
+    borderRadius: 10, color: "var(--a-muted-2)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
   },
   modalToggleBtnActive: {
     background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.3)", color: "#ff6b35",

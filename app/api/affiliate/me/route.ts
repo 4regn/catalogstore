@@ -169,6 +169,14 @@ export async function PATCH(req: NextRequest) {
 
   const updates: Record<string, unknown> = {};
 
+  if (body.fullName !== undefined) {
+    const name = String(body.fullName).trim().slice(0, 120);
+    if (!name) {
+      return NextResponse.json({ error: "Name can't be empty." }, { status: 400 });
+    }
+    updates.full_name = name;
+  }
+
   if (body.slug !== undefined) {
     const cleaned = String(body.slug).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
     if (cleaned.length < 2) {
