@@ -64,6 +64,8 @@ interface Seller {
   social_links: SocialLinks; store_config: StoreConfig; checkout_config: CheckoutConfig;
   subscription_status: string; subscription_plan: string; subscription_grace_until: string | null; trial_ends_at: string; subscription_started_at: string;
   payfast_subscription_token: string | null;
+  custom_domain?: string | null;
+  custom_domain_status?: string | null;
 }
 
 interface Product {
@@ -81,7 +83,7 @@ interface Order {
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string;
 }
 
-const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token";
+const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
 const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
 const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
@@ -98,7 +100,7 @@ const TEMPLATES = [
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned";
+type TabKey = "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -126,7 +128,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned">("overview");
+  const [tab, setTab] = useState<TabKey>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -168,6 +170,12 @@ export default function Dashboard() {
   const [storeSaved, setStoreSaved] = useState(false);
   const [testCheckoutResult, setTestCheckoutResult] = useState<{ passed: boolean; issues: string[] } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [domainInput, setDomainInput] = useState("");
+  const [domainStatus, setDomainStatus] = useState<{ domain: string; verified: boolean; misconfigured: boolean; requiredDnsRecords: { type: string; name: string; value: string }[] } | null>(null);
+  const [domainLoading, setDomainLoading] = useState(false);
+  const [domainError, setDomainError] = useState("");
+  const [domainUrlCopied, setDomainUrlCopied] = useState(false);
+  const [domainTabLoaded, setDomainTabLoaded] = useState(false);
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
   const [checkoutSaving, setCheckoutSaving] = useState(false);
   const [checkoutSaved, setCheckoutSaved] = useState(false);
@@ -217,7 +225,7 @@ export default function Dashboard() {
 
   useEffect(() => { checkAuth(); }, []);
 
-  const switchTab = (t: "overview" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned") => { setTab(t); setSidebarOpen(false); };
+  const switchTab = (t: TabKey) => { setTab(t); setSidebarOpen(false); };
 
   const checkAuth = async () => {
     // getSession() reads from local storage — no network round-trip,
@@ -273,6 +281,56 @@ export default function Dashboard() {
   };
   const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Logo must be under 5MB"); return; } setLogoFile(f); setLogoRemoved(false); const r = new FileReader(); r.onload = (ev) => setLogoPreview(ev.target?.result as string); r.readAsDataURL(f); };
   const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 5*1024*1024) { alert("Banner must be under 5MB"); return; } setBannerFile(f); setBannerRemoved(false); const r = new FileReader(); r.onload = (ev) => setBannerPreview(ev.target?.result as string); r.readAsDataURL(f); };
+
+  const getAccessToken = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token || "";
+  };
+
+  const refreshDomainStatus = async () => {
+    const token = await getAccessToken();
+    if (!token) return;
+    setDomainLoading(true);
+    try {
+      const res = await fetch("/api/domains/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+      const data = await res.json();
+      if (res.ok) setDomainStatus(data.status || null);
+    } catch {}
+    setDomainLoading(false);
+  };
+
+  const connectDomain = async () => {
+    if (!domainInput.trim()) return;
+    setDomainLoading(true); setDomainError("");
+    const token = await getAccessToken();
+    try {
+      const res = await fetch("/api/domains/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: domainInput.trim(), access_token: token }) });
+      const data = await res.json();
+      if (!res.ok) { setDomainError(data.error || "Couldn't connect that domain."); }
+      else { setDomainStatus(data.status); setDomainInput(""); if (seller) setSeller({ ...seller, custom_domain: data.status.domain } as any); }
+    } catch { setDomainError("Couldn't reach the server. Try again."); }
+    setDomainLoading(false);
+  };
+
+  const removeDomain = async () => {
+    if (!confirm("Disconnect this domain? Your store link automatically falls back to the free catalogstore.co.za subdomain.")) return;
+    setDomainLoading(true); setDomainError("");
+    const token = await getAccessToken();
+    try {
+      const res = await fetch("/api/domains/remove", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+      const data = await res.json();
+      if (!res.ok) { setDomainError(data.error || "Couldn't remove that domain."); }
+      else { setDomainStatus(null); if (seller) setSeller({ ...seller, custom_domain: null } as any); }
+    } catch { setDomainError("Couldn't reach the server. Try again."); }
+    setDomainLoading(false);
+  };
+
+  useEffect(() => {
+    if (tab === "domains" && seller?.custom_domain && !domainTabLoaded) {
+      setDomainTabLoaded(true);
+      refreshDomainStatus();
+    }
+  }, [tab, seller?.custom_domain, domainTabLoaded]);
 
   const saveStoreSettings = async () => {
     if (!seller) return; setStoreSaving(true); setStoreSaved(false);
@@ -625,7 +683,7 @@ export default function Dashboard() {
         { key: "checkout", name: "Checkout" },
       ],
     },
-    { label: "My Store", items: [{ key: "mystore", name: "Edit My Store" }] },
+    { label: "My Store", items: [{ key: "mystore", name: "Edit My Store" }, { key: "domains", name: "Domains" }] },
   ];
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
@@ -1673,6 +1731,82 @@ export default function Dashboard() {
               {storeSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
               {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ color: "var(--muted-2)", fontSize: 11, textDecoration: "underline", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Preview Store</a>}
             </div>
+          </div>)}
+
+          {tab === "domains" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Domains</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Manage your store's web address.</p>
+
+            <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Free Store Link</h3>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Always active, even with a custom domain connected — this is the automatic fallback if a custom domain is ever disconnected.</p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, wordBreak: "break-all" as const }}>{seller?.subdomain ? `${seller.subdomain}.catalogstore.co.za` : ""}</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ padding: "8px 16px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Visit Store</a>}
+                  <button onClick={() => { if (seller?.subdomain) { navigator.clipboard.writeText(canonicalStoreUrl(seller.subdomain)); setDomainUrlCopied(true); setTimeout(() => setDomainUrlCopied(false), 2000); } }} style={{ padding: "8px 16px", background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{domainUrlCopied ? "Copied!" : "Copy URL"}</button>
+                </div>
+              </div>
+            </div>
+
+            {isFreePlan ? (
+              <div style={sectionCard}>
+                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Custom Domain</h3>
+                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Connect your own domain (e.g. yourstore.co.za) instead of the free subdomain.</p>
+                <a href="/dashboard/billing" style={{ display: "inline-flex", padding: "12px 28px", background: G, color: "#fff", borderRadius: 100, fontSize: 12, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Upgrade to Pro</a>
+              </div>
+            ) : (
+              <div style={sectionCard}>
+                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Custom Domain</h3>
+                {!seller?.custom_domain ? (
+                  <>
+                    <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Connect your own domain instead of the free subdomain. We'll tell you exactly what to add at your registrar.</p>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      <input type="text" placeholder="e.g. yourstore.co.za" value={domainInput} onChange={(e) => setDomainInput(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 200 }} />
+                      <button onClick={connectDomain} disabled={domainLoading || !domainInput.trim()} style={{ padding: "12px 28px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: domainLoading ? "not-allowed" : "pointer", opacity: domainLoading ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{domainLoading ? "Connecting..." : "Connect"}</button>
+                    </div>
+                    {domainError && <div style={{ marginTop: 10, fontSize: 12, color: "#ff6b35" }}>{domainError}</div>}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 14, flexWrap: "wrap" as const, gap: 12 }}>
+                      <div>
+                        <span style={{ fontSize: 14, fontWeight: 700, wordBreak: "break-all" as const }}>{seller.custom_domain}</span>
+                        <div style={{ marginTop: 6 }}>
+                          {domainStatus?.verified && !domainStatus?.misconfigured ? (
+                            <span style={{ padding: "4px 12px", background: "rgba(34,197,94,0.1)", color: "#22c55e", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Connected</span>
+                          ) : (
+                            <span style={{ padding: "4px 12px", background: "rgba(255,107,53,0.1)", color: N, borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{domainStatus?.misconfigured ? "Misconfigured" : "Pending Verification"}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={refreshDomainStatus} disabled={domainLoading} style={{ padding: "8px 16px", background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{domainLoading ? "Checking..." : "Refresh Status"}</button>
+                        <button onClick={removeDomain} disabled={domainLoading} style={{ padding: "8px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", color: N, borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Remove</button>
+                      </div>
+                    </div>
+
+                    {domainError && <div style={{ marginBottom: 14, fontSize: 12, color: "#ff6b35" }}>{domainError}</div>}
+
+                    {(!domainStatus?.verified || domainStatus?.misconfigured) && domainStatus?.requiredDnsRecords && (
+                      <div style={{ padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Add this DNS record at your domain's registrar:</div>
+                        {domainStatus.requiredDnsRecords.map((rec, i) => (
+                          <div key={i} style={{ display: "flex", gap: 16, fontFamily: "monospace", fontSize: 12, padding: "8px 0", borderTop: i > 0 ? "1px solid var(--border)" : "none", flexWrap: "wrap" as const }}>
+                            <span style={{ color: "var(--muted-2)" }}>Type</span><span>{rec.type}</span>
+                            <span style={{ color: "var(--muted-2)", marginLeft: 12 }}>Name</span><span>{rec.name}</span>
+                            <span style={{ color: "var(--muted-2)", marginLeft: 12 }}>Value</span><span>{rec.value}</span>
+                          </div>
+                        ))}
+                        <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 10 }}>DNS changes can take anywhere from a few minutes to a few hours to take effect. Click "Refresh Status" once you've added the record.</div>
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 11, color: "var(--muted-2)" }}>To replace this domain, remove it first, then connect the new one.</div>
+                  </>
+                )}
+              </div>
+            )}
           </div>)}
 
           {tab === "checkout" && (<div>
