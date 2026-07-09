@@ -11,20 +11,27 @@ import { isSubdomainHost } from "../../lib/store-url";
    with the iframe for header space. Also hidden on any seller's own
    storefront subdomain (mystore.catalogstore.co.za) -- their customers were
    never referred to CatalogStore, so the banner has no business appearing
-   there regardless of path. */
-const HIDDEN_PREFIXES = ["/store", "/dashboard", "/admin", "/affiliate", "/checkout"];
+   there regardless of path. /login and /reset-password are utility auth
+   pages, not marketing/discovery pages -- referral trust-building doesn't
+   belong there either. */
+const HIDDEN_PREFIXES = ["/store", "/dashboard", "/admin", "/affiliate", "/checkout", "/login", "/reset-password"];
 
 /**
  * AffiliateReferralBanner
  *
- * Reads the `affiliate_ref` cookie (set by AffiliateRefTracker), looks up the
- * affiliate's public name, and shows a polished banner: "Referred by [Name]".
+ * Reads the `affiliate_ref_session` sessionStorage flag (set by
+ * AffiliateRefTracker only when `?ref=` is present in the URL) and shows a
+ * polished banner: "Referred by [Name]". Deliberately NOT keyed off the
+ * `affiliate_ref` cookie -- that cookie lives for 30 days for attribution
+ * purposes, but the banner should only appear for the browsing session
+ * where the visitor actually landed via the referral link, not resurface
+ * on every unrelated page for a month.
  *
  * - Sits at top of page (scrolls with content, not sticky — intentional)
  * - Solid dark background with orange accent for high contrast
  * - Clear typographic hierarchy: small uppercase label + bold name
  * - Dismissible with session-storage memory
- * - Renders nothing if no cookie or invalid slug
+ * - Renders nothing outside an active referral session or with an invalid slug
  */
 export default function AffiliateReferralBanner() {
   const pathname = usePathname();
@@ -43,13 +50,7 @@ export default function AffiliateReferralBanner() {
         return;
       }
 
-      const cookieRow = document.cookie
-        .split(";")
-        .map((c) => c.trim())
-        .find((c) => c.startsWith("affiliate_ref="));
-      if (!cookieRow) return;
-
-      const slug = cookieRow.split("=")[1];
+      const slug = sessionStorage.getItem("affiliate_ref_session");
       if (!slug) return;
 
       supabase

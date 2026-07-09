@@ -15,28 +15,55 @@ export const collectionSlugForCta = (name: string) =>
 
 /* Lets the seller pick what a hero button does: scroll to products,
    navigate to a specific collection page, open a custom URL, or hide
-   the button entirely. Reused for both primary and secondary CTAs. */
+   the button entirely. Reused for both primary and secondary CTAs.
+
+   `dark` picks which surface's styling to use: the Online Visual Editor
+   is dark-only (no theme toggle), while the main dashboard uses CSS
+   custom properties that flip with the light/dark theme switch. Passing
+   the wrong one here is what caused the "black box in light mode" bug --
+   this component was hardcoded dark-only and used from both surfaces. */
 export default function CtaTargetPicker({
   target,
   onChange,
   collections,
+  dark = true,
 }: {
   target: CtaTarget;
   onChange: (t: CtaTarget) => void;
   collections: string[];
+  dark?: boolean;
 }) {
-  const baseInput: React.CSSProperties = {
-    width: "100%", padding: "9px 11px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 8, color: "#f5f5f5",
-    fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
-    outline: "none",
-  };
-  const labelMini: React.CSSProperties = {
-    fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
-    textTransform: "uppercase", color: "rgba(245,245,245,0.35)",
-    display: "block", marginBottom: 5,
+  const baseInput: React.CSSProperties = dark
+    ? {
+        width: "100%", padding: "9px 11px",
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 8, color: "#f5f5f5",
+        fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
+        outline: "none",
+      }
+    : {
+        width: "100%", padding: "9px 11px",
+        background: "var(--input-bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 8, color: "var(--text)",
+        fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif",
+        outline: "none",
+      };
+  const labelMini: React.CSSProperties = dark
+    ? {
+        fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+        textTransform: "uppercase", color: "rgba(245,245,245,0.35)",
+        display: "block", marginBottom: 5,
+      }
+    : {
+        fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+        textTransform: "uppercase", color: "var(--muted)",
+        display: "block", marginBottom: 5,
+      };
+  const hint: React.CSSProperties = {
+    fontSize: 10, marginTop: 4,
+    color: dark ? "rgba(245,245,245,0.4)" : "var(--muted-2)",
   };
   return (
     <div>
@@ -72,7 +99,7 @@ export default function CtaTargetPicker({
             ))}
           </select>
           {collections.length === 0 && (
-            <div style={{ fontSize: 10, color: "rgba(245,245,245,0.4)", marginTop: 4 }}>
+            <div style={hint}>
               Add collections in the dashboard to link to them here.
             </div>
           )}

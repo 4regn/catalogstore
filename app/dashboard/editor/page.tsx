@@ -498,6 +498,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ returnPolicy }); }, [returnPolicy]);
   useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
+  useEffect(() => { postUpdate({ heroCta }); }, [heroCta]);
+  useEffect(() => { postUpdate({ heroCtaTarget }); }, [heroCtaTarget]);
   useEffect(() => { postUpdate({ fontPair }); }, [fontPair]);
   useEffect(() => { postUpdate({ headerTransparent }); }, [headerTransparent]);
   useEffect(() => { postUpdate({ headerTransparentColor }); }, [headerTransparentColor]);

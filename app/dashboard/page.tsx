@@ -1442,6 +1442,7 @@ export default function Dashboard() {
                       target={storeConfig.hero_cta_target || { type: "products" }}
                       onChange={(t) => setStoreConfig({ ...storeConfig, hero_cta_target: t })}
                       collections={storeCollections}
+                      dark={false}
                     />
                   </div>
                 )}

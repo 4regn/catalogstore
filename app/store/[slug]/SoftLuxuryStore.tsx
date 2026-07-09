@@ -139,6 +139,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [livePolicyItems, setLivePolicyItems]   = useState<{ title: string; desc: string }[] | null>(null);
   const [liveAboutImage, setLiveAboutImage]     = useState<string | null>(null);
   const [liveHeroTitle, setLiveHeroTitle]       = useState<string | null>(null);
+  const [liveHeroCta, setLiveHeroCta]           = useState<string | null>(null);
+  const [liveHeroCtaTarget, setLiveHeroCtaTarget] = useState<any>(null);
   const [liveFontPair, setLiveFontPair]         = useState<string | null>(null);
   const [liveHeaderTransparent, setLiveHeaderTransparent] = useState<boolean | null>(null);
   const [liveHeaderTransparentColor, setLiveHeaderTransparentColor] = useState<string | null>(null);
@@ -256,6 +258,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.aboutImage   !== undefined) setLiveAboutImage(e.data.aboutImage || null);
       if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
       if (e.data.heroTitle   !== undefined) setLiveHeroTitle(e.data.heroTitle);
+      if (e.data.heroCta     !== undefined) setLiveHeroCta(e.data.heroCta);
+      if (e.data.heroCtaTarget !== undefined) setLiveHeroCtaTarget(e.data.heroCtaTarget);
       if (e.data.fontPair    !== undefined) setLiveFontPair(e.data.fontPair);
       if (e.data.headerTransparent !== undefined) setLiveHeaderTransparent(e.data.headerTransparent);
       if (e.data.headerTransparentColor !== undefined) setLiveHeaderTransparentColor(e.data.headerTransparentColor);
@@ -505,7 +509,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const displayTagline      = liveTagline      ?? seller?.tagline      ?? "";
   const displayDescription  = liveDescription  ?? seller?.description  ?? "";
   const displayHeroTitle    = liveHeroTitle !== null ? liveHeroTitle : ((cfg as any).hero_title !== undefined ? (cfg as any).hero_title : (seller?.store_name || ""));
-  const heroCtaTarget = (cfg as any).hero_cta_target || { type: "products" };
+  const heroCtaTarget = liveHeroCtaTarget ?? (cfg as any).hero_cta_target ?? { type: "products" };
+  const displayHeroCta = liveHeroCta ?? (cfg as any).hero_cta ?? "";
   const heroCtaHref =
     heroCtaTarget.type === "collection" && heroCtaTarget.collection ? sp(`/c/${heroCtaTarget.collection}`) :
     heroCtaTarget.type === "url" && heroCtaTarget.url ? heroCtaTarget.url :
@@ -715,7 +720,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                   {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{displayHeroTitle}</h1>}
                   {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
-                  {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>}
+                  {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
                 </div>
               </>
             ) : (
@@ -723,7 +728,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                 {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
                 {displayDescription && <p style={{ fontSize: 14, color: pageMuted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
-                {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{(seller?.store_config as any)?.hero_cta || "Shop Now"} &rarr;</a>}
+                {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
               </div>
             )}
           </section>
