@@ -408,10 +408,18 @@ export default function Dashboard() {
   const removeVariant = (i: number) => setFormVariants(formVariants.filter((_, idx) => idx !== i));
   const updateVariantName = (i: number, n: string) => { const u = [...formVariants]; u[i].name = n; setFormVariants(u); };
   const addVariantOption = (vi: number) => { const u = [...formVariants]; u[vi].options.push(""); setFormVariants(u); };
+  const addVariantOptionValue = (vi: number, value: string) => {
+    const u = [...formVariants];
+    const opts = u[vi].options;
+    const emptyIdx = opts.findIndex((o) => !o.trim());
+    if (emptyIdx >= 0) opts[emptyIdx] = value; else opts.push(value);
+    setFormVariants(u);
+  };
   const updateVariantOption = (vi: number, oi: number, v: string) => { const u = [...formVariants]; u[vi].options[oi] = v; setFormVariants(u); };
   const removeVariantOption = (vi: number, oi: number) => { const u = [...formVariants]; u[vi].options = u[vi].options.filter((_, i) => i !== oi); setFormVariants(u); };
 
-  const PRESET_VARIANTS = [{ name: "Size", options: ["S", "M", "L", "XL"] }, { name: "Color", options: ["Black", "White"] }, { name: "Material", options: ["Cotton", "Polyester"] }];
+  const PRESET_VARIANTS = [{ name: "Size", options: ["S", "M", "L", "XL", "2XL"] }, { name: "Color", options: ["Black", "White"] }, { name: "Material", options: ["Cotton", "Polyester"] }];
+  const COLOR_SUGGESTIONS = ["Red", "Yellow", "Green", "Blue", "Brown", "Navy", "Orange", "Pink"];
   const addPresetVariant = (p: Variant) => { if (!formVariants.some((v) => v.name.toLowerCase() === p.name.toLowerCase())) setFormVariants([...formVariants, { ...p, options: [...p.options] }]); };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1233,9 +1241,16 @@ export default function Dashboard() {
                       <button type="button" onClick={() => removeVariant(vi)} style={{ padding: "6px 12px", background: "transparent", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const }}>Remove</button>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
-                      {v.options.map((o, oi) => (<div key={oi} style={{ display: "flex", alignItems: "center", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}><input type="text" placeholder="e.g. Large" value={o} onChange={(e) => updateVariantOption(vi, oi, e.target.value)} style={{ width: 80, padding: "8px 10px", background: "transparent", border: "none", color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{v.options.length > 1 && <button type="button" onClick={() => removeVariantOption(vi, oi)} style={{ padding: 8, background: "transparent", border: "none", borderLeft: "1px solid var(--border)", color: "var(--muted-2)", fontSize: 10, cursor: "pointer" }}>&#10005;</button>}</div>))}
+                      {v.options.map((o, oi) => (<div key={oi} style={{ display: "flex", alignItems: "center", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}><input type="text" placeholder={v.name.trim().toLowerCase() === "color" ? "e.g. Pink" : "e.g. Large"} value={o} onChange={(e) => updateVariantOption(vi, oi, e.target.value)} style={{ width: 80, padding: "8px 10px", background: "transparent", border: "none", color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{v.options.length > 1 && <button type="button" onClick={() => removeVariantOption(vi, oi)} style={{ padding: 8, background: "transparent", border: "none", borderLeft: "1px solid var(--border)", color: "var(--muted-2)", fontSize: 10, cursor: "pointer" }}>&#10005;</button>}</div>))}
                       <button type="button" onClick={() => addVariantOption(vi)} style={{ padding: "8px 12px", background: "transparent", border: "1px dashed var(--border)", borderRadius: 8, color: "var(--muted-2)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
                     </div>
+                    {v.name.trim().toLowerCase() === "color" && (
+                      <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 6, marginTop: 8 }}>
+                        {COLOR_SUGGESTIONS.filter((c) => !v.options.some((o) => o.trim().toLowerCase() === c.toLowerCase())).map((c) => (
+                          <button key={c} type="button" onClick={() => addVariantOptionValue(vi, c)} style={{ padding: "5px 10px", background: "transparent", border: "1px dashed var(--border)", borderRadius: 100, color: "var(--muted-2)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, cursor: "pointer" }}>+ {c}</button>
+                        ))}
+                      </div>
+                    )}
                     {v.options.some((o) => o.trim()) && (
                       <div style={{ marginTop: 12, padding: "12px", background: "var(--panel)", borderRadius: 8, border: "1px solid var(--border)" }}>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 8 }}>Price adjustment per {v.name} option</div>
