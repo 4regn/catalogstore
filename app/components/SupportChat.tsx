@@ -63,12 +63,29 @@ function formatTime(iso: string): string {
   }
 }
 
-export default function SupportChat() {
+export default function SupportChat({
+  embedded = false,
+  category = "general",
+  seller,
+}: {
+  /** Renders inline (no launcher bubble, always open, fills its container)
+   *  instead of the floating bottom-right widget. Used to embed the chat
+   *  directly inside a dashboard page (e.g. the Domains tab). */
+  embedded?: boolean;
+  /** Folder this conversation is filed under in the admin inbox. */
+  category?: "general" | "domain";
+  /** When set, messages are sent as an authenticated seller rather than an
+   *  anonymous visitor — the admin inbox can then group this thread by
+   *  seller. getAccessToken is called fresh on each send. */
+  seller?: { name?: string; email?: string; getAccessToken: () => Promise<string> };
+} = {}) {
   const pathname = usePathname();
+  const convKey = seller ? `cs_support_conv_seller_${category}` : CONV_KEY;
+  const seenKey = seller ? `cs_support_seen_seller_${category}` : SEEN_KEY;
 
   const [mounted, setMounted] = useState(false);
   const [onSellerSubdomain, setOnSellerSubdomain] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [visitorId, setVisitorId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -95,12 +112,13 @@ export default function SupportChat() {
         localStorage.setItem(VISITOR_KEY, vid);
       }
       setVisitorId(vid);
-      const conv = localStorage.getItem(CONV_KEY);
+      const conv = localStorage.getItem(convKey);
       if (conv) setConversationId(conv);
     } catch {
       // localStorage unavailable — widget still works for the session
       setVisitorId(generateVisitorId());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- polling -----------------------------------------------------------
@@ -126,12 +144,12 @@ export default function SupportChat() {
         // Panel is visible — everything is seen
         setUnread(0);
         try {
-          localStorage.setItem(SEEN_KEY, String(adminCount));
+          localStorage.setItem(seenKey, String(adminCount));
         } catch {}
       } else {
         let seen = 0;
         try {
-          seen = parseInt(localStorage.getItem(SEEN_KEY) || "0", 10) || 0;
+          seen = parseInt(localStorage.getItem(seenKey) || "0", 10) || 0;
         } catch {}
         setUnread(Math.max(0, adminCount - seen));
       }
@@ -163,7 +181,7 @@ export default function SupportChat() {
       setUnread(0);
       try {
         const adminCount = messages.filter((m) => m.sender === "admin").length;
-        localStorage.setItem(SEEN_KEY, String(adminCount));
+        localStorage.setItem(seenKey, String(adminCount));
       } catch {}
     }
   }
@@ -185,6 +203,7 @@ export default function SupportChat() {
     setInput("");
 
     try {
+      const accessToken = seller ? await seller.getAccessToken() : undefined;
       const res = await fetch("/api/support/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -192,8 +211,10 @@ export default function SupportChat() {
           visitorId,
           conversationId: conversationId || undefined,
           message: text,
-          name: name.trim() || undefined,
-          email: email.trim() || undefined,
+          name: (seller?.name || name).trim() || undefined,
+          email: (seller?.email || email).trim() || undefined,
+          category,
+          access_token: accessToken || undefined,
         }),
       });
 
@@ -212,7 +233,7 @@ export default function SupportChat() {
       if (data?.conversationId && data.conversationId !== conversationId) {
         setConversationId(data.conversationId);
         try {
-          localStorage.setItem(CONV_KEY, data.conversationId);
+          localStorage.setItem(convKey, data.conversationId);
         } catch {}
       }
     } catch {
@@ -225,11 +246,15 @@ export default function SupportChat() {
   }
 
   // ---- visibility --------------------------------------------------------
-  if (!mounted || !pathname || onSellerSubdomain) return null;
-  if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
+  if (!embedded) {
+    if (!mounted || !pathname || onSellerSubdomain) return null;
+    if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
+  } else if (!mounted) {
+    return null;
+  }
 
   const hasMessages = messages.length > 0;
-  const showIdentityFields = !conversationId && !hasMessages;
+  const showIdentityFields = !seller && !conversationId && !hasMessages;
 
   return (
     <>
@@ -248,14 +273,14 @@ export default function SupportChat() {
 
       {/* Panel */}
       {open && (
-        <div className="cs-support-panel" style={styles.panel} role="dialog" aria-label="Support chat">
+        <div className="cs-support-panel" style={embedded ? { ...styles.panel, ...styles.panelEmbedded } : styles.panel} role="dialog" aria-label="Support chat">
           {/* Header */}
           <div style={styles.header}>
             <span style={styles.headerDot} />
             <div style={{ minWidth: 0 }}>
-              <div style={styles.headerTitle}>CatalogStore Support</div>
+              <div style={styles.headerTitle}>{seller ? "Domain Support" : "CatalogStore Support"}</div>
               <div style={styles.headerSub}>
-                Ask us anything — we reply as soon as we can.
+                {seller ? "We'll reply here as soon as we can." : "Ask us anything — we reply as soon as we can."}
               </div>
             </div>
           </div>
@@ -381,7 +406,7 @@ export default function SupportChat() {
       )}
 
       {/* Launcher */}
-      <button
+      {!embedded && <button
         onClick={toggleOpen}
         aria-label={open ? "Close support chat" : "Open support chat"}
         style={styles.launcher}
@@ -415,7 +440,7 @@ export default function SupportChat() {
         {!open && unread > 0 && (
           <span style={styles.badge}>{unread > 9 ? "9+" : unread}</span>
         )}
-      </button>
+      </button>}
     </>
   );
 }
@@ -458,6 +483,13 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     padding: "0 4px",
     lineHeight: 1,
+  },
+  panelEmbedded: {
+    position: "static",
+    width: "100%",
+    maxWidth: "none",
+    height: 460,
+    maxHeight: "none",
   },
   panel: {
     position: "fixed",

@@ -51,6 +51,7 @@ interface Conversation {
   id: string; visitor_id: string; name: string | null; email: string | null;
   status: "open" | "closed"; admin_unread: number; last_message_at: string;
   last_message_preview: string; created_at: string;
+  category: string; seller_id: string | null;
 }
 
 interface SupportMessage {
@@ -122,6 +123,7 @@ export default function AdminDashboard() {
   // Support
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [convFilter, setConvFilter] = useState<"all" | "open" | "closed">("all");
+  const [convFolder, setConvFolder] = useState<"all" | "general" | "domain" | "seller">("all");
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
   const [activeConvo, setActiveConvo] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -283,7 +285,11 @@ export default function AdminDashboard() {
   };
 
   const totalUnread = conversations.reduce((s, c) => s + (c.admin_unread || 0), 0);
-  const filteredConversations = convFilter === "all" ? conversations : conversations.filter((c) => c.status === convFilter);
+  const statusFilteredConversations = convFilter === "all" ? conversations : conversations.filter((c) => c.status === convFilter);
+  const filteredConversations = convFolder === "all" ? statusFilteredConversations
+    : convFolder === "seller" ? statusFilteredConversations.filter((c) => !!c.seller_id)
+    : statusFilteredConversations.filter((c) => (c.category || "general") === convFolder);
+  const sellerGroupLabel = (c: Conversation) => c.name || c.email || "Unknown seller";
 
   // Stats
   const totalSellers = sellers.length;
@@ -729,6 +735,13 @@ export default function AdminDashboard() {
 
                 {/* CONVERSATION LIST */}
                 <div className="admin-support-list" style={{ ...card, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: 620 }}>
+                  <div style={{ display: "flex", gap: 6, padding: "12px 12px 0", flexWrap: "wrap" }}>
+                    {([{ k: "all", l: "All Folders" }, { k: "general", l: "General" }, { k: "domain", l: "Domain Support" }, { k: "seller", l: "Seller Inboxes" }] as const).map((f) => (
+                      <button key={f.k} onClick={() => setConvFolder(f.k)} style={{ padding: "6px 12px", borderRadius: 100, background: convFolder === f.k ? "rgba(255,107,53,0.08)" : "transparent", border: convFolder === f.k ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", color: convFolder === f.k ? N : "var(--muted)", fontFamily: F, fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" }}>
+                        {f.l} ({f.k === "all" ? conversations.length : f.k === "seller" ? conversations.filter((c) => !!c.seller_id).length : conversations.filter((c) => (c.category || "general") === f.k).length})
+                      </button>
+                    ))}
+                  </div>
                   <div style={{ display: "flex", gap: 6, padding: 12, borderBottom: "1px solid var(--border)" }}>
                     {(["all", "open", "closed"] as const).map((f) => (
                       <button key={f} onClick={() => setConvFilter(f)} style={{ padding: "6px 14px", borderRadius: 100, background: convFilter === f ? "rgba(255,107,53,0.08)" : "transparent", border: convFilter === f ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", color: convFilter === f ? N : "var(--muted)", fontFamily: F, fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" }}>
@@ -737,19 +750,25 @@ export default function AdminDashboard() {
                     ))}
                   </div>
                   <div style={{ overflowY: "auto", flex: 1 }}>
-                    {filteredConversations.map((c) => (
-                      <div key={c.id} onClick={() => openConversation(c.id)} style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", cursor: "pointer", background: activeConvoId === c.id ? "var(--panel-2)" : "transparent", borderLeft: activeConvoId === c.id ? "2px solid " + N : "2px solid transparent" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
-                          <span style={{ fontSize: 13, fontWeight: c.admin_unread > 0 ? 800 : 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "Visitor"}</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                            {c.status === "closed" && <span style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-2)", border: "1px solid var(--border)", borderRadius: 100, padding: "2px 7px" }}>Closed</span>}
-                            <span style={{ fontSize: 10, color: "var(--muted-2)" }}>{c.last_message_at ? timeAgo(c.last_message_at) : timeAgo(c.created_at)}</span>
-                          </span>
-                        </div>
-                        {c.email && <div style={{ fontSize: 10, color: "var(--muted-2)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</div>}
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: 11, color: c.admin_unread > 0 ? "var(--muted)" : "var(--muted-2)", fontWeight: c.admin_unread > 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.last_message_preview || "No messages yet"}</span>
-                          {c.admin_unread > 0 && <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 100, background: G, color: "#fff", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{c.admin_unread}</span>}
+                    {filteredConversations.map((c, i) => (
+                      <div key={c.id}>
+                        {convFolder === "seller" && (i === 0 || sellerGroupLabel(c) !== sellerGroupLabel(filteredConversations[i - 1])) && (
+                          <div style={{ padding: "10px 14px 6px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-2)", background: "var(--panel-2)" }}>{sellerGroupLabel(c)}</div>
+                        )}
+                        <div onClick={() => openConversation(c.id)} style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", cursor: "pointer", background: activeConvoId === c.id ? "var(--panel-2)" : "transparent", borderLeft: activeConvoId === c.id ? "2px solid " + N : "2px solid transparent" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
+                            <span style={{ fontSize: 13, fontWeight: c.admin_unread > 0 ? 800 : 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "Visitor"}</span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                              {c.category === "domain" && <span style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: N, border: "1px solid rgba(255,107,53,0.3)", borderRadius: 100, padding: "2px 7px" }}>Domain</span>}
+                              {c.status === "closed" && <span style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-2)", border: "1px solid var(--border)", borderRadius: 100, padding: "2px 7px" }}>Closed</span>}
+                              <span style={{ fontSize: 10, color: "var(--muted-2)" }}>{c.last_message_at ? timeAgo(c.last_message_at) : timeAgo(c.created_at)}</span>
+                            </span>
+                          </div>
+                          {c.email && <div style={{ fontSize: 10, color: "var(--muted-2)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</div>}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                            <span style={{ fontSize: 11, color: c.admin_unread > 0 ? "var(--muted)" : "var(--muted-2)", fontWeight: c.admin_unread > 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.last_message_preview || "No messages yet"}</span>
+                            {c.admin_unread > 0 && <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 100, background: G, color: "#fff", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{c.admin_unread}</span>}
+                          </div>
                         </div>
                       </div>
                     ))}

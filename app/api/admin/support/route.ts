@@ -8,14 +8,20 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const status = req.nextUrl.searchParams.get("status"); // 'open' | 'closed' | null = all
+  const category = req.nextUrl.searchParams.get("category"); // 'general' | 'domain' | 'seller' | null = all
 
   let query = getAdmin()
     .from("support_conversations")
-    .select("id, visitor_id, name, email, status, admin_unread, last_message_at, last_message_preview, created_at")
+    .select("id, visitor_id, name, email, status, admin_unread, last_message_at, last_message_preview, created_at, category, seller_id")
     .order("last_message_at", { ascending: false })
-    .limit(100);
+    .limit(200);
   if (status === "open" || status === "closed") {
     query = query.eq("status", status);
+  }
+  if (category === "seller") {
+    query = query.not("seller_id", "is", null);
+  } else if (category === "general" || category === "domain") {
+    query = query.eq("category", category);
   }
 
   const { data: conversations, error } = await query;

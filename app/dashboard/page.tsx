@@ -8,6 +8,7 @@ import { canonicalStoreUrl } from "../../lib/store-url";
 import { FONT_PAIRS, DEFAULT_FONT_PAIR_KEY } from "../../lib/font-pairs";
 import CtaTargetPicker, { type CtaTarget } from "../components/CtaTargetPicker";
 import Spinner from "../components/Spinner";
+import SupportChat from "../components/SupportChat";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -1987,12 +1988,10 @@ export default function Dashboard() {
                 <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Custom Domain</h3>
                 {!seller?.custom_domain ? (
                   <>
-                    <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Connect your own domain instead of the free subdomain. We'll tell you exactly what to add at your registrar.</p>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
-                      <input type="text" placeholder="e.g. yourstore.co.za" value={domainInput} onChange={(e) => setDomainInput(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 200 }} />
-                      <button onClick={connectDomain} disabled={domainLoading || !domainInput.trim()} style={{ padding: "12px 28px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: domainLoading ? "not-allowed" : "pointer", opacity: domainLoading ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{domainLoading ? "Connecting..." : "Connect"}</button>
+                    <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>We're still refining self-serve domain connection, so for now our team sets it up for you by hand. Message us below with the domain you'd like to use (e.g. yourstore.co.za) — we'll usually have it connected within one business day.</p>
+                    <div style={{ borderRadius: 16, overflow: "hidden" }}>
+                      <SupportChat embedded category="domain" seller={{ name: seller?.store_name, email: seller?.email, getAccessToken }} />
                     </div>
-                    {domainError && <div style={{ marginTop: 10, fontSize: 12, color: "#ff6b35" }}>{domainError}</div>}
                   </>
                 ) : (
                   <>
