@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams } from "next/navigation";
+import { effectiveStoreConfig } from "../../../lib/template-config";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -63,6 +64,7 @@ interface Seller {
   logo_url: string; tagline: string; description: string;
   collections: string[]; social_links: SocialLinks;
   store_config: StoreConfig;
+  template_configs?: Record<string, any>;
   subscription_status?: string;
   trial_ends_at?: string | null;
   checkout_config?: CheckoutConfig;
@@ -536,7 +538,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
   );
 
   const s = seller!;
-  const config = s.store_config || {};
+  const config = effectiveStoreConfig(s) as StoreConfig;
   const gold = "#c4a265";
   const goldLight = "#d4b88a";
   const cream = "#f0e6d3";

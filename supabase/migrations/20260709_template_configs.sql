@@ -1,0 +1,17 @@
+-- Per-template store customization
+-- Run this in your Supabase SQL editor.
+--
+-- Previously every visual/content field (colors, hero text, marquee,
+-- font pair, etc.) lived in one shared `store_config` JSONB blob used by
+-- ALL templates. Switching from Template A to Template B and customizing
+-- it would silently overwrite Template A's saved look, since there was
+-- nowhere else for it to live -- switching back to A appeared to "lose"
+-- changes that were actually just clobbered.
+--
+-- template_configs stores a snapshot per template id (e.g. "soft-luxury",
+-- "crown", "heirloom", "glass-futuristic"), so each theme's customization
+-- persists independently. store_config is still used, but going forward
+-- only for genuinely template-agnostic fields (business contact info,
+-- policies, announcement text, etc.) -- see lib/template-config.ts for the
+-- exact field split.
+alter table sellers add column if not exists template_configs jsonb not null default '{}'::jsonb;

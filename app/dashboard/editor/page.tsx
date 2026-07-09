@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { revalidateStore } from "../../actions/revalidate-store";
 import { canonicalStoreUrl } from "../../../lib/store-url";
 import CtaTargetPicker, { type CtaTarget } from "../../components/CtaTargetPicker";
+import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../../lib/template-config";
 
 // Mirror HeirloomStore's collectionSlug. Inlined (not imported) so the editor
 // bundle doesn't have to drag the whole 1300-line storefront component just
@@ -60,6 +61,7 @@ interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
   tagline: string; description: string; logo_url: string; banner_url: string;
   whatsapp_number: string; primary_color: string; collections: string[];
+  template_configs?: Record<string, any>;
   store_config: {
     announcement?: string;
     show_announcement?: boolean;
@@ -341,101 +343,106 @@ export default function StoreEditor() {
       if (!user) { router.push("/login"); return; }
       // Explicit columns — only what the editor actually uses. Skipping the bigger
       // checkout_config / subscription_* / payfast_* fields keeps this row small.
-      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, store_config").eq("email", user.email).single();
+      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, store_config, template_configs").eq("email", user.email).single();
       if (!s) { router.push("/dashboard"); return; }
       setSeller(s);
+      // Merge this template's saved customizations over the global fields --
+      // see lib/template-config.ts. Falls back to the legacy flat
+      // store_config for whichever template the seller was already on, so
+      // nothing changes the moment this ships.
+      const cfg: any = effectiveStoreConfig(s);
       setTagline(s.tagline || "");
       setDescription(s.description || "");
-      setAnnouncement(s.store_config?.announcement || "");
-      setShowAnnouncement(s.store_config?.show_announcement === true);
-      setTrustItems(s.store_config?.trust_items || [
+      setAnnouncement(cfg?.announcement || "");
+      setShowAnnouncement(cfg?.show_announcement === true);
+      setTrustItems(cfg?.trust_items || [
         { icon: "◆", title: "100% Human Hair", desc: "Every bundle tested before it ships" },
         { icon: "◆", title: "Fast Dispatch", desc: "Order before 1PM, ships same day" },
         { icon: "◆", title: "Easy Returns", desc: "14-day returns on unopened items" },
         { icon: "◆", title: "Real Support", desc: "WhatsApp us — we actually reply" },
       ]);
       setCollOrder(s.collections || []);
-      if (s.store_config?.hero_subtext) setHeroSubtext(s.store_config.hero_subtext);
-      if (s.store_config?.circle_title) setCircleTitle(s.store_config.circle_title);
-      if (s.store_config?.circle_subtitle) setCircleSubtitle(s.store_config.circle_subtitle);
+      if (cfg?.hero_subtext) setHeroSubtext(cfg.hero_subtext);
+      if (cfg?.circle_title) setCircleTitle(cfg.circle_title);
+      if (cfg?.circle_subtitle) setCircleSubtitle(cfg.circle_subtitle);
       const isSL = s.template === "soft-luxury" || s.template === "glass-futuristic";
-      setProductsLabel(s.store_config?.products_label || (isSL ? "Browse" : "The Edit"));
-      setProductsHeading(s.store_config?.products_heading || (isSL ? "All Collections" : "Latest arrivals"));
-      if (s.store_config?.product_card_ratio) setProductCardRatio(s.store_config.product_card_ratio);
-      if (s.store_config?.about_label) setAboutLabel(s.store_config.about_label);
-      if (s.store_config?.about_title) setAboutTitle(s.store_config.about_title);
-      setCollLabel(s.store_config?.coll_label || (isSL ? "Curated For You" : "Featured Collections"));
-      setCollSubtitle(s.store_config?.coll_subtitle || (isSL ? "Shop by Collection" : "Find your signature look"));
-      setCollectionsLayout(s.store_config?.collections_layout || "lookbook");
-      setHeroImagePosition(s.store_config?.hero_image_position || "center");
-      setHeroImageBehavior(s.store_config?.hero_image_behavior || "still");
-      if (s.store_config?.marquee_texts?.length) setMarqueeTexts(s.store_config.marquee_texts);
-      else if (s.store_config?.ticker_texts?.length) setMarqueeTexts(s.store_config.ticker_texts);
-      if (s.store_config?.marquee_speed) setMarqueeSpeed(s.store_config.marquee_speed);
-      else if (s.store_config?.ticker_speed) setMarqueeSpeed(s.store_config.ticker_speed);
-      if (s.store_config?.bg_color) setBgColor(s.store_config.bg_color);
-      if (s.store_config?.text_color) setTextColor(s.store_config.text_color);
-      if (s.store_config?.muted_color) setMutedColor(s.store_config.muted_color);
-      if (s.store_config?.hero_text_color) setHeroTextColor(s.store_config.hero_text_color);
-      if (s.store_config?.circle_text_color) setCircleTextColor(s.store_config.circle_text_color);
-      if (s.store_config?.products_text_color) setProdTextColor(s.store_config.products_text_color);
-      if (s.store_config?.about_text_color) setAboutTextColor(s.store_config.about_text_color);
-      if (s.store_config?.coll_text_color) setCollTextColor(s.store_config.coll_text_color);
-      if (s.store_config?.cta_text_color) setCtaTextColor(s.store_config.cta_text_color);
-      if (s.store_config?.trust_text_color) setTrustTextColor(s.store_config.trust_text_color);
-      if (s.store_config?.footer_text_color) setFooterTextColor(s.store_config.footer_text_color);
-      if (s.store_config?.footer_bg_color) setFooterBgColor(s.store_config.footer_bg_color);
-      if (s.store_config?.footer_muted_color) setFooterMutedColor(s.store_config.footer_muted_color);
-      if (s.store_config?.promo_bg_color) setPromoBgColor(s.store_config.promo_bg_color);
-      if (s.store_config?.promo_bg_style) setPromoBgStyle(s.store_config.promo_bg_style);
-      if (s.store_config?.promo_text_color) setPromoTextColor(s.store_config.promo_text_color);
-      if (s.store_config?.promo_timer_color) setPromoTimerColor(s.store_config.promo_timer_color);
-      if (s.store_config?.sale_pill_color) setSalePillColor(s.store_config.sale_pill_color);
-      if (s.store_config?.percent_off_pill_color) setPercentOffPillColor(s.store_config.percent_off_pill_color);
-      if (s.store_config?.show_percent_off_pill === false) setShowPercentOffPill(false);
-      if (s.store_config?.promise_label) setPromiseLabel(s.store_config.promise_label);
-      if (s.store_config?.promise_title) setPromiseTitle(s.store_config.promise_title);
-      if (s.store_config?.promise_items?.length) setPromiseItems(s.store_config.promise_items);
-      if (s.store_config?.promise_images) setPromiseImages(s.store_config.promise_images);
+      setProductsLabel(cfg?.products_label || (isSL ? "Browse" : "The Edit"));
+      setProductsHeading(cfg?.products_heading || (isSL ? "All Collections" : "Latest arrivals"));
+      if (cfg?.product_card_ratio) setProductCardRatio(cfg.product_card_ratio);
+      if (cfg?.about_label) setAboutLabel(cfg.about_label);
+      if (cfg?.about_title) setAboutTitle(cfg.about_title);
+      setCollLabel(cfg?.coll_label || (isSL ? "Curated For You" : "Featured Collections"));
+      setCollSubtitle(cfg?.coll_subtitle || (isSL ? "Shop by Collection" : "Find your signature look"));
+      setCollectionsLayout(cfg?.collections_layout || "lookbook");
+      setHeroImagePosition(cfg?.hero_image_position || "center");
+      setHeroImageBehavior(cfg?.hero_image_behavior || "still");
+      if (cfg?.marquee_texts?.length) setMarqueeTexts(cfg.marquee_texts);
+      else if (cfg?.ticker_texts?.length) setMarqueeTexts(cfg.ticker_texts);
+      if (cfg?.marquee_speed) setMarqueeSpeed(cfg.marquee_speed);
+      else if (cfg?.ticker_speed) setMarqueeSpeed(cfg.ticker_speed);
+      if (cfg?.bg_color) setBgColor(cfg.bg_color);
+      if (cfg?.text_color) setTextColor(cfg.text_color);
+      if (cfg?.muted_color) setMutedColor(cfg.muted_color);
+      if (cfg?.hero_text_color) setHeroTextColor(cfg.hero_text_color);
+      if (cfg?.circle_text_color) setCircleTextColor(cfg.circle_text_color);
+      if (cfg?.products_text_color) setProdTextColor(cfg.products_text_color);
+      if (cfg?.about_text_color) setAboutTextColor(cfg.about_text_color);
+      if (cfg?.coll_text_color) setCollTextColor(cfg.coll_text_color);
+      if (cfg?.cta_text_color) setCtaTextColor(cfg.cta_text_color);
+      if (cfg?.trust_text_color) setTrustTextColor(cfg.trust_text_color);
+      if (cfg?.footer_text_color) setFooterTextColor(cfg.footer_text_color);
+      if (cfg?.footer_bg_color) setFooterBgColor(cfg.footer_bg_color);
+      if (cfg?.footer_muted_color) setFooterMutedColor(cfg.footer_muted_color);
+      if (cfg?.promo_bg_color) setPromoBgColor(cfg.promo_bg_color);
+      if (cfg?.promo_bg_style) setPromoBgStyle(cfg.promo_bg_style);
+      if (cfg?.promo_text_color) setPromoTextColor(cfg.promo_text_color);
+      if (cfg?.promo_timer_color) setPromoTimerColor(cfg.promo_timer_color);
+      if (cfg?.sale_pill_color) setSalePillColor(cfg.sale_pill_color);
+      if (cfg?.percent_off_pill_color) setPercentOffPillColor(cfg.percent_off_pill_color);
+      if (cfg?.show_percent_off_pill === false) setShowPercentOffPill(false);
+      if (cfg?.promise_label) setPromiseLabel(cfg.promise_label);
+      if (cfg?.promise_title) setPromiseTitle(cfg.promise_title);
+      if (cfg?.promise_items?.length) setPromiseItems(cfg.promise_items);
+      if (cfg?.promise_images) setPromiseImages(cfg.promise_images);
       setLogoPreview(s.logo_url || "");
-      setHeroImagePreview(s.store_config?.hero_image || "");
-      setHeroImageUrl(s.store_config?.hero_image || "");
-      if (!s.store_config?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
+      setHeroImagePreview(cfg?.hero_image || "");
+      setHeroImageUrl(cfg?.hero_image || "");
+      if (!cfg?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
         setHeroImagePreview(s.banner_url);
         setHeroImageUrl(s.banner_url);
       }
       // Heirloom-specific hero fields
-      setHeroIndex(s.store_config?.hero_index ?? "");
-      setHeroLabel(s.store_config?.hero_label ?? "");
-      setHeroHeadline(s.store_config?.hero_headline ?? "");
-      setHeroBody(s.store_config?.hero_body ?? "");
-      setHeroCtaPrimary(s.store_config?.hero_cta_primary ?? "");
-      setHeroCtaSecondary(s.store_config?.hero_cta_secondary ?? "");
-      setHeroCtaPrimaryTarget(s.store_config?.hero_cta_primary_target ?? { type: "products" });
-      setHeroCtaSecondaryTarget(s.store_config?.hero_cta_secondary_target ?? { type: "none" });
+      setHeroIndex(cfg?.hero_index ?? "");
+      setHeroLabel(cfg?.hero_label ?? "");
+      setHeroHeadline(cfg?.hero_headline ?? "");
+      setHeroBody(cfg?.hero_body ?? "");
+      setHeroCtaPrimary(cfg?.hero_cta_primary ?? "");
+      setHeroCtaSecondary(cfg?.hero_cta_secondary ?? "");
+      setHeroCtaPrimaryTarget(cfg?.hero_cta_primary_target ?? { type: "products" });
+      setHeroCtaSecondaryTarget(cfg?.hero_cta_secondary_target ?? { type: "none" });
       // Heirloom footer
-      setFooterTagline(s.store_config?.footer_tagline ?? s.description ?? "");
-      setFooterCol1Label(s.store_config?.footer_col1_label ?? "Shop");
-      setShippingPolicy(s.store_config?.shipping_policy ?? "");
-      setReturnPolicy(s.store_config?.return_policy ?? "");
-      setHeroCountdownLabel(s.store_config?.hero_countdown_label ?? "");
-      setHeroCta(s.store_config?.hero_cta ?? "");
-      setHeroCtaTarget(s.store_config?.hero_cta_target ?? { type: "products" });
-      setHeroTitle(s.store_config?.hero_title !== undefined ? s.store_config.hero_title : (s.store_name || ""));
-      if (s.store_config?.font_pair) setFontPair(s.store_config.font_pair);
-      setHeaderTransparent(s.store_config?.header_transparent === true);
-      setHeaderTransparentColor(s.store_config?.header_transparent_color || "#ffffff");
-      setHeaderBorder(s.store_config?.header_border !== false);
-      if (s.store_config?.collection_images) setCollectionImages(s.store_config.collection_images);
-      if (s.store_config?.footer_about) setFooterAbout(s.store_config.footer_about);
-      setProductsCollapsed(s.store_config?.products_collapsed === true);
-      setCollectionsCollapsed(s.store_config?.collections_collapsed === true);
+      setFooterTagline(cfg?.footer_tagline ?? s.description ?? "");
+      setFooterCol1Label(cfg?.footer_col1_label ?? "Shop");
+      setShippingPolicy((s.store_config as any)?.shipping_policy ?? "");
+      setReturnPolicy((s.store_config as any)?.return_policy ?? "");
+      setHeroCountdownLabel(cfg?.hero_countdown_label ?? "");
+      setHeroCta(cfg?.hero_cta ?? "");
+      setHeroCtaTarget(cfg?.hero_cta_target ?? { type: "products" });
+      setHeroTitle(cfg?.hero_title !== undefined ? cfg.hero_title : (s.store_name || ""));
+      if (cfg?.font_pair) setFontPair(cfg.font_pair);
+      setHeaderTransparent(cfg?.header_transparent === true);
+      setHeaderTransparentColor(cfg?.header_transparent_color || "#ffffff");
+      setHeaderBorder(cfg?.header_border !== false);
+      if (cfg?.collection_images) setCollectionImages(cfg.collection_images);
+      if (cfg?.footer_about) setFooterAbout(cfg.footer_about);
+      setProductsCollapsed(cfg?.products_collapsed === true);
+      setCollectionsCollapsed(cfg?.collections_collapsed === true);
       if ((s.store_config as any)?.contact_email) setContactEmail((s.store_config as any).contact_email);
       if ((s.store_config as any)?.contact_phone) setContactPhone((s.store_config as any).contact_phone);
       if ((s.store_config as any)?.physical_address) setPhysicalAddress((s.store_config as any).physical_address);
       if ((s.store_config as any)?.operating_hours) setOperatingHours((s.store_config as any).operating_hours);
       if ((s.store_config as any)?.operating_hours_structured?.length) setHoursStructured((s.store_config as any).operating_hours_structured);
-      setPolicyItems(s.store_config?.policy_items || [
+      setPolicyItems(cfg?.policy_items || [
         { title: "Shipping", desc: "Standard delivery 3-5 business days nationwide. Free shipping on qualifying orders." },
         { title: "Returns", desc: "Return unworn items within 14 days for a full refund. Items must be in original condition." },
         { title: "Payment", desc: "Secure card payments and WhatsApp checkout for a personal experience." },
@@ -573,99 +580,115 @@ export default function StoreEditor() {
     }
     const heroUrl = heroImageUrl || heroImagePreview || undefined;
     const isBannerTemplate = seller.template === "soft-luxury" || seller.template === "glass-futuristic";
+
+    // Everything the editor manages, in one place. pickTemplateFields /
+    // omitTemplateFields (lib/template-config.ts) route each key to either
+    // this template's own slot in template_configs or the shared global
+    // store_config, so switching templates later can't clobber another
+    // template's saved look.
+    const editedFields: Record<string, any> = {
+      announcement,
+      show_announcement: showAnnouncement,
+      trust_items: trustItems,
+      hero_subtext: heroSubtext,
+      circle_title: circleTitle,
+      circle_subtitle: circleSubtitle,
+      products_label: productsLabel,
+      products_heading: productsHeading,
+      product_card_ratio: productCardRatio,
+      about_label: aboutLabel,
+      about_title: aboutTitle,
+      coll_label: collLabel,
+      coll_subtitle: collSubtitle,
+      collections_layout: collectionsLayout,
+      hero_image_position: heroImagePosition,
+      hero_image_behavior: heroImageBehavior,
+      marquee_texts: marqueeTexts,
+      marquee_speed: marqueeSpeed,
+      // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
+      ticker_texts: marqueeTexts,
+      ticker_speed: marqueeSpeed,
+      bg_color: bgColor,
+      text_color: textColor,
+      muted_color: mutedColor,
+      hero_text_color: heroTextColor,
+      circle_text_color: circleTextColor,
+      products_text_color: prodTextColor,
+      about_text_color: aboutTextColor,
+      coll_text_color: collTextColor,
+      cta_text_color: ctaTextColor,
+      trust_text_color: trustTextColor,
+      // These default to "" (no override) in state — save null rather than
+      // an empty string so the storefront's site-color fallback kicks in,
+      // and so a previously-saved value gets actively cleared once the
+      // seller resets it here (an empty string alone wouldn't overwrite
+      // a stale hex value already sitting in the config).
+      footer_text_color: footerTextColor || null,
+      footer_bg_color: footerBgColor || null,
+      footer_muted_color: footerMutedColor || null,
+      promo_bg_color: promoBgColor || null,
+      promo_bg_style: promoBgStyle,
+      promo_text_color: promoTextColor || null,
+      promo_timer_color: promoTimerColor || null,
+      sale_pill_color: salePillColor || null,
+      percent_off_pill_color: percentOffPillColor || null,
+      show_percent_off_pill: showPercentOffPill,
+      hero_image: heroImageUrl || heroImagePreview || undefined,
+      promise_label: promiseLabel,
+      promise_title: promiseTitle,
+      promise_items: promiseItems,
+      promise_images: promiseImages,
+      // Heirloom-specific hero fields. Empty strings are kept (sellers
+      // sometimes deliberately blank a field), but undefined would fall
+      // back to template defaults at render time.
+      hero_index: heroIndex,
+      hero_label: heroLabel,
+      hero_headline: heroHeadline,
+      hero_body: heroBody,
+      hero_cta_primary: heroCtaPrimary,
+      hero_cta_secondary: heroCtaSecondary,
+      hero_cta_primary_target: heroCtaPrimaryTarget,
+      hero_cta_secondary_target: heroCtaSecondaryTarget,
+      // Heirloom footer
+      footer_tagline: footerTagline,
+      footer_col1_label: footerCol1Label,
+      shipping_policy: shippingPolicy,
+      return_policy: returnPolicy,
+      hero_countdown_label: heroCountdownLabel,
+      hero_cta: heroCta || undefined,
+      hero_cta_target: heroCtaTarget,
+      hero_title: heroTitle,
+      font_pair: fontPair,
+      header_transparent: headerTransparent,
+      header_transparent_color: headerTransparentColor,
+      header_border: headerBorder,
+      collection_images: collectionImages,
+      footer_about: footerAbout || undefined,
+      products_collapsed: productsCollapsed || undefined,
+      collections_collapsed: collectionsCollapsed || undefined,
+      contact_email: contactEmail || undefined,
+      contact_phone: contactPhone || undefined,
+      physical_address: physicalAddress || undefined,
+      operating_hours: operatingHours || undefined,
+      operating_hours_structured: hoursStructured,
+      policy_items: policyItems,
+    };
+    const newStoreConfig = { ...omitTemplateFields(seller.store_config || {}), ...omitTemplateFields(editedFields) };
+    const newTemplateConfigs = {
+      ...(seller.template_configs || {}),
+      [seller.template]: {
+        ...(seller.template_configs?.[seller.template] || pickTemplateFields(seller.store_config || {})),
+        ...pickTemplateFields(editedFields),
+      },
+    };
     await supabase.from("sellers").update({
       tagline, description, logo_url: logoUrl,
       ...(isBannerTemplate && heroUrl ? { banner_url: heroUrl } : {}),
       collections: collOrder.length > 0 ? collOrder : seller.collections,
-      store_config: {
-        ...seller.store_config,
-        announcement,
-        show_announcement: showAnnouncement,
-        trust_items: trustItems,
-        hero_subtext: heroSubtext,
-        circle_title: circleTitle,
-        circle_subtitle: circleSubtitle,
-        products_label: productsLabel,
-        products_heading: productsHeading,
-        product_card_ratio: productCardRatio,
-        about_label: aboutLabel,
-        about_title: aboutTitle,
-        coll_label: collLabel,
-        coll_subtitle: collSubtitle,
-        collections_layout: collectionsLayout,
-        hero_image_position: heroImagePosition,
-        hero_image_behavior: heroImageBehavior,
-          marquee_texts: marqueeTexts,
-          marquee_speed: marqueeSpeed,
-          // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
-          ticker_texts: marqueeTexts,
-          ticker_speed: marqueeSpeed,
-          bg_color: bgColor,
-          text_color: textColor,
-          muted_color: mutedColor,
-          hero_text_color: heroTextColor,
-          circle_text_color: circleTextColor,
-          products_text_color: prodTextColor,
-          about_text_color: aboutTextColor,
-          coll_text_color: collTextColor,
-          cta_text_color: ctaTextColor,
-          trust_text_color: trustTextColor,
-          // These default to "" (no override) in state — save null rather than
-          // an empty string so the storefront's site-color fallback kicks in,
-          // and so a previously-saved value gets actively cleared once the
-          // seller resets it here (an empty string alone wouldn't overwrite
-          // a stale hex value already sitting in store_config).
-          footer_text_color: footerTextColor || null,
-          footer_bg_color: footerBgColor || null,
-          footer_muted_color: footerMutedColor || null,
-          promo_bg_color: promoBgColor || null,
-          promo_bg_style: promoBgStyle,
-          promo_text_color: promoTextColor || null,
-          promo_timer_color: promoTimerColor || null,
-          sale_pill_color: salePillColor || null,
-          percent_off_pill_color: percentOffPillColor || null,
-          show_percent_off_pill: showPercentOffPill,
-          hero_image: heroImageUrl || heroImagePreview || undefined,
-          promise_label: promiseLabel,
-          promise_title: promiseTitle,
-          promise_items: promiseItems,
-          promise_images: promiseImages,
-          // Heirloom-specific hero fields. Empty strings are kept (sellers
-          // sometimes deliberately blank a field), but undefined would fall
-          // back to template defaults at render time.
-          hero_index: heroIndex,
-          hero_label: heroLabel,
-          hero_headline: heroHeadline,
-          hero_body: heroBody,
-          hero_cta_primary: heroCtaPrimary,
-          hero_cta_secondary: heroCtaSecondary,
-          hero_cta_primary_target: heroCtaPrimaryTarget,
-          hero_cta_secondary_target: heroCtaSecondaryTarget,
-          // Heirloom footer
-          footer_tagline: footerTagline,
-          footer_col1_label: footerCol1Label,
-          shipping_policy: shippingPolicy,
-          return_policy: returnPolicy,
-          hero_countdown_label: heroCountdownLabel,
-          hero_cta: heroCta || undefined,
-          hero_cta_target: heroCtaTarget,
-          hero_title: heroTitle,
-          font_pair: fontPair,
-          header_transparent: headerTransparent,
-          header_transparent_color: headerTransparentColor,
-          header_border: headerBorder,
-          collection_images: collectionImages,
-          footer_about: footerAbout || undefined,
-          products_collapsed: productsCollapsed || undefined,
-          collections_collapsed: collectionsCollapsed || undefined,
-          contact_email: contactEmail || undefined,
-          contact_phone: contactPhone || undefined,
-          physical_address: physicalAddress || undefined,
-          operating_hours: operatingHours || undefined,
-          operating_hours_structured: hoursStructured,
-          policy_items: policyItems,
-      },
+      store_config: newStoreConfig,
+      template_configs: newTemplateConfigs,
     }).eq("id", seller.id);
+    setSeller({ ...seller, store_config: newStoreConfig, template_configs: newTemplateConfigs });
     setSaved(true);
     setSaving(false);
     setTimeout(() => setSaved(false), 3000);

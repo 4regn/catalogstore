@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams } from "next/navigation";
+import { effectiveStoreConfig } from "../../../lib/template-config";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -13,6 +14,7 @@ interface Seller {
   collections: string[];
   social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
   store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; announcement: string; about_image?: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[] };
+  template_configs?: Record<string, any>;
   checkout_config?: { whatsapp_checkout_enabled?: boolean };
   subscription_status?: string; trial_ends_at?: string; payfast_subscription_token?: string;
 }
@@ -168,7 +170,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName) && d.timeLeft);
 
   const loadStore = async () => {
-    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
+    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, subscription_status, trial_ends_at").eq("subdomain", slug).single();
     if (!sd) { setNotFound(true); setLoading(false); return; }
     setSeller(sd);
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", sd.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
@@ -187,7 +189,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
     if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
   };
 
-  const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "" };
+  const cfg = (seller ? effectiveStoreConfig(seller) : { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "" }) as Seller["store_config"];
   const social = seller?.social_links || {};
   const collections = seller?.collections || [];
   const marqueeTexts = cfg.marquee_texts?.length ? cfg.marquee_texts : [seller?.tagline || "Premium Collection", "Free Delivery on Qualifying Orders", "Shipped Nationwide"];

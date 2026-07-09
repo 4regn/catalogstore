@@ -5,6 +5,7 @@ import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
 import { isSubdomainHost } from "../../../../lib/store-url";
 import { getFontPair } from "../../../../lib/font-pairs";
+import { effectiveStoreConfig } from "../../../../lib/template-config";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -12,6 +13,7 @@ interface Seller {
   subscription_status?: string | null;
   trial_ends_at?: string | null;
   store_config?: any;
+  template_configs?: Record<string, any>;
   checkout_config: {
     eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
     eft_branch_code: string; eft_account_type: string; eft_instructions: string;
@@ -154,7 +156,7 @@ export default function CheckoutPage() {
   const accent = seller?.primary_color || "#9c7c62";
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
   const isHL = seller?.template === "heirloom";
-  const slFontPair = getFontPair(seller?.store_config?.font_pair);
+  const slFontPair = getFontPair(seller ? effectiveStoreConfig(seller).font_pair : undefined);
   const T = isGC ? {
     bg: "#030305", card: "#0b0b0f", text: "#f0f0f0", muted: "rgba(255,255,255,0.4)", border: "rgba(255,255,255,0.08)",
     inputBg: "rgba(255,255,255,0.04)", inputBorder: "rgba(255,255,255,0.1)", inputText: "#f0f0f0",

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FONT_PAIRS } from "../../../lib/font-pairs";
+import { effectiveStoreConfig } from "../../../lib/template-config";
 
 // Mirror HeirloomStore's collectionSlug. Inlined (not imported) so this
 // bundle doesn't have to drag in the whole other storefront component just
@@ -43,6 +44,7 @@ interface Seller {
   collections: string[];
   social_links: { whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string };
   store_config: { show_banner_text: boolean; show_marquee: boolean; show_collections: boolean; show_about: boolean; show_trust_bar: boolean; show_policies: boolean; announcement: string; about_image?: string; marquee_texts?: string[]; trust_items?: { icon: string; title: string; desc: string }[]; policy_items?: { title: string; desc: string }[]; footer_about?: string; shipping_policy?: string; return_policy?: string; contact_email?: string; contact_phone?: string; operating_hours?: string; physical_address?: string; show_address?: boolean; products_collapsed?: boolean };
+  template_configs?: Record<string, any>;
   checkout_config?: { whatsapp_checkout_enabled?: boolean; payfast_enabled?: boolean; eft_enabled?: boolean };
   subscription_status?: string; trial_ends_at?: string;
 }
@@ -304,7 +306,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   }, [isEditMode]);
 
   const loadStore = async () => {
-    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, checkout_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
+    const { data: sd } = await supabase.from("sellers").select("id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, trial_ends_at").eq("subdomain", slug).single();
     if (!sd) { setNotFound(true); setLoading(false); return; }
     setSeller(sd);
     const { data: pd } = await supabase.from("products").select("*").eq("seller_id", sd.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
@@ -344,7 +346,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const getProductPromo = (productId: string) => promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
   const getCollectionPromo = (colName: string) => promoDiscounts.find((d) => d.applies_to === "collection" && d.collection_names?.includes(colName));
 
-  const cfg = seller?.store_config || { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "" };
+  const cfg = (seller ? effectiveStoreConfig(seller) : { show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, announcement: "" }) as Seller["store_config"];
   const social = seller?.social_links || {};
   const accent = seller?.primary_color || "#9c7c62";
   const pageBg = liveBgColor ?? (cfg as any).bg_color ?? "#f6f3ef";

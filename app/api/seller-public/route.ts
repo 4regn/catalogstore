@@ -43,5 +43,6 @@ export async function GET(req: NextRequest) {
     checkout_config: safeCheckoutConfig,
     // Styling/content only (fonts, colors, copy) -- no secrets live here.
     store_config: seller.store_config || {},
+    template_configs: seller.template_configs || {},
   });
 }

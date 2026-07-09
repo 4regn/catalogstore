@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useTransition, type TouchEvent as ReactTou
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { effectiveStoreConfig } from "../../../lib/template-config";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -63,7 +64,7 @@ interface Seller {
   subdomain: string; template: string; primary_color: string;
   logo_url: string; tagline: string; description: string;
   collections: string[]; social_links: SocialLinks;
-  store_config: StoreConfig; subscription_status?: string;
+  store_config: StoreConfig; template_configs?: Record<string, any>; subscription_status?: string;
   checkout_config?: {
     eft_enabled?: boolean;
     payfast_enabled?: boolean;
@@ -448,7 +449,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   }
 
   /* ─── DISPLAY VALUES ─── */
-  const config = seller.store_config ?? {};
+  const config = effectiveStoreConfig(seller) as StoreConfig;
   const displayLogo = liveLogoUrl ?? seller.logo_url ?? null;
   const displayAnnouncement = liveAnnouncement ?? config.announcement ?? null;
   const displayHeroImage = liveHeroImage ?? config.hero_image ?? null;
