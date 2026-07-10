@@ -510,9 +510,10 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
   const displayTicker = (liveTicker && liveTicker.length ? liveTicker : (config.ticker_texts?.length ? config.ticker_texts : defaultTicker));
 
   const defaultTrustItems = [
-    { icon: "flower", title: "Fresh Daily", desc: "Handpicked roses, cut and arranged the same morning they ship." },
-    { icon: "hands", title: "Hand Arranged", desc: "Every bouquet is arranged by hand, with care, never mass-produced." },
-    { icon: "lock", title: "Secure Payment", desc: "100% safe checkout — card, EFT, or WhatsApp order." },
+    { icon: "flower", title: "Fresh Daily", desc: "Handpicked with care." },
+    { icon: "truck", title: "Same-Day Delivery", desc: "Order before 12pm." },
+    { icon: "shield", title: "Secure Payments", desc: "100% safe & secure." },
+    { icon: "check", title: "Satisfaction Guarantee", desc: "We're here to help." },
   ];
   const activeTrustItems = liveTrustItems ?? (config.trust_items?.length ? config.trust_items : defaultTrustItems);
 
@@ -568,17 +569,32 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
     return <>{icons[id] ?? <RoseIcon size={size} />}</>;
   };
 
+  // Understands the full canonical icon set offered by the dashboard's Trust
+  // Bar icon picker (app/dashboard/editor/page.tsx) -- that picker is shared
+  // across every template, so any id a seller picks must render correctly
+  // here too, not just the handful Rosefields introduced on its own.
   const TrustIcon = ({ id, size = 24, color = burgundy }: { id: string; size?: number; color?: string }) => {
     const st = { width: size, height: size, stroke: color, fill: "none", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
     const icons: Record<string, React.ReactNode> = {
       flower: <RoseIcon size={size} color={color} />,
       hands: <svg {...st} viewBox="0 0 24 24"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z" /><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z" /><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z" /></svg>,
-      lock: <svg {...st} viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M7 10V7a5 5 0 0 1 10 0v3" /></svg>,
-      truck: <svg {...st} viewBox="0 0 24 24"><rect x="1" y="4" width="14" height="12" rx="1" /><path d="M15 8h4l3 4v4h-7V8Z" /><circle cx="6" cy="18.5" r="2" /><circle cx="18" cy="18.5" r="2" /></svg>,
-      clock: <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>,
-      heart: <svg {...st} viewBox="0 0 24 24"><path d="M20.8 5.6a4.9 4.9 0 0 0-7-0l-1.8 1.8-1.8-1.8a4.9 4.9 0 0 0-7 7l1 1L12 22l7.8-8.4 1-1a4.9 4.9 0 0 0 0-7Z" /></svg>,
-      check: <svg {...st} viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>,
       note: <svg {...st} viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><polyline points="14 2 14 8 20 8" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="13" y2="17" /></svg>,
+      shield: <svg {...st} viewBox="0 0 24 24"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z" /></svg>,
+      star: <svg {...st} viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
+      diamond: <svg {...st} viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 13L2 9z" /><path d="M2 9h20" /><path d="M12 22V9" /><path d="M6 3l6 6 6-6" /></svg>,
+      truck: <svg {...st} viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v4h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>,
+      package: <svg {...st} viewBox="0 0 24 24"><path d="M21 10V7a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 7v10a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 17v-3" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>,
+      refresh: <svg {...st} viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 102.13-9.36L1 10" /></svg>,
+      lock: <svg {...st} viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>,
+      card: <svg {...st} viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>,
+      check: <svg {...st} viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>,
+      award: <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="8" r="6" /><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" /></svg>,
+      tag: <svg {...st} viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>,
+      globe: <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg>,
+      heart: <svg {...st} viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>,
+      clock: <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+      phone: <svg {...st} viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.5 19.79 19.79 0 01.04 4.72 2 2 0 012 2.5h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 10a16 16 0 006 6l.36-.36a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>,
+      map: <svg {...st} viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>,
     };
     return <>{icons[id] ?? <RoseIcon size={size} color={color} />}</>;
   };
@@ -615,11 +631,12 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
         .rf-qty-btn:hover{background:rgba(122,19,48,0.06)!important}
         .rf-chat-fab:hover{transform:scale(1.06)}
         .rf-quick-reply:hover{background:${burgundy}!important;color:#fff!important}
+        .rf-hero-frame{position:relative;width:100%;aspect-ratio:21/9;max-height:560px;min-height:380px;overflow:hidden;background:${paper}}
+        .rf-hero-scrim{background:linear-gradient(100deg, rgba(253,248,242,0.96) 0%, rgba(253,248,242,0.86) 30%, rgba(253,248,242,0.25) 60%, transparent 78%)}
         @media(max-width:900px){
-          .rf-hero-grid{grid-template-columns:1fr!important}
-          .rf-hero-copy{padding:56px 24px 40px!important;text-align:center!important}
-          .rf-hero-badges{justify-content:center!important}
-          .rf-hero-btns{justify-content:center!important}
+          .rf-hero-frame{aspect-ratio:4/5;max-height:620px;min-height:460px}
+          .rf-hero-copy{padding:28px 24px!important}
+          .rf-hero-trust-row{gap:10px!important;padding:28px 16px!important}
           .rf-coll-grid{grid-template-columns:1fr 1fr!important}
           .rf-coll-grid > *:nth-child(1){grid-column:span 2!important}
           .rf-prod-grid{grid-template-columns:1fr 1fr!important}
@@ -736,50 +753,46 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
 
         {/* ── HERO ── */}
         <EditSection id="hero">
-          <div className="rf-hero-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1.05fr", alignItems: "center", minHeight: "82vh", maxWidth: 1400, margin: "0 auto", gap: 40 }}>
-            <div className="rf-hero-copy" style={{ padding: "40px 40px 40px 40px" }}>
-              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(40px,5.4vw,68px)", fontWeight: 700, color: ink, lineHeight: 1.02, letterSpacing: "-0.01em", marginBottom: 6 }}>
+          <div className="rf-hero-frame">
+            {displayHeroImage ? (
+              <img src={displayHeroImage} alt="" onError={hideOnError} fetchPriority="high" style={{ position: "absolute" as const, inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <div style={{ position: "absolute" as const, inset: 0, background: `radial-gradient(circle at 70% 35%, rgba(201,169,97,0.22), transparent 60%), linear-gradient(150deg, #fbeef0, #f6e2e6)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <RoseIcon size={72} color="rgba(122,19,48,0.16)" />
+              </div>
+            )}
+            <div className="rf-hero-scrim" style={{ position: "absolute" as const, inset: 0 }} />
+            <div className="rf-hero-copy" style={{ position: "relative" as const, height: "100%", display: "flex", flexDirection: "column" as const, justifyContent: "center", maxWidth: 480, padding: "40px" }}>
+              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(34px,5.4vw,62px)", fontWeight: 700, color: ink, lineHeight: 1.02, letterSpacing: "-0.01em", marginBottom: 6 }}>
                 {displayHeroTitle || "Every Bouquet"}
               </h1>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontWeight: 500, fontSize: "clamp(36px,5vw,58px)", color: burgundy, lineHeight: 1.05, marginBottom: 22 }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontWeight: 500, fontSize: "clamp(28px,4.6vw,50px)", color: burgundy, lineHeight: 1.05, marginBottom: 18 }}>
                 {displayTagline || "Tells a Story"}
               </div>
-              <div style={{ width: 46, height: 2, background: gold, marginBottom: 22 }} />
-              <p style={{ fontSize: 15, lineHeight: 1.8, color: inkMuted, maxWidth: 420, marginBottom: 34 }}>
+              <div style={{ width: 46, height: 2, background: gold, marginBottom: 18 }} />
+              <p style={{ fontSize: 14.5, lineHeight: 1.75, color: inkMuted, maxWidth: 380, marginBottom: 28 }}>
                 {displayDescription || "Luxury roses handcrafted with love for life's most meaningful moments."}
               </p>
-              <div className="rf-hero-btns" style={{ display: "flex", gap: 14, flexWrap: "wrap" as const, marginBottom: 40 }}>
+              <div className="rf-hero-btns" style={{ display: "flex", gap: 12, flexWrap: "wrap" as const }}>
                 <button className="rf-btn-primary" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "15px 30px", background: burgundy, color: "#fff", border: "none", borderRadius: 100, fontSize: 12.5, fontWeight: 700, letterSpacing: "0.04em", cursor: "pointer", transition: "background 0.25s" }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "14px 28px", background: burgundy, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "pointer", transition: "background 0.25s" }}>
                   Shop Roses <span>›</span>
                 </button>
                 <button className="rf-btn-outline" onClick={() => setChatOpen(true)}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "15px 26px", background: "transparent", color: goldDeep, border: `1.5px solid ${gold}`, borderRadius: 100, fontSize: 12.5, fontWeight: 700, letterSpacing: "0.02em", cursor: "pointer", transition: "all 0.25s" }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "14px 24px", background: "rgba(253,248,242,0.6)", color: goldDeep, border: `1.5px solid ${gold}`, borderRadius: 100, fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", cursor: "pointer", transition: "all 0.25s" }}>
                   Same Day Delivery <RoseIcon size={13} color="currentColor" />
                 </button>
               </div>
-              <div className="rf-hero-badges" style={{ display: "flex", gap: 30, flexWrap: "wrap" as const }}>
-                {activeTrustItems.slice(0, 3).map((t, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                    <TrustIcon id={t.icon} size={19} />
-                    <div>
-                      <div style={{ fontSize: 11.5, fontWeight: 700, color: ink }}>{t.title}</div>
-                      <div style={{ fontSize: 10, color: inkFaint }}>{t.desc.split(".")[0]}</div>
-                    </div>
-                  </div>
-                ))}
+            </div>
+          </div>
+          <div className="rf-hero-trust-row" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, maxWidth: 1100, margin: "0 auto", padding: "36px 24px" }}>
+            {activeTrustItems.slice(0, 4).map((t, i) => (
+              <div key={i} style={{ textAlign: "center" as const }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><TrustIcon id={t.icon} size={26} /></div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase" as const, color: ink, marginBottom: 3 }}>{t.title}</div>
+                <div style={{ fontSize: 10.5, color: inkFaint }}>{t.desc.split(".")[0]}</div>
               </div>
-            </div>
-            <div style={{ position: "relative", height: "min(78vh, 640px)", borderRadius: 28, overflow: "hidden", background: card, margin: "0 40px 0 0" }}>
-              {displayHeroImage ? (
-                <img src={displayHeroImage} alt="" onError={hideOnError} fetchPriority="high" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <div style={{ width: "100%", height: "100%", background: `radial-gradient(circle at 35% 25%, rgba(201,169,97,0.22), transparent 60%), linear-gradient(150deg, #fbeef0, #f6e2e6)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <RoseIcon size={72} color="rgba(122,19,48,0.18)" />
-                </div>
-              )}
-              <div style={{ position: "absolute" as const, inset: 0, boxShadow: "inset 0 0 0 1px rgba(122,19,48,0.06)", borderRadius: 28 }} />
-            </div>
+            ))}
           </div>
         </EditSection>
 

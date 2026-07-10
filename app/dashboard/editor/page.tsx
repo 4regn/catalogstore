@@ -141,7 +141,7 @@ interface DayHours {
 
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
-  | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer"
+  | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -159,6 +159,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   cta:          { icon: "cta",          label: "Call to Action" },
   trust:        { icon: "trust",        label: "Trust Bar" },
   footer:       { icon: "footer",       label: "Footer" },
+  occasions:    { icon: "circle",       label: "Shop by Occasion" },
 };
 
 // Compact icon+label inline component for the chrome.
@@ -873,7 +874,7 @@ export default function StoreEditor() {
           {/* Panel header */}
           <div style={{ padding: "16px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-              {activeSection && (
+              {activeSection && SECTION_LABELS[activeSection] && (
                 <>
                   <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: "rgba(255,107,53,0.08)", color: "#ff6b35" }}>
                     <EditorIcon name={SECTION_LABELS[activeSection].icon} size={15} stroke={1.7} />
@@ -1299,6 +1300,64 @@ export default function StoreEditor() {
                       <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* HERO — Rosefields (hero_title + tagline + description) */}
+            {activeSection === "hero" && seller?.template === "rosefields" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Hero Image</label>
+                  <div onClick={() => heroImageRef.current?.click()}
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroImagePreview
+                      ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>
+                    }
+                  </div>
+                  <input ref={heroImageRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
+                      reader.readAsDataURL(f);
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_image_${Date.now()}.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                    }} style={{ display: "none" }} />
+                  {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>The bouquet photo behind your homepage hero. Sized to fit the photo — no cropping to a fixed height.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Hero Title</label>
+                  <input value={heroTitle} onChange={e => setHeroTitle(e.target.value)}
+                    placeholder="Every Bouquet"
+                    style={inputStyle} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 5 }}>The large headline. 2–4 words works best.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Script Tagline</label>
+                  <input value={tagline} onChange={e => setTagline(e.target.value)}
+                    placeholder="Tells a Story"
+                    style={inputStyle} />
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>The italic script line under the headline.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Description</label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)}
+                    rows={3} placeholder="Luxury roses handcrafted with love for life's most meaningful moments."
+                    style={{ ...inputStyle, resize: "vertical" }} />
+                </div>
+              </div>
+            )}
+
+            {/* SHOP BY OCCASION — Rosefields */}
+            {activeSection === "occasions" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 12, color: "rgba(245,245,245,0.6)", lineHeight: 1.6 }}>
+                  The occasion list (Anniversary, Birthday, Proposal, etc.) isn&apos;t editable yet — it&apos;s a fixed set for now. Each one scrolls a visitor to your products when tapped.
                 </div>
               </div>
             )}
