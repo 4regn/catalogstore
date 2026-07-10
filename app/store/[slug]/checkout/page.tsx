@@ -315,12 +315,19 @@ export default function CheckoutPage() {
       setOrderNumber(json.orderNumber);
       setOrderPlaced(true);
 
-      // Notify seller (non-blocking)
-      fetch("/api/notify-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
-      }).catch(() => {});
+      // Notify seller (non-blocking) -- but not for PayFast orders yet: this
+      // row is still payment_status "pending" and the customer hasn't even
+      // reached PayFast's page. A PayFast order only gets notified once the
+      // ITN webhook (app/api/payfast/notify) confirms payment actually went
+      // through, so the seller never gets a "New Order!" email for a payment
+      // that failed or was abandoned.
+      if (paymentMethod !== "payfast") {
+        fetch("/api/notify-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId }),
+        }).catch(() => {});
+      }
 
       if (paymentMethod === "payfast" && cc.payfast_enabled) {
         const pfRes = await fetch("/api/payfast-redirect", {

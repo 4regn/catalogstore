@@ -152,6 +152,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "error", reason: error.message }, { status: 500 });
     }
 
+    // Only now -- payment actually confirmed -- does the seller get the
+    // "New Order Received!" email. (For EFT/WhatsApp orders this happens
+    // synchronously at checkout instead, since there's no payment-gateway
+    // confirmation step to wait for.)
+    try {
+      await fetch(new URL("/api/notify-order", req.nextUrl.origin), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+    } catch (notifyErr) {
+      console.error("Failed to send order notification email:", notifyErr);
+    }
+
     return NextResponse.json({ status: "ok" });
   } catch (err) {
     console.error("PayFast notify error:", err);
