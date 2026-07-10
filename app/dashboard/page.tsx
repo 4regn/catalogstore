@@ -273,6 +273,7 @@ export default function Dashboard() {
   const [storeSaved, setStoreSaved] = useState(false);
   const [testCheckoutResult, setTestCheckoutResult] = useState<{ passed: boolean; issues: string[] } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [previewNonce, setPreviewNonce] = useState(() => Date.now());
   const [domainInput, setDomainInput] = useState("");
   const [domainStatus, setDomainStatus] = useState<{ domain: string; verified: boolean; misconfigured: boolean; requiredDnsRecords: { type: string; name: string; value: string }[] } | null>(null);
   const [domainLoading, setDomainLoading] = useState(false);
@@ -374,6 +375,7 @@ export default function Dashboard() {
   const revalidateMyStore = () => {
     const sub = seller?.subdomain;
     if (sub) void revalidateStore(sub).catch(() => {});
+    setPreviewNonce(Date.now());
   };
 
   const loadMoreOrders = async () => {
@@ -1071,6 +1073,7 @@ export default function Dashboard() {
   const heroLive = seller?.subscription_status === "active" || seller?.subscription_status === "trial";
   const heroDomainLabel = domainConnected && seller?.custom_domain ? seller.custom_domain : seller?.subdomain ? `${seller.subdomain}.catalogstore.co.za` : "";
   const heroStoreUrl = domainConnected && seller?.custom_domain ? `https://${seller.custom_domain}` : seller?.subdomain ? canonicalStoreUrl(seller.subdomain) : "";
+  const heroPreviewUrl = heroStoreUrl ? `${heroStoreUrl}?cs_preview=${previewNonce}` : "";
 
   const HeroCard = () => (
     <div className="hero-row" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginBottom: 24 }}>
@@ -1087,8 +1090,8 @@ export default function Dashboard() {
         </div>
         {heroStoreUrl ? (
           <div style={{ display: "flex", gap: 12 }}>
-            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={1280} deviceHeight={860} frameHeight={250} flexGrow={3} icon="desktop" label="Desktop View" sublabel="1440px and up" />
-            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={390} deviceHeight={840} frameHeight={250} flexGrow={1} icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
+            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={1280} deviceHeight={860} frameHeight={250} flexGrow={3} icon="desktop" label="Desktop View" sublabel="1440px and up" />
+            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={390} deviceHeight={840} frameHeight={250} flexGrow={1} icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
           </div>
         ) : (
           <div style={{ padding: "30px 20px", textAlign: "center" as const, color: "var(--muted-2)", fontSize: 12 }}>Your live store preview will appear here once your subdomain is set up.</div>
