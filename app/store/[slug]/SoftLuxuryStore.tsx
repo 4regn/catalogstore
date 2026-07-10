@@ -538,7 +538,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
   /* Edit mode section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
-    if (!isEditMode) return <>{children}</>;
+    // A `style` prop here can be layout-critical (e.g. the ticker's
+    // `overflow: hidden`), not just editor-preview chrome -- so it must
+    // still be applied on the live storefront, just without the hover/click
+    // affordances that only make sense inside the editor iframe.
+    if (!isEditMode) return style ? <div style={style}>{children}</div> : <>{children}</>;
     const isHovered = hoveredSection === id;
     return (
       <div

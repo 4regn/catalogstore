@@ -527,7 +527,11 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
 
   /* Edit mode: section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
-    if (!isEditMode) return <>{children}</>;
+    // A `style` prop here can be layout-critical, not just editor-preview
+    // chrome -- so it must still be applied on the live storefront, just
+    // without the hover/click affordances that only make sense inside the
+    // editor iframe. (See SoftLuxury/GlassChrome/Crown's ticker/hero bug.)
+    if (!isEditMode) return style ? <div style={style}>{children}</div> : <>{children}</>;
     const isHovered = hoveredSection === id;
     return (
       <div
