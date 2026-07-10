@@ -11,6 +11,13 @@ html {
   /* Use a true-black background so the dark surfaces don't flash white on
      initial paint before React mounts. */
   background-color: #030303;
+  /* Belt-and-suspenders: if any element on any page (a storefront ticker,
+     a wide image, a long product name, anything) ever overflows past the
+     viewport width, this stops the whole page from becoming horizontally
+     scrollable and exposing this dark background as a "void" alongside
+     the real content -- instead of relying on every individual component
+     to correctly contain its own overflow. */
+  overflow-x: hidden;
 }
 
 body {
