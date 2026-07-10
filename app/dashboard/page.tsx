@@ -70,7 +70,7 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
 // container while still loading at its true device width -- so the site's
 // own responsive breakpoints (desktop layout vs mobile layout) fire
 // correctly instead of just being squeezed into a narrow frame.
-function DevicePreviewFrame({ src, deviceWidth, deviceHeight, flexGrow, variant, icon, label, sublabel }: { src: string; deviceWidth: number; deviceHeight: number; flexGrow: number; variant: "desktop" | "mobile"; icon: DashIconName; label: string; sublabel: string }) {
+function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexGrow, variant, icon, label, sublabel }: { src: string; deviceWidth: number; deviceHeight: number; frameHeight: number; flexGrow: number; variant: "desktop" | "mobile"; icon: DashIconName; label: string; sublabel: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
   useEffect(() => {
@@ -82,12 +82,12 @@ function DevicePreviewFrame({ src, deviceWidth, deviceHeight, flexGrow, variant,
     ro.observe(el);
     return () => ro.disconnect();
   }, [deviceWidth]);
-  // No independent crop window -- the container's own height is derived
-  // from the live scale factor, so it always shows the full deviceHeight
-  // slice of the real page (header + hero) instead of an arbitrary,
-  // inconsistently-proportioned window into it.
+  // A fixed, non-scrolling crop window -- height never depends on the
+  // computed scale, so this stays a compact "screenshot" card at any
+  // container width instead of growing to the device's full height when
+  // scale approaches 1 (e.g. the mobile frame on an actual phone screen).
   const screen = (
-    <div ref={containerRef} style={{ width: "100%", height: scale > 0 ? deviceHeight * scale : deviceHeight * 0.25, overflow: "hidden", position: "relative" as const, background: "#fff" }}>
+    <div ref={containerRef} style={{ width: "100%", height: frameHeight, overflow: "hidden", position: "relative" as const, background: "#fff" }}>
       {scale > 0 && (
         <iframe src={src} title={label + " preview"} tabIndex={-1} loading="lazy" style={{ width: deviceWidth, height: deviceHeight, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" as const }} />
       )}
@@ -1114,8 +1114,8 @@ export default function Dashboard() {
         </div>
         {heroStoreUrl ? (
           <div className="device-preview-row" style={{ display: "flex", gap: 12 }}>
-            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={1280} deviceHeight={780} flexGrow={3} variant="desktop" icon="desktop" label="Desktop View" sublabel="1440px and up" />
-            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={390} deviceHeight={680} flexGrow={1} variant="mobile" icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
+            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={1280} deviceHeight={780} frameHeight={230} flexGrow={3} variant="desktop" icon="desktop" label="Desktop View" sublabel="1440px and up" />
+            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={390} deviceHeight={680} frameHeight={230} flexGrow={1} variant="mobile" icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
           </div>
         ) : (
           <div style={{ padding: "30px 20px", textAlign: "center" as const, color: "var(--muted-2)", fontSize: 12 }}>Your live store preview will appear here once your subdomain is set up.</div>
