@@ -70,60 +70,6 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
 // container while still loading at its true device width -- so the site's
 // own responsive breakpoints (desktop layout vs mobile layout) fire
 // correctly instead of just being squeezed into a narrow frame.
-function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexGrow, variant, icon, label, sublabel }: { src: string; deviceWidth: number; deviceHeight: number; frameHeight: number; flexGrow: number; variant: "desktop" | "mobile"; icon: DashIconName; label: string; sublabel: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const update = () => setScale(el.offsetWidth / deviceWidth);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [deviceWidth]);
-  // A fixed, non-scrolling crop window -- height never depends on the
-  // computed scale, so this stays a compact "screenshot" card at any
-  // container width instead of growing to the device's full height when
-  // scale approaches 1 (e.g. the mobile frame on an actual phone screen).
-  const screen = (
-    <div ref={containerRef} style={{ width: "100%", height: frameHeight, overflow: "hidden", position: "relative" as const, background: "#fff" }}>
-      {scale > 0 && (
-        <iframe src={src} title={label + " preview"} tabIndex={-1} loading="lazy" style={{ width: deviceWidth, height: deviceHeight, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" as const }} />
-      )}
-    </div>
-  );
-  return (
-    <div style={{ flex: flexGrow, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <span style={{ color: "var(--muted-2)", display: "flex", flexShrink: 0 }}><DashIcon name={icon} size={13} /></span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
-          <div style={{ fontSize: 9, color: "var(--muted-2)", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{sublabel}</div>
-        </div>
-      </div>
-      {variant === "mobile" ? (
-        <div style={{ background: "#0a0a0a", borderRadius: 22, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.15)" }}>
-          <div style={{ borderRadius: 15, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: "#fff" }}>
-              <span style={{ fontSize: 9, fontWeight: 800, color: "#000" }}>9:41</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <svg width="10" height="7" viewBox="0 0 16 12"><rect x="0" y="7" width="3" height="5" rx="0.5" fill="#000" /><rect x="4.5" y="4.5" width="3" height="7.5" rx="0.5" fill="#000" /><rect x="9" y="2" width="3" height="10" rx="0.5" fill="#000" /><rect x="13.5" y="0" width="3" height="12" rx="0.5" fill="#000" /></svg>
-                <svg width="16" height="8" viewBox="0 0 24 12"><rect x="0.5" y="0.5" width="20" height="11" rx="2.5" fill="none" stroke="#000" /><rect x="2" y="2" width="17" height="8" rx="1.2" fill="#000" /><rect x="21" y="4" width="2" height="4" rx="1" fill="#000" /></svg>
-              </div>
-            </div>
-            {screen}
-          </div>
-        </div>
-      ) : (
-        <div style={{ borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
-          {screen}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function formatRelativeTime(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -297,7 +243,6 @@ export default function Dashboard() {
   const [storeSaved, setStoreSaved] = useState(false);
   const [testCheckoutResult, setTestCheckoutResult] = useState<{ passed: boolean; issues: string[] } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [previewNonce, setPreviewNonce] = useState(() => Date.now());
   const [domainInput, setDomainInput] = useState("");
   const [domainStatus, setDomainStatus] = useState<{ domain: string; verified: boolean; misconfigured: boolean; requiredDnsRecords: { type: string; name: string; value: string }[] } | null>(null);
   const [domainLoading, setDomainLoading] = useState(false);
@@ -399,7 +344,6 @@ export default function Dashboard() {
   const revalidateMyStore = () => {
     const sub = seller?.subdomain;
     if (sub) void revalidateStore(sub).catch(() => {});
-    setPreviewNonce(Date.now());
   };
 
   const loadMoreOrders = async () => {
@@ -1097,29 +1041,28 @@ export default function Dashboard() {
   const heroLive = seller?.subscription_status === "active" || seller?.subscription_status === "trial";
   const heroDomainLabel = domainConnected && seller?.custom_domain ? seller.custom_domain : seller?.subdomain ? `${seller.subdomain}.catalogstore.co.za` : "";
   const heroStoreUrl = domainConnected && seller?.custom_domain ? `https://${seller.custom_domain}` : seller?.subdomain ? canonicalStoreUrl(seller.subdomain) : "";
-  const heroPreviewUrl = heroStoreUrl ? `${heroStoreUrl}?cs_preview=${previewNonce}` : "";
 
   const HeroCard = () => (
     <div className="hero-row" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginBottom: 24 }}>
-      <div style={{ borderRadius: 16, background: "var(--panel)", border: "1px solid var(--border)", padding: "16px 18px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, marginBottom: 14 }}>
-          <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
-            <span style={{ fontSize: 15, fontWeight: 900, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{heroDomainLabel || "Live Preview"}</span>
-            {heroLive && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, color: "#22c55e" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e" }} />Live</span>}
+      <div style={{ position: "relative" as const, borderRadius: 16, overflow: "hidden", background: "var(--panel)", border: "1px solid var(--border)", minHeight: 190, display: "flex", alignItems: "flex-end" }}>
+        {seller?.banner_url ? (
+          <img src={seller.banner_url} alt="" style={{ position: "absolute" as const, inset: 0, width: "100%", height: "100%", objectFit: "cover" as const }} />
+        ) : (
+          <div style={{ position: "absolute" as const, inset: 0, background: `linear-gradient(135deg, ${storeColor}33, ${storeColor}08)` }} />
+        )}
+        <div style={{ position: "absolute" as const, inset: 0, background: "linear-gradient(0deg, rgba(0,0,0,0.75), rgba(0,0,0,0.05) 65%)" }} />
+        <div style={{ position: "relative" as const, padding: "18px 20px", width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" as const }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" as const }}>
+              <span style={{ fontSize: 16, fontWeight: 900, color: "#fff", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{heroDomainLabel}</span>
+              {heroLive && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, color: "#4ade80" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80" }} />Live</span>}
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {heroStoreUrl && <a href={heroStoreUrl} target="_blank" style={{ padding: "9px 18px", background: G, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>Visit Store</a>}
-            <button onClick={() => { if (!heroStoreUrl) return; navigator.clipboard.writeText(heroStoreUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "9px 18px", background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
+            <button onClick={() => { if (!heroStoreUrl) return; navigator.clipboard.writeText(heroStoreUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "9px 18px", background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{linkCopied ? "Copied!" : "Copy Link"}</button>
           </div>
         </div>
-        {heroStoreUrl ? (
-          <div className="device-preview-row" style={{ display: "flex", gap: 12 }}>
-            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={1280} deviceHeight={780} frameHeight={230} flexGrow={3} variant="desktop" icon="desktop" label="Desktop View" sublabel="1440px and up" />
-            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={390} deviceHeight={680} frameHeight={230} flexGrow={1} variant="mobile" icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
-          </div>
-        ) : (
-          <div style={{ padding: "30px 20px", textAlign: "center" as const, color: "var(--muted-2)", fontSize: 12 }}>Your live store preview will appear here once your subdomain is set up.</div>
-        )}
       </div>
 
       {isFreePlan ? (
@@ -1158,7 +1101,7 @@ export default function Dashboard() {
         [data-theme="dark"] { ${themeVars("dark")} color-scheme: dark; }
         [data-theme="light"] { ${themeVars("light")} color-scheme: light; }
         @media (min-width: 769px) { .mobile-topbar { display: none !important; } .mobile-bottom-nav { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } .desktop-topbar { display: flex !important; } }
-        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .hero-row { grid-template-columns: 1fr !important; } .device-preview-row { flex-direction: column !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
+        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .hero-row { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
