@@ -70,7 +70,7 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
 // container while still loading at its true device width -- so the site's
 // own responsive breakpoints (desktop layout vs mobile layout) fire
 // correctly instead of just being squeezed into a narrow frame.
-function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexGrow, icon, label, sublabel }: { src: string; deviceWidth: number; deviceHeight: number; frameHeight: number; flexGrow: number; icon: DashIconName; label: string; sublabel: string }) {
+function DevicePreviewFrame({ src, deviceWidth, deviceHeight, flexGrow, variant, icon, label, sublabel }: { src: string; deviceWidth: number; deviceHeight: number; flexGrow: number; variant: "desktop" | "mobile"; icon: DashIconName; label: string; sublabel: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
   useEffect(() => {
@@ -82,6 +82,17 @@ function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexG
     ro.observe(el);
     return () => ro.disconnect();
   }, [deviceWidth]);
+  // No independent crop window -- the container's own height is derived
+  // from the live scale factor, so it always shows the full deviceHeight
+  // slice of the real page (header + hero) instead of an arbitrary,
+  // inconsistently-proportioned window into it.
+  const screen = (
+    <div ref={containerRef} style={{ width: "100%", height: scale > 0 ? deviceHeight * scale : deviceHeight * 0.25, overflow: "hidden", position: "relative" as const, background: "#fff" }}>
+      {scale > 0 && (
+        <iframe src={src} title={label + " preview"} tabIndex={-1} loading="lazy" style={{ width: deviceWidth, height: deviceHeight, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" as const }} />
+      )}
+    </div>
+  );
   return (
     <div style={{ flex: flexGrow, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
@@ -91,11 +102,24 @@ function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexG
           <div style={{ fontSize: 9, color: "var(--muted-2)", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{sublabel}</div>
         </div>
       </div>
-      <div ref={containerRef} style={{ width: "100%", height: frameHeight, overflow: "hidden", borderRadius: 12, border: "1px solid var(--border)", background: "var(--panel-2)", position: "relative" as const, boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
-        {scale > 0 && (
-          <iframe src={src} title={label + " preview"} tabIndex={-1} loading="lazy" style={{ width: deviceWidth, height: deviceHeight, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" as const }} />
-        )}
-      </div>
+      {variant === "mobile" ? (
+        <div style={{ background: "#0a0a0a", borderRadius: 22, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.15)" }}>
+          <div style={{ borderRadius: 15, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: "#fff" }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: "#000" }}>9:41</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <svg width="10" height="7" viewBox="0 0 16 12"><rect x="0" y="7" width="3" height="5" rx="0.5" fill="#000" /><rect x="4.5" y="4.5" width="3" height="7.5" rx="0.5" fill="#000" /><rect x="9" y="2" width="3" height="10" rx="0.5" fill="#000" /><rect x="13.5" y="0" width="3" height="12" rx="0.5" fill="#000" /></svg>
+                <svg width="16" height="8" viewBox="0 0 24 12"><rect x="0.5" y="0.5" width="20" height="11" rx="2.5" fill="none" stroke="#000" /><rect x="2" y="2" width="17" height="8" rx="1.2" fill="#000" /><rect x="21" y="4" width="2" height="4" rx="1" fill="#000" /></svg>
+              </div>
+            </div>
+            {screen}
+          </div>
+        </div>
+      ) : (
+        <div style={{ borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
+          {screen}
+        </div>
+      )}
     </div>
   );
 }
@@ -1090,8 +1114,8 @@ export default function Dashboard() {
         </div>
         {heroStoreUrl ? (
           <div className="device-preview-row" style={{ display: "flex", gap: 12 }}>
-            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={1280} deviceHeight={860} frameHeight={250} flexGrow={3} icon="desktop" label="Desktop View" sublabel="1440px and up" />
-            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={390} deviceHeight={840} frameHeight={250} flexGrow={1} icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
+            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={1280} deviceHeight={780} flexGrow={3} variant="desktop" icon="desktop" label="Desktop View" sublabel="1440px and up" />
+            <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={390} deviceHeight={680} flexGrow={1} variant="mobile" icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
           </div>
         ) : (
           <div style={{ padding: "30px 20px", textAlign: "center" as const, color: "var(--muted-2)", fontSize: 12 }}>Your live store preview will appear here once your subdomain is set up.</div>
