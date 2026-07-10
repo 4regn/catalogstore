@@ -156,6 +156,7 @@ export default function CheckoutPage() {
   const accent = seller?.primary_color || "#9c7c62";
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
   const isHL = seller?.template === "heirloom";
+  const isRF = seller?.template === "rosefields";
   const slFontPair = getFontPair(seller ? effectiveStoreConfig(seller).font_pair : undefined);
   const T = isGC ? {
     bg: "#030305", card: "#0b0b0f", text: "#f0f0f0", muted: "rgba(255,255,255,0.4)", border: "rgba(255,255,255,0.08)",
@@ -179,6 +180,18 @@ export default function CheckoutPage() {
     summaryBg: "#fff", summaryBorder: "#e0dbd5",
     badgeBg: "#111010", badgeText: "#fff",
     stickyBg: "rgba(255,255,255,0.95)", emptyImg: "#f2f0ed", payCardBg: "#fff",
+  } : isRF ? {
+    // Rosefields: warm cream paper + burgundy accents + gold hairlines,
+    // matching the storefront's Playfair Display / DM Sans pairing.
+    bg: "#faf5ee", card: "#fff", text: "#2b2320", muted: "rgba(43,35,32,0.6)", border: "rgba(122,19,48,0.12)",
+    inputBg: "#faf5ee", inputBorder: "rgba(122,19,48,0.12)", inputText: "#2b2320",
+    btnBg: "#7a1330", btnText: "#fff", btnRadius: "100px",
+    headFont: "'Playfair Display', serif", bodyFont: "'DM Sans', sans-serif",
+    selectBg: "rgba(122,19,48,0.05)", eftBg: "#faf5ee",
+    fonts: "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500&family=DM+Sans:wght@300;400;500;600;700&display=swap');",
+    summaryBg: "rgba(122,19,48,0.03)", summaryBorder: "rgba(122,19,48,0.1)",
+    badgeBg: "#7a1330", badgeText: "#fff",
+    stickyBg: "rgba(250,245,238,0.95)", emptyImg: "#f3d9de", payCardBg: "#fff",
   } : {
     bg: "#f6f3ef", card: "#fff", text: "#2a2a2e", muted: "#8a8690", border: "rgba(0,0,0,0.12)",
     inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: "#2a2a2e",

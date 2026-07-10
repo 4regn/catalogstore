@@ -12,6 +12,7 @@ const SoftLuxury  = dynamic(() => import("./SoftLuxuryStore"));
 const GlassChrome = dynamic(() => import("./GlassChromeStore"));
 const Crown       = dynamic(() => import("./CrownStore"));
 const Heirloom    = dynamic(() => import("./HeirloomStore"));
+const Rosefields  = dynamic(() => import("./RosefieldsStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
@@ -98,5 +99,6 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   if (tpl === "crown") return <Crown {...props} />;
   if (tpl === "glass-futuristic" || tpl === "glass-chrome") return <GlassChrome {...props} />;
   if (tpl === "heirloom") return <Heirloom {...props} />;
+  if (tpl === "rosefields") return <Rosefields {...props} />;
   return <SoftLuxury {...props} />;
 }

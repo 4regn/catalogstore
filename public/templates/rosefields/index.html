@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="/templates/rosefields/" />
+<title>Rosefields — Fresh Flowers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --burgundy:#7a1330; --burgundy-deep:#5c0e24; --gold:#c9a961; --gold-deep:#b0854a;
+    --cream:#fdf8f2; --paper:#faf5ee; --card:#ffffff; --ink:#2b2320;
+    --ink-muted:rgba(43,35,32,0.6); --ink-faint:rgba(43,35,32,0.38); --border:rgba(122,19,48,0.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  img{max-width:100%;display:block}
+  .rose{display:inline-flex}
+  .wrap{max-width:1300px;margin:0 auto;padding:0 40px}
+  .eyebrow{font-size:10.5px;letter-spacing:0.28em;text-transform:uppercase;color:var(--gold-deep);margin-bottom:12px;text-align:center}
+  .h2{font-family:'Playfair Display',serif;font-size:clamp(26px,3.4vw,38px);font-weight:600;text-align:center;margin-bottom:44px}
+  .petal-bg{background:radial-gradient(circle at 30% 20%, rgba(201,169,97,0.18), transparent 55%), linear-gradient(150deg,#fbeef0,#f6e2e6)}
+
+  /* announcement */
+  .announce{background:var(--burgundy);color:#fff;text-align:center;padding:9px 20px;font-size:11.5px;letter-spacing:0.03em;display:flex;align-items:center;justify-content:center;gap:10px}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:rgba(253,248,242,0.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:16px 40px;display:flex;align-items:center;justify-content:space-between}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-word{font-family:'Playfair Display',serif;font-size:21px;font-weight:700;color:var(--burgundy);line-height:1}
+  .logo-sub{font-size:8.5px;letter-spacing:0.28em;color:var(--gold);text-transform:uppercase}
+  .nav-links{display:flex;align-items:center;gap:34px}
+  .nav-links a{font-size:12.5px;font-weight:600;letter-spacing:0.04em;position:relative}
+  .nav-links a::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:1px;background:var(--burgundy);transform:scaleX(0);transition:transform .25s;transform-origin:left}
+  .nav-links a:hover::after{transform:scaleX(1)}
+  .nav-icons{display:flex;align-items:center;gap:18px}
+  @media(max-width:900px){.nav-links{display:none}}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1fr 1.05fr;align-items:center;min-height:82vh;gap:40px}
+  .hero-copy{padding:40px}
+  .hero h1{font-family:'Playfair Display',serif;font-size:clamp(40px,5.4vw,66px);font-weight:700;line-height:1.02;letter-spacing:-0.01em;margin-bottom:6px}
+  .hero .script{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:500;font-size:clamp(34px,4.8vw,54px);color:var(--burgundy);line-height:1.05;margin-bottom:22px}
+  .rule{width:46px;height:2px;background:var(--gold);margin-bottom:22px}
+  .hero p{font-size:15px;line-height:1.8;color:var(--ink-muted);max-width:420px;margin-bottom:34px}
+  .btn-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:40px}
+  .btn-primary{display:inline-flex;align-items:center;gap:10px;padding:15px 30px;background:var(--burgundy);color:#fff;border-radius:100px;font-size:12.5px;font-weight:700;letter-spacing:0.04em;border:none;cursor:pointer}
+  .btn-outline{display:inline-flex;align-items:center;gap:10px;padding:15px 26px;background:transparent;color:var(--gold-deep);border:1.5px solid var(--gold);border-radius:100px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .badges{display:flex;gap:30px;flex-wrap:wrap}
+  .badge{display:flex;align-items:center;gap:9px}
+  .badge b{display:block;font-size:11.5px;font-weight:700}
+  .badge span{font-size:10px;color:var(--ink-faint)}
+  .hero-art{position:relative;height:min(78vh,640px);border-radius:28px;overflow:hidden;margin-right:40px}
+  @media(max-width:900px){.hero{grid-template-columns:1fr}.hero-copy{text-align:center;padding:48px 24px}.btn-row,.badges{justify-content:center}.hero-art{margin:0 24px 40px;height:340px}}
+
+  /* collections */
+  .coll-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .coll-card{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:4/3;cursor:pointer}
+  .coll-card.big{grid-column:span 1;aspect-ratio:16/10}
+  .coll-card .fill{position:absolute;inset:0}
+  .coll-card .fade{position:absolute;inset:0;background:linear-gradient(0deg,rgba(30,10,16,0.62) 0%,rgba(30,10,16,0.05) 55%)}
+  .coll-label{position:absolute;left:20px;bottom:18px;color:#fff}
+  .coll-label b{font-family:'Playfair Display',serif;font-size:19px;display:block;margin-bottom:8px}
+  .coll-label span{font-size:10.5px;font-weight:700;letter-spacing:0.06em;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.4);padding:6px 14px;border-radius:100px}
+  @media(max-width:900px){.coll-grid{grid-template-columns:1fr 1fr}.coll-card.big{grid-column:span 2}}
+  @media(max-width:560px){.coll-grid{grid-template-columns:1fr}.coll-card.big{grid-column:span 1}}
+
+  /* products */
+  .prod-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+  .prod-card{background:var(--card);border-radius:16px;overflow:hidden;border:1px solid var(--border);cursor:pointer;transition:transform .3s,box-shadow .3s}
+  .prod-card:hover{transform:translateY(-3px);box-shadow:0 18px 40px rgba(122,19,48,0.12)}
+  .prod-img{position:relative;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center}
+  .badge-pill{position:absolute;top:12px;font-size:9.5px;font-weight:700;letter-spacing:0.04em;padding:4px 10px;border-radius:100px;color:#fff}
+  .prod-info{padding:16px}
+  .prod-name{font-size:13.5px;font-weight:600;margin-bottom:3px}
+  .prod-cat{font-size:10.5px;color:var(--ink-faint);margin-bottom:10px}
+  .prod-price-row{display:flex;align-items:center;justify-content:space-between}
+  .prod-price{font-size:15.5px;font-weight:700;color:var(--burgundy)}
+  .add-fab{width:30px;height:30px;border-radius:50%;background:var(--burgundy);color:#fff;display:flex;align-items:center;justify-content:center;border:none}
+  @media(max-width:900px){.prod-grid{grid-template-columns:1fr 1fr}}
+
+  /* occasions */
+  .occ-row{display:flex;justify-content:center;gap:40px;flex-wrap:wrap}
+  .occ{display:flex;flex-direction:column;align-items:center;gap:12px;width:96px;cursor:pointer}
+  .occ-circle{width:68px;height:68px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all .25s}
+  .occ:hover .occ-circle{border-color:var(--burgundy);background:rgba(122,19,48,0.06)}
+  .occ span{font-size:11px;font-weight:600;letter-spacing:0.04em}
+
+  /* trust */
+  .trust-wrap{position:relative;padding:90px 0;overflow:hidden}
+  .trust-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;position:relative}
+  .trust-item{text-align:center}
+  .trust-icon{width:48px;height:48px;border-radius:50%;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+  .trust-item b{display:block;font-size:13.5px;margin-bottom:6px}
+  .trust-item p{font-size:11.5px;color:var(--ink-muted);line-height:1.6;max-width:220px;margin:0 auto}
+  @media(max-width:900px){.trust-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.trust-grid{grid-template-columns:1fr}}
+
+  /* footer */
+  footer{background:#2b0e18;color:rgba(253,248,242,0.75);padding:64px 40px 28px}
+  .footer-grid{max-width:1300px;margin:0 auto;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
+  .footer-grid h4{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:16px;font-weight:700}
+  .footer-grid a,.footer-grid div.row{display:block;font-size:12.5px;padding:5px 0}
+  .footer-bottom{max-width:1300px;margin:0 auto;padding-top:22px;border-top:1px solid rgba(253,248,242,0.12);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:11px}
+  @media(max-width:900px){.footer-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.footer-grid{grid-template-columns:1fr}}
+
+  /* chat */
+  .chat-fab{position:fixed;bottom:26px;right:26px;width:54px;height:54px;border-radius:50%;background:var(--burgundy);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(122,19,48,0.35);border:none;cursor:pointer;z-index:80}
+</style>
+</head>
+<body>
+
+  <div class="announce"><span id="announceText">Fresh Flowers Handcrafted Daily</span></div>
+
+  <nav>
+    <div class="logo">
+      <svg class="rose" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="4.2"/><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0"/><path d="M9 12.5C7 14 6 16.5 6 19.5"/><path d="M15 12.5c2 1.5 3 4 3 7"/><path d="M12 13v8.5"/></svg>
+      <div><div class="logo-word">ROSEFIELDS</div><div class="logo-sub">Fresh Flowers</div></div>
+    </div>
+    <div class="nav-links">
+      <a href="#">Home</a><a href="#collections">Collections</a><a href="#occasions">Occasions</a><a href="#about">About Us</a><a href="#">Contact</a>
+    </div>
+    <div class="nav-icons">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Every Bouquet</h1>
+      <div class="script">Tells a Story</div>
+      <div class="rule"></div>
+      <p>Luxury roses handcrafted with love for life's most meaningful moments.</p>
+      <div class="btn-row">
+        <button class="btn-primary">Shop Roses ›</button>
+        <button class="btn-outline">Same Day Delivery</button>
+      </div>
+      <div class="badges">
+        <div class="badge"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><circle cx="12" cy="9" r="4.2"/><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0"/><path d="M9 12.5C7 14 6 16.5 6 19.5"/><path d="M15 12.5c2 1.5 3 4 3 7"/><path d="M12 13v8.5"/></svg><div><b>Fresh Daily</b><span>Handpicked roses</span></div></div>
+        <div class="badge"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z"/><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z"/><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z"/></svg><div><b>Hand Arranged</b><span>With care & love</span></div></div>
+        <div class="badge"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg><div><b>Secure Payment</b><span>100% safe checkout</span></div></div>
+      </div>
+    </div>
+    <div class="hero-art petal-bg">
+      <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="rgba(122,19,48,0.16)" stroke-width="1" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"><circle cx="12" cy="9" r="4.2"/><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0"/><path d="M9 12.5C7 14 6 16.5 6 19.5"/><path d="M15 12.5c2 1.5 3 4 3 7"/><path d="M12 13v8.5"/></svg>
+    </div>
+  </section>
+
+  <section class="wrap" id="collections" style="padding:90px 0 70px">
+    <div class="eyebrow">Explore Our Collections</div>
+    <div class="h2">Timeless roses for every emotion and every moment.</div>
+    <div class="coll-grid">
+      <div class="coll-card big" style="grid-column:1/3"><div class="fill" style="background:linear-gradient(160deg,#7a1330,#9c2c4a)"></div><div class="fade"></div><div class="coll-label"><b>RED ROSES</b><span>SHOP NOW ›</span></div></div>
+      <div class="coll-card"><div class="fill" style="background:linear-gradient(160deg,#f3ece1,#e8ddcf)"></div><div class="fade"></div><div class="coll-label"><b>WHITE ROSES</b><span>SHOP NOW ›</span></div></div>
+      <div class="coll-card"><div class="fill" style="background:linear-gradient(160deg,#c9a961,#b0854a)"></div><div class="fade"></div><div class="coll-label"><b>LUXURY BOUQUETS</b><span>SHOP NOW ›</span></div></div>
+      <div class="coll-card"><div class="fill" style="background:linear-gradient(160deg,#f7f4ee,#e9e2d3)"></div><div class="fade"></div><div class="coll-label"><b>BABY'S BREATH</b><span>SHOP NOW ›</span></div></div>
+      <div class="coll-card"><div class="fill" style="background:linear-gradient(160deg,#e39aad,#c96e88)"></div><div class="fade"></div><div class="coll-label"><b>MIXED ROSES</b><span>SHOP NOW ›</span></div></div>
+    </div>
+  </section>
+
+  <section class="wrap" style="padding:20px 0 90px">
+    <div class="eyebrow">Featured Bouquets</div>
+    <div class="h2">Loved by our customers</div>
+    <div class="prod-grid" id="prodGrid"></div>
+  </section>
+
+  <section class="wrap" id="occasions" style="padding:20px 0 90px;text-align:center">
+    <div class="eyebrow">Shop by Occasion</div>
+    <div class="h2">Flowers for every moment</div>
+    <div class="occ-row">
+      <div class="occ"><div class="occ-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><circle cx="12" cy="15" r="6"/><path d="M9 9l3-6 3 6"/></svg></div><span>ANNIVERSARY</span></div>
+      <div class="occ"><div class="occ-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><path d="M4 21v-8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8"/><path d="M2 21h20"/><path d="M4 16h16"/></svg></div><span>BIRTHDAY</span></div>
+      <div class="occ"><div class="occ-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><circle cx="12" cy="14" r="5.5"/><path d="M8.5 8.5 12 3l3.5 5.5"/></svg></div><span>PROPOSAL</span></div>
+      <div class="occ"><div class="occ-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z"/><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z"/><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z"/></svg></div><span>I'M SORRY</span></div>
+      <div class="occ"><div class="occ-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><circle cx="12" cy="9" r="4.2"/><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0"/><path d="M9 12.5C7 14 6 16.5 6 19.5"/><path d="M15 12.5c2 1.5 3 4 3 7"/><path d="M12 13v8.5"/></svg></div><span>JUST BECAUSE</span></div>
+      <div class="occ"><div class="occ-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z"/><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z"/><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z"/><circle cx="12" cy="12" r="1.6" fill="#7a1330" stroke="none"/></svg></div><span>NEW BABY</span></div>
+    </div>
+  </section>
+
+  <section class="trust-wrap petal-bg">
+    <div class="wrap">
+      <div class="h2">Why Choose Rosefields?</div>
+      <div class="trust-grid">
+        <div class="trust-item"><div class="trust-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><circle cx="12" cy="9" r="4.2"/><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0"/><path d="M9 12.5C7 14 6 16.5 6 19.5"/><path d="M15 12.5c2 1.5 3 4 3 7"/><path d="M12 13v8.5"/></svg></div><b>Fresh Every Morning</b><p>Roses cut and prepped fresh each day for maximum vase life.</p></div>
+        <div class="trust-item"><div class="trust-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z"/><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z"/><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z"/></svg></div><b>Expertly Arranged</b><p>Arranged by professional florists trained in classic technique.</p></div>
+        <div class="trust-item"><div class="trust-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><rect x="1" y="4" width="14" height="12" rx="1"/><path d="M15 8h4l3 4v4h-7V8Z"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="18.5" r="2"/></svg></div><b>Same Day Delivery</b><p>Order before 2PM for same-day delivery. Free shipping over R800.</p></div>
+        <div class="trust-item"><div class="trust-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7a1330" stroke-width="1.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/></svg></div><b>Custom Message</b><p>Add a personal message card to any bouquet, free of charge.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" id="about" style="padding:90px 0;text-align:center">
+    <div class="eyebrow">Our Story</div>
+    <h2 style="font-family:'Playfair Display',serif;font-size:clamp(26px,3.6vw,40px);font-weight:600;max-width:680px;margin:0 auto 20px">Every stem, chosen with care</h2>
+    <p style="font-size:14.5px;line-height:2;color:var(--ink-muted);max-width:680px;margin:0 auto">Rosefields handpicks fresh roses every morning and arranges each bouquet by hand — never mass-produced, always made to feel personal.</p>
+  </section>
+
+  <footer>
+    <div class="footer-grid">
+      <div>
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c9a961" stroke-width="1.4"><circle cx="12" cy="9" r="4.2"/><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0"/><path d="M9 12.5C7 14 6 16.5 6 19.5"/><path d="M15 12.5c2 1.5 3 4 3 7"/><path d="M12 13v8.5"/></svg>
+          <span style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#fdf8f2">ROSEFIELDS</span>
+        </div>
+        <div style="font-size:12.5px;line-height:1.9;max-width:240px">Luxury roses handcrafted with love in Durban.</div>
+      </div>
+      <div><h4>Quick Links</h4><a href="#">Home</a><a href="#collections">Collections</a><a href="#occasions">Occasions</a><a href="#about">About Us</a></div>
+      <div><h4>Help & Info</h4><div class="row">Delivery Information</div><div class="row">Ordering & Payment</div><div class="row">Returns & Refunds</div><div class="row">FAQs</div></div>
+      <div><h4>Contact Us</h4><div class="row">082 766 8867</div><div class="row">hello@rosefields.co.za</div><div class="row">Shop 14, 300 Smith Street, Durban CBD</div><div class="row">Mon – Sun: 8AM – 6PM</div></div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Rosefields Fresh Flowers. All Rights Reserved.</span>
+      <a href="https://catalogstore.co.za" style="color:#c9a961">Powered by CatalogStore</a>
+    </div>
+  </footer>
+
+  <button class="chat-fab" aria-label="Chat"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg></button>
+
+<script>
+  var products = [
+    { name: "20 White Roses & Baby's Breath", cat: "White Roses", price: 400, bg: "linear-gradient(160deg,#f3ece1,#e8ddcf)", badge: null },
+    { name: "20 Red Roses & Baby's Breath", cat: "Red Roses", price: 340, bg: "linear-gradient(160deg,#7a1330,#9c2c4a)", badge: { text: "BEST SELLER", bg: "#c9a961" } },
+    { name: "50 Red Roses & Baby's Breath", cat: "Luxury Bouquets", price: 850, bg: "linear-gradient(160deg,#9c2c4a,#7a1330)", badge: { text: "−15%", bg: "#7a1330" } },
+    { name: "100 Red Roses & Baby's Breath", cat: "Luxury Bouquets", price: 1700, bg: "linear-gradient(160deg,#c9a961,#b0854a)", badge: null }
+  ];
+  var grid = document.getElementById("prodGrid");
+  products.forEach(function (p) {
+    var el = document.createElement("div");
+    el.className = "prod-card";
+    el.innerHTML =
+      '<div class="prod-img" style="background:' + p.bg + '">' +
+      (p.badge ? '<span class="badge-pill" style="' + (p.badge.text.indexOf("BEST") === 0 ? "right" : "left") + ':12px;background:' + p.badge.bg + '">' + p.badge.text + '</span>' : '') +
+      '</div>' +
+      '<div class="prod-info"><div class="prod-name">' + p.name + '</div><div class="prod-cat">' + p.cat + '</div>' +
+      '<div class="prod-price-row"><span class="prod-price">R' + p.price.toLocaleString() + '</span><button class="add-fab">+</button></div></div>';
+    grid.appendChild(el);
+  });
+
+  var messages = ["Fresh Flowers Handcrafted Daily", "Same Day Delivery in Durban CBD", "Order Before 2PM"];
+  var idx = 0;
+  setInterval(function () {
+    idx = (idx + 1) % messages.length;
+    document.getElementById("announceText").textContent = messages[idx];
+  }, 3200);
+</script>
+</body>
+</html>

@@ -167,6 +167,7 @@ const TEMPLATES = [
   { id: "glass-futuristic", name: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents", colors: { bg: "#030305", card: "#0b0b0f", text: "#f0f0f0" } },
   { id: "crown", name: "Crown", desc: "Dark luxury hair store — gold accents, editorial typography", colors: { bg: "#0a0908", card: "#1a1816", text: "#f0e6d3" } },
   { id: "heirloom", name: "Heirloom", desc: "Editorial archive — italic serifs, hairline grids, drop pacing", colors: { bg: "#ffffff", card: "#f2f0ed", text: "#111010" } },
+  { id: "rosefields", name: "Rosefields", desc: "Luxury florist storefront — burgundy, cream & gold", colors: { bg: "#faf5ee", card: "#ffffff", text: "#2b2320" } },
 ];
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
@@ -835,7 +836,7 @@ export default function Dashboard() {
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
     ? { products: 15, images: 5, collections: 10, templates: 1 }
-    : { products: 100, images: 20, collections: 10, templates: 4 };
+    : { products: 100, images: 20, collections: 10, templates: 5 };
   const activeProductCount = products.filter((p) => p.status !== "trashed").length;
   const canAddProduct = activeProductCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
@@ -1985,7 +1986,7 @@ export default function Dashboard() {
                 <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
                     {TEMPLATES.map((t, ti) => {
-                      const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html" } as Record<string, string>)[t.id];
+                      const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html" } as Record<string, string>)[t.id];
                       const locked = isFreePlan && t.id !== "soft-luxury";
                       return (
                         <button key={t.id} onClick={async () => {
@@ -2396,7 +2397,7 @@ export default function Dashboard() {
       </div>
 
       {expandedTemplateId && (() => {
-        const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html" } as Record<string, string>)[expandedTemplateId];
+        const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html" } as Record<string, string>)[expandedTemplateId];
         const t = TEMPLATES.find((x) => x.id === expandedTemplateId);
         return (
           <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20, gap: 16 }}>
