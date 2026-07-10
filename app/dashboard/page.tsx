@@ -1089,7 +1089,7 @@ export default function Dashboard() {
           </div>
         </div>
         {heroStoreUrl ? (
-          <div style={{ display: "flex", gap: 12 }}>
+          <div className="device-preview-row" style={{ display: "flex", gap: 12 }}>
             <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={1280} deviceHeight={860} frameHeight={250} flexGrow={3} icon="desktop" label="Desktop View" sublabel="1440px and up" />
             <DevicePreviewFrame src={heroPreviewUrl} deviceWidth={390} deviceHeight={840} frameHeight={250} flexGrow={1} icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
           </div>
@@ -1134,7 +1134,7 @@ export default function Dashboard() {
         [data-theme="dark"] { ${themeVars("dark")} color-scheme: dark; }
         [data-theme="light"] { ${themeVars("light")} color-scheme: light; }
         @media (min-width: 769px) { .mobile-topbar { display: none !important; } .mobile-bottom-nav { display: none !important; } .sidebar-overlay { display: none !important; } .sidebar { transform: translateX(0) !important; } .main-content { margin-left: 260px !important; } .desktop-topbar { display: flex !important; } }
-        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .hero-row { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
+        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .hero-row { grid-template-columns: 1fr !important; } .device-preview-row { flex-direction: column !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
