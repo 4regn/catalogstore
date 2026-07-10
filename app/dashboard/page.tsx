@@ -20,7 +20,7 @@ type DashIconName =
   | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
   | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
   | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
-  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu" | "crown" | "affiliate" | "megaphone" | "lock";
+  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu" | "crown" | "affiliate" | "megaphone" | "lock" | "desktop" | "mobile-device";
 
 function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
@@ -61,6 +61,8 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
     case "affiliate": return <svg {...c}><circle cx="7" cy="7" r="3"/><circle cx="14" cy="13" r="3"/><path d="m8.8 8.8 4.4 2.4"/></svg>;
     case "megaphone": return <svg {...c}><path d="M3 8v4l5 1V7L3 8Z"/><path d="M8 7l8-3.5v13L8 13"/><path d="M5.5 13 6 17h2l-.3-3.5"/></svg>;
     case "lock": return <svg {...c}><rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M6.5 9V6a3.5 3.5 0 0 1 7 0v3"/></svg>;
+    case "desktop": return <svg {...c}><rect x="2" y="3.5" width="16" height="10.5" rx="1.2"/><path d="M7 17h6"/><path d="M10 14v3"/></svg>;
+    case "mobile-device": return <svg {...c}><rect x="6" y="2" width="8" height="16" rx="1.5"/><path d="M9 15.3h2"/></svg>;
   }
 }
 
@@ -68,7 +70,7 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
 // container while still loading at its true device width -- so the site's
 // own responsive breakpoints (desktop layout vs mobile layout) fire
 // correctly instead of just being squeezed into a narrow frame.
-function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexGrow, label }: { src: string; deviceWidth: number; deviceHeight: number; frameHeight: number; flexGrow: number; label: string }) {
+function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexGrow, icon, label, sublabel }: { src: string; deviceWidth: number; deviceHeight: number; frameHeight: number; flexGrow: number; icon: DashIconName; label: string; sublabel: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
   useEffect(() => {
@@ -82,12 +84,18 @@ function DevicePreviewFrame({ src, deviceWidth, deviceHeight, frameHeight, flexG
   }, [deviceWidth]);
   return (
     <div style={{ flex: flexGrow, minWidth: 0 }}>
-      <div ref={containerRef} style={{ width: "100%", height: frameHeight, overflow: "hidden", borderRadius: 12, border: "1px solid var(--border)", background: "var(--panel-2)", position: "relative" as const }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <span style={{ color: "var(--muted-2)", display: "flex", flexShrink: 0 }}><DashIcon name={icon} size={13} /></span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+          <div style={{ fontSize: 9, color: "var(--muted-2)", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{sublabel}</div>
+        </div>
+      </div>
+      <div ref={containerRef} style={{ width: "100%", height: frameHeight, overflow: "hidden", borderRadius: 12, border: "1px solid var(--border)", background: "var(--panel-2)", position: "relative" as const, boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}>
         {scale > 0 && (
           <iframe src={src} title={label + " preview"} tabIndex={-1} loading="lazy" style={{ width: deviceWidth, height: deviceHeight, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" as const }} />
         )}
       </div>
-      <div style={{ fontSize: 10, color: "var(--muted-2)", textAlign: "center" as const, marginTop: 6, textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>{label}</div>
     </div>
   );
 }
@@ -1079,8 +1087,8 @@ export default function Dashboard() {
         </div>
         {heroStoreUrl ? (
           <div style={{ display: "flex", gap: 12 }}>
-            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={1280} deviceHeight={800} frameHeight={210} flexGrow={3} label="Desktop" />
-            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={390} deviceHeight={780} frameHeight={210} flexGrow={1} label="Mobile" />
+            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={1280} deviceHeight={860} frameHeight={250} flexGrow={3} icon="desktop" label="Desktop View" sublabel="1440px and up" />
+            <DevicePreviewFrame src={heroStoreUrl} deviceWidth={390} deviceHeight={840} frameHeight={250} flexGrow={1} icon="mobile-device" label="Mobile View" sublabel="375px – 767px" />
           </div>
         ) : (
           <div style={{ padding: "30px 20px", textAlign: "center" as const, color: "var(--muted-2)", fontSize: 12 }}>Your live store preview will appear here once your subdomain is set up.</div>
