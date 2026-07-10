@@ -785,6 +785,9 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
               </div>
             </div>
           </div>
+        </EditSection>
+
+        <EditSection id="trust">
           <div className="rf-hero-trust-row" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, maxWidth: 1100, margin: "0 auto", padding: "36px 24px" }}>
             {activeTrustItems.slice(0, 4).map((t, i) => (
               <div key={i} style={{ textAlign: "center" as const }}>
@@ -924,7 +927,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
 
         {/* ── WHY CHOOSE US ── */}
         {config.show_trust_bar !== false && (
-          <EditSection id="trust">
+          <EditSection id="policies">
             <section style={{ position: "relative", padding: "90px 40px", overflow: "hidden" }}>
               <div style={{ position: "absolute" as const, inset: 0, background: displayHeroImage ? `linear-gradient(100deg, rgba(253,248,242,0.97) 0%, rgba(253,248,242,0.86) 55%, rgba(253,248,242,0.7) 100%), url(${displayHeroImage}) center/cover` : `linear-gradient(120deg, #fbeef0, #f6e2e6)` }} />
               <div style={{ position: "relative" as const, maxWidth: 1300, margin: "0 auto" }}>
