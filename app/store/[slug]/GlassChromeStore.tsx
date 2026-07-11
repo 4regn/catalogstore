@@ -80,6 +80,8 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const [livePolicyItems, setLivePolicyItems]   = useState<{ title: string; desc: string }[] | null>(null);
   const [liveAboutImage, setLiveAboutImage]     = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
+  const [liveShowMarquee, setLiveShowMarquee]         = useState<boolean | null>(null);
+  const [liveShowCollections, setLiveShowCollections] = useState<boolean | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
@@ -133,6 +135,8 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
       if (e.data.policyItems  !== undefined) setLivePolicyItems(e.data.policyItems);
       if (e.data.aboutImage   !== undefined) setLiveAboutImage(e.data.aboutImage || null);
       if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
+      if (e.data.showMarquee     !== undefined) setLiveShowMarquee(e.data.showMarquee);
+      if (e.data.showCollections !== undefined) setLiveShowCollections(e.data.showCollections);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -311,6 +315,8 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const displayTagline     = liveTagline     ?? seller?.tagline     ?? "";
   const displayDescription = liveDescription ?? seller?.description ?? "";
   const displayAnnouncement = liveAnnouncement ?? cfg.announcement ?? "";
+  const showMarquee = liveShowMarquee ?? cfg.show_marquee !== false;
+  const showCollections = liveShowCollections ?? cfg.show_collections !== false;
   const displayTrustItems  = liveTrustItems  ?? trustItems;
   const displayLogoUrl     = liveLogoUrl     ?? seller?.logo_url    ?? "";
 
@@ -441,7 +447,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         )}
 
         {/* MARQUEE */}
-        {cfg.show_marquee && (
+        {showMarquee && (
           <EditSection id="ticker" style={{ borderBottom: "1px solid " + PB, overflow: "hidden", padding: "12px 0", background: "#0b0b0f" }}>
             <div style={{ display: "flex", whiteSpace: "nowrap", animation: "ticker 28s linear infinite" }}>
               {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
@@ -479,7 +485,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         </EditSection>
 
         {/* COLLECTIONS */}
-        {cfg.show_collections && collections.length > 0 && (
+        {showCollections && collections.length > 0 && (
           <EditSection id="collections">
           <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
             <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 10 }}>/ 01</p>

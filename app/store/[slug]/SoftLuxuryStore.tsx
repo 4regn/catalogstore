@@ -161,6 +161,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveHeroLayout, setLiveHeroLayout]               = useState<string | null>(null);
   const [liveHeroTextPosition, setLiveHeroTextPosition]   = useState<string | null>(null);
   const [liveHeroImageFade, setLiveHeroImageFade]         = useState<boolean | null>(null);
+  const [liveShowMarquee, setLiveShowMarquee]             = useState<boolean | null>(null);
+  const [liveShowCollections, setLiveShowCollections]     = useState<boolean | null>(null);
   const [liveHeroButtonStyle, setLiveHeroButtonStyle]     = useState<string | null>(null);
   const [liveHeroButtonColor, setLiveHeroButtonColor]     = useState<string | null>(null);
   const [liveHeroButtonSize, setLiveHeroButtonSize]       = useState<string | null>(null);
@@ -296,6 +298,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.heroLayout !== undefined) setLiveHeroLayout(e.data.heroLayout);
       if (e.data.heroTextPosition !== undefined) setLiveHeroTextPosition(e.data.heroTextPosition);
       if (e.data.heroImageFade !== undefined) setLiveHeroImageFade(e.data.heroImageFade);
+      if (e.data.showMarquee !== undefined) setLiveShowMarquee(e.data.showMarquee);
+      if (e.data.showCollections !== undefined) setLiveShowCollections(e.data.showCollections);
       if (e.data.heroButtonStyle !== undefined) setLiveHeroButtonStyle(e.data.heroButtonStyle);
       if (e.data.heroButtonColor !== undefined) setLiveHeroButtonColor(e.data.heroButtonColor);
       if (e.data.heroButtonSize !== undefined) setLiveHeroButtonSize(e.data.heroButtonSize);
@@ -577,6 +581,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   };
   const heroTextPositionStyle = HERO_TEXT_POSITION_STYLES[heroTextPosition] || HERO_TEXT_POSITION_STYLES["bottom-left"];
   const heroImageFade = liveHeroImageFade ?? (cfg as any).hero_image_fade !== false;
+  const showMarquee = liveShowMarquee ?? cfg.show_marquee !== false;
+  const showCollections = liveShowCollections ?? cfg.show_collections !== false;
   const heroHeadlineStyle = liveHeroHeadlineStyle ?? (cfg as any).hero_headline_style ?? "elegant";
   const heroHeadlineStyleProps: React.CSSProperties = heroHeadlineStyle === "bold"
     ? { fontWeight: 700, fontStyle: "normal", letterSpacing: "-0.01em", lineHeight: 1.05 }
@@ -883,7 +889,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* MARQUEE */}
-        {cfg.show_marquee && marqueeTexts.length > 0 && (
+        {showMarquee && marqueeTexts.length > 0 && (
           <EditSection id="ticker" style={{ overflow: "hidden", whiteSpace: "nowrap", padding: "14px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
             <div style={{ display: "inline-flex", animation: `mscroll ${marqueeSpeed}s linear infinite` }}>
               {[...Array(2)].map((_, r) => marqueeTexts.map((txt, i) => (
@@ -896,7 +902,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         )}
 
         {/* COLLECTIONS */}
-        {collections.length > 0 && (
+        {showCollections && collections.length > 0 && (
           <EditSection id="collections">
           <section style={{ padding: "80px 24px", maxWidth: 1600, margin: "0 auto" }}>
             {(() => { const collCollapsed = (cfg as any).collections_collapsed === true; return (

@@ -85,6 +85,8 @@ interface Seller {
     hero_layout?: string;
     hero_text_position?: string;
     hero_image_fade?: boolean;
+    show_marquee?: boolean;
+    show_collections?: boolean;
     hero_button_style?: string;
     hero_button_color?: string;
     hero_button_size?: string;
@@ -293,6 +295,8 @@ export default function StoreEditor() {
   const [heroLayout, setHeroLayout] = useState("default");
   const [heroTextPosition, setHeroTextPosition] = useState("bottom-left");
   const [heroImageFade, setHeroImageFade] = useState(true);
+  const [showMarquee, setShowMarquee] = useState(true);
+  const [showCollections, setShowCollections] = useState(true);
   const [heroButtonStyle, setHeroButtonStyle] = useState("outline");
   const [heroButtonColor, setHeroButtonColor] = useState("");
   const [heroButtonSize, setHeroButtonSize] = useState("md");
@@ -408,6 +412,8 @@ export default function StoreEditor() {
         setHeroTextPosition((cfg as any)?.hero_text_position || (rawLayout === "centered" ? "center" : "bottom-left"));
       }
       setHeroImageFade((cfg as any)?.hero_image_fade !== false);
+      setShowMarquee(cfg?.show_marquee !== false);
+      setShowCollections(cfg?.show_collections !== false);
       setHeroButtonStyle((cfg as any)?.hero_button_style || "outline");
       setHeroButtonColor((cfg as any)?.hero_button_color || "");
       setHeroButtonSize((cfg as any)?.hero_button_size || "md");
@@ -536,6 +542,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroLayout }); }, [heroLayout]);
   useEffect(() => { postUpdate({ heroTextPosition }); }, [heroTextPosition]);
   useEffect(() => { postUpdate({ heroImageFade }); }, [heroImageFade]);
+  useEffect(() => { postUpdate({ showMarquee }); }, [showMarquee]);
+  useEffect(() => { postUpdate({ showCollections }); }, [showCollections]);
   useEffect(() => { postUpdate({ heroButtonStyle }); }, [heroButtonStyle]);
   useEffect(() => { postUpdate({ heroButtonColor }); }, [heroButtonColor]);
   useEffect(() => { postUpdate({ heroButtonSize }); }, [heroButtonSize]);
@@ -657,6 +665,8 @@ export default function StoreEditor() {
       hero_layout: heroLayout,
       hero_text_position: heroTextPosition,
       hero_image_fade: heroImageFade,
+      show_marquee: showMarquee,
+      show_collections: showCollections,
       hero_button_style: heroButtonStyle,
       hero_button_color: heroButtonColor,
       hero_button_size: heroButtonSize,
@@ -1550,6 +1560,12 @@ export default function StoreEditor() {
             {/* PROMO TICKER */}
             {activeSection === "ticker" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {(seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={showMarquee} onChange={e => setShowMarquee(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Show this section on my store</span>
+                  </label>
+                )}
                 <label style={labelStyle}>Marquee Messages</label>
                 <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>These scroll across the top of your store. One message per line.</div>
                 {marqueeTexts.map((txt, i) => (
@@ -1715,6 +1731,12 @@ export default function StoreEditor() {
             {/* COLLECTIONS */}
             {activeSection === "collections" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {(seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={showCollections} onChange={e => setShowCollections(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                    <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Show this section on my store</span>
+                  </label>
+                )}
                 <label style={labelStyle}>Section Label</label>
                 <input value={collLabel} onChange={e => setCollLabel(e.target.value)}
                   placeholder="e.g. Featured Collections"
