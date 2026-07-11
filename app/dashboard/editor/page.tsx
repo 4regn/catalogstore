@@ -88,6 +88,9 @@ interface Seller {
     hero_button_color?: string;
     hero_button_size?: string;
     hero_headline_style?: string;
+    header_style?: string;
+    show_newsletter?: boolean;
+    newsletter_label?: string;
     ticker_texts?: string[];
     ticker_speed?: number;
     marquee_texts?: string[];
@@ -291,6 +294,9 @@ export default function StoreEditor() {
   const [heroButtonColor, setHeroButtonColor] = useState("");
   const [heroButtonSize, setHeroButtonSize] = useState("md");
   const [heroHeadlineStyle, setHeroHeadlineStyle] = useState("elegant");
+  const [headerStyle, setHeaderStyle] = useState("icons");
+  const [showNewsletter, setShowNewsletter] = useState(false);
+  const [newsletterLabel, setNewsletterLabel] = useState("Newsletter");
   const heroImageRef = useRef<HTMLInputElement>(null);
   const policiesBgRef = useRef<HTMLInputElement>(null);
 
@@ -401,6 +407,9 @@ export default function StoreEditor() {
       setHeroButtonColor((cfg as any)?.hero_button_color || "");
       setHeroButtonSize((cfg as any)?.hero_button_size || "md");
       setHeroHeadlineStyle((cfg as any)?.hero_headline_style || "elegant");
+      setHeaderStyle((cfg as any)?.header_style || "icons");
+      setShowNewsletter((cfg as any)?.show_newsletter === true);
+      setNewsletterLabel((cfg as any)?.newsletter_label || "Newsletter");
       if (cfg?.marquee_texts?.length) setMarqueeTexts(cfg.marquee_texts);
       else if (cfg?.ticker_texts?.length) setMarqueeTexts(cfg.ticker_texts);
       if (cfg?.marquee_speed) setMarqueeSpeed(cfg.marquee_speed);
@@ -524,6 +533,9 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroButtonColor }); }, [heroButtonColor]);
   useEffect(() => { postUpdate({ heroButtonSize }); }, [heroButtonSize]);
   useEffect(() => { postUpdate({ heroHeadlineStyle }); }, [heroHeadlineStyle]);
+  useEffect(() => { postUpdate({ headerStyle }); }, [headerStyle]);
+  useEffect(() => { postUpdate({ showNewsletter }); }, [showNewsletter]);
+  useEffect(() => { postUpdate({ newsletterLabel }); }, [newsletterLabel]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
@@ -640,6 +652,9 @@ export default function StoreEditor() {
       hero_button_color: heroButtonColor,
       hero_button_size: heroButtonSize,
       hero_headline_style: heroHeadlineStyle,
+      header_style: headerStyle,
+      show_newsletter: showNewsletter,
+      newsletter_label: newsletterLabel,
       marquee_texts: marqueeTexts,
       marquee_speed: marqueeSpeed,
       // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
@@ -1289,6 +1304,20 @@ export default function StoreEditor() {
                 <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Header</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {seller?.template === "soft-luxury" && (
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>Nav Style</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                          {([{ v: "icons", l: "Icons", d: "Menu, search, cart icons" }, { v: "minimal", l: "Minimal Text", d: "SEARCH · BAG · MENU" }] as const).map(o => (
+                            <button key={o.v} onClick={() => setHeaderStyle(o.v)}
+                              style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 10px", borderRadius: 6, border: headerStyle === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: headerStyle === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: headerStyle === o.v ? "#fff" : "rgba(245,245,245,0.5)", cursor: "pointer", transition: "all 0.2s", textAlign: "left" }}>
+                              <span style={{ fontSize: 11, fontWeight: headerStyle === o.v ? 600 : 400 }}>{o.l}</span>
+                              <span style={{ fontSize: 9, color: "rgba(245,245,245,0.35)" }}>{o.d}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
                       <input type="checkbox" checked={headerTransparent} onChange={e => setHeaderTransparent(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
                       <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Transparent header (overlays hero image)</span>
@@ -1314,6 +1343,25 @@ export default function StoreEditor() {
                     </label>
                   </div>
                 </div>
+
+                {seller?.template === "soft-luxury" && (
+                  <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Newsletter</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                        <input type="checkbox" checked={showNewsletter} onChange={e => setShowNewsletter(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                        <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Show email signup at the bottom of the hero</span>
+                      </label>
+                      {showNewsletter && (
+                        <div>
+                          <input value={newsletterLabel} onChange={e => setNewsletterLabel(e.target.value)}
+                            placeholder="Newsletter" style={inputStyle} />
+                          <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", marginTop: 6 }}>Subscribers are saved and viewable from your seller account — ask support to pull the list for now.</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {seller?.template === "soft-luxury" && (
                   <div style={{ marginTop: 6, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>

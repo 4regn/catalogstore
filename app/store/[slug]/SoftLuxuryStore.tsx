@@ -164,6 +164,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveHeroButtonColor, setLiveHeroButtonColor]     = useState<string | null>(null);
   const [liveHeroButtonSize, setLiveHeroButtonSize]       = useState<string | null>(null);
   const [liveHeroHeadlineStyle, setLiveHeroHeadlineStyle] = useState<string | null>(null);
+  const [liveHeaderStyle, setLiveHeaderStyle]             = useState<string | null>(null);
+  const [liveShowNewsletter, setLiveShowNewsletter]       = useState<boolean | null>(null);
+  const [liveNewsletterLabel, setLiveNewsletterLabel]     = useState<string | null>(null);
+  const [newsletterEmail, setNewsletterEmail]             = useState("");
+  const [newsletterStatus, setNewsletterStatus]           = useState<"idle" | "loading" | "done" | "error">("idle");
   const [liveProductsLabel, setLiveProductsLabel]         = useState<string | null>(null);
   const [liveProductsHeading, setLiveProductsHeading]     = useState<string | null>(null);
   const [liveProductCardRatio, setLiveProductCardRatio]   = useState<string | null>(null);
@@ -292,6 +297,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.heroButtonColor !== undefined) setLiveHeroButtonColor(e.data.heroButtonColor);
       if (e.data.heroButtonSize !== undefined) setLiveHeroButtonSize(e.data.heroButtonSize);
       if (e.data.heroHeadlineStyle !== undefined) setLiveHeroHeadlineStyle(e.data.heroHeadlineStyle);
+      if (e.data.headerStyle !== undefined) setLiveHeaderStyle(e.data.headerStyle);
+      if (e.data.showNewsletter !== undefined) setLiveShowNewsletter(e.data.showNewsletter);
+      if (e.data.newsletterLabel !== undefined) setLiveNewsletterLabel(e.data.newsletterLabel);
       if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
       if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
@@ -570,6 +578,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     : { fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", lineHeight: 1 };
   const heroDescriptionSize = heroHeadlineStyle === "bold" ? 13.5 : 15;
   const heroDescriptionLineHeight = heroHeadlineStyle === "bold" ? 1.6 : 1.7;
+  const headerStyle = liveHeaderStyle ?? (cfg as any).header_style ?? "icons";
+  const showNewsletter = liveShowNewsletter ?? (cfg as any).show_newsletter === true;
+  const newsletterLabel = liveNewsletterLabel ?? (cfg as any).newsletter_label ?? "Newsletter";
   const showAnnouncement = liveShowAnnouncement ?? (cfg as any).show_announcement === true;
   const displayAnnouncement = showAnnouncement ? (liveAnnouncement ?? cfg.announcement ?? "") : "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
@@ -659,6 +670,32 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
         {/* HEADER */}
         <header style={{ position: headerTransparent ? "absolute" : "sticky", top: 0, left: 0, right: 0, zIndex: 100, background: headerTransparent ? "transparent" : pageBg + "eb", backdropFilter: headerTransparent ? "none" : "blur(24px)", WebkitBackdropFilter: headerTransparent ? "none" : "blur(24px)", borderBottom: headerBorder && !headerTransparent ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
+          {headerStyle === "minimal" ? (
+            <div className="sl-header-grid" style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 72 }}>
+              {isEditMode ? (
+                <div style={{ cursor: "pointer" }} onClick={() => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*")}>
+                  {displayLogoUrl ? (
+                    <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 36, maxWidth: 160, objectFit: "contain" }} />
+                  ) : (
+                    <div style={{ fontFamily: "inherit", fontSize: 18, fontWeight: 700, letterSpacing: "0.02em", color: headerOverImage ? headerColor : pageText }}>{seller?.store_name}</div>
+                  )}
+                </div>
+              ) : (
+                <a href={sp()} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                  {displayLogoUrl ? (
+                    <img className="sl-logo-img" src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 36, maxWidth: 160, objectFit: "contain" }} />
+                  ) : (
+                    <div style={{ fontFamily: "inherit", fontSize: 18, fontWeight: 700, letterSpacing: "0.02em", color: headerOverImage ? headerColor : pageText }}>{seller?.store_name}</div>
+                  )}
+                </a>
+              )}
+              <div className="sl-hnav-minimal" style={{ display: "flex", alignItems: "center", gap: 28 }}>
+                <button onClick={() => setShowSearch(true)} style={{ background: "none", border: "none", padding: 0, color: headerOverImage ? headerColor : pageText, fontSize: 13, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Search</button>
+                <button onClick={() => setShowCart(true)} style={{ background: "none", border: "none", padding: 0, color: headerOverImage ? headerColor : pageText, fontSize: 13, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Bag{cartCount > 0 ? ` (${cartCount})` : ""}</button>
+                <button className="sl-hamburger-text" onClick={() => setMobileMenuOpen(true)} style={{ background: "none", border: "none", padding: 0, color: headerOverImage ? headerColor : pageText, fontSize: 13, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}>Menu</button>
+              </div>
+            </div>
+          ) : (
           <div className="sl-header-grid" style={{ maxWidth: 1340, margin: "0 auto", padding: "0 32px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: 72 }}>
             <div className="sl-hnav" style={{ display: "flex", alignItems: "center", gap: 32 }}>
               <button className="sl-hamburger" onClick={() => setMobileMenuOpen(true)} aria-label="Menu"
@@ -706,6 +743,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               </button>
             </div>
           </div>
+          )}
         </header>
 
         {/* MOBILE MENU DRAWER -- opens from the hamburger button. Lists
@@ -799,6 +837,42 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             )}
           </section>
         </EditSection>
+
+        {/* NEWSLETTER */}
+        {showNewsletter && (
+          <EditSection id="hero">
+            <section style={{ padding: "40px 32px 32px", maxWidth: 1340, margin: "0 auto" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: pageText, marginBottom: 12, fontFamily: "inherit" }}>{newsletterLabel}</div>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!seller?.id || !newsletterEmail || newsletterStatus === "loading") return;
+                  setNewsletterStatus("loading");
+                  try {
+                    const res = await fetch("/api/newsletter/subscribe", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ sellerId: seller.id, email: newsletterEmail }),
+                    });
+                    setNewsletterStatus(res.ok ? "done" : "error");
+                  } catch {
+                    setNewsletterStatus("error");
+                  }
+                }}
+                style={{ display: "flex", maxWidth: 460, border: `1px solid ${pageText}`, }}>
+                <input type="email" required value={newsletterEmail} onChange={e => setNewsletterEmail(e.target.value)}
+                  placeholder="E-mail *" disabled={newsletterStatus === "done"}
+                  style={{ flex: 1, minWidth: 0, padding: "13px 14px", background: "transparent", border: "none", outline: "none", color: pageText, fontFamily: "'Courier New', monospace", fontSize: 13, letterSpacing: "0.04em" }} />
+                <button type="submit" disabled={newsletterStatus === "loading" || newsletterStatus === "done"}
+                  style={{ padding: "13px 22px", background: pageText, color: pageBg, border: "none", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: newsletterStatus === "done" ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                  {newsletterStatus === "loading" ? "..." : newsletterStatus === "done" ? "Subscribed ✓" : "Sign Up"}
+                </button>
+              </form>
+              {newsletterStatus === "error" && <div style={{ fontSize: 11, color: "#c0392b", marginTop: 8 }}>Something went wrong — please try again.</div>}
+              <p style={{ fontSize: 11, color: pageMuted, marginTop: 16, fontFamily: "'Courier New', monospace", letterSpacing: "0.02em" }}>&copy;{new Date().getFullYear()} {(seller?.store_name || "").toUpperCase()}</p>
+            </section>
+          </EditSection>
+        )}
 
         {/* MARQUEE */}
         {cfg.show_marquee && marqueeTexts.length > 0 && (
