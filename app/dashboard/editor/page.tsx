@@ -82,6 +82,7 @@ interface Seller {
     collections_layout?: string;
     hero_image_position?: string;
     hero_image_behavior?: string;
+    hero_layout?: string;
     ticker_texts?: string[];
     ticker_speed?: number;
     marquee_texts?: string[];
@@ -279,6 +280,7 @@ export default function StoreEditor() {
   const [heroImageUrl, setHeroImageUrl]           = useState("");
   const [heroImagePosition, setHeroImagePosition] = useState("center");
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
+  const [heroLayout, setHeroLayout] = useState("default");
   const heroImageRef = useRef<HTMLInputElement>(null);
   const policiesBgRef = useRef<HTMLInputElement>(null);
 
@@ -381,6 +383,7 @@ export default function StoreEditor() {
       setCollectionsLayout(cfg?.collections_layout || "lookbook");
       setHeroImagePosition(cfg?.hero_image_position || "center");
       setHeroImageBehavior(cfg?.hero_image_behavior || "still");
+      setHeroLayout((cfg as any)?.hero_layout || "default");
       if (cfg?.marquee_texts?.length) setMarqueeTexts(cfg.marquee_texts);
       else if (cfg?.ticker_texts?.length) setMarqueeTexts(cfg.ticker_texts);
       if (cfg?.marquee_speed) setMarqueeSpeed(cfg.marquee_speed);
@@ -498,6 +501,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ collectionsLayout }); }, [collectionsLayout]);
   useEffect(() => { postUpdate({ heroImagePosition }); }, [heroImagePosition]);
   useEffect(() => { postUpdate({ heroImageBehavior }); }, [heroImageBehavior]);
+  useEffect(() => { postUpdate({ heroLayout }); }, [heroLayout]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
@@ -608,6 +612,7 @@ export default function StoreEditor() {
       collections_layout: collectionsLayout,
       hero_image_position: heroImagePosition,
       hero_image_behavior: heroImageBehavior,
+      hero_layout: heroLayout,
       marquee_texts: marqueeTexts,
       marquee_speed: marqueeSpeed,
       // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
@@ -1089,6 +1094,23 @@ export default function StoreEditor() {
                           {o.l}
                         </button>
                       ))}
+                    </div>
+                    <div style={{ marginTop: 16 }}>
+                      <label style={labelStyle}>Banner Layout</label>
+                      <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 10 }}>Pick how your homepage banner is composed, so your store doesn&apos;t look like every other Soft Luxury store.</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {([
+                          { key: "default", name: "Classic", desc: "Full-bleed photo, text anchored bottom-left" },
+                          { key: "centered", name: "Centered", desc: "Minimal — headline and CTA centered over the photo" },
+                          { key: "split", name: "Split Screen", desc: "Photo on one side, text panel on the other" },
+                        ] as const).map((opt) => (
+                          <button key={opt.key} onClick={() => setHeroLayout(opt.key)}
+                            style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start", padding: "10px 12px", background: heroLayout === opt.key ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", border: heroLayout === opt.key ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", width: "100%", textAlign: "left" }}>
+                            <span style={{ fontSize: 13, color: heroLayout === opt.key ? "rgba(245,245,245,0.9)" : "rgba(245,245,245,0.5)", fontWeight: heroLayout === opt.key ? 500 : 400 }}>{opt.name}</span>
+                            <span style={{ fontSize: 10, color: "rgba(245,245,245,0.3)" }}>{opt.desc}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
