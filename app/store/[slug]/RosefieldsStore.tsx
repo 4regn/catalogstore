@@ -46,6 +46,7 @@ interface CheckoutConfig {
   eft_instructions?: string;
   payfast_enabled?: boolean;
   whatsapp_checkout_enabled?: boolean;
+  shipping_options?: { name: string; price: number; estimate?: string }[];
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -138,6 +139,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
   const [liveHeroTitle, setLiveHeroTitle]       = useState<string | null>(null);
   const [liveTicker, setLiveTicker]             = useState<string[] | null>(null);
   const [liveCollOrder, setLiveCollOrder]       = useState<string[] | null>(null);
+  const [liveProductCardRatio, setLiveProductCardRatio] = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
   const [promoCountdown, setPromoCountdown]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(() => buildInitialPromos(initialDiscountCodes).countdown);
   const [promoDiscounts, setPromoDiscounts]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>(() => buildInitialPromos(initialDiscountCodes).discounts);
@@ -255,6 +257,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
       if (e.data.heroTitle    !== undefined) setLiveHeroTitle(e.data.heroTitle);
       if (e.data.ticker       !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.collOrder    !== undefined) setLiveCollOrder(e.data.collOrder);
+      if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -518,12 +521,13 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
   const activeTrustItems = liveTrustItems ?? (config.trust_items?.length ? config.trust_items : defaultTrustItems);
 
   const defaultPolicyItems = [
-    { title: "Fresh Every Morning", desc: "Roses are cut and prepped fresh each day for maximum vase life." },
-    { title: "Expertly Arranged", desc: "Arranged by professional florists trained in classic technique." },
-    { title: "Same Day Delivery", desc: `Order before 2PM for same-day delivery. ${fmt(FREE_SHIP)}+ ships free.` },
-    { title: "Custom Message", desc: "Add a personal, handwritten-style message card to any bouquet." },
+    { title: "Fresh Every Morning", desc: "Roses are cut and prepped fresh each day for maximum vase life.", icon: "flower" },
+    { title: "Expertly Arranged", desc: "Arranged by professional florists trained in classic technique.", icon: "hands" },
+    { title: "Same Day Delivery", desc: `Order before 2PM for same-day delivery. ${fmt(FREE_SHIP)}+ ships free.`, icon: "ring2" },
+    { title: "Custom Message", desc: "Add a personal, handwritten-style message card to any bouquet.", icon: "petal" },
   ];
   const activePolicyItems = livePolicyItems ?? (config.policy_items?.length ? config.policy_items : defaultPolicyItems);
+  const productCardRatio = liveProductCardRatio ?? (config as any).product_card_ratio ?? "1/1";
 
   /* Edit mode: section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
@@ -880,7 +884,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
                 return (
                   <div key={p.id} className="rf-prod-card" onClick={() => openProduct(p)}
                     style={{ background: card, borderRadius: 16, overflow: "hidden", cursor: "pointer", border: `1px solid ${border}`, animation: `fadeUp 0.5s ease ${i * 0.04}s both` }}>
-                    <div className="rf-prod-img" style={{ position: "relative" as const, aspectRatio: "1/1", background: paper, overflow: "hidden" }}>
+                    <div className="rf-prod-img" style={{ position: "relative" as const, aspectRatio: productCardRatio === "auto" ? undefined : productCardRatio, background: paper, overflow: "hidden" }}>
                       {imgs[0] ? (
                         <img src={imgs[0]} alt={p.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           onError={(e) => { e.currentTarget.style.display = "none"; }} />
@@ -940,7 +944,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
                   {activePolicyItems.slice(0, 4).map((item, i) => (
                     <div key={i} style={{ textAlign: "center" as const }}>
                       <div style={{ width: 48, height: 48, borderRadius: "50%", background: card, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                        <TrustIcon id={["flower", "hands", "truck", "note"][i] || "flower"} size={20} />
+                        <OccasionIcon id={(item as any).icon || defaultPolicyItems[i]?.icon || "flower"} size={20} />
                       </div>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: ink, marginBottom: 6 }}>{item.title}</div>
                       <div style={{ fontSize: 11.5, color: inkMuted, lineHeight: 1.6, maxWidth: 220, margin: "0 auto" }}>{item.desc}</div>
@@ -1283,10 +1287,10 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
                     </div>
                     <div>
                       <div style={{ fontSize: 10.5, fontWeight: 600, color: inkMuted, marginBottom: 10 }}>Shipping Method</div>
-                      {[{ label: "Standard Delivery", eta: "3–5 business days", price: 80 }, { label: "Express / Same-Day", eta: "Order before 2PM", price: 150 }].map(opt => (
-                        <div key={opt.label} onClick={() => setShippingCost(cartTotal >= FREE_SHIP ? 0 : opt.price)}
+                      {(s.checkout_config?.shipping_options?.length ? s.checkout_config.shipping_options : [{ name: "Standard Delivery", estimate: "3–5 business days", price: 80 }, { name: "Express / Same-Day", estimate: "Order before 2PM", price: 150 }]).map((opt) => (
+                        <div key={opt.name} onClick={() => setShippingCost(cartTotal >= FREE_SHIP ? 0 : opt.price)}
                           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: `1.5px solid ${shippingCost === opt.price || cartTotal >= FREE_SHIP ? burgundy : border}`, padding: "13px 16px", marginBottom: 8, borderRadius: 12, cursor: "pointer", background: shippingCost === opt.price ? "rgba(122,19,48,0.04)" : "none" }}>
-                          <div><div style={{ fontSize: 13, color: ink }}>{opt.label}</div><div style={{ fontSize: 10.5, color: inkFaint }}>{opt.eta}</div></div>
+                          <div><div style={{ fontSize: 13, color: ink }}>{opt.name}</div>{opt.estimate && <div style={{ fontSize: 10.5, color: inkFaint }}>{opt.estimate}</div>}</div>
                           <div style={{ fontSize: 15, fontWeight: 700, color: cartTotal >= FREE_SHIP ? "#2f8f4e" : burgundy }}>{cartTotal >= FREE_SHIP ? "Free" : fmt(opt.price)}</div>
                         </div>
                       ))}

@@ -124,7 +124,7 @@ interface CheckoutConfig {
   eft_branch_code: string; eft_account_type: string; eft_instructions: string;
   payfast_enabled: boolean; payfast_merchant_id: string; payfast_merchant_key: string;
   delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
-  shipping_options: { name: string; price: number }[];
+  shipping_options: { name: string; price: number; estimate?: string }[];
   whatsapp_checkout_enabled: boolean;
 }
 
@@ -260,6 +260,7 @@ export default function Dashboard() {
   const [checkoutSaved, setCheckoutSaved] = useState(false);
   const [newShipName, setNewShipName] = useState("");
   const [newShipPrice, setNewShipPrice] = useState("");
+  const [newShipEstimate, setNewShipEstimate] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
@@ -2351,11 +2352,35 @@ export default function Dashboard() {
                 <button onClick={() => setCheckoutConfig({ ...checkoutConfig, delivery_enabled: !checkoutConfig.delivery_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.delivery_enabled ? N : "var(--toggle-off)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.delivery_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
               </div>
               {checkoutConfig.delivery_enabled && (<>
-                {checkoutConfig.shipping_options.map((opt, i) => (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}><span style={{ flex: 1, padding: "10px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 13, color: "var(--text)" }}>{opt.name} - <span style={{ color: N }}>R{opt.price}</span></span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, shipping_options: checkoutConfig.shipping_options.filter((_, idx) => idx !== i) })} style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 14, cursor: "pointer" }}>&times;</button></div>))}
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <input type="text" placeholder="e.g. Standard Delivery" value={newShipName} onChange={(e) => setNewShipName(e.target.value)} style={{ flex: 1, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                  <input type="number" placeholder="Price" value={newShipPrice} onChange={(e) => setNewShipPrice(e.target.value)} style={{ width: 80, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                  <button onClick={() => { if (newShipName.trim()) { setCheckoutConfig({ ...checkoutConfig, shipping_options: [...checkoutConfig.shipping_options, { name: newShipName.trim(), price: parseFloat(newShipPrice) || 0 }] }); setNewShipName(""); setNewShipPrice(""); } }} style={{ padding: "10px 20px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 12, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>+ Add</button>
+                {checkoutConfig.shipping_options.map((opt, i) => (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}><span style={{ flex: 1, padding: "10px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 13, color: "var(--text)" }}>{opt.name}{opt.estimate ? " · " + opt.estimate : ""} - <span style={{ color: N }}>R{opt.price}</span></span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, shipping_options: checkoutConfig.shipping_options.filter((_, idx) => idx !== i) })} style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 14, cursor: "pointer" }}>&times;</button></div>))}
+
+                <div style={{ marginTop: 12, marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Quick Add — Common SA Couriers</span>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 12 }}>
+                  {[
+                    { name: "PAXI Standard", estimate: "7-9 working days" },
+                    { name: "PAXI Express", estimate: "3-5 working days" },
+                    { name: "Aramex", estimate: "2-3 working days" },
+                    { name: "Courier Guy", estimate: "2-4 working days" },
+                    { name: "PostNet", estimate: "3-5 working days" },
+                  ].map((preset) => (
+                    <button key={preset.name} onClick={() => { setNewShipName(preset.name); setNewShipEstimate(preset.estimate); }}
+                      style={{ padding: "7px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input type="text" placeholder="Courier name (e.g. PAXI Standard)" value={newShipName} onChange={(e) => setNewShipName(e.target.value)} style={{ flex: 1, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    <input type="number" placeholder="Price" value={newShipPrice} onChange={(e) => setNewShipPrice(e.target.value)} style={{ width: 90, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input type="text" placeholder="Delivery estimate (optional, e.g. 7-10 working days)" value={newShipEstimate} onChange={(e) => setNewShipEstimate(e.target.value)} style={{ flex: 1, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                    <button onClick={() => { if (newShipName.trim()) { setCheckoutConfig({ ...checkoutConfig, shipping_options: [...checkoutConfig.shipping_options, { name: newShipName.trim(), price: parseFloat(newShipPrice) || 0, estimate: newShipEstimate.trim() || undefined }] }); setNewShipName(""); setNewShipPrice(""); setNewShipEstimate(""); } }} style={{ padding: "10px 20px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 12, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>+ Add</button>
+                  </div>
                 </div>
               </>)}
             </div>

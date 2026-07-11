@@ -1881,53 +1881,97 @@ export default function StoreEditor() {
             )}
 
             {/* POLICIES */}
-            {activeSection === "policies" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <label style={labelStyle}>Shipping & Policies</label>
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
-                {(seller?.store_config?.policy_items || [
-                  { title: "Shipping", desc: "" },
-                  { title: "Returns",  desc: "" },
-                  { title: "Payment",  desc: "" },
-                ]).map((pol, i) => {
-                  const policyItems = seller?.store_config?.policy_items || [
-                    { title: "Shipping", desc: "Free delivery on orders over R500. Standard 2–4 days nationwide." },
-                    { title: "Returns",  desc: "14-day returns on all unopened products in original packaging." },
-                    { title: "Payment",  desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome." },
-                  ];
-                  return (
+            {activeSection === "policies" && (() => {
+              const isRosefields = seller?.template === "rosefields";
+              // Occasion-themed icon set for Rosefields' "Why Choose Us" cards
+              // -- matches the Shop by Occasion icons already used on that
+              // template, so this section's icons feel like part of the same
+              // theme instead of generic e-commerce trust badges.
+              const ROSEFIELDS_POLICY_ICONS: { v: string; label: string }[] = [
+                { v: "flower", label: "Fresh / Just Because" },
+                { v: "hands",  label: "I'm Sorry" },
+                { v: "ring",   label: "Anniversary" },
+                { v: "ring2",  label: "Proposal" },
+                { v: "cake",   label: "Birthday" },
+                { v: "petal",  label: "New Baby" },
+              ];
+              const PolicyIconPreview = ({ id }: { id: string }) => {
+                const st = { width: 15, height: 15, stroke: "currentColor", fill: "none", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+                switch (id) {
+                  case "ring": return <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="15" r="6" /><path d="M9 9l3-6 3 6" /></svg>;
+                  case "ring2": return <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="14" r="5.5" /><path d="M8.5 8.5 12 3l3.5 5.5" /></svg>;
+                  case "cake": return <svg {...st} viewBox="0 0 24 24"><path d="M4 21v-8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" /><path d="M2 21h20" /><path d="M4 16h16" /></svg>;
+                  case "hands": return <svg {...st} viewBox="0 0 24 24"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z" /><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z" /><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z" /></svg>;
+                  case "petal": return <svg {...st} viewBox="0 0 24 24"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z" /><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z" /><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /></svg>;
+                  default: return <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="9" r="4.2" /><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0" /><path d="M9 12.5C7 14 6 16.5 6 19.5" /><path d="M15 12.5c2 1.5 3 4 3 7" /><path d="M12 13v8.5" /></svg>;
+                }
+              };
+              const defaultPolicyItems = isRosefields ? [
+                { title: "Fresh Every Morning", desc: "Roses are cut and prepped fresh each day for maximum vase life.", icon: "flower" },
+                { title: "Expertly Arranged", desc: "Arranged by professional florists trained in classic technique.", icon: "hands" },
+                { title: "Same Day Delivery", desc: "Order before 2PM for same-day delivery. R800+ ships free.", icon: "ring2" },
+                { title: "Custom Message", desc: "Add a personal, handwritten-style message card to any bouquet.", icon: "petal" },
+              ] : [
+                { title: "Shipping", desc: "Free delivery on orders over R500. Standard 2–4 days nationwide.", icon: "flower" },
+                { title: "Returns",  desc: "14-day returns on all unopened products in original packaging.", icon: "hands" },
+                { title: "Payment",  desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome.", icon: "ring" },
+              ];
+              // Always write through BOTH the direct Supabase update (so the
+              // change is saved immediately, matching the "saves on blur"
+              // copy below) and the editor's own `policyItems` state --
+              // otherwise the persistent "Save Changes" button elsewhere on
+              // screen writes its own stale, page-load-time copy of
+              // `policyItems` right after and silently reverts this edit.
+              const updatePolicyItem = async (i: number, patch: Record<string, string>) => {
+                if (!seller) return;
+                const base = seller.store_config?.policy_items?.length ? seller.store_config.policy_items : (policyItems.length ? policyItems : defaultPolicyItems);
+                const items = [...base];
+                items[i] = { ...items[i], ...patch };
+                await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
+                setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
+                setPolicyItems(items);
+                if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
+              };
+              const currentItems = seller?.store_config?.policy_items || defaultPolicyItems;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <label style={labelStyle}>Shipping & Policies</label>
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
+                  {currentItems.map((pol: any, i: number) => (
                     <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {isRosefields && (
+                        <div>
+                          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,245,245,0.4)", marginBottom: 6 }}>Icon</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
+                            {ROSEFIELDS_POLICY_ICONS.map(opt => {
+                              const active = (pol.icon || defaultPolicyItems[i]?.icon || "flower") === opt.v;
+                              return (
+                                <button key={opt.v} title={opt.label} onClick={() => updatePolicyItem(i, { icon: opt.v })}
+                                  style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 0", borderRadius: 8, border: active ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: active ? `${G}22` : "rgba(255,255,255,0.03)", color: active ? "#fff" : "rgba(245,245,245,0.5)", cursor: "pointer", transition: "all 0.2s" }}>
+                                  <PolicyIconPreview id={opt.v} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <input
-                        defaultValue={policyItems[i]?.title || pol.title}
-                        onBlur={async e => {
-                          if (!seller) return;
-                          const items = [...(seller.store_config?.policy_items || policyItems)];
-                          items[i] = { ...items[i], title: e.target.value };
-                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
-                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
-                          if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
-                        }}
+                        defaultValue={pol.title}
+                        onBlur={e => updatePolicyItem(i, { title: e.target.value })}
                         placeholder="e.g. Shipping"
                         style={{ ...inputStyle, fontWeight: 700 }} />
                       <textarea
-                        defaultValue={policyItems[i]?.desc || pol.desc}
-                        onBlur={async e => {
-                          if (!seller) return;
-                          const items = [...(seller.store_config?.policy_items || policyItems)];
-                          items[i] = { ...items[i], desc: e.target.value };
-                          await supabase.from("sellers").update({ store_config: { ...seller.store_config, policy_items: items } }).eq("id", seller.id);
-                          setSeller({ ...seller, store_config: { ...seller.store_config, policy_items: items } });
-                          if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
-                        }}
+                        defaultValue={pol.desc}
+                        onBlur={e => updatePolicyItem(i, { desc: e.target.value })}
                         placeholder="Description..."
                         rows={3}
                         style={{ ...inputStyle, resize: "vertical" }} />
                     </div>
-                  );
-                })}
-                <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Changes save automatically when you click out of a field.</div>
-              </div>
-            )}
+                  ))}
+                  <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)" }}>Changes save automatically when you click out of a field.</div>
+                </div>
+              );
+            })()}
 
             {/* FOOTER */}
             {/* FOOTER — Heirloom variant. Heirloom's footer has its own
