@@ -160,6 +160,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveHeroImageBehavior, setLiveHeroImageBehavior] = useState<string | null>(null);
   const [liveHeroLayout, setLiveHeroLayout]               = useState<string | null>(null);
   const [liveHeroTextPosition, setLiveHeroTextPosition]   = useState<string | null>(null);
+  const [liveHeroImageFade, setLiveHeroImageFade]         = useState<boolean | null>(null);
   const [liveHeroButtonStyle, setLiveHeroButtonStyle]     = useState<string | null>(null);
   const [liveHeroButtonColor, setLiveHeroButtonColor]     = useState<string | null>(null);
   const [liveHeroButtonSize, setLiveHeroButtonSize]       = useState<string | null>(null);
@@ -294,6 +295,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.heroImageBehavior !== undefined) setLiveHeroImageBehavior(e.data.heroImageBehavior);
       if (e.data.heroLayout !== undefined) setLiveHeroLayout(e.data.heroLayout);
       if (e.data.heroTextPosition !== undefined) setLiveHeroTextPosition(e.data.heroTextPosition);
+      if (e.data.heroImageFade !== undefined) setLiveHeroImageFade(e.data.heroImageFade);
       if (e.data.heroButtonStyle !== undefined) setLiveHeroButtonStyle(e.data.heroButtonStyle);
       if (e.data.heroButtonColor !== undefined) setLiveHeroButtonColor(e.data.heroButtonColor);
       if (e.data.heroButtonSize !== undefined) setLiveHeroButtonSize(e.data.heroButtonSize);
@@ -574,6 +576,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     "center":        { alignItems: "center",     justifyContent: "center",    textAlign: "center", padding: "0 24px",      maxWidth: 760 },
   };
   const heroTextPositionStyle = HERO_TEXT_POSITION_STYLES[heroTextPosition] || HERO_TEXT_POSITION_STYLES["bottom-left"];
+  const heroImageFade = liveHeroImageFade ?? (cfg as any).hero_image_fade !== false;
   const heroHeadlineStyle = liveHeroHeadlineStyle ?? (cfg as any).hero_headline_style ?? "elegant";
   const heroHeadlineStyleProps: React.CSSProperties = heroHeadlineStyle === "bold"
     ? { fontWeight: 700, fontStyle: "normal", letterSpacing: "-0.01em", lineHeight: 1.05 }
@@ -822,7 +825,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             ) : seller?.banner_url ? (
               <>
                 <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: heroImageObjectPosition, animation: heroImageAnimation }} />
-                <div style={{ position: "absolute", inset: 0, background: heroTextPosition === "center" ? `linear-gradient(to top, ${pageBg}55 0%, ${pageBg}20 40%, ${pageBg}20 60%, ${pageBg}55 100%)` : heroTextPosition.startsWith("top-") ? `linear-gradient(to bottom, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` : `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
+                {heroImageFade && (
+                  <div style={{ position: "absolute", inset: 0, background: heroTextPosition === "center" ? `linear-gradient(to top, ${pageBg}55 0%, ${pageBg}20 40%, ${pageBg}20 60%, ${pageBg}55 100%)` : heroTextPosition.startsWith("top-") ? `linear-gradient(to bottom, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` : `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
+                )}
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: heroTextPositionStyle.alignItems, justifyContent: heroTextPositionStyle.justifyContent, padding: heroTextPositionStyle.padding, maxWidth: heroTextPositionStyle.maxWidth, textAlign: heroTextPositionStyle.textAlign, ...(heroTextPositionStyle.textAlign === "center" ? { left: "50%", transform: "translateX(-50%)" } : {}) }}>
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
                   {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", color: pageText, marginBottom: 16, ...heroHeadlineStyleProps }}>{displayHeroTitle}</h1>}

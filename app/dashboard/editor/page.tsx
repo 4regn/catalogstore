@@ -84,6 +84,7 @@ interface Seller {
     hero_image_behavior?: string;
     hero_layout?: string;
     hero_text_position?: string;
+    hero_image_fade?: boolean;
     hero_button_style?: string;
     hero_button_color?: string;
     hero_button_size?: string;
@@ -291,6 +292,7 @@ export default function StoreEditor() {
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
   const [heroLayout, setHeroLayout] = useState("default");
   const [heroTextPosition, setHeroTextPosition] = useState("bottom-left");
+  const [heroImageFade, setHeroImageFade] = useState(true);
   const [heroButtonStyle, setHeroButtonStyle] = useState("outline");
   const [heroButtonColor, setHeroButtonColor] = useState("");
   const [heroButtonSize, setHeroButtonSize] = useState("md");
@@ -405,6 +407,7 @@ export default function StoreEditor() {
         setHeroLayout(rawLayout === "centered" ? "default" : rawLayout);
         setHeroTextPosition((cfg as any)?.hero_text_position || (rawLayout === "centered" ? "center" : "bottom-left"));
       }
+      setHeroImageFade((cfg as any)?.hero_image_fade !== false);
       setHeroButtonStyle((cfg as any)?.hero_button_style || "outline");
       setHeroButtonColor((cfg as any)?.hero_button_color || "");
       setHeroButtonSize((cfg as any)?.hero_button_size || "md");
@@ -532,6 +535,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroImageBehavior }); }, [heroImageBehavior]);
   useEffect(() => { postUpdate({ heroLayout }); }, [heroLayout]);
   useEffect(() => { postUpdate({ heroTextPosition }); }, [heroTextPosition]);
+  useEffect(() => { postUpdate({ heroImageFade }); }, [heroImageFade]);
   useEffect(() => { postUpdate({ heroButtonStyle }); }, [heroButtonStyle]);
   useEffect(() => { postUpdate({ heroButtonColor }); }, [heroButtonColor]);
   useEffect(() => { postUpdate({ heroButtonSize }); }, [heroButtonSize]);
@@ -652,6 +656,7 @@ export default function StoreEditor() {
       hero_image_behavior: heroImageBehavior,
       hero_layout: heroLayout,
       hero_text_position: heroTextPosition,
+      hero_image_fade: heroImageFade,
       hero_button_style: heroButtonStyle,
       hero_button_color: heroButtonColor,
       hero_button_size: heroButtonSize,
@@ -1142,6 +1147,10 @@ export default function StoreEditor() {
                         </button>
                       ))}
                     </div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginTop: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={heroImageFade} onChange={e => setHeroImageFade(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                      <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Fade overlay behind text (turn off for full photo clarity)</span>
+                    </label>
                     <div style={{ marginTop: 16 }}>
                       <label style={labelStyle}>Banner Layout</label>
                       <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 10 }}>Pick how your homepage banner is composed, so your store doesn&apos;t look like every other Soft Luxury store.</div>
