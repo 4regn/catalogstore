@@ -157,7 +157,19 @@ export default function CheckoutPage() {
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
   const isHL = seller?.template === "heirloom";
   const isRF = seller?.template === "rosefields";
-  const slFontPair = getFontPair(seller ? effectiveStoreConfig(seller).font_pair : undefined);
+  const slCfg = seller ? (effectiveStoreConfig(seller) as any) : {};
+  const slFontPair = getFontPair(seller ? slCfg.font_pair : undefined);
+  const slBg = slCfg.bg_color || "#f6f3ef";
+  const slText = slCfg.text_color || "#2a2a2e";
+  const slMuted = slCfg.muted_color || "#8a8690";
+  // Readable text color for a solid button filled with an arbitrary brand color.
+  const readableOn = (hex: string) => {
+    const h = hex.replace("#", "");
+    if (h.length !== 6) return "#fff";
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.6 ? "#111" : "#fff";
+  };
   const T = isGC ? {
     bg: "#030305", card: "#0b0b0f", text: "#f0f0f0", muted: "rgba(255,255,255,0.4)", border: "rgba(255,255,255,0.08)",
     inputBg: "rgba(255,255,255,0.04)", inputBorder: "rgba(255,255,255,0.1)", inputText: "#f0f0f0",
@@ -193,15 +205,15 @@ export default function CheckoutPage() {
     badgeBg: "#7a1330", badgeText: "#fff",
     stickyBg: "rgba(250,245,238,0.95)", emptyImg: "#f3d9de", payCardBg: "#fff",
   } : {
-    bg: "#f6f3ef", card: "#fff", text: "#2a2a2e", muted: "#8a8690", border: "rgba(0,0,0,0.12)",
-    inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: "#2a2a2e",
-    btnBg: "#2a2a2e", btnText: "#f6f3ef", btnRadius: "100px",
+    bg: slBg, card: "#fff", text: slText, muted: slMuted, border: "rgba(0,0,0,0.12)",
+    inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: slText,
+    btnBg: accent, btnText: readableOn(accent), btnRadius: "100px",
     headFont: slFontPair.heading, bodyFont: slFontPair.body,
-    selectBg: "rgba(156,124,98,0.04)", eftBg: "#f6f3ef",
+    selectBg: "rgba(156,124,98,0.04)", eftBg: slBg,
     fonts: `@import url('https://fonts.googleapis.com/css2?${slFontPair.import}&display=swap');`,
     summaryBg: "rgba(0,0,0,0.015)", summaryBorder: "rgba(0,0,0,0.06)",
-    badgeBg: "#8a8690", badgeText: "#fff",
-    stickyBg: "rgba(246,243,239,0.95)", emptyImg: "#e0d5ca", payCardBg: "#fff",
+    badgeBg: slMuted, badgeText: "#fff",
+    stickyBg: `${slBg}f2`, emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const shipping = fulfillment === "pickup" ? 0 : (cc.shipping_options?.[shippingOption]?.price || 0);
