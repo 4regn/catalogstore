@@ -19,6 +19,7 @@ export const TEMPLATE_SCOPED_KEYS = [
   // hero content/layout
   "hero_title", "hero_subtext", "hero_cta", "hero_cta_target",
   "hero_image", "hero_image_position", "hero_image_behavior", "hero_layout",
+  "hero_text_position", "hero_button_style", "hero_button_color", "hero_button_size", "hero_headline_style",
   "hero_index", "hero_label", "hero_headline", "hero_headline_em", "hero_body",
   "hero_cta_primary", "hero_cta_secondary", "hero_cta_primary_target", "hero_cta_secondary_target",
   "hero_countdown_label",

@@ -159,6 +159,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveHeroImagePosition, setLiveHeroImagePosition] = useState<string | null>(null);
   const [liveHeroImageBehavior, setLiveHeroImageBehavior] = useState<string | null>(null);
   const [liveHeroLayout, setLiveHeroLayout]               = useState<string | null>(null);
+  const [liveHeroTextPosition, setLiveHeroTextPosition]   = useState<string | null>(null);
+  const [liveHeroButtonStyle, setLiveHeroButtonStyle]     = useState<string | null>(null);
+  const [liveHeroButtonColor, setLiveHeroButtonColor]     = useState<string | null>(null);
+  const [liveHeroButtonSize, setLiveHeroButtonSize]       = useState<string | null>(null);
+  const [liveHeroHeadlineStyle, setLiveHeroHeadlineStyle] = useState<string | null>(null);
   const [liveProductsLabel, setLiveProductsLabel]         = useState<string | null>(null);
   const [liveProductsHeading, setLiveProductsHeading]     = useState<string | null>(null);
   const [liveProductCardRatio, setLiveProductCardRatio]   = useState<string | null>(null);
@@ -282,6 +287,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.heroImagePosition !== undefined) setLiveHeroImagePosition(e.data.heroImagePosition);
       if (e.data.heroImageBehavior !== undefined) setLiveHeroImageBehavior(e.data.heroImageBehavior);
       if (e.data.heroLayout !== undefined) setLiveHeroLayout(e.data.heroLayout);
+      if (e.data.heroTextPosition !== undefined) setLiveHeroTextPosition(e.data.heroTextPosition);
+      if (e.data.heroButtonStyle !== undefined) setLiveHeroButtonStyle(e.data.heroButtonStyle);
+      if (e.data.heroButtonColor !== undefined) setLiveHeroButtonColor(e.data.heroButtonColor);
+      if (e.data.heroButtonSize !== undefined) setLiveHeroButtonSize(e.data.heroButtonSize);
+      if (e.data.heroHeadlineStyle !== undefined) setLiveHeroHeadlineStyle(e.data.heroHeadlineStyle);
       if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
       if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
@@ -532,7 +542,34 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const heroImageObjectPosition = heroImagePosition === "top" ? "center top" : heroImagePosition === "bottom" ? "center bottom" : "center center";
   const heroImageBehavior = liveHeroImageBehavior ?? (cfg as any).hero_image_behavior ?? "still";
   const heroImageAnimation = heroImageBehavior === "breathing" ? "sl-hero-breathing 16s ease-in-out infinite" : heroImageBehavior === "ambient" ? "sl-hero-ambient 22s ease-in-out infinite" : undefined;
-  const heroLayout = liveHeroLayout ?? (cfg as any).hero_layout ?? "default";
+  const rawHeroLayout = liveHeroLayout ?? (cfg as any).hero_layout ?? "default";
+  const heroLayout = rawHeroLayout === "centered" ? "default" : rawHeroLayout;
+  const heroTextPosition = liveHeroTextPosition ?? (cfg as any).hero_text_position ?? (rawHeroLayout === "centered" ? "center" : "bottom-left");
+  const heroButtonStyle = liveHeroButtonStyle ?? (cfg as any).hero_button_style ?? "outline";
+  const heroButtonColor = liveHeroButtonColor ?? (cfg as any).hero_button_color ?? accent;
+  const heroButtonSize = liveHeroButtonSize ?? (cfg as any).hero_button_size ?? "md";
+  const heroButtonSizeStyle =
+    heroButtonSize === "sm" ? { padding: "10px 28px", fontSize: 10 } :
+    heroButtonSize === "lg" ? { padding: "20px 64px", fontSize: 12 } :
+    { padding: "16px 48px", fontSize: 11 };
+  const heroButtonStyleProps: React.CSSProperties = heroButtonStyle === "filled"
+    ? { background: heroButtonColor, border: "1px solid " + heroButtonColor, color: "#fff" }
+    : { background: "transparent", border: "1px solid " + heroButtonColor, color: heroButtonColor };
+  const HERO_TEXT_POSITION_STYLES: Record<string, { alignItems: string; justifyContent: string; textAlign: "left" | "right" | "center"; padding: string; maxWidth: number }> = {
+    "top-left":      { alignItems: "flex-start", justifyContent: "flex-start", textAlign: "left",   padding: "60px 48px 0", maxWidth: 640 },
+    "top-right":     { alignItems: "flex-end",   justifyContent: "flex-start", textAlign: "right",  padding: "60px 48px 0", maxWidth: 640 },
+    "bottom-left":   { alignItems: "flex-start", justifyContent: "flex-end",   textAlign: "left",   padding: "0 48px 60px", maxWidth: 640 },
+    "bottom-right":  { alignItems: "flex-end",   justifyContent: "flex-end",   textAlign: "right",  padding: "0 48px 60px", maxWidth: 640 },
+    "bottom-center": { alignItems: "center",     justifyContent: "flex-end",   textAlign: "center", padding: "0 24px 60px", maxWidth: 620 },
+    "center":        { alignItems: "center",     justifyContent: "center",    textAlign: "center", padding: "0 24px",      maxWidth: 760 },
+  };
+  const heroTextPositionStyle = HERO_TEXT_POSITION_STYLES[heroTextPosition] || HERO_TEXT_POSITION_STYLES["bottom-left"];
+  const heroHeadlineStyle = liveHeroHeadlineStyle ?? (cfg as any).hero_headline_style ?? "elegant";
+  const heroHeadlineStyleProps: React.CSSProperties = heroHeadlineStyle === "bold"
+    ? { fontWeight: 700, fontStyle: "normal", letterSpacing: "-0.01em", lineHeight: 1.05 }
+    : { fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", lineHeight: 1 };
+  const heroDescriptionSize = heroHeadlineStyle === "bold" ? 13.5 : 15;
+  const heroDescriptionLineHeight = heroHeadlineStyle === "bold" ? 1.6 : 1.7;
   const showAnnouncement = liveShowAnnouncement ?? (cfg as any).show_announcement === true;
   const displayAnnouncement = showAnnouncement ? (liveAnnouncement ?? cfg.announcement ?? "") : "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
@@ -733,9 +770,9 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               <div className="sl-hero-split" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: 560 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", padding: "60px 56px", background: pageBg }}>
                   {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                  {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 4.5vw, 60px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1.05, marginBottom: 16 }}>{displayHeroTitle}</h1>}
-                  {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 440 }}>{displayDescription}</p>}
-                  {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
+                  {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 4.5vw, 60px)", color: pageText, marginBottom: 16, ...heroHeadlineStyleProps }}>{displayHeroTitle}</h1>}
+                  {displayDescription && <p style={{ fontSize: heroDescriptionSize, lineHeight: heroDescriptionLineHeight, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 440 }}>{displayDescription}</p>}
+                  {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", ...heroButtonSizeStyle, ...heroButtonStyleProps, borderRadius: 0, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
                 </div>
                 <div style={{ position: "relative", minHeight: 320 }}>
                   <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: heroImageObjectPosition, animation: heroImageAnimation }} />
@@ -744,29 +781,20 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             ) : seller?.banner_url ? (
               <>
                 <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: heroImageObjectPosition, animation: heroImageAnimation }} />
-                <div style={{ position: "absolute", inset: 0, background: heroLayout === "centered" ? `linear-gradient(to top, ${pageBg}55 0%, ${pageBg}20 40%, ${pageBg}20 60%, ${pageBg}55 100%)` : `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
-                {heroLayout === "centered" ? (
-                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
-                    {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                    {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16, maxWidth: 760 }}>{displayHeroTitle}</h1>}
-                    {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
-                    {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
-                  </div>
-                ) : (
-                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "flex-end", padding: "0 48px 60px", maxWidth: 640 }}>
-                    {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                    {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", fontWeight: 300, fontStyle: "italic", color: pageText, letterSpacing: "0.02em", lineHeight: 1, marginBottom: 16 }}>{displayHeroTitle}</h1>}
-                    {displayDescription && <p style={{ fontSize: 15, lineHeight: 1.7, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
-                    {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
-                  </div>
-                )}
+                <div style={{ position: "absolute", inset: 0, background: heroTextPosition === "center" ? `linear-gradient(to top, ${pageBg}55 0%, ${pageBg}20 40%, ${pageBg}20 60%, ${pageBg}55 100%)` : heroTextPosition.startsWith("top-") ? `linear-gradient(to bottom, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` : `linear-gradient(to top, ${pageBg} 0%, ${pageBg}26 55%, transparent 100%)` }} />
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: heroTextPositionStyle.alignItems, justifyContent: heroTextPositionStyle.justifyContent, padding: heroTextPositionStyle.padding, maxWidth: heroTextPositionStyle.maxWidth, textAlign: heroTextPositionStyle.textAlign, ...(heroTextPositionStyle.textAlign === "center" ? { left: "50%", transform: "translateX(-50%)" } : {}) }}>
+                  {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
+                  {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(42px, 7vw, 80px)", color: pageText, marginBottom: 16, ...heroHeadlineStyleProps }}>{displayHeroTitle}</h1>}
+                  {displayDescription && <p style={{ fontSize: heroDescriptionSize, lineHeight: heroDescriptionLineHeight, color: pageMuted, fontWeight: 300, marginBottom: 24, maxWidth: 480 }}>{displayDescription}</p>}
+                  {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", ...heroButtonSizeStyle, ...heroButtonStyleProps, borderRadius: 0, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
+                </div>
               </>
             ) : (
               <div style={{ textAlign: "center", padding: promoCountdown ? "128px 40px 60px" : "80px 40px 60px" }}>
                 {displayTagline && <div style={{ fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: pageMuted, marginBottom: 14 }}>— {displayTagline}</div>}
-                {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 6vw, 64px)", fontWeight: 300, fontStyle: "italic", letterSpacing: "0.02em", marginBottom: 12 }}>{displayHeroTitle}</h1>}
-                {displayDescription && <p style={{ fontSize: 14, color: pageMuted, lineHeight: 1.7, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
-                {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", padding: "16px 48px", background: "transparent", border: "1px solid " + accent, borderRadius: 0, color: accent, fontSize: 11, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
+                {displayHeroTitle && <h1 style={{ fontFamily: fonts.heading, fontSize: "clamp(36px, 6vw, 64px)", color: pageText, marginBottom: 12, ...heroHeadlineStyleProps }}>{displayHeroTitle}</h1>}
+                {displayDescription && <p style={{ fontSize: heroDescriptionSize - 1, color: pageMuted, lineHeight: heroDescriptionLineHeight, maxWidth: 480, margin: "0 auto", marginBottom: 24 }}>{displayDescription}</p>}
+                {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", ...heroButtonSizeStyle, ...heroButtonStyleProps, borderRadius: 0, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop Now"} &rarr;</a>}
               </div>
             )}
           </section>

@@ -83,6 +83,11 @@ interface Seller {
     hero_image_position?: string;
     hero_image_behavior?: string;
     hero_layout?: string;
+    hero_text_position?: string;
+    hero_button_style?: string;
+    hero_button_color?: string;
+    hero_button_size?: string;
+    hero_headline_style?: string;
     ticker_texts?: string[];
     ticker_speed?: number;
     marquee_texts?: string[];
@@ -281,6 +286,11 @@ export default function StoreEditor() {
   const [heroImagePosition, setHeroImagePosition] = useState("center");
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
   const [heroLayout, setHeroLayout] = useState("default");
+  const [heroTextPosition, setHeroTextPosition] = useState("bottom-left");
+  const [heroButtonStyle, setHeroButtonStyle] = useState("outline");
+  const [heroButtonColor, setHeroButtonColor] = useState("");
+  const [heroButtonSize, setHeroButtonSize] = useState("md");
+  const [heroHeadlineStyle, setHeroHeadlineStyle] = useState("elegant");
   const heroImageRef = useRef<HTMLInputElement>(null);
   const policiesBgRef = useRef<HTMLInputElement>(null);
 
@@ -383,7 +393,14 @@ export default function StoreEditor() {
       setCollectionsLayout(cfg?.collections_layout || "lookbook");
       setHeroImagePosition(cfg?.hero_image_position || "center");
       setHeroImageBehavior(cfg?.hero_image_behavior || "still");
-      setHeroLayout((cfg as any)?.hero_layout || "default");
+      { const rawLayout = (cfg as any)?.hero_layout || "default";
+        setHeroLayout(rawLayout === "centered" ? "default" : rawLayout);
+        setHeroTextPosition((cfg as any)?.hero_text_position || (rawLayout === "centered" ? "center" : "bottom-left"));
+      }
+      setHeroButtonStyle((cfg as any)?.hero_button_style || "outline");
+      setHeroButtonColor((cfg as any)?.hero_button_color || "");
+      setHeroButtonSize((cfg as any)?.hero_button_size || "md");
+      setHeroHeadlineStyle((cfg as any)?.hero_headline_style || "elegant");
       if (cfg?.marquee_texts?.length) setMarqueeTexts(cfg.marquee_texts);
       else if (cfg?.ticker_texts?.length) setMarqueeTexts(cfg.ticker_texts);
       if (cfg?.marquee_speed) setMarqueeSpeed(cfg.marquee_speed);
@@ -502,6 +519,11 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroImagePosition }); }, [heroImagePosition]);
   useEffect(() => { postUpdate({ heroImageBehavior }); }, [heroImageBehavior]);
   useEffect(() => { postUpdate({ heroLayout }); }, [heroLayout]);
+  useEffect(() => { postUpdate({ heroTextPosition }); }, [heroTextPosition]);
+  useEffect(() => { postUpdate({ heroButtonStyle }); }, [heroButtonStyle]);
+  useEffect(() => { postUpdate({ heroButtonColor }); }, [heroButtonColor]);
+  useEffect(() => { postUpdate({ heroButtonSize }); }, [heroButtonSize]);
+  useEffect(() => { postUpdate({ heroHeadlineStyle }); }, [heroHeadlineStyle]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
@@ -613,6 +635,11 @@ export default function StoreEditor() {
       hero_image_position: heroImagePosition,
       hero_image_behavior: heroImageBehavior,
       hero_layout: heroLayout,
+      hero_text_position: heroTextPosition,
+      hero_button_style: heroButtonStyle,
+      hero_button_color: heroButtonColor,
+      hero_button_size: heroButtonSize,
+      hero_headline_style: heroHeadlineStyle,
       marquee_texts: marqueeTexts,
       marquee_speed: marqueeSpeed,
       // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
@@ -1100,8 +1127,7 @@ export default function StoreEditor() {
                       <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 10 }}>Pick how your homepage banner is composed, so your store doesn&apos;t look like every other Soft Luxury store.</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {([
-                          { key: "default", name: "Classic", desc: "Full-bleed photo, text anchored bottom-left" },
-                          { key: "centered", name: "Centered", desc: "Minimal — headline and CTA centered over the photo" },
+                          { key: "default", name: "Full Image", desc: "Full-bleed photo — position the text anywhere over it" },
                           { key: "split", name: "Split Screen", desc: "Photo on one side, text panel on the other" },
                         ] as const).map((opt) => (
                           <button key={opt.key} onClick={() => setHeroLayout(opt.key)}
@@ -1111,6 +1137,69 @@ export default function StoreEditor() {
                           </button>
                         ))}
                       </div>
+                    </div>
+                    {heroLayout === "default" && (
+                      <div style={{ marginTop: 16 }}>
+                        <label style={labelStyle}>Text Position</label>
+                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 10 }}>Where the headline, description, and button sit over the photo.</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(3, 40px)", gap: 6 }}>
+                          {([
+                            { v: "top-left", col: 1, row: 1, l: "⌜" }, { v: "", col: 2, row: 1, l: "" }, { v: "top-right", col: 3, row: 1, l: "⌝" },
+                            { v: "", col: 1, row: 2, l: "" }, { v: "center", col: 2, row: 2, l: "◉" }, { v: "", col: 3, row: 2, l: "" },
+                            { v: "bottom-left", col: 1, row: 3, l: "⌞" }, { v: "bottom-center", col: 2, row: 3, l: "▬" }, { v: "bottom-right", col: 3, row: 3, l: "⌟" },
+                          ] as const).map((o, i) => o.v ? (
+                            <button key={o.v} title={o.v.replace("-", " ")} onClick={() => setHeroTextPosition(o.v)}
+                              style={{ gridColumn: o.col, gridRow: o.row, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: heroTextPosition === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: heroTextPosition === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: heroTextPosition === o.v ? "#fff" : "rgba(245,245,245,0.4)", fontSize: 16, cursor: "pointer", transition: "all 0.2s" }}>
+                              {o.l}
+                            </button>
+                          ) : <div key={i} style={{ gridColumn: o.col, gridRow: o.row }} />)}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ marginTop: 16 }}>
+                      <label style={labelStyle}>Headline Style</label>
+                      <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>Elegant matches the classic Soft Luxury look. Bold is punchier — closer to a modern lifestyle/streetwear feel.</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                        {([{ v: "elegant", l: "Elegant", d: "Light, italic serif" }, { v: "bold", l: "Bold", d: "Heavy, upright sans" }] as const).map(o => (
+                          <button key={o.v} onClick={() => setHeroHeadlineStyle(o.v)}
+                            style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 10px", borderRadius: 6, border: heroHeadlineStyle === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: heroHeadlineStyle === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: heroHeadlineStyle === o.v ? "#fff" : "rgba(245,245,245,0.5)", cursor: "pointer", transition: "all 0.2s", textAlign: "left" }}>
+                            <span style={{ fontSize: 11, fontWeight: heroHeadlineStyle === o.v ? 600 : 400 }}>{o.l}</span>
+                            <span style={{ fontSize: 9, color: "rgba(245,245,245,0.35)" }}>{o.d}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 16 }}>
+                      <label style={labelStyle}>Shop Now Button</label>
+                      <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>Style</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: 12 }}>
+                        {([{ v: "outline", l: "Outline" }, { v: "filled", l: "Filled" }] as const).map(o => (
+                          <button key={o.v} onClick={() => setHeroButtonStyle(o.v)}
+                            style={{ padding: "8px 4px", borderRadius: 6, border: heroButtonStyle === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: heroButtonStyle === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: heroButtonStyle === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
+                            {o.l}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 8 }}>Size</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 12 }}>
+                        {([{ v: "sm", l: "Small" }, { v: "md", l: "Medium" }, { v: "lg", l: "Large" }] as const).map(o => (
+                          <button key={o.v} onClick={() => setHeroButtonSize(o.v)}
+                            style={{ padding: "8px 4px", borderRadius: 6, border: heroButtonSize === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: heroButtonSize === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: heroButtonSize === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
+                            {o.l}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Button Color</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <label style={{ width: 24, height: 24, borderRadius: 6, background: heroButtonColor || seller?.primary_color || "#9c7c62", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                            <input type="color" value={heroButtonColor || seller?.primary_color || "#9c7c62"} onChange={e => setHeroButtonColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                          </label>
+                          <span style={{ fontSize: 9, color: "rgba(245,245,245,0.42)", fontFamily: "monospace" }}>{heroButtonColor || seller?.primary_color || "#9c7c62"}</span>
+                          <button onClick={() => setHeroButtonColor("")} style={{ fontSize: 9, color: "rgba(245,245,245,0.35)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", marginTop: 6 }}>Defaults to your brand color. Reset to sync back to it automatically.</div>
                     </div>
                   </div>
                 )}
