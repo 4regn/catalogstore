@@ -157,6 +157,7 @@ export default function CheckoutPage() {
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
   const isHL = seller?.template === "heirloom";
   const isRF = seller?.template === "rosefields";
+  const isCrown = seller?.template === "crown";
   const slCfg = seller ? (effectiveStoreConfig(seller) as any) : {};
   const slFontPair = getFontPair(seller ? slCfg.font_pair : undefined);
   const slBg = slCfg.bg_color || "#f6f3ef";
@@ -204,6 +205,18 @@ export default function CheckoutPage() {
     summaryBg: "rgba(122,19,48,0.03)", summaryBorder: "rgba(122,19,48,0.1)",
     badgeBg: "#7a1330", badgeText: "#fff",
     stickyBg: "rgba(250,245,238,0.95)", emptyImg: "#f3d9de", payCardBg: "#fff",
+  } : isCrown ? {
+    // Crown: dark near-black paper + gold accents + cream type, matching the
+    // storefront's Cormorant Garant / Didact Gothic pairing and gold CTAs.
+    bg: slCfg.bg_color || "#0a0908", card: "#1a1816", text: "#f0e6d3", muted: "rgba(240,230,211,0.6)", border: "rgba(196,162,101,0.15)",
+    inputBg: "#1a1816", inputBorder: "rgba(196,162,101,0.2)", inputText: "#f0e6d3",
+    btnBg: "#c4a265", btnText: "#0a0908", btnRadius: "0",
+    headFont: "'Cormorant Garant', serif", bodyFont: "'Didact Gothic', sans-serif",
+    selectBg: "rgba(196,162,101,0.08)", eftBg: "#1a1816",
+    fonts: "@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Didact+Gothic&display=swap');",
+    summaryBg: "rgba(196,162,101,0.05)", summaryBorder: "rgba(196,162,101,0.12)",
+    badgeBg: "#c4a265", badgeText: "#0a0908",
+    stickyBg: `${slCfg.bg_color || "#0a0908"}f2`, emptyImg: "#1a1816", payCardBg: "#1a1816",
   } : {
     bg: slBg, card: "#fff", text: slText, muted: slMuted, border: "rgba(0,0,0,0.12)",
     inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: slText,
