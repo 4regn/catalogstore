@@ -140,6 +140,9 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
   const [liveTicker, setLiveTicker]             = useState<string[] | null>(null);
   const [liveCollOrder, setLiveCollOrder]       = useState<string[] | null>(null);
   const [liveProductCardRatio, setLiveProductCardRatio] = useState<string | null>(null);
+  const [livePoliciesHeading, setLivePoliciesHeading] = useState<string | null>(null);
+  const [livePoliciesMessage, setLivePoliciesMessage] = useState<string | null>(null);
+  const [livePoliciesBgImage, setLivePoliciesBgImage] = useState<string | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
   const [promoCountdown, setPromoCountdown]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; timeLeft: string } | null>(() => buildInitialPromos(initialDiscountCodes).countdown);
   const [promoDiscounts, setPromoDiscounts]     = useState<{ code: string; type: string; value: number; applies_to: string; expires_at: string; product_ids: string[]; collection_names: string[]; timeLeft: string }[]>(() => buildInitialPromos(initialDiscountCodes).discounts);
@@ -258,6 +261,9 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
       if (e.data.ticker       !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.collOrder    !== undefined) setLiveCollOrder(e.data.collOrder);
       if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
+      if (e.data.policiesHeading !== undefined) setLivePoliciesHeading(e.data.policiesHeading);
+      if (e.data.policiesMessage !== undefined) setLivePoliciesMessage(e.data.policiesMessage);
+      if (e.data.policiesBgImage !== undefined) setLivePoliciesBgImage(e.data.policiesBgImage);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -528,6 +534,9 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
   ];
   const activePolicyItems = livePolicyItems ?? (config.policy_items?.length ? config.policy_items : defaultPolicyItems);
   const productCardRatio = liveProductCardRatio ?? (config as any).product_card_ratio ?? "1/1";
+  const policiesHeading = livePoliciesHeading ?? (config as any).policies_heading ?? "";
+  const policiesMessage = livePoliciesMessage ?? (config as any).policies_message ?? "";
+  const policiesBgImage = livePoliciesBgImage ?? (config as any).policies_bg_image ?? "";
 
   /* Edit mode: section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
@@ -937,19 +946,27 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
         {config.show_trust_bar !== false && (
           <EditSection id="policies">
             <section style={{ position: "relative", padding: "90px 40px", overflow: "hidden" }}>
-              <div style={{ position: "absolute" as const, inset: 0, background: displayHeroImage ? `linear-gradient(100deg, rgba(253,248,242,0.97) 0%, rgba(253,248,242,0.86) 55%, rgba(253,248,242,0.7) 100%), url(${displayHeroImage}) center/cover` : `linear-gradient(120deg, #fbeef0, #f6e2e6)` }} />
+              <div style={{ position: "absolute" as const, inset: 0, background: (policiesBgImage || displayHeroImage) ? `linear-gradient(100deg, rgba(253,248,242,0.97) 0%, rgba(253,248,242,0.86) 55%, rgba(253,248,242,0.7) 100%), url(${policiesBgImage || displayHeroImage}) center/cover` : `linear-gradient(120deg, #fbeef0, #f6e2e6)` }} />
               <div style={{ position: "relative" as const, maxWidth: 1300, margin: "0 auto" }}>
-                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(24px,3vw,34px)", fontWeight: 600, color: ink, textAlign: "center" as const, marginBottom: 48 }}>Why Choose {s.store_name || "Rosefields"}?</h2>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(24px,3vw,34px)", fontWeight: 600, color: ink, textAlign: "center" as const, marginBottom: policiesMessage ? 16 : 48 }}>{policiesHeading || `Why Choose ${s.store_name || "Rosefields"}?`}</h2>
+                {policiesMessage && (
+                  <p style={{ fontSize: 13.5, color: inkMuted, textAlign: "center" as const, maxWidth: 560, margin: "0 auto 48px", lineHeight: 1.7 }}>{policiesMessage}</p>
+                )}
                 <div className="rf-trust-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 32 }}>
-                  {activePolicyItems.slice(0, 4).map((item, i) => (
-                    <div key={i} style={{ textAlign: "center" as const }}>
-                      <div style={{ width: 48, height: 48, borderRadius: "50%", background: card, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                        <OccasionIcon id={(item as any).icon || defaultPolicyItems[i]?.icon || "flower"} size={20} />
+                  {activePolicyItems.slice(0, 4).map((item, i) => {
+                    const iconId = (item as any).icon || defaultPolicyItems[i]?.icon || "flower";
+                    return (
+                      <div key={i} style={{ textAlign: "center" as const }}>
+                        {iconId !== "none" && (
+                          <div style={{ width: 48, height: 48, borderRadius: "50%", background: card, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                            <OccasionIcon id={iconId} size={20} />
+                          </div>
+                        )}
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: ink, marginBottom: 6 }}>{item.title}</div>
+                        <div style={{ fontSize: 11.5, color: inkMuted, lineHeight: 1.6, maxWidth: 220, margin: "0 auto" }}>{item.desc}</div>
                       </div>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: ink, marginBottom: 6 }}>{item.title}</div>
-                      <div style={{ fontSize: 11.5, color: inkMuted, lineHeight: 1.6, maxWidth: 220, margin: "0 auto" }}>{item.desc}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </section>

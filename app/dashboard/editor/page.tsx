@@ -66,7 +66,10 @@ interface Seller {
     announcement?: string;
     show_announcement?: boolean;
     trust_items?: { icon: string; title: string; desc: string }[];
-    policy_items?: { title: string; desc: string }[];
+    policy_items?: { title: string; desc: string; icon?: string }[];
+    policies_heading?: string;
+    policies_message?: string;
+    policies_bg_image?: string;
     hero_subtext?: string;
     circle_title?: string;
     circle_subtitle?: string;
@@ -277,6 +280,7 @@ export default function StoreEditor() {
   const [heroImagePosition, setHeroImagePosition] = useState("center");
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
   const heroImageRef = useRef<HTMLInputElement>(null);
+  const policiesBgRef = useRef<HTMLInputElement>(null);
 
   /* Heirloom-specific hero fields. The previous editor reused Crown's mapping
      (tagline -> headline, description -> subtitle) which was wrong for
@@ -1894,6 +1898,7 @@ export default function StoreEditor() {
                 { v: "ring2",  label: "Proposal" },
                 { v: "cake",   label: "Birthday" },
                 { v: "petal",  label: "New Baby" },
+                { v: "none",   label: "No Icon" },
               ];
               const PolicyIconPreview = ({ id }: { id: string }) => {
                 const st = { width: 15, height: 15, stroke: "currentColor", fill: "none", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -1903,6 +1908,7 @@ export default function StoreEditor() {
                   case "cake": return <svg {...st} viewBox="0 0 24 24"><path d="M4 21v-8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" /><path d="M2 21h20" /><path d="M4 16h16" /></svg>;
                   case "hands": return <svg {...st} viewBox="0 0 24 24"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z" /><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z" /><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z" /></svg>;
                   case "petal": return <svg {...st} viewBox="0 0 24 24"><path d="M12 3c3 3 3 8 0 11-3-3-3-8 0-11Z" /><path d="M4 12c3-3 8-3 11 0-3 3-8 3-11 0Z" /><path d="M20 12c-3 3-8 3-11 0 3-3 8-3 11 0Z" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /></svg>;
+                  case "none": return <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M5.5 5.5l13 13" /></svg>;
                   default: return <svg {...st} viewBox="0 0 24 24"><circle cx="12" cy="9" r="4.2" /><path d="M8.4 6.4a4.2 4.2 0 0 1 7.2 0" /><path d="M9 12.5C7 14 6 16.5 6 19.5" /><path d="M15 12.5c2 1.5 3 4 3 7" /><path d="M12 13v8.5" /></svg>;
                 }
               };
@@ -1933,16 +1939,82 @@ export default function StoreEditor() {
                 if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
               };
               const currentItems = seller?.store_config?.policy_items || defaultPolicyItems;
+              // Same direct-write-on-blur pattern as updatePolicyItem, kept as
+              // flat/global store_config fields (not template-scoped) so they
+              // read back the same way policy_items already does.
+              const POLICIES_FIELD_LIVE_KEY: Record<string, string> = {
+                policies_heading: "policiesHeading",
+                policies_message: "policiesMessage",
+                policies_bg_image: "policiesBgImage",
+              };
+              const updatePoliciesField = async (patch: Record<string, string>) => {
+                if (!seller) return;
+                const nextConfig = { ...seller.store_config, ...patch };
+                await supabase.from("sellers").update({ store_config: nextConfig }).eq("id", seller.id);
+                setSeller({ ...seller, store_config: nextConfig });
+                const livePatch: Record<string, string> = {};
+                for (const [k, v] of Object.entries(patch)) livePatch[POLICIES_FIELD_LIVE_KEY[k] || k] = v;
+                postUpdate(livePatch);
+                if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
+              };
+              const policiesBgImage = seller?.store_config?.policies_bg_image || "";
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <label style={labelStyle}>Shipping & Policies</label>
                   <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginBottom: 4 }}>Edit what shows in the Shipping / Returns / Payment section.</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(245,245,245,0.65)", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.25)", borderRadius: 8, padding: "10px 12px", lineHeight: 1.5 }}>
+                    Looking to add couriers or delivery methods (PAXI, Aramex, Courier Guy...)? That&apos;s managed in your main <strong>Dashboard → Checkout → Shipping</strong> tab, not here. This panel only edits the text and icons shown below.
+                  </div>
+                  {isRosefields && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10 }}>
+                      <div>
+                        <label style={labelStyle}>Section Background Image</label>
+                        <div onClick={() => policiesBgRef.current?.click()}
+                          style={{ width: "100%", height: 100, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                          {policiesBgImage
+                            ? <img src={policiesBgImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={22} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload background image</div></div>
+                          }
+                        </div>
+                        <input ref={policiesBgRef} type="file" accept="image/*"
+                          onChange={async e => {
+                            const f = e.target.files?.[0]; if (!f || !seller) return;
+                            const ext = f.name.split(".").pop();
+                            const path = `${seller.id}/policies_bg_${Date.now()}.${ext}`;
+                            const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                            if (!error) {
+                              const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                              await updatePoliciesField({ policies_bg_image: data.publicUrl });
+                            }
+                          }} style={{ display: "none" }} />
+                        {policiesBgImage && <button onClick={() => updatePoliciesField({ policies_bg_image: "" })} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                        <div style={{ fontSize: 11, color: "rgba(245,245,245,0.42)", marginTop: 4 }}>Defaults to your hero photo if left empty.</div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Section Heading</label>
+                        <input
+                          defaultValue={seller?.store_config?.policies_heading || ""}
+                          onBlur={e => updatePoliciesField({ policies_heading: e.target.value })}
+                          placeholder={`Why Choose ${seller?.store_name || "Rosefields"}?`}
+                          style={inputStyle} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Trust Message</label>
+                        <textarea
+                          defaultValue={seller?.store_config?.policies_message || ""}
+                          onBlur={e => updatePoliciesField({ policies_message: e.target.value })}
+                          placeholder="Optional line shown above the icons below, e.g. Trusted by 5,000+ happy customers across South Africa."
+                          rows={2}
+                          style={{ ...inputStyle, resize: "vertical" }} />
+                      </div>
+                    </div>
+                  )}
                   {currentItems.map((pol: any, i: number) => (
                     <div key={i} style={{ padding: "12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                       {isRosefields && (
                         <div>
                           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,245,245,0.4)", marginBottom: 6 }}>Icon</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                             {ROSEFIELDS_POLICY_ICONS.map(opt => {
                               const active = (pol.icon || defaultPolicyItems[i]?.icon || "flower") === opt.v;
                               return (
