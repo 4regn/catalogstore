@@ -37,7 +37,7 @@ export const TEMPLATE_SCOPED_KEYS = [
   "show_banner_text", "show_marquee", "show_collections", "show_about",
   "show_trust_bar", "show_policies", "show_newsletter",
   "featured_product_id", "flash_sale_label", "flash_sale_title", "show_flash_sale",
-  "newsletter_label", "newsletter_title", "newsletter_sub",
+  "newsletter_label", "newsletter_title", "newsletter_sub", "newsletter_copyright",
 ] as const;
 
 const SCOPED_SET = new Set<string>(TEMPLATE_SCOPED_KEYS);

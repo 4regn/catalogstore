@@ -167,6 +167,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [liveHeaderStyle, setLiveHeaderStyle]             = useState<string | null>(null);
   const [liveShowNewsletter, setLiveShowNewsletter]       = useState<boolean | null>(null);
   const [liveNewsletterLabel, setLiveNewsletterLabel]     = useState<string | null>(null);
+  const [liveNewsletterCopyright, setLiveNewsletterCopyright] = useState<string | null>(null);
   const [newsletterEmail, setNewsletterEmail]             = useState("");
   const [newsletterStatus, setNewsletterStatus]           = useState<"idle" | "loading" | "done" | "error">("idle");
   const [liveProductsLabel, setLiveProductsLabel]         = useState<string | null>(null);
@@ -300,6 +301,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
       if (e.data.headerStyle !== undefined) setLiveHeaderStyle(e.data.headerStyle);
       if (e.data.showNewsletter !== undefined) setLiveShowNewsletter(e.data.showNewsletter);
       if (e.data.newsletterLabel !== undefined) setLiveNewsletterLabel(e.data.newsletterLabel);
+      if (e.data.newsletterCopyright !== undefined) setLiveNewsletterCopyright(e.data.newsletterCopyright);
       if (e.data.productsLabel !== undefined) setLiveProductsLabel(e.data.productsLabel);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
       if (e.data.productCardRatio !== undefined) setLiveProductCardRatio(e.data.productCardRatio);
@@ -581,6 +583,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const headerStyle = liveHeaderStyle ?? (cfg as any).header_style ?? "icons";
   const showNewsletter = liveShowNewsletter ?? (cfg as any).show_newsletter === true;
   const newsletterLabel = liveNewsletterLabel ?? (cfg as any).newsletter_label ?? "Newsletter";
+  const newsletterCopyright = liveNewsletterCopyright ?? (cfg as any).newsletter_copyright ?? "";
   const showAnnouncement = liveShowAnnouncement ?? (cfg as any).show_announcement === true;
   const displayAnnouncement = showAnnouncement ? (liveAnnouncement ?? cfg.announcement ?? "") : "";
   const displayTrustItems   = liveTrustItems   ?? trustItems;
@@ -869,7 +872,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 </button>
               </form>
               {newsletterStatus === "error" && <div style={{ fontSize: 11, color: "#c0392b", marginTop: 8 }}>Something went wrong — please try again.</div>}
-              <p style={{ fontSize: 11, color: pageMuted, marginTop: 16, fontFamily: "'Courier New', monospace", letterSpacing: "0.02em" }}>&copy;{new Date().getFullYear()} {(seller?.store_name || "").toUpperCase()}</p>
+              <p style={{ fontSize: 11, color: pageMuted, marginTop: 16, fontFamily: "'Courier New', monospace", letterSpacing: "0.02em" }}>{newsletterCopyright || `©${new Date().getFullYear()} ${(seller?.store_name || "").toUpperCase()}`}</p>
             </section>
           </EditSection>
         )}

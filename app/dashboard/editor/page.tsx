@@ -91,6 +91,7 @@ interface Seller {
     header_style?: string;
     show_newsletter?: boolean;
     newsletter_label?: string;
+    newsletter_copyright?: string;
     ticker_texts?: string[];
     ticker_speed?: number;
     marquee_texts?: string[];
@@ -297,6 +298,7 @@ export default function StoreEditor() {
   const [headerStyle, setHeaderStyle] = useState("icons");
   const [showNewsletter, setShowNewsletter] = useState(false);
   const [newsletterLabel, setNewsletterLabel] = useState("Newsletter");
+  const [newsletterCopyright, setNewsletterCopyright] = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
   const policiesBgRef = useRef<HTMLInputElement>(null);
 
@@ -410,6 +412,7 @@ export default function StoreEditor() {
       setHeaderStyle((cfg as any)?.header_style || "icons");
       setShowNewsletter((cfg as any)?.show_newsletter === true);
       setNewsletterLabel((cfg as any)?.newsletter_label || "Newsletter");
+      setNewsletterCopyright((cfg as any)?.newsletter_copyright || "");
       if (cfg?.marquee_texts?.length) setMarqueeTexts(cfg.marquee_texts);
       else if (cfg?.ticker_texts?.length) setMarqueeTexts(cfg.ticker_texts);
       if (cfg?.marquee_speed) setMarqueeSpeed(cfg.marquee_speed);
@@ -536,6 +539,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ headerStyle }); }, [headerStyle]);
   useEffect(() => { postUpdate({ showNewsletter }); }, [showNewsletter]);
   useEffect(() => { postUpdate({ newsletterLabel }); }, [newsletterLabel]);
+  useEffect(() => { postUpdate({ newsletterCopyright }); }, [newsletterCopyright]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
@@ -655,6 +659,7 @@ export default function StoreEditor() {
       header_style: headerStyle,
       show_newsletter: showNewsletter,
       newsletter_label: newsletterLabel,
+      newsletter_copyright: newsletterCopyright,
       marquee_texts: marqueeTexts,
       marquee_speed: marqueeSpeed,
       // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
@@ -1353,10 +1358,18 @@ export default function StoreEditor() {
                         <span style={{ fontSize: 11, color: "rgba(245,245,245,0.5)" }}>Show email signup at the bottom of the hero</span>
                       </label>
                       {showNewsletter && (
-                        <div>
-                          <input value={newsletterLabel} onChange={e => setNewsletterLabel(e.target.value)}
-                            placeholder="Newsletter" style={inputStyle} />
-                          <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", marginTop: 6 }}>Subscribers are saved and viewable from your seller account — ask support to pull the list for now.</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div>
+                            <input value={newsletterLabel} onChange={e => setNewsletterLabel(e.target.value)}
+                              placeholder="Newsletter" style={inputStyle} />
+                            <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", marginTop: 6 }}>Label above the email field.</div>
+                          </div>
+                          <div>
+                            <input value={newsletterCopyright} onChange={e => setNewsletterCopyright(e.target.value)}
+                              placeholder={`©${new Date().getFullYear()} ${(seller?.store_name || "YOUR STORE").toUpperCase()}`} style={inputStyle} />
+                            <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)", marginTop: 6 }}>Copyright line under the signup form. Leave blank to auto-fill with your store name and the current year.</div>
+                          </div>
+                          <div style={{ fontSize: 10, color: "rgba(245,245,245,0.35)" }}>Subscribers are viewable from Newsletter in the sidebar.</div>
                         </div>
                       )}
                     </div>
