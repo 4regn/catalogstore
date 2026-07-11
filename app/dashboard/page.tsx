@@ -172,7 +172,7 @@ const TEMPLATES = [
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -267,6 +267,9 @@ export default function Dashboard() {
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [subscribers, setSubscribers] = useState<{ email: string; created_at: string }[]>([]);
+  const [subscribersLoading, setSubscribersLoading] = useState(false);
+  const [subscribersLoaded, setSubscribersLoaded] = useState(false);
   const [productSort, setProductSort] = useState("manual");
 
   interface DiscountCode { id: string; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: boolean; expires_at: string | null; created_at: string; applies_to: string; product_ids: string[]; collection_names: string[]; show_countdown: boolean; description?: string | null; }
@@ -306,7 +309,11 @@ export default function Dashboard() {
 
   useEffect(() => { checkAuth(); }, []);
 
-  const switchTab = (t: TabKey) => { setTab(t); setSidebarOpen(false); };
+  const switchTab = (t: TabKey) => {
+    setTab(t);
+    setSidebarOpen(false);
+    if (t === "newsletter" && !subscribersLoaded && !subscribersLoading) void fetchSubscribers();
+  };
 
   const checkAuth = async () => {
     // getSession() reads from local storage — no network round-trip,
@@ -366,6 +373,19 @@ export default function Dashboard() {
   const getAccessToken = async () => {
     const { data } = await supabase.auth.getSession();
     return data?.session?.access_token || "";
+  };
+
+  const fetchSubscribers = async () => {
+    const token = await getAccessToken();
+    if (!token) return;
+    setSubscribersLoading(true);
+    try {
+      const res = await fetch("/api/newsletter/subscribers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+      const data = await res.json();
+      if (res.ok) setSubscribers(data.subscribers || []);
+    } catch {}
+    setSubscribersLoading(false);
+    setSubscribersLoaded(true);
   };
 
   const refreshDomainStatus = async () => {
@@ -822,6 +842,7 @@ export default function Dashboard() {
         { key: "overview", name: "Share Store", icon: "share", action: () => setShareModalOpen(true) },
         { key: "qrcode", name: "QR Code", icon: "qrcode" },
         { key: "affiliate", name: "Affiliate Partners", icon: "affiliate", pro: true },
+        ...(seller?.template === "soft-luxury" ? [{ key: "newsletter" as TabKey, name: "Newsletter", icon: "megaphone" as DashIconName, count: subscribers.length }] : []),
         { key: "overview", name: "Marketing Tools", icon: "megaphone", pro: true, disabled: true },
         { key: "overview", name: "Store Health", icon: "health", action: () => switchTab("overview") },
       ],
@@ -2332,6 +2353,43 @@ export default function Dashboard() {
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Earn commission by referring other sellers to CatalogStore. This runs on a separate affiliate account from your store login, embedded below so you never have to leave your dashboard.</p>
             <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--border)", height: "calc(100vh - 260px)", minHeight: 560 }}>
               <iframe src="/affiliate/signup" title="CatalogStore Affiliate Program" style={{ width: "100%", height: "100%", border: "none" }} />
+            </div>
+          </div>)}
+
+          {tab === "newsletter" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Newsletter</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Everyone who signed up through the email capture bar on your storefront.</p>
+            <div style={sectionCard}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>{subscribers.length} Subscriber{subscribers.length === 1 ? "" : "s"}</h3>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => void fetchSubscribers()} disabled={subscribersLoading} style={{ padding: "8px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: subscribersLoading ? "default" : "pointer" }}>{subscribersLoading ? "Refreshing…" : "Refresh"}</button>
+                  {subscribers.length > 0 && (
+                    <button onClick={() => {
+                      const rows = ["email,subscribed_at", ...subscribers.map(s => `${s.email},${s.created_at}`)];
+                      const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url; a.download = "newsletter-subscribers.csv"; a.click();
+                      URL.revokeObjectURL(url);
+                    }} style={{ padding: "8px 14px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Export CSV</button>
+                  )}
+                </div>
+              </div>
+              {subscribersLoading && subscribers.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted-2)" }}>Loading…</p>
+              ) : subscribers.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted-2)" }}>No subscribers yet. Turn on the newsletter signup bar from the Hero panel in your Online Visual Editor to start collecting emails.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column" as const }}>
+                  {subscribers.map((s, i) => (
+                    <div key={s.email} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 4px", borderBottom: i === subscribers.length - 1 ? "none" : "1px solid var(--border)" }}>
+                      <span style={{ fontSize: 13, color: "var(--text)" }}>{s.email}</span>
+                      <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{new Date(s.created_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>)}
 
