@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 
 const pInCat = (p: { category: string }, cat: string) =>
@@ -122,6 +122,7 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
 
 export default function CrownStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
@@ -151,6 +152,10 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
   const [liveCollOrder, setLiveCollOrder]             = useState<string[] | null>(null);
   const [liveLogoUrl, setLiveLogoUrl]                 = useState<string | null>(null);
   const [liveHeroImage, setLiveHeroImage]             = useState<string | null>(null);
+  const [liveHeroVideo, setLiveHeroVideo]             = useState<string | null>(null);
+  const [liveShowMarquee, setLiveShowMarquee]         = useState<boolean | null>(null);
+  const [liveMarqueeTexts, setLiveMarqueeTexts]       = useState<string[] | null>(null);
+  const [liveMarqueeSpeed, setLiveMarqueeSpeed]       = useState<number | null>(null);
   const [liveTicker, setLiveTicker]                   = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed]         = useState<number | null>(null);
   const [liveBgColor, setLiveBgColor]                 = useState<string | null>(null);
@@ -291,8 +296,12 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
       if (e.data.collOrder       !== undefined) setLiveCollOrder(e.data.collOrder);
       if (e.data.logoUrl          !== undefined) setLiveLogoUrl(e.data.logoUrl);
       if (e.data.heroImage        !== undefined) setLiveHeroImage(e.data.heroImage);
+      if (e.data.heroVideo        !== undefined) setLiveHeroVideo(e.data.heroVideo);
       if (e.data.ticker           !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed      !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
+      if (e.data.marqueeTexts     !== undefined) setLiveMarqueeTexts(e.data.marqueeTexts);
+      if (e.data.marqueeSpeed     !== undefined) setLiveMarqueeSpeed(e.data.marqueeSpeed);
+      if (e.data.showMarquee      !== undefined) setLiveShowMarquee(e.data.showMarquee);
       if (e.data.bgColor          !== undefined) setLiveBgColor(e.data.bgColor);
       if (e.data.heroTextColor    !== undefined) setLiveHeroTextColor(e.data.heroTextColor);
       if (e.data.circleTextColor  !== undefined) setLiveCircleTextColor(e.data.circleTextColor);
@@ -569,11 +578,13 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
   const orderedCats            = liveCollOrder ? liveCollOrder.filter(c => rawCats.includes(c)).concat(rawCats.filter(c => !liveCollOrder!.includes(c))) : rawCats;
   const displayLogoUrl         = liveLogoUrl         ?? s.logo_url;
   const displayHeroImage       = liveHeroImage       ?? config.hero_image ?? null;
+  const displayHeroVideo       = liveHeroVideo       ?? (config as any).hero_video_url ?? null;
 
   /* Ticker */
   const defaultTicker   = [`FREE DELIVERY ON ORDERS OVER ${fmt(FREE_SHIP)}`, "NEW ARRIVALS JUST DROPPED", "SHOP THE LATEST COLLECTION"];
-  const displayTicker   = liveTicker      ?? config.ticker_texts  ?? defaultTicker;
-  const tickerDuration  = liveTickerSpeed ?? config.ticker_speed  ?? 20;
+  const displayTicker   = liveMarqueeTexts ?? liveTicker      ?? config.ticker_texts  ?? defaultTicker;
+  const tickerDuration  = liveMarqueeSpeed ?? liveTickerSpeed ?? config.ticker_speed  ?? 20;
+  const showMarquee     = liveShowMarquee  ?? (config as any).show_marquee !== false;
 
   /* Background & text colors */
   const displayBgColor        = liveBgColor        ?? config.bg_color          ?? bgDeep;
@@ -738,7 +749,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
         @media(max-width:480px){
           .crown-prod-grid{grid-template-columns:1fr 1fr!important}
         }
-        .crown-hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:4px;z-index:1002}
+        .crown-hamburger{display:flex;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:4px;z-index:1002}
         .crown-hamburger span{display:block;width:24px;height:1px;background:#f0e6d3;transition:all 0.4s cubic-bezier(0.16,1,0.3,1);transform-origin:center}
         .crown-hamburger.open span:nth-child(1){transform:translateY(6px) rotate(45deg)}
         .crown-hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
@@ -785,47 +796,45 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
           backdropFilter: scrolled ? "blur(20px)" : "none",
           borderBottom: scrolled ? `1px solid ${border}` : "none",
           padding: "20px 48px",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+          display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center",
           transition: "all 0.4s ease",
           transform: navVisible ? "translateY(0)" : "translateY(-100%)",
         }}>
-          <div style={{ cursor: isEditMode ? "pointer" : "default" }}
+          <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+            <button className={`crown-hamburger${mobileNavOpen ? " open" : ""}`} onClick={() => setMobileNavOpen(o => !o)}>
+              <span /><span /><span />
+            </button>
+            <div className="crown-nav-links" style={{ display: "flex", gap: 32 }}>
+              {categories.filter(c => c !== "All").slice(0, 5).map(cat => (
+                <button key={cat} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: textSecondary, transition: "color 0.3s" }}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ textAlign: "center", cursor: isEditMode ? "pointer" : "default" }}
             onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*") : undefined}>
             {(liveLogoUrl || s.logo_url)
               ? <img src={liveLogoUrl || s.logo_url!} alt={s.store_name} onError={hideOnError} style={{ height: 40, maxWidth: 160, objectFit: "contain" }} />
               : <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 26, fontWeight: 300, letterSpacing: "0.18em", textTransform: "uppercase", color: cream }}>{s.store_name || "Crown"}</div>
             }
           </div>
-          <div className="crown-nav-links" style={{ display: "flex", gap: 40 }}>
-            {categories.filter(c => c !== "All").slice(0, 5).map(cat => (
-              <button key={cat} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Didact Gothic', sans-serif", fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: textSecondary, transition: "color 0.3s" }}>
-                {cat}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20, justifyContent: "flex-end" }}>
           <button onClick={() => setShowSearch(true)} title="Search products" aria-label="Search products" style={{
             background: "none", border: "none", color: textSecondary, cursor: "pointer",
             display: "flex", alignItems: "center", padding: 4, transition: "color 0.2s",
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
-          <button onClick={() => setCartOpen(true)} style={{
-            display: "flex", alignItems: "center", gap: 10,
-            background: "none", border: `1px solid rgba(196,162,101,0.3)`,
-            color: goldLight, fontFamily: "'Didact Gothic', sans-serif",
-            fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase",
-            padding: "9px 20px", cursor: "pointer", transition: "all 0.3s",
+          <button onClick={() => setCartOpen(true)} aria-label="Cart" style={{
+            background: "none", border: "none", color: goldLight, cursor: "pointer",
+            display: "flex", alignItems: "center", padding: 4, position: "relative",
           }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
             </svg>
-            Cart
-            <span style={{ background: gold, color: bgDeep, width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{cartCount}</span>
-          </button>
-          <button className={`crown-hamburger${mobileNavOpen ? " open" : ""}`} onClick={() => setMobileNavOpen(o => !o)}>
-            <span /><span /><span />
+            {cartCount > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: gold, color: bgDeep, width: 16, height: 16, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{cartCount}</span>}
           </button>
           </div>
         </nav>
@@ -853,7 +862,9 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
         <EditSection id="hero" style={{ position: "relative", minHeight: "90vh", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
           {/* Background image */}
           <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-            {displayHeroImage ? (
+            {displayHeroVideo ? (
+              <video src={displayHeroVideo} autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
+            ) : displayHeroImage ? (
               <img src={displayHeroImage} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", filter: "brightness(0.6)" }} />
             ) : (
               <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg, ${bgElevated} 0%, #1e1a16 100%)` }} />
@@ -867,11 +878,13 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
             <div style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", color: gold, marginBottom: 24 }}>
               {displayHeroSubtext}
             </div>
-            <h1 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(52px,7vw,96px)", fontWeight: 300, lineHeight: 0.9, letterSpacing: "-0.01em", color: heroTextColor, marginBottom: 24 }}>
-              {displayTagline ? displayTagline.split(" ").map((word, i, arr) =>
-                i === Math.floor(arr.length / 2) ? <><em key={i} style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight, display: "block" }}>{word}</em></> : <span key={i}>{word} </span>
-              ) : <><span>Wear your </span><em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight, display: "block" }}>crown</em><span>with confidence.</span></>}
-            </h1>
+            {displayTagline && (
+              <h1 style={{ fontFamily: "'Cormorant Garant', serif", fontSize: "clamp(52px,7vw,96px)", fontWeight: 300, lineHeight: 0.9, letterSpacing: "-0.01em", color: heroTextColor, marginBottom: 24 }}>
+                {displayTagline.split(" ").map((word, i, arr) =>
+                  i === Math.floor(arr.length / 2) ? <em key={i} style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: goldLight, display: "block" }}>{word}</em> : <span key={i}>{word} </span>
+                )}
+              </h1>
+            )}
             {displayDescription && (
               <p style={{ fontSize: 14, lineHeight: 1.9, color: textSecondary, maxWidth: 400, marginBottom: 40 }}>{displayDescription}</p>
             )}
@@ -880,15 +893,10 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
               Explore Collection <span>→</span>
             </button>
           </div>
-          {/* Scroll indicator */}
-          <div style={{ position: "absolute", bottom: 40, right: 48, zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, opacity: 0.6 }}>
-            <span style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: textMuted, writingMode: "vertical-rl" as const }}>Scroll</span>
-            <div style={{ width: 1, height: 60, background: `linear-gradient(to bottom, ${gold}, transparent)`, animation: "scrollPulse 2s ease-in-out infinite" }} />
-          </div>
         </EditSection>
 
         {/* ── PROMO TICKER ── */}
-        {displayTicker.length > 0 && (
+        {showMarquee && displayTicker.length > 0 && (
           <EditSection id="ticker">
           <div style={{ background: bgElevated, overflow: "hidden", padding: "13px 0", borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
             <style>{`@keyframes promo-ticker { from { transform: translateX(0) } to { transform: translateX(-50%) } }`}</style>
@@ -974,7 +982,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                 const discountPct = p.old_price ? Math.round((1 - p.price / p.old_price) * 100) : null;
                 return (
                   <div key={p.id} className="crown-prod-card"
-                    onClick={() => openProduct(p)}
+                    onClick={() => { if (isEditMode) openProduct(p); else router.push(sp(`/p/${p.id}`)); }}
                     style={{ background: bgCard, cursor: "pointer", border: "1px solid transparent", transition: "border-color 0.4s", animation: `fadeUp 0.5s ease ${i * 0.05}s both` }}>
                     {/* Image */}
                     <div className="crown-prod-img" style={{ position: "relative", overflow: "hidden", aspectRatio: "3/4", background: bgElevated, borderBottom: `1px solid ${border}` }}>
@@ -1006,15 +1014,6 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
             </div>
           )}
         </section>
-
-        {/* ── TRUST BAR ── */}
-        {config.show_trust_bar !== false && (
-          <EditSection id="trust">
-            <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
-              <TrustAccordion items={activeTrustItems.filter(t => t.title)} gold={gold} border={border} cream={cream} textSecondary={textSecondary} />
-            </div>
-          </EditSection>
-        )}
 
         {/* ── ABOUT ── */}
         {config.show_about !== false && (displayDescription || s.description) && (
@@ -1049,7 +1048,6 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
               <div className="collections-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(categories.filter(c => c !== "All").length, 4)}, 1fr)`, gap: 28 }}>
                 {orderedCats.slice(0, 4).map((cat, i) => {
                   const catImg = products.find(p => pInCat(p, cat))?.image_url;
-                  const catCount = products.filter(p => pInCat(p, cat)).length;
                   return (
                     <div key={i} onClick={() => { setActiveCategory(cat); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
                       style={{ cursor: "pointer", position: "relative" }}>
@@ -1062,8 +1060,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 50%, rgba(10,9,8,0.7) 100%)", borderRadius: "200px 200px 12px 12px" }} />
                       </div>
                       <div style={{ textAlign: "center", paddingTop: 20 }}>
-                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 400, color: collTextColor, marginBottom: 4, transition: "color 0.3s" }}>{cat}</div>
-                        <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: textMuted }}>{catCount} {catCount === 1 ? "product" : "products"}</div>
+                        <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 22, fontWeight: 400, color: collTextColor, transition: "color 0.3s" }}>{cat}</div>
                       </div>
                     </div>
                   );
@@ -1141,6 +1138,15 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
         </section>
         </EditSection>
 
+        {/* ── TRUST BAR ── */}
+        {config.show_trust_bar !== false && (
+          <EditSection id="trust">
+            <div style={{ background: bgElevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
+              <TrustAccordion items={activeTrustItems.filter(t => t.title)} gold={gold} border={border} cream={cream} textSecondary={textSecondary} />
+            </div>
+          </EditSection>
+        )}
+
         {/* ── POLICIES ── */}
         {config.show_policies !== false && (
           <EditSection id="policies">
@@ -1151,8 +1157,8 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                 { title: "Returns", desc: "14-day returns on all unopened products in original packaging. Quality issue? We replace — no questions asked." },
                 { title: "Payment", desc: "Secure card payments via PayFast. EFT accepted. WhatsApp orders welcome." },
               ])).map((pol, i) => (
-                <div key={i} style={{ paddingLeft: i > 0 ? 40 : 0, borderLeft: i > 0 ? `1px solid ${border}` : "none" }}>
-                  <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 300, color: cream, marginBottom: 10 }}>{pol.title}</div>
+                <div key={i} style={{ display: "flex", flexDirection: "column", paddingLeft: i > 0 ? 40 : 0, borderLeft: i > 0 ? `1px solid ${border}` : "none" }}>
+                  <div style={{ fontFamily: "'Cormorant Garant', serif", fontSize: 20, fontWeight: 300, color: cream, marginBottom: 10, minHeight: 26 }}>{pol.title}</div>
                   <div style={{ fontSize: 12, color: textSecondary, lineHeight: 1.9 }}>{pol.desc}</div>
                 </div>
               ))}
@@ -1188,8 +1194,13 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
               {s.whatsapp_number && <a href={`https://wa.me/${s.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 13, color: textSecondary, textDecoration: "none", padding: "5px 0" }}>WhatsApp</a>}
             </div>
           </div>
-          <div style={{ maxWidth: 1300, margin: "0 auto", paddingTop: 24, borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ maxWidth: 1300, margin: "0 auto", paddingTop: 24, borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
             <span style={{ fontSize: 10, color: textMuted, letterSpacing: "0.06em" }}>© {new Date().getFullYear()} {s.store_name}. All rights reserved.</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ padding: "2px 4px", background: "rgba(196,162,101,0.08)", border: `1px solid ${border}`, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, objectFit: "contain" }} /></span>
+              <span style={{ padding: "2px 4px", background: "rgba(196,162,101,0.08)", border: `1px solid ${border}`, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, objectFit: "contain" }} /></span>
+              <span style={{ padding: "2px 4px", background: "rgba(196,162,101,0.08)", border: `1px solid ${border}`, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 16, objectFit: "contain" }} /></span>
+            </div>
             <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: gold, textDecoration: "none" }}>Powered by CatalogStore</a>
           </div>
         </footer>
@@ -1216,7 +1227,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                     <div style={{ padding: "24px 8px", color: textMuted, fontSize: 13, letterSpacing: "0.06em" }}>No products match "{searchQuery}".</div>
                   ) : (
                     searched.slice(0, 8).map((p) => (
-                      <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }}
+                      <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) openProduct(p); else router.push(sp(`/p/${p.id}`)); }}
                         style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 8px", borderBottom: `1px solid ${border}`, cursor: "pointer" }}>
                         {p.image_url ? (
                           <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 52, height: 64, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
@@ -1238,7 +1249,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
         )}
 
         {/* ── WHATSAPP FLOAT ── */}
-        {s.whatsapp_number && <a href={`https://wa.me/${s.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label={`Chat with ${s.store_name} on WhatsApp`}
+        {s.whatsapp_number && s.checkout_config?.whatsapp_checkout_enabled !== false && <a href={`https://wa.me/${s.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label={`Chat with ${s.store_name} on WhatsApp`}
           style={{ position: "fixed", bottom: 32, right: 32, zIndex: 300, width: 52, height: 52, background: "#25d366", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(37,211,102,0.3)", transition: "transform 0.3s", textDecoration: "none" }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
         </a>}

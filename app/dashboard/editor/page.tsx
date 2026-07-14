@@ -114,6 +114,7 @@ interface Seller {
     promise_images?: (string | null)[];
     promise_label?: string;
     hero_image?: string;
+    hero_video_url?: string;
     // Heirloom hero fields -- editor and storefront both read these.
     hero_index?: string;
     hero_label?: string;
@@ -292,6 +293,7 @@ export default function StoreEditor() {
   const [logoPreview, setLogoPreview]   = useState("");
   const [heroImagePreview, setHeroImagePreview] = useState("");
   const [heroImageUrl, setHeroImageUrl]           = useState("");
+  const [heroVideoUrl, setHeroVideoUrl]           = useState("");
   const [heroSplitImage2, setHeroSplitImage2]     = useState("");
   const [heroImagePosition, setHeroImagePosition] = useState("center");
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
@@ -309,6 +311,7 @@ export default function StoreEditor() {
   const [newsletterLabel, setNewsletterLabel] = useState("Newsletter");
   const [newsletterCopyright, setNewsletterCopyright] = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
+  const heroVideoRef = useRef<HTMLInputElement>(null);
   const heroSplitImage2Ref = useRef<HTMLInputElement>(null);
   const policiesBgRef = useRef<HTMLInputElement>(null);
 
@@ -457,6 +460,7 @@ export default function StoreEditor() {
       setLogoPreview(s.logo_url || "");
       setHeroImagePreview(cfg?.hero_image || "");
       setHeroImageUrl(cfg?.hero_image || "");
+      setHeroVideoUrl((cfg as any)?.hero_video_url || "");
       setHeroSplitImage2((cfg as any)?.hero_split_image_2 || "");
       if (!cfg?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
         setHeroImagePreview(s.banner_url);
@@ -560,6 +564,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ newsletterCopyright }); }, [newsletterCopyright]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
+  useEffect(() => { postUpdate({ heroVideo: heroVideoUrl }); }, [heroVideoUrl]);
   useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
   useEffect(() => { postUpdate({ marqueeSpeed }); }, [marqueeSpeed]);
   useEffect(() => { postUpdate({ bgColor }); }, [bgColor]);
@@ -713,6 +718,7 @@ export default function StoreEditor() {
       percent_off_pill_color: percentOffPillColor || null,
       show_percent_off_pill: showPercentOffPill,
       hero_image: heroImageUrl || heroImagePreview || undefined,
+      hero_video_url: heroVideoUrl || undefined,
       promise_label: promiseLabel,
       promise_title: promiseTitle,
       promise_items: promiseItems,
@@ -1490,6 +1496,30 @@ export default function StoreEditor() {
                   <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginTop: 4 }}>Full-screen background on your homepage. Different from your logo.</div>
                 </div>
                 <div>
+                  <label style={labelStyle}>Hero Video (optional)</label>
+                  <div onClick={() => heroVideoRef.current?.click()}
+                    style={{ width: "100%", height: 80, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroVideoUrl
+                      ? <span style={{ fontSize: 12, color: "rgba(245,245,245,0.6)" }}>Video uploaded ✓</span>
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={22} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero video</div></div>
+                    }
+                  </div>
+                  <input ref={heroVideoRef} type="file" accept="video/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_video.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) {
+                        const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                        setHeroVideoUrl(data.publicUrl + "?t=" + Date.now());
+                      }
+                    }}
+                    style={{ display: "none" }} />
+                  {heroVideoUrl && <button onClick={() => setHeroVideoUrl("")} style={{ marginTop: 6, fontSize: 12, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                  <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginTop: 4 }}>When set, this plays instead of the hero image.</div>
+                </div>
+                <div>
                   <label style={labelStyle}>Tagline (Hero Headline)</label>
                   <input value={tagline} onChange={e => setTagline(e.target.value)}
                     placeholder="e.g. Wear your crown with confidence"
@@ -1586,7 +1616,7 @@ export default function StoreEditor() {
             {/* PROMO TICKER */}
             {activeSection === "ticker" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {(seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
+                {(seller?.template === "soft-luxury" || seller?.template === "glass-futuristic" || seller?.template === "crown") && (
                   <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
                     <input type="checkbox" checked={showMarquee} onChange={e => setShowMarquee(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
                     <span style={{ fontSize: 13, color: "rgba(245,245,245,0.58)" }}>Show this section on my store</span>
