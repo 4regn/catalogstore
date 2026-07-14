@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 
 const pInCat = (p: { category: string }, cat: string) =>
@@ -67,6 +67,7 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
 
 export default function GlassChromeStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
@@ -82,6 +83,16 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const [liveLogoUrl, setLiveLogoUrl]           = useState<string | null>(null);
   const [liveShowMarquee, setLiveShowMarquee]         = useState<boolean | null>(null);
   const [liveShowCollections, setLiveShowCollections] = useState<boolean | null>(null);
+  const [liveHeroTitle, setLiveHeroTitle]       = useState<string | null>(null);
+  const [liveHeroCta, setLiveHeroCta]           = useState<string | null>(null);
+  const [liveHeroCtaTarget, setLiveHeroCtaTarget] = useState<any>(null);
+  const [liveBgColor, setLiveBgColor]           = useState<string | null>(null);
+  const [liveTextColor, setLiveTextColor]       = useState<string | null>(null);
+  const [liveMutedColor, setLiveMutedColor]     = useState<string | null>(null);
+  const [liveHeroButtonStyle, setLiveHeroButtonStyle] = useState<string | null>(null);
+  const [liveHeroButtonColor, setLiveHeroButtonColor] = useState<string | null>(null);
+  const [liveHeroButtonSize, setLiveHeroButtonSize]   = useState<string | null>(null);
+  const [liveHeroImageFade, setLiveHeroImageFade]     = useState<boolean | null>(null);
   const [hoveredSection, setHoveredSection]     = useState<string | null>(null);
 
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
@@ -98,6 +109,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [openFooterInfo, setOpenFooterInfo] = useState<string | null>(null);
@@ -137,6 +149,16 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
       if (e.data.logoUrl      !== undefined) setLiveLogoUrl(e.data.logoUrl);
       if (e.data.showMarquee     !== undefined) setLiveShowMarquee(e.data.showMarquee);
       if (e.data.showCollections !== undefined) setLiveShowCollections(e.data.showCollections);
+      if (e.data.heroTitle     !== undefined) setLiveHeroTitle(e.data.heroTitle);
+      if (e.data.heroCta       !== undefined) setLiveHeroCta(e.data.heroCta);
+      if (e.data.heroCtaTarget !== undefined) setLiveHeroCtaTarget(e.data.heroCtaTarget);
+      if (e.data.bgColor       !== undefined) setLiveBgColor(e.data.bgColor);
+      if (e.data.textColor     !== undefined) setLiveTextColor(e.data.textColor);
+      if (e.data.mutedColor    !== undefined) setLiveMutedColor(e.data.mutedColor);
+      if (e.data.heroButtonStyle !== undefined) setLiveHeroButtonStyle(e.data.heroButtonStyle);
+      if (e.data.heroButtonColor !== undefined) setLiveHeroButtonColor(e.data.heroButtonColor);
+      if (e.data.heroButtonSize  !== undefined) setLiveHeroButtonSize(e.data.heroButtonSize);
+      if (e.data.heroImageFade !== undefined) setLiveHeroImageFade(e.data.heroImageFade);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -319,6 +341,49 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const showCollections = liveShowCollections ?? cfg.show_collections !== false;
   const displayTrustItems  = liveTrustItems  ?? trustItems;
   const displayLogoUrl     = liveLogoUrl     ?? seller?.logo_url    ?? "";
+  const displayHeroTitle   = liveHeroTitle   ?? (cfg as any).hero_title ?? seller?.store_name ?? "";
+  const displayHeroCta     = liveHeroCta     ?? (cfg as any).hero_cta ?? "";
+  const heroCtaTarget      = liveHeroCtaTarget ?? (cfg as any).hero_cta_target ?? { type: "products" };
+  const heroCtaHref = heroCtaTarget.type === "url" && heroCtaTarget.url ? heroCtaTarget.url : heroCtaTarget.type === "none" ? null : "#products";
+  const heroCtaIsExternal = heroCtaTarget.type === "url";
+  const pageBg    = liveBgColor    ?? (cfg as any).bg_color    ?? "#030305";
+  const pageText  = liveTextColor  ?? (cfg as any).text_color  ?? "#f0f0f0";
+  const pageMuted = liveMutedColor ?? (cfg as any).muted_color ?? "rgba(255,255,255,0.5)";
+  const heroImageFade = liveHeroImageFade ?? (cfg as any).hero_image_fade !== false;
+  const heroButtonStyle = liveHeroButtonStyle ?? (cfg as any).hero_button_style ?? "filled";
+  const heroButtonColor = liveHeroButtonColor ?? (cfg as any).hero_button_color ?? "#ffffff";
+  const heroButtonSize  = liveHeroButtonSize  ?? (cfg as any).hero_button_size  ?? "md";
+  const heroButtonSizeStyle =
+    heroButtonSize === "sm" ? { padding: "10px 24px", fontSize: 11 } :
+    heroButtonSize === "lg" ? { padding: "18px 40px", fontSize: 13 } :
+    { padding: "14px 32px", fontSize: 12 };
+  const readableOn = (hex: string) => {
+    const h = hex.replace("#", "");
+    if (h.length !== 6) return "#000";
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? "#111" : "#fff";
+  };
+  const heroButtonStyleProps: React.CSSProperties = heroButtonStyle === "outline"
+    ? { background: "transparent", border: "1px solid " + heroButtonColor, color: heroButtonColor }
+    : { background: heroButtonColor, border: "1px solid " + heroButtonColor, color: readableOn(heroButtonColor) };
+  const ICON_SVGS: Record<string, React.ReactNode> = {
+    shield:  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/></svg>,
+    star:    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+    diamond: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 3h12l4 6-10 13L2 9z"/><path d="M2 9h20"/></svg>,
+    truck:   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
+    package: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 10V7a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 7v10a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 17v-3"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+    refresh: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>,
+    lock:    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
+    card:    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+    check:   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
+    award:   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>,
+    tag:     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+    globe:   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>,
+    heart:   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>,
+    clock:   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    phone:   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.5 19.79 19.79 0 01.04 4.72 2 2 0 012 2.5h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 10a16 16 0 006 6l.36-.36a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>,
+    zap:     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  };
 
   /* Edit mode section wrapper */
   const EditSection = ({ id, children, style }: { id: string; children: React.ReactNode; style?: React.CSSProperties }) => {
@@ -386,9 +451,9 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         @keyframes drift1{from{transform:translate(0,0) scale(1)}to{transform:translate(8%,12%) scale(1.1)}}
         @keyframes drift2{from{transform:translate(0,0) scale(1)}to{transform:translate(-6%,-8%) scale(1.15)}}
         @keyframes slideBar{from{transform:translateX(30vw)}to{transform:translateX(-100%)}}
-        @media(max-width:768px){.gc-cols{grid-template-columns:1fr 1fr!important}.gc-pgrid{grid-template-columns:repeat(2,1fr)!important}.gc-about{grid-template-columns:1fr!important}.gc-trust{grid-template-columns:repeat(2,1fr)!important}.gc-polg{grid-template-columns:1fr!important}.gc-fgrid{grid-template-columns:1fr!important}.gc-hero{height:70vh!important;min-height:400px!important}.gc-hnav{display:none!important}.gc-modal{flex-direction:column!important}.gc-hcorner{display:none!important}}
+        @media(max-width:768px){.gc-cols{grid-template-columns:1fr 1fr!important}.gc-pgrid{grid-template-columns:repeat(2,1fr)!important}.gc-about{grid-template-columns:1fr!important}.gc-trust{grid-template-columns:repeat(2,1fr)!important}.gc-polg{grid-template-columns:1fr!important}.gc-fgrid{grid-template-columns:1fr!important}.gc-hero{height:70vh!important;min-height:400px!important}.gc-hnav{display:none!important}.gc-hamburger{display:flex!important}.gc-modal{flex-direction:column!important}.gc-hcorner{display:none!important}}
       `}</style>
-      <div style={{ minHeight: "100vh", background: "#030305", fontFamily: body, color: "#f0f0f0" }}>
+      <div style={{ minHeight: "100vh", background: pageBg, fontFamily: body, color: pageText }}>
 
         {/* AMBIENT BG */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
@@ -409,8 +474,21 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         )}
 
         {/* HEADER */}
-        <header style={{ position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 30px", height: 64, background: "rgba(3,3,5,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid " + PB }}>
-          <div style={{ cursor: isEditMode ? "pointer" : "default" }}
+        <header style={{ position: "sticky", top: 0, zIndex: 100, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 30px", height: 64, background: "rgba(3,3,5,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid " + PB }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+            <button className="gc-hamburger" onClick={() => setMobileMenuOpen(true)} aria-label="Menu" style={{ background: "none", border: "none", padding: 4, margin: "-4px", color: "rgba(255,255,255,0.7)", cursor: "pointer", display: "none", alignItems: "center" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            </button>
+            <nav className="gc-hnav" style={{ display: "flex", gap: 32, alignItems: "center" }}>
+              <button onClick={() => { setActiveCategory("All"); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                style={{ background: "none", border: "none", padding: 0, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontFamily: "inherit" }}>Shop</button>
+              {cats.length > 2 && (
+                <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
+                  style={{ background: "none", border: "none", padding: 0, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
+              )}
+            </nav>
+          </div>
+          <div style={{ textAlign: "center", cursor: isEditMode ? "pointer" : "default" }}
             onClick={isEditMode ? () => window.parent.postMessage({ type: "SECTION_CLICK", section: "logo" }, "*") : undefined}>
             {displayLogoUrl ? (
               <img src={displayLogoUrl} alt={seller?.store_name} onError={hideOnError} style={{ height: 36, maxWidth: 140, objectFit: "contain" }} />
@@ -418,19 +496,30 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
               <span style={{ fontFamily: display, fontSize: 26, letterSpacing: "0.08em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{seller?.store_name}</span>
             )}
           </div>
-          <nav className="gc-hnav" style={{ display: "flex", gap: 32, alignItems: "center" }}>
-            <button onClick={() => { setActiveCategory("All"); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-              style={{ background: "none", border: "none", padding: 0, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontFamily: "inherit" }}>Shop</button>
-            {cats.length > 2 && (
-              <button onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" })}
-                style={{ background: "none", border: "none", padding: 0, fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontFamily: "inherit" }}>Collections</button>
-            )}
-          </nav>
-          <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 18, alignItems: "center", justifyContent: "flex-end" }}>
             <button onClick={() => setShowSearch(true)} aria-label="Search products" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", display: "flex", alignItems: "center" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-            <button onClick={() => setShowCart(true)} style={{ background: P, border: "1px solid " + PB, color: "#f0f0f0", padding: "8px 18px", borderRadius: 6, fontFamily: body, fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer" }}>Cart ({cartCount})</button>
+            <button onClick={() => setShowCart(true)} aria-label="Cart" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", position: "relative" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+              {cartCount > 0 && <span style={{ position: "absolute", top: -4, right: -6, width: 16, height: 16, borderRadius: "50%", background: accentColor, color: "#000", fontSize: 8, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}
+            </button>
           </div>
         </header>
+
+        {mobileMenuOpen && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(3,3,5,0.6)", backdropFilter: "blur(4px)" }} onClick={() => setMobileMenuOpen(false)}>
+            <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: "min(320px, 82vw)", background: "#0b0b0f", borderRight: "1px solid " + PB, padding: "24px 24px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" style={{ alignSelf: "flex-end", background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", marginBottom: 20 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+              <button onClick={() => { setActiveCategory("All"); setMobileMenuOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                style={{ background: "none", border: "none", padding: "14px 0", fontSize: 16, letterSpacing: "0.06em", textTransform: "uppercase", color: "#f0f0f0", cursor: "pointer", textAlign: "left", fontFamily: display, borderBottom: "1px solid " + PB }}>Shop</button>
+              {cats.filter((c) => c !== "All").map((c) => (
+                <button key={c} onClick={() => { setActiveCategory(c); setMobileMenuOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ background: "none", border: "none", padding: "14px 0", fontSize: 16, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.6)", cursor: "pointer", textAlign: "left", fontFamily: display, borderBottom: "1px solid " + PB }}>{c}</button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* PROMO COUNTDOWN */}
         {promoCountdown && promoCountdown.timeLeft && (
@@ -464,21 +553,22 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
           <section className="gc-hero" style={{ position: "relative", height: seller?.banner_url ? "100vh" : "auto", minHeight: seller?.banner_url ? 600 : "auto", display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
             {seller?.banner_url ? (
               <>
-                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.35) saturate(0.7)" }} />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(3,3,5,0.92) 0%, rgba(3,3,5,0.4) 50%, rgba(3,3,5,0.15) 100%)" }} />
+                <img src={seller.banner_url} alt="" onError={hideOnError} fetchPriority="high" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: heroImageFade ? "brightness(0.35) saturate(0.7)" : "none" }} />
+                {heroImageFade && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(3,3,5,0.92) 0%, rgba(3,3,5,0.4) 50%, rgba(3,3,5,0.15) 100%)" }} />}
                 <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)" }} />
                 {cfg.show_banner_text && (
                   <div style={{ position: "relative", zIndex: 2, padding: "0 40px 70px", maxWidth: 900 }}>
                     {displayTagline && <p style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.25em", color: "#fff", marginBottom: 18, textTransform: "uppercase" }}>{displayTagline}</p>}
-                    <h1 style={{ fontFamily: display, fontSize: "clamp(56px, 10vw, 144px)", lineHeight: 0.92, letterSpacing: "0.02em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 24, textTransform: "uppercase" }}>{seller?.store_name}</h1>
-                    <a href="#products" style={{ display: "inline-flex", padding: "14px 32px", borderRadius: 6, background: "#fff", color: "#000", fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>Shop the Collection</a>
+                    <h1 style={{ fontFamily: display, fontSize: "clamp(56px, 10vw, 144px)", lineHeight: 0.92, letterSpacing: "0.02em", background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 24, textTransform: "uppercase" }}>{displayHeroTitle}</h1>
+                    {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", ...heroButtonSizeStyle, ...heroButtonStyleProps, borderRadius: 6, fontFamily: body, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop the Collection"}</a>}
                   </div>
                 )}
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "100px 40px 80px", width: "100%" }}>
-                <h1 style={{ fontFamily: display, fontSize: "clamp(48px, 10vw, 120px)", lineHeight: 0.92, background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>{seller?.store_name}</h1>
-                {displayTagline && <p style={{ fontFamily: mono, fontSize: 12, color: "rgba(255,255,255,0.5)", letterSpacing: "0.15em", textTransform: "uppercase", marginTop: 16 }}>{displayTagline}</p>}
+                <h1 style={{ fontFamily: display, fontSize: "clamp(48px, 10vw, 120px)", lineHeight: 0.92, background: chromeGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>{displayHeroTitle}</h1>
+                {displayTagline && <p style={{ fontFamily: mono, fontSize: 12, color: pageMuted, letterSpacing: "0.15em", textTransform: "uppercase", marginTop: 16 }}>{displayTagline}</p>}
+                {heroCtaHref && <a href={heroCtaHref} {...(heroCtaIsExternal ? { target: "_blank", rel: "noreferrer" } : {})} style={{ display: "inline-flex", marginTop: 24, ...heroButtonSizeStyle, ...heroButtonStyleProps, borderRadius: 6, fontFamily: body, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>{displayHeroCta || "Shop the Collection"}</a>}
               </div>
             )}
           </section>
@@ -488,7 +578,6 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         {showCollections && collections.length > 0 && (
           <EditSection id="collections">
           <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
-            <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 10 }}>/ 01</p>
             <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 50 }}>Collections</h2>
             <div className="gc-cols" style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(collections.length, 3) + ", 1fr)", gap: 16 }}>
               {collections.slice(0, 3).map((col) => {
@@ -520,7 +609,6 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
 
         {/* PRODUCTS */}
         <section id="products" style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
-          <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 10 }}>/ 02</p>
           <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 50 }}>All Products</h2>
 
           {cats.length > 2 && (
@@ -548,7 +636,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
           ) : (
             <div className="gc-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
               {filtered.map((product) => (
-                <div key={product.id} onClick={() => openProduct(product)} style={{ background: P, border: "1px solid " + PB, borderRadius: 12, overflow: "hidden", cursor: "pointer", transition: "transform 0.35s, border-color 0.35s, box-shadow 0.35s", position: "relative" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = PB; e.currentTarget.style.boxShadow = ""; }}>
+                <div key={product.id} onClick={() => { if (isEditMode) openProduct(product); else router.push(sp(`/p/${product.id}`)); }} style={{ background: P, border: "1px solid " + PB, borderRadius: 12, overflow: "hidden", cursor: "pointer", transition: "transform 0.35s, border-color 0.35s, box-shadow 0.35s", position: "relative" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = PB; e.currentTarget.style.boxShadow = ""; }}>
                   <div style={{ aspectRatio: "3/4", overflow: "hidden", background: "linear-gradient(145deg, #141418, #0c0c10)", position: "relative" }}>
                     {product.image_url && <img src={product.image_url} alt={product.name} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s", filter: "brightness(0.85)" }} />}
                     {product.old_price && <div style={{ position: "absolute", top: 12, left: 12, fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 4, background: "#fff", color: "#000", fontWeight: 600 }}>Sale</div>}
@@ -579,19 +667,22 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         {cfg.show_about && (displayDescription || seller?.description) && (
           <EditSection id="about">
             <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
-              <div className="gc-about" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
-                <div style={{ position: "relative", aspectRatio: "4/5", borderRadius: 20, overflow: "hidden", background: "#0b0b0f", border: "1px solid " + PB }}>
-                  {(() => {
-                    const aboutImg = liveAboutImage ?? cfg.about_image ?? products.find((p) => p.image_url)?.image_url;
-                    return aboutImg ? <img src={aboutImg} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} /> : null;
-                  })()}
-                </div>
-                <div>
-                  <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 14 }}>/ 03 - About</p>
-                  <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 20, lineHeight: 1 }}>About {seller?.store_name}</h2>
-                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.85, fontWeight: 300, maxWidth: 440 }}>{displayDescription || seller?.description}</p>
-                </div>
-              </div>
+              {(() => {
+                const aboutImg = liveAboutImage ?? cfg.about_image ?? "";
+                return (
+                  <div className="gc-about" style={{ display: "grid", gridTemplateColumns: aboutImg ? "1fr 1fr" : "1fr", gap: 80, alignItems: "center" }}>
+                    {aboutImg && (
+                      <div style={{ position: "relative", aspectRatio: "4/5", borderRadius: 20, overflow: "hidden", background: "#0b0b0f", border: "1px solid " + PB }}>
+                        <img src={aboutImg} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.5) saturate(0.7)" }} />
+                      </div>
+                    )}
+                    <div>
+                      <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 20, lineHeight: 1 }}>About {seller?.store_name}</h2>
+                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.85, fontWeight: 300, maxWidth: 440 }}>{displayDescription || seller?.description}</p>
+                    </div>
+                  </div>
+                );
+              })()}
             </section>
           </EditSection>
         )}
@@ -603,7 +694,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
               <div className="gc-trust" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, maxWidth: 1280, margin: "0 auto" }}>
                 {displayTrustItems.map((item, i) => (
                   <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 12, padding: "24px 16px", borderRadius: 12, border: "1px solid transparent", transition: "border-color 0.35s, background 0.35s" }}>
-                    <div style={{ fontSize: 24, color: "#fff" }}>{item.icon}</div>
+                    <div style={{ fontSize: 24, color: "#fff", display: "flex" }}>{ICON_SVGS[item.icon] ?? item.icon}</div>
                     <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{item.title}</div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", fontWeight: 300 }}>{item.desc}</div>
                   </div>
@@ -617,12 +708,10 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         {cfg.show_policies && (
           <EditSection id="policies">
           <section style={{ padding: "90px 30px", maxWidth: 1280, margin: "0 auto" }}>
-            <p style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.25em", color: "#fff", textTransform: "uppercase", marginBottom: 10 }}>/ 04</p>
             <h2 style={{ fontFamily: display, fontSize: "clamp(32px, 5vw, 60px)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 50 }}>Shipping & Policies</h2>
             <div className="gc-polg" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
               {policyItems.map((p, i) => (
                 <div key={i} style={{ background: P, border: "1px solid " + PB, borderRadius: 12, padding: "32px 28px" }}>
-                  <div style={{ fontFamily: mono, fontSize: 10, color: "#fff", letterSpacing: "0.2em", marginBottom: 16, textTransform: "uppercase" }}>0{i + 1} - {p.title}</div>
                   <h4 style={{ fontFamily: display, fontSize: 20, letterSpacing: "0.05em", marginBottom: 12, textTransform: "uppercase" }}>{p.title}</h4>
                   <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.7, fontWeight: 300 }}>{p.desc}</p>
                 </div>
@@ -691,9 +780,14 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                 </div>
               )}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 28, borderTop: "1px solid " + PB, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 28, borderTop: "1px solid " + PB, flexWrap: "wrap", gap: 16 }}>
               <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", letterSpacing: "0.08em" }}>&copy; {new Date().getFullYear()} {seller?.store_name}</span>
-              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "rgba(255,255,255,0.28)" }}>BUILT ON <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ color: "#fff", textDecoration: "none" }}>CATALOGSTORE</a></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ padding: "2px 4px", background: "rgba(255,255,255,0.06)", border: "1px solid " + PB, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, objectFit: "contain" }} /></span>
+                <span style={{ padding: "2px 4px", background: "rgba(255,255,255,0.06)", border: "1px solid " + PB, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, objectFit: "contain" }} /></span>
+                <span style={{ padding: "2px 4px", background: "rgba(255,255,255,0.06)", border: "1px solid " + PB, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 16, objectFit: "contain" }} /></span>
+              </div>
+              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "rgba(255,255,255,0.28)" }}>POWERED BY <a href="https://catalogstore.co.za" target="_blank" rel="noreferrer" style={{ color: "#fff", textDecoration: "none" }}>CATALOGSTORE</a></div>
             </div>
           </div>
         </footer>
@@ -746,7 +840,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                       <button onClick={() => setModalQty((q) => Math.min(999, q + 1))} aria-label="Increase quantity" style={{ width: 34, height: 34, background: "none", border: "none", color: "#f0f0f0", cursor: "pointer", fontSize: 14, fontFamily: body }}>+</button>
                     </div>
                   </div>
-                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "16px 32px", background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
+                  <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "16px 32px", background: heroButtonColor, color: readableOn(heroButtonColor), border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
                 </div>
               </div>
             </div>
@@ -798,7 +892,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                       const payload = JSON.stringify(cart.map(i => ({ id: i.product.id, name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, variant: Object.entries(i.selectedVariants).map(([k,v]) => k+": "+v).join(", "), image: i.product.image_url || "", selectedVariants: i.selectedVariants })));
                       const encoded = btoa(unescape(encodeURIComponent(payload)));
                       window.location.href = sp("/checkout?cart=" + encoded);
-                    }} style={{ width: "100%", padding: 16, background: "#fff", color: "#000", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
+                    }} style={{ width: "100%", padding: 16, background: heroButtonColor, color: readableOn(heroButtonColor), border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>Proceed to Checkout</button>
                     {seller?.checkout_config?.whatsapp_checkout_enabled !== false && <button onClick={checkoutWhatsApp} style={{ width: "100%", padding: 16, background: "#25d366", color: "#fff", border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer" }}>Checkout via WhatsApp</button>}
                     <p style={{ textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.28)", marginTop: 12, fontFamily: mono, letterSpacing: "0.08em", textTransform: "uppercase" }}>Secure checkout</p>
                   </div>
@@ -818,7 +912,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
             {searched && searched.length > 0 && (
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
-                  <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid " + PB, cursor: "pointer" }}>
+                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) openProduct(p); else router.push(sp(`/p/${p.id}`)); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid " + PB, cursor: "pointer" }}>
                     {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 6, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 14 }}>{p.name}</div><div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{fmt(p.price)}</div></div>
                   </div>
@@ -829,7 +923,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         )}
 
         {/* WHATSAPP FLOAT */}
-        {seller?.whatsapp_number && (
+        {seller?.whatsapp_number && seller?.checkout_config?.whatsapp_checkout_enabled !== false && (
           <a href={waLink} target="_blank" rel="noreferrer" aria-label={`Chat with ${seller?.store_name || "us"} on WhatsApp`} style={{ position: "fixed", bottom: 28, right: 28, width: 52, height: 52, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(37,211,102,0.3)", zIndex: 50, textDecoration: "none" }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
           </a>
