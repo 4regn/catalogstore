@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
 
   /* Subscription gate — refuses to accept money if the seller can't process it */
   const active = seller.subscription_status === "active"
+    || seller.subscription_status === "free"
     || (seller.subscription_status === "trial" && seller.trial_ends_at && new Date(seller.trial_ends_at) > new Date());
   if (!active) return NextResponse.json({ error: "This store is not currently accepting orders." }, { status: 409 });
 

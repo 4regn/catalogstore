@@ -291,7 +291,7 @@ export default function CheckoutPage() {
 
   const isStoreActive = (s: Seller | null) => {
     if (!s) return false;
-    if (s.subscription_status === "active") return true;
+    if (s.subscription_status === "active" || s.subscription_status === "free") return true;
     if (s.subscription_status === "trial" && s.trial_ends_at && new Date(s.trial_ends_at) > new Date()) return true;
     return false;
   };
