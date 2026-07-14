@@ -1190,11 +1190,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
 
         </>)}
 
-        {/* LOADING OVERLAY */}
+        {/* LOADING BAR — thin top progress bar instead of a full-page spinner overlay */}
         {navigating && (
-          <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: pageBg + "e6", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-            <div style={{ width: 36, height: 36, border: `2px solid ${pageMuted}30`, borderTopColor: accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 9999, background: pageMuted + "30", overflow: "hidden", pointerEvents: "none" }} aria-hidden="true">
+            <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", background: accent, borderRadius: "0 2px 2px 0", animation: "sl-progress 0.8s ease-in-out infinite" }} />
+            <style>{`@keyframes sl-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}`}</style>
           </div>
         )}
 
