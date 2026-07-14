@@ -296,6 +296,7 @@ export default function Dashboard() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const [templateOpen, setTemplateOpen] = useState(true);
+  const [mystoreFocusTemplates, setMystoreFocusTemplates] = useState(false);
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [logoRemoved, setLogoRemoved] = useState(false);
   const [bannerRemoved, setBannerRemoved] = useState(false);
@@ -309,9 +310,19 @@ export default function Dashboard() {
 
   useEffect(() => { checkAuth(); }, []);
 
+  /* Some actions (e.g. switching templates) reload the whole page to get a
+     clean slate of state for the new template. Without this, that reload
+     would always bounce back to the Overview tab -- this restores whatever
+     tab was requested just before the reload. */
+  useEffect(() => {
+    const saved = sessionStorage.getItem("cs_dashboard_pending_tab");
+    if (saved) { sessionStorage.removeItem("cs_dashboard_pending_tab"); setTab(saved as TabKey); }
+  }, []);
+
   const switchTab = (t: TabKey) => {
     setTab(t);
     setSidebarOpen(false);
+    setMystoreFocusTemplates(false);
     if (t === "newsletter" && !subscribersLoaded && !subscribersLoading) void fetchSubscribers();
   };
 
@@ -801,50 +812,50 @@ export default function Dashboard() {
     </button>
   );
   const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 800, color: "var(--muted-2)", textTransform: "uppercase", letterSpacing: "0.12em", padding: "0 12px", marginBottom: 6 };
+  const domainConnected = !!seller?.custom_domain && seller?.custom_domain_status === "verified";
 
   const navSections: { label: string | null; items: { key: TabKey; name: string; icon: DashIconName; count?: number; badge?: string; pro?: boolean; disabled?: boolean; action?: () => void }[] }[] = [
     { label: null, items: [{ key: "overview", name: "Overview", icon: "overview" }] },
-    {
+    ...(launchDoneCount < launchSteps.length ? [{
       label: "Launch",
       items: [
-        { key: "launch", name: "Launch Progress", icon: "launch", badge: `${launchDoneCount}/${launchSteps.length}` },
+        { key: "launch" as TabKey, name: "Launch Progress", icon: "launch" as DashIconName, badge: `${launchDoneCount}/${launchSteps.length}` },
       ],
-    },
+    }] : []),
     {
       label: "My Store",
       items: [
-        { key: "mystore", name: "My Store", icon: "store" },
-        { key: "domains", name: "Domain", icon: "domain", pro: true },
-        { key: "checkout", name: "Payments", icon: "payment", action: () => { setCheckoutView("payments"); switchTab("checkout"); } },
-        { key: "checkout", name: "Shipping", icon: "box", action: () => { setCheckoutView("shipping"); switchTab("checkout"); } },
+        { key: "mystore" as TabKey, name: "Edit My Store", icon: "store" as DashIconName },
+        { key: "products" as TabKey, name: "Products", icon: "products" as DashIconName, count: publishedCount },
+        { key: "checkout" as TabKey, name: "Checkout", icon: "payment" as DashIconName },
+        ...(!domainConnected ? [{ key: "domains" as TabKey, name: "Domain", icon: "domain" as DashIconName, pro: true }] : []),
       ],
     },
     {
       label: "Sell",
       items: [
-        { key: "products", name: "Products", icon: "products", count: publishedCount },
-        { key: "collections", name: "Collections", icon: "collections", count: storeCollections.length },
-        { key: "orders", name: "Orders", icon: "orders", count: visibleOrders.length },
-        { key: "abandoned", name: "Abandoned Carts", icon: "cart", count: abandonedOrders.length },
-        { key: "discounts", name: "Discounts", icon: "discount", count: discountCodes.length },
+        { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName, count: visibleOrders.length },
+        { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
+        { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
       ],
     },
     {
       label: "Design",
       items: [
-        { key: "mystore", name: "Themes", icon: "theme", action: () => { switchTab("mystore"); setTemplateOpen(true); } },
+        { key: "mystore" as TabKey, name: "Themes", icon: "theme" as DashIconName, action: () => { switchTab("mystore"); setTemplateOpen(true); setMystoreFocusTemplates(true); } },
       ],
     },
     {
       label: "Grow",
       items: [
-        { key: "analytics", name: "Analytics", icon: "analytics", pro: true },
-        { key: "overview", name: "Share Store", icon: "share", action: () => setShareModalOpen(true) },
-        { key: "qrcode", name: "QR Code", icon: "qrcode" },
-        { key: "affiliate", name: "Affiliate Partners", icon: "affiliate", pro: true },
+        { key: "analytics" as TabKey, name: "Analytics", icon: "analytics" as DashIconName, pro: true },
+        { key: "overview" as TabKey, name: "Share Store", icon: "share" as DashIconName, action: () => setShareModalOpen(true) },
+        { key: "qrcode" as TabKey, name: "QR Code", icon: "qrcode" as DashIconName },
+        { key: "affiliate" as TabKey, name: "Affiliate Partners", icon: "affiliate" as DashIconName, pro: true },
         ...(seller?.template === "soft-luxury" ? [{ key: "newsletter" as TabKey, name: "Newsletter", icon: "megaphone" as DashIconName, count: subscribers.length }] : []),
-        { key: "overview", name: "Marketing Tools", icon: "megaphone", pro: true, disabled: true },
-        { key: "overview", name: "Store Health", icon: "health", action: () => switchTab("overview") },
+        { key: "overview" as TabKey, name: "Marketing Tools", icon: "megaphone" as DashIconName, pro: true, disabled: true },
+        { key: "overview" as TabKey, name: "Store Health", icon: "health" as DashIconName, action: () => switchTab("overview") },
+        ...(domainConnected ? [{ key: "domains" as TabKey, name: "Domain", icon: "domain" as DashIconName, pro: true }] : []),
       ],
     },
   ];
@@ -868,7 +879,6 @@ export default function Dashboard() {
   // complete. Pro sellers already have templates/product limits unlocked,
   // so those items are swapped for informational copy instead of an
   // upgrade CTA; a connected custom domain retires the card entirely.
-  const domainConnected = !!seller?.custom_domain && seller?.custom_domain_status === "verified";
   const growComplete = !isFreePlan && domainConnected;
   const growItems: { label: string; desc: React.ReactNode; fn: () => void; cta: string }[] = [];
   if (isFreePlan) {
@@ -1375,6 +1385,13 @@ export default function Dashboard() {
             <LaunchProgressCard />
           </div>)}
 
+          {(tab === "products" || tab === "collections") && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+              {([{ key: "products" as TabKey, label: "All Products" }, { key: "collections" as TabKey, label: "Collections" }]).map((v) => (
+                <button key={v.key} onClick={() => switchTab(v.key)} style={{ padding: "8px 18px", background: tab === v.key ? "rgba(255,107,53,0.08)" : "var(--panel)", border: tab === v.key ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", borderRadius: 100, color: tab === v.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{v.label}</button>
+              ))}
+            </div>
+          )}
           {tab === "products" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Products</h1><p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Manage the products in your store.</p></div>
@@ -2029,7 +2046,7 @@ export default function Dashboard() {
                             },
                           };
                           const { error } = await supabase.from("sellers").update({ template: t.id, store_config: mergedGlobal, template_configs: newTemplateConfigs }).eq("id", seller.id);
-                          if (!error) { revalidateMyStore(); window.location.reload(); }
+                          if (!error) { sessionStorage.setItem("cs_dashboard_pending_tab", "mystore"); revalidateMyStore(); window.location.reload(); }
                         }} style={{ padding: 0, border: storeTemplate === t.id ? "2px solid " + N : "2px solid var(--border)", borderRadius: 16, background: "var(--panel)", cursor: "pointer", overflow: "hidden", textAlign: "left" as const, position: "relative" as const }}>
                           <div style={{ width: "100%", height: 220, background: t.colors.bg, overflow: "hidden", borderRadius: "12px 12px 0 0", position: "relative" as const }}>
                             <div style={{ position: "absolute" as const, top: 8, left: "50%", transform: "translateX(-50%)", width: 60, height: 6, borderRadius: 3, background: "rgba(0,0,0,0.15)", zIndex: 2 }} />
@@ -2065,6 +2082,7 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+            {!mystoreFocusTemplates && (<>
             {seller?.subdomain && (<div style={sectionCard}><h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Online Visual Editor</h3><p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p><a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Online Visual Editor &rarr;</a></div>)}
             <div style={sectionCard}>
               <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 16 }}>Branding</h3>
@@ -2251,6 +2269,7 @@ export default function Dashboard() {
               {storeSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
               {seller?.subdomain && <a href={canonicalStoreUrl(seller.subdomain)} target="_blank" style={{ color: "var(--muted-2)", fontSize: 11, textDecoration: "underline", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Preview Store</a>}
             </div>
+            </>)}
           </div>)}
 
           {tab === "domains" && (<div>
