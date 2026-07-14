@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { revalidateStore } from "../../actions/revalidate-store";
 import { canonicalStoreUrl } from "../../../lib/store-url";
 import CtaTargetPicker, { type CtaTarget } from "../../components/CtaTargetPicker";
+import FocalPointPicker from "../../components/FocalPointPicker";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../../lib/template-config";
 
 // Mirror HeirloomStore's collectionSlug. Inlined (not imported) so the editor
@@ -1138,14 +1139,9 @@ export default function StoreEditor() {
                 {seller?.template === "soft-luxury" && (
                   <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <label style={labelStyle}>Banner Position</label>
-                    <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginBottom: 8 }}>Fixes portrait banners getting cropped oddly on wide screens.</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 16 }}>
-                      {([{ v: "top", l: "Top" }, { v: "center", l: "Center" }, { v: "bottom", l: "Bottom" }] as const).map(o => (
-                        <button key={o.v} onClick={() => setHeroImagePosition(o.v)}
-                          style={{ padding: "8px 4px", borderRadius: 6, border: heroImagePosition === o.v ? `1.5px solid ${G}` : "1px solid rgba(255,255,255,0.1)", background: heroImagePosition === o.v ? `${G}15` : "rgba(255,255,255,0.03)", color: heroImagePosition === o.v ? "#fff" : "rgba(245,245,245,0.5)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
-                          {o.l}
-                        </button>
-                      ))}
+                    <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginBottom: 8 }}>Click or drag on the preview to pick the exact point that stays visible on desktop -- fixes portrait banners getting cropped oddly on wide screens.</div>
+                    <div style={{ marginBottom: 16 }}>
+                      <FocalPointPicker value={heroImagePosition} onChange={setHeroImagePosition} imageUrl={heroImagePreview} />
                     </div>
                     <label style={labelStyle}>Banner Motion</label>
                     <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginBottom: 8 }}>See how each option looks live in the preview.</div>

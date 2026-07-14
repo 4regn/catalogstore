@@ -7,6 +7,7 @@ import { revalidateStore } from "../actions/revalidate-store";
 import { canonicalStoreUrl } from "../../lib/store-url";
 import { FONT_PAIRS, DEFAULT_FONT_PAIR_KEY } from "../../lib/font-pairs";
 import CtaTargetPicker, { type CtaTarget } from "../components/CtaTargetPicker";
+import FocalPointPicker from "../components/FocalPointPicker";
 import Spinner from "../components/Spinner";
 import SupportChat from "../components/SupportChat";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
@@ -297,6 +298,7 @@ export default function Dashboard() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const [templateOpen, setTemplateOpen] = useState(true);
   const [mystoreFocusTemplates, setMystoreFocusTemplates] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [logoRemoved, setLogoRemoved] = useState(false);
   const [bannerRemoved, setBannerRemoved] = useState(false);
@@ -813,6 +815,23 @@ export default function Dashboard() {
   );
   const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 800, color: "var(--muted-2)", textTransform: "uppercase", letterSpacing: "0.12em", padding: "0 12px", marginBottom: 6 };
   const domainConnected = !!seller?.custom_domain && seller?.custom_domain_status === "verified";
+  // Collapse state for the long-form "Edit My Store" sections. Undefined/false = open.
+  const toggleSection = (id: string) => setCollapsedSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  const CollapsibleSection = ({ id, title, right, children }: { id: string; title: string; right?: React.ReactNode; children: React.ReactNode }) => {
+    const open = !collapsedSections[id];
+    return (
+      <div style={{ ...sectionCard, padding: 0, overflow: "hidden" }}>
+        <div onClick={() => toggleSection(id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", cursor: "pointer", gap: 12 }}>
+          <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>{title}</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }} onClick={(e) => e.stopPropagation()}>
+            {right}
+            <span onClick={() => toggleSection(id)} style={{ fontSize: 11, color: "var(--muted-2)", transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s", display: "inline-block", cursor: "pointer" }}>&#9662;</span>
+          </div>
+        </div>
+        {open && <div style={{ padding: "20px 20px 24px", borderTop: "1px solid var(--border)" }}>{children}</div>}
+      </div>
+    );
+  };
 
   const navSections: { label: string | null; items: { key: TabKey; name: string; icon: DashIconName; count?: number; badge?: string; pro?: boolean; disabled?: boolean; action?: () => void }[] }[] = [
     { label: null, items: [{ key: "overview", name: "Overview", icon: "overview" }] },
@@ -2084,8 +2103,7 @@ export default function Dashboard() {
             </div>
             {!mystoreFocusTemplates && (<>
             {seller?.subdomain && (<div style={sectionCard}><h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Online Visual Editor</h3><p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p><a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Online Visual Editor &rarr;</a></div>)}
-            <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 16 }}>Branding</h3>
+            <CollapsibleSection id="branding" title="Branding">
               <div className="logo-banner-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
                 <div>
                   <label style={{ ...labelStyle, marginBottom: 0 }}>Store Logo</label>
@@ -2104,14 +2122,9 @@ export default function Dashboard() {
               {storeTemplate === "soft-luxury" && (
                 <div style={{ paddingTop: 20, borderTop: "1px solid var(--border)" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6 }}>Banner Position</div>
-                  <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 10 }}>Fixes portrait banner images getting cropped oddly on wide desktop screens — choose which part of the image stays visible.</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 20 }}>
-                    {([{ v: "top", l: "Top" }, { v: "center", l: "Center" }, { v: "bottom", l: "Bottom" }] as const).map(o => (
-                      <button key={o.v} onClick={() => setStoreConfig({ ...storeConfig, hero_image_position: o.v })}
-                        style={{ padding: "8px 4px", borderRadius: 6, border: (storeConfig.hero_image_position || "center") === o.v ? `1.5px solid ${N}` : "1px solid var(--border)", background: (storeConfig.hero_image_position || "center") === o.v ? "var(--panel-solid)" : "var(--panel)", color: (storeConfig.hero_image_position || "center") === o.v ? "var(--text)" : "var(--muted)", fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>
-                        {o.l}
-                      </button>
-                    ))}
+                  <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 10 }}>Click or drag on the preview to pick the exact point that stays visible on desktop.</div>
+                  <div style={{ marginBottom: 20 }}>
+                    <FocalPointPicker value={storeConfig.hero_image_position || "center"} onChange={(v) => setStoreConfig({ ...storeConfig, hero_image_position: v })} imageUrl={bannerPreview} />
                   </div>
 
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 6 }}>Banner Motion</div>
@@ -2144,20 +2157,17 @@ export default function Dashboard() {
                 </div>
                 <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 8 }}>Click the swatch to open the full color picker — pick from the spectrum, use the sliders, or type an exact hex code.</div>
               </div>
-
-              <div style={{ paddingTop: 20, marginTop: 20, borderTop: "1px solid var(--border)" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 10 }}>Typography</div>
+            </CollapsibleSection>
+            <CollapsibleSection id="typography" title="Typography">
                 <select value={storeConfig.font_pair || DEFAULT_FONT_PAIR_KEY} onChange={(e) => setStoreConfig({ ...storeConfig, font_pair: e.target.value })} style={{ ...inputStyle, appearance: "none" as const, WebkitAppearance: "none" as const }}>
                   {Object.entries(FONT_PAIRS).map(([key, fp]) => (
                     <option key={key} value={key}>{fp.heading.split(",")[0].replace(/'/g, "")} / {fp.body.split(",")[0].replace(/'/g, "")}</option>
                   ))}
                 </select>
                 <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 8 }}>Applies to the Soft Luxury template. Changes take effect across your storefront and checkout.</div>
-              </div>
-            </div>
-            <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Hero Section</h3>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>These match what you see in the hero section of the Online Visual Editor. Leave a field empty and it won&apos;t display on your store.</p>
+            </CollapsibleSection>
+            <CollapsibleSection id="hero" title="Hero Section">
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16, marginTop: -8 }}>These match what you see in the hero section of the Online Visual Editor. Leave a field empty and it won&apos;t display on your store.</p>
               <div style={{ display: "flex", flexDirection: "column" as const, gap: 16 }}>
                 <div><label style={labelStyle}>Tagline</label><input type="text" placeholder="e.g. Premium streetwear for the culture" value={storeTagline} onChange={(e) => setStoreTagline(e.target.value)} style={inputStyle} /></div>
                 {storeTemplate === "soft-luxury" && (
@@ -2178,33 +2188,22 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-            </div>
-            <div style={sectionCard}>
-              <div style={sectionHeaderRow}>
-                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>Announcement Bar</h3>
-                <SectionToggle configKey="show_announcement" />
-              </div>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Shows at the very top of your store.</p>
+            </CollapsibleSection>
+            <CollapsibleSection id="announcement" title="Announcement Bar" right={<SectionToggle configKey="show_announcement" />}>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>Shows at the very top of your store.</p>
               {storeConfig.show_announcement && <input type="text" placeholder="e.g. Free delivery on orders over R500" value={storeConfig.announcement} onChange={(e) => setStoreConfig({ ...storeConfig, announcement: e.target.value })} style={inputStyle} />}
-            </div>
+            </CollapsibleSection>
             {storeTemplate === "heirloom" ? (
-              <div style={sectionCard}><h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Marquee Ticker</h3><p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Scrolling text shown below the header.</p>{storeConfig.marquee_texts.map((txt, i) => (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}><input type="text" value={txt} onChange={(e) => { const u = [...storeConfig.marquee_texts]; u[i] = e.target.value; setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ flex: 1, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{storeConfig.marquee_texts.length > 1 && <button onClick={() => { const u = storeConfig.marquee_texts.filter((_, idx) => idx !== i); setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", color: "#ff6b35", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>}</div>))}<button onClick={() => setStoreConfig({ ...storeConfig, marquee_texts: [...storeConfig.marquee_texts, ""] })} style={{ padding: "8px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Message</button></div>
+              <CollapsibleSection id="marquee" title="Marquee Ticker"><p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>Scrolling text shown below the header.</p>{storeConfig.marquee_texts.map((txt, i) => (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}><input type="text" value={txt} onChange={(e) => { const u = [...storeConfig.marquee_texts]; u[i] = e.target.value; setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ flex: 1, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{storeConfig.marquee_texts.length > 1 && <button onClick={() => { const u = storeConfig.marquee_texts.filter((_, idx) => idx !== i); setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", color: "#ff6b35", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>}</div>))}<button onClick={() => setStoreConfig({ ...storeConfig, marquee_texts: [...storeConfig.marquee_texts, ""] })} style={{ padding: "8px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Message</button></CollapsibleSection>
             ) : (
-              <div style={sectionCard}>
-                <div style={sectionHeaderRow}>
-                  <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>Marquee Ticker</h3>
-                  <SectionToggle configKey="show_marquee" />
-                </div>
-                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Scrolling text shown below the header.</p>
+              <CollapsibleSection id="marquee" title="Marquee Ticker" right={<SectionToggle configKey="show_marquee" />}>
+                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>Scrolling text shown below the header.</p>
                 {storeConfig.show_marquee && (<>{storeConfig.marquee_texts.map((txt, i) => (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}><input type="text" value={txt} onChange={(e) => { const u = [...storeConfig.marquee_texts]; u[i] = e.target.value; setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ flex: 1, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{storeConfig.marquee_texts.length > 1 && <button onClick={() => { const u = storeConfig.marquee_texts.filter((_, idx) => idx !== i); setStoreConfig({ ...storeConfig, marquee_texts: u }); }} style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", color: "#ff6b35", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>}</div>))}<button onClick={() => setStoreConfig({ ...storeConfig, marquee_texts: [...storeConfig.marquee_texts, ""] })} style={{ padding: "8px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Message</button></>)}
-              </div>
+              </CollapsibleSection>
             )}
-            {storeTemplate !== "heirloom" && (<div style={sectionCard}>
-              <div style={sectionHeaderRow}>
-                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>Trust Bar</h3>
-                <SectionToggle configKey="show_trust_bar" />
-              </div>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Select an icon and add a title/description for each item.</p>
+            {storeTemplate !== "heirloom" && (
+            <CollapsibleSection id="trustbar" title="Trust Bar" right={<SectionToggle configKey="show_trust_bar" />}>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>Select an icon and add a title/description for each item.</p>
               {storeConfig.show_trust_bar && (<>{storeConfig.trust_items.map((item, i) => (<div key={i} style={{ padding: "12px 14px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 8 }}><div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const, marginBottom: 8 }}>{[
               { id: "shield",  svg: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/></svg> },
               { id: "star",    svg: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
@@ -2223,47 +2222,40 @@ export default function Dashboard() {
               { id: "phone",   svg: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.5 19.79 19.79 0 01.04 4.72 2 2 0 012 2.5h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 10a16 16 0 006 6l.36-.36a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg> },
               { id: "map",     svg: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> },
             ].map(({ id, svg }) => (<button key={id} title={id} onClick={() => { const u = [...storeConfig.trust_items]; u[i] = { ...u[i], icon: id }; setStoreConfig({ ...storeConfig, trust_items: u }); }} style={{ width: 32, height: 32, borderRadius: 6, border: item.icon === id ? `2px solid ${N}` : "1px solid var(--border)", background: item.icon === id ? `${N}15` : "var(--panel-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: item.icon === id ? N : "var(--muted)" }}>{svg}</button>))}</div><div style={{ display: "flex", gap: 8 }}><input type="text" value={item.title} onChange={(e) => { const u = [...storeConfig.trust_items]; u[i] = { ...u[i], title: e.target.value }; setStoreConfig({ ...storeConfig, trust_items: u }); }} placeholder="Title" style={{ flex: 1, padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /><input type="text" value={item.desc} onChange={(e) => { const u = [...storeConfig.trust_items]; u[i] = { ...u[i], desc: e.target.value }; setStoreConfig({ ...storeConfig, trust_items: u }); }} placeholder="Description" style={{ flex: 2, padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />{storeConfig.trust_items.length > 1 && <button onClick={() => { const u = storeConfig.trust_items.filter((_, idx) => idx !== i); setStoreConfig({ ...storeConfig, trust_items: u }); }} style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>&times;</button>}</div></div>))}{storeConfig.trust_items.length < 6 && <button onClick={() => setStoreConfig({ ...storeConfig, trust_items: [...storeConfig.trust_items, { icon: "shield", title: "", desc: "" }] })} style={{ padding: "8px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Item</button>}</>)}
-            </div>)}
-            <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Footer About Text</h3>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>A brief description of your business shown in the footer, below the Trust Bar. Leave empty to use your store description.</p>
+            </CollapsibleSection>)}
+            <CollapsibleSection id="footerabout" title="Footer About Text">
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>A brief description of your business shown in the footer, below the Trust Bar. Leave empty to use your store description.</p>
               <textarea value={storeConfig.footer_about || ""} onChange={(e) => setStoreConfig({ ...storeConfig, footer_about: e.target.value })} placeholder="e.g. We specialise in premium streetwear designed for everyday comfort." rows={3} style={{ ...inputStyle, resize: "vertical" as const }} />
-            </div>
-            {storeTemplate !== "heirloom" && (<div style={sectionCard}>
-              <div style={sectionHeaderRow}>
-                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>Shipping & Policies</h3>
-                <SectionToggle configKey="show_policies" />
-              </div>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Edit your shipping, returns, and payment policy text.</p>
+            </CollapsibleSection>
+            {storeTemplate !== "heirloom" && (
+              <CollapsibleSection id="shippingpolicies" title="Shipping & Policies" right={<SectionToggle configKey="show_policies" />}>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>Edit your shipping, returns, and payment policy text.</p>
               {storeConfig.show_policies && (<>
                 {storeConfig.policy_items.map((item, i) => (<div key={i} style={{ padding: "12px 14px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 8 }}><input type="text" value={item.title} onChange={(e) => { const u = [...storeConfig.policy_items]; u[i] = { ...u[i], title: e.target.value }; setStoreConfig({ ...storeConfig, policy_items: u }); }} placeholder="e.g. Shipping" style={{ width: "100%", padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, fontWeight: 700, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", marginBottom: 6, textTransform: "uppercase" as const, letterSpacing: "0.04em" }} /><textarea value={item.desc} onChange={(e) => { const u = [...storeConfig.policy_items]; u[i] = { ...u[i], desc: e.target.value }; setStoreConfig({ ...storeConfig, policy_items: u }); }} placeholder="Policy details..." rows={2} style={{ width: "100%", padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const }} />{storeConfig.policy_items.length > 1 && <button onClick={() => setStoreConfig({ ...storeConfig, policy_items: storeConfig.policy_items.filter((_, idx) => idx !== i) })} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Remove</button>}</div>))}
                 <button onClick={() => setStoreConfig({ ...storeConfig, policy_items: [...storeConfig.policy_items, { title: "", desc: "" }] })} style={{ padding: "8px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Policy</button>
               </>)}
-            </div>)}
-            <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Social Links</h3>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Add your social media links. Leave empty to hide.</p>
+              </CollapsibleSection>)}
+            <CollapsibleSection id="social" title="Social Links">
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16, marginTop: -8 }}>Add your social media links. Leave empty to hide.</p>
               <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
                 {([{ key: "instagram" as const, label: "Instagram", placeholder: "https://instagram.com/yourbrand" }, { key: "tiktok" as const, label: "TikTok", placeholder: "https://tiktok.com/@yourbrand" }, { key: "facebook" as const, label: "Facebook", placeholder: "https://facebook.com/yourbrand" }, { key: "twitter" as const, label: "X / Twitter", placeholder: "https://x.com/yourbrand" }]).map((item) => (
                   <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 12 }}><label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, width: 80, flexShrink: 0 }}>{item.label}</label><input type="url" placeholder={item.placeholder} value={socialLinks[item.key] || ""} onChange={(e) => setSocialLinks({ ...socialLinks, [item.key]: e.target.value })} style={{ flex: 1, padding: "11px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></div>
                 ))}
               </div>
-            </div>
-            <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Contact & Store Info</h3>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Shown in the footer contact popup. Leave empty to hide.</p>
+            </CollapsibleSection>
+            <CollapsibleSection id="contact" title="Contact & Store Info">
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16, marginTop: -8 }}>Shown in the footer contact popup. Leave empty to hide.</p>
               <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}><label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, width: 80, flexShrink: 0 }}>Email</label><input type="email" placeholder="orders@yourbrand.co.za" value={storeConfig.contact_email || ""} onChange={(e) => setStoreConfig({ ...storeConfig, contact_email: e.target.value })} style={{ flex: 1, padding: "11px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}><label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, width: 80, flexShrink: 0 }}>Phone</label><input type="tel" placeholder="+27 12 345 6789" value={storeConfig.contact_phone || ""} onChange={(e) => setStoreConfig({ ...storeConfig, contact_phone: e.target.value })} style={{ flex: 1, padding: "11px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></div>
                 <div><label style={labelStyle}>Operating Hours</label><textarea value={storeConfig.operating_hours || ""} onChange={(e) => setStoreConfig({ ...storeConfig, operating_hours: e.target.value })} placeholder="e.g. Mon-Fri 9am-5pm, Sat 10am-2pm" rows={2} style={{ ...inputStyle, fontSize: 12, resize: "vertical" as const }} /></div>
                 <div><label style={labelStyle}>Physical Address</label><textarea value={storeConfig.physical_address || ""} onChange={(e) => setStoreConfig({ ...storeConfig, physical_address: e.target.value })} placeholder="e.g. 123 Main Street, Cape Town" rows={2} style={{ ...inputStyle, fontSize: 12, resize: "vertical" as const }} /></div>
               </div>
-            </div>
-            <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Free Shipping Threshold</h3>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Orders above this amount qualify for free shipping. Leave empty to disable.</p>
+            </CollapsibleSection>
+            <CollapsibleSection id="freeshipping" title="Free Shipping Threshold">
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>Orders above this amount qualify for free shipping. Leave empty to disable.</p>
               <input type="number" placeholder="e.g. 500" value={storeConfig.free_ship_threshold ?? ""} onChange={(e) => setStoreConfig({ ...storeConfig, free_ship_threshold: e.target.value ? Number(e.target.value) : null })} style={{ width: 160, padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-            </div>
+            </CollapsibleSection>
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" as const }}>
               <button onClick={saveStoreSettings} disabled={storeSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: storeSaving ? "not-allowed" : "pointer", opacity: storeSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{storeSaving ? "Saving..." : "Save Changes"}</button>
               {storeSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}

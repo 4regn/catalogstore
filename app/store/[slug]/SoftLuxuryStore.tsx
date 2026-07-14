@@ -555,7 +555,12 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
     "#products";
   const heroCtaIsExternal = heroCtaTarget.type === "url";
   const heroImagePosition = liveHeroImagePosition ?? (cfg as any).hero_image_position ?? "center";
-  const heroImageObjectPosition = heroImagePosition === "top" ? "center top" : heroImagePosition === "bottom" ? "center bottom" : "center center";
+  const heroImageObjectPosition =
+    heroImagePosition === "top" ? "center top" :
+    heroImagePosition === "bottom" ? "center bottom" :
+    heroImagePosition === "center" ? "center center" :
+    /^[\d.]+%\s+[\d.]+%$/.test(heroImagePosition) ? heroImagePosition :
+    "center center";
   const heroImageBehavior = liveHeroImageBehavior ?? (cfg as any).hero_image_behavior ?? "still";
   const heroImageAnimation = heroImageBehavior === "breathing" ? "sl-hero-breathing 16s ease-in-out infinite" : heroImageBehavior === "ambient" ? "sl-hero-ambient 22s ease-in-out infinite" : undefined;
   const rawHeroLayout = liveHeroLayout ?? (cfg as any).hero_layout ?? "default";
