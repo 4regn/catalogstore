@@ -14,7 +14,7 @@ const TICKER_ITEMS = [
 ];
 
 // Two tiers: Free (Soft Luxury only, capped) to get a real store live with
-// zero commitment, and Pro (all 4 templates, higher limits, custom
+// zero commitment, and Pro (all 5 templates, higher limits, custom
 // domain) as the paid upsell once a seller is ready to grow.
 const FREE_PLAN_FEATURES = [
   "Up to 15 products",
@@ -22,19 +22,19 @@ const FREE_PLAN_FEATURES = [
   "Soft Luxury template",
   "Free store link (yourstore.catalogstore.co.za)",
   "Visual store editor",
-  "Card, EFT, Apple Pay, WhatsApp checkout",
+  "Secure card payment gateways, EFT, Apple Pay, WhatsApp checkout",
   "No credit card required",
 ];
 const PLAN_FEATURES = [
   "Up to 100 products",
   "20 photos per product",
   "Up to 10 collections",
-  "All 4 store templates",
+  "All 5 store templates",
   "Personal onboarding — we set you up 1-on-1",
   "Custom domain support — we help you connect it",
   "Free store link (yourstore.catalogstore.co.za)",
   "Visual store editor",
-  "Card, EFT, Apple Pay, WhatsApp checkout",
+  "Secure card payment gateways, EFT, Apple Pay, WhatsApp checkout",
   "Cancel anytime",
 ];
 
@@ -1383,7 +1383,7 @@ ${collections.length > 0 ? `
         <section id="pricing" style={{ padding: "120px 0 100px" }}>
           <div className="section-label reveal">Pricing</div>
           <h2 className="reveal" style={{ textAlign: "center", fontSize: "clamp(32px,5vw,56px)", fontWeight: 900, letterSpacing: "-0.05em", textTransform: "uppercase", marginBottom: 16 }}>Start free. Upgrade when ready.</h2>
-          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 56, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>Card payments, EFT, Apple Pay, and WhatsApp checkout are available on every plan — including Free.</p>
+          <p className="reveal" style={{ textAlign: "center", fontSize: 14, color: "var(--text-dim)", marginBottom: 56, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>Secure card payment gateways, EFT, Apple Pay, and WhatsApp checkout are available on every plan — including Free.</p>
 
           <div className="reveal pricing-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 920, margin: "0 auto" }}>
             {/* FREE PLAN */}

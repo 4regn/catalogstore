@@ -683,7 +683,7 @@ export default function AffiliateDashboard() {
               style={styles.shareBtn}
               onClick={() => {
                 const msg = encodeURIComponent(
-                  `Want to open a real online store and take card payments online? Check out CatalogStore — built for SA sellers: ${refLink(affiliate.slug)}`
+                  `Want to open a real online store with secure card payment gateways? Check out CatalogStore — built for SA sellers: ${refLink(affiliate.slug)}`
                 );
                 window.open(`https://wa.me/?text=${msg}`, "_blank", "noopener,noreferrer");
               }}
@@ -696,7 +696,7 @@ export default function AffiliateDashboard() {
             <button
               style={styles.shareBtn}
               onClick={async () => {
-                const caption = `Open a real online store and take card payments online 👀\nBuilt for SA sellers — zero commission.\nSign up with my link and pay R149/month instead of R199/month 🎉\n\n${refLink(affiliate.slug)}`;
+                const caption = `Open a real online store with secure card payment gateways 👀\nBuilt for SA sellers — zero commission.\nSign up with my link and pay R149/month instead of R199/month 🎉\n\n${refLink(affiliate.slug)}`;
                 try {
                   await navigator.clipboard.writeText(caption);
                   showToast("Caption copied");

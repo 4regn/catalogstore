@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s · CatalogStore",
   },
   description:
-    "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders. 14-day free trial, then R199/month. Zero commission. Built for South African sellers.",
+    "Open a real online store in minutes. Accept secure card payment gateways online — no more chasing WhatsApp orders. 14-day free trial, then R199/month. Zero commission. Built for South African sellers.",
   keywords: [
     "online store builder South Africa",
     "WhatsApp catalog to store",
@@ -38,14 +38,14 @@ export const metadata: Metadata = {
     siteName: "CatalogStore",
     title: "CatalogStore — Built for South African Sellers",
     description:
-      "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders.",
+      "Open a real online store in minutes. Accept secure card payment gateways online — no more chasing WhatsApp orders.",
     locale: "en_ZA",
   },
   twitter: {
     card: "summary_large_image",
     title: "CatalogStore — Built for South African Sellers",
     description:
-      "Open a real online store in minutes. Accept card payments online — no more chasing WhatsApp orders.",
+      "Open a real online store in minutes. Accept secure card payment gateways online — no more chasing WhatsApp orders.",
   },
   robots: {
     index: true,

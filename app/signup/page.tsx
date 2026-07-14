@@ -213,7 +213,7 @@ export default function SignUp() {
                   <div style={s.planName}>Starter</div>
                   <div style={s.planPrice}>R199<span style={s.planPriceSuffix}>/mo</span></div>
                   <ul style={s.planFeatures}>
-                    <li style={s.planFeatureItem}>All 4 store templates</li>
+                    <li style={s.planFeatureItem}>All 5 store templates</li>
                     <li style={s.planFeatureItem}>Up to 50 products</li>
                     <li style={s.planFeatureItem}>20 photos per product</li>
                     <li style={s.planFeatureItem}>Custom domain support</li>
