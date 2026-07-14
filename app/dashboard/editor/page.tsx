@@ -381,8 +381,9 @@ export default function StoreEditor() {
       if (!user) { router.push("/login"); return; }
       // Explicit columns — only what the editor actually uses. Skipping the bigger
       // checkout_config / subscription_* / payfast_* fields keeps this row small.
-      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, store_config, template_configs").eq("email", user.email).single();
+      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, store_config, template_configs, subscription_status").eq("email", user.email).single();
       if (!s) { router.push("/dashboard"); return; }
+      if (s.subscription_status === "pending") { router.push("/dashboard/billing"); return; }
       setSeller(s);
       // Merge this template's saved customizations over the global fields --
       // see lib/template-config.ts. Falls back to the legacy flat

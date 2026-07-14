@@ -120,12 +120,17 @@ export default function SignUp() {
     if (authError) { setError(authError.message); setLoading(false); return; }
 
     if (authData.user) {
+      // Pro signups don't get "trial" (and the access that comes with it) until
+      // they've actually completed the PayFast subscription mandate -- "pending"
+      // has no dashboard/storefront access. /api/subscription/notify flips this
+      // to "active" once PayFast confirms the mandate; that ITN also carries the
+      // 14-day-free-then-billed terms via its own billing_date, so the trial
+      // promise still holds even though the label here skips straight to "active".
       const sellerRow = plan === "free"
         ? { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
             subscription_status: "free", subscription_plan: "free", trial_ends_at: null, template: "soft-luxury" }
         : { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
-            subscription_status: "trial", subscription_plan: "starter",
-            trial_ends_at: (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString(); })() };
+            subscription_status: "pending", subscription_plan: "starter", trial_ends_at: null };
       const { error: profileError } = await supabase.from("sellers").insert(sellerRow);
       if (profileError) {
         /* The seller insert failed (race condition on subdomain, RLS, etc).

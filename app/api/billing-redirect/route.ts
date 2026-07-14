@@ -105,16 +105,11 @@ export async function POST(req: NextRequest) {
     }
     const billingDateStr = billingDate.toISOString().split("T")[0];
 
-    // Upgrading from the Free plan: move them onto the Starter trial the
-    // moment they start checkout, so the dashboard reflects the trial
-    // countdown immediately rather than waiting on the PayFast round-trip.
-    if (!isReactivation && seller.subscription_status === "free") {
-      await supabase.from("sellers").update({
-        subscription_status: "trial",
-        subscription_plan: "starter",
-        trial_ends_at: billingDate.toISOString(),
-      }).eq("id", sellerId);
-    }
+    // Upgrading from Free (or a fresh "pending" signup) doesn't grant any
+    // access here -- subscription_status only moves once PayFast actually
+    // confirms the mandate via the ITN in /api/subscription/notify. Free
+    // sellers keep their existing free-tier access in the meantime; a
+    // "pending" seller has none until they complete this checkout.
 
     const todayAmount = isReactivation ? monthlyAmount.toFixed(2) : "0.00";
     const recurringAmount = monthlyAmount.toFixed(2);
