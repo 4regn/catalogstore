@@ -339,6 +339,7 @@ export default function StoreEditor() {
      `<CODE> ends in` from the active discount; sellers can override to e.g.
      "Limited drop ends in". */
   const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
+  const [heroSaleHeadline, setHeroSaleHeadline]       = useState("");
   const [heroCta, setHeroCta]                         = useState("");
   const [heroCtaTarget, setHeroCtaTarget]             = useState<CtaTarget>({ type: "products" });
   const [heroTitle, setHeroTitle]                     = useState("");
@@ -482,6 +483,7 @@ export default function StoreEditor() {
       setShippingPolicy((s.store_config as any)?.shipping_policy ?? "");
       setReturnPolicy((s.store_config as any)?.return_policy ?? "");
       setHeroCountdownLabel(cfg?.hero_countdown_label ?? "");
+      setHeroSaleHeadline((cfg as any)?.hero_sale_headline ?? "");
       setHeroCta(cfg?.hero_cta ?? "");
       setHeroCtaTarget(cfg?.hero_cta_target ?? { type: "products" });
       setHeroTitle(cfg?.hero_title !== undefined ? cfg.hero_title : (s.store_name || ""));
@@ -610,6 +612,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ shippingPolicy }); }, [shippingPolicy]);
   useEffect(() => { postUpdate({ returnPolicy }); }, [returnPolicy]);
   useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
+  useEffect(() => { postUpdate({ heroSaleHeadline }); }, [heroSaleHeadline]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
   useEffect(() => { postUpdate({ heroCta }); }, [heroCta]);
   useEffect(() => { postUpdate({ heroCtaTarget }); }, [heroCtaTarget]);
@@ -741,6 +744,7 @@ export default function StoreEditor() {
       shipping_policy: shippingPolicy,
       return_policy: returnPolicy,
       hero_countdown_label: heroCountdownLabel,
+      hero_sale_headline: heroSaleHeadline,
       hero_cta: heroCta || undefined,
       hero_cta_target: heroCtaTarget,
       hero_title: heroTitle,
@@ -1095,10 +1099,15 @@ export default function StoreEditor() {
                 {/* Sale Countdown */}
                 <div style={ctaCardStyle}>
                   <div style={ctaCardTitle}>Sale Countdown</div>
+                  <input value={heroSaleHeadline} onChange={e => setHeroSaleHeadline(e.target.value)}
+                    placeholder="e.g. Summer Sale" style={inputStyle} />
+                  <div style={{ ...hintStyle, marginTop: 4, marginBottom: 12 }}>
+                    Big headline shown above the countdown, e.g. &quot;Summer Sale&quot; or &quot;50% Off Everything&quot;. Leave empty to hide.
+                  </div>
                   <input value={heroCountdownLabel} onChange={e => setHeroCountdownLabel(e.target.value)}
                     placeholder="e.g. Limited drop ends in" style={inputStyle} />
                   <div style={{ ...hintStyle, marginTop: 8 }}>
-                    Label above the countdown timer. Leave empty to auto-show
+                    Smaller label above the countdown timer. Leave empty to auto-show
                     &quot;<em>{`<CODE>`}</em> ends in&quot; based on the active
                     discount. The timer itself only appears when a real discount
                     code with &quot;Show Countdown&quot; is active — manage codes
@@ -1119,6 +1128,28 @@ export default function StoreEditor() {
                       <button onClick={() => setHeroTextColor("#f0e6d3")} style={{ fontSize: 12, color: "rgba(245,245,245,0.5)", background: "none", border: "none", cursor: "pointer" }}>↺</button>
                     </div>
                   </div>
+                </div>
+
+                {/* Transparent header */}
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 12 }}>Header</div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={headerTransparent} onChange={e => setHeaderTransparent(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                    <span style={{ fontSize: 13, color: "rgba(245,245,245,0.58)" }}>Transparent header (overlays hero image)</span>
+                  </label>
+                  {headerTransparent && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Icon &amp; Text Color</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <label style={{ width: 24, height: 24, borderRadius: 6, background: headerTransparentColor, border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                          <input type="color" value={headerTransparentColor} onChange={e => setHeaderTransparentColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                        </label>
+                        <span style={{ fontSize: 9, color: "rgba(245,245,245,0.42)", fontFamily: "monospace" }}>{headerTransparentColor}</span>
+                        <button onClick={() => setHeaderTransparentColor("#ffffff")} style={{ fontSize: 9, color: "rgba(245,245,245,0.35)", background: "none", border: "none", cursor: "pointer" }}>&#8634;</button>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: "rgba(245,245,245,0.42)", marginTop: 6 }}>Only used on the landing page while a hero image is set.</div>
                 </div>
               </div>
             )}

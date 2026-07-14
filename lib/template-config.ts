@@ -24,7 +24,7 @@ export const TEMPLATE_SCOPED_KEYS = [
   "header_style",
   "hero_index", "hero_label", "hero_headline", "hero_headline_em", "hero_body",
   "hero_cta_primary", "hero_cta_secondary", "hero_cta_primary_target", "hero_cta_secondary_target",
-  "hero_countdown_label",
+  "hero_countdown_label", "hero_sale_headline",
   // sections
   "circle_title", "circle_subtitle",
   "products_label", "products_heading", "product_card_ratio", "products_collapsed",

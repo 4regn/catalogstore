@@ -2239,6 +2239,15 @@ export default function Dashboard() {
                 <button onClick={() => setStoreConfig({ ...storeConfig, policy_items: [...storeConfig.policy_items, { title: "", desc: "" }] })} style={{ padding: "8px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, marginTop: 4 }}>+ Add Policy</button>
               </>)}
               </CollapsibleSection>)}
+            {storeTemplate === "heirloom" && (
+              <CollapsibleSection id="shippingpolicies" title="Shipping & Policies">
+                <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, marginTop: -8 }}>Shown in the Shipping / Returns &amp; Refunds popup on your storefront -- the same fields as the Footer panel in your Online Visual Editor, so either place keeps the other in sync.</p>
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
+                  <div><label style={labelStyle}>Shipping Policy</label><textarea value={storeConfig.shipping_policy || ""} onChange={(e) => setStoreConfig({ ...storeConfig, shipping_policy: e.target.value })} placeholder="e.g. Standard delivery 3-5 business days nationwide." rows={3} style={{ ...inputStyle, resize: "vertical" as const }} /></div>
+                  <div><label style={labelStyle}>Return / Refund Policy</label><textarea value={storeConfig.return_policy || ""} onChange={(e) => setStoreConfig({ ...storeConfig, return_policy: e.target.value })} placeholder="e.g. 14-day returns on unworn items in original packaging." rows={3} style={{ ...inputStyle, resize: "vertical" as const }} /></div>
+                </div>
+              </CollapsibleSection>
+            )}
             <CollapsibleSection id="social" title="Social Links">
               <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16, marginTop: -8 }}>Add your social media links. Leave empty to hide.</p>
               <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>

@@ -76,7 +76,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
-  sort_order: number;
+  sort_order: number; created_at?: string;
 }
 interface CartItem {
   product: Product; qty: number;
@@ -134,6 +134,29 @@ const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[
   return { discounts: active, countdown: storePromo ? { ...storePromo, timeLeft: "" } : null };
 };
 
+/* Ticks entirely on its own -- keeps the countdown's per-second re-render
+   scoped to this tiny subtree instead of the whole ~1500-line store, which
+   was causing the product grid images to flicker every second. Includes a
+   days unit so a multi-day countdown doesn't read as a confusing HH:MM:SS. */
+function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: (timeLeft: string | null) => React.ReactNode }) {
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => {
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft(null); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft((d > 0 ? d + "d " : "") + pad(h) + ":" + pad(m) + ":" + pad(s));
+    };
+    tick();
+    const i = setInterval(tick, 1000);
+    return () => clearInterval(i);
+  }, [expiresAt]);
+  return <>{children(timeLeft)}</>;
+}
+
 export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName, isSubdomain }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const params = useParams();
@@ -159,6 +182,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [liveDescription, setLiveDescription] = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
   const [liveLogoUrl, setLiveLogoUrl] = useState<string | null>(null);
+  const [liveHeaderTransparent, setLiveHeaderTransparent] = useState<boolean | null>(null);
+  const [liveHeaderTransparentColor, setLiveHeaderTransparentColor] = useState<string | null>(null);
   const [liveHeroImage, setLiveHeroImage] = useState<string | null>(null);
   const [liveHeroIndex, setLiveHeroIndex] = useState<string | null>(null);
   const [liveHeroLabel, setLiveHeroLabel] = useState<string | null>(null);
@@ -173,6 +198,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [liveHeroCountdownLabel, setLiveHeroCountdownLabel] = useState<string | null>(null);
+  const [liveHeroSaleHeadline, setLiveHeroSaleHeadline] = useState<string | null>(null);
   const [liveTicker, setLiveTicker] = useState<string[] | null>(null);
   const [liveTickerSpeed, setLiveTickerSpeed] = useState<number | null>(null);
   const [liveProductsHeading, setLiveProductsHeading] = useState<string | null>(null);
@@ -184,6 +210,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
   /* ─── UI ─── */
   const [activeCategory, setActiveCategory] = useState("All");
+  const [productSort, setProductSort] = useState("default");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
   // Lightbox gallery: when set, full-screen overlay shows the product's images and lets the
@@ -244,37 +271,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     })();
   }, [slug, isEditMode]);
 
-  /* ─── PROMO TICKER ─── */
-  useEffect(() => {
-    if (promoDiscounts.length === 0 && !promoCountdown?.expires_at) return;
-    const tick = () => {
-      const now = new Date().getTime();
-      if (promoCountdown?.expires_at) {
-        const diff = new Date(promoCountdown.expires_at).getTime() - now;
-        if (diff <= 0) setPromoCountdown(null);
-        else {
-          const h = Math.floor(diff / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000);
-          const s = Math.floor((diff % 60000) / 1000);
-          const tl = pad(h) + ":" + pad(m) + ":" + pad(s);
-          setPromoCountdown((prev) => prev ? { ...prev, timeLeft: tl } : null);
-        }
-      }
-      setPromoDiscounts((prev) =>
-        prev.map((p) => {
-          const diff = new Date(p.expires_at).getTime() - now;
-          if (diff <= 0) return { ...p, timeLeft: "EXPIRED" };
-          const h = Math.floor(diff / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000);
-          const s = Math.floor((diff % 60000) / 1000);
-          return { ...p, timeLeft: pad(h) + ":" + pad(m) + ":" + pad(s) };
-        }).filter((p) => p.timeLeft !== "EXPIRED")
-      );
-    };
-    tick();
-    const i = setInterval(tick, 1000);
-    return () => clearInterval(i);
-  }, [promoDiscounts.length, promoCountdown?.expires_at]);
+  /* Countdown ticking is handled per-leaf by <PromoCountdown> below, not here --
+     see its comment for why. promoCountdown/promoDiscounts just hold the static
+     discount data (code, expires_at, scoping) for the lifetime of the page. */
 
   const getProductPromo = (productId: string) =>
     promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
@@ -288,6 +287,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.description !== undefined) setLiveDescription(e.data.description);
       if (e.data.announcement !== undefined) setLiveAnnouncement(e.data.announcement);
       if (e.data.logoUrl !== undefined) setLiveLogoUrl(e.data.logoUrl);
+      if (e.data.headerTransparent !== undefined) setLiveHeaderTransparent(e.data.headerTransparent);
+      if (e.data.headerTransparentColor !== undefined) setLiveHeaderTransparentColor(e.data.headerTransparentColor);
       if (e.data.heroImage !== undefined) setLiveHeroImage(e.data.heroImage);
       if (e.data.heroIndex !== undefined) setLiveHeroIndex(e.data.heroIndex);
       if (e.data.heroLabel !== undefined) setLiveHeroLabel(e.data.heroLabel);
@@ -300,6 +301,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
       if (e.data.footerTagline !== undefined) setLiveFooterTagline(e.data.footerTagline);
       if (e.data.footerCol1Label !== undefined) setLiveFooterCol1Label(e.data.footerCol1Label);
       if (e.data.heroCountdownLabel !== undefined) setLiveHeroCountdownLabel(e.data.heroCountdownLabel);
+      if (e.data.heroSaleHeadline !== undefined) setLiveHeroSaleHeadline(e.data.heroSaleHeadline);
       if (e.data.ticker !== undefined) setLiveTicker(e.data.ticker);
       if (e.data.tickerSpeed !== undefined) setLiveTickerSpeed(e.data.tickerSpeed);
       if (e.data.marqueeTexts !== undefined) setLiveTicker(e.data.marqueeTexts);
@@ -421,9 +423,18 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   // products for us (handles both named collections and the special "all" slug), so we just
   // render whatever it sent. The in-page activeCategory filter only applies on the home page.
   const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
-  const filtered = isCollectionView
-    ? products
-    : (activeCategory === "All" ? products : products.filter((p) => pInCat(p, activeCategory)));
+  const filtered = (() => {
+    const list = isCollectionView
+      ? [...products]
+      : (activeCategory === "All" ? [...products] : products.filter((p) => pInCat(p, activeCategory)));
+    if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
+    else if (productSort === "latest") list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    else if (productSort === "oldest") list.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+    else if (productSort === "price-low") list.sort((a, b) => a.price - b.price);
+    else if (productSort === "price-high") list.sort((a, b) => b.price - a.price);
+    return list;
+  })();
   const cartTotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
@@ -453,6 +464,10 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const displayLogo = liveLogoUrl ?? seller.logo_url ?? null;
   const displayAnnouncement = liveAnnouncement ?? config.announcement ?? null;
   const displayHeroImage = liveHeroImage ?? config.hero_image ?? null;
+  const headerTransparent = liveHeaderTransparent ?? (config as any).header_transparent === true;
+  const headerTransparentColor = liveHeaderTransparentColor ?? (config as any).header_transparent_color ?? "#ffffff";
+  const headerOverImage = headerTransparent && !isCollectionView && !!displayHeroImage;
+  const displayHeroSaleHeadline = liveHeroSaleHeadline ?? (config as any).hero_sale_headline ?? "";
   const displayHeroIndex = liveHeroIndex ?? config.hero_index ?? "";
   const displayHeroLabel = liveHeroLabel ?? config.hero_label ?? "";
   const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? "";
@@ -508,7 +523,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   // Removed the previous decorative-only fallback so sellers without a sale
   // don't broadcast a fake "Drop ends in 04:22:15" countdown forever -- same
   // behaviour GC + SL already use.
-  const heroTimerParts = promoCountdown?.timeLeft?.split(":") ?? null;
 
   /* ─── CATEGORY IMAGE: first product image in that category ─── */
   const catImage = (cat: string) => {
@@ -615,6 +629,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-btn-text{font-size:10px;font-weight:500;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:rgba(255,255,255,0.65);border:none;border-bottom:1px solid rgba(255,255,255,0.25);padding:0 0 2px;transition:color 0.2s,border-color 0.2s;background:none;cursor:pointer;font-family:var(--sans)}
 .hl-btn-text:hover{color:#fff;border-color:rgba(255,255,255,0.6)}
 .hl-timer-row{display:flex;flex-direction:column;gap:6px}
+.hl-sale-headline{font-family:var(--serif);font-style:italic;font-size:28px;color:#fff;line-height:1.1;margin-bottom:2px}
 .hl-timer-note{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.42)}
 .hl-timer-digits{font-family:var(--display);font-size:54px;letter-spacing:3px;line-height:1;color:#fff}
 .hl-timer-digits .sep{color:rgba(255,255,255,0.22);margin:0 2px}
@@ -627,6 +642,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-rule{display:flex;align-items:center;justify-content:space-between;padding:28px 48px;border-bottom:1px solid var(--rule);background:#fff}
 .hl-rule-left{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#888}
 .hl-rule-right{font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:var(--ink);border:none;border-bottom:1px solid var(--ink);padding:0 0 1px;background:none;cursor:pointer;font-family:var(--sans)}
+.hl-sort-select{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);background:#fff;border:1px solid var(--rule);border-radius:0;padding:6px 28px 6px 10px;font-family:var(--sans);cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23595959'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
 .hl-rule-right:hover{opacity:0.5}
 
 .hl-coll-header{padding:64px 48px 48px;border-bottom:1px solid var(--rule);background:#fff;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
@@ -706,6 +722,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-foot{background:#fff;color:var(--dim);padding:80px 48px 32px;border-top:1px solid var(--rule)}
 .hl-foot-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:64px;max-width:1400px;margin:0 auto 64px}
 .hl-foot-brand{font-family:var(--serif);font-style:italic;font-size:30px;color:var(--ink);letter-spacing:1px;line-height:1;margin-bottom:14px}
+.hl-foot-logo{height:36px;max-width:180px;object-fit:contain;margin-bottom:14px;display:block}
 .hl-foot-tag{font-size:13px;color:var(--dim);line-height:1.6;font-weight:300;max-width:280px;margin-bottom:24px}
 .hl-foot-soc{display:flex;gap:16px;flex-wrap:wrap}
 .hl-foot-soc a{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:2px;transition:color 0.2s}
@@ -723,9 +740,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-pay-label:hover{color:var(--dim)}
 .hl-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px}
 .hl-modal{background:#fff;border-radius:12px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;padding:40px;position:relative}
-.hl-modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:var(--dim);cursor:pointer;padding:4px 8px;line-height:1}
-.hl-modal h3{font-family:var(--serif);font-style:italic;font-size:22px;color:var(--ink);margin:0 0 16px}
-.hl-modal p{font-size:14px;color:var(--dim);line-height:1.7;margin:0;white-space:pre-wrap}
+.hl-modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:#595959;cursor:pointer;padding:4px 8px;line-height:1}
+.hl-modal h3{font-family:var(--serif);font-style:italic;font-size:22px;color:#111010;margin:0 0 16px}
+.hl-modal p{font-size:14px;color:#595959;line-height:1.7;margin:0;white-space:pre-wrap}
 .hl-contact-list{list-style:none;margin:0;padding:0}
 .hl-contact-list li{padding:10px 0;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:12px}
 .hl-contact-list li:last-child{border-bottom:none}
@@ -788,7 +805,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-pdp-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink)}
 .hl-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1}
 .hl-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:32px;gap:8px;border-right:1px solid var(--rule)}
-.hl-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#fafafa;cursor:zoom-in;overflow:hidden;width:100%;max-width:100%;border-radius:2px}
+.hl-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-size:contain;background-position:center;background-repeat:no-repeat;background-color:#fafafa;cursor:zoom-in;overflow:hidden;width:100%;max-width:100%;border-radius:2px}
 .hl-pdp-main-mark{font-family:var(--serif);font-style:italic;font-size:48px;color:rgba(255,255,255,0.2);letter-spacing:-1px}
 .hl-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px;animation:hl-lb-fade 0.2s ease-out}
 @keyframes hl-lb-fade{from{opacity:0}to{opacity:1}}
@@ -865,18 +882,6 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
       <div className="hl-root" style={isNavigating ? { opacity: 0.6, pointerEvents: "none", transition: "opacity 0.2s" } : undefined}>
         {isNavigating && <div className="hl-progress" aria-hidden="true" />}
-        {/* TICKER */}
-        {(displayTicker.length > 0) && (
-          <EditSection id="ticker">
-            <div className="hl-ticker">
-              <div className="hl-ticker-inner">
-                {[...displayTicker, ...displayTicker].map((t, i) => (
-                  <span key={i}>{t}</span>
-                ))}
-              </div>
-            </div>
-          </EditSection>
-        )}
         {displayAnnouncement && (
           <div style={{ background: "#1a1715", color: "#f0e8d8", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center" }}>
             {displayAnnouncement}
@@ -1059,15 +1064,19 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         )}
 
         {/* NAV */}
-        <nav className="hl-nav">
+        <nav className="hl-nav" style={headerOverImage ? { position: "absolute", top: 0, left: 0, right: 0, background: "transparent", borderBottom: "none" } : undefined}>
           <div className="hl-nav-left">
-            <button className="hl-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu"><span /><span /><span /></button>
+            <button className="hl-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu">
+              <span style={headerOverImage ? { background: headerTransparentColor } : undefined} />
+              <span style={headerOverImage ? { background: headerTransparentColor } : undefined} />
+              <span style={headerOverImage ? { background: headerTransparentColor } : undefined} />
+            </button>
           </div>
-          <a href={sp()} className="hl-logo">
+          <a href={sp()} className="hl-logo" style={headerOverImage && !displayLogo ? { color: headerTransparentColor } : undefined}>
             {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
           </a>
           <div className="hl-nav-right">
-            <button className="hl-bag" onClick={() => setCartOpen(true)}>
+            <button className="hl-bag" onClick={() => setCartOpen(true)} style={headerOverImage ? { color: headerTransparentColor, borderBottomColor: headerTransparentColor } : undefined}>
               Cart (<span className="hl-bag-count">{cartCount}</span>)
             </button>
           </div>
@@ -1123,15 +1132,18 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   )}
                 </div>
               )}
-              {promoCountdown && heroTimerParts && (
-                <div className="hl-timer-row">
-                  <div className="hl-timer-note">
-                    {liveHeroCountdownLabel ?? config.hero_countdown_label ?? `${promoCountdown.code} ends in`}
-                  </div>
-                  <div className="hl-timer-digits">
-                    {heroTimerParts[0]}<span className="sep">:</span>{heroTimerParts[1]}<span className="sep">:</span>{heroTimerParts[2]}
-                  </div>
-                </div>
+              {promoCountdown && (
+                <PromoCountdown expiresAt={promoCountdown.expires_at}>
+                  {(timeLeft) => timeLeft && (
+                    <div className="hl-timer-row">
+                      {displayHeroSaleHeadline && <div className="hl-sale-headline">{displayHeroSaleHeadline}</div>}
+                      <div className="hl-timer-note">
+                        {liveHeroCountdownLabel ?? config.hero_countdown_label ?? `${promoCountdown.code} ends in`}
+                      </div>
+                      <div className="hl-timer-digits">{timeLeft}</div>
+                    </div>
+                  )}
+                </PromoCountdown>
               )}
             </div>
             {featuredProduct && (
@@ -1143,6 +1155,19 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
             )}
           </section>
         </EditSection>
+        )}
+
+        {/* TICKER */}
+        {(displayTicker.length > 0) && (
+          <EditSection id="ticker">
+            <div className="hl-ticker">
+              <div className="hl-ticker-inner">
+                {[...displayTicker, ...displayTicker].map((t, i) => (
+                  <span key={i}>{t}</span>
+                ))}
+              </div>
+            </div>
+          </EditSection>
         )}
 
         {/* COLLECTION HEADER — only on collection page */}
@@ -1211,7 +1236,18 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
         <div id="hl-products">
           <div className="hl-rule">
             <span className="hl-rule-left">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "Latest Arrivals") : effectiveCategory}</span>
-            <button className="hl-rule-right">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+              <select value={productSort} onChange={(e) => setProductSort(e.target.value)} className="hl-sort-select" aria-label="Sort products">
+                <option value="default">Sort: Default</option>
+                <option value="latest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="az">A — Z</option>
+                <option value="za">Z — A</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+              </select>
+              <span className="hl-rule-right" style={{ cursor: "default" }}>{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</span>
+            </div>
           </div>
           <EditSection id="products">
             <div className="hl-pgrid">
@@ -1273,18 +1309,10 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                   <span className="hl-flash-lbl">{flashLabel}</span>
                   <div className="hl-flash-title">{flashTitle}</div>
                 </div>
-                {flashSaleProducts[0] && getProductPromo(flashSaleProducts[0].id)?.timeLeft && (
-                  <div className="hl-flash-cd">
-                    {(() => {
-                      const tl = getProductPromo(flashSaleProducts[0].id)?.timeLeft || "";
-                      const parts = tl.split(":");
-                      return (
-                        <>
-                          {parts[0]}<span className="sep">:</span>{parts[1]}<span className="sep">:</span>{parts[2]}
-                        </>
-                      );
-                    })()}
-                  </div>
+                {flashSaleProducts[0] && getProductPromo(flashSaleProducts[0].id) && (
+                  <PromoCountdown expiresAt={getProductPromo(flashSaleProducts[0].id)!.expires_at}>
+                    {(timeLeft) => timeLeft && <div className="hl-flash-cd">{timeLeft}</div>}
+                  </PromoCountdown>
                 )}
               </div>
               <div className="hl-flash-grid">
@@ -1344,7 +1372,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
           <footer className="hl-foot">
             <div className="hl-foot-grid">
               <div>
-                <div className="hl-foot-brand">{seller.store_name}</div>
+                {displayLogo
+                  ? <img src={displayLogo} alt={seller.store_name} className="hl-foot-logo" />
+                  : <div className="hl-foot-brand">{seller.store_name}</div>}
                 <p className="hl-foot-tag">{displayFooterTagline}</p>
                 <div className="hl-foot-soc">
                   {seller.social_links?.instagram && <a href={seller.social_links.instagram} target="_blank" rel="noreferrer">Instagram</a>}
