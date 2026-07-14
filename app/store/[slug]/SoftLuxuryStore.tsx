@@ -1252,6 +1252,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 </div>
               </div>
               <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%" }}>Add to Cart &mdash; {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
+              <button onClick={() => {
+                const payload = JSON.stringify([{ id: selectedProduct.id, name: selectedProduct.name, price: effectivePrice(selectedProduct, selectedVariants), qty: modalQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: selectedProduct.image_url || "", selectedVariants }]);
+                const encoded = btoa(unescape(encodeURIComponent(payload)));
+                window.location.href = sp("/checkout?cart=" + encoded);
+              }} style={{ padding: "18px 32px", background: "transparent", color: accent, border: "1px solid " + accent, borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: 10 }}>Buy Now</button>
             </div>
           </div>
         )}
@@ -1427,6 +1432,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                     </div>
                   </div>
                   <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "18px 32px", background: accent, color: "#fff", border: "none", borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart &mdash; {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
+                  <button onClick={() => {
+                    const payload = JSON.stringify([{ id: selectedProduct.id, name: selectedProduct.name, price: effectivePrice(selectedProduct, selectedVariants), qty: modalQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: selectedProduct.image_url || "", selectedVariants }]);
+                    const encoded = btoa(unescape(encodeURIComponent(payload)));
+                    window.location.href = sp("/checkout?cart=" + encoded);
+                  }} style={{ padding: "18px 32px", background: "transparent", color: accent, border: "1px solid " + accent, borderRadius: 100, fontFamily: fonts.body, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: 10 }}>Buy Now</button>
                 </div>
               </div>
             </div>

@@ -850,6 +850,11 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
                     </div>
                   </div>
                   <button onClick={() => addToCart(selectedProduct, modalQty)} style={{ padding: "16px 32px", background: heroButtonColor, color: readableOn(heroButtonColor), border: "none", borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: "auto" }}>Add to Cart — {fmt(effectivePrice(selectedProduct, selectedVariants) * modalQty)}</button>
+                  <button onClick={() => {
+                    const payload = JSON.stringify([{ id: selectedProduct.id, name: selectedProduct.name, price: effectivePrice(selectedProduct, selectedVariants), qty: modalQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: selectedProduct.image_url || "", selectedVariants }]);
+                    const encoded = btoa(unescape(encodeURIComponent(payload)));
+                    window.location.href = sp("/checkout?cart=" + encoded);
+                  }} style={{ padding: "16px 32px", background: "transparent", color: heroButtonColor, border: "1px solid " + heroButtonColor, borderRadius: 6, fontFamily: body, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", width: "100%", marginTop: 8 }}>Buy Now</button>
                 </div>
               </div>
             </div>

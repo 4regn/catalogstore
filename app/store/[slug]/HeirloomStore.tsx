@@ -845,6 +845,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 .hl-size-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
 .hl-pdp-actions{margin-top:auto;padding-top:32px;display:flex;flex-direction:column;gap:10px}
 .hl-pdp-add{background:var(--ink);color:#fff;border:none;padding:18px;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s}
+.hl-pdp-buynow{background:transparent;color:var(--ink);border:1px solid var(--ink);padding:18px;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s}
+.hl-pdp-buynow:hover{opacity:0.7}
 .hl-pdp-add:hover{opacity:0.85}
 .hl-pdp-err{color:#7a3a3a;font-size:11px;letter-spacing:1px;margin-top:8px}
 
@@ -1043,6 +1045,16 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     <div className="hl-pdp-actions">
                       <button className="hl-pdp-add" onClick={handleAddToCart}>
                         Add to Bag — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                      </button>
+                      <button className="hl-pdp-buynow" onClick={() => {
+                        const validVariants = (p.variants || []).filter(v => v.options?.length > 0);
+                        const allSelected = validVariants.every((v) => selectedVariants[v.name]);
+                        if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
+                        const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: p.image_url || "", selectedVariants }];
+                        const encoded = btoa(JSON.stringify(payload));
+                        window.location.href = sp(`/checkout?cart=${encoded}`);
+                      }}>
+                        Buy Now
                       </button>
                     </div>
                   </div>
