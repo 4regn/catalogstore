@@ -86,6 +86,7 @@ interface Seller {
     hero_layout?: string;
     hero_text_position?: string;
     hero_image_fade?: boolean;
+    hero_split_image_2?: string;
     show_marquee?: boolean;
     show_collections?: boolean;
     hero_button_style?: string;
@@ -291,6 +292,7 @@ export default function StoreEditor() {
   const [logoPreview, setLogoPreview]   = useState("");
   const [heroImagePreview, setHeroImagePreview] = useState("");
   const [heroImageUrl, setHeroImageUrl]           = useState("");
+  const [heroSplitImage2, setHeroSplitImage2]     = useState("");
   const [heroImagePosition, setHeroImagePosition] = useState("center");
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
   const [heroLayout, setHeroLayout] = useState("default");
@@ -307,6 +309,7 @@ export default function StoreEditor() {
   const [newsletterLabel, setNewsletterLabel] = useState("Newsletter");
   const [newsletterCopyright, setNewsletterCopyright] = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
+  const heroSplitImage2Ref = useRef<HTMLInputElement>(null);
   const policiesBgRef = useRef<HTMLInputElement>(null);
 
   /* Heirloom-specific hero fields. The previous editor reused Crown's mapping
@@ -454,6 +457,7 @@ export default function StoreEditor() {
       setLogoPreview(s.logo_url || "");
       setHeroImagePreview(cfg?.hero_image || "");
       setHeroImageUrl(cfg?.hero_image || "");
+      setHeroSplitImage2((cfg as any)?.hero_split_image_2 || "");
       if (!cfg?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
         setHeroImagePreview(s.banner_url);
         setHeroImageUrl(s.banner_url);
@@ -543,6 +547,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroLayout }); }, [heroLayout]);
   useEffect(() => { postUpdate({ heroTextPosition }); }, [heroTextPosition]);
   useEffect(() => { postUpdate({ heroImageFade }); }, [heroImageFade]);
+  useEffect(() => { postUpdate({ heroSplitImage2 }); }, [heroSplitImage2]);
   useEffect(() => { postUpdate({ showMarquee }); }, [showMarquee]);
   useEffect(() => { postUpdate({ showCollections }); }, [showCollections]);
   useEffect(() => { postUpdate({ heroButtonStyle }); }, [heroButtonStyle]);
@@ -666,6 +671,7 @@ export default function StoreEditor() {
       hero_layout: heroLayout,
       hero_text_position: heroTextPosition,
       hero_image_fade: heroImageFade,
+      hero_split_image_2: heroSplitImage2,
       show_marquee: showMarquee,
       show_collections: showCollections,
       hero_button_style: heroButtonStyle,
@@ -1173,6 +1179,30 @@ export default function StoreEditor() {
                         ))}
                       </div>
                     </div>
+                    {heroLayout === "split" && (
+                      <div style={{ marginTop: 16 }}>
+                        <label style={labelStyle}>Second Panel Image</label>
+                        <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginBottom: 10 }}>Optional. Adds a photo behind the text panel instead of a plain color background.</div>
+                        <div onClick={() => heroSplitImage2Ref.current?.click()}
+                          style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                          {heroSplitImage2
+                            ? <img src={heroSplitImage2} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 12, marginTop: 6 }}>Click to upload</div></div>}
+                        </div>
+                        <input ref={heroSplitImage2Ref} type="file" accept="image/*"
+                          onChange={async e => {
+                            const f = e.target.files?.[0]; if (!f || !seller) return;
+                            const reader = new FileReader();
+                            reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroSplitImage2(localUrl); };
+                            reader.readAsDataURL(f);
+                            const ext = f.name.split(".").pop();
+                            const path = `${seller.id}/hero_split_2_${Date.now()}.${ext}`;
+                            const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                            if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); setHeroSplitImage2(data.publicUrl); }
+                          }} style={{ display: "none" }} />
+                        {heroSplitImage2 && <button onClick={() => setHeroSplitImage2("")} style={{ marginTop: 6, fontSize: 12, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                      </div>
+                    )}
                     {heroLayout === "default" && (
                       <div style={{ marginTop: 16 }}>
                         <label style={labelStyle}>Text Position</label>
