@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="/templates/velour/" />
+<title>Velour — Beauty &amp; Cosmetology Services</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{ --cream:#F5EDE3; --warm:#EDE0D0; --mocha:#7A5C47; --taupe:#A68B72; --gold:#C9A96E; --gold-lt:#E2C99A; --ink:#2A1F18; --mid:#6B5141; --white:#FDFAF7; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font-weight:300;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  nav{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:rgba(245,237,227,0.94);border-bottom:1px solid rgba(201,169,110,0.2)}
+  .logo{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--mocha);letter-spacing:0.06em}
+  .book{background:var(--mocha);color:var(--cream);font-size:0.62rem;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;padding:9px 16px}
+  .hero{position:relative;min-height:340px;background:linear-gradient(160deg,#8a6c55 0%,var(--mocha) 55%,#2a1f18 100%);display:flex;flex-direction:column;justify-content:flex-end;padding:60px 20px 34px;overflow:hidden}
+  .hero::before{content:"LC";position:absolute;top:36px;left:50%;transform:translateX(-50%);font-family:'Cormorant Garamond',serif;font-size:4rem;color:var(--cream);opacity:0.1}
+  .eyebrow{font-size:0.56rem;letter-spacing:0.28em;text-transform:uppercase;color:var(--gold);margin-bottom:10px}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:300;color:var(--cream);line-height:1.05}
+  .sub{font-family:'Cormorant Garamond',serif;font-size:0.95rem;color:rgba(245,237,227,0.55);margin:4px 0 8px}
+  .motto{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.05rem;color:var(--gold-lt);margin-bottom:16px}
+  .ctas{display:flex;gap:8px}
+  .btn-gold{background:var(--gold);color:var(--ink);font-size:0.62rem;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;padding:11px 18px}
+  .btn-outline{border:1px solid rgba(245,237,227,0.3);color:var(--cream);font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;padding:11px 18px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);background:var(--white);border-bottom:1px solid rgba(201,169,110,0.2)}
+  .stat{padding:14px 6px;text-align:center;border-right:1px solid rgba(201,169,110,0.2)}
+  .stat:last-child{border-right:none}
+  .stat b{display:block;font-family:'Cormorant Garamond',serif;font-size:1.15rem;color:var(--gold);font-weight:400}
+  .stat span{font-size:0.48rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid)}
+  section{padding:36px 20px}
+  .label{font-size:0.56rem;letter-spacing:0.26em;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.7rem;font-weight:300;color:var(--ink);margin-bottom:20px;line-height:1.15}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+  .card{position:relative;aspect-ratio:3/4;background:linear-gradient(135deg,var(--warm) 0%,rgba(201,169,110,0.15) 100%);display:flex;align-items:center;justify-content:center}
+  .card svg{opacity:0.35}
+  .card b{position:absolute;bottom:10px;left:10px;font-family:'Cormorant Garamond',serif;font-size:0.85rem;color:var(--mocha)}
+  .callout{background:var(--mocha);padding:30px 20px;text-align:center}
+  .callout h3{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:1.5rem;color:var(--cream);margin-bottom:6px}
+  .callout p{font-size:0.72rem;color:rgba(245,237,227,0.55)}
+  footer{background:var(--ink);color:var(--cream);padding:30px 20px}
+  .fbrand{font-family:'Cormorant Garamond',serif;font-size:1.3rem}
+  .fsub{font-size:0.56rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin:2px 0 14px}
+  .socials{display:flex;gap:8px;margin-bottom:16px}
+  .sbtn{width:28px;height:28px;border-radius:50%;border:1px solid rgba(201,169,110,0.25);display:flex;align-items:center;justify-content:center;color:rgba(245,237,227,0.4)}
+  .copy{font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;color:rgba(245,237,227,0.2);padding-top:14px;border-top:1px solid rgba(255,255,255,0.06)}
+</style>
+</head>
+<body>
+<nav><div class="logo">Graceful<span style="color:var(--gold)">Beaty</span></div><a class="book" href="#">Book</a></nav>
+<section class="hero">
+  <p class="eyebrow">Makeup Artist &middot; Hair Specialist</p>
+  <h1>GracefulBeaty</h1>
+  <p class="sub">by Lebo Coka</p>
+  <p class="motto">Enhancing Beauty. Empowering You.</p>
+  <div class="ctas"><span class="btn-gold">Book a Session</span><span class="btn-outline">Our Services</span></div>
+</section>
+<div class="stats">
+  <div class="stat"><b>R150</b><span>Starts From</span></div>
+  <div class="stat"><b>6+</b><span>Service Types</span></div>
+  <div class="stat"><b>&#9679;</b><span>Callout Available</span></div>
+  <div class="stat"><b>Durban</b><span>West Walk Bldg</span></div>
+</div>
+<section>
+  <p class="label">Our Craft</p>
+  <h2>Services by GracefulBeaty</h2>
+  <div class="grid">
+    <div class="card"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--taupe)" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="var(--taupe)" stroke="none"/></svg><b>Soft Glam</b></div>
+    <div class="card"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--taupe)" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="var(--taupe)" stroke="none"/></svg><b>Full Glam</b></div>
+  </div>
+</section>
+<div class="callout">
+  <h3>We Come to You</h3>
+  <p>Available across Durban</p>
+</div>
+<footer>
+  <div class="fbrand">GracefulBeaty</div>
+  <div class="fsub">by Lebo Coka</div>
+  <div class="socials">
+    <span class="sbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.2"/></svg></span>
+    <span class="sbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16.6 5.82a4.28 4.28 0 0 1-3.77-4.09h-3.13v14.8a2.6 2.6 0 1 1-1.85-2.49V10.9a5.8 5.8 0 1 0 5 5.75V9.4a7.2 7.2 0 0 0 3.75 1.06V7.33a4.27 4.27 0 0 1 0-1.5Z"/></svg></span>
+    <span class="sbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.9-4.45 9.9-9.91 0-5.46-4.44-9.91-9.94-9.91Z"/></svg></span>
+  </div>
+  <div class="copy">&copy; GracefulBeaty by Lebo Coka</div>
+</footer>
+</body>
+</html>

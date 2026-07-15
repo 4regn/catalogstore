@@ -155,10 +155,21 @@ interface Order {
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string;
 }
 
+interface VelourService {
+  id: string; category: string; name: string; price: number;
+  media_url: string | null; media_type: string | null; sort_order: number;
+}
+interface VelourBooking {
+  id: string; service_id: string | null; date: string; time_slot: string;
+  booking_type: string; status: string; client_name: string; client_phone: string; created_at: string;
+}
+
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
 const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
 const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
+const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
+const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, created_at";
 const PRODUCTS_LIMIT = 500;
 const ORDERS_LIMIT = 100;
 const DISCOUNTS_LIMIT = 100;
@@ -169,11 +180,12 @@ const TEMPLATES = [
   { id: "crown", name: "Crown", desc: "Dark luxury hair store — gold accents, editorial typography", colors: { bg: "#0a0908", card: "#1a1816", text: "#f0e6d3" } },
   { id: "heirloom", name: "Heirloom", desc: "Editorial archive — italic serifs, hairline grids, drop pacing", colors: { bg: "#ffffff", card: "#f2f0ed", text: "#111010" } },
   { id: "rosefields", name: "Rosefields", desc: "Luxury florist storefront — burgundy, cream & gold", colors: { bg: "#faf5ee", card: "#ffffff", text: "#2b2320" } },
+  { id: "velour", name: "Velour", desc: "Beauty & cosmetology services — mocha, gold & booking calendar", colors: { bg: "#F5EDE3", card: "#FDFAF7", text: "#2A1F18" } },
 ];
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -200,6 +212,8 @@ export default function Dashboard() {
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [velourServices, setVelourServices] = useState<VelourService[]>([]);
+  const [velourBookings, setVelourBookings] = useState<VelourBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -335,11 +349,13 @@ export default function Dashboard() {
     const user = session?.user;
     if (!user) { router.push("/login"); return; }
     // Fetch seller + products + orders + discounts in a single parallel batch
-    const [sellerRes, pdResult, odResult, dcResult] = await Promise.all([
+    const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult] = await Promise.all([
       supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single(),
       supabase.from("products").select(PRODUCT_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }).limit(PRODUCTS_LIMIT),
       supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT),
       supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
+      supabase.from("services").select(VELOUR_SERVICE_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }),
+      supabase.from("bookings").select(VELOUR_BOOKING_COLUMNS).eq("seller_id", user.id).order("date", { ascending: true }),
     ]);
     const sd = sellerRes.data;
     // Pro signups don't get dashboard access until they've completed PayFast
@@ -353,6 +369,8 @@ export default function Dashboard() {
       setHasMoreOrders(odResult.data.length >= ORDERS_LIMIT);
     }
     if (dcResult.data) setDiscountCodes(dcResult.data);
+    if (svcResult.data) setVelourServices(svcResult.data);
+    if (bkResult.data) setVelourBookings(bkResult.data);
     setLoading(false);
 
     const channel = supabase.channel("orders-" + user.id).on("postgres_changes", { event: "INSERT", schema: "public", table: "orders", filter: "seller_id=eq." + user.id }, (payload: any) => {
@@ -849,7 +867,12 @@ export default function Dashboard() {
       label: "My Store",
       items: [
         { key: "mystore" as TabKey, name: "Edit My Store", icon: "store" as DashIconName },
-        { key: "products" as TabKey, name: "Products", icon: "products" as DashIconName, count: publishedCount },
+        ...(seller?.template === "velour"
+          ? [
+              { key: "services" as TabKey, name: "Services", icon: "products" as DashIconName, count: velourServices.length },
+              { key: "bookings" as TabKey, name: "Bookings", icon: "orders" as DashIconName, count: velourBookings.filter((b) => b.status === "pending").length },
+            ]
+          : [{ key: "products" as TabKey, name: "Products", icon: "products" as DashIconName, count: publishedCount }]),
         { key: "checkout" as TabKey, name: "Checkout", icon: "payment" as DashIconName },
         ...(!domainConnected ? [{ key: "domains" as TabKey, name: "Domain", icon: "domain" as DashIconName, pro: true }] : []),
       ],
@@ -1406,6 +1429,94 @@ export default function Dashboard() {
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Launch Progress</h1>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Everything you need to start receiving real orders.</p>
             <LaunchProgressCard />
+          </div>)}
+
+          {tab === "services" && (<div>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap" as const, gap: 12 }}>
+              <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Services</h1><p style={{ fontSize: 14, color: "var(--muted)" }}>Manage the services shown on your storefront — pricing, category and showcase media.</p></div>
+              <button onClick={() => setVelourServices((prev) => [...prev, { id: "new-" + Date.now(), category: "General", name: "New Service", price: 0, media_url: null, media_type: null, sort_order: prev.length } as any])} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>+ Add Service</button>
+            </div>
+            {velourServices.length === 0 ? (
+              <div style={sectionCard}><p style={{ fontSize: 13, color: "var(--muted-2)" }}>No services yet. Add your first service to start showing it on your storefront and accepting bookings.</p></div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
+                {velourServices.map((svc) => (
+                  <VelourServiceRow key={svc.id} svc={svc}
+                    onChange={(patch) => setVelourServices((prev) => prev.map((x) => x.id === svc.id ? { ...x, ...patch } : x))}
+                    onSave={async (patch) => {
+                      const isNew = svc.id.startsWith("new-");
+                      if (isNew) {
+                        const { data, error } = await supabase.from("services").insert({ seller_id: seller!.id, category: patch.category ?? svc.category, name: patch.name ?? svc.name, price: patch.price ?? svc.price, sort_order: svc.sort_order }).select().single();
+                        if (!error && data) setVelourServices((prev) => prev.map((x) => x.id === svc.id ? data : x));
+                      } else {
+                        await supabase.from("services").update(patch).eq("id", svc.id);
+                      }
+                      revalidateMyStore();
+                    }}
+                    onUploadMedia={async (file) => {
+                      if (svc.id.startsWith("new-")) { alert("Save the service before uploading media."); return; }
+                      const isVideo = file.type.startsWith("video/");
+                      if (isVideo) {
+                        const dur: number = await new Promise((resolve) => {
+                          const v = document.createElement("video");
+                          v.preload = "metadata";
+                          v.onloadedmetadata = () => resolve(v.duration);
+                          v.onerror = () => resolve(0);
+                          v.src = URL.createObjectURL(file);
+                        });
+                        if (dur > 3.2) { alert("Videos must be 3 seconds or less."); return; }
+                      }
+                      const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
+                      const path = `${seller!.id}/services/${svc.id}.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
+                      if (error) { alert("Upload failed: " + error.message); return; }
+                      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                      const mediaUrl = data.publicUrl + "?t=" + Date.now();
+                      const mediaType = isVideo ? "video" : "image";
+                      await supabase.from("services").update({ media_url: mediaUrl, media_type: mediaType }).eq("id", svc.id);
+                      setVelourServices((prev) => prev.map((x) => x.id === svc.id ? { ...x, media_url: mediaUrl, media_type: mediaType } : x));
+                      revalidateMyStore();
+                    }}
+                    onDelete={async () => {
+                      if (!svc.id.startsWith("new-")) { if (!confirm(`Delete "${svc.name}"? This cannot be undone.`)) return; await supabase.from("services").delete().eq("id", svc.id); }
+                      setVelourServices((prev) => prev.filter((x) => x.id !== svc.id));
+                      revalidateMyStore();
+                    }}
+                    inputStyle={inputStyle} labelStyle={labelStyle} sectionCard={sectionCard} accent={N} />
+                ))}
+              </div>
+            )}
+          </div>)}
+
+          {tab === "bookings" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Bookings</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Appointments requested through your storefront&apos;s booking calendar.</p>
+            {velourBookings.length === 0 ? (
+              <div style={sectionCard}><p style={{ fontSize: 13, color: "var(--muted-2)" }}>No bookings yet.</p></div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                {velourBookings.map((bk) => {
+                  const svc = velourServices.find((s) => s.id === bk.service_id);
+                  return (
+                    <div key={bk.id} style={{ ...sectionCard, marginBottom: 0, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{bk.client_name} <span style={{ fontWeight: 400, color: "var(--muted-2)", fontSize: 12 }}>· <a href={`tel:${bk.client_phone}`} style={{ color: "var(--muted-2)" }}>{bk.client_phone}</a></span></div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{svc?.name || "Service removed"} — {bk.date} at {bk.time_slot} <span style={{ textTransform: "capitalize" as const }}>({bk.booking_type})</span></div>
+                      </div>
+                      <select value={bk.status} onChange={async (e) => {
+                        const status = e.target.value;
+                        setVelourBookings((prev) => prev.map((x) => x.id === bk.id ? { ...x, status } : x));
+                        await supabase.from("bookings").update({ status }).eq("id", bk.id);
+                      }} style={{ padding: "8px 12px", borderRadius: 100, border: "1px solid var(--border)", background: bk.status === "confirmed" ? "rgba(76,175,80,0.1)" : bk.status === "cancelled" ? "rgba(255,80,80,0.1)" : "rgba(255,107,53,0.08)", color: bk.status === "confirmed" ? "#4caf50" : bk.status === "cancelled" ? "#ff5050" : N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, cursor: "pointer" }}>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>)}
 
           {(tab === "products" || tab === "collections") && (
@@ -2053,7 +2164,7 @@ export default function Dashboard() {
                 <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
                     {TEMPLATES.map((t, ti) => {
-                      const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html" } as Record<string, string>)[t.id];
+                      const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html", "velour": "/templates/velour/index.html" } as Record<string, string>)[t.id];
                       const locked = isFreePlan && t.id !== "soft-luxury";
                       return (
                         <button key={t.id} onClick={async () => {
@@ -2509,7 +2620,7 @@ export default function Dashboard() {
       </div>
 
       {expandedTemplateId && (() => {
-        const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html" } as Record<string, string>)[expandedTemplateId];
+        const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html", "velour": "/templates/velour/index.html" } as Record<string, string>)[expandedTemplateId];
         const t = TEMPLATES.find((x) => x.id === expandedTemplateId);
         return (
           <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20, gap: 16 }}>
@@ -2546,6 +2657,68 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* Velour: one service card in the dashboard Services tab. The media
+   upload trigger is a small corner icon rather than a full-card hover
+   overlay -- easy to fat-finger on mobile otherwise (matches the
+   template spec). */
+function VelourServiceRow({ svc, onChange, onSave, onUploadMedia, onDelete, inputStyle, labelStyle, sectionCard, accent }: {
+  svc: { id: string; category: string; name: string; price: number; media_url: string | null; media_type: string | null };
+  onChange: (patch: Partial<{ category: string; name: string; price: number }>) => void;
+  onSave: (patch: Partial<{ category: string; name: string; price: number }>) => void;
+  onUploadMedia: (file: File) => void;
+  onDelete: () => void;
+  inputStyle: React.CSSProperties; labelStyle: React.CSSProperties; sectionCard: React.CSSProperties; accent: string;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  return (
+    <div style={{ ...sectionCard, marginBottom: 0, padding: 16, display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" as const }}>
+      <div style={{ position: "relative", width: 84, height: 108, flexShrink: 0, borderRadius: 10, overflow: "hidden", background: "var(--panel-2)", border: "1px solid var(--border)" }}>
+        {svc.media_type === "video" && svc.media_url ? (
+          <video src={svc.media_url} muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : svc.media_url ? (
+          <img src={svc.media_url} alt={svc.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
+        ) : (
+          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted-2)" }}>
+            <DashIcon name="products" size={20} />
+          </div>
+        )}
+        <button onClick={() => fileRef.current?.click()} disabled={uploading} title="Upload video or photo"
+          style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.55)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+          <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m4 16 1-3 9-9a1.5 1.5 0 0 1 2.5 1.5l-9 9-3 1Z" /><path d="m12 5 2.5 2.5" /></svg>
+        </button>
+        <input ref={fileRef} type="file" accept="video/*,image/*" style={{ display: "none" }} onChange={async (e) => {
+          const f = e.target.files?.[0]; if (!f) return;
+          setUploading(true);
+          await onUploadMedia(f);
+          setUploading(false);
+          if (fileRef.current) fileRef.current.value = "";
+        }} />
+        {uploading && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const }}>Uploading…</div>}
+      </div>
+      <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column" as const, gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+          <div style={{ flex: "1 1 140px" }}>
+            <label style={labelStyle}>Name</label>
+            <input value={svc.name} onChange={(e) => onChange({ name: e.target.value })} onBlur={() => onSave({ name: svc.name })} style={inputStyle} />
+          </div>
+          <div style={{ flex: "1 1 100px" }}>
+            <label style={labelStyle}>Category</label>
+            <input value={svc.category} onChange={(e) => onChange({ category: e.target.value })} onBlur={() => onSave({ category: svc.category })} style={inputStyle} placeholder="e.g. Makeup" />
+          </div>
+          <div style={{ flex: "0 1 100px" }}>
+            <label style={labelStyle}>Price (R)</label>
+            <input type="number" value={svc.price} onChange={(e) => onChange({ price: parseFloat(e.target.value) || 0 })} onBlur={() => onSave({ price: svc.price })} style={inputStyle} />
+          </div>
+        </div>
+      </div>
+      <button onClick={onDelete} title="Delete service" style={{ background: "none", border: "none", color: "#ff5050", cursor: "pointer", padding: 6, flexShrink: 0 }}>
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h12" /><path d="M7 6V4.5A1.5 1.5 0 0 1 8.5 3h3A1.5 1.5 0 0 1 13 4.5V6" /><path d="M5.5 6 6 17h8l.5-11" /></svg>
+      </button>
     </div>
   );
 }

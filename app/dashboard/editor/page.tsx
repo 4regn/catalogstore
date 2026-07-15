@@ -295,6 +295,17 @@ export default function StoreEditor() {
   const [heroImageUrl, setHeroImageUrl]           = useState("");
   const [heroVideoUrl, setHeroVideoUrl]           = useState("");
   const [heroSplitImage2, setHeroSplitImage2]     = useState("");
+  // Velour
+  const [brandSubtitle, setBrandSubtitle] = useState("");
+  const [monogramLetters, setMonogramLetters] = useState("");
+  const [velourCity, setVelourCity] = useState("");
+  const [calloutAvailable, setCalloutAvailable] = useState(true);
+  const [calloutArea, setCalloutArea] = useState("");
+  const [hoursWeekdays, setHoursWeekdays] = useState("");
+  const [hoursSaturday, setHoursSaturday] = useState("");
+  const [hoursSunday, setHoursSunday] = useState("");
+  const [accentColor, setAccentColor] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(["visa", "mastercard", "applepay", "googlepay", "eft"]);
   const [heroImagePosition, setHeroImagePosition] = useState("center");
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
   const [heroLayout, setHeroLayout] = useState("default");
@@ -464,6 +475,16 @@ export default function StoreEditor() {
       setHeroImageUrl(cfg?.hero_image || "");
       setHeroVideoUrl((cfg as any)?.hero_video_url || "");
       setHeroSplitImage2((cfg as any)?.hero_split_image_2 || "");
+      setBrandSubtitle((cfg as any)?.brand_subtitle || "");
+      setMonogramLetters((cfg as any)?.monogram_letters || "");
+      setVelourCity((cfg as any)?.city || "");
+      setCalloutAvailable((cfg as any)?.callout_available !== false);
+      setCalloutArea((cfg as any)?.callout_area || "");
+      setHoursWeekdays((cfg as any)?.business_hours?.weekdays || "");
+      setHoursSaturday((cfg as any)?.business_hours?.saturday || "");
+      setHoursSunday((cfg as any)?.business_hours?.sunday || "");
+      setAccentColor((cfg as any)?.accent_color || "");
+      if ((cfg as any)?.payment_methods?.length) setPaymentMethods((cfg as any).payment_methods);
       if (!cfg?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
         setHeroImagePreview(s.banner_url);
         setHeroImageUrl(s.banner_url);
@@ -555,6 +576,13 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroTextPosition }); }, [heroTextPosition]);
   useEffect(() => { postUpdate({ heroImageFade }); }, [heroImageFade]);
   useEffect(() => { postUpdate({ heroSplitImage2 }); }, [heroSplitImage2]);
+  useEffect(() => { postUpdate({ brandSubtitle }); }, [brandSubtitle]);
+  useEffect(() => { postUpdate({ monogramLetters }); }, [monogramLetters]);
+  useEffect(() => { postUpdate({ city: velourCity }); }, [velourCity]);
+  useEffect(() => { postUpdate({ calloutAvailable }); }, [calloutAvailable]);
+  useEffect(() => { postUpdate({ calloutArea }); }, [calloutArea]);
+  useEffect(() => { postUpdate({ businessHours: { weekdays: hoursWeekdays, saturday: hoursSaturday, sunday: hoursSunday } }); }, [hoursWeekdays, hoursSaturday, hoursSunday]);
+  useEffect(() => { postUpdate({ paymentMethods }); }, [paymentMethods]);
   useEffect(() => { postUpdate({ showMarquee }); }, [showMarquee]);
   useEffect(() => { postUpdate({ showCollections }); }, [showCollections]);
   useEffect(() => { postUpdate({ heroButtonStyle }); }, [heroButtonStyle]);
@@ -681,6 +709,14 @@ export default function StoreEditor() {
       hero_text_position: heroTextPosition,
       hero_image_fade: heroImageFade,
       hero_split_image_2: heroSplitImage2,
+      brand_subtitle: brandSubtitle,
+      monogram_letters: monogramLetters,
+      city: velourCity,
+      callout_available: calloutAvailable,
+      callout_area: calloutArea,
+      business_hours: { weekdays: hoursWeekdays, saturday: hoursSaturday, sunday: hoursSunday },
+      accent_color: accentColor || undefined,
+      payment_methods: paymentMethods,
       show_marquee: showMarquee,
       show_collections: showCollections,
       hero_button_style: heroButtonStyle,
@@ -1632,6 +1668,116 @@ export default function StoreEditor() {
                   <textarea value={description} onChange={e => setDescription(e.target.value)}
                     rows={3} placeholder="Luxury roses handcrafted with love for life's most meaningful moments."
                     style={{ ...inputStyle, resize: "vertical" }} />
+                </div>
+              </div>
+            )}
+
+            {/* HERO — Velour */}
+            {activeSection === "hero" && seller?.template === "velour" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Hero Image</label>
+                  <div onClick={() => heroImageRef.current?.click()}
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroImagePreview
+                      ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero photo</div></div>
+                    }
+                  </div>
+                  <input ref={heroImageRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
+                      reader.readAsDataURL(f);
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_image_${Date.now()}.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                    }} style={{ display: "none" }} />
+                  {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                </div>
+                <div>
+                  <label style={labelStyle}>Brand Subtitle</label>
+                  <input value={brandSubtitle} onChange={e => setBrandSubtitle(e.target.value)} placeholder="by Lebo Coka" style={inputStyle} />
+                  <div style={hintStyle}>Shown smaller, directly under your brand name.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Motto</label>
+                  <input value={tagline} onChange={e => setTagline(e.target.value)} placeholder="Enhancing Beauty. Empowering You." style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Hero Body Text</label>
+                  <textarea value={heroSubtext} onChange={e => setHeroSubtext(e.target.value)} rows={3}
+                    placeholder="Professional makeup artistry and hair installation services — in studio or at your door."
+                    style={{ ...inputStyle, resize: "vertical" }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Hero Eyebrow</label>
+                  <input value={heroLabel} onChange={e => setHeroLabel(e.target.value)} placeholder="Makeup Artist · Hair Specialist" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Monogram Letters</label>
+                  <input value={monogramLetters} onChange={e => setMonogramLetters(e.target.value.slice(0, 3))} placeholder="LC" style={inputStyle} />
+                  <div style={hintStyle}>Shown as a ghost watermark in the hero and chat avatar.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>City</label>
+                  <input value={velourCity} onChange={e => setVelourCity(e.target.value)} placeholder="Durban" style={inputStyle} />
+                </div>
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <input type="checkbox" checked={calloutAvailable} onChange={e => setCalloutAvailable(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                    <label style={{ fontSize: 13 }}>Offer callout (mobile) service</label>
+                  </div>
+                  {calloutAvailable && (
+                    <div>
+                      <label style={labelStyle}>Callout Area</label>
+                      <input value={calloutArea} onChange={e => setCalloutArea(e.target.value)} placeholder="Available across Durban" style={inputStyle} />
+                    </div>
+                  )}
+                </div>
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 10 }}>Business Hours</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div><label style={labelStyle}>Weekdays</label><input value={hoursWeekdays} onChange={e => setHoursWeekdays(e.target.value)} placeholder="08:00–18:00" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Saturday</label><input value={hoursSaturday} onChange={e => setHoursSaturday(e.target.value)} placeholder="09:00–16:00" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Sunday</label><input value={hoursSunday} onChange={e => setHoursSunday(e.target.value)} placeholder="By Appointment" style={inputStyle} /></div>
+                  </div>
+                </div>
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 4 }}>Accent Color</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,245,245,0.55)" }}>Gold Accent</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label style={{ width: 28, height: 28, borderRadius: 6, background: accentColor || "#C9A96E", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", display: "block", overflow: "hidden", flexShrink: 0 }}>
+                        <input type="color" value={accentColor || "#C9A96E"} onChange={e => setAccentColor(e.target.value)} style={{ width: "200%", height: "200%", border: "none", cursor: "pointer", padding: 0, transform: "translate(-25%, -25%)" }} />
+                      </label>
+                      <span style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", fontFamily: "monospace" }}>{accentColor || "#C9A96E"}{!accentColor && " (default)"}</span>
+                      {accentColor && <button onClick={() => setAccentColor("")} style={{ fontSize: 12, color: "rgba(245,245,245,0.5)", background: "none", border: "none", cursor: "pointer" }}>↺</button>}
+                    </div>
+                  </div>
+                  <div style={hintStyle}>Your primary brand color is set from Dashboard → My Store → Branding.</div>
+                </div>
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 10 }}>Payment Methods Shown in Footer</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[{ v: "visa", label: "Visa" }, { v: "mastercard", label: "Mastercard" }, { v: "applepay", label: "Apple Pay" }, { v: "googlepay", label: "Google Pay" }, { v: "eft", label: "EFT" }].map(opt => (
+                      <div key={opt.v} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input type="checkbox" checked={paymentMethods.includes(opt.v)} onChange={e => setPaymentMethods(prev => e.target.checked ? [...prev, opt.v] : prev.filter(x => x !== opt.v))} style={{ accentColor: "#9c7c62" }} />
+                        <label style={{ fontSize: 13 }}>{opt.label}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 10 }}>Contact Info</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div><label style={labelStyle}>Email</label><input value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="e.g. hello@yourstudio.co.za" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Phone</label><input value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="e.g. 081 540 5149" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Studio Address</label><textarea value={physicalAddress} onChange={e => setPhysicalAddress(e.target.value)} rows={2} placeholder="West Walk Building, 6th Floor, Office 620B" style={{ ...inputStyle, resize: "vertical" }} /></div>
+                  </div>
+                  <div style={hintStyle}>WhatsApp number, Instagram &amp; TikTok handles are set in Dashboard → My Store → Branding &amp; Socials. Services and bookings are managed from the Services and Bookings pages in your dashboard.</div>
                 </div>
               </div>
             )}

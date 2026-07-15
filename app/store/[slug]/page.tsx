@@ -13,6 +13,7 @@ const GlassChrome = dynamic(() => import("./GlassChromeStore"));
 const Crown       = dynamic(() => import("./CrownStore"));
 const Heirloom    = dynamic(() => import("./HeirloomStore"));
 const Rosefields  = dynamic(() => import("./RosefieldsStore"));
+const Velour      = dynamic(() => import("./VelourStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
@@ -73,6 +74,34 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     return <StoreUnavailable seller={seller} />;
   }
 
+  const tpl = seller.template;
+
+  if (tpl === "velour") {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const [servicesRes, bookingsRes] = await Promise.all([
+      supabaseAdmin
+        .from("services")
+        .select("id, category, name, price, media_url, media_type, sort_order")
+        .eq("seller_id", seller.id)
+        .order("sort_order", { ascending: true }),
+      supabaseAdmin
+        .from("bookings")
+        .select("date, time_slot, status")
+        .eq("seller_id", seller.id)
+        .neq("status", "cancelled")
+        .gte("date", todayIso),
+    ]);
+    const isSubdomain = await isStoreSubdomainRequest();
+    return (
+      <Velour
+        initialSeller={seller}
+        initialServices={servicesRes.data ?? []}
+        initialBookings={bookingsRes.data ?? []}
+        isSubdomain={isSubdomain}
+      />
+    );
+  }
+
   const [productsRes, discountsRes] = await Promise.all([
     supabaseAdmin
       .from("products")
@@ -95,7 +124,6 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const isSubdomain = await isStoreSubdomainRequest();
   const props = { initialSeller: seller, initialProducts, initialDiscountCodes, isSubdomain };
 
-  const tpl = seller.template;
   if (tpl === "crown") return <Crown {...props} />;
   if (tpl === "glass-futuristic" || tpl === "glass-chrome") return <GlassChrome {...props} />;
   if (tpl === "heirloom") return <Heirloom {...props} />;
