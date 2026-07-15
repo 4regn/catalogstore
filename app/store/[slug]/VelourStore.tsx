@@ -459,7 +459,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
               <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "5rem", fontWeight: 300, color: cream, letterSpacing: "-0.04em", lineHeight: 1, opacity: 0.12, userSelect: "none" as const }}>{monogramLetters}</div>
             </div>
             {calloutAvailable && (
-              <div style={{ position: "absolute", top: 100, right: 24, zIndex: 4, background: gold, color: ink, fontSize: "0.6rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", padding: "8px 12px", textAlign: "center", lineHeight: 1.5, transform: "rotate(3deg)" }}>
+              <div style={{ position: "absolute", top: 100, right: 24, zIndex: 4, background: gold, color: ink, fontSize: "0.6rem", fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", padding: "8px 12px", textAlign: "center", lineHeight: 1.5 }}>
                 <PinIcon /><br />Callout<br />Available
               </div>
             )}

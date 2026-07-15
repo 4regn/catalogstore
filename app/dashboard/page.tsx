@@ -1472,8 +1472,14 @@ export default function Dashboard() {
                         if (dur > 3.2) return "Videos must be 3 seconds or less.";
                       }
                       const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
-                      const path = `${seller!.id}/services/${svc.id}.${ext}`;
-                      const { error } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true, contentType: file.type });
+                      // A fixed, reused path would make a re-upload an UPDATE on
+                      // storage.objects (via upsert) instead of an INSERT -- Supabase
+                      // Storage buckets are commonly only granted an INSERT policy,
+                      // so overwriting an existing file 403s with an RLS violation
+                      // even though the first upload succeeded. A unique path per
+                      // upload keeps every write a fresh INSERT.
+                      const path = `${seller!.id}/services/${svc.id}_${Date.now()}.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, file, { contentType: file.type });
                       if (error) {
                         console.error("Velour service media upload failed", error);
                         return error.message || "Unknown storage error.";
