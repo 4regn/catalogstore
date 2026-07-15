@@ -33,3 +33,9 @@ create table if not exists bookings (
 );
 
 create index if not exists bookings_seller_date_idx on bookings (seller_id, date);
+
+-- Some Supabase projects auto-enable RLS on newly created tables; disable
+-- it explicitly so this matches every other table in the schema (access
+-- controlled at the app layer, not via RLS).
+alter table services disable row level security;
+alter table bookings disable row level security;
