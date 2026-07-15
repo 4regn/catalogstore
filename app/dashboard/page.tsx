@@ -1458,7 +1458,8 @@ export default function Dashboard() {
                       return true;
                     }}
                     onUploadMedia={async (file) => {
-                      if (svc.id.startsWith("new-")) { alert("Save the service before uploading media."); return; }
+                      if (svc.id.startsWith("new-")) return "Save the service before uploading media.";
+                      if (file.size > 20 * 1024 * 1024) return `File is ${(file.size / 1024 / 1024).toFixed(1)}MB -- please use something under 20MB.`;
                       const isVideo = file.type.startsWith("video/");
                       if (isVideo) {
                         const dur: number = await new Promise((resolve) => {
@@ -1468,16 +1469,20 @@ export default function Dashboard() {
                           v.onerror = () => resolve(0);
                           v.src = URL.createObjectURL(file);
                         });
-                        if (dur > 3.2) { alert("Videos must be 3 seconds or less."); return; }
+                        if (dur > 3.2) return "Videos must be 3 seconds or less.";
                       }
                       const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
                       const path = `${seller!.id}/services/${svc.id}.${ext}`;
-                      const { error } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
-                      if (error) { alert("Upload failed: " + error.message); return; }
+                      const { error } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true, contentType: file.type });
+                      if (error) {
+                        console.error("Velour service media upload failed", error);
+                        return error.message || "Unknown storage error.";
+                      }
                       const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
                       const mediaUrl = data.publicUrl + "?t=" + Date.now();
                       const mediaType = isVideo ? "video" : "image";
-                      await supabase.from("services").update({ media_url: mediaUrl, media_type: mediaType }).eq("id", svc.id);
+                      const { error: updateErr } = await supabase.from("services").update({ media_url: mediaUrl, media_type: mediaType }).eq("id", svc.id);
+                      if (updateErr) return updateErr.message;
                       setVelourServices((prev) => prev.map((x) => x.id === svc.id ? { ...x, media_url: mediaUrl, media_type: mediaType } : x));
                       revalidateMyStore();
                     }}
@@ -2673,12 +2678,13 @@ function VelourServiceRow({ svc, onChange, onSave, onUploadMedia, onDelete, inpu
   svc: { id: string; category: string; name: string; price: number; media_url: string | null; media_type: string | null };
   onChange: (patch: Partial<{ category: string; name: string; price: number }>) => void;
   onSave: (patch: Partial<{ category: string; name: string; price: number }>) => Promise<boolean | void>;
-  onUploadMedia: (file: File) => void;
+  onUploadMedia: (file: File) => Promise<string | void>;
   onDelete: () => void;
   inputStyle: React.CSSProperties; labelStyle: React.CSSProperties; sectionCard: React.CSSProperties; accent: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [dirty, setDirty] = useState(svc.id.startsWith("new-"));
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -2708,13 +2714,16 @@ function VelourServiceRow({ svc, onChange, onSave, onUploadMedia, onDelete, inpu
         <input ref={fileRef} type="file" accept="video/*,image/*" style={{ display: "none" }} onChange={async (e) => {
           const f = e.target.files?.[0]; if (!f) return;
           setUploading(true);
-          await onUploadMedia(f);
+          setUploadError("");
+          const err = await onUploadMedia(f);
           setUploading(false);
+          if (err) setUploadError(err);
           if (fileRef.current) fileRef.current.value = "";
         }} />
         {uploading && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const }}>Uploading…</div>}
       </div>
       <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column" as const, gap: 8 }}>
+        {uploadError && <div style={{ fontSize: 11, color: "#ff5050", lineHeight: 1.4 }}>{uploadError}</div>}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
           <div style={{ flex: "1 1 140px" }}>
             <label style={labelStyle}>Name</label>
