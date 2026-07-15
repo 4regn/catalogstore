@@ -161,7 +161,8 @@ interface VelourService {
 }
 interface VelourBooking {
   id: string; service_id: string | null; date: string; time_slot: string;
-  booking_type: string; status: string; client_name: string; client_phone: string; created_at: string;
+  booking_type: string; status: string; client_name: string; client_phone: string;
+  payment_method: string | null; created_at: string;
 }
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
@@ -169,7 +170,7 @@ const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images
 const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
 const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
-const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, created_at";
+const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, created_at";
 const PRODUCTS_LIMIT = 500;
 const ORDERS_LIMIT = 100;
 const DISCOUNTS_LIMIT = 100;
@@ -1447,11 +1448,14 @@ export default function Dashboard() {
                       const isNew = svc.id.startsWith("new-");
                       if (isNew) {
                         const { data, error } = await supabase.from("services").insert({ seller_id: seller!.id, category: patch.category ?? svc.category, name: patch.name ?? svc.name, price: patch.price ?? svc.price, sort_order: svc.sort_order }).select().single();
-                        if (!error && data) setVelourServices((prev) => prev.map((x) => x.id === svc.id ? data : x));
+                        if (error) { alert("Could not save this service: " + error.message + (error.message.includes("does not exist") ? "\n\nThe `services` table hasn't been created in your Supabase project yet. Run the migration SQL from supabase/migrations/20260715_velour_services_bookings.sql in your Supabase SQL editor." : "")); return false; }
+                        if (data) setVelourServices((prev) => prev.map((x) => x.id === svc.id ? data : x));
                       } else {
-                        await supabase.from("services").update(patch).eq("id", svc.id);
+                        const { error } = await supabase.from("services").update(patch).eq("id", svc.id);
+                        if (error) { alert("Could not save this service: " + error.message); return false; }
                       }
                       revalidateMyStore();
+                      return true;
                     }}
                     onUploadMedia={async (file) => {
                       if (svc.id.startsWith("new-")) { alert("Save the service before uploading media."); return; }
@@ -1501,7 +1505,7 @@ export default function Dashboard() {
                     <div key={bk.id} style={{ ...sectionCard, marginBottom: 0, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{bk.client_name} <span style={{ fontWeight: 400, color: "var(--muted-2)", fontSize: 12 }}>· <a href={`tel:${bk.client_phone}`} style={{ color: "var(--muted-2)" }}>{bk.client_phone}</a></span></div>
-                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{svc?.name || "Service removed"} — {bk.date} at {bk.time_slot} <span style={{ textTransform: "capitalize" as const }}>({bk.booking_type})</span></div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{svc?.name || "Service removed"} — {bk.date} at {bk.time_slot} <span style={{ textTransform: "capitalize" as const }}>({bk.booking_type})</span>{bk.payment_method && <span style={{ textTransform: "capitalize" as const }}> · {bk.payment_method.replace("_", " ")}</span>}</div>
                       </div>
                       <select value={bk.status} onChange={async (e) => {
                         const status = e.target.value;
@@ -2668,13 +2672,23 @@ export default function Dashboard() {
 function VelourServiceRow({ svc, onChange, onSave, onUploadMedia, onDelete, inputStyle, labelStyle, sectionCard, accent }: {
   svc: { id: string; category: string; name: string; price: number; media_url: string | null; media_type: string | null };
   onChange: (patch: Partial<{ category: string; name: string; price: number }>) => void;
-  onSave: (patch: Partial<{ category: string; name: string; price: number }>) => void;
+  onSave: (patch: Partial<{ category: string; name: string; price: number }>) => Promise<boolean | void>;
   onUploadMedia: (file: File) => void;
   onDelete: () => void;
   inputStyle: React.CSSProperties; labelStyle: React.CSSProperties; sectionCard: React.CSSProperties; accent: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [dirty, setDirty] = useState(svc.id.startsWith("new-"));
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const handleChange = (patch: Partial<{ category: string; name: string; price: number }>) => { onChange(patch); setDirty(true); setJustSaved(false); };
+  const handleSave = async () => {
+    setSaving(true);
+    const ok = await onSave({ category: svc.category, name: svc.name, price: svc.price });
+    setSaving(false);
+    if (ok !== false) { setDirty(false); setJustSaved(true); setTimeout(() => setJustSaved(false), 2000); }
+  };
   return (
     <div style={{ ...sectionCard, marginBottom: 0, padding: 16, display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" as const }}>
       <div style={{ position: "relative", width: 84, height: 108, flexShrink: 0, borderRadius: 10, overflow: "hidden", background: "var(--panel-2)", border: "1px solid var(--border)" }}>
@@ -2704,16 +2718,22 @@ function VelourServiceRow({ svc, onChange, onSave, onUploadMedia, onDelete, inpu
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
           <div style={{ flex: "1 1 140px" }}>
             <label style={labelStyle}>Name</label>
-            <input value={svc.name} onChange={(e) => onChange({ name: e.target.value })} onBlur={() => onSave({ name: svc.name })} style={inputStyle} />
+            <input value={svc.name} onChange={(e) => handleChange({ name: e.target.value })} style={inputStyle} />
           </div>
           <div style={{ flex: "1 1 100px" }}>
             <label style={labelStyle}>Category</label>
-            <input value={svc.category} onChange={(e) => onChange({ category: e.target.value })} onBlur={() => onSave({ category: svc.category })} style={inputStyle} placeholder="e.g. Makeup" />
+            <input value={svc.category} onChange={(e) => handleChange({ category: e.target.value })} style={inputStyle} placeholder="e.g. Makeup" />
           </div>
           <div style={{ flex: "0 1 100px" }}>
             <label style={labelStyle}>Price (R)</label>
-            <input type="number" value={svc.price} onChange={(e) => onChange({ price: parseFloat(e.target.value) || 0 })} onBlur={() => onSave({ price: svc.price })} style={inputStyle} />
+            <input type="number" value={svc.price} onChange={(e) => handleChange({ price: parseFloat(e.target.value) || 0 })} style={inputStyle} />
           </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={handleSave} disabled={saving || !dirty} style={{ padding: "8px 18px", background: dirty ? accent : "var(--panel-2)", color: dirty ? "#fff" : "var(--muted-2)", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: dirty ? "pointer" : "default", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>
+            {saving ? "Saving…" : svc.id.startsWith("new-") ? "Save Service" : "Save"}
+          </button>
+          {justSaved && <span style={{ fontSize: 11, color: "#4caf50", fontWeight: 700 }}>Saved ✓</span>}
         </div>
       </div>
       <button onClick={onDelete} title="Delete service" style={{ background: "none", border: "none", color: "#ff5050", cursor: "pointer", padding: 6, flexShrink: 0 }}>

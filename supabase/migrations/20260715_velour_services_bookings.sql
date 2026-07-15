@@ -28,6 +28,7 @@ create table if not exists bookings (
   status        text not null default 'pending', -- 'pending' | 'confirmed' | 'cancelled'
   client_name   text not null,
   client_phone  text not null,
+  payment_method text,                     -- 'pay_later' | 'eft' | 'whatsapp'
   created_at    timestamptz not null default now()
 );
 

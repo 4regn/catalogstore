@@ -28,6 +28,16 @@ interface StoreConfig {
   contact_phone?: string;
   physical_address?: string;
 }
+interface CheckoutConfig {
+  eft_enabled?: boolean;
+  eft_bank_name?: string;
+  eft_account_number?: string;
+  eft_account_name?: string;
+  eft_branch_code?: string;
+  eft_account_type?: string;
+  eft_instructions?: string;
+  whatsapp_checkout_enabled?: boolean;
+}
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
   subdomain: string; template: string; primary_color: string;
@@ -37,6 +47,7 @@ interface Seller {
   template_configs?: Record<string, any>;
   subscription_status?: string;
   trial_ends_at?: string | null;
+  checkout_config?: CheckoutConfig;
 }
 interface Service {
   id: string; category: string; name: string; price: number;
@@ -101,6 +112,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"pay_later" | "eft" | "whatsapp">("pay_later");
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [bookingError, setBookingError] = useState("");
@@ -227,8 +239,24 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const phone = liveContactPhone ?? config.contact_phone ?? "";
   const email = liveContactEmail ?? config.contact_email ?? "";
   const address = livePhysicalAddress ?? config.physical_address ?? "";
-  const instagramHandle = s.social_links?.instagram || "";
-  const tiktokHandle = s.social_links?.tiktok || "";
+  // Dashboard -> My Store -> Social Links stores full profile URLs (e.g.
+  // "https://instagram.com/yourbrand"), not bare handles -- building
+  // "https://instagram.com/" + rawValue when rawValue is already a full
+  // URL produces a broken double-URL that Instagram/TikTok silently
+  // redirect to their homepage. Accept either form.
+  const socialHref = (raw: string, base: string) => {
+    if (!raw) return "";
+    const v = raw.trim();
+    if (/^https?:\/\//i.test(v)) return v;
+    return `https://${base}/${v.replace(/^@/, "")}`;
+  };
+  const extractHandle = (raw: string) => (raw || "").trim().replace(/^https?:\/\/(www\.)?(instagram\.com|tiktok\.com)\//i, "").replace(/^@/, "").replace(/\/$/, "");
+  const instagramRaw = s.social_links?.instagram || "";
+  const tiktokRaw = s.social_links?.tiktok || "";
+  const instagramHandle = extractHandle(instagramRaw);
+  const tiktokHandle = extractHandle(tiktokRaw);
+  const instagramHref = socialHref(instagramRaw, "instagram.com");
+  const tiktokHref = socialHref(tiktokRaw, "tiktok.com/@");
   const whatsappNumber = (s.whatsapp_number || "").replace(/\D/g, "");
 
   /* ─── SERVICES GROUPED ─── */
@@ -331,10 +359,12 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
         status: "pending",
         client_name: clientName.trim(),
         client_phone: clientPhone.trim(),
+        payment_method: paymentMethod,
       });
       if (error) throw error;
       setBookedSlots(prev => [...prev, { date: selectedDateStr, time_slot: selectedSlot, status: "pending" }]);
       setBookingConfirmed(true);
+      if (paymentMethod === "whatsapp" && whatsappNumber) window.open(bookingWhatsappUrl(), "_blank");
     } catch (e: any) {
       setBookingError(e?.message || "Could not confirm your booking. Please try again or contact us directly.");
     } finally {
@@ -353,6 +383,8 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
     ].filter(Boolean).join("\n");
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(lines)}`;
   };
+  const eftEnabled = !!s.checkout_config?.eft_enabled;
+  const whatsappCheckoutEnabled = !!whatsappNumber && s.checkout_config?.whatsapp_checkout_enabled !== false;
 
   /* ─── CHAT ─── */
   const toggleChat = () => { setChatOpen(o => !o); if (!chatOpen) setChatHasBadge(false); };
@@ -630,6 +662,27 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
             <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
               <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Your name" style={{ padding: "12px 14px", border: `1px solid rgba(201,169,110,0.25)`, background: white, fontFamily: "Jost, sans-serif", fontSize: "0.8rem", color: ink, outline: "none" }} />
               <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="Your phone number" style={{ padding: "12px 14px", border: `1px solid rgba(201,169,110,0.25)`, background: white, fontFamily: "Jost, sans-serif", fontSize: "0.8rem", color: ink, outline: "none" }} />
+
+              <p style={{ fontSize: "0.6rem", letterSpacing: "0.2em", textTransform: "uppercase", color: mid, marginTop: 6, marginBottom: 2 }}>How would you like to pay?</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div onClick={() => setPaymentMethod("pay_later")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "pay_later" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "pay_later" ? mocha : white, color: paymentMethod === "pay_later" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay at appointment</div>
+                {eftEnabled && (
+                  <div onClick={() => setPaymentMethod("eft")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "eft" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "eft" ? mocha : white, color: paymentMethod === "eft" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay via EFT</div>
+                )}
+                {whatsappCheckoutEnabled && (
+                  <div onClick={() => setPaymentMethod("whatsapp")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "whatsapp" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "whatsapp" ? mocha : white, color: paymentMethod === "whatsapp" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Confirm via WhatsApp</div>
+                )}
+              </div>
+              {paymentMethod === "eft" && eftEnabled && (
+                <div style={{ padding: "12px 14px", background: warm, border: `1px solid rgba(201,169,110,0.25)`, fontSize: "0.74rem", color: ink, lineHeight: 1.7 }}>
+                  {s.checkout_config?.eft_bank_name && <div>Bank: {s.checkout_config.eft_bank_name}</div>}
+                  {s.checkout_config?.eft_account_name && <div>Account Name: {s.checkout_config.eft_account_name}</div>}
+                  {s.checkout_config?.eft_account_number && <div>Account Number: {s.checkout_config.eft_account_number}</div>}
+                  {s.checkout_config?.eft_branch_code && <div>Branch Code: {s.checkout_config.eft_branch_code}</div>}
+                  {s.checkout_config?.eft_account_type && <div>Account Type: {s.checkout_config.eft_account_type}</div>}
+                  {s.checkout_config?.eft_instructions && <div style={{ marginTop: 6, color: mid }}>{s.checkout_config.eft_instructions}</div>}
+                </div>
+              )}
               {bookingError && <div style={{ fontSize: "0.72rem", color: "#b3402a" }}>{bookingError}</div>}
             </div>
           )}
@@ -643,7 +696,8 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
             <>
               <div style={{ width: "100%", padding: 15, background: mocha, color: cream, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", textAlign: "center" }}>Appointment Requested ✓</div>
               <p style={{ fontSize: "0.68rem", color: mid, textAlign: "center", marginTop: 10, lineHeight: 1.6 }}>
-                You will receive a confirmation within 24 hours.{whatsappNumber && (<> Or <a href={bookingWhatsappUrl()} target="_blank" rel="noreferrer" style={{ color: mocha, textDecoration: "underline" }}>message us on WhatsApp</a>.</>)}
+                {paymentMethod === "eft" ? "Please complete your EFT payment using the details above. " : ""}
+                You will receive a confirmation within 24 hours.{whatsappNumber && paymentMethod !== "whatsapp" && (<> Or <a href={bookingWhatsappUrl()} target="_blank" rel="noreferrer" style={{ color: mocha, textDecoration: "underline" }}>message us on WhatsApp</a>.</>)}
               </p>
             </>
           )}
@@ -693,11 +747,11 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
                 <div style={{ fontSize: "0.62rem", letterSpacing: "0.28em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>{brandSubtitle}</div>
                 <p style={{ fontSize: "0.74rem", color: "rgba(245,237,227,0.3)", lineHeight: 1.7, marginBottom: 18 }}>{motto}</p>
                 <div style={{ display: "flex", gap: 10 }}>
-                  {instagramHandle && (
-                    <a className="vl-social-btn" href={`https://instagram.com/${instagramHandle}`} target="_blank" rel="noreferrer" title="Instagram" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid rgba(201,169,110,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(245,237,227,0.35)" }}><InstagramIcon /></a>
+                  {instagramHref && (
+                    <a className="vl-social-btn" href={instagramHref} target="_blank" rel="noreferrer" title="Instagram" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid rgba(201,169,110,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(245,237,227,0.35)" }}><InstagramIcon /></a>
                   )}
-                  {tiktokHandle && (
-                    <a className="vl-social-btn" href={`https://tiktok.com/@${tiktokHandle.replace(/\s+/g, "").replace(/^@/, "")}`} target="_blank" rel="noreferrer" title="TikTok" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid rgba(201,169,110,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(245,237,227,0.35)" }}><TikTokIcon /></a>
+                  {tiktokHref && (
+                    <a className="vl-social-btn" href={tiktokHref} target="_blank" rel="noreferrer" title="TikTok" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid rgba(201,169,110,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(245,237,227,0.35)" }}><TikTokIcon /></a>
                   )}
                   {whatsappNumber && (
                     <a className="vl-social-btn" href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{ width: 34, height: 34, borderRadius: "50%", border: "1px solid rgba(201,169,110,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(245,237,227,0.35)" }}><WhatsAppIcon /></a>

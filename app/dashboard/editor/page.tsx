@@ -62,6 +62,7 @@ interface Seller {
   id: string; store_name: string; subdomain: string; template: string;
   tagline: string; description: string; logo_url: string; banner_url: string;
   whatsapp_number: string; primary_color: string; collections: string[];
+  social_links?: { instagram?: string; tiktok?: string; whatsapp?: string; facebook?: string; twitter?: string };
   template_configs?: Record<string, any>;
   store_config: {
     announcement?: string;
@@ -307,6 +308,9 @@ export default function StoreEditor() {
   const [hoursSunday, setHoursSunday] = useState("");
   const [accentColor, setAccentColor] = useState("");
   const [paymentMethods, setPaymentMethods] = useState<string[]>(["visa", "mastercard", "applepay", "googlepay", "eft"]);
+  const [velourInstagram, setVelourInstagram] = useState("");
+  const [velourTiktok, setVelourTiktok] = useState("");
+  const [velourWhatsapp, setVelourWhatsapp] = useState("");
   const [heroImagePosition, setHeroImagePosition] = useState("center");
   const [heroImageBehavior, setHeroImageBehavior] = useState("still");
   const [heroLayout, setHeroLayout] = useState("default");
@@ -394,7 +398,7 @@ export default function StoreEditor() {
       if (!user) { router.push("/login"); return; }
       // Explicit columns — only what the editor actually uses. Skipping the bigger
       // checkout_config / subscription_* / payfast_* fields keeps this row small.
-      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, store_config, template_configs, subscription_status").eq("email", user.email).single();
+      const { data: s } = await supabase.from("sellers").select("id, email, store_name, subdomain, template, tagline, description, logo_url, banner_url, whatsapp_number, primary_color, collections, social_links, store_config, template_configs, subscription_status").eq("email", user.email).single();
       if (!s) { router.push("/dashboard"); return; }
       if (s.subscription_status === "pending") { router.push("/dashboard/billing"); return; }
       setSeller(s);
@@ -487,6 +491,9 @@ export default function StoreEditor() {
       setHoursSunday((cfg as any)?.business_hours?.sunday || "");
       setAccentColor((cfg as any)?.accent_color || "");
       if ((cfg as any)?.payment_methods?.length) setPaymentMethods((cfg as any).payment_methods);
+      setVelourInstagram(s.social_links?.instagram || "");
+      setVelourTiktok(s.social_links?.tiktok || "");
+      setVelourWhatsapp(s.whatsapp_number || "");
       if (!cfg?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
         setHeroImagePreview(s.banner_url);
         setHeroImageUrl(s.banner_url);
@@ -811,14 +818,18 @@ export default function StoreEditor() {
         ...pickTemplateFields(editedFields),
       },
     };
+    const socialLinksUpdate = seller.template === "velour"
+      ? { social_links: { ...seller.social_links, instagram: velourInstagram || undefined, tiktok: velourTiktok || undefined }, whatsapp_number: velourWhatsapp }
+      : {};
     await supabase.from("sellers").update({
       tagline, description, logo_url: logoUrl,
       ...(isBannerTemplate && heroUrl ? { banner_url: heroUrl } : {}),
       collections: collOrder.length > 0 ? collOrder : seller.collections,
       store_config: newStoreConfig,
       template_configs: newTemplateConfigs,
+      ...socialLinksUpdate,
     }).eq("id", seller.id);
-    setSeller({ ...seller, store_config: newStoreConfig, template_configs: newTemplateConfigs });
+    setSeller({ ...seller, store_config: newStoreConfig, template_configs: newTemplateConfigs, ...socialLinksUpdate });
     setSaved(true);
     setSaving(false);
     setTimeout(() => setSaved(false), 3000);
@@ -1786,7 +1797,15 @@ export default function StoreEditor() {
                     <div><label style={labelStyle}>Phone</label><input value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="e.g. 081 540 5149" style={inputStyle} /></div>
                     <div><label style={labelStyle}>Studio Address</label><textarea value={physicalAddress} onChange={e => setPhysicalAddress(e.target.value)} rows={2} placeholder="West Walk Building, 6th Floor, Office 620B" style={{ ...inputStyle, resize: "vertical" }} /></div>
                   </div>
-                  <div style={hintStyle}>WhatsApp number, Instagram &amp; TikTok handles are set in Dashboard → My Store → Branding &amp; Socials. Services and bookings are managed from the Services and Bookings pages in your dashboard.</div>
+                </div>
+                <div style={{ paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(245,245,245,0.45)", marginBottom: 10 }}>Socials &amp; WhatsApp</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div><label style={labelStyle}>Instagram URL</label><input value={velourInstagram} onChange={e => setVelourInstagram(e.target.value)} placeholder="https://instagram.com/yourbrand" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>TikTok URL</label><input value={velourTiktok} onChange={e => setVelourTiktok(e.target.value)} placeholder="https://tiktok.com/@yourbrand" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>WhatsApp Number</label><input value={velourWhatsapp} onChange={e => setVelourWhatsapp(e.target.value)} placeholder="27815405149" style={inputStyle} /></div>
+                  </div>
+                  <div style={hintStyle}>Used for the footer social icons, the chat widget WhatsApp fallback, and booking WhatsApp confirmations. Services and bookings are managed from the Services and Bookings pages in your dashboard.</div>
                 </div>
               </div>
             )}
