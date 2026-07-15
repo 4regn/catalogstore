@@ -40,7 +40,7 @@ export const TEMPLATE_SCOPED_KEYS = [
   "featured_product_id", "flash_sale_label", "flash_sale_title", "show_flash_sale",
   "newsletter_label", "newsletter_title", "newsletter_sub", "newsletter_copyright",
   // Velour (beauty/cosmetology services template)
-  "brand_subtitle", "monogram_letters", "accent_color", "city",
+  "brand_name", "brand_subtitle", "monogram_letters", "accent_color", "city",
   "callout_available", "callout_area", "business_hours", "payment_methods",
   "chat_auto_replies",
 ] as const;

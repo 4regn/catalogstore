@@ -14,6 +14,7 @@ interface StoreConfig {
   hero_image?: string;
   hero_label?: string;
   hero_subtext?: string;
+  brand_name?: string;
   brand_subtitle?: string;
   monogram_letters?: string;
   accent_color?: string;
@@ -79,6 +80,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const [liveHeroImage, setLiveHeroImage] = useState<string | null>(null);
   const [liveTagline, setLiveTagline] = useState<string | null>(null);
   const [liveHeroSubtext, setLiveHeroSubtext] = useState<string | null>(null);
+  const [liveBrandName, setLiveBrandName] = useState<string | null>(null);
   const [liveBrandSubtitle, setLiveBrandSubtitle] = useState<string | null>(null);
   const [liveMonogram, setLiveMonogram] = useState<string | null>(null);
   const [liveCity, setLiveCity] = useState<string | null>(null);
@@ -136,6 +138,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
     if (!isEditMode) return;
     const handler = (e: MessageEvent) => {
       if (e.data?.type !== "LIVE_UPDATE") return;
+      if (e.data.brandName !== undefined) setLiveBrandName(e.data.brandName);
       if (e.data.logoUrl !== undefined) setLiveLogoUrl(e.data.logoUrl);
       if (e.data.heroImage !== undefined) setLiveHeroImage(e.data.heroImage);
       if (e.data.tagline !== undefined) setLiveTagline(e.data.tagline);
@@ -207,7 +210,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const white = "#FDFAF7";
 
   /* ─── DISPLAY VALUES ─── */
-  const brandName = s.store_name || "GracefulBeaty";
+  const brandName = liveBrandName ?? config.brand_name ?? s.store_name ?? "GracefulBeaty";
   const brandSubtitle = liveBrandSubtitle ?? config.brand_subtitle ?? "by Lebo Coka";
   const motto = liveTagline ?? s.tagline ?? "Enhancing Beauty. Empowering You.";
   const monogramLetters = (liveMonogram ?? config.monogram_letters ?? "LC").toUpperCase();

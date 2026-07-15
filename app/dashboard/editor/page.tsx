@@ -296,6 +296,7 @@ export default function StoreEditor() {
   const [heroVideoUrl, setHeroVideoUrl]           = useState("");
   const [heroSplitImage2, setHeroSplitImage2]     = useState("");
   // Velour
+  const [brandName, setBrandName] = useState("");
   const [brandSubtitle, setBrandSubtitle] = useState("");
   const [monogramLetters, setMonogramLetters] = useState("");
   const [velourCity, setVelourCity] = useState("");
@@ -475,6 +476,7 @@ export default function StoreEditor() {
       setHeroImageUrl(cfg?.hero_image || "");
       setHeroVideoUrl((cfg as any)?.hero_video_url || "");
       setHeroSplitImage2((cfg as any)?.hero_split_image_2 || "");
+      setBrandName((cfg as any)?.brand_name ?? s.store_name ?? "");
       setBrandSubtitle((cfg as any)?.brand_subtitle || "");
       setMonogramLetters((cfg as any)?.monogram_letters || "");
       setVelourCity((cfg as any)?.city || "");
@@ -576,6 +578,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroTextPosition }); }, [heroTextPosition]);
   useEffect(() => { postUpdate({ heroImageFade }); }, [heroImageFade]);
   useEffect(() => { postUpdate({ heroSplitImage2 }); }, [heroSplitImage2]);
+  useEffect(() => { postUpdate({ brandName }); }, [brandName]);
   useEffect(() => { postUpdate({ brandSubtitle }); }, [brandSubtitle]);
   useEffect(() => { postUpdate({ monogramLetters }); }, [monogramLetters]);
   useEffect(() => { postUpdate({ city: velourCity }); }, [velourCity]);
@@ -709,6 +712,7 @@ export default function StoreEditor() {
       hero_text_position: heroTextPosition,
       hero_image_fade: heroImageFade,
       hero_split_image_2: heroSplitImage2,
+      brand_name: brandName || undefined,
       brand_subtitle: brandSubtitle,
       monogram_letters: monogramLetters,
       city: velourCity,
@@ -1696,6 +1700,11 @@ export default function StoreEditor() {
                       if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
                     }} style={{ display: "none" }} />
                   {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                </div>
+                <div>
+                  <label style={labelStyle}>Brand Name</label>
+                  <input value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="GracefulBeaty" style={inputStyle} />
+                  <div style={hintStyle}>The large name shown in the hero, nav and footer. Defaults to your store name, but you can set a different public-facing brand name here.</div>
                 </div>
                 <div>
                   <label style={labelStyle}>Brand Subtitle</label>
