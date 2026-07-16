@@ -81,12 +81,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, bookingId: booking.id, payfastUrl: `/api/payfast-booking-redirect?bookingId=${booking.id}` });
     }
 
-    // EFT booking: awaiting a deposit + proof of payment -- notify both
+    // EFT booking: awaiting full payment + proof of payment -- notify both
     // sides immediately by email.
     const dateLabel = new Date(date + "T00:00:00").toLocaleDateString("en-ZA", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const svcLine = service ? `${service.name} — R${Math.round(service.price)}` : "Service";
     const typeLine = type === "studio" ? "Studio Visit" : "Callout (additional distance-based fee applies)";
-    const deposit = amount !== null ? Math.round(amount * 0.5) : null;
+    const amountDue = amount !== null ? Math.round(amount) : null;
     const proofContact = [seller.whatsapp_number ? `WhatsApp: ${seller.whatsapp_number}` : "", seller.email ? `Email: ${seller.email}` : ""].filter(Boolean).join(" or ");
 
     if (seller.email) {
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
           <p style="margin:0 0 4px">${dateLabel} at ${timeSlot}</p>
           <p style="margin:0 0 4px">${typeLine}</p>
           ${address ? `<p style="margin:0 0 4px">Address: ${address}</p>` : ""}
-          ${deposit !== null ? `<p style="margin:0 0 4px">Deposit due: R${deposit}</p>` : ""}
+          ${amountDue !== null ? `<p style="margin:0 0 4px">Amount due: R${amountDue}</p>` : ""}
           <p style="margin:16px 0 0;font-size:13px;color:#6B5141">This slot is NOT reserved yet -- once you receive proof of payment, confirm the booking from your dashboard's Bookings page to lock in the slot.</p>
         </div>`,
       });
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
           </div>
           <div style="background:#fff;border:1px solid #eee;border-radius:10px;padding:18px 20px;margin-bottom:16px">
             <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#7A5C47;margin:0 0 10px">Secure Your Booking</h3>
-            ${deposit !== null ? `<p style="margin:0 0 10px;font-size:15px;font-weight:600">Deposit due: R${deposit}</p>` : ""}
+            ${amountDue !== null ? `<p style="margin:0 0 10px;font-size:15px;font-weight:600">Amount due: R${amountDue}</p>` : ""}
             ${cc.eft_bank_name ? `<p style="margin:0 0 4px;font-size:13px">Bank: ${cc.eft_bank_name}</p>` : ""}
             ${cc.eft_account_name ? `<p style="margin:0 0 4px;font-size:13px">Account Name: ${cc.eft_account_name}</p>` : ""}
             ${cc.eft_account_number ? `<p style="margin:0 0 4px;font-size:13px">Account Number: ${cc.eft_account_number}</p>` : ""}

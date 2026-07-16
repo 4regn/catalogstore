@@ -473,10 +473,10 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const payfastAvailable = bookingType === "studio" && !!s.checkout_config?.payfast_enabled;
   const selectedServiceObj = services.find(sv => sv.id === selectedServiceId) || null;
   // Only pay_later/whatsapp-confirm were removed as booking-confirmation
-  // paths -- every booking must be paid (in full via PayFast, or a 50%
-  // deposit via EFT) before the seller can confirm it. When only one method
-  // is configured, skip the picker and use it directly; when both are
-  // configured, the seller-selected `paymentMethod` state decides.
+  // paths -- every booking must be paid in full (via PayFast or EFT)
+  // before the seller can confirm it. When only one method is configured,
+  // skip the picker and use it directly; when both are configured, the
+  // seller-selected `paymentMethod` state decides.
   const effectivePaymentMethod: "eft" | "payfast" | null =
     payfastAvailable && eftEnabled ? (paymentMethod === "payfast" ? "payfast" : "eft")
     : payfastAvailable ? "payfast"
@@ -800,13 +800,13 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
                   <p style={{ fontSize: "0.6rem", letterSpacing: "0.2em", textTransform: "uppercase", color: mid, marginTop: 6, marginBottom: 2 }}>Secure Your Booking</p>
                   {payfastAvailable && eftEnabled && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div onClick={() => setPaymentMethod("eft")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "eft" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "eft" ? mocha : white, color: paymentMethod === "eft" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay 50% Deposit via EFT</div>
+                      <div onClick={() => setPaymentMethod("eft")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "eft" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "eft" ? mocha : white, color: paymentMethod === "eft" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay via EFT / Direct Deposit</div>
                       <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "payfast" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "payfast" ? mocha : white, color: paymentMethod === "payfast" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay Online Now (PayFast) — instant confirmation</div>
                     </div>
                   )}
                   {selectedServiceObj && effectivePaymentMethod === "eft" && (
                     <div style={{ padding: "12px 14px", background: warm, border: `1px solid rgba(201,169,110,0.25)`, fontSize: "0.74rem", color: ink, lineHeight: 1.7 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 6 }}>Deposit Due: {fmt(selectedServiceObj.price * 0.5)}</div>
+                      <div style={{ fontWeight: 600, marginBottom: 6 }}>Amount Due: {fmt(selectedServiceObj.price)}</div>
                       {s.checkout_config?.eft_bank_name && <div>Bank: {s.checkout_config.eft_bank_name}</div>}
                       {s.checkout_config?.eft_account_name && <div>Account Name: {s.checkout_config.eft_account_name}</div>}
                       {s.checkout_config?.eft_account_number && <div>Account Number: {s.checkout_config.eft_account_number}</div>}
@@ -838,7 +838,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
             <>
               <div style={{ width: "100%", padding: 15, background: mocha, color: cream, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", textAlign: "center" }}>Booking Requested ✓</div>
               <p style={{ fontSize: "0.68rem", color: mid, textAlign: "center", marginTop: 10, lineHeight: 1.6 }}>
-                Please send your deposit and proof of payment — your slot will be confirmed once received.
+                Please send your payment and proof of payment — your slot will be confirmed once received.
                 {whatsappNumber && (<> Or <a href={bookingWhatsappUrl()} target="_blank" rel="noreferrer" style={{ color: mocha, textDecoration: "underline" }}>message us on WhatsApp</a>.</>)}
               </p>
             </>
