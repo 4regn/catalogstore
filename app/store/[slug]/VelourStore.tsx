@@ -136,7 +136,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"pay_later" | "eft" | "whatsapp" | "payfast">("pay_later");
+  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast">("eft");
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [bookingError, setBookingError] = useState("");
@@ -166,7 +166,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
       const { data: svcs } = await supabase.from("services").select("*").eq("seller_id", s.id).order("sort_order", { ascending: true });
       setServices(svcs || []);
       const todayIso = new Date().toISOString().slice(0, 10);
-      const { data: bks } = await supabase.from("bookings").select("date, time_slot, status").eq("seller_id", s.id).neq("status", "cancelled").gte("date", todayIso);
+      const { data: bks } = await supabase.from("bookings").select("date, time_slot, status").eq("seller_id", s.id).eq("status", "confirmed").gte("date", todayIso);
       setBookedSlots(bks || []);
       setLoading(false);
       if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
@@ -437,18 +437,18 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
           clientPhone: clientPhone.trim(),
           clientEmail: clientEmail.trim(),
           clientAddress: bookingType === "callout" ? clientAddress.trim() : "",
-          paymentMethod,
+          paymentMethod: effectivePaymentMethod,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Could not confirm your booking.");
-      if (paymentMethod === "payfast" && data.payfastUrl) {
+      if (effectivePaymentMethod === "payfast" && data.payfastUrl) {
         window.location.href = data.payfastUrl + "&returnOrigin=" + encodeURIComponent(window.location.origin);
         return;
       }
-      setBookedSlots(prev => [...prev, { date: selectedDateStr, time_slot: selectedSlot, status: "pending" }]);
+      // Pending EFT bookings don't block the slot for other visitors --
+      // only a seller-confirmed booking does (see slotsForDate/bookedByDate).
       setBookingConfirmed(true);
-      if (paymentMethod === "whatsapp" && whatsappNumber) window.open(bookingWhatsappUrl(), "_blank");
     } catch (e: any) {
       setBookingError(e?.message || "Could not confirm your booking. Please try again or contact us directly.");
     } finally {
@@ -468,10 +468,20 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(lines)}`;
   };
   const eftEnabled = !!s.checkout_config?.eft_enabled;
-  const whatsappCheckoutEnabled = !!whatsappNumber && s.checkout_config?.whatsapp_checkout_enabled !== false;
   // Callout pricing depends on distance and isn't fixed, so online payment
   // (a single upfront amount) only makes sense for studio bookings.
   const payfastAvailable = bookingType === "studio" && !!s.checkout_config?.payfast_enabled;
+  const selectedServiceObj = services.find(sv => sv.id === selectedServiceId) || null;
+  // Only pay_later/whatsapp-confirm were removed as booking-confirmation
+  // paths -- every booking must be paid (in full via PayFast, or a 50%
+  // deposit via EFT) before the seller can confirm it. When only one method
+  // is configured, skip the picker and use it directly; when both are
+  // configured, the seller-selected `paymentMethod` state decides.
+  const effectivePaymentMethod: "eft" | "payfast" | null =
+    payfastAvailable && eftEnabled ? (paymentMethod === "payfast" ? "payfast" : "eft")
+    : payfastAvailable ? "payfast"
+    : eftEnabled ? "eft"
+    : null;
 
   /* ─── CHAT ─── */
   const toggleChat = () => { setChatOpen(o => !o); if (!chatOpen) setChatHasBadge(false); };
@@ -691,7 +701,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
           {calloutAvailable && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 24, border: `1px solid rgba(201,169,110,0.3)` }}>
               {(["studio", "callout"] as const).map(t => (
-                <div key={t} className="vl-toggle-opt" onClick={() => { setBookingType(t); if (t === "callout") setPaymentMethod(pm => pm === "payfast" ? "pay_later" : pm); }} style={{ padding: "14px 16px", textAlign: "center", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", background: bookingType === t ? mocha : white, color: bookingType === t ? cream : mid }}>
+                <div key={t} className="vl-toggle-opt" onClick={() => { setBookingType(t); if (t === "callout") setPaymentMethod("eft"); }} style={{ padding: "14px 16px", textAlign: "center", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", background: bookingType === t ? mocha : white, color: bookingType === t ? cream : mid }}>
                   {t === "studio" ? "Studio Visit" : "Callout Service"}
                 </div>
               ))}
@@ -785,44 +795,51 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
                 <textarea value={clientAddress} onChange={e => setClientAddress(e.target.value)} rows={2} placeholder="Address where you'd like to be seen" style={{ padding: "12px 14px", border: `1px solid rgba(201,169,110,0.25)`, background: white, fontFamily: "Jost, sans-serif", fontSize: "0.8rem", color: ink, outline: "none", resize: "vertical" }} />
               )}
 
-              <p style={{ fontSize: "0.6rem", letterSpacing: "0.2em", textTransform: "uppercase", color: mid, marginTop: 6, marginBottom: 2 }}>How would you like to pay?</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div onClick={() => setPaymentMethod("pay_later")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "pay_later" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "pay_later" ? mocha : white, color: paymentMethod === "pay_later" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay at appointment</div>
-                {payfastAvailable && (
-                  <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "payfast" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "payfast" ? mocha : white, color: paymentMethod === "payfast" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay Online Now (PayFast) — booking confirmed instantly</div>
-                )}
-                {eftEnabled && (
-                  <div onClick={() => setPaymentMethod("eft")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "eft" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "eft" ? mocha : white, color: paymentMethod === "eft" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay via EFT / Direct Deposit</div>
-                )}
-                {whatsappCheckoutEnabled && (
-                  <div onClick={() => setPaymentMethod("whatsapp")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "whatsapp" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "whatsapp" ? mocha : white, color: paymentMethod === "whatsapp" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Confirm via WhatsApp</div>
-                )}
-              </div>
-              {paymentMethod === "eft" && eftEnabled && (
-                <div style={{ padding: "12px 14px", background: warm, border: `1px solid rgba(201,169,110,0.25)`, fontSize: "0.74rem", color: ink, lineHeight: 1.7 }}>
-                  {s.checkout_config?.eft_bank_name && <div>Bank: {s.checkout_config.eft_bank_name}</div>}
-                  {s.checkout_config?.eft_account_name && <div>Account Name: {s.checkout_config.eft_account_name}</div>}
-                  {s.checkout_config?.eft_account_number && <div>Account Number: {s.checkout_config.eft_account_number}</div>}
-                  {s.checkout_config?.eft_branch_code && <div>Branch Code: {s.checkout_config.eft_branch_code}</div>}
-                  {s.checkout_config?.eft_account_type && <div>Account Type: {s.checkout_config.eft_account_type}</div>}
-                  {s.checkout_config?.eft_instructions && <div style={{ marginTop: 6, color: mid }}>{s.checkout_config.eft_instructions}</div>}
+              {effectivePaymentMethod ? (
+                <>
+                  <p style={{ fontSize: "0.6rem", letterSpacing: "0.2em", textTransform: "uppercase", color: mid, marginTop: 6, marginBottom: 2 }}>Secure Your Booking</p>
+                  {payfastAvailable && eftEnabled && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div onClick={() => setPaymentMethod("eft")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "eft" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "eft" ? mocha : white, color: paymentMethod === "eft" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay 50% Deposit via EFT</div>
+                      <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "payfast" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "payfast" ? mocha : white, color: paymentMethod === "payfast" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay Online Now (PayFast) — instant confirmation</div>
+                    </div>
+                  )}
+                  {selectedServiceObj && effectivePaymentMethod === "eft" && (
+                    <div style={{ padding: "12px 14px", background: warm, border: `1px solid rgba(201,169,110,0.25)`, fontSize: "0.74rem", color: ink, lineHeight: 1.7 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 6 }}>Deposit Due: {fmt(selectedServiceObj.price * 0.5)}</div>
+                      {s.checkout_config?.eft_bank_name && <div>Bank: {s.checkout_config.eft_bank_name}</div>}
+                      {s.checkout_config?.eft_account_name && <div>Account Name: {s.checkout_config.eft_account_name}</div>}
+                      {s.checkout_config?.eft_account_number && <div>Account Number: {s.checkout_config.eft_account_number}</div>}
+                      {s.checkout_config?.eft_branch_code && <div>Branch Code: {s.checkout_config.eft_branch_code}</div>}
+                      {s.checkout_config?.eft_account_type && <div>Account Type: {s.checkout_config.eft_account_type}</div>}
+                      {s.checkout_config?.eft_instructions && <div style={{ marginTop: 8, color: mid, whiteSpace: "pre-line" as const }}>{s.checkout_config.eft_instructions}</div>}
+                      <div style={{ marginTop: 8, fontWeight: 600 }}>
+                        Please send proof of payment to {[whatsappNumber && "WhatsApp", email && "email"].filter(Boolean).join(" or ") || "the studio"}.
+                      </div>
+                      <div style={{ marginTop: 4, color: mid }}>Your slot is only reserved once your booking is confirmed — please book promptly after paying.</div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ padding: "12px 14px", background: warm, border: `1px solid rgba(201,169,110,0.25)`, fontSize: "0.74rem", color: mid }}>
+                  This store hasn&apos;t set up a payment method for bookings yet. Please contact them directly to book.
                 </div>
               )}
               {bookingError && <div style={{ fontSize: "0.72rem", color: "#b3402a" }}>{bookingError}</div>}
             </div>
           )}
 
-          {selectedSlot && !bookingConfirmed && (
+          {selectedSlot && !bookingConfirmed && effectivePaymentMethod && (
             <button className="vl-btn-gold" onClick={confirmBooking} disabled={bookingSubmitting} style={{ width: "100%", padding: 15, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.2em", textAlign: "center" }}>
-              {bookingSubmitting ? "Booking…" : paymentMethod === "payfast" ? "Pay & Confirm" : "Confirm Appointment"}
+              {bookingSubmitting ? "Booking…" : effectivePaymentMethod === "payfast" ? "Pay & Confirm" : "Submit Booking Request"}
             </button>
           )}
           {bookingConfirmed && (
             <>
-              <div style={{ width: "100%", padding: 15, background: mocha, color: cream, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", textAlign: "center" }}>Appointment Requested ✓</div>
+              <div style={{ width: "100%", padding: 15, background: mocha, color: cream, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", textAlign: "center" }}>Booking Requested ✓</div>
               <p style={{ fontSize: "0.68rem", color: mid, textAlign: "center", marginTop: 10, lineHeight: 1.6 }}>
-                {paymentMethod === "eft" ? "Please complete your EFT payment using the details above. " : ""}
-                You will receive a confirmation within 24 hours.{whatsappNumber && paymentMethod !== "whatsapp" && (<> Or <a href={bookingWhatsappUrl()} target="_blank" rel="noreferrer" style={{ color: mocha, textDecoration: "underline" }}>message us on WhatsApp</a>.</>)}
+                Please send your deposit and proof of payment — your slot will be confirmed once received.
+                {whatsappNumber && (<> Or <a href={bookingWhatsappUrl()} target="_blank" rel="noreferrer" style={{ color: mocha, textDecoration: "underline" }}>message us on WhatsApp</a>.</>)}
               </p>
             </>
           )}

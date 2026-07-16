@@ -88,7 +88,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
         .from("bookings")
         .select("date, time_slot, status")
         .eq("seller_id", seller.id)
-        .neq("status", "cancelled")
+        .eq("status", "confirmed") // only confirmed bookings block a slot -- see /api/bookings/create
         .gte("date", todayIso),
     ]);
     const isSubdomain = await isStoreSubdomainRequest();

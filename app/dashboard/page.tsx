@@ -162,7 +162,7 @@ interface VelourService {
 interface VelourBooking {
   id: string; service_id: string | null; date: string; time_slot: string;
   booking_type: string; status: string; client_name: string; client_phone: string;
-  payment_method: string | null; created_at: string;
+  payment_method: string | null; amount: number | null; created_at: string;
 }
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
@@ -170,7 +170,7 @@ const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images
 const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
 const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
-const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, created_at";
+const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, amount, created_at";
 const PRODUCTS_LIMIT = 500;
 const ORDERS_LIMIT = 100;
 const DISCOUNTS_LIMIT = 100;
@@ -1568,7 +1568,7 @@ export default function Dashboard() {
                     <div key={bk.id} style={{ ...sectionCard, marginBottom: 0, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{bk.client_name} <span style={{ fontWeight: 400, color: "var(--muted-2)", fontSize: 12 }}>· <a href={`tel:${bk.client_phone}`} style={{ color: "var(--muted-2)" }}>{bk.client_phone}</a></span></div>
-                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{svc?.name || "Service removed"} — {bk.date} at {bk.time_slot} <span style={{ textTransform: "capitalize" as const }}>({bk.booking_type})</span>{bk.payment_method && <span style={{ textTransform: "capitalize" as const }}> · {bk.payment_method.replace("_", " ")}</span>}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{svc?.name || "Service removed"} — {bk.date} at {bk.time_slot} <span style={{ textTransform: "capitalize" as const }}>({bk.booking_type})</span>{bk.payment_method && <span style={{ textTransform: "capitalize" as const }}> · {bk.payment_method.replace("_", " ")}</span>}{bk.amount != null && bk.payment_method === "eft" && <span> · R{Math.round(bk.amount * 0.5)} deposit due</span>}{bk.amount != null && bk.payment_method === "payfast" && <span> · R{Math.round(bk.amount)} paid</span>}</div>
                       </div>
                       <select value={bk.status} onChange={async (e) => {
                         const status = e.target.value;
