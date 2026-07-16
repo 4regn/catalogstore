@@ -72,7 +72,10 @@ export async function POST(req: NextRequest) {
       payment_method: wantsPayfast ? "payfast" : "eft",
       amount,
     }).select("id").single();
-    if (insertErr || !booking) return NextResponse.json({ error: "Could not create booking" }, { status: 500 });
+    if (insertErr || !booking) {
+      console.error("Booking insert failed:", insertErr);
+      return NextResponse.json({ error: "Could not create booking" }, { status: 500 });
+    }
 
     if (wantsPayfast) {
       return NextResponse.json({ ok: true, bookingId: booking.id, payfastUrl: `/api/payfast-booking-redirect?bookingId=${booking.id}` });
