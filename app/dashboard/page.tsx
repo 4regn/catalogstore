@@ -186,7 +186,7 @@ const TEMPLATES = [
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -215,6 +215,13 @@ export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [velourServices, setVelourServices] = useState<VelourService[]>([]);
   const [velourBookings, setVelourBookings] = useState<VelourBooking[]>([]);
+  const [inboxConversations, setInboxConversations] = useState<{ id: string; name: string | null; email: string | null; status: string; seller_unread: number; last_message_at: string; last_message_preview: string | null }[]>([]);
+  const [inboxLoading, setInboxLoading] = useState(false);
+  const [inboxLoaded, setInboxLoaded] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeConversationMessages, setActiveConversationMessages] = useState<{ id: string; sender: string; body: string; created_at: string }[]>([]);
+  const [inboxReply, setInboxReply] = useState("");
+  const [inboxReplySending, setInboxReplySending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -341,6 +348,7 @@ export default function Dashboard() {
     setSidebarOpen(false);
     setMystoreFocusTemplates(false);
     if (t === "newsletter" && !subscribersLoaded && !subscribersLoading) void fetchSubscribers();
+    if (t === "inbox" && !inboxLoaded && !inboxLoading) void fetchInbox();
   };
 
   const checkAuth = async () => {
@@ -422,6 +430,49 @@ export default function Dashboard() {
     } catch {}
     setSubscribersLoading(false);
     setSubscribersLoaded(true);
+  };
+
+  const fetchInbox = async () => {
+    const token = await getAccessToken();
+    if (!token) return;
+    setInboxLoading(true);
+    try {
+      const res = await fetch(`/api/seller/support?accessToken=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (res.ok) setInboxConversations(data.conversations || []);
+    } catch {}
+    setInboxLoading(false);
+    setInboxLoaded(true);
+  };
+
+  const openConversation = async (id: string) => {
+    setActiveConversationId(id);
+    const token = await getAccessToken();
+    if (!token) return;
+    const res = await fetch(`/api/seller/support/${id}?accessToken=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if (res.ok) setActiveConversationMessages(data.messages || []);
+    setInboxConversations((prev) => prev.map((c) => c.id === id ? { ...c, seller_unread: 0 } : c));
+  };
+
+  const sendInboxReply = async () => {
+    const msg = inboxReply.trim();
+    if (!msg || !activeConversationId || inboxReplySending) return;
+    setInboxReplySending(true);
+    setInboxReply("");
+    const token = await getAccessToken();
+    try {
+      const res = await fetch(`/api/seller/support/${activeConversationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: token, message: msg }),
+      });
+      if (res.ok) {
+        setActiveConversationMessages((prev) => [...prev, { id: "local-" + Date.now(), sender: "seller", body: msg, created_at: new Date().toISOString() }]);
+        setInboxConversations((prev) => prev.map((c) => c.id === activeConversationId ? { ...c, last_message_preview: msg.slice(0, 120), last_message_at: new Date().toISOString() } : c));
+      }
+    } catch {}
+    setInboxReplySending(false);
   };
 
   const refreshDomainStatus = async () => {
@@ -884,6 +935,7 @@ export default function Dashboard() {
         { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName, count: visibleOrders.length },
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
         { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
+        ...(seller?.template === "velour" ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
       ],
     },
     {
@@ -1520,16 +1572,62 @@ export default function Dashboard() {
                       </div>
                       <select value={bk.status} onChange={async (e) => {
                         const status = e.target.value;
+                        const prevStatus = bk.status;
                         setVelourBookings((prev) => prev.map((x) => x.id === bk.id ? { ...x, status } : x));
-                        await supabase.from("bookings").update({ status }).eq("id", bk.id);
+                        const { data: { session } } = await supabase.auth.getSession();
+                        const res = await fetch("/api/bookings/update-status", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ bookingId: bk.id, status, accessToken: session?.access_token }),
+                        });
+                        if (!res.ok) { setVelourBookings((prev) => prev.map((x) => x.id === bk.id ? { ...x, status: prevStatus } : x)); alert("Could not update booking status."); }
                       }} style={{ padding: "8px 12px", borderRadius: 100, border: "1px solid var(--border)", background: bk.status === "confirmed" ? "rgba(76,175,80,0.1)" : bk.status === "cancelled" ? "rgba(255,80,80,0.1)" : "rgba(255,107,53,0.08)", color: bk.status === "confirmed" ? "#4caf50" : bk.status === "cancelled" ? "#ff5050" : N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, cursor: "pointer" }}>
                         <option value="pending">Pending</option>
+                        <option value="awaiting_payment">Awaiting Payment</option>
                         <option value="confirmed">Confirmed</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>)}
+
+          {tab === "inbox" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Inbox</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Messages from customers via your storefront&apos;s live chat.</p>
+            {activeConversationId ? (
+              <div style={sectionCard}>
+                <button onClick={() => { setActiveConversationId(null); setActiveConversationMessages([]); }} style={{ background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer", fontSize: 12, fontWeight: 700, marginBottom: 14, padding: 0 }}>&larr; Back to Inbox</button>
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10, maxHeight: 420, overflowY: "auto" as const, padding: "4px 2px", marginBottom: 14 }}>
+                  {activeConversationMessages.map((m) => (
+                    <div key={m.id} style={{ maxWidth: "78%", alignSelf: m.sender === "visitor" ? "flex-start" : "flex-end", background: m.sender === "visitor" ? "var(--panel-2)" : "rgba(255,107,53,0.1)", borderRadius: 12, padding: "10px 13px" }}>
+                      <div style={{ fontSize: 13, color: "var(--text)" }}>{m.body}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 4 }}>{new Date(m.created_at).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input value={inboxReply} onChange={(e) => setInboxReply(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void sendInboxReply(); }} placeholder="Type a reply..." style={{ ...inputStyle, flex: 1 }} />
+                  <button onClick={() => void sendInboxReply()} disabled={inboxReplySending || !inboxReply.trim()} style={{ padding: "0 20px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Send</button>
+                </div>
+              </div>
+            ) : inboxLoading && inboxConversations.length === 0 ? (
+              <div style={sectionCard}><p style={{ fontSize: 13, color: "var(--muted-2)" }}>Loading…</p></div>
+            ) : inboxConversations.length === 0 ? (
+              <div style={sectionCard}><p style={{ fontSize: 13, color: "var(--muted-2)" }}>No customer messages yet. When a visitor chats with you from your storefront, it'll show up here.</p></div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                {inboxConversations.map((c) => (
+                  <div key={c.id} onClick={() => void openConversation(c.id)} style={{ ...sectionCard, marginBottom: 0, padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{c.name || "Website Visitor"}{c.email ? ` · ${c.email}` : ""}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{c.last_message_preview}</div>
+                    </div>
+                    {c.seller_unread > 0 && <span style={{ flexShrink: 0, background: N, color: "#fff", borderRadius: 100, fontSize: 11, fontWeight: 800, padding: "3px 9px" }}>{c.seller_unread}</span>}
+                  </div>
+                ))}
               </div>
             )}
           </div>)}

@@ -37,6 +37,7 @@ interface CheckoutConfig {
   eft_account_type?: string;
   eft_instructions?: string;
   whatsapp_checkout_enabled?: boolean;
+  payfast_enabled?: boolean;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -64,14 +65,30 @@ interface StorePageProps {
 
 const fmt = (n: number) => "R" + Math.round(n).toLocaleString("en-ZA");
 const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = "none"; };
-const SLOTS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const DEFAULT_REPLIES = [
-  "Thank you for reaching out! We will get back to you shortly.",
-  "Feel free to browse our services and pricing above, or book a session directly.",
-  "Yes, we do offer callout services — just select it when booking!",
-  "You can reach us directly on WhatsApp for a faster response.",
-];
+const SLOT_STEP_MIN = 30;
+
+// Parses an hours string like "08:00–18:00" (en-dash or hyphen) into
+// [startMinutes, endMinutes]. Returns null for anything that isn't a real
+// range (e.g. "By Appointment"), which callers treat as "no bookable slots".
+const parseHourRange = (range?: string): [number, number] | null => {
+  if (!range) return null;
+  const m = range.match(/(\d{1,2}):(\d{2})\s*[-–—]\s*(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const start = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  const end = parseInt(m[3], 10) * 60 + parseInt(m[4], 10);
+  if (end <= start) return null;
+  return [start, end];
+};
+const slotsForRange = (range: [number, number] | null): string[] => {
+  if (!range) return [];
+  const [start, end] = range;
+  const slots: string[] = [];
+  for (let t = start; t + SLOT_STEP_MIN <= end; t += SLOT_STEP_MIN) {
+    slots.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+  }
+  return slots;
+};
 
 export default function VelourStore({ initialSeller, initialServices, initialBookings, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
@@ -82,6 +99,11 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
 
   const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
   const [services, setServices] = useState<Service[]>(initialServices ?? []);
+  const [paymentBanner, setPaymentBanner] = useState<"paid" | "cancelled" | null>(() => {
+    if (searchParams.get("bookingPaid")) return "paid";
+    if (searchParams.get("bookingCancelled")) return "cancelled";
+    return null;
+  });
   const [bookedSlots, setBookedSlots] = useState<BookingSlot[]>(initialBookings ?? []);
   const [loading, setLoading] = useState(!initialSeller);
   const [notFound, setNotFound] = useState(false);
@@ -112,17 +134,23 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"pay_later" | "eft" | "whatsapp">("pay_later");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"pay_later" | "eft" | "whatsapp" | "payfast">("pay_later");
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [bookingError, setBookingError] = useState("");
 
-  /* chat widget state */
+  /* chat widget state -- real conversation backed by support_conversations/
+     support_messages (same tables the rest of the app's live chat uses),
+     category "storefront" so it lands in the seller's dashboard Inbox. */
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatHasBadge, setChatHasBadge] = useState(true);
+  const [chatHasBadge, setChatHasBadge] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<{ sender: "studio" | "client"; text: string; time: string }[]>([]);
-  const chatReplyIdx = useRef(0);
+  const [chatMessages, setChatMessages] = useState<{ sender: string; body: string; created_at: string }[]>([]);
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [chatSending, setChatSending] = useState(false);
+  const chatVisitorId = useRef<string>("");
   const chatBoxRef = useRef<HTMLDivElement>(null);
 
   /* ─── LOAD ─── */
@@ -177,6 +205,41 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   useEffect(() => {
     if (chatBoxRef.current) chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
   }, [chatMessages, chatOpen]);
+
+  /* Visitor identity + any already-open conversation with this seller,
+     same localStorage pattern as the rest of the app's live chat widget. */
+  useEffect(() => {
+    if (typeof window === "undefined" || !seller?.id) return;
+    let vid = localStorage.getItem("cs_support_visitor");
+    if (!vid) { vid = crypto.randomUUID(); localStorage.setItem("cs_support_visitor", vid); }
+    chatVisitorId.current = vid;
+    const savedConv = localStorage.getItem(`cs_velour_conv_${seller.id}`);
+    if (savedConv) setChatConversationId(savedConv);
+  }, [seller?.id]);
+
+  /* Poll for the seller's replies while a conversation exists -- same
+     polling approach the rest of this app's chat uses (no realtime
+     subscriptions anywhere in the codebase yet). */
+  useEffect(() => {
+    if (!chatConversationId || !chatVisitorId.current) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/support/messages?conversationId=${chatConversationId}&visitorId=${chatVisitorId.current}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data.messages)) {
+          setChatMessages(prev => {
+            if (data.messages.length === prev.length) return prev;
+            if (!chatOpen && data.messages.length > prev.length) setChatHasBadge(true);
+            return data.messages;
+          });
+        }
+      } catch { /* ignore -- next poll retries */ }
+    };
+    poll();
+    const t = setInterval(poll, 6000);
+    return () => clearInterval(t);
+  }, [chatConversationId, chatOpen]);
 
   /* ─── LOADING / NOT FOUND ─── */
   if (loading) return (
@@ -234,8 +297,17 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   const calloutAvailable = liveCalloutAvailable ?? config.callout_available ?? true;
   const calloutArea = liveCalloutArea ?? config.callout_area ?? `Available across ${city}`;
   const hours = liveBusinessHours ?? config.business_hours ?? { weekdays: "08:00–18:00", saturday: "09:00–16:00", sunday: "By Appointment" };
+  // Bookable time slots follow the seller's actual operating hours instead
+  // of a hardcoded list -- Sunday stays closed to self-serve booking
+  // regardless of what the hours text says ("By Appointment" implies
+  // contacting the seller directly, not an open calendar slot).
+  const slotsForDate = (d: Date): string[] => {
+    const day = d.getDay();
+    if (day === 0) return [];
+    const range = day === 6 ? parseHourRange(hours.saturday) : parseHourRange(hours.weekdays);
+    return slotsForRange(range);
+  };
   const paymentMethods = livePaymentMethods ?? (config.payment_methods?.length ? config.payment_methods : ["visa", "mastercard", "applepay", "googlepay", "eft"]);
-  const chatAutoReplies = config.chat_auto_replies?.length ? config.chat_auto_replies : DEFAULT_REPLIES;
   const phone = liveContactPhone ?? config.contact_phone ?? "";
   const email = liveContactEmail ?? config.contact_email ?? "";
   const address = livePhysicalAddress ?? config.physical_address ?? "";
@@ -348,20 +420,32 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
     if (!clientName.trim()) { setBookingError("Please enter your name."); return; }
     const digits = clientPhone.replace(/\D/g, "");
     if (digits.length < 9) { setBookingError("Please enter a valid phone number."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) { setBookingError("Please enter a valid email address."); return; }
+    if (bookingType === "callout" && !clientAddress.trim()) { setBookingError("Please enter the address where you'd like to be seen."); return; }
     setBookingSubmitting(true);
     try {
-      const { error } = await supabase.from("bookings").insert({
-        seller_id: s.id,
-        service_id: selectedServiceId,
-        date: selectedDateStr,
-        time_slot: selectedSlot,
-        booking_type: bookingType,
-        status: "pending",
-        client_name: clientName.trim(),
-        client_phone: clientPhone.trim(),
-        payment_method: paymentMethod,
+      const res = await fetch("/api/bookings/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sellerId: s.id,
+          serviceId: selectedServiceId,
+          date: selectedDateStr,
+          timeSlot: selectedSlot,
+          bookingType,
+          clientName: clientName.trim(),
+          clientPhone: clientPhone.trim(),
+          clientEmail: clientEmail.trim(),
+          clientAddress: bookingType === "callout" ? clientAddress.trim() : "",
+          paymentMethod,
+        }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Could not confirm your booking.");
+      if (paymentMethod === "payfast" && data.payfastUrl) {
+        window.location.href = data.payfastUrl + "&returnOrigin=" + encodeURIComponent(window.location.origin);
+        return;
+      }
       setBookedSlots(prev => [...prev, { date: selectedDateStr, time_slot: selectedSlot, status: "pending" }]);
       setBookingConfirmed(true);
       if (paymentMethod === "whatsapp" && whatsappNumber) window.open(bookingWhatsappUrl(), "_blank");
@@ -385,18 +469,38 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
   };
   const eftEnabled = !!s.checkout_config?.eft_enabled;
   const whatsappCheckoutEnabled = !!whatsappNumber && s.checkout_config?.whatsapp_checkout_enabled !== false;
+  // Callout pricing depends on distance and isn't fixed, so online payment
+  // (a single upfront amount) only makes sense for studio bookings.
+  const payfastAvailable = bookingType === "studio" && !!s.checkout_config?.payfast_enabled;
 
   /* ─── CHAT ─── */
   const toggleChat = () => { setChatOpen(o => !o); if (!chatOpen) setChatHasBadge(false); };
-  const sendChatMessage = () => {
+  const sendChatMessage = async () => {
     const msg = chatInput.trim();
-    if (!msg) return;
-    setChatMessages(prev => [...prev, { sender: "client", text: msg, time: "Now" }]);
+    if (!msg || chatSending || !chatVisitorId.current) return;
     setChatInput("");
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, { sender: "studio", text: chatAutoReplies[chatReplyIdx.current % chatAutoReplies.length], time: "Just now" }]);
-      chatReplyIdx.current++;
-    }, 900);
+    setChatSending(true);
+    // Optimistic local echo -- the next poll reconciles with the real row.
+    setChatMessages(prev => [...prev, { sender: "visitor", body: msg, created_at: new Date().toISOString() }]);
+    try {
+      const res = await fetch("/api/support/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorId: chatVisitorId.current,
+          conversationId: chatConversationId,
+          message: msg,
+          category: "storefront",
+          storefrontSellerId: s.id,
+        }),
+      });
+      const data = await res.json();
+      if (data?.conversationId && data.conversationId !== chatConversationId) {
+        setChatConversationId(data.conversationId);
+        localStorage.setItem(`cs_velour_conv_${s.id}`, data.conversationId);
+      }
+    } catch { /* the optimistic message stays; user can retry by resending */ }
+    setChatSending(false);
   };
 
   return (
@@ -431,6 +535,12 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
       `}</style>
 
       <div className="vl-root">
+        {paymentBanner && (
+          <div style={{ position: "fixed", top: 70, left: 0, right: 0, zIndex: 250, padding: "12px 20px", textAlign: "center", fontSize: "0.78rem", background: paymentBanner === "paid" ? mocha : "#8a5a3a", color: cream }}>
+            {paymentBanner === "paid" ? "Payment received — your appointment is confirmed! We've emailed you the details." : "Payment was cancelled — your appointment wasn't confirmed. You can try again below."}
+            <button onClick={() => setPaymentBanner(null)} style={{ marginLeft: 14, background: "none", border: "none", color: cream, cursor: "pointer", textDecoration: "underline", fontSize: "0.75rem" }}>Dismiss</button>
+          </div>
+        )}
         {/* NAV */}
         <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 28px", background: "rgba(245,237,227,0.92)", backdropFilter: "blur(16px)", borderBottom: `1px solid rgba(201,169,110,0.2)` }}>
           <a href={sp("/")} style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "1.15rem", fontWeight: 400, color: mocha, letterSpacing: "0.08em", display: "flex", alignItems: "center", gap: 8 }}>
@@ -581,10 +691,16 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
           {calloutAvailable && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 24, border: `1px solid rgba(201,169,110,0.3)` }}>
               {(["studio", "callout"] as const).map(t => (
-                <div key={t} className="vl-toggle-opt" onClick={() => setBookingType(t)} style={{ padding: "14px 16px", textAlign: "center", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", background: bookingType === t ? mocha : white, color: bookingType === t ? cream : mid }}>
+                <div key={t} className="vl-toggle-opt" onClick={() => { setBookingType(t); if (t === "callout") setPaymentMethod(pm => pm === "payfast" ? "pay_later" : pm); }} style={{ padding: "14px 16px", textAlign: "center", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.14em", textTransform: "uppercase", background: bookingType === t ? mocha : white, color: bookingType === t ? cream : mid }}>
                   {t === "studio" ? "Studio Visit" : "Callout Service"}
                 </div>
               ))}
+            </div>
+          )}
+
+          {calloutAvailable && bookingType === "callout" && (
+            <div style={{ padding: "12px 14px", background: warm, border: `1px solid rgba(201,169,110,0.3)`, fontSize: "0.72rem", color: mid, lineHeight: 1.6, marginBottom: 22 }}>
+              Prices shown are for studio visits. Callout appointments include an additional fee based on distance from the studio — this will be confirmed with you directly before your appointment.
             </div>
           )}
 
@@ -619,11 +735,13 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
                 const isSunday = thisDate.getDay() === 0;
                 const ds = dateStr(calMonth.getFullYear(), calMonth.getMonth(), d);
                 const takenCount = bookedByDate.get(ds)?.size || 0;
-                const isFullyBooked = takenCount >= SLOTS.length;
+                const dayTotalSlots = slotsForDate(thisDate).length;
+                const isFullyBooked = dayTotalSlots > 0 && takenCount >= dayTotalSlots;
+                const isClosed = dayTotalSlots === 0 && !isSunday;
                 const isSelected = selectedDay === d;
-                const disabled = isPast || isSunday || isFullyBooked;
+                const disabled = isPast || isSunday || isFullyBooked || isClosed;
                 let cls = "vl-cal-day";
-                if (isPast || isSunday) cls += " vl-past";
+                if (isPast || isSunday || isClosed) cls += " vl-past";
                 else if (isFullyBooked) cls += " vl-booked";
                 return (
                   <div key={d} className={cls} onClick={() => !disabled && selectDay(d)}
@@ -645,7 +763,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
             <div style={{ marginBottom: 16 }}>
               <p style={{ fontSize: "0.6rem", letterSpacing: "0.2em", textTransform: "uppercase", color: mid, marginBottom: 10 }}>Available Times — {selectedDay} {MONTHS[calMonth.getMonth()]} {calMonth.getFullYear()}</p>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
-                {SLOTS.map(slot => {
+                {slotsForDate(new Date(calMonth.getFullYear(), calMonth.getMonth(), selectedDay)).map(slot => {
                   const taken = takenForSelectedDay.has(slot);
                   return (
                     <div key={slot} className={`vl-slot${taken ? " vl-taken" : ""}`} onClick={() => !taken && setSelectedSlot(slot)}
@@ -662,12 +780,19 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
             <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
               <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Your name" style={{ padding: "12px 14px", border: `1px solid rgba(201,169,110,0.25)`, background: white, fontFamily: "Jost, sans-serif", fontSize: "0.8rem", color: ink, outline: "none" }} />
               <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="Your phone number" style={{ padding: "12px 14px", border: `1px solid rgba(201,169,110,0.25)`, background: white, fontFamily: "Jost, sans-serif", fontSize: "0.8rem", color: ink, outline: "none" }} />
+              <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="Your email address" style={{ padding: "12px 14px", border: `1px solid rgba(201,169,110,0.25)`, background: white, fontFamily: "Jost, sans-serif", fontSize: "0.8rem", color: ink, outline: "none" }} />
+              {bookingType === "callout" && (
+                <textarea value={clientAddress} onChange={e => setClientAddress(e.target.value)} rows={2} placeholder="Address where you'd like to be seen" style={{ padding: "12px 14px", border: `1px solid rgba(201,169,110,0.25)`, background: white, fontFamily: "Jost, sans-serif", fontSize: "0.8rem", color: ink, outline: "none", resize: "vertical" }} />
+              )}
 
               <p style={{ fontSize: "0.6rem", letterSpacing: "0.2em", textTransform: "uppercase", color: mid, marginTop: 6, marginBottom: 2 }}>How would you like to pay?</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div onClick={() => setPaymentMethod("pay_later")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "pay_later" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "pay_later" ? mocha : white, color: paymentMethod === "pay_later" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay at appointment</div>
+                {payfastAvailable && (
+                  <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "payfast" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "payfast" ? mocha : white, color: paymentMethod === "payfast" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay Online Now (PayFast) — booking confirmed instantly</div>
+                )}
                 {eftEnabled && (
-                  <div onClick={() => setPaymentMethod("eft")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "eft" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "eft" ? mocha : white, color: paymentMethod === "eft" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay via EFT</div>
+                  <div onClick={() => setPaymentMethod("eft")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "eft" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "eft" ? mocha : white, color: paymentMethod === "eft" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Pay via EFT / Direct Deposit</div>
                 )}
                 {whatsappCheckoutEnabled && (
                   <div onClick={() => setPaymentMethod("whatsapp")} style={{ padding: "11px 12px", border: `1px solid ${paymentMethod === "whatsapp" ? mocha : "rgba(201,169,110,0.25)"}`, background: paymentMethod === "whatsapp" ? mocha : white, color: paymentMethod === "whatsapp" ? cream : mid, fontSize: "0.72rem", cursor: "pointer" }}>Confirm via WhatsApp</div>
@@ -689,7 +814,7 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
 
           {selectedSlot && !bookingConfirmed && (
             <button className="vl-btn-gold" onClick={confirmBooking} disabled={bookingSubmitting} style={{ width: "100%", padding: 15, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.2em", textAlign: "center" }}>
-              {bookingSubmitting ? "Booking…" : "Confirm Appointment"}
+              {bookingSubmitting ? "Booking…" : paymentMethod === "payfast" ? "Pay & Confirm" : "Confirm Appointment"}
             </button>
           )}
           {bookingConfirmed && (
@@ -817,9 +942,9 @@ export default function VelourStore({ initialSeller, initialServices, initialBoo
                   <div style={{ fontSize: "0.54rem", color: taupe, marginTop: 3 }}>Just now</div>
                 </div>
                 {chatMessages.map((m, i) => (
-                  <div key={i} style={{ maxWidth: "82%", padding: "9px 12px", fontSize: "0.74rem", lineHeight: 1.55, alignSelf: m.sender === "client" ? "flex-end" : "flex-start", background: m.sender === "client" ? mocha : warm, color: m.sender === "client" ? cream : ink, borderLeft: m.sender === "studio" ? `2px solid ${gold}` : "none" }}>
-                    {m.text}
-                    <div style={{ fontSize: "0.54rem", color: m.sender === "client" ? "rgba(245,237,227,0.6)" : taupe, marginTop: 3 }}>{m.time}</div>
+                  <div key={i} style={{ maxWidth: "82%", padding: "9px 12px", fontSize: "0.74rem", lineHeight: 1.55, alignSelf: m.sender === "visitor" ? "flex-end" : "flex-start", background: m.sender === "visitor" ? mocha : warm, color: m.sender === "visitor" ? cream : ink, borderLeft: m.sender !== "visitor" ? `2px solid ${gold}` : "none" }}>
+                    {m.body}
+                    <div style={{ fontSize: "0.54rem", color: m.sender === "visitor" ? "rgba(245,237,227,0.6)" : taupe, marginTop: 3 }}>{new Date(m.created_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}</div>
                   </div>
                 ))}
               </div>
