@@ -59,7 +59,7 @@ export default function UnikFooter() {
           <div className="uf-pay-accept">
             <span className="uf-pay-label">We accept</span>
             <span className="uf-pay-logos">
-              <span className="uf-pay-text">Yoco</span>
+              <img src="/checkout/yoco.png" alt="Yoco" className="uf-pay-logo uf-pay-logo--flush" />
               <img src="/checkout/visa.png" alt="Visa" className="uf-pay-logo" />
               <img src="/checkout/mastercard.png" alt="Mastercard" className="uf-pay-logo" />
               <img src="/checkout/applepay.png" alt="Apple Pay" className="uf-pay-logo" />
@@ -105,7 +105,7 @@ export default function UnikFooter() {
         .uf-pay-label{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#8b8b85}
         .uf-pay-logos{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
         .uf-pay-logo{height:22px;width:auto;object-fit:contain;display:block;background:#fff;border-radius:6px;padding:4px 8px}
-        .uf-pay-text{display:inline-flex;align-items:center;height:22px;padding:0 2px;font:800 11px/1 'Manrope',Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#8b8b85}
+        .uf-pay-logo--flush{height:26px;background:none;padding:0;border-radius:0}
         .uf-pay-delivery{display:flex;align-items:center;gap:12px;text-align:left}
         .uf-flag{font-size:22px;line-height:1}
         .uf-pay-delivery-text strong{display:block;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fff;margin-bottom:3px}
