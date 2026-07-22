@@ -434,10 +434,25 @@
   `;
   document.head.appendChild(footerStyle);
 
+  // Mirrors lib/store-url.ts's isSubdomainHost()/storePath() -- store.js is
+  // plain static JS (no bundler) so it can't import that TS module, but the
+  // branch must stay in sync: on unik.catalogstore.co.za the platform's
+  // middleware already rewrites "/help" to "/store/unik/help" internally,
+  // so the link here must be the bare path. Anywhere else (the legacy
+  // catalogstore.co.za/store/unik path form, localhost, preview URLs) the
+  // /store/unik prefix is the real, literal route.
+  function unikBasePath() {
+    var ROOT = 'catalogstore.co.za';
+    var host = location.hostname.toLowerCase();
+    var isSubdomain = host !== ROOT && host !== 'www.' + ROOT && host.indexOf('.' + ROOT) === host.length - ROOT.length - 1;
+    return isSubdomain ? '' : '/store/unik';
+  }
+
   function initFooter() {
     const path = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
     if (path !== 'index.html' && path !== '') return;
     if (document.querySelector('.unik-footer')) return;
+    const base = unikBasePath();
     const footer = document.createElement('footer');
     footer.className = 'unik-footer';
     footer.setAttribute('aria-label', 'Site footer');
@@ -460,28 +475,28 @@
           <nav class="uf-col" aria-label="Support">
             <h3>Support</h3>
             <ul>
-              <li><a href="/store/unik/help" target="_top">Help Centre</a></li>
-              <li><a href="/store/unik/faq" target="_top">FAQs</a></li>
-              <li><a href="/store/unik/contact" target="_top">Contact Us</a></li>
+              <li><a href="${base}/help" target="_top">Help Centre</a></li>
+              <li><a href="${base}/faq" target="_top">FAQs</a></li>
+              <li><a href="${base}/contact" target="_top">Contact Us</a></li>
             </ul>
           </nav>
           <nav class="uf-col" aria-label="Company">
             <h3>Company</h3>
             <ul>
-              <li><a href="/store/unik/about" target="_top">About UNIK Labs</a></li>
-              <li><a href="/store/unik/about#our-story" target="_top">Our Story</a></li>
+              <li><a href="${base}/about" target="_top">About UNIK Labs</a></li>
+              <li><a href="${base}/about#our-story" target="_top">Our Story</a></li>
             </ul>
           </nav>
           <nav class="uf-col" aria-label="Legal">
             <h3>Legal</h3>
             <ul>
-              <li><a href="/store/unik/terms" target="_top">Terms of Service</a></li>
-              <li><a href="/store/unik/privacy" target="_top">Privacy Policy</a></li>
-              <li><a href="/store/unik/refund-policy" target="_top">Refund &amp; Returns Policy</a></li>
-              <li><a href="/store/unik/shipping-policy" target="_top">Shipping Policy</a></li>
-              <li><a href="/store/unik/cookie-policy" target="_top">Cookie Policy</a></li>
-              <li><a href="/store/unik/acceptable-use" target="_top">Acceptable Use Policy</a></li>
-              <li><a href="/store/unik/intellectual-property" target="_top">Intellectual Property Policy</a></li>
+              <li><a href="${base}/terms" target="_top">Terms of Service</a></li>
+              <li><a href="${base}/privacy" target="_top">Privacy Policy</a></li>
+              <li><a href="${base}/refund-policy" target="_top">Refund &amp; Returns Policy</a></li>
+              <li><a href="${base}/shipping-policy" target="_top">Shipping Policy</a></li>
+              <li><a href="${base}/cookie-policy" target="_top">Cookie Policy</a></li>
+              <li><a href="${base}/acceptable-use" target="_top">Acceptable Use Policy</a></li>
+              <li><a href="${base}/intellectual-property" target="_top">Intellectual Property Policy</a></li>
             </ul>
           </nav>
         </div>
@@ -507,9 +522,9 @@
         <div class="uf-bottom">
           <span>© <span data-unik-footer-year></span> UNIK Labs. All rights reserved.</span>
           <div class="uf-bottom-links">
-            <a href="/store/unik/privacy" target="_top">Privacy</a>
-            <a href="/store/unik/terms" target="_top">Terms</a>
-            <a href="/store/unik/cookie-policy" target="_top">Cookies</a>
+            <a href="${base}/privacy" target="_top">Privacy</a>
+            <a href="${base}/terms" target="_top">Terms</a>
+            <a href="${base}/cookie-policy" target="_top">Cookies</a>
           </div>
         </div>
       </div>`;

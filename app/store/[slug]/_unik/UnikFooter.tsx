@@ -6,7 +6,7 @@
 // initFooter() -- this component is the React-side twin so the visual
 // system stays identical wherever the footer appears.
 
-export default function UnikFooter() {
+export default function UnikFooter({ basePath = "/store/unik" }: { basePath?: string }) {
   const year = new Date().getFullYear();
   return (
     <footer className="unik-footer" aria-label="Site footer">
@@ -30,28 +30,28 @@ export default function UnikFooter() {
           <nav className="uf-col" aria-label="Support">
             <h3>Support</h3>
             <ul>
-              <li><a href="/store/unik/help">Help Centre</a></li>
-              <li><a href="/store/unik/faq">FAQs</a></li>
-              <li><a href="/store/unik/contact">Contact Us</a></li>
+              <li><a href={`${basePath}/help`}>Help Centre</a></li>
+              <li><a href={`${basePath}/faq`}>FAQs</a></li>
+              <li><a href={`${basePath}/contact`}>Contact Us</a></li>
             </ul>
           </nav>
           <nav className="uf-col" aria-label="Company">
             <h3>Company</h3>
             <ul>
-              <li><a href="/store/unik/about">About UNIK Labs</a></li>
-              <li><a href="/store/unik/about#our-story">Our Story</a></li>
+              <li><a href={`${basePath}/about`}>About UNIK Labs</a></li>
+              <li><a href={`${basePath}/about#our-story`}>Our Story</a></li>
             </ul>
           </nav>
           <nav className="uf-col" aria-label="Legal">
             <h3>Legal</h3>
             <ul>
-              <li><a href="/store/unik/terms">Terms of Service</a></li>
-              <li><a href="/store/unik/privacy">Privacy Policy</a></li>
-              <li><a href="/store/unik/refund-policy">Refund &amp; Returns Policy</a></li>
-              <li><a href="/store/unik/shipping-policy">Shipping Policy</a></li>
-              <li><a href="/store/unik/cookie-policy">Cookie Policy</a></li>
-              <li><a href="/store/unik/acceptable-use">Acceptable Use Policy</a></li>
-              <li><a href="/store/unik/intellectual-property">Intellectual Property Policy</a></li>
+              <li><a href={`${basePath}/terms`}>Terms of Service</a></li>
+              <li><a href={`${basePath}/privacy`}>Privacy Policy</a></li>
+              <li><a href={`${basePath}/refund-policy`}>Refund &amp; Returns Policy</a></li>
+              <li><a href={`${basePath}/shipping-policy`}>Shipping Policy</a></li>
+              <li><a href={`${basePath}/cookie-policy`}>Cookie Policy</a></li>
+              <li><a href={`${basePath}/acceptable-use`}>Acceptable Use Policy</a></li>
+              <li><a href={`${basePath}/intellectual-property`}>Intellectual Property Policy</a></li>
             </ul>
           </nav>
         </div>
@@ -77,9 +77,9 @@ export default function UnikFooter() {
         <div className="uf-bottom">
           <span>© {year} UNIK Labs. All rights reserved.</span>
           <div className="uf-bottom-links">
-            <a href="/store/unik/privacy">Privacy</a>
-            <a href="/store/unik/terms">Terms</a>
-            <a href="/store/unik/cookie-policy">Cookies</a>
+            <a href={`${basePath}/privacy`}>Privacy</a>
+            <a href={`${basePath}/terms`}>Terms</a>
+            <a href={`${basePath}/cookie-policy`}>Cookies</a>
           </div>
         </div>
       </div>

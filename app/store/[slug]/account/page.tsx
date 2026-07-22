@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import UnikAccountClient from "./UnikAccountClient";
+import { getUnikBasePath } from "../_unik/getUnikBasePath";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +14,6 @@ export default async function StoreAccountPage({ params }: { params: Promise<{ s
     .maybeSingle();
 
   if (!seller || seller.template !== "unik-labs") notFound();
-  return <UnikAccountClient storeName={seller.store_name || "UNIK Labs"} />;
+  const basePath = await getUnikBasePath();
+  return <UnikAccountClient storeName={seller.store_name || "UNIK Labs"} basePath={basePath} />;
 }
