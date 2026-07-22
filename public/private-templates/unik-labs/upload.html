@@ -503,8 +503,6 @@ const LABELS = ['Garment','Print Zone','Design'];
 const S = { garment:null,colour:null,zone:null,size:null };
 const UP = { front:{url:null,x:0,y:0,w:0,h:0,ar:1}, back:{url:null,x:0,y:0,w:0,h:0,ar:1} };
 function artworkBlendMode(){
-  if(S.colour==='white')return 'multiply';
-  if(S.colour==='black')return 'screen';
   return 'normal';
 }
 const CAL_KEY_BASE='unik-labs-hoodie-calibration-';

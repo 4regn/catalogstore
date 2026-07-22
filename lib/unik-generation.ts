@@ -118,18 +118,27 @@ export async function makeWatermarkedPreview(clean: Buffer) {
 }
 
 export async function makeMockup(clean: Buffer, input: UnikGenerationInput) {
-  const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "dark-studio", `${input.garment}-${input.colour}-model.jpg`);
-  const base = sharp(basePath);
+  const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "dark", `front-${input.colour}-${input.garment}.jpg`);
+  const base = sharp(basePath).rotate();
   const metadata = await base.metadata();
-  const width = metadata.width || 400;
-  const height = metadata.height || 600;
-  const zoneWidth = Math.round(width * (input.garment === "hoodie" ? 0.43 : 0.44));
-  const zoneHeight = Math.round(height * (input.garment === "hoodie" ? 0.31 : 0.34));
+  const width = metadata.width || 828;
+  const height = metadata.height || 1242;
+  const zone = input.garment === "tee"
+    ? { width: 0.3853, height: 0.3520, centreX: 0.5044, top: 0.4565 }
+    : input.colour === "black"
+      ? { width: 0.3328, height: 0.1955, centreX: 0.4957, top: 0.3477 }
+      : { width: 0.3328, height: 0.2045, centreX: 0.4957, top: 0.3409 };
+  const zoneWidth = Math.round(width * zone.width);
+  const zoneHeight = Math.round(height * zone.height);
   const artwork = await sharp(clean).rotate().resize({ width: zoneWidth, height: zoneHeight, fit: "inside", withoutEnlargement: false }).png().toBuffer();
   const artMeta = await sharp(artwork).metadata();
-  const left = Math.round(width * 0.5 - (artMeta.width || zoneWidth) / 2);
-  const top = Math.round(height * (input.garment === "hoodie" ? 0.405 : 0.39));
-  return base.composite([{ input: artwork, left, top, blend: "over" }]).jpeg({ quality: 91, mozjpeg: true }).toBuffer();
+  const left = Math.round(width * zone.centreX - (artMeta.width || zoneWidth) / 2);
+  const top = Math.round(height * zone.top);
+  const blend = input.colour === "black" ? "screen" : "multiply";
+  return base
+    .composite([{ input: artwork, left, top, blend }])
+    .jpeg({ quality: 95, chromaSubsampling: "4:4:4", mozjpeg: true })
+    .toBuffer();
 }
 
 export function newDesignId() {
