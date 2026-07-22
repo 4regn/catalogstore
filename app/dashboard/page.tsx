@@ -11,6 +11,7 @@ import FocalPointPicker from "../components/FocalPointPicker";
 import Spinner from "../components/Spinner";
 import SupportChat from "../components/SupportChat";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
+import { UNIK_TEMPLATE_ID } from "../../lib/store-template-access";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -183,6 +184,16 @@ const TEMPLATES = [
   { id: "rosefields", name: "Rosefields", desc: "Luxury florist storefront — burgundy, cream & gold", colors: { bg: "#faf5ee", card: "#ffffff", text: "#2b2320" } },
   { id: "velour", name: "Velour", desc: "Beauty & cosmetology services — mocha, gold & booking calendar", colors: { bg: "#F5EDE3", card: "#FDFAF7", text: "#2A1F18" } },
 ];
+
+const UNIK_PRIVATE_TEMPLATE = {
+  id: UNIK_TEMPLATE_ID,
+  name: "UNIK Labs",
+  desc: "Private UNIK AI design and custom-print storefront",
+  colors: { bg: "#050505", card: "#151515", text: "#ffffff" },
+};
+
+const templatesForSeller = (subdomain?: string | null) =>
+  subdomain === "unik" ? [...TEMPLATES, UNIK_PRIVATE_TEMPLATE] : TEMPLATES;
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
@@ -2269,15 +2280,15 @@ export default function Dashboard() {
               <button onClick={() => setTemplateOpen(!templateOpen)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: "var(--panel)", border: "none", cursor: "pointer", color: "var(--text)" }}>
                 <span style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Choose Template</span>
                 <span style={{ fontSize: 11, color: "var(--muted-2)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 10, color: N, fontWeight: 700 }}>{TEMPLATES.find(t => t.id === storeTemplate)?.name}</span>
+                  <span style={{ fontSize: 10, color: N, fontWeight: 700 }}>{templatesForSeller(seller?.subdomain).find(t => t.id === storeTemplate)?.name}</span>
                   <span style={{ transform: templateOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s", display: "inline-block" }}>&#9662;</span>
                 </span>
               </button>
               {templateOpen && (
                 <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-                    {TEMPLATES.map((t, ti) => {
-                      const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html", "velour": "/templates/velour/index.html" } as Record<string, string>)[t.id];
+                    {templatesForSeller(seller?.subdomain).map((t, ti) => {
+                      const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html", "velour": "/templates/velour/index.html", "unik-labs": "/private-templates/unik-labs/index.html" } as Record<string, string>)[t.id];
                       const locked = isFreePlan && t.id !== "soft-luxury";
                       return (
                         <button key={t.id} onClick={async () => {
@@ -2733,8 +2744,8 @@ export default function Dashboard() {
       </div>
 
       {expandedTemplateId && (() => {
-        const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html", "velour": "/templates/velour/index.html" } as Record<string, string>)[expandedTemplateId];
-        const t = TEMPLATES.find((x) => x.id === expandedTemplateId);
+        const previewUrl = ({ "heirloom": "/templates/heirloom/index.html", "crown": "/templates/crown/index.html", "glass-futuristic": "/templates/volt/index.html", "soft-luxury": "/templates/aurelia/index.html", "rosefields": "/templates/rosefields/index.html", "velour": "/templates/velour/index.html", "unik-labs": "/private-templates/unik-labs/index.html" } as Record<string, string>)[expandedTemplateId];
+        const t = templatesForSeller(seller?.subdomain).find((x) => x.id === expandedTemplateId);
         return (
           <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 20, gap: 16 }}>
             <div onClick={() => setExpandedTemplateId(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)" }} />

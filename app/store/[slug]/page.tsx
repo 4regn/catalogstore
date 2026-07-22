@@ -4,6 +4,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
+import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../lib/store-template-access";
 import StoreUnavailable from "./StoreUnavailable";
 
 export const revalidate = 60;
@@ -14,6 +15,7 @@ const Crown       = dynamic(() => import("./CrownStore"));
 const Heirloom    = dynamic(() => import("./HeirloomStore"));
 const Rosefields  = dynamic(() => import("./RosefieldsStore"));
 const Velour      = dynamic(() => import("./VelourStore"));
+const UnikLabs    = dynamic(() => import("./UnikLabsStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
@@ -74,7 +76,11 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     return <StoreUnavailable seller={seller} />;
   }
 
-  const tpl = seller.template;
+  const tpl = resolveSellerTemplate(seller);
+
+  if (tpl === UNIK_TEMPLATE_ID) {
+    return <UnikLabs initialSeller={seller} />;
+  }
 
   if (tpl === "velour") {
     const todayIso = new Date().toISOString().slice(0, 10);
