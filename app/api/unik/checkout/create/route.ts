@@ -64,16 +64,17 @@ export async function POST(req: NextRequest) {
   const designIds = items.map((i) => i.designId).filter((id): id is string => typeof id === "string" && id.length > 0);
   if (designIds.length !== items.length) return NextResponse.json({ error: "One of the items in your cart is invalid" }, { status: 400 });
 
-  const { data: designs } = await admin
+  const { data: designs, error: designsErr } = await admin
     .from("unik_designs")
-    .select("id, seller_id, auth_user_id, source, status, garment, colour, size, style, name, watermarked_preview_url, mockup_url")
+    .select("id, seller_id, auth_user_id, source, status, garment, colour, size, style, name, preview_url, mockup_url")
     .in("id", designIds);
+  if (designsErr) console.error("UNIK checkout: unik_designs lookup failed:", designsErr);
 
   const designMap = new Map((designs || []).map((d) => [d.id, d]));
   const { data: products } = await admin.from("products").select("id, name, price, category").eq("seller_id", seller.id).eq("status", "published");
   const productByName = new Map((products || []).map((p) => [p.name, p]));
 
-  const lineItems: { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string }[] = [];
+  const lineItems: { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string; image: string | null }[] = [];
 
   for (const item of items) {
     const design = designMap.get(item.designId!);
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
     lineItems.push({
       productId: product.id, name: product.name, price: Number(product.price), qty,
       designId: design.id, garment: design.garment, colour: design.colour, size: design.size, style: design.style,
+      image: design.mockup_url || design.preview_url || null,
     });
   }
 
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
     customer_name: `${firstName} ${lastName}`.trim(),
     customer_email: email,
     customer_auth_user_id: user.id,
-    items: lineItems.map((i) => ({ id: i.productId, name: i.name, price: i.price, qty: i.qty, customization: { designId: i.designId, garment: i.garment, colour: i.colour, size: i.size, style: i.style } })),
+    items: lineItems.map((i) => ({ id: i.productId, name: i.name, price: i.price, qty: i.qty, image: i.image, customization: { designId: i.designId, garment: i.garment, colour: i.colour, size: i.size, style: i.style } })),
     total,
     shipping_address: { address, city, postal_code: postal },
     shipping_cost: DELIVERY_COST,
