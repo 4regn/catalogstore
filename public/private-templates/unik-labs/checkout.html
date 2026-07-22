@@ -27,6 +27,13 @@
     .delivery-opt-estimate{color:var(--muted);font-size:11px;margin-top:2px}
     .delivery-opt.active .delivery-opt-estimate{color:rgba(255,255,255,.75)}
     .delivery-opt-price{font-weight:900;white-space:nowrap}
+    /* The shared dark theme (store.js) forces .panel to a dark background
+       with white text globally -- .delivery-opt inherits that dark
+       background but this file's own (light-mode) color:#111 above was
+       winning by specificity, so unselected options were dark-on-dark.
+       Match the same white used everywhere else in dark mode. */
+    html[data-unik-theme='dark'] .delivery-opt{color:#f4f1e9!important;border-color:#3b3d39!important}
+    html[data-unik-theme='dark'] .delivery-opt-estimate{color:#979992!important}
   </style>
 </head>
 <body>
