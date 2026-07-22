@@ -1572,28 +1572,51 @@ function checkReview() {
 }
 
 document.getElementById('termsCb').addEventListener('change', e => { S.agreed = e.target.checked; checkReview(); });
-let currentGenerationAttemptId = null;
+let currentGeneratedDesign = null;
+
+function compressGenerationPhoto(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', .8).split(',')[1]);
+    };
+    image.onerror = () => reject(new Error('One of your photos could not be prepared'));
+    image.src = dataUrl;
+  });
+}
 document.getElementById('btnGenerate').addEventListener('click', async () => {
   const button = document.getElementById('btnGenerate');
-  if (!button.classList.contains('ready') || button.dataset.reserving === '1') return;
-  button.dataset.reserving = '1';
+  if (!button.classList.contains('ready') || button.dataset.generating === '1') return;
+  button.dataset.generating = '1';
   const original = button.innerHTML;
-  button.textContent = 'Checking your allowance…';
+  button.textContent = 'Preparing your photos…';
+  startLoading();
   try {
-    const response = await fetch('/api/unik/generations', { method:'POST', credentials:'same-origin' });
+    const photos = [];
+    for (const photo of S.photos) photos.push(await compressGenerationPhoto(photo.url));
+    const response = await fetch('/api/unik/generations', {
+      method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ garment:S.garment, colour:S.colour, subject:S.subject, style:S.style, name:S.name, tagline:S.tagline, size:S.size, photos })
+    });
     const payload = await response.json();
     if (response.status === 401) {
       window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/studio.html');
       return;
     }
-    if (!response.ok) throw new Error(payload.error || 'Could not start generation');
-    currentGenerationAttemptId = payload.attempt.id;
-    startLoading();
+    if (!response.ok) throw new Error(payload.error || 'Could not generate your design');
+    currentGeneratedDesign = payload.design;
+    finishLoading(payload.design);
   } catch (error) {
-    UNIK_CART.notify(error.message || 'Could not start generation');
+    stopLoading();
+    UNIK_CART.notify(error.message || 'Could not generate your design');
   } finally {
     button.innerHTML = original;
-    delete button.dataset.reserving;
+    delete button.dataset.generating;
   }
 });
 
@@ -1612,7 +1635,6 @@ function startLoading() {
   ldTimers = [];
   let elapsed = 0;
   STAGE_DUR.forEach((dur, i) => { ldTimers.push(setTimeout(() => activateStage(i), elapsed)); elapsed += dur; });
-  ldTimers.push(setTimeout(finishLoading, TOTAL_DUR + 300));
   ldStart = performance.now();
   animProg();
 }
@@ -1631,12 +1653,22 @@ function animProg() {
   if (pct < 98) ldFrame = requestAnimationFrame(animProg);
 }
 
-function finishLoading() {
+function stopLoading() {
+  ldTimers.forEach(clearTimeout);
+  ldTimers = [];
+  if (ldFrame) cancelAnimationFrame(ldFrame);
+  document.getElementById('loadingScreen').classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+function finishLoading(result) {
+  ldTimers.forEach(clearTimeout);
+  ldTimers = [];
   document.querySelectorAll('.ld-stage').forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
   document.getElementById('ldFill').style.width = '100%';
   document.getElementById('ldPct').textContent = '100%';
   const resultArt = document.querySelector('.results-artwork');
-  const resultPreview = previewUrl(S.style);
+  const resultPreview = result.previewUrl;
   if (resultArt && resultPreview) {
     resultArt.style.backgroundImage = `linear-gradient(180deg,rgba(0,0,0,.02),rgba(0,0,0,.22)),url("${resultPreview}")`;
     resultArt.style.backgroundSize = 'cover';
@@ -1644,27 +1676,12 @@ function finishLoading() {
     const placeholder = resultArt.querySelector('.artwork-placeholder');
     if (placeholder) placeholder.hidden = true;
   }
-  UNIK_ACCOUNT.saveGeneration({
-    name:S.name||'UNIK AI Design',
-    meta:`${S.garment === 'hoodie' ? 'Hoodie' : 'Tee'} · ${S.colour} · ${S.style.replaceAll('_',' ')}`,
-    preview:resultPreview,
-    options:{garment:S.garment,colour:S.colour,size:S.size,style:S.style,tagline:S.tagline}
-  });
-  if (currentGenerationAttemptId) {
-    const preview = resultPreview ? new URL(resultPreview, location.href).href : null;
-    fetch('/api/unik/generations', {
-      method:'PATCH', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        attemptId:currentGenerationAttemptId,
-        status:'succeeded',
-        design:{
-          name:S.name||'UNIK AI Design', garment:S.garment, colour:S.colour, size:S.size, style:S.style,
-          previewUrl:preview, mockupUrl:preview,
-          options:{tagline:S.tagline,subject:S.subject}
-        }
-      })
-    }).catch(()=>{});
-    currentGenerationAttemptId = null;
+  const resultMockup = document.querySelector('.results-mockup');
+  if (resultMockup && result.mockupUrl) {
+    resultMockup.textContent = '';
+    resultMockup.style.backgroundImage = `url("${result.mockupUrl}")`;
+    resultMockup.style.backgroundSize = 'cover';
+    resultMockup.style.backgroundPosition = 'center';
   }
   setTimeout(() => {
     document.getElementById('loadingScreen').classList.remove('visible');
@@ -1676,7 +1693,7 @@ function finishLoading() {
 
 // ── Reset ──
 document.getElementById('btnDownload').addEventListener('click', () => {
-  const url = previewUrl(S.style);
+  const url = currentGeneratedDesign && currentGeneratedDesign.previewUrl;
   if (!url) return;
   const link = document.createElement('a');
   link.href = url;
@@ -1702,14 +1719,15 @@ document.getElementById('btnAddToCart').addEventListener('click', () => {
     meta:`${S.garment === 'hoodie' ? 'Hoodie' : 'Tee'} · ${S.colour} · ${S.size} · ${S.style.replaceAll('_',' ')}`,
     price:pricing.sale,
     compareAtPrice:pricing.original,
-    preview:previewUrl(S.style),
-    options:{ garment:S.garment, colour:S.colour, size:S.size, style:S.style, name:S.name, tagline:S.tagline }
+    preview:currentGeneratedDesign && currentGeneratedDesign.mockupUrl,
+    options:{ designId:currentGeneratedDesign && currentGeneratedDesign.id, garment:S.garment, colour:S.colour, size:S.size, style:S.style, name:S.name, tagline:S.tagline }
   });
   setTimeout(() => { location.href = 'checkout.html'; }, 350);
 });
 
 document.getElementById('btnAgain').addEventListener('click', () => {
   document.getElementById('resultsScreen').classList.remove('visible');
+  currentGeneratedDesign = null;
   Object.assign(S, { garment:null, colour:null, name:'', tagline:'', subject:null, style:null, photos:[], size:null, agreed:false });
   document.getElementById('nameInp').value = '';
   document.getElementById('tagInp').value = '';
