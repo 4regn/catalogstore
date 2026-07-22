@@ -16,6 +16,13 @@
     .item-was{display:block;margin-top:3px;color:var(--muted);font-size:11px;font-weight:500;text-decoration:line-through;text-align:right}
     @media(max-width:800px){.cart-item{grid-template-columns:64px 1fr!important}.cart-preview,.cart-preview-placeholder{width:64px}.item-price{grid-column:2}}
   </style>
+  <style>
+    .delivery-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid #c8c4bc;border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:13px}
+    .delivery-opt.active{border-color:#080808;background:#f6f4ef}
+    .delivery-opt-name{font-weight:700}
+    .delivery-opt-estimate{color:var(--muted);font-size:11px;margin-top:2px}
+    .delivery-opt-price{font-weight:900;white-space:nowrap}
+  </style>
 </head>
 <body>
   <main class="checkout-shell" id="checkoutMain">
@@ -27,7 +34,7 @@
         <div id="cartItems"></div>
         <div class="totals" id="totals" hidden>
           <div class="total-row"><span>Subtotal</span><strong id="subtotal">R0.00</strong></div>
-          <div class="total-row"><span>Nationwide delivery</span><strong>R79.00</strong></div>
+          <div class="total-row"><span id="deliveryLabel">Delivery</span><strong id="deliveryCost">R0.00</strong></div>
           <div class="total-row grand"><span>Total</span><span id="grandTotal">R0.00</span></div>
         </div>
       </section>
@@ -38,9 +45,22 @@
             <div class="field"><label for="firstName">First name</label><input id="firstName" name="firstName" autocomplete="given-name" required></div>
             <div class="field"><label for="lastName">Last name</label><input id="lastName" name="lastName" autocomplete="family-name" required></div>
             <div class="field full"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
-            <div class="field full"><label for="address">Delivery address</label><textarea id="address" name="address" autocomplete="street-address" required></textarea></div>
-            <div class="field"><label for="city">City</label><input id="city" name="city" autocomplete="address-level2" required></div>
-            <div class="field"><label for="postal">Postal code</label><input id="postal" name="postal" autocomplete="postal-code" inputmode="numeric" required></div>
+            <div class="field full" id="streetAddressField"><label for="streetAddress">Street address</label><input id="streetAddress" name="streetAddress" autocomplete="street-address" required></div>
+            <div class="field" id="suburbField"><label for="suburb">Suburb</label><input id="suburb" name="suburb" autocomplete="address-level3"></div>
+            <div class="field" id="townCityField"><label for="townCity">Town / City</label><input id="townCity" name="townCity" autocomplete="address-level2" required></div>
+            <div class="field" id="provinceField"><label for="province">Province</label>
+              <select id="province" name="province" required>
+                <option value="">Select province</option>
+                <option>Eastern Cape</option><option>Free State</option><option>Gauteng</option>
+                <option>KwaZulu-Natal</option><option>Limpopo</option><option>Mpumalanga</option>
+                <option>North West</option><option>Northern Cape</option><option>Western Cape</option>
+              </select>
+            </div>
+            <div class="field" id="postalField"><label for="postal">Postal code</label><input id="postal" name="postal" autocomplete="postal-code" inputmode="numeric" required></div>
+          </div>
+          <div class="field full" style="margin-top:4px">
+            <label>Delivery method</label>
+            <div id="deliveryMethods"><div style="font-size:12px;color:var(--muted)">Loading delivery options…</div></div>
           </div>
           <div id="checkoutError" class="demo-note" style="display:none;color:#8b2a20"></div>
           <button class="place-order" id="placeOrder" type="submit">Pay with Yoco</button>
@@ -57,12 +77,14 @@
   <script src="store.js"></script>
   <script>
     (function(){
-      const delivery = 79;
+      let deliveryOptions = [{ name: 'Nationwide Delivery', price: 79, estimate: '' }];
+      let selectedDeliveryIndex = 0;
       const itemsEl = document.getElementById('cartItems');
       const totalsEl = document.getElementById('totals');
       const form = document.getElementById('checkoutForm');
       const button = document.getElementById('placeOrder');
       const errorEl = document.getElementById('checkoutError');
+      const deliveryMethodsEl = document.getElementById('deliveryMethods');
       const money = n => 'R' + Number(n || 0).toFixed(2);
       const safe = value => String(value || '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
       const account = UNIK_ACCOUNT.get();
@@ -76,6 +98,60 @@
       function showError(message){ errorEl.textContent = message; errorEl.style.display = 'block'; }
       function clearError(){ errorEl.style.display = 'none'; errorEl.textContent = ''; }
 
+      function currentDelivery(){ return deliveryOptions[selectedDeliveryIndex] || deliveryOptions[0] || { name:'Delivery', price:0 }; }
+
+      function toggleAddressRequirement(){
+        const isPickup = !!currentDelivery().isPickup;
+        ['streetAddress','townCity','province'].forEach(fieldId => {
+          document.getElementById(fieldId).required = !isPickup;
+        });
+        document.getElementById('streetAddressField').style.display = isPickup ? 'none' : '';
+        document.getElementById('suburbField').style.display = isPickup ? 'none' : '';
+        document.getElementById('townCityField').style.display = isPickup ? 'none' : '';
+        document.getElementById('provinceField').style.display = isPickup ? 'none' : '';
+        document.getElementById('postalField').style.display = isPickup ? 'none' : '';
+      }
+
+      function renderDeliveryMethods(){
+        deliveryMethodsEl.innerHTML = deliveryOptions.map((opt, i) => `
+          <div class="delivery-opt${i === selectedDeliveryIndex ? ' active' : ''}" data-delivery-idx="${i}">
+            <div><div class="delivery-opt-name">${safe(opt.name)}</div>${opt.estimate ? `<div class="delivery-opt-estimate">${safe(opt.estimate)}</div>` : ''}</div>
+            <div class="delivery-opt-price">${opt.price > 0 ? money(opt.price) : 'Free'}</div>
+          </div>`).join('');
+        deliveryMethodsEl.querySelectorAll('[data-delivery-idx]').forEach(el => el.addEventListener('click', () => {
+          selectedDeliveryIndex = Number(el.dataset.deliveryIdx);
+          renderDeliveryMethods();
+          toggleAddressRequirement();
+          render();
+        }));
+      }
+
+      async function loadDeliveryOptions(){
+        try {
+          const res = await fetch('/api/seller-public?slug=unik', { cache: 'no-store' });
+          if (!res.ok) throw new Error();
+          const seller = await res.json();
+          const cc = seller.checkout_config || {};
+          const opts = [];
+          if (cc.delivery_enabled !== false) {
+            if (Array.isArray(cc.shipping_options) && cc.shipping_options.length) {
+              cc.shipping_options.forEach(o => opts.push({ name: o.name || 'Delivery', price: Number(o.price) || 0, estimate: o.estimate || '' }));
+            } else {
+              opts.push({ name: 'Nationwide Delivery', price: 79, estimate: '' });
+            }
+          }
+          if (cc.pickup_enabled) {
+            opts.push({ name: 'Studio Pickup', price: 0, estimate: cc.pickup_address || cc.pickup_instructions || '', isPickup: true });
+          }
+          if (opts.length) deliveryOptions = opts;
+        } catch (_) {
+          // keep the default fallback already set
+        }
+        renderDeliveryMethods();
+        toggleAddressRequirement();
+        render();
+      }
+
       function render(){
         const items = UNIK_CART.get();
         if(!items.length){
@@ -86,8 +162,11 @@
         }
         itemsEl.innerHTML = items.map(item => `<article class="cart-item">${item.preview?`<img class="cart-preview" src="${safe(item.preview)}" alt="${safe(item.name)} preview">`:'<div class="cart-preview-placeholder"></div>'}<div><div class="item-name">${safe(item.name)}</div><div class="item-meta">${safe(item.meta)}</div><button class="remove" type="button" data-remove="${safe(item.id)}">Remove</button></div><div class="item-price">${money(item.price)}${Number(item.compareAtPrice)>Number(item.price)?`<span class="item-was">${money(item.compareAtPrice)}</span>`:''}</div></article>`).join('');
         const subtotal = items.reduce((sum,item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+        const delivery = currentDelivery();
         document.getElementById('subtotal').textContent = money(subtotal);
-        document.getElementById('grandTotal').textContent = money(subtotal + delivery);
+        document.getElementById('deliveryLabel').textContent = delivery.name || 'Delivery';
+        document.getElementById('deliveryCost').textContent = delivery.price > 0 ? money(delivery.price) : 'Free';
+        document.getElementById('grandTotal').textContent = money(subtotal + (delivery.price || 0));
         totalsEl.hidden = false;
         button.disabled = false;
         document.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { UNIK_CART.remove(el.dataset.remove); render(); }));
@@ -103,6 +182,7 @@
           return;
         }
         const data = Object.fromEntries(new FormData(form));
+        const delivery = currentDelivery();
         button.disabled = true;
         button.textContent = 'Checking your session…';
         try {
@@ -118,7 +198,11 @@
             method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({
               items: items.map(item => ({ designId: item.options.designId, qty: item.qty || 1 })),
-              customer: { firstName:data.firstName, lastName:data.lastName, email:data.email, address:data.address, city:data.city, postal:data.postal },
+              customer: {
+                firstName:data.firstName, lastName:data.lastName, email:data.email,
+                streetAddress:data.streetAddress, suburb:data.suburb, townCity:data.townCity, province:data.province, postal:data.postal,
+              },
+              deliveryMethod: { name: delivery.name, isPickup: !!delivery.isPickup },
               returnOrigin: window.location.origin,
             }),
           });
@@ -148,7 +232,7 @@
           copy.textContent = `Thank you! Order ${info.orderNumber || ''} — ${money(info.total)} — is confirmed. We've emailed you the details.`;
         } else {
           mark.textContent = '…'; heading.textContent = 'Almost there.';
-          copy.textContent = "Your payment was received and is being confirmed. You'll get an email as soon as it's done.";
+          copy.innerHTML = "Your payment was received and is being confirmed. You'll get an email as soon as it's done. <a href=\"javascript:location.reload()\" style=\"color:inherit;text-decoration:underline\">Refresh</a> to check again.";
         }
         window.scrollTo({top:0,behavior:'smooth'});
       }
@@ -173,7 +257,7 @@
       } else {
         if (params.get('cancelled') === '1') showError('Payment was cancelled. Your cart is still saved below — you can try again whenever you\'re ready.');
         else if (params.get('failed') === '1') showError('Your payment did not go through. Your cart is still saved below — please try again.');
-        render();
+        loadDeliveryOptions();
       }
     })();
   </script>

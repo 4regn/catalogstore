@@ -6,7 +6,7 @@ import { createYocoCheckout, type YocoLineItem } from "../../../../../lib/yoco";
 
 export const dynamic = "force-dynamic";
 
-const DELIVERY_COST = 79;
+const DEFAULT_DELIVERY = { name: "Nationwide Delivery", price: 79 };
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
 const CHECKOUT_PATH = "/private-templates/unik-labs/checkout.html";
 
@@ -50,16 +50,44 @@ export async function POST(req: NextRequest) {
   const firstName = String(customer.firstName || "").trim().slice(0, 80);
   const lastName = String(customer.lastName || "").trim().slice(0, 80);
   const email = String(customer.email || "").trim().slice(0, 160);
-  const address = String(customer.address || "").trim().slice(0, 300);
-  const city = String(customer.city || "").trim().slice(0, 120);
+  const streetAddress = String(customer.streetAddress || "").trim().slice(0, 300);
+  const suburb = String(customer.suburb || "").trim().slice(0, 120);
+  const townCity = String(customer.townCity || "").trim().slice(0, 120);
+  const province = String(customer.province || "").trim().slice(0, 60);
   const postal = String(customer.postal || "").trim().slice(0, 12);
+  const requestedDelivery = body?.deliveryMethod || {};
+  const requestedIsPickup = !!requestedDelivery.isPickup;
+  const requestedDeliveryName = String(requestedDelivery.name || "").trim().slice(0, 80);
 
   if (!items.length) return NextResponse.json({ error: "Your cart is empty" }, { status: 400 });
   if (!firstName || !lastName) return NextResponse.json({ error: "First and last name are required" }, { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "A valid email address is required" }, { status: 400 });
-  if (!address || !city || !postal) return NextResponse.json({ error: "A complete delivery address is required" }, { status: 400 });
 
   const admin = getAdmin();
+
+  // Delivery method + cost are always resolved from the seller's own
+  // checkout settings server-side -- the browser's deliveryMethod only
+  // says which one the customer picked (by name), never what it costs.
+  const { data: sellerConfigRow } = await admin.from("sellers").select("checkout_config").eq("id", seller.id).single();
+  const cc = (sellerConfigRow?.checkout_config || {}) as any;
+
+  let fulfillmentMethod: "delivery" | "pickup" = "delivery";
+  let shippingCost = 0;
+  let shippingLabel = DEFAULT_DELIVERY.name;
+
+  if (requestedIsPickup) {
+    if (!cc.pickup_enabled) return NextResponse.json({ error: "Pickup isn't available for this store" }, { status: 400 });
+    fulfillmentMethod = "pickup";
+    shippingCost = 0;
+    shippingLabel = "Studio Pickup";
+  } else {
+    if (cc.delivery_enabled === false) return NextResponse.json({ error: "Delivery isn't available for this store" }, { status: 400 });
+    if (!streetAddress || !townCity || !province || !postal) return NextResponse.json({ error: "A complete delivery address is required" }, { status: 400 });
+    const options = Array.isArray(cc.shipping_options) && cc.shipping_options.length ? cc.shipping_options : [DEFAULT_DELIVERY];
+    const matched = options.find((o: any) => String(o.name || "").trim() === requestedDeliveryName) || options[0];
+    shippingCost = Number(matched.price) || 0;
+    shippingLabel = matched.name || DEFAULT_DELIVERY.name;
+  }
 
   const designIds = items.map((i) => i.designId).filter((id): id is string => typeof id === "string" && id.length > 0);
   if (designIds.length !== items.length) return NextResponse.json({ error: "One of the items in your cart is invalid" }, { status: 400 });
@@ -96,7 +124,7 @@ export async function POST(req: NextRequest) {
   }
 
   const subtotal = lineItems.reduce((sum, i) => sum + i.price * i.qty, 0);
-  const total = subtotal + DELIVERY_COST;
+  const total = subtotal + shippingCost;
 
   const { data: order, error: insertErr } = await admin.from("orders").insert({
     seller_id: seller.id,
@@ -105,8 +133,10 @@ export async function POST(req: NextRequest) {
     customer_auth_user_id: user.id,
     items: lineItems.map((i) => ({ id: i.productId, name: i.name, price: i.price, qty: i.qty, image: i.image, customization: { designId: i.designId, garment: i.garment, colour: i.colour, size: i.size, style: i.style } })),
     total,
-    shipping_address: { address, city, postal_code: postal },
-    shipping_cost: DELIVERY_COST,
+    fulfillment_method: fulfillmentMethod,
+    shipping_option: shippingLabel,
+    shipping_address: fulfillmentMethod === "delivery" ? { address: streetAddress, apartment: suburb || undefined, city: townCity, province, postal_code: postal } : null,
+    shipping_cost: shippingCost,
     payment_method: "yoco",
     payment_status: "pending",
     status: "pending",
@@ -120,6 +150,7 @@ export async function POST(req: NextRequest) {
 
   const origin = safeOrigin(body?.returnOrigin);
   const yocoLineItems: YocoLineItem[] = lineItems.map((i) => ({ displayName: i.name, quantity: i.qty, pricingDetails: { price: Math.round(i.price * 100) } }));
+  if (shippingCost > 0) yocoLineItems.push({ displayName: shippingLabel, quantity: 1, pricingDetails: { price: Math.round(shippingCost * 100) } });
 
   try {
     const checkout = await createYocoCheckout({

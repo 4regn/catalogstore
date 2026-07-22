@@ -181,7 +181,7 @@ export default function UnikAccountClient({ storeName }: { storeName: string }) 
             <section><div className="ua-section-head"><h2>Order history</h2><span>{account.orders.length} orders</span></div>
               <div className="ua-list">{account.orders.length ? account.orders.map((order) => { const preview = order.items?.find((item) => item.image || item.preview); return <article className="ua-item" key={order.id}>
                 {(preview?.image || preview?.preview) ? <img src={preview.image || preview.preview || ""} alt="" /> : <div className="ua-thumb" />}
-                <div><strong>{order.order_number || order.id.slice(0, 8).toUpperCase()}</strong><p>{money(order.total)} · {order.payment_status}</p><small>{date(order.created_at)}</small></div>
+                <div><strong>{order.order_number || order.id.slice(0, 8).toUpperCase()}</strong><p>{money(order.total)} · {order.payment_status === "paid" ? order.status : order.payment_status}</p><small>{date(order.created_at)}</small></div>
               </article>; }) : <div className="ua-empty">No orders yet.<br /><a href="/">Design your first garment</a></div>}</div>
             </section>
           </div>
