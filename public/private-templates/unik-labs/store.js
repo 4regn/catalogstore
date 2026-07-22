@@ -282,12 +282,12 @@
     .unik-site-nav{min-height:72px;height:auto;background:rgba(8,9,9,.94);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.1);padding-top:10px;padding-bottom:10px}
     .unik-brand-group{display:flex;align-items:center;gap:14px;flex:none}
     .unik-site-brand{display:flex;align-items:center;text-decoration:none;line-height:0}
-    .unik-site-brand-logo{display:block;width:116px;height:auto;object-fit:contain}
+    .unik-site-brand-logo{display:block;width:124px;height:auto;object-fit:contain}
     .unik-site-links{gap:10px}
     .unik-site-links a,.unik-theme-toggle{border:0;background:transparent;color:#9f9f9a;text-decoration:none;font-size:9px;font-weight:600;letter-spacing:.17em;text-transform:uppercase;padding:10px 11px;cursor:pointer;transition:color .2s,background .2s}
     .unik-site-links a:hover,.unik-site-links a.active,.unik-theme-toggle:hover{color:#fff}
     .unik-theme-toggle:disabled{opacity:.38;cursor:wait}
-    .unik-nav-theme{display:flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.18)!important;border-radius:999px!important;background:rgba(255,255,255,.055)!important;padding:5px 6px 5px 10px!important;color:#d6d5cf!important;box-shadow:inset 0 1px rgba(255,255,255,.07)}
+    .unik-nav-theme{display:flex;align-items:center;gap:7px;flex:none;margin-left:6px;border:1px solid rgba(255,255,255,.18)!important;border-radius:999px!important;background:rgba(255,255,255,.055)!important;padding:5px 6px 5px 10px!important;color:#d6d5cf!important;box-shadow:inset 0 1px rgba(255,255,255,.07)}
     .unik-nav-theme .unik-theme-glyph{width:23px;height:23px;font-size:11px}
     .unik-account-link{border-left:1px solid rgba(255,255,255,.16)!important}
     .unik-cart-link{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.04);padding:10px 14px!important}
@@ -384,7 +384,7 @@
     html[data-unik-theme='dark'] .unik-size-table td{border-color:#343631}
     html[data-unik-theme='dark'] .unik-size-table tbody tr:nth-child(even),html[data-unik-theme='dark'] .unik-size-note{background:#191b1a}
     html[data-unik-theme='dark'] .unik-size-note{color:#c2c0b9}
-    @media(max-width:760px){.unik-site-links{width:100%;justify-content:space-between;gap:0}.unik-site-links a{padding:8px 6px;font-size:8px}.unik-account-link{border-left:0!important}.unik-site-brand-logo{width:104px}.unik-brand-group{gap:9px}.unik-nav-theme{font-size:8px!important;padding:4px 5px 4px 8px!important}.unik-nav-theme .unik-theme-glyph{width:21px;height:21px}}
+    @media(max-width:760px){.unik-site-nav{justify-content:space-between}.unik-site-links{order:3;width:100%;justify-content:space-between;gap:0}.unik-site-links a{padding:8px 6px;font-size:8px}.unik-account-link{border-left:0!important}.unik-site-brand-logo{width:110px}.unik-brand-group{gap:9px}.unik-nav-theme{order:2;margin-left:auto;font-size:8px!important;padding:4px 5px 4px 8px!important}.unik-nav-theme .unik-theme-glyph{width:21px;height:21px}}
     @media(max-width:620px){.unik-size-modal{padding:10px}.unik-size-modal-card{border-radius:18px;max-height:95vh}.unik-size-modal-head{padding:18px}.unik-size-panel{padding:18px}.unik-measure-grid{grid-template-columns:1fr}.unik-measure-img{max-height:420px}.unik-size-table{min-width:520px}}
   `;
   document.head.appendChild(premiumStyle);
@@ -398,7 +398,7 @@
     if (isHome) {
       const landingLogo = document.querySelector('.nav-logo');
       if (landingLogo) {
-        landingLogo.src = 'assets/brand/unik-logo-white.png';
+        landingLogo.src = 'assets/unik-logo-v3-header.png';
         landingLogo.removeAttribute('srcset');
         landingLogo.alt = 'UNIK — For you. And only you';
       }
@@ -445,15 +445,15 @@
     nav.setAttribute('aria-label', 'UNIK Labs product navigation');
     nav.innerHTML = `
       <div class="unik-brand-group">
-        <a class="unik-site-brand" href="index.html" aria-label="UNIK home"><img class="unik-site-brand-logo" src="assets/brand/unik-logo-white.png" alt="UNIK — For you. And only you"></a>
-        <button class="unik-theme-toggle unik-nav-theme" data-unik-theme-toggle type="button">Theme</button>
+        <a class="unik-site-brand" href="index.html" aria-label="UNIK home"><img class="unik-site-brand-logo" src="assets/unik-logo-v3-header.png" alt="UNIK — For you. And only you"></a>
       </div>
       <div class="unik-site-links">
         <a href="studio.html"${path === 'studio.html' ? ' class="active"' : ''}>AI Studio</a>
         <a href="upload.html"${path === 'upload.html' ? ' class="active"' : ''}>Custom Upload</a>
         <a href="/account" target="_top" class="unik-account-link">${accountLabel}</a>
         <a href="checkout.html" class="unik-cart-link${path === 'checkout.html' ? ' active' : ''}">Cart <span data-unik-cart-count class="unik-cart-count" hidden>0</span></a>
-      </div>`;
+      </div>
+      <button class="unik-theme-toggle unik-nav-theme" data-unik-theme-toggle type="button">Theme</button>`;
     document.body.insertBefore(nav, document.body.firstChild);
     nav.querySelector('[data-unik-theme-toggle]').addEventListener('click', toggleTheme);
     updateThemeControls();
