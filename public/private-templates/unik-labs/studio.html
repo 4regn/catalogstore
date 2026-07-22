@@ -1578,12 +1578,12 @@ function compressGenerationPhoto(dataUrl) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
-      const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
+      const scale = Math.min(1, 900 / Math.max(image.naturalWidth, image.naturalHeight));
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
       canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
       canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', .8).split(',')[1]);
+      resolve(canvas.toDataURL('image/jpeg', .76).split(',')[1]);
     };
     image.onerror = () => reject(new Error('One of your photos could not be prepared'));
     image.src = dataUrl;
@@ -1595,15 +1595,27 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
   button.dataset.generating = '1';
   const original = button.innerHTML;
   button.textContent = 'Preparing your photos…';
-  startLoading();
   try {
+    const sessionCheck = await fetch('/api/unik/auth/session', {
+      method:'GET', credentials:'include', cache:'no-store'
+    });
+    if (sessionCheck.status === 401) {
+      window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/studio.html');
+      return;
+    }
+    if (!sessionCheck.ok) throw new Error('Could not verify your session. Please try again.');
+
+    startLoading();
     const photos = [];
     for (const photo of S.photos) photos.push(await compressGenerationPhoto(photo.url));
     const response = await fetch('/api/unik/generations', {
-      method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ garment:S.garment, colour:S.colour, subject:S.subject, style:S.style, name:S.name, tagline:S.tagline, size:S.size, photos })
     });
-    const payload = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    const payload = contentType.includes('application/json')
+      ? await response.json()
+      : { error: response.status === 413 ? 'Your photos are too large. Try fewer or smaller photos.' : 'The generation service returned an unexpected response.' };
     if (response.status === 401) {
       window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/studio.html');
       return;

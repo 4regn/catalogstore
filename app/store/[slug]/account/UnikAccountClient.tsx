@@ -29,14 +29,28 @@ export default function UnikAccountClient({ storeName }: { storeName: string }) 
     setSessionReady(true);
     if (!token) { setAccount(null); return; }
 
-    await fetch("/api/unik/auth/session", {
+    const sessionResponse = await fetch("/api/unik/auth/session", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accessToken: token }),
       cache: "no-store",
     });
+    const sessionPayload = await sessionResponse.json().catch(() => ({}));
+    if (!sessionResponse.ok) {
+      throw new Error(sessionPayload.error || "Could not connect your UNIK session");
+    }
 
-    const response = await fetch("/api/unik/account", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    const sessionCheck = await fetch("/api/unik/auth/session", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!sessionCheck.ok) {
+      throw new Error("Your sign-in could not be connected to the Studio. Please sign in again.");
+    }
+
+    const response = await fetch("/api/unik/account", { credentials: "include", headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Could not load your account");
     setAccount(payload);
@@ -86,7 +100,7 @@ export default function UnikAccountClient({ storeName }: { storeName: string }) 
 
   async function signOut() {
     setBusy(true);
-    await fetch("/api/unik/auth/session", { method: "DELETE" });
+    await fetch("/api/unik/auth/session", { method: "DELETE", credentials: "include" });
     await supabase.auth.signOut();
     setAccount(null); setSignedIn(false); setBusy(false);
   }
