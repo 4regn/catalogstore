@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const admin = getAdmin();
   const { data: order } = await admin
     .from("orders")
-    .select("id, seller_id, customer_auth_user_id, status, payment_status, total, order_number, items, customer_name, customer_email, yoco_checkout_id")
+    .select("id, seller_id, customer_auth_user_id, status, payment_status, total, order_number, items, customer_name, customer_email, yoco_checkout_id, created_at, fulfillment_method, shipping_option, shipping_address, shipping_cost")
     .eq("id", id)
     .maybeSingle();
   if (!order || order.seller_id !== seller.id || order.customer_auth_user_id !== user.id) {
@@ -52,5 +52,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     paymentStatus,
     total: order.total,
     orderNumber: order.order_number,
+    order: {
+      id: order.id,
+      status,
+      paymentStatus,
+      total: order.total,
+      orderNumber: order.order_number,
+      items: order.items,
+      createdAt: order.created_at,
+      fulfillmentMethod: order.fulfillment_method,
+      shippingOption: order.shipping_option,
+      shippingAddress: order.shipping_address,
+      shippingCost: order.shipping_cost,
+    },
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

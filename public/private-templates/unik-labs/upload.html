@@ -948,15 +948,18 @@ function previewImage(src){
   return new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=src;});
 }
 
-async function captureCustomPreview(){
+async function captureCustomPreview(view){
+  view = view==='back'?'back':'front';
+  const u=UP[view];
+  if(!u||!u.url)return '';
   try{
-    const original=garmentImage('front_'+S.colour+'_'+S.garment);
-    const [garment,design]=await Promise.all([previewImage(original),previewImage(UP.front.url)]);
+    const original=garmentImage(view+'_'+S.colour+'_'+S.garment);
+    const [garment,design]=await Promise.all([previewImage(original),previewImage(u.url)]);
     const stage=document.getElementById('uploadStage');
     const canvas=document.createElement('canvas');
     canvas.width=720;canvas.height=Math.round(720*(garment.naturalHeight/garment.naturalWidth));
     const ctx=canvas.getContext('2d');ctx.drawImage(garment,0,0,canvas.width,canvas.height);
-    const sx=canvas.width/stage.clientWidth,sy=canvas.height/stage.clientHeight,u=UP.front;
+    const sx=canvas.width/stage.clientWidth,sy=canvas.height/stage.clientHeight;
     ctx.save();ctx.globalCompositeOperation=S.colour==='beige'?'source-over':artworkBlendMode();
     ctx.drawImage(design,u.x*sx,u.y*sy,u.w*sx,u.h*sy);ctx.restore();
     return canvas.toDataURL('image/jpeg',.88);
@@ -983,17 +986,22 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
   const ready=UP.front.url&&(needBoth?UP.back.url:true)&&S.size;
   if(!ready)return;
   const pricing=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
-  const preview=await captureCustomPreview();
+  const previewFront=await captureCustomPreview('front');
+  const previewBack=needBoth?await captureCustomPreview('back'):'';
   UNIK_CART.add({
     source:'custom-upload',
     name:'UNIK Labs Custom Print',
     meta:(S.garment==='hoodie'?'Hoodie':'Tee')+' · '+S.colour+' · '+S.size+' · '+(S.zone==='both'?'Front + back':'Front print'),
     price:pricing.sale,
     compareAtPrice:pricing.original,
-    preview,
+    preview:previewFront,
     qty:upCartQty,
     options:{
-      customUpload:{garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined}
+      customUpload:{
+        garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
+        frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
+        previewFront,previewBack:previewBack||undefined
+      }
     }
   });
   document.getElementById('upAddedNote').style.display='block';

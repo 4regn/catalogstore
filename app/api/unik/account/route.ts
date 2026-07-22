@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   const [designsResult, ordersResult, usageResult] = await Promise.all([
     getAdmin()
       .from("unik_designs")
-      .select("id, source, status, name, garment, colour, size, style, options, preview_url, mockup_url, saved_at, created_at")
+      .select("id, source, status, name, garment, colour, size, style, options, preview_url, mockup_url, private_artwork_path, saved_at, created_at")
       .eq("seller_id", seller.id)
       .eq("auth_user_id", user.id)
       .order("created_at", { ascending: false })
@@ -55,9 +55,38 @@ export async function GET(req: NextRequest) {
       .gte("created_at", since),
   ]);
 
+  // Custom-upload designs keep their original artwork in the private
+  // unik-private-designs bucket (never made public, unlike the garment
+  // mockup composites) -- the account page needs short-lived signed URLs
+  // to let the owning customer view their own "watermarked design" slot.
+  const rawDesigns = designsResult.data || [];
+  const admin = getAdmin();
+  const signedUrls = new Map<string, { front: string | null; back: string | null }>();
+  await Promise.all(
+    rawDesigns
+      .filter((d: any) => d.source === "custom-upload" && d.private_artwork_path)
+      .map(async (d: any) => {
+        const backPath = d.options?.back_artwork_path as string | undefined;
+        const [front, back] = await Promise.all([
+          admin.storage.from("unik-private-designs").createSignedUrl(d.private_artwork_path, 3600),
+          backPath ? admin.storage.from("unik-private-designs").createSignedUrl(backPath, 3600) : Promise.resolve({ data: null }),
+        ]);
+        signedUrls.set(d.id, { front: front.data?.signedUrl || null, back: back?.data?.signedUrl || null });
+      })
+  );
+  const designs = rawDesigns.map((d: any) => {
+    const signed = signedUrls.get(d.id);
+    return {
+      ...d,
+      original_front_url: signed?.front || null,
+      original_back_url: signed?.back || null,
+      mockup_back_url: d.options?.mockup_back_url || null,
+    };
+  });
+
   return NextResponse.json({
     profile,
-    designs: designsResult.data || [],
+    designs,
     orders: ordersResult.data || [],
     generationLimit: { used: usageResult.count || 0, limit: 3, remaining: Math.max(0, 3 - (usageResult.count || 0)) },
   }, { headers: { "Cache-Control": "private, no-store" } });

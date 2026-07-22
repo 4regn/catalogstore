@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   const items: {
     designId?: string; qty?: number; preview?: string;
-    customUpload?: { garment?: string; colour?: string; size?: string; zone?: string; frontImage?: string; backImage?: string };
+    customUpload?: { garment?: string; colour?: string; size?: string; zone?: string; frontImage?: string; backImage?: string; previewFront?: string; previewBack?: string };
   }[] = Array.isArray(body?.items) ? body.items : [];
   const customer = body?.customer || {};
   const firstName = String(customer.firstName || "").trim().slice(0, 80);
@@ -160,41 +160,45 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Could not save your custom upload" }, { status: 500 });
       }
 
-      const frontPath = `${user.id}/${design.id}/front.${front.ext}`;
+      const designId = design.id;
+      const frontPath = `${user.id}/${designId}/front.${front.ext}`;
       const { error: frontUploadErr } = await admin.storage.from("unik-private-designs").upload(frontPath, Buffer.from(front.base64, "base64"), { contentType: `image/${front.ext}`, upsert: true });
       if (frontUploadErr) console.error("UNIK checkout: front artwork upload failed:", frontUploadErr);
       let backPath: string | null = null;
       if (back) {
-        backPath = `${user.id}/${design.id}/back.${back.ext}`;
+        backPath = `${user.id}/${designId}/back.${back.ext}`;
         const { error: backUploadErr } = await admin.storage.from("unik-private-designs").upload(backPath, Buffer.from(back.base64, "base64"), { contentType: `image/${back.ext}`, upsert: true });
         if (backUploadErr) console.error("UNIK checkout: back artwork upload failed:", backUploadErr);
       }
 
-      // The garment+artwork composite the customer saw while positioning
-      // it (item.preview) is the only "mockup" a custom upload has -- there's
-      // no separate AI-style watermarked-design vs garment-mockup pair, so
-      // the same public image is used for both, purely for account-page
-      // display (never the print-quality source, which stays private above).
-      let previewUrl: string | null = null;
-      const previewData = decodeDataUrl(item.preview);
-      if (previewData) {
-        const previewPath = `${seller.id}/unik-previews/${design.id}.${previewData.ext}`;
-        const { error: previewUploadErr } = await admin.storage.from("store-assets").upload(previewPath, Buffer.from(previewData.base64, "base64"), { contentType: `image/${previewData.ext}`, upsert: true });
-        if (!previewUploadErr) previewUrl = admin.storage.from("store-assets").getPublicUrl(previewPath).data.publicUrl;
-        else console.error("UNIK checkout: preview upload failed:", previewUploadErr);
+      // Two distinct public images can exist per side: the garment+artwork
+      // composite the customer saw while positioning it ("mockup"), and --
+      // separately -- the raw uploaded artwork itself, which the account
+      // page shows as the "watermarked design" slot. The raw artwork stays
+      // in the private bucket (frontPath/backPath above); only the
+      // composited mockups get copied to public storage here.
+      async function uploadPreview(dataUrl: string | undefined, suffix: string): Promise<string | null> {
+        const data = decodeDataUrl(dataUrl);
+        if (!data) return null;
+        const path = `${seller.id}/unik-previews/${designId}-${suffix}.${data.ext}`;
+        const { error } = await admin.storage.from("store-assets").upload(path, Buffer.from(data.base64, "base64"), { contentType: `image/${data.ext}`, upsert: true });
+        if (error) { console.error(`UNIK checkout: ${suffix} preview upload failed:`, error); return null; }
+        return admin.storage.from("store-assets").getPublicUrl(path).data.publicUrl;
       }
+
+      const mockupFrontUrl = await uploadPreview(cu.previewFront || item.preview, "front");
+      const mockupBackUrl = zone === "both" ? await uploadPreview(cu.previewBack, "back") : null;
 
       await admin.from("unik_designs").update({
         private_artwork_path: frontPath,
-        options: { zone, back_artwork_path: backPath },
-        mockup_url: previewUrl,
-        preview_url: previewUrl,
-      }).eq("id", design.id);
+        options: { zone, back_artwork_path: backPath, mockup_back_url: mockupBackUrl },
+        mockup_url: mockupFrontUrl,
+      }).eq("id", designId);
 
       lineItems.push({
         productId: product.id, name: product.name, price: Number(product.price), qty,
-        designId: design.id, garment, colour, size, style: null,
-        image: previewUrl,
+        designId, garment, colour, size, style: null,
+        image: mockupFrontUrl,
       });
       continue;
     }

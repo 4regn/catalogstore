@@ -5,10 +5,33 @@ import { supabase } from "../../../../lib/supabase";
 
 type AccountData = {
   profile: { email: string; full_name: string | null; avatar_url: string | null; created_at: string };
-  designs: Array<{ id: string; name: string | null; garment: string | null; colour: string | null; size: string | null; style: string | null; options: Record<string, unknown> | null; preview_url: string | null; mockup_url: string | null; created_at: string }>;
+  designs: Array<{
+    id: string; source: string | null; name: string | null; garment: string | null; colour: string | null; size: string | null; style: string | null;
+    options: Record<string, unknown> | null; preview_url: string | null; mockup_url: string | null; mockup_back_url: string | null;
+    original_front_url: string | null; original_back_url: string | null; created_at: string;
+  }>;
   orders: Array<{ id: string; order_number: string | null; items: Array<{ name?: string; image?: string; preview?: string }> | null; total: number; status: string; payment_status: string; created_at: string }>;
   generationLimit: { used: number; limit: number; remaining: number };
 };
+
+type OrderDetail = {
+  id: string; status: string; paymentStatus: string; total: number; orderNumber: string | null;
+  items: Array<{ name?: string; image?: string; preview?: string; qty?: number; price?: number }> | null;
+  createdAt: string; fulfillmentMethod: string | null; shippingOption: string | null;
+  shippingAddress: { address?: string; apartment?: string; city?: string; province?: string; postal_code?: string } | null;
+  shippingCost: number | null;
+};
+
+const TRACK_STEPS: Array<{ key: string; label: string }> = [
+  { key: "pending", label: "Pending fulfilment" },
+  { key: "fulfilled", label: "Order fulfilled" },
+  { key: "awaiting_pickup", label: "Awaiting courier pick up" },
+  { key: "picked_up", label: "Picked up" },
+  { key: "in_transit", label: "In transit" },
+  { key: "out_for_delivery", label: "Out for delivery" },
+  { key: "delivered", label: "Delivered" },
+];
+const trackIndex = (status: string) => { const s = status === "confirmed" ? "pending" : status; const i = TRACK_STEPS.findIndex((t) => t.key === s); return i < 0 ? 0 : i; };
 
 const money = (value: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(Number(value || 0));
 const date = (value: string) => new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
@@ -22,6 +45,10 @@ export default function UnikAccountClient({ storeName }: { storeName: string }) 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [selectedDesign, setSelectedDesign] = useState<AccountData["designs"][number] | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
+  const [orderDetailError, setOrderDetailError] = useState("");
 
   const loadAccount = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -98,6 +125,17 @@ export default function UnikAccountClient({ storeName }: { storeName: string }) 
     }
     setBusy(false);
   }
+
+  useEffect(() => {
+    if (!selectedOrderId) { setOrderDetail(null); setOrderDetailError(""); return; }
+    let cancelled = false;
+    setOrderDetail(null); setOrderDetailError("");
+    fetch(`/api/unik/orders/${encodeURIComponent(selectedOrderId)}`, { credentials: "include", cache: "no-store" })
+      .then(async (res) => { const payload = await res.json().catch(() => ({})); if (!res.ok) throw new Error(payload.error || "Could not load this order"); return payload; })
+      .then((payload) => { if (!cancelled) setOrderDetail(payload.order || null); })
+      .catch((cause) => { if (!cancelled) setOrderDetailError(cause instanceof Error ? cause.message : "Could not load this order"); });
+    return () => { cancelled = true; };
+  }, [selectedOrderId]);
 
   async function signOut() {
     setBusy(true);
@@ -179,27 +217,92 @@ export default function UnikAccountClient({ storeName }: { storeName: string }) 
               </button>) : <div className="ua-empty">Your saved generations will appear here.<br /><a href="/">Create your first piece</a></div>}</div>
             </section>
             <section><div className="ua-section-head"><h2>Order history</h2><span>{account.orders.length} orders</span></div>
-              <div className="ua-list">{account.orders.length ? account.orders.map((order) => { const preview = order.items?.find((item) => item.image || item.preview); return <article className="ua-item" key={order.id}>
+              <div className="ua-list">{account.orders.length ? account.orders.map((order) => { const preview = order.items?.find((item) => item.image || item.preview); return <button className="ua-item" key={order.id} type="button" onClick={() => setSelectedOrderId(order.id)}>
                 {(preview?.image || preview?.preview) ? <img src={preview.image || preview.preview || ""} alt="" /> : <div className="ua-thumb" />}
-                <div><strong>{order.order_number || order.id.slice(0, 8).toUpperCase()}</strong><p>{money(order.total)} · {(order.payment_status === "paid" ? order.status : order.payment_status).replace(/_/g, " ")}</p><small>{date(order.created_at)}</small></div>
-              </article>; }) : <div className="ua-empty">No orders yet.<br /><a href="/">Design your first garment</a></div>}</div>
+                <div><strong>{order.order_number || order.id.slice(0, 8).toUpperCase()}</strong><p>{money(order.total)} · {(order.payment_status === "paid" ? order.status : order.payment_status).replace(/_/g, " ")}</p><small>{date(order.created_at)} · Track order</small></div>
+              </button>; }) : <div className="ua-empty">No orders yet.<br /><a href="/">Design your first garment</a></div>}</div>
             </section>
           </div>
         </section>
       )}
-      {selectedDesign && <div className="ua-design-modal" role="dialog" aria-modal="true" aria-label="Saved UNIK design" onClick={() => setSelectedDesign(null)}>
-        <section className="ua-design-card" onClick={(event) => event.stopPropagation()}>
-          <button className="ua-design-close" type="button" onClick={() => setSelectedDesign(null)} aria-label="Close">×</button>
-          <div className="ua-design-images">
-            <figure>{selectedDesign.mockup_url ? <img src={selectedDesign.mockup_url} alt="Garment mockup" /> : <div className="ua-design-placeholder" />}<figcaption>Garment mockup</figcaption></figure>
-            <figure>{selectedDesign.preview_url ? <img src={selectedDesign.preview_url} alt="Watermarked generated design" /> : <div className="ua-design-placeholder" />}<figcaption>Watermarked design</figcaption></figure>
+      {selectedDesign && (() => {
+        const isCustom = selectedDesign.source === "custom-upload";
+        const zone = isCustom ? String((selectedDesign.options as any)?.zone || "") : "";
+        const both = zone === "both";
+        const slots: Array<{ src: string | null; alt: string; caption: string }> = isCustom
+          ? [
+              { src: selectedDesign.mockup_url, alt: "Front garment mockup", caption: both ? "Front mockup" : "Garment mockup" },
+              ...(both ? [{ src: selectedDesign.mockup_back_url, alt: "Back garment mockup", caption: "Back mockup" }] : []),
+              { src: selectedDesign.original_front_url, alt: "Uploaded design (front)", caption: both ? "Uploaded design (front)" : "Uploaded design" },
+              ...(both ? [{ src: selectedDesign.original_back_url, alt: "Uploaded design (back)", caption: "Uploaded design (back)" }] : []),
+            ]
+          : [
+              { src: selectedDesign.mockup_url, alt: "Garment mockup", caption: "Garment mockup" },
+              { src: selectedDesign.preview_url, alt: "Watermarked generated design", caption: "Watermarked design" },
+            ];
+        return (
+          <div className="ua-design-modal" role="dialog" aria-modal="true" aria-label="Saved UNIK design" onClick={() => setSelectedDesign(null)}>
+            <section className="ua-design-card" onClick={(event) => event.stopPropagation()}>
+              <button className="ua-design-close" type="button" onClick={() => setSelectedDesign(null)} aria-label="Close">×</button>
+              <div className={`ua-design-images${slots.length > 2 ? " four" : ""}`}>
+                {slots.map((slot, i) => (
+                  <figure key={i}>
+                    {slot.src ? <img src={slot.src} alt={slot.alt} onClick={() => setLightbox(slot.src)} style={{ cursor: "zoom-in" }} /> : <div className="ua-design-placeholder" />}
+                    <figcaption>{slot.caption}</figcaption>
+                  </figure>
+                ))}
+              </div>
+              <div className="ua-design-info">
+                <p className="ua-kicker">{isCustom ? "Custom upload" : "Saved generation"}</p>
+                <h2>{selectedDesign.name || "UNIK AI Design"}</h2>
+                <p>{[selectedDesign.garment, selectedDesign.colour, selectedDesign.size, selectedDesign.style?.replaceAll("_", " ")].filter(Boolean).join(" · ")}</p>
+                {!isCustom && <button className="ua-design-cart" type="button" onClick={() => addDesignToCart(selectedDesign)}>Add to cart · {money(selectedDesign.garment === "hoodie" ? 399 : 349)}</button>}
+              </div>
+            </section>
           </div>
-          <div className="ua-design-info">
-            <p className="ua-kicker">Saved generation</p>
-            <h2>{selectedDesign.name || "UNIK AI Design"}</h2>
-            <p>{[selectedDesign.garment, selectedDesign.colour, selectedDesign.size, selectedDesign.style?.replaceAll("_", " ")].filter(Boolean).join(" · ")}</p>
-            <button className="ua-design-cart" type="button" onClick={() => addDesignToCart(selectedDesign)}>Add to cart · {money(selectedDesign.garment === "hoodie" ? 399 : 349)}</button>
-          </div>
+        );
+      })()}
+      {lightbox && <div className="ua-lightbox" role="dialog" aria-modal="true" aria-label="Full size image" onClick={() => setLightbox(null)}>
+        <button className="ua-design-close" type="button" onClick={() => setLightbox(null)} aria-label="Close">×</button>
+        <img src={lightbox} alt="" />
+      </div>}
+      {selectedOrderId && <div className="ua-design-modal" role="dialog" aria-modal="true" aria-label="Order tracking" onClick={() => setSelectedOrderId(null)}>
+        <section className="ua-order-card" onClick={(event) => event.stopPropagation()}>
+          <button className="ua-design-close" type="button" onClick={() => setSelectedOrderId(null)} aria-label="Close">×</button>
+          {orderDetailError ? <p className="ua-error">{orderDetailError}</p> : !orderDetail ? <p className="ua-order-loading">Loading order…</p> : (
+            <>
+              <p className="ua-kicker">Order {orderDetail.orderNumber || orderDetail.id.slice(0, 8).toUpperCase()}</p>
+              <h2>{money(orderDetail.total)}</h2>
+              <p className="ua-order-meta">{date(orderDetail.createdAt)} · {orderDetail.fulfillmentMethod === "pickup" ? "Studio pickup" : (orderDetail.shippingOption || "Delivery")}</p>
+              {orderDetail.paymentStatus !== "paid" ? (
+                <p className="ua-order-pending">Payment {orderDetail.paymentStatus}. Tracking begins once payment is confirmed.</p>
+              ) : orderDetail.status === "cancelled" ? (
+                <p className="ua-order-cancelled">This order was cancelled.</p>
+              ) : (
+                <ol className="ua-track">
+                  {TRACK_STEPS.map((step, i) => {
+                    const current = trackIndex(orderDetail.status);
+                    const state = i < current ? "done" : i === current ? "current" : "todo";
+                    return <li key={step.key} className={state}><span className="ua-track-dot" />{step.label}</li>;
+                  })}
+                </ol>
+              )}
+              {orderDetail.shippingAddress && orderDetail.fulfillmentMethod !== "pickup" && (
+                <div className="ua-order-address">
+                  <p className="ua-kicker">Delivery address</p>
+                  <p>{[orderDetail.shippingAddress.address, orderDetail.shippingAddress.apartment, orderDetail.shippingAddress.city, orderDetail.shippingAddress.province, orderDetail.shippingAddress.postal_code].filter(Boolean).join(", ")}</p>
+                </div>
+              )}
+              <div className="ua-order-items">
+                {(orderDetail.items || []).map((item, i) => (
+                  <div className="ua-order-item" key={i}>
+                    {(item.image || item.preview) ? <img src={item.image || item.preview} alt="" /> : <div className="ua-thumb" />}
+                    <div><strong>{item.name}</strong><small>Qty {item.qty} · {money(Number(item.price) || 0)}</small></div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       </div>}
       <style jsx global>{`
@@ -208,7 +311,14 @@ export default function UnikAccountClient({ storeName }: { storeName: string }) 
         .ua-logo img{display:block;width:124px;height:auto;object-fit:contain}
         @media(max-width:800px){.ua-logo img{width:110px}}
         button.ua-item{width:100%;color:inherit;text-align:left;font:inherit;cursor:pointer;transition:border-color .2s,transform .2s}button.ua-item:hover{border-color:#666b62;transform:translateY(-1px)}
-        .ua-design-modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.82);backdrop-filter:blur(12px);display:grid;place-items:center;padding:20px}.ua-design-card{position:relative;width:min(960px,100%);max-height:92vh;overflow:auto;background:#101210;border:1px solid #3b3f39;border-radius:24px;padding:24px;display:grid;grid-template-columns:1.35fr .65fr;gap:28px}.ua-design-close{position:absolute;right:16px;top:14px;z-index:2;width:38px;height:38px;border:1px solid #4a4e47;border-radius:50%;background:rgba(10,11,10,.78);color:#fff;font-size:24px;cursor:pointer}.ua-design-images{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ua-design-images figure{margin:0;min-width:0}.ua-design-images img,.ua-design-placeholder{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:14px;background:#20231f}.ua-design-images figcaption{margin-top:9px;color:#8f938b;font-size:8px;letter-spacing:.16em;text-transform:uppercase}.ua-design-info{align-self:center}.ua-design-info h2{font-family:Georgia,serif;font-size:clamp(34px,5vw,58px);font-weight:400;line-height:.9;text-transform:uppercase;margin:0 0 18px}.ua-design-info>p:not(.ua-kicker){color:#9da098;font-size:10px;line-height:1.7;text-transform:uppercase;letter-spacing:.1em}.ua-design-cart{width:100%;min-height:52px;margin-top:18px;border:0;border-radius:999px;background:#007517;color:#fff;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}@media(max-width:760px){.ua-design-card{grid-template-columns:1fr;padding:18px}.ua-design-images{gap:8px}.ua-design-info{padding:4px}.ua-design-close{right:10px;top:10px}}
+        .ua-design-modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.82);backdrop-filter:blur(12px);display:grid;place-items:center;padding:20px}.ua-design-card{position:relative;width:min(960px,100%);max-height:92vh;overflow:auto;background:#101210;border:1px solid #3b3f39;border-radius:24px;padding:24px;display:grid;grid-template-columns:1.35fr .65fr;gap:28px}.ua-design-close{position:absolute;right:16px;top:14px;z-index:2;width:38px;height:38px;border:1px solid #4a4e47;border-radius:50%;background:rgba(10,11,10,.78);color:#fff;font-size:24px;cursor:pointer}.ua-design-images{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ua-design-images.four{grid-template-columns:1fr 1fr}.ua-design-images figure{margin:0;min-width:0}.ua-design-images img,.ua-design-placeholder{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:14px;background:#20231f}.ua-design-images figcaption{margin-top:9px;color:#8f938b;font-size:8px;letter-spacing:.16em;text-transform:uppercase}.ua-design-info{align-self:center}.ua-design-info h2{font-family:Georgia,serif;font-size:clamp(34px,5vw,58px);font-weight:400;line-height:.9;text-transform:uppercase;margin:0 0 18px}.ua-design-info>p:not(.ua-kicker){color:#9da098;font-size:10px;line-height:1.7;text-transform:uppercase;letter-spacing:.1em}.ua-design-cart{width:100%;min-height:52px;margin-top:18px;border:0;border-radius:999px;background:#007517;color:#fff;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}@media(max-width:760px){.ua-design-card{grid-template-columns:1fr;padding:18px}.ua-design-images{gap:8px}.ua-design-info{padding:4px}.ua-design-close{right:10px;top:10px}}
+        .ua-lightbox{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:30px;cursor:zoom-out}.ua-lightbox img{max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px}
+        .ua-order-card{position:relative;width:min(640px,100%);max-height:92vh;overflow:auto;background:#101210;border:1px solid #3b3f39;border-radius:24px;padding:28px}.ua-order-card h2{font-family:Georgia,serif;font-size:clamp(30px,5vw,44px);font-weight:400;margin:2px 0 10px}.ua-order-meta{color:#9da098;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 20px}.ua-order-loading{color:#a6a8a2;text-align:center;padding:40px 0}
+        .ua-order-pending{color:#ffcf8d;font-size:11px;letter-spacing:.05em;background:#1c1712;border:1px solid #3a2f20;border-radius:12px;padding:14px 16px;margin:0 0 20px}.ua-order-cancelled{color:#ff8d82;font-size:11px;letter-spacing:.05em;background:#1c1212;border:1px solid #3a2020;border-radius:12px;padding:14px 16px;margin:0 0 20px}
+        .ua-track{list-style:none;margin:0 0 24px;padding:0;display:grid;gap:0}.ua-track li{position:relative;padding:0 0 20px 26px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#6d7069}.ua-track li:last-child{padding-bottom:0}.ua-track li::before{content:'';position:absolute;left:5px;top:14px;bottom:-6px;width:1px;background:#2c2f2b}.ua-track li:last-child::before{display:none}.ua-track-dot{position:absolute;left:0;top:2px;width:11px;height:11px;border-radius:50%;background:#1a1c1a;border:2px solid #3a3d38}.ua-track li.done{color:#8bd69a}.ua-track li.done .ua-track-dot{background:#007517;border-color:#007517}.ua-track li.current{color:#f4f1e9;font-weight:700}.ua-track li.current .ua-track-dot{background:#007517;border-color:#007517;box-shadow:0 0 0 4px rgba(0,117,23,.25)}
+        .ua-order-address{border:1px solid #2c2f2b;border-radius:14px;padding:14px 16px;margin-bottom:20px}.ua-order-address p:not(.ua-kicker){color:#c9c7bd;font-size:11px;line-height:1.6;margin:0}
+        .ua-order-items{display:grid;gap:10px}.ua-order-item{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center;padding:8px;background:#0d0f0d;border:1px solid #262924;border-radius:12px}.ua-order-item img,.ua-order-item .ua-thumb{width:52px;aspect-ratio:3/4;object-fit:cover;border-radius:8px}.ua-order-item strong{font-size:11px;display:block;margin-bottom:4px}.ua-order-item small{color:#8f928a;font-size:10px}
+        @media(max-width:760px){.ua-order-card{padding:18px}}
       `}</style>
     </main>
   );
