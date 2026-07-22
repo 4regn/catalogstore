@@ -537,6 +537,11 @@ body {
 
 .btn-again { width: 100%; padding: 15px; background: transparent; border: 1.5px solid var(--border); border-radius: 14px; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
 .btn-again:hover { background: var(--black); color: var(--white); border-color: var(--black); }
+.qty-row { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px; }
+.qty-row button { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--border); background: transparent; font-size: 18px; font-weight: 700; cursor: pointer; }
+.qty-row span { font-size: 18px; font-weight: 700; min-width: 24px; text-align: center; }
+.btn-checkout-now { width: 100%; padding: 15px; background: var(--black); color: var(--white); border: none; border-radius: 14px; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 1px; cursor: pointer; margin-bottom: 10px; display: none; }
+.added-note { text-align: center; font-size: 12px; font-weight: 600; color: #007517; margin: -4px 0 14px; display: none; }
 
 /* Studio dark mode — keep every control, summary and selector legible. */
 html[data-unik-theme='dark'] .step-done-bar {
@@ -1083,7 +1088,14 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     </div>
     <div class="results-mockup-label">Mockup Preview</div>
     <div class="results-mockup">See how it looks printed</div>
+    <div class="qty-row">
+      <button type="button" id="qtyDec" aria-label="Decrease quantity">−</button>
+      <span id="qtyValue">1</span>
+      <button type="button" id="qtyInc" aria-label="Increase quantity">+</button>
+    </div>
     <button class="btn-atc" id="btnAddToCart" type="button">ADD TO CART — <span id="aiSalePrice">R349.00</span><span class="price-was" id="aiWasPrice">R450.00</span><span class="btn-atc-sub">Design + print + ship</span></button>
+    <p class="added-note" id="addedNote">✓ Added to your cart</p>
+    <button class="btn-checkout-now" id="btnCheckoutNow" type="button">Go to Checkout</button>
     <button class="btn-again" id="btnAgain">← Create Another</button>
   </div>
 </div>
@@ -1676,6 +1688,9 @@ function stopLoading() {
 function finishLoading(result) {
   ldTimers.forEach(clearTimeout);
   ldTimers = [];
+  document.getElementById('addedNote').style.display = 'none';
+  document.getElementById('btnCheckoutNow').style.display = 'none';
+  setCartQty(1);
   document.querySelectorAll('.ld-stage').forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
   document.getElementById('ldFill').style.width = '100%';
   document.getElementById('ldPct').textContent = '100%';
@@ -1723,6 +1738,14 @@ document.getElementById('btnShare').addEventListener('click', async () => {
   } catch (_) {}
 });
 
+let cartQty = 1;
+function setCartQty(n) {
+  cartQty = Math.max(1, Math.min(10, n));
+  document.getElementById('qtyValue').textContent = cartQty;
+}
+document.getElementById('qtyInc').addEventListener('click', () => setCartQty(cartQty + 1));
+document.getElementById('qtyDec').addEventListener('click', () => setCartQty(cartQty - 1));
+
 document.getElementById('btnAddToCart').addEventListener('click', () => {
   const pricing = AI_PRICES[S.garment] || AI_PRICES.tee;
   UNIK_CART.add({
@@ -1732,10 +1755,15 @@ document.getElementById('btnAddToCart').addEventListener('click', () => {
     price:pricing.sale,
     compareAtPrice:pricing.original,
     preview:currentGeneratedDesign && currentGeneratedDesign.mockupUrl,
+    qty: cartQty,
     options:{ designId:currentGeneratedDesign && currentGeneratedDesign.id, garment:S.garment, colour:S.colour, size:S.size, style:S.style, name:S.name, tagline:S.tagline }
   });
-  setTimeout(() => { location.href = 'checkout.html'; }, 350);
+  document.getElementById('addedNote').style.display = 'block';
+  document.getElementById('btnCheckoutNow').style.display = 'block';
+  setCartQty(1);
 });
+
+document.getElementById('btnCheckoutNow').addEventListener('click', () => { location.href = 'checkout.html'; });
 
 document.getElementById('btnAgain').addEventListener('click', () => {
   document.getElementById('resultsScreen').classList.remove('visible');

@@ -63,6 +63,12 @@
     updateCount();
   }
 
+  function updateQty(id, qty) {
+    const clamped = Math.max(1, Math.min(10, Math.round(qty) || 1));
+    write(CART_KEY, cart().map((item) => item.id === id ? { ...item, qty: clamped } : item));
+    updateCount();
+  }
+
   function clear() { write(CART_KEY, []); updateCount(); }
 
   function saveOrder(order) {
@@ -534,7 +540,7 @@
     }));
   }
 
-  window.UNIK_CART = { add, remove, clear, get: cart, updateCount, saveOrder, notify };
+  window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify };
   window.UNIK_ACCOUNT = { get:currentAccount, signIn, signOut, orders:accountOrders, generations, saveGeneration };
   window.UNIK_THEME = { get:currentTheme, apply:applyTheme, toggle:toggleTheme };
   initNavigation();

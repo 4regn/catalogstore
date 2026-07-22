@@ -15,12 +15,17 @@
     .cart-preview-placeholder{background:#e9e5dd}
     .item-was{display:block;margin-top:3px;color:var(--muted);font-size:11px;font-weight:500;text-decoration:line-through;text-align:right}
     @media(max-width:800px){.cart-item{grid-template-columns:64px 1fr!important}.cart-preview,.cart-preview-placeholder{width:64px}.item-price{grid-column:2}}
+    .qty-stepper{display:inline-flex;align-items:center;gap:8px;margin-top:8px;border:1px solid var(--line);border-radius:999px;padding:3px}
+    .qty-stepper button{width:22px;height:22px;border:0;background:none;font-size:14px;font-weight:900;cursor:pointer;border-radius:50%;line-height:1}
+    .qty-stepper button:hover{background:#eee}
+    .qty-stepper span{font-size:12px;font-weight:800;min-width:14px;text-align:center}
   </style>
   <style>
-    .delivery-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid #c8c4bc;border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:13px}
-    .delivery-opt.active{border-color:#080808;background:#f6f4ef}
+    .delivery-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid #c8c4bc;border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:13px;color:#111}
+    .delivery-opt.active{border-color:#007517;background:#007517;color:#fff}
     .delivery-opt-name{font-weight:700}
     .delivery-opt-estimate{color:var(--muted);font-size:11px;margin-top:2px}
+    .delivery-opt.active .delivery-opt-estimate{color:rgba(255,255,255,.75)}
     .delivery-opt-price{font-weight:900;white-space:nowrap}
   </style>
 </head>
@@ -160,7 +165,7 @@
           button.disabled = true;
           return;
         }
-        itemsEl.innerHTML = items.map(item => `<article class="cart-item">${item.preview?`<img class="cart-preview" src="${safe(item.preview)}" alt="${safe(item.name)} preview">`:'<div class="cart-preview-placeholder"></div>'}<div><div class="item-name">${safe(item.name)}</div><div class="item-meta">${safe(item.meta)}</div><button class="remove" type="button" data-remove="${safe(item.id)}">Remove</button></div><div class="item-price">${money(item.price)}${Number(item.compareAtPrice)>Number(item.price)?`<span class="item-was">${money(item.compareAtPrice)}</span>`:''}</div></article>`).join('');
+        itemsEl.innerHTML = items.map(item => `<article class="cart-item">${item.preview?`<img class="cart-preview" src="${safe(item.preview)}" alt="${safe(item.name)} preview">`:'<div class="cart-preview-placeholder"></div>'}<div><div class="item-name">${safe(item.name)}</div><div class="item-meta">${safe(item.meta)}</div><div class="qty-stepper"><button type="button" data-qty-dec="${safe(item.id)}" aria-label="Decrease quantity">−</button><span>${Number(item.qty)||1}</span><button type="button" data-qty-inc="${safe(item.id)}" aria-label="Increase quantity">+</button></div><button class="remove" type="button" data-remove="${safe(item.id)}">Remove</button></div><div class="item-price">${money((Number(item.price)||0) * (Number(item.qty)||1))}${Number(item.compareAtPrice)>Number(item.price)?`<span class="item-was">${money((Number(item.compareAtPrice)||0) * (Number(item.qty)||1))}</span>`:''}</div></article>`).join('');
         const subtotal = items.reduce((sum,item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
         const delivery = currentDelivery();
         document.getElementById('subtotal').textContent = money(subtotal);
@@ -170,6 +175,14 @@
         totalsEl.hidden = false;
         button.disabled = false;
         document.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { UNIK_CART.remove(el.dataset.remove); render(); }));
+        document.querySelectorAll('[data-qty-inc]').forEach(el => el.addEventListener('click', () => {
+          const current = UNIK_CART.get().find(i => i.id === el.dataset.qtyInc);
+          if (current) { UNIK_CART.updateQty(current.id, (Number(current.qty) || 1) + 1); render(); }
+        }));
+        document.querySelectorAll('[data-qty-dec]').forEach(el => el.addEventListener('click', () => {
+          const current = UNIK_CART.get().find(i => i.id === el.dataset.qtyDec);
+          if (current && (Number(current.qty) || 1) > 1) { UNIK_CART.updateQty(current.id, (Number(current.qty) || 1) - 1); render(); }
+        }));
       }
 
       form.addEventListener('submit', async e => {

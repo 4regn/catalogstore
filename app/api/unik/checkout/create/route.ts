@@ -109,7 +109,13 @@ export async function POST(req: NextRequest) {
     if (!design) return NextResponse.json({ error: "One of your designs could not be found" }, { status: 404 });
     if (design.seller_id !== seller.id || design.auth_user_id !== user.id) return NextResponse.json({ error: "One of your designs is not accessible" }, { status: 403 });
     if (design.source !== "ai-studio") return NextResponse.json({ error: "Custom-upload checkout isn't available yet -- please use an AI Studio design" }, { status: 400 });
-    if (design.status !== "generated" && design.status !== "saved") return NextResponse.json({ error: `That design is already ${design.status.replace("_", " ")}` }, { status: 409 });
+    // A design can be ordered any number of times (e.g. buying the same
+    // piece as a gift for someone else, or in a different quantity) --
+    // status here is informational for the account page, not a one-time
+    // gate. Only a design that never finished generating is unorderable.
+    if (design.status === "processing" || design.status === "failed" || design.status === "expired") {
+      return NextResponse.json({ error: `That design is ${design.status} and can't be ordered` }, { status: 409 });
+    }
 
     const productName = PRODUCT_BY_GARMENT[design.garment];
     const product = productName ? productByName.get(productName) : undefined;
