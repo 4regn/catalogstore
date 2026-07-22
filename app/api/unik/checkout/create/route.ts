@@ -25,13 +25,34 @@ function safeOrigin(raw: unknown): string {
 }
 
 const PRODUCT_BY_GARMENT: Record<string, string> = { tee: "AI Tee", hoodie: "AI Hoodie" };
+const CUSTOM_PRODUCT_BY_GARMENT_ZONE: Record<string, string> = {
+  tee_front: "Custom Tee — Front", tee_both: "Custom Tee — Front + Back",
+  hoodie_front: "Custom Hoodie — Front", hoodie_both: "Custom Hoodie — Front + Back",
+};
+const GARMENTS = new Set(["tee", "hoodie"]);
+const COLOURS = new Set(["black", "white", "beige"]);
+const ZONES = new Set(["front", "both"]);
+const MAX_IMAGE_BASE64_LEN = 6_000_000; // ~4.5MB decoded, generous for a phone photo
+
+function decodeDataUrl(raw: unknown): { base64: string; ext: string } | null {
+  if (typeof raw !== "string" || !raw) return null;
+  const match = raw.match(/^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=\r\n]+)$/);
+  const base64 = match ? match[2] : (/^[A-Za-z0-9+/=\r\n]+$/.test(raw) ? raw : null);
+  if (!base64 || base64.length > MAX_IMAGE_BASE64_LEN) return null;
+  const ext = match ? (match[1] === "jpg" ? "jpeg" : match[1]) : "jpeg";
+  return { base64, ext };
+}
 
 /* Creates a real Catalogstore order for a UNIK cart and returns a Yoco
-   redirect URL. Only ai-studio designs are supported for now -- custom
-   uploads (upload.html) aren't persisted server-side yet, so there's no
-   design record to validate ownership/price against. Price is always
-   resolved from the `products` table server-side; the browser only ever
-   supplies design ids. */
+   redirect URL. Cart items are either a pre-generated AI Studio design
+   (designId) or raw Custom Upload artwork+placement (customUpload) --
+   both go through this same route and the same price-resolution/order-
+   creation path. A custom-upload design record is created here, at
+   checkout time, rather than when the customer uploads/positions their
+   artwork -- that's what lets Custom Upload skip requiring an account
+   until checkout (this whole endpoint already requires one), instead of
+   needing its own separate sign-in gate the way AI Studio generation
+   does (which needs one earlier, to enforce the daily generation limit). */
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req);
   if (!rateLimit("unik-checkout-create:" + ip, 10, 60).allowed) {
@@ -45,7 +66,10 @@ export async function POST(req: NextRequest) {
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
 
-  const items: { designId?: string; qty?: number }[] = Array.isArray(body?.items) ? body.items : [];
+  const items: {
+    designId?: string; qty?: number; preview?: string;
+    customUpload?: { garment?: string; colour?: string; size?: string; zone?: string; frontImage?: string; backImage?: string };
+  }[] = Array.isArray(body?.items) ? body.items : [];
   const customer = body?.customer || {};
   const firstName = String(customer.firstName || "").trim().slice(0, 80);
   const lastName = String(customer.lastName || "").trim().slice(0, 80);
@@ -89,26 +113,76 @@ export async function POST(req: NextRequest) {
     shippingLabel = matched.name || DEFAULT_DELIVERY.name;
   }
 
-  const designIds = items.map((i) => i.designId).filter((id): id is string => typeof id === "string" && id.length > 0);
-  if (designIds.length !== items.length) return NextResponse.json({ error: "One of the items in your cart is invalid" }, { status: 400 });
+  for (const item of items) {
+    if (!item.designId && !item.customUpload) return NextResponse.json({ error: "One of the items in your cart is invalid" }, { status: 400 });
+  }
 
-  const { data: designs, error: designsErr } = await admin
-    .from("unik_designs")
-    .select("id, seller_id, auth_user_id, source, status, garment, colour, size, style, name, preview_url, mockup_url")
-    .in("id", designIds);
+  const designIds = items.map((i) => i.designId).filter((id): id is string => typeof id === "string" && id.length > 0);
+  const { data: designs, error: designsErr } = designIds.length
+    ? await admin.from("unik_designs").select("id, seller_id, auth_user_id, source, status, garment, colour, size, style, name, preview_url, mockup_url").in("id", designIds)
+    : { data: [], error: null };
   if (designsErr) console.error("UNIK checkout: unik_designs lookup failed:", designsErr);
 
   const designMap = new Map((designs || []).map((d) => [d.id, d]));
   const { data: products } = await admin.from("products").select("id, name, price, category").eq("seller_id", seller.id).eq("status", "published");
   const productByName = new Map((products || []).map((p) => [p.name, p]));
 
-  const lineItems: { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string; image: string | null }[] = [];
+  const lineItems: { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string | null; image: string | null }[] = [];
 
   for (const item of items) {
+    const qty = Math.max(1, Math.min(10, Number(item.qty) || 1));
+
+    if (item.customUpload) {
+      const cu = item.customUpload;
+      const garment = String(cu.garment || "").toLowerCase();
+      const colour = String(cu.colour || "").toLowerCase();
+      const size = String(cu.size || "").toUpperCase();
+      const zone = String(cu.zone || "").toLowerCase();
+      if (!GARMENTS.has(garment) || !COLOURS.has(colour) || !ZONES.has(zone)) {
+        return NextResponse.json({ error: "One of your custom uploads has invalid options" }, { status: 400 });
+      }
+      if (!/^(XS|S|M|L|XL|XXL)$/.test(size)) return NextResponse.json({ error: "One of your custom uploads is missing a size" }, { status: 400 });
+      const front = decodeDataUrl(cu.frontImage);
+      if (!front) return NextResponse.json({ error: "One of your custom uploads has an invalid or missing front image" }, { status: 400 });
+      const back = zone === "both" ? decodeDataUrl(cu.backImage) : null;
+      if (zone === "both" && !back) return NextResponse.json({ error: "One of your custom uploads is missing a back image" }, { status: 400 });
+
+      const productName = CUSTOM_PRODUCT_BY_GARMENT_ZONE[`${garment}_${zone}`];
+      const product = productName ? productByName.get(productName) : undefined;
+      if (!product) return NextResponse.json({ error: "That product is not currently available" }, { status: 400 });
+
+      const { data: design, error: designInsertErr } = await admin.from("unik_designs").insert({
+        seller_id: seller.id, auth_user_id: user.id, source: "custom-upload", status: "generated",
+        garment, colour, size, options: { zone },
+      }).select("id").single();
+      if (designInsertErr || !design) {
+        console.error("UNIK checkout: custom-upload design insert failed:", designInsertErr);
+        return NextResponse.json({ error: "Could not save your custom upload" }, { status: 500 });
+      }
+
+      const frontPath = `${user.id}/${design.id}/front.${front.ext}`;
+      const { error: frontUploadErr } = await admin.storage.from("unik-private-designs").upload(frontPath, Buffer.from(front.base64, "base64"), { contentType: `image/${front.ext}`, upsert: true });
+      if (frontUploadErr) console.error("UNIK checkout: front artwork upload failed:", frontUploadErr);
+      let backPath: string | null = null;
+      if (back) {
+        backPath = `${user.id}/${design.id}/back.${back.ext}`;
+        const { error: backUploadErr } = await admin.storage.from("unik-private-designs").upload(backPath, Buffer.from(back.base64, "base64"), { contentType: `image/${back.ext}`, upsert: true });
+        if (backUploadErr) console.error("UNIK checkout: back artwork upload failed:", backUploadErr);
+      }
+      await admin.from("unik_designs").update({ private_artwork_path: frontPath, options: { zone, back_artwork_path: backPath } }).eq("id", design.id);
+
+      lineItems.push({
+        productId: product.id, name: product.name, price: Number(product.price), qty,
+        designId: design.id, garment, colour, size, style: null,
+        image: typeof item.preview === "string" && item.preview.startsWith("data:image/") ? item.preview : null,
+      });
+      continue;
+    }
+
     const design = designMap.get(item.designId!);
     if (!design) return NextResponse.json({ error: "One of your designs could not be found" }, { status: 404 });
     if (design.seller_id !== seller.id || design.auth_user_id !== user.id) return NextResponse.json({ error: "One of your designs is not accessible" }, { status: 403 });
-    if (design.source !== "ai-studio") return NextResponse.json({ error: "Custom-upload checkout isn't available yet -- please use an AI Studio design" }, { status: 400 });
+    if (design.source !== "ai-studio") return NextResponse.json({ error: "One of your designs has an unrecognised source" }, { status: 400 });
     // A design can be ordered any number of times (e.g. buying the same
     // piece as a gift for someone else, or in a different quantity) --
     // status here is informational for the account page, not a one-time
@@ -120,8 +194,6 @@ export async function POST(req: NextRequest) {
     const productName = PRODUCT_BY_GARMENT[design.garment];
     const product = productName ? productByName.get(productName) : undefined;
     if (!product) return NextResponse.json({ error: "That product is not currently available" }, { status: 400 });
-
-    const qty = Math.max(1, Math.min(10, Number(item.qty) || 1));
     lineItems.push({
       productId: product.id, name: product.name, price: Number(product.price), qty,
       designId: design.id, garment: design.garment, colour: design.colour, size: design.size, style: design.style,

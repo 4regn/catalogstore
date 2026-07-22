@@ -190,8 +190,8 @@
         clearError();
         const items = UNIK_CART.get();
         if(!items.length) return;
-        if(items.some(item => !(item.options && item.options.designId))){
-          showError("One of the items in your cart is from Custom Upload, which isn't available for checkout yet. Please remove it and use an AI Studio design instead.");
+        if(items.some(item => !(item.options && (item.options.designId || item.options.customUpload)))){
+          showError("One of the items in your cart is missing its design — please remove it and add it again.");
           return;
         }
         const data = Object.fromEntries(new FormData(form));
@@ -210,7 +210,9 @@
           const response = await fetch('/api/unik/checkout/create', {
             method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({
-              items: items.map(item => ({ designId: item.options.designId, qty: item.qty || 1 })),
+              items: items.map(item => item.options.customUpload
+                ? { customUpload: item.options.customUpload, qty: item.qty || 1, preview: item.preview }
+                : { designId: item.options.designId, qty: item.qty || 1 }),
               customer: {
                 firstName:data.firstName, lastName:data.lastName, email:data.email,
                 streetAddress:data.streetAddress, suburb:data.suburb, townCity:data.townCity, province:data.province, postal:data.postal,

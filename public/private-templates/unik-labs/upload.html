@@ -421,10 +421,17 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 
       <!-- Checkout button -->
       <div class="checkout-wrap">
+        <div class="qty-row" style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px">
+          <button type="button" id="upQtyDec" aria-label="Decrease quantity" style="width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:inherit;font-size:18px;font-weight:700;cursor:pointer">−</button>
+          <span id="upQtyValue" style="font-size:18px;font-weight:700;min-width:24px;text-align:center">1</span>
+          <button type="button" id="upQtyInc" aria-label="Increase quantity" style="width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:inherit;font-size:18px;font-weight:700;cursor:pointer">+</button>
+        </div>
         <button class="btn-checkout" id="btnCheckout">
-          Proceed to Checkout
+          Add to Cart
           <span class="co-sub" id="coSub">Select size to continue</span>
         </button>
+        <p id="upAddedNote" style="display:none;text-align:center;font-size:12px;font-weight:600;color:#007517;margin:10px 0">✓ Added to your cart</p>
+        <button type="button" id="btnUpCheckoutNow" class="btn-checkout go" style="display:none;background:#111;margin-top:10px">Go to Checkout</button>
       </div>
     </div>
   </div>
@@ -956,8 +963,22 @@ async function captureCustomPreview(){
   }catch(_){return '';}
 }
 
+let upCartQty=1;
+function setUpCartQty(n){
+  upCartQty=Math.max(1,Math.min(10,n));
+  document.getElementById('upQtyValue').textContent=upCartQty;
+}
+document.getElementById('upQtyInc').addEventListener('click',()=>setUpCartQty(upCartQty+1));
+document.getElementById('upQtyDec').addEventListener('click',()=>setUpCartQty(upCartQty-1));
+
 document.getElementById('btnCheckout').addEventListener('click',async()=>{
-  // Add the configured garment to the shared UNIK Labs cart.
+  // Add the configured garment to the shared UNIK Labs cart. The raw
+  // artwork (not just the flattened preview) travels with the cart item
+  // as a data URL -- there's no server-side design record yet, since
+  // Custom Upload doesn't require signing in until checkout, so nothing
+  // to reference by id. Checkout creates the real design record (and
+  // uploads the artwork to private storage) once the customer is
+  // actually signed in and paying.
   const needBoth=S.zone==='both';
   const ready=UP.front.url&&(needBoth?UP.back.url:true)&&S.size;
   if(!ready)return;
@@ -970,10 +991,17 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
     price:pricing.sale,
     compareAtPrice:pricing.original,
     preview,
-    options:{garment:S.garment,colour:S.colour,size:S.size,zone:S.zone}
+    qty:upCartQty,
+    options:{
+      customUpload:{garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined}
+    }
   });
-  setTimeout(()=>{location.href='checkout.html';},350);
+  document.getElementById('upAddedNote').style.display='block';
+  document.getElementById('btnUpCheckoutNow').style.display='block';
+  setUpCartQty(1);
 });
+
+document.getElementById('btnUpCheckoutNow').addEventListener('click',()=>{location.href='checkout.html';});
 
 // ── Init ──
 function initCalibrationMode(side){
