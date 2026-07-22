@@ -1572,7 +1572,30 @@ function checkReview() {
 }
 
 document.getElementById('termsCb').addEventListener('change', e => { S.agreed = e.target.checked; checkReview(); });
-document.getElementById('btnGenerate').addEventListener('click', startLoading);
+let currentGenerationAttemptId = null;
+document.getElementById('btnGenerate').addEventListener('click', async () => {
+  const button = document.getElementById('btnGenerate');
+  if (!button.classList.contains('ready') || button.dataset.reserving === '1') return;
+  button.dataset.reserving = '1';
+  const original = button.innerHTML;
+  button.textContent = 'Checking your allowance…';
+  try {
+    const response = await fetch('/api/unik/generations', { method:'POST', credentials:'same-origin' });
+    const payload = await response.json();
+    if (response.status === 401) {
+      window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/studio.html');
+      return;
+    }
+    if (!response.ok) throw new Error(payload.error || 'Could not start generation');
+    currentGenerationAttemptId = payload.attempt.id;
+    startLoading();
+  } catch (error) {
+    UNIK_CART.notify(error.message || 'Could not start generation');
+  } finally {
+    button.innerHTML = original;
+    delete button.dataset.reserving;
+  }
+});
 
 // ── Loading ──
 const STAGE_DUR = [2000, 1800, 2200, 2000, 2500, 2000, 1800];
@@ -1627,6 +1650,22 @@ function finishLoading() {
     preview:resultPreview,
     options:{garment:S.garment,colour:S.colour,size:S.size,style:S.style,tagline:S.tagline}
   });
+  if (currentGenerationAttemptId) {
+    const preview = resultPreview ? new URL(resultPreview, location.href).href : null;
+    fetch('/api/unik/generations', {
+      method:'PATCH', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        attemptId:currentGenerationAttemptId,
+        status:'succeeded',
+        design:{
+          name:S.name||'UNIK AI Design', garment:S.garment, colour:S.colour, size:S.size, style:S.style,
+          previewUrl:preview, mockupUrl:preview,
+          options:{tagline:S.tagline,subject:S.subject}
+        }
+      })
+    }).catch(()=>{});
+    currentGenerationAttemptId = null;
+  }
   setTimeout(() => {
     document.getElementById('loadingScreen').classList.remove('visible');
     document.getElementById('resultsScreen').classList.add('visible');

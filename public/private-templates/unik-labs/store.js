@@ -405,7 +405,7 @@
       const menu = document.createElement('div');
       menu.className = 'unik-home-menu';
       const bagIcon = '<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewBox="0 0 20 22" aria-hidden="true"><path d="M4 7h12l1 13H3L4 7z"></path><path d="M7 7V5a3 3 0 016 0v2"></path></svg>';
-      menu.innerHTML = '<button class="unik-home-close" aria-label="Close menu">&times;</button><div><a href="studio.html">Create with AI</a><a href="upload.html">Upload artwork</a><a href="account.html">'+accountLabel+'</a><a href="checkout.html" class="unik-drawer-cart">'+bagIcon+'<span>Cart</span><span data-unik-cart-count class="unik-cart-count" hidden>0</span></a><button class="unik-home-theme" data-unik-theme-toggle type="button">Theme</button></div>';
+      menu.innerHTML = '<button class="unik-home-close" aria-label="Close menu">&times;</button><div><a href="studio.html">Create with AI</a><a href="upload.html">Upload artwork</a><a href="/account" target="_top">'+accountLabel+'</a><a href="checkout.html" class="unik-drawer-cart">'+bagIcon+'<span>Cart</span><span data-unik-cart-count class="unik-cart-count" hidden>0</span></a><button class="unik-home-theme" data-unik-theme-toggle type="button">Theme</button></div>';
       document.body.appendChild(menu);
       const trigger = document.querySelector('.nav-icon-btn');
       if (trigger) trigger.addEventListener('click', () => menu.classList.add('open'));
@@ -417,7 +417,8 @@
         const actions = document.createElement('div');
         actions.className = 'unik-header-actions';
         const accountLink = document.createElement('a');
-        accountLink.href = 'account.html';
+        accountLink.href = '/account';
+        accountLink.target = '_top';
         accountLink.className = 'unik-header-account';
         accountLink.setAttribute('aria-label', account ? `Open ${accountLabel}'s account` : 'Open account');
         accountLink.innerHTML = '<span class="unik-account-glyph" aria-hidden="true"></span>';
@@ -450,7 +451,7 @@
       <div class="unik-site-links">
         <a href="studio.html"${path === 'studio.html' ? ' class="active"' : ''}>AI Studio</a>
         <a href="upload.html"${path === 'upload.html' ? ' class="active"' : ''}>Custom Upload</a>
-        <a href="account.html" class="unik-account-link${path === 'account.html' ? ' active' : ''}">${accountLabel}</a>
+        <a href="/account" target="_top" class="unik-account-link">${accountLabel}</a>
         <a href="checkout.html" class="unik-cart-link${path === 'checkout.html' ? ' active' : ''}">Cart <span data-unik-cart-count class="unik-cart-count" hidden>0</span></a>
       </div>`;
     document.body.insertBefore(nav, document.body.firstChild);
