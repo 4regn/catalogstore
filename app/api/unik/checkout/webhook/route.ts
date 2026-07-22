@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const timestamp = req.headers.get("webhook-timestamp") || "";
 
   if (!verifyYocoWebhookSignature(rawBody, { id, timestamp, signature })) {
-    console.error("UNIK Yoco webhook: signature verification failed");
+    console.error("UNIK Yoco webhook: signature verification failed", { hasId: !!id, hasTimestamp: !!timestamp, hasSignature: !!signature, hasSecret: !!process.env.YOCO_WEBHOOK_SECRET, bodyLength: rawBody.length });
     return NextResponse.json({ status: "error", reason: "invalid signature" }, { status: 403 });
   }
 
@@ -27,27 +27,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", reason: "invalid body" }, { status: 400 });
   }
 
+  console.log("UNIK Yoco webhook received:", event?.type, event?.id);
+
   if (event?.type !== "payment.succeeded") {
     return NextResponse.json({ status: "ignored" });
   }
 
   const payload = event.payload || {};
+  // Yoco auto-adds `checkoutId` to payload.metadata, but it's undocumented
+  // whether custom metadata we set at checkout creation (`orderId`) survives
+  // alongside it on this event -- try our own id first since we're certain
+  // of that one, then fall back to checkoutId.
+  const orderIdFromMetadata: string | undefined = payload.metadata?.orderId;
   const checkoutId: string | undefined = payload.metadata?.checkoutId;
   const paymentId: string | undefined = payload.id;
   const amountCents: number = Number(payload.amount) || 0;
   const eventId: string | undefined = event.id;
-  if (!checkoutId || !paymentId || !eventId) {
+  if ((!orderIdFromMetadata && !checkoutId) || !paymentId || !eventId) {
+    console.error("UNIK Yoco webhook: missing identifiers", { metadata: payload.metadata, paymentId, eventId });
     return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
   }
 
   const admin = getAdmin();
-  const { data: order } = await admin
-    .from("orders")
-    .select("id, seller_id, total, items, customer_name, customer_email, payment_status")
-    .eq("yoco_checkout_id", checkoutId)
-    .maybeSingle();
+  let order: { id: string; seller_id: string; total: number; items: any; customer_name: string; customer_email: string; payment_status: string } | null = null;
+  if (orderIdFromMetadata) {
+    const { data } = await admin
+      .from("orders")
+      .select("id, seller_id, total, items, customer_name, customer_email, payment_status")
+      .eq("id", orderIdFromMetadata)
+      .maybeSingle();
+    order = data;
+  }
+  if (!order && checkoutId) {
+    const { data } = await admin
+      .from("orders")
+      .select("id, seller_id, total, items, customer_name, customer_email, payment_status")
+      .eq("yoco_checkout_id", checkoutId)
+      .maybeSingle();
+    order = data;
+  }
   if (!order) {
-    console.error("UNIK Yoco webhook: no order for checkoutId", checkoutId);
+    console.error("UNIK Yoco webhook: no order for", { orderIdFromMetadata, checkoutId });
     return NextResponse.json({ status: "error", reason: "order not found" }, { status: 404 });
   }
   if (order.payment_status === "paid") {
