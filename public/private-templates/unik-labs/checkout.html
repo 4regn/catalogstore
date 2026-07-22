@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Checkout — UNIK Labs</title>
+  <meta name="description" content="Review and place your UNIK Labs custom garment order.">
+  <style>
+    :root{--ink:#080808;--muted:#737373;--line:#dedbd5;--paper:#f4f1eb;--white:#fff}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,sans-serif}.checkout-shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:64px 0 90px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}h1{font-size:clamp(44px,8vw,92px);line-height:.86;letter-spacing:-.06em;margin:14px 0 38px;text-transform:uppercase}.checkout-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:28px}.panel{background:var(--white);border:1px solid var(--line);border-radius:18px;padding:24px}.panel h2{font-size:14px;letter-spacing:.16em;text-transform:uppercase;margin:0 0 22px}.cart-empty{padding:38px 12px;text-align:center;color:var(--muted)}.cart-empty a{display:inline-block;margin-top:18px;color:var(--ink);font-weight:800}.cart-item{display:grid;grid-template-columns:1fr auto;gap:12px;padding:16px 0;border-bottom:1px solid var(--line)}.cart-item:first-child{padding-top:0}.cart-item:last-child{border-bottom:0}.item-name{font-weight:900;font-size:16px;text-transform:uppercase}.item-meta{color:var(--muted);font-size:12px;line-height:1.6;margin-top:5px}.item-price{font-weight:900;white-space:nowrap}.remove{border:0;background:none;padding:5px 0;color:#8b2a20;text-decoration:underline;cursor:pointer;font-size:11px}.totals{border-top:2px solid var(--ink);margin-top:18px;padding-top:18px}.total-row{display:flex;justify-content:space-between;font-size:13px;margin:9px 0}.total-row.grand{font-size:20px;font-weight:900;margin-top:18px}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{display:grid;gap:7px;margin-bottom:14px}.field.full{grid-column:1/-1}.field label{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.field input,.field textarea{width:100%;border:1px solid #c8c4bc;border-radius:10px;background:#fff;padding:13px 14px;font:14px Arial,sans-serif;outline:none}.field input:focus,.field textarea:focus{border-color:#111;box-shadow:0 0 0 2px rgba(0,0,0,.08)}.field textarea{resize:vertical;min-height:84px}.demo-note{font-size:11px;line-height:1.5;color:var(--muted);background:#f6f4ef;border-radius:10px;padding:12px;margin:4px 0 16px}.place-order{width:100%;border:0;border-radius:12px;background:#080808;color:#fff;padding:18px;font-size:13px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}.place-order:disabled{opacity:.35;cursor:not-allowed}.confirmation{display:none;text-align:center;padding:48px 24px}.confirmation.show{display:block}.confirmation-mark{width:58px;height:58px;margin:0 auto 20px;border-radius:50%;display:grid;place-items:center;background:#080808;color:#fff;font-size:26px}.confirmation h2{font-size:34px;letter-spacing:-.04em;margin:0 0 10px}.confirmation p{color:var(--muted);line-height:1.6}.confirmation a{display:inline-block;margin-top:18px;background:#080808;color:#fff;text-decoration:none;padding:14px 18px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}@media(max-width:800px){.checkout-grid{grid-template-columns:1fr}.field-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.checkout-shell{padding-top:42px}}
+  </style>
+  <style>
+    .cart-item{grid-template-columns:76px 1fr auto!important;gap:14px!important;align-items:start}
+    .cart-preview,.cart-preview-placeholder{width:76px;aspect-ratio:3/4;border-radius:10px;object-fit:cover;background:#111312}
+    .cart-preview-placeholder{background:#e9e5dd}
+    @media(max-width:800px){.cart-item{grid-template-columns:64px 1fr!important}.cart-preview,.cart-preview-placeholder{width:64px}.item-price{grid-column:2}}
+  </style>
+</head>
+<body>
+  <main class="checkout-shell" id="checkoutMain">
+    <div class="eyebrow">UNIK Labs · Secure order review</div>
+    <h1>Your cart.</h1>
+    <div class="checkout-grid">
+      <section class="panel" aria-labelledby="cartTitle">
+        <h2 id="cartTitle">Your pieces</h2>
+        <div id="cartItems"></div>
+        <div class="totals" id="totals" hidden>
+          <div class="total-row"><span>Subtotal</span><strong id="subtotal">R0.00</strong></div>
+          <div class="total-row"><span>Nationwide delivery</span><strong>R79.00</strong></div>
+          <div class="total-row grand"><span>Total</span><span id="grandTotal">R0.00</span></div>
+        </div>
+      </section>
+      <section class="panel" id="detailsPanel" aria-labelledby="detailsTitle">
+        <h2 id="detailsTitle">Delivery details</h2>
+        <form id="checkoutForm">
+          <div class="field-grid">
+            <div class="field"><label for="firstName">First name</label><input id="firstName" name="firstName" autocomplete="given-name" required></div>
+            <div class="field"><label for="lastName">Last name</label><input id="lastName" name="lastName" autocomplete="family-name" required></div>
+            <div class="field full"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+            <div class="field full"><label for="address">Delivery address</label><textarea id="address" name="address" autocomplete="street-address" required></textarea></div>
+            <div class="field"><label for="city">City</label><input id="city" name="city" autocomplete="address-level2" required></div>
+            <div class="field"><label for="postal">Postal code</label><input id="postal" name="postal" autocomplete="postal-code" inputmode="numeric" required></div>
+          </div>
+          <div class="demo-note"><strong>Prototype checkout:</strong> placing this order creates a local confirmation only. No payment is taken or transmitted.</div>
+          <button class="place-order" id="placeOrder" type="submit">Place prototype order</button>
+        </form>
+      </section>
+    </div>
+  </main>
+  <section class="confirmation" id="confirmation" aria-live="polite">
+    <div class="confirmation-mark">✓</div>
+    <h2>Order received.</h2>
+    <p id="confirmationCopy"></p>
+    <a href="account.html">View member account</a>
+  </section>
+  <script src="store.js"></script>
+  <script>
+    (function(){
+      const delivery = 79;
+      const itemsEl = document.getElementById('cartItems');
+      const totalsEl = document.getElementById('totals');
+      const form = document.getElementById('checkoutForm');
+      const button = document.getElementById('placeOrder');
+      const money = n => 'R' + Number(n || 0).toFixed(2);
+      const safe = value => String(value || '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+      const account = UNIK_ACCOUNT.get();
+      if(account){
+        const names=account.name.trim().split(/\s+/);
+        document.getElementById('firstName').value=names.shift()||'';
+        document.getElementById('lastName').value=names.join(' ');
+        document.getElementById('email').value=account.email;
+      }
+
+      function render(){
+        const items = UNIK_CART.get();
+        if(!items.length){
+          itemsEl.innerHTML = '<div class="cart-empty">Your cart is waiting for something UNIK.<br><a href="studio.html">Create with AI</a> · <a href="upload.html">Upload artwork</a></div>';
+          totalsEl.hidden = true;
+          button.disabled = true;
+          return;
+        }
+        itemsEl.innerHTML = items.map(item => `<article class="cart-item">${item.preview?`<img class="cart-preview" src="${safe(item.preview)}" alt="${safe(item.name)} preview">`:'<div class="cart-preview-placeholder"></div>'}<div><div class="item-name">${safe(item.name)}</div><div class="item-meta">${safe(item.meta)}</div><button class="remove" type="button" data-remove="${safe(item.id)}">Remove</button></div><div class="item-price">${money(item.price)}</div></article>`).join('');
+        const subtotal = items.reduce((sum,item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+        document.getElementById('subtotal').textContent = money(subtotal);
+        document.getElementById('grandTotal').textContent = money(subtotal + delivery);
+        totalsEl.hidden = false;
+        button.disabled = false;
+        document.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { UNIK_CART.remove(el.dataset.remove); render(); }));
+      }
+
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        const items = UNIK_CART.get();
+        if(!items.length) return;
+        const data = Object.fromEntries(new FormData(form));
+        const total = items.reduce((sum,item) => sum + Number(item.price || 0), 0) + delivery;
+        const order = { id:'UL-' + Date.now().toString(36).toUpperCase(), createdAt:new Date().toISOString(), customer:data, items, total };
+        UNIK_CART.saveOrder(order);
+        UNIK_CART.clear();
+        document.getElementById('checkoutMain').style.display = 'none';
+        document.getElementById('confirmationCopy').textContent = `Thanks, ${data.firstName}. Prototype order ${order.id} has been saved on this device. Total: ${money(total)}.`;
+        document.getElementById('confirmation').classList.add('show');
+        window.scrollTo({top:0,behavior:'smooth'});
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>
