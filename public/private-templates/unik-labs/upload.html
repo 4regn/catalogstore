@@ -76,6 +76,9 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .gc.sel::after{content:'';position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--black) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5 L4.5 8.5 L11 1' stroke='white' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat;z-index:2;}
 .gc img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;}
 .gc-lbl{padding:9px 12px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;text-align:center;}
+.gc-price{display:block;margin-top:5px;font-size:10px;letter-spacing:.5px;text-transform:none;}
+.gc-price strong{color:#007517;font-size:12px;}
+.price-was{margin-left:5px;color:var(--muted);font-size:10px;font-weight:500;text-decoration:line-through;}
 .sdiv{height:1px;background:var(--border);margin:14px 0;}
 .csub{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:11px;}
 .cg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
@@ -113,6 +116,8 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .zc.sel .zc-desc{color:rgba(255,255,255,.5);}
 .zc-right{display:flex;align-items:center;gap:12px;}
 .zc-price{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;}
+.zc-price .price-was{display:block;margin:1px 0 0;font-family:'Montserrat',sans-serif;font-size:9px;letter-spacing:.4px;text-align:right;}
+.zc.sel .zc-price .price-was{color:rgba(255,255,255,.58);}
 .zc-radio{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all .2s;}
 .zc.sel .zc-radio{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.15);}
 .zc-dot{width:8px;height:8px;border-radius:50%;background:#fff;opacity:0;transition:opacity .2s;}
@@ -288,8 +293,8 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
       </div>
       <div class="sbody">
         <div class="gg">
-          <div class="gc" data-g="hoodie" id="gH"><img id="igH" src="" alt="Hoodie"><div class="gc-lbl">Hoodie</div></div>
-          <div class="gc" data-g="tee"    id="gT"><img id="igT" src="" alt="Tee"   ><div class="gc-lbl">Tee</div></div>
+          <div class="gc" data-g="hoodie" id="gH"><img id="igH" src="" alt="Hoodie"><div class="gc-lbl">Hoodie<span class="gc-price">From <strong>R350</strong><span class="price-was">R450</span></span></div></div>
+          <div class="gc" data-g="tee"    id="gT"><img id="igT" src="" alt="Tee"   ><div class="gc-lbl">Tee<span class="gc-price">From <strong>R299</strong><span class="price-was">R399</span></span></div></div>
         </div>
         <div class="sdiv"></div>
         <div class="csub">Choose colour</div>
@@ -333,7 +338,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
               <div class="zc-desc">Classic chest print</div>
             </div>
             <div class="zc-right">
-              <div class="zc-price" id="zFPrice">R299</div>
+              <div class="zc-price" id="zFPrice">R299<span class="price-was">R399</span></div>
               <div class="zc-radio"><div class="zc-dot"></div></div>
             </div>
           </div>
@@ -351,7 +356,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
               <div class="zc-desc">Printed both sides</div>
             </div>
             <div class="zc-right">
-              <div class="zc-price" id="zBPrice">R379</div>
+              <div class="zc-price" id="zBPrice">R379<span class="price-was">R479</span></div>
               <div class="zc-radio"><div class="zc-dot"></div></div>
             </div>
           </div>
@@ -486,7 +491,12 @@ const ZONES = {
   tee:   { front:{wP:.3853,hP:.3520,cxP:.5044,tP:.4565}, back:{wP:.3735,hP:.3833,cxP:.4985,tP:.4150} }
 };
 
-const PRICES = { hoodie:{front:'R350',both:'R450'}, tee:{front:'R299',both:'R379'} };
+const PRICES = {
+  hoodie:{front:{sale:350,original:450},both:{sale:450,original:550}},
+  tee:{front:{sale:299,original:399},both:{sale:379,original:479}}
+};
+const priceText=p=>'R'+p.sale;
+const priceMarkup=p=>'R'+p.sale+'<span class="price-was">R'+p.original+'</span>';
 const LABELS = ['Garment','Print Zone','Design'];
 
 // ── State ──
@@ -576,8 +586,8 @@ function updateZonePreviews(){
   document.getElementById('zFImg').src=garmentImage('front_'+(c)+'_'+(g));
   document.getElementById('zBImgF').src=garmentImage('front_'+(c)+'_'+(g));
   document.getElementById('zBImgB').src=garmentImage('back_'+(c)+'_'+(g));
-  document.getElementById('zFPrice').textContent=PRICES[g].front;
-  document.getElementById('zBPrice').textContent=PRICES[g].both;
+  document.getElementById('zFPrice').innerHTML=priceMarkup(PRICES[g].front);
+  document.getElementById('zBPrice').innerHTML=priceMarkup(PRICES[g].both);
 }
 
 function chk1(){
@@ -607,7 +617,7 @@ document.querySelectorAll('[data-zone]').forEach(c=>c.addEventListener('click',(
   c.classList.add('sel');S.zone=c.dataset.zone;chk2();
 }));
 document.getElementById('bn2').addEventListener('click',()=>{
-  const p=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
+  const p=priceText(S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both);
   document.getElementById('sm2').textContent=(S.zone==='front'?'Front Only':'Front + Back')+' · '+p;
   initStep3();doneStep(2);
 });
@@ -920,7 +930,7 @@ function chkCheckout(){
   const btn=document.getElementById('btnCheckout');
   btn.classList.toggle('go',ready);
   if(ready){
-    const p=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
+    const p=priceText(S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both);
     document.getElementById('coSub').textContent=(S.garment==='hoodie'?'Hoodie':'Tee')+' · '+(S.colour==='black'?'Black':S.colour==='white'?'White':'Beige')+' · '+S.size+' · '+p;
   } else if(S.size&&needBoth&&!UP.back.url){
     document.getElementById('coSub').textContent='Upload back design to continue';
@@ -953,13 +963,14 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
   const needBoth=S.zone==='both';
   const ready=UP.front.url&&(needBoth?UP.back.url:true)&&S.size;
   if(!ready)return;
-  const priceLabel=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
+  const pricing=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
   const preview=await captureCustomPreview();
   UNIK_CART.add({
     source:'custom-upload',
     name:'UNIK Labs Custom Print',
     meta:(S.garment==='hoodie'?'Hoodie':'Tee')+' · '+S.colour+' · '+S.size+' · '+(S.zone==='both'?'Front + back':'Front print'),
-    price:Number(priceLabel.replace(/[^0-9.]/g,'')),
+    price:pricing.sale,
+    compareAtPrice:pricing.original,
     preview,
     options:{garment:S.garment,colour:S.colour,size:S.size,zone:S.zone}
   });

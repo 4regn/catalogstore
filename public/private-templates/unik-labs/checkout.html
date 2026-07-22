@@ -13,6 +13,7 @@
     .cart-item{grid-template-columns:76px 1fr auto!important;gap:14px!important;align-items:start}
     .cart-preview,.cart-preview-placeholder{width:76px;aspect-ratio:3/4;border-radius:10px;object-fit:cover;background:#111312}
     .cart-preview-placeholder{background:#e9e5dd}
+    .item-was{display:block;margin-top:3px;color:var(--muted);font-size:11px;font-weight:500;text-decoration:line-through;text-align:right}
     @media(max-width:800px){.cart-item{grid-template-columns:64px 1fr!important}.cart-preview,.cart-preview-placeholder{width:64px}.item-price{grid-column:2}}
   </style>
 </head>
@@ -79,7 +80,7 @@
           button.disabled = true;
           return;
         }
-        itemsEl.innerHTML = items.map(item => `<article class="cart-item">${item.preview?`<img class="cart-preview" src="${safe(item.preview)}" alt="${safe(item.name)} preview">`:'<div class="cart-preview-placeholder"></div>'}<div><div class="item-name">${safe(item.name)}</div><div class="item-meta">${safe(item.meta)}</div><button class="remove" type="button" data-remove="${safe(item.id)}">Remove</button></div><div class="item-price">${money(item.price)}</div></article>`).join('');
+        itemsEl.innerHTML = items.map(item => `<article class="cart-item">${item.preview?`<img class="cart-preview" src="${safe(item.preview)}" alt="${safe(item.name)} preview">`:'<div class="cart-preview-placeholder"></div>'}<div><div class="item-name">${safe(item.name)}</div><div class="item-meta">${safe(item.meta)}</div><button class="remove" type="button" data-remove="${safe(item.id)}">Remove</button></div><div class="item-price">${money(item.price)}${Number(item.compareAtPrice)>Number(item.price)?`<span class="item-was">${money(item.compareAtPrice)}</span>`:''}</div></article>`).join('');
         const subtotal = items.reduce((sum,item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
         document.getElementById('subtotal').textContent = money(subtotal);
         document.getElementById('grandTotal').textContent = money(subtotal + delivery);

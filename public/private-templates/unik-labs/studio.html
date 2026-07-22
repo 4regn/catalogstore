@@ -234,6 +234,9 @@ body {
   font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
   text-align: center;
 }
+.garment-price { display:block; margin-top:5px; font-size:11px; letter-spacing:.6px; text-transform:none; }
+.garment-price strong { color:#007517; font-size:13px; }
+.price-was { margin-left:5px; color:var(--muted); font-size:10px; font-weight:500; text-decoration:line-through; }
 
 /* Colour picker — model images */
 .step-divider { height: 1px; background: var(--border); margin: 16px 0; }
@@ -530,6 +533,7 @@ body {
 .btn-atc { width: 100%; padding: 20px; background: #007517; color: #fff; border: none; border-radius: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 4px; cursor: pointer; margin-bottom: 10px; transition: opacity 0.2s; }
 .btn-atc:hover { opacity: 0.88; }
 .btn-atc-sub { display: block; font-family: 'Montserrat', sans-serif; font-size: 10px; letter-spacing: 2px; opacity: 0.4; font-weight: 300; margin-top: 4px; text-transform: uppercase; }
+.btn-atc .price-was { color:rgba(255,255,255,.7); font-family:'Montserrat',sans-serif; font-size:10px; letter-spacing:.5px; }
 
 .btn-again { width: 100%; padding: 15px; background: transparent; border: 1.5px solid var(--border); border-radius: 14px; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
 .btn-again:hover { background: var(--black); color: var(--white); border-color: var(--black); }
@@ -714,11 +718,11 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
         <div class="garment-grid">
           <div class="garment-card" data-garment="tee" id="pickTee">
             <img class="garment-img" id="imgPickTee" src="" alt="Tee">
-            <div class="garment-label">Tee</div>
+            <div class="garment-label">Tee<span class="garment-price"><strong>R349</strong><span class="price-was">R450</span></span></div>
           </div>
           <div class="garment-card" data-garment="hoodie" id="pickHoodie">
             <img class="garment-img" id="imgPickHoodie" src="" alt="Hoodie">
-            <div class="garment-label">Hoodie</div>
+            <div class="garment-label">Hoodie<span class="garment-price"><strong>R399</strong><span class="price-was">R500</span></span></div>
           </div>
         </div>
         <div class="step-divider"></div>
@@ -1079,7 +1083,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     </div>
     <div class="results-mockup-label">Mockup Preview</div>
     <div class="results-mockup">See how it looks printed</div>
-    <button class="btn-atc" id="btnAddToCart" type="button">ADD TO CART — R349.00<span class="btn-atc-sub">Design + print + ship</span></button>
+    <button class="btn-atc" id="btnAddToCart" type="button">ADD TO CART — <span id="aiSalePrice">R349.00</span><span class="price-was" id="aiWasPrice">R450.00</span><span class="btn-atc-sub">Design + print + ship</span></button>
     <button class="btn-again" id="btnAgain">← Create Another</button>
   </div>
 </div>
@@ -1173,6 +1177,10 @@ const DARK_STUDIO_CACHE = [...new Set([
 
 const STEP_LABELS = ['Garment','Name','Subject','Style','Photos','Size','Review'];
 const TOTAL_STEPS = 7;
+const AI_PRICES = {
+  tee: { sale: 349, original: 450 },
+  hoodie: { sale: 399, original: 500 }
+};
 
 // ── State ──
 const S = {
@@ -1280,6 +1288,9 @@ function checkStep1() {
   document.getElementById('btnNext1').classList.toggle('ready', !!(S.garment && S.colour));
   const sizeGuide = document.querySelector('[data-unik-size-guide]');
   if (sizeGuide) sizeGuide.hidden = S.garment !== 'tee';
+  const pricing = AI_PRICES[S.garment] || AI_PRICES.tee;
+  document.getElementById('aiSalePrice').textContent = `R${pricing.sale.toFixed(2)}`;
+  document.getElementById('aiWasPrice').textContent = `R${pricing.original.toFixed(2)}`;
 }
 
 document.querySelectorAll('[data-garment]').forEach(card => {
@@ -1645,11 +1656,13 @@ document.getElementById('btnShare').addEventListener('click', async () => {
 });
 
 document.getElementById('btnAddToCart').addEventListener('click', () => {
+  const pricing = AI_PRICES[S.garment] || AI_PRICES.tee;
   UNIK_CART.add({
     source:'ai-studio',
     name:'UNIK Labs AI Design',
     meta:`${S.garment === 'hoodie' ? 'Hoodie' : 'Tee'} · ${S.colour} · ${S.size} · ${S.style.replaceAll('_',' ')}`,
-    price:349,
+    price:pricing.sale,
+    compareAtPrice:pricing.original,
     preview:previewUrl(S.style),
     options:{ garment:S.garment, colour:S.colour, size:S.size, style:S.style, name:S.name, tagline:S.tagline }
   });
