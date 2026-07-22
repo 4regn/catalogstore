@@ -42,8 +42,8 @@
             <div class="field"><label for="city">City</label><input id="city" name="city" autocomplete="address-level2" required></div>
             <div class="field"><label for="postal">Postal code</label><input id="postal" name="postal" autocomplete="postal-code" inputmode="numeric" required></div>
           </div>
-          <div class="demo-note"><strong>Prototype checkout:</strong> placing this order creates a local confirmation only. No payment is taken or transmitted.</div>
-          <button class="place-order" id="placeOrder" type="submit">Place prototype order</button>
+          <div id="checkoutError" class="demo-note" style="display:none;color:#8b2a20"></div>
+          <button class="place-order" id="placeOrder" type="submit">Pay with Yoco</button>
         </form>
       </section>
     </div>
@@ -62,6 +62,7 @@
       const totalsEl = document.getElementById('totals');
       const form = document.getElementById('checkoutForm');
       const button = document.getElementById('placeOrder');
+      const errorEl = document.getElementById('checkoutError');
       const money = n => 'R' + Number(n || 0).toFixed(2);
       const safe = value => String(value || '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
       const account = UNIK_ACCOUNT.get();
@@ -71,6 +72,9 @@
         document.getElementById('lastName').value=names.join(' ');
         document.getElementById('email').value=account.email;
       }
+
+      function showError(message){ errorEl.textContent = message; errorEl.style.display = 'block'; }
+      function clearError(){ errorEl.style.display = 'none'; errorEl.textContent = ''; }
 
       function render(){
         const items = UNIK_CART.get();
@@ -89,21 +93,88 @@
         document.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { UNIK_CART.remove(el.dataset.remove); render(); }));
       }
 
-      form.addEventListener('submit', e => {
+      form.addEventListener('submit', async e => {
         e.preventDefault();
+        clearError();
         const items = UNIK_CART.get();
         if(!items.length) return;
+        if(items.some(item => !(item.options && item.options.designId))){
+          showError("One of the items in your cart is from Custom Upload, which isn't available for checkout yet. Please remove it and use an AI Studio design instead.");
+          return;
+        }
         const data = Object.fromEntries(new FormData(form));
-        const total = items.reduce((sum,item) => sum + Number(item.price || 0), 0) + delivery;
-        const order = { id:'UL-' + Date.now().toString(36).toUpperCase(), createdAt:new Date().toISOString(), customer:data, items, total };
-        UNIK_CART.saveOrder(order);
-        UNIK_CART.clear();
-        document.getElementById('checkoutMain').style.display = 'none';
-        document.getElementById('confirmationCopy').textContent = `Thanks, ${data.firstName}. Prototype order ${order.id} has been saved on this device. Total: ${money(total)}.`;
-        document.getElementById('confirmation').classList.add('show');
-        window.scrollTo({top:0,behavior:'smooth'});
+        button.disabled = true;
+        button.textContent = 'Checking your session…';
+        try {
+          const sessionCheck = await fetch('/api/unik/auth/session', { method:'GET', credentials:'include', cache:'no-store' });
+          if (sessionCheck.status === 401) {
+            window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/checkout.html');
+            return;
+          }
+          if (!sessionCheck.ok) throw new Error('Could not verify your session. Please try again.');
+
+          button.textContent = 'Starting secure payment…';
+          const response = await fetch('/api/unik/checkout/create', {
+            method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              items: items.map(item => ({ designId: item.options.designId, qty: item.qty || 1 })),
+              customer: { firstName:data.firstName, lastName:data.lastName, email:data.email, address:data.address, city:data.city, postal:data.postal },
+              returnOrigin: window.location.origin,
+            }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.error || 'Could not start payment');
+          UNIK_CART.clear();
+          window.top.location.href = payload.redirectUrl;
+        } catch (error) {
+          showError(error.message || 'Could not start payment. Please try again.');
+          button.disabled = false;
+          button.textContent = 'Pay with Yoco';
+        }
       });
-      render();
+
+      function showPaymentResult(state, info){
+        document.getElementById('checkoutMain').style.display = 'none';
+        const confirmation = document.getElementById('confirmation');
+        confirmation.classList.add('show');
+        const copy = document.getElementById('confirmationCopy');
+        const mark = confirmation.querySelector('.confirmation-mark');
+        const heading = confirmation.querySelector('h2');
+        if (state === 'checking') {
+          mark.textContent = '…'; heading.textContent = 'Confirming your payment…';
+          copy.textContent = 'This usually takes a few seconds.';
+        } else if (state === 'paid') {
+          mark.textContent = '✓'; heading.textContent = 'Order confirmed.';
+          copy.textContent = `Thank you! Order ${info.orderNumber || ''} — ${money(info.total)} — is confirmed. We've emailed you the details.`;
+        } else {
+          mark.textContent = '…'; heading.textContent = 'Almost there.';
+          copy.textContent = "Your payment was received and is being confirmed. You'll get an email as soon as it's done.";
+        }
+        window.scrollTo({top:0,behavior:'smooth'});
+      }
+
+      async function pollOrder(id, attempt){
+        try {
+          const res = await fetch('/api/unik/orders/' + encodeURIComponent(id), { credentials:'include', cache:'no-store' });
+          if (res.ok) {
+            const info = await res.json();
+            if (info.paymentStatus === 'paid') { showPaymentResult('paid', info); return; }
+          }
+        } catch (_) {}
+        if (attempt < 8) setTimeout(() => pollOrder(id, attempt + 1), 2000);
+        else showPaymentResult('pending');
+      }
+
+      const params = new URLSearchParams(location.search);
+      const orderId = params.get('orderId');
+      if (params.get('paid') === '1' && orderId) {
+        showPaymentResult('checking');
+        pollOrder(orderId, 0);
+      } else {
+        if (params.get('cancelled') === '1') showError('Payment was cancelled. Your cart is still saved below — you can try again whenever you\'re ready.');
+        else if (params.get('failed') === '1') showError('Your payment did not go through. Your cart is still saved below — please try again.');
+        render();
+      }
     })();
   </script>
 </body>
