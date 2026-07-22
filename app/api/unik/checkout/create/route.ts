@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
 
       const { data: design, error: designInsertErr } = await admin.from("unik_designs").insert({
         seller_id: seller.id, auth_user_id: user.id, source: "custom-upload", status: "generated",
-        garment, colour, size, options: { zone },
+        name: "UNIK Labs Custom Print", garment, colour, size, options: { zone },
       }).select("id").single();
       if (designInsertErr || !design) {
         console.error("UNIK checkout: custom-upload design insert failed:", designInsertErr);
@@ -169,12 +169,32 @@ export async function POST(req: NextRequest) {
         const { error: backUploadErr } = await admin.storage.from("unik-private-designs").upload(backPath, Buffer.from(back.base64, "base64"), { contentType: `image/${back.ext}`, upsert: true });
         if (backUploadErr) console.error("UNIK checkout: back artwork upload failed:", backUploadErr);
       }
-      await admin.from("unik_designs").update({ private_artwork_path: frontPath, options: { zone, back_artwork_path: backPath } }).eq("id", design.id);
+
+      // The garment+artwork composite the customer saw while positioning
+      // it (item.preview) is the only "mockup" a custom upload has -- there's
+      // no separate AI-style watermarked-design vs garment-mockup pair, so
+      // the same public image is used for both, purely for account-page
+      // display (never the print-quality source, which stays private above).
+      let previewUrl: string | null = null;
+      const previewData = decodeDataUrl(item.preview);
+      if (previewData) {
+        const previewPath = `${seller.id}/unik-previews/${design.id}.${previewData.ext}`;
+        const { error: previewUploadErr } = await admin.storage.from("store-assets").upload(previewPath, Buffer.from(previewData.base64, "base64"), { contentType: `image/${previewData.ext}`, upsert: true });
+        if (!previewUploadErr) previewUrl = admin.storage.from("store-assets").getPublicUrl(previewPath).data.publicUrl;
+        else console.error("UNIK checkout: preview upload failed:", previewUploadErr);
+      }
+
+      await admin.from("unik_designs").update({
+        private_artwork_path: frontPath,
+        options: { zone, back_artwork_path: backPath },
+        mockup_url: previewUrl,
+        preview_url: previewUrl,
+      }).eq("id", design.id);
 
       lineItems.push({
         productId: product.id, name: product.name, price: Number(product.price), qty,
         designId: design.id, garment, colour, size, style: null,
-        image: typeof item.preview === "string" && item.preview.startsWith("data:image/") ? item.preview : null,
+        image: previewUrl,
       });
       continue;
     }

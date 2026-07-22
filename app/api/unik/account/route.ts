@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       .from("orders")
       .select("id, order_number, items, total, status, payment_status, created_at")
       .eq("seller_id", seller.id)
-      .ilike("customer_email", user.email!)
+      .eq("customer_auth_user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30),
     getAdmin()
