@@ -209,7 +209,7 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
             <div><p className="ua-kicker">{storeName} member</p><h1>Welcome, {firstName}.</h1><p>{account.profile.email}</p></div>
             <button className="ua-signout" onClick={signOut} disabled={busy}>Sign out</button>
           </div>
-          <div className="ua-allowance"><span>AI allowance</span><strong>{account.generationLimit.remaining} of 3 remaining</strong><small>Rolling 24-hour window</small></div>
+          <div className="ua-allowance"><span>AI allowance</span><strong>{account.generationLimit.remaining} of {account.generationLimit.limit} remaining</strong><small>Rolling 24-hour window</small></div>
           <div className="ua-grid">
             <section><div className="ua-section-head"><h2>Generation history</h2><span>{account.designs.length} pieces</span></div>
               <div className="ua-list">{account.designs.length ? account.designs.map((design) => <button className="ua-item" key={design.id} type="button" onClick={() => setSelectedDesign(design)}>
