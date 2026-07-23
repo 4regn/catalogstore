@@ -37,7 +37,9 @@ async function ensurePreviewBucket() {
 }
 
 export async function POST(req: NextRequest) {
-  const ipLimit = rateLimit(`unik-generation:${getClientIP(req)}`, 8, 60);
+  // Temporarily loosened from 8/60s for template testing -- lower this back
+  // down alongside UNIK_DAILY_GENERATION_LIMIT above once testing is done.
+  const ipLimit = rateLimit(`unik-generation:${getClientIP(req)}`, 60, 60);
   if (!ipLimit.allowed) return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
 
   const auth = await requireUnikCustomer(req);
