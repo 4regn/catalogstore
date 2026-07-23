@@ -10,6 +10,10 @@ export const maxDuration = 300;
 
 const PRIVATE_BUCKET = "unik-private-designs";
 const PREVIEW_BUCKET = "unik-design-previews";
+// Temporary testing cap -- must match reserve_unik_generation()'s v_limit
+// in supabase/migrations/20260723_unik_generation_limit_testing.sql.
+// Lower both back to 3 (the real product limit) once template testing is done.
+const UNIK_DAILY_GENERATION_LIMIT = 1000;
 
 async function markFailed(attemptId: string, code: string) {
   await getAdmin().from("unik_generation_attempts").update({
@@ -57,7 +61,7 @@ export async function POST(req: NextRequest) {
   if (!reservation?.attempt_id) {
     return NextResponse.json({
       error: "You have no generation slots available right now. Successful generations reset on a rolling 24-hour basis.",
-      limit: 3,
+      limit: UNIK_DAILY_GENERATION_LIMIT,
       used: reservation?.used_count || 0,
       remaining: 0,
     }, { status: 429 });
@@ -117,7 +121,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       attempt: { id: attemptId, status: "succeeded" },
       design: { id: design.id, status: design.status, previewUrl: design.preview_url, mockupUrl: design.mockup_url, createdAt: design.created_at },
-      limit: 3,
+      limit: UNIK_DAILY_GENERATION_LIMIT,
       used: Number(reservation.used_count || 0) + 1,
       remaining: Number(reservation.remaining_count || 0),
     }, { status: 201, headers: { "Cache-Control": "private, no-store" } });

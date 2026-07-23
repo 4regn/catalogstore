@@ -449,31 +449,6 @@ body {
 
 .photo-count { margin-top: 12px; font-size: 12px; color: var(--success); font-weight: 600; display: none; align-items: center; gap: 7px; }
 
-/* Numbered, labelled upload slots — used by templates that need a fixed,
-   ordered set of photos (e.g. Chrome Collage, I Love My...) instead of the
-   free-form drop zone above. */
-.photo-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.photo-slot {
-  position: relative; border: 2px dashed var(--border); border-radius: 12px;
-  padding: 14px 8px; text-align: center; cursor: pointer; transition: all 0.2s;
-  background: var(--bg); aspect-ratio: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; overflow: hidden;
-}
-.photo-slot:first-child { grid-column: 1 / -1; aspect-ratio: 16/9; }
-.photo-slot:hover { border-color: var(--black); background: var(--white); }
-.photo-slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.photo-slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.photo-slot-num { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 4px; }
-.photo-slot-label { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; color: var(--muted); line-height: 1.4; padding: 0 4px; }
-.photo-slot.filled { border-style: solid; border-color: var(--success); }
-.photo-slot.filled .photo-slot-label, .photo-slot.filled .photo-slot-num { display: none; }
-.photo-slot-rm {
-  position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; border-radius: 50%;
-  background: rgba(0,0,0,0.65); border: none; color: white; font-size: 12px; cursor: pointer;
-  display: none; align-items: center; justify-content: center; font-weight: 700; line-height: 1; z-index: 2;
-}
-.photo-slot.filled .photo-slot-rm { display: flex; }
-
 /* ── STEP 6: Size ── */
 .size-seg { display: flex; background: var(--bg); border-radius: 12px; padding: 4px; gap: 3px; border: 1px solid var(--border); }
 .size-btn { flex: 1; padding: 14px 4px; border: none; background: transparent; border-radius: 10px; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s var(--ease); color: var(--muted); -webkit-tap-highlight-color: transparent; }
@@ -956,7 +931,6 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
           <div class="upload-title">Drop photos here</div>
           <div class="upload-sub" id="uploadSub">Up to 5 photos · Same person · Best face first</div>
         </div>
-        <div class="photo-slots" id="photoSlots" style="display:none"></div>
         <div class="photo-strip" id="photoStrip"></div>
         <div class="photo-count" id="photoCount">
           <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><circle cx="8" cy="8" r="7" stroke="#16A34A" stroke-width="1.5"/><path d="M5 8l2.5 2.5L11 5.5" stroke="#16A34A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1226,14 +1200,14 @@ const TEMPLATE_CONFIG = {
   CHROME_COLLAGE: {
     textMode: 'full-name', nameLabel: 'Full name', namePlaceholder: 'Enter the full name',
     taglineVisible: false, minImages: 5, maxImages: 5,
-    photoSlotLabels: ['Central hero', 'Top-left', 'Top-right', 'Lower-left', 'Lower-right circular inset']
+    uploadHint: 'Upload exactly 5 photos at once · First photo is used as the hero image'
   },
   I_LOVE_MY: {
     textMode: 'subject-label', nameLabel: 'Who do you love?', namePlaceholder: 'Girlfriend, boyfriend, bestie, dog…',
     helperText: 'Enter only the relationship, person or pet — not the full phrase.',
     taglineVisible: false, minImages: 5, maxImages: 5,
     suggestions: ['Girlfriend', 'Boyfriend', 'Bestie', 'Dog', 'Mom', 'Dad'],
-    photoSlotLabels: ['Main hero', 'Top-left heart', 'Top-right heart', 'Lower-left heart', 'Lower-right heart']
+    uploadHint: 'Upload exactly 5 photos at once · First photo is used as the hero image'
   }
 };
 const DEFAULT_TEMPLATE_CONFIG = {
@@ -1323,7 +1297,7 @@ let savedStandardTagline = '';
 let savedSubjectLabel = '';
 
 function uploadShapeKey(cfg) {
-  return cfg.photoSlotLabels ? ('slots:' + cfg.photoSlotLabels.length) : ('free:' + cfg.minImages + '-' + cfg.maxImages);
+  return cfg.minImages + '-' + cfg.maxImages;
 }
 
 function applyStyleSelection(styleId) {
@@ -1693,16 +1667,28 @@ uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag
 uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('dragover'); handleFiles(Array.from(e.dataTransfer.files)); });
 photoInput.addEventListener('change', e => { handleFiles(Array.from(e.target.files)); e.target.value = ''; });
 
-function handleFiles(files) {
+async function handleFiles(files) {
   const max = templateConfig(S.style).maxImages || 5;
-  files.forEach(f => {
-    if (S.photos.length >= max) return;
+  // Read sequentially, not in parallel -- for multi-photo templates the
+  // first photo becomes the AI's hero image, so the order photos land in
+  // S.photos must exactly match selection order. Parallel FileReaders can
+  // finish out of order (a smaller file decodes faster than an earlier,
+  // larger one), which would silently swap which photo is treated as hero.
+  for (const f of files) {
+    if (S.photos.length >= max) break;
     const n = f.name.toLowerCase();
-    if (n.endsWith('.heic') || n.endsWith('.heif')) return;
-    const r = new FileReader();
-    r.onload = ev => { S.photos.push({ url: ev.target.result }); renderThumbs(); checkStep5(); };
-    r.readAsDataURL(f);
-  });
+    if (n.endsWith('.heic') || n.endsWith('.heif')) continue;
+    const url = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = ev => resolve(ev.target.result);
+      r.onerror = () => reject(new Error('Could not read one of your photos'));
+      r.readAsDataURL(f);
+    }).catch(() => null);
+    if (!url) continue;
+    S.photos.push({ url });
+    renderThumbs();
+    checkStep5();
+  }
 }
 
 function renderThumbs() {
@@ -1731,88 +1717,27 @@ function renderThumbs() {
 
 function checkStep5() {
   const cfg = templateConfig(S.style);
-  let ready;
-  if (cfg.photoSlotLabels) {
-    ready = cfg.photoSlotLabels.every((_, i) => !!S.photos[i]);
-  } else {
-    const count = S.photos.length;
-    const max = cfg.maxImages || 5;
-    ready = cfg.minImages === cfg.maxImages ? count === max : count > 0 && count <= max;
-  }
+  const count = S.photos.length;
+  const max = cfg.maxImages || 5;
+  const ready = cfg.minImages === cfg.maxImages ? count === max : count > 0 && count <= max;
   document.getElementById('btnNext5').classList.toggle('ready', ready);
 }
 
-// Numbered, labelled slots for templates with a fixed photo layout
-// (e.g. CHROME_COLLAGE, I_LOVE_MY) instead of the free-form drop zone.
-function renderPhotoSlots(cfg) {
-  const container = document.getElementById('photoSlots');
-  container.innerHTML = '';
-  cfg.photoSlotLabels.forEach((label, i) => {
-    const photo = S.photos[i];
-    const slot = document.createElement('div');
-    slot.className = 'photo-slot' + (photo ? ' filled' : '');
-    slot.innerHTML =
-      '<input type="file" accept="image/jpeg,image/png,image/webp" data-slot="' + i + '">' +
-      (photo ? '<img src="' + photo.url + '" alt="">' : '') +
-      '<div class="photo-slot-num">PHOTO ' + (i + 1) + '</div>' +
-      '<div class="photo-slot-label">' + label + '</div>' +
-      (photo ? '<button type="button" class="photo-slot-rm" data-slot-rm="' + i + '">×</button>' : '');
-    container.appendChild(slot);
-  });
-  container.querySelectorAll('input[data-slot]').forEach(input => {
-    input.addEventListener('change', e => {
-      const idx = parseInt(input.dataset.slot, 10);
-      const f = e.target.files[0];
-      e.target.value = '';
-      if (!f) return;
-      const n = f.name.toLowerCase();
-      if (n.endsWith('.heic') || n.endsWith('.heif')) return;
-      const r = new FileReader();
-      r.onload = ev => { S.photos[idx] = { url: ev.target.result }; renderPhotoSlots(cfg); checkStep5(); };
-      r.readAsDataURL(f);
-    });
-  });
-  container.querySelectorAll('[data-slot-rm]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      const idx = parseInt(btn.dataset.slotRm, 10);
-      S.photos[idx] = undefined;
-      renderPhotoSlots(cfg);
-      checkStep5();
-    });
-  });
-}
-
-// Switches step 5 between the free-form drop zone (original 8 styles,
-// TOON_DRIP) and the numbered labelled-slot layout (CHROME_COLLAGE,
-// I_LOVE_MY), and keeps the step's copy in sync with the selected
-// template's photo requirements.
+// All templates -- including the multi-photo collages -- share the same
+// free-form drop zone: select or drag every photo in at once (the input
+// already supports multi-select), first photo uploaded becomes the hero.
+// Only the required count and copy change per template.
 function renderPhotoUploadUI() {
   const cfg = templateConfig(S.style);
-  const uploadZone = document.getElementById('uploadZone');
-  const photoStrip = document.getElementById('photoStrip');
-  const photoCount = document.getElementById('photoCount');
-  const photoSlots = document.getElementById('photoSlots');
   const uploadSub = document.getElementById('uploadSub');
   const desc = document.getElementById('step5Desc');
-  if (cfg.photoSlotLabels) {
-    uploadZone.style.display = 'none';
-    photoStrip.style.display = 'none';
-    photoCount.style.display = 'none';
-    photoSlots.style.display = 'grid';
-    desc.textContent = 'Upload one photo for each labelled slot below.';
-    renderPhotoSlots(cfg);
-  } else {
-    photoSlots.style.display = 'none';
-    uploadZone.style.display = '';
-    photoStrip.style.display = '';
-    desc.textContent = cfg.maxImages === 1 ? 'One clear reference photo.' : 'Best face photo first. All same person. JPG or PNG only.';
-    uploadSub.textContent = cfg.minImages === cfg.maxImages
+  desc.textContent = cfg.maxImages === 1 ? 'One clear reference photo.' : 'Best face photo first. JPG or PNG only.';
+  uploadSub.textContent = cfg.uploadHint
+    ? cfg.uploadHint
+    : (cfg.minImages === cfg.maxImages
       ? ('Exactly ' + cfg.maxImages + ' photo' + (cfg.maxImages > 1 ? 's' : '') + ' · Same person')
-      : ('Up to ' + (cfg.maxImages || 5) + ' photos · Same person · Best face first');
-    renderThumbs();
-  }
+      : ('Up to ' + (cfg.maxImages || 5) + ' photos · Same person · Best face first'));
+  renderThumbs();
   checkStep5();
 }
 

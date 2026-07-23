@@ -3,6 +3,10 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { requireUnikCustomer } from "../../../../lib/unik-customer";
 
 export const dynamic = "force-dynamic";
+// Temporary testing cap -- must match reserve_unik_generation()'s v_limit
+// in supabase/migrations/20260723_unik_generation_limit_testing.sql, and
+// app/api/unik/generations/route.ts's UNIK_DAILY_GENERATION_LIMIT.
+const UNIK_DAILY_GENERATION_LIMIT = 1000;
 
 export async function GET(req: NextRequest) {
   const auth = await requireUnikCustomer(req);
@@ -88,7 +92,7 @@ export async function GET(req: NextRequest) {
     profile,
     designs,
     orders: ordersResult.data || [],
-    generationLimit: { used: usageResult.count || 0, limit: 3, remaining: Math.max(0, 3 - (usageResult.count || 0)) },
+    generationLimit: { used: usageResult.count || 0, limit: UNIK_DAILY_GENERATION_LIMIT, remaining: Math.max(0, UNIK_DAILY_GENERATION_LIMIT - (usageResult.count || 0)) },
   }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
