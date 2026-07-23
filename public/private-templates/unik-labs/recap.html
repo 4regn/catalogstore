@@ -18,7 +18,7 @@ body{
 /* ── Builder shell ── */
 .builder{max-width:1180px;margin:0 auto;padding:36px 20px 80px;}
 .builder-head{max-width:640px;margin:0 auto 34px;text-align:center;}
-.builder-logo{height:26px;width:auto;display:inline-block;margin-bottom:18px;filter:brightness(0) invert(1);}
+.builder-logo{height:30px;width:auto;display:inline-block;margin-bottom:18px;filter:drop-shadow(0 3px 10px rgba(0,0,0,.68));}
 .builder-head h1{
   font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;
   font-size:clamp(24px,4.6vw,32px);letter-spacing:.4px;margin-bottom:10px;
@@ -100,7 +100,7 @@ body{
 .story-tap-next{right:0;}
 
 .story-brand{position:absolute;top:26px;left:18px;right:18px;z-index:18;display:flex;align-items:center;gap:8px;}
-.story-brand img{height:14px;width:auto;filter:brightness(0) invert(1);opacity:.9;}
+.story-brand img{height:16px;width:auto;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));opacity:.95;}
 .story-brand span{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.75);}
 
 .story-panels{position:absolute;inset:0;}
@@ -115,37 +115,34 @@ body{
 .panel-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#C8392B);margin-bottom:14px;}
 
 /* Intro */
-.panel-intro .intro-logo{height:30px;width:auto;filter:brightness(0) invert(1);margin-bottom:16px;animation:popIn .6s ease both;}
+.panel-intro .intro-logo{height:34px;width:auto;filter:drop-shadow(0 3px 10px rgba(0,0,0,.68));margin-bottom:16px;animation:popIn .6s ease both;}
 .panel-intro h2{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:26px;line-height:1.08;letter-spacing:.3px;animation:popIn .6s ease .1s both;}
 .panel-intro p{margin-top:12px;font-size:12.5px;color:rgba(255,255,255,.55);animation:popIn .6s ease .2s both;}
 
-/* Upload */
-.upload-thumbs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;max-width:260px;margin-top:6px;}
-.upload-thumbs img{
-  width:64px;height:64px;object-fit:cover;border-radius:10px;
-  border:1.5px solid rgba(255,255,255,.18);
-  opacity:0;transform:translateY(14px) scale(.92);
-  animation:thumbIn .5s ease forwards;
-}
+/* Upload: photos pop in one at a time in a single frame, not all together */
 .panel-title{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:20px;letter-spacing:.3px;margin-bottom:4px;}
 .panel-sub{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;}
-
-/* Style select */
-.style-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;width:100%;max-width:260px;}
-.style-chip{
-  border:1.5px solid rgba(255,255,255,.14);border-radius:11px;padding:14px 8px;
-  font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.4);
-  opacity:0;animation:popIn .45s ease forwards;
+.upload-single-frame{
+  width:158px;height:198px;border-radius:16px;overflow:hidden;position:relative;
+  background:#111;border:1.5px solid rgba(255,255,255,.16);
+  box-shadow:0 16px 40px rgba(0,0,0,.5);
 }
-.style-chip.is-picked{
-  color:#fff;border-color:var(--accent,#C8392B);
-  background:color-mix(in srgb, var(--accent,#C8392B) 16%, transparent);
-  box-shadow:0 0 0 1px var(--accent,#C8392B), 0 0 26px color-mix(in srgb, var(--accent,#C8392B) 55%, transparent);
-  animation:popIn .45s ease forwards, pulseGlow 1.6s ease-in-out .5s infinite;
-}
-.style-chip-check{display:block;font-size:14px;margin-bottom:5px;color:var(--accent,#C8392B);}
+.upload-single-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;}
+@keyframes photoPop{0%{opacity:0;transform:scale(.86)}10%{opacity:1;transform:scale(1)}88%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.96)}}
 
-/* Name */
+/* Style select: a real scrolling rail of template mockups, like the site */
+.style-rail{display:flex;gap:11px;align-items:flex-end;justify-content:center;animation:railSlide 1.5s cubic-bezier(.22,.9,.28,1) both;}
+@keyframes railSlide{from{transform:translateX(96px)}to{transform:translateX(0)}}
+.style-rail-card{flex:none;width:64px;opacity:.34;transform:scale(.82);text-align:center;}
+.style-rail-frame{width:64px;height:80px;border-radius:11px;overflow:hidden;border:1.5px solid rgba(255,255,255,.14);background:#111;}
+.style-rail-frame img{width:100%;height:100%;object-fit:cover;display:block;}
+.style-rail-label{margin-top:6px;font-size:7.6px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.style-rail-card.is-picked{animation:cardPop .5s ease 1.5s both;}
+.style-rail-card.is-picked .style-rail-label{color:#fff;}
+.style-rail-card.is-picked .style-rail-frame{border-color:var(--accent,#C8392B);animation:pulseGlow 1.6s ease-in-out 2s infinite;}
+@keyframes cardPop{from{opacity:.34;transform:scale(.82)}to{opacity:1;transform:scale(1.14)}}
+
+/* Name: standard name+tagline, or the I Love My... "who do you love" lockup */
 .name-field{
   width:100%;max-width:260px;border:1.5px solid rgba(255,255,255,.2);border-radius:11px;
   padding:16px 16px;text-align:left;background:rgba(255,255,255,.03);
@@ -154,6 +151,19 @@ body{
 .name-field-value{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:19px;letter-spacing:.3px;min-height:24px;}
 .name-caret{display:inline-block;width:2px;height:16px;background:var(--accent,#C8392B);margin-left:2px;vertical-align:middle;animation:caretBlink .9s steps(1) infinite;}
 .tagline-field{margin-top:10px;font-size:12px;color:rgba(255,255,255,.55);opacity:0;animation:fadeUp .5s ease forwards;}
+
+.ilm-lockup{display:flex;flex-direction:column;align-items:center;}
+.ilm-i-love{
+  font-family:'Anton',sans-serif;font-weight:400;font-size:32px;letter-spacing:.4px;
+  background:linear-gradient(180deg,#fff,var(--accent,#FF3D8A));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 18px color-mix(in srgb, var(--accent,#FF3D8A) 55%, transparent));
+  animation:popIn .5s ease both;
+}
+.ilm-my{font-style:italic;font-family:'Inter',sans-serif;font-weight:600;font-size:15px;color:rgba(255,255,255,.8);margin:2px 0 8px;animation:popIn .5s ease .12s both;}
+.ilm-subject{
+  font-family:'Anton',sans-serif;font-weight:400;font-size:24px;text-transform:uppercase;letter-spacing:.3px;min-height:28px;
+  background:linear-gradient(180deg,#fff,var(--accent,#FF3D8A));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
 
 /* Generating */
 .spinner{width:46px;height:46px;border-radius:50%;border:3px solid rgba(255,255,255,.16);border-top-color:var(--accent,#C8392B);animation:spin 1s linear infinite;margin-bottom:20px;}
@@ -179,8 +189,19 @@ body{
   opacity:0;animation:glowBurst 1s ease .15s forwards;
 }
 
+/* This isn't "just an image generator" -- show the order actually becoming a real, shipped garment */
+.fulfil-list{display:flex;flex-direction:column;gap:14px;align-items:flex-start;width:100%;max-width:250px;}
+.fulfil-row{
+  display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#fff;text-align:left;
+  opacity:0;transform:translateY(8px);animation:popIn .5s ease forwards;
+}
+.fulfil-check{
+  width:21px;height:21px;border-radius:50%;background:var(--accent,#C8392B);color:#000;flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+}
+
 /* CTA */
-.panel-cta .intro-logo{height:28px;width:auto;filter:brightness(0) invert(1);margin-bottom:18px;animation:popIn .6s ease both;}
+.panel-cta .intro-logo{height:30px;width:auto;filter:drop-shadow(0 3px 10px rgba(0,0,0,.68));margin-bottom:18px;animation:popIn .6s ease both;}
 .cta-headline{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:24px;line-height:1.08;letter-spacing:.3px;animation:popIn .6s ease .1s both;}
 .cta-sub{margin-top:10px;font-size:12px;color:rgba(255,255,255,.55);animation:popIn .6s ease .18s both;}
 .cta-btn{
@@ -189,27 +210,41 @@ body{
   display:inline-flex;align-items:center;gap:7px;
   animation:popIn .6s ease .26s both;
 }
-.cta-domain{margin-top:14px;font-size:11px;letter-spacing:.08em;color:var(--accent,#C8392B);font-weight:700;text-transform:uppercase;animation:popIn .6s ease .34s both;}
+.cta-domain{
+  margin-top:16px;font-size:14px;letter-spacing:.09em;font-weight:800;text-transform:uppercase;
+  color:#ff2a3d;text-shadow:0 0 12px rgba(255,42,61,.9),0 0 30px rgba(255,42,61,.55),0 0 60px rgba(255,42,61,.3);
+  animation:popIn .6s ease .34s both, domainPulse 1.8s ease-in-out 1s infinite;
+}
 
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes popIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes thumbIn{to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes caretBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
 @keyframes capCycle{0%,4%{opacity:0;transform:translateY(6px)}10%,28%{opacity:1;transform:translateY(0)}34%,100%{opacity:0;transform:translateY(-6px)}}
 @keyframes genFill{from{width:0%}to{width:100%}}
 @keyframes revealIn{to{opacity:1;transform:scale(1)}}
 @keyframes glowBurst{0%{opacity:.9}100%{opacity:0}}
 @keyframes pulseGlow{0%,100%{box-shadow:0 0 0 1px var(--accent,#C8392B),0 0 20px color-mix(in srgb, var(--accent,#C8392B) 45%, transparent)}50%{box-shadow:0 0 0 1px var(--accent,#C8392B),0 0 34px color-mix(in srgb, var(--accent,#C8392B) 70%, transparent)}}
+@keyframes domainPulse{0%,100%{text-shadow:0 0 12px rgba(255,42,61,.9),0 0 30px rgba(255,42,61,.55),0 0 60px rgba(255,42,61,.3)}50%{text-shadow:0 0 16px rgba(255,42,61,1),0 0 42px rgba(255,42,61,.75),0 0 80px rgba(255,42,61,.45)}}
 
-.stage-controls{display:flex;gap:10px;}
+.stage-controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
 .stage-controls button{
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;
   border-radius:100px;padding:9px 16px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
   transition:background .2s;
 }
 .stage-controls button:hover{background:rgba(255,255,255,.16);}
+.stage-controls button:disabled{opacity:.4;cursor:wait;}
+#btnExport{background:#fff;color:#000;border-color:#fff;}
+#btnExport:hover{background:#eee;}
 .stage-hint{max-width:340px;text-align:center;font-size:11px;line-height:1.55;color:rgba(255,255,255,.4);}
+
+/* Export mode: isolate the stage full-viewport for a clean screen recording */
+body.is-exporting .builder-head,body.is-exporting .builder-form,body.is-exporting .stage-hint{display:none!important;}
+body.is-exporting .builder{padding:0;max-width:none;}
+body.is-exporting .builder-grid{display:block;}
+body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24px;}
+body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
 </style>
 </head>
 <body>
@@ -217,16 +252,16 @@ body{
 <header class="builder-head">
 <img alt="UNIK Labs" class="builder-logo" src="assets/unik-logo-v3-header.png"/>
 <h1>Recap Builder</h1>
-<p>Turn one finished generation into a shareable 9:16 story — matching the studio UI — that walks through the photos, the style, the name, the AI reveal and the mockup. Fill in the form, hit Create, then screen-record the preview for Reels, TikTok or Stories.</p>
+<p>Turn one finished generation into a shareable 9:16 story — matching the studio UI — that walks through the photos, the style, the name, the AI reveal, the mockup and the order itself. Fill in the form, hit Create, then export a video or screen-record the preview for Reels, TikTok or Stories.</p>
 </header>
 
 <div class="builder-grid">
 <form class="builder-form" id="builderForm">
-<label class="field">
-<span>Name on the design</span>
+<label class="field" id="taglineField">
+<span id="nameFieldLabel">Name on the design</span>
 <input autocomplete="off" id="fName" maxlength="80" placeholder="e.g. Londeka Mpanza" type="text"/>
 </label>
-<label class="field">
+<label class="field" id="taglineFieldWrap">
 <span>Tagline (optional)</span>
 <input autocomplete="off" id="fTagline" maxlength="100" placeholder="e.g. EST. 2026" type="text"/>
 </label>
@@ -267,8 +302,9 @@ body{
 <div class="stage-controls" hidden="" id="stageControls">
 <button id="btnPlayPause" type="button">Pause</button>
 <button id="btnReplay" type="button">Replay</button>
+<button id="btnExport" type="button">Export video</button>
 </div>
-<p class="stage-hint">Tap the left/right edge of the preview to step back or forward, like a Story. Space bar pauses on desktop. Recommended recording size: crop to this frame, or open it full-screen on your phone.</p>
+<p class="stage-hint">Tap the left/right edge of the preview to step back or forward, like a Story. Space bar pauses on desktop. <strong>Export video</strong> asks you to share this tab, then records the whole story to a downloadable file automatically.</p>
 </div>
 </div>
 </div>
@@ -278,18 +314,20 @@ body{
   'use strict';
 
   var STYLE_META = [
-    { id: 'TOUR_POSTER', name: 'Tour Poster', accent: '#C8392B' },
-    { id: 'BOOTLEG', name: 'Bootleg', accent: '#1E90FF' },
-    { id: 'EDITORIAL', name: 'Editorial', accent: '#D8B34A' },
-    { id: 'CHROME', name: 'Chrome', accent: '#B33A3A' },
-    { id: 'GIANT_FACE', name: 'Giant Face', accent: '#D98A3D' },
-    { id: 'BLING_ERA', name: 'Bling Era', accent: '#D4AF37' },
-    { id: 'PAPER_CUT', name: 'Paper Cut', accent: '#C6FF00' },
-    { id: 'VTG_BOOTLEG', name: 'Vintage Bootleg', accent: '#B08D57' },
-    { id: 'TOON_DRIP', name: 'Toon Drip', accent: '#33D6FF' },
-    { id: 'CHROME_COLLAGE', name: 'Chrome Collage', accent: '#1E90FF' },
-    { id: 'I_LOVE_MY', name: 'I Love My...', accent: '#FF3D8A' }
+    { id: 'TOUR_POSTER', name: 'Tour Poster', accent: '#C8392B', preview: 'assets/dark-studio/tee-black-tour-poster.jpg' },
+    { id: 'BOOTLEG', name: 'Bootleg', accent: '#1E90FF', preview: 'assets/dark-studio/hoodie-white-bootleg.jpg' },
+    { id: 'EDITORIAL', name: 'Editorial', accent: '#D8B34A', preview: 'assets/dark-studio/tee-white-editorial.jpg' },
+    { id: 'CHROME', name: 'Chrome', accent: '#B33A3A', preview: 'assets/dark-studio/hoodie-black-chrome.jpg' },
+    { id: 'GIANT_FACE', name: 'Giant Face', accent: '#D98A3D', preview: 'assets/dark-studio/tee-black-giant-face.jpg' },
+    { id: 'BLING_ERA', name: 'Bling Era', accent: '#D4AF37', preview: 'assets/dark-studio/hoodie-white-bling-era.jpg' },
+    { id: 'PAPER_CUT', name: 'Paper Cut', accent: '#C6FF00', preview: 'assets/dark-studio/tee-white-paper-cut.jpg' },
+    { id: 'VTG_BOOTLEG', name: 'Vintage Bootleg', accent: '#B08D57', preview: 'assets/dark-studio/hoodie-black-vtg-bootleg.jpg' },
+    { id: 'TOON_DRIP', name: 'Toon Drip', accent: '#33D6FF', preview: 'assets/dark-studio/tee-black-toon-drip.jpg' },
+    { id: 'CHROME_COLLAGE', name: 'Chrome Collage', accent: '#1E90FF', preview: 'assets/dark-studio/hoodie-white-chrome-collage.jpg' },
+    { id: 'I_LOVE_MY', name: 'I Love My...', accent: '#FF3D8A', preview: 'assets/dark-studio/tee-white-i-love-my.jpg' }
   ];
+  var PER_PHOTO_MS = 750;
+  var EXPORT_CTA_HOLD_MS = 3000;
 
   var styleSelect = document.getElementById('fStyle');
   STYLE_META.forEach(function (s) {
@@ -312,14 +350,35 @@ body{
     });
   }
 
+  // Mirrors lib/unik-generation.ts's cleanSubjectLabel: I Love My...'s field is
+  // a relationship label ("my girlfriend"), not a name, so the leading
+  // "I love my" / "my" gets stripped the same way before it reaches the story.
+  function cleanSubjectLabel(raw) {
+    return String(raw || '').trim().replace(/\s+/g, ' ')
+      .replace(/^i\s+love\s+my\s+/i, '').replace(/^my\s+/i, '').trim();
+  }
+
+  var nameFieldLabel = document.getElementById('nameFieldLabel');
   var nameInp = document.getElementById('fName');
   var taglineInp = document.getElementById('fTagline');
+  var taglineFieldWrap = document.getElementById('taglineFieldWrap');
   var photosInp = document.getElementById('fPhotos');
   var designInp = document.getElementById('fDesign');
   var mockupInp = document.getElementById('fMockup');
   var btnCreate = document.getElementById('btnCreate');
 
   var picked = { photos: [], design: null, mockup: null };
+
+  // I Love My... has no name or tagline -- just who the piece is for. Every
+  // other template keeps the standard name + optional tagline fields.
+  function syncFormForStyle() {
+    var isLoveMy = styleSelect.value === 'I_LOVE_MY';
+    nameFieldLabel.textContent = isLoveMy ? 'Who do you love?' : 'Name on the design';
+    nameInp.placeholder = isLoveMy ? 'e.g. Girlfriend, My Dog, Best Friend' : 'e.g. Londeka Mpanza';
+    taglineFieldWrap.hidden = isLoveMy;
+  }
+  styleSelect.addEventListener('change', syncFormForStyle);
+  syncFormForStyle();
 
   photosInp.addEventListener('change', function () {
     picked.photos = Array.from(photosInp.files || []).slice(0, 5);
@@ -350,20 +409,26 @@ body{
   var stageControls = document.getElementById('stageControls');
   var btnPlayPause = document.getElementById('btnPlayPause');
   var btnReplay = document.getElementById('btnReplay');
+  var btnExport = document.getElementById('btnExport');
   var tapPrev = document.getElementById('tapPrev');
   var tapNext = document.getElementById('tapNext');
 
-  var STEP_DEFS = [
-    { key: 'intro', ms: 2200 },
-    { key: 'upload', ms: 2800 },
-    { key: 'style', ms: 2600 },
-    { key: 'name', ms: 2800 },
-    { key: 'generating', ms: 3200 },
-    { key: 'design', ms: 3400 },
-    { key: 'mockup', ms: 3400 },
-    { key: 'cta', ms: null } // holds indefinitely
-  ];
+  function buildSteps(data) {
+    var uploadMs = Math.max(PER_PHOTO_MS, data.photos.length * PER_PHOTO_MS);
+    return [
+      { key: 'intro', ms: 2200 },
+      { key: 'upload', ms: uploadMs },
+      { key: 'style', ms: 3600 },
+      { key: 'name', ms: 2800 },
+      { key: 'generating', ms: 3200 },
+      { key: 'design', ms: 3400 },
+      { key: 'mockup', ms: 3400 },
+      { key: 'fulfilment', ms: 3800 },
+      { key: 'cta', ms: null } // holds indefinitely during normal playback
+    ];
+  }
 
+  var currentSteps = [];
   var panels = [];
   var segFills = [];
   var index = 0;
@@ -385,39 +450,55 @@ body{
     }
 
     if (key === 'upload') {
-      var thumbsHtml = data.photos.map(function (url, i) {
-        return '<img src="' + url + '" style="animation-delay:' + (i * 0.14) + 's">';
+      var imgsHtml = data.photos.map(function (url, i) {
+        return '<img src="' + url + '" style="animation:photoPop ' + PER_PHOTO_MS + 'ms ease ' + (i * PER_PHOTO_MS) + 'ms 1 both">';
       }).join('');
       el.innerHTML =
         '<span class="panel-eyebrow">Step 01 &mdash; Your photos</span>' +
         '<div class="panel-title">Upload</div>' +
         '<div class="panel-sub">' + data.photos.length + ' reference photo' + (data.photos.length === 1 ? '' : 's') + '</div>' +
-        '<div class="upload-thumbs">' + thumbsHtml + '</div>';
+        '<div class="upload-single-frame">' + imgsHtml + '</div>';
     }
 
     if (key === 'style') {
-      var others = STYLE_META.filter(function (s) { return s.id !== data.styleId; }).slice(0, 3);
-      var chips = others.slice(0, 1).concat([data.styleMeta]).concat(others.slice(1, 3));
-      var chipsHtml = chips.map(function (s, i) {
-        var picked = s.id === data.styleId;
-        return '<div class="style-chip' + (picked ? ' is-picked' : '') + '" style="animation-delay:' + (i * 0.1) + 's">' +
-          (picked ? '<span class="style-chip-check">&#10003;</span>' : '') + s.name + '</div>';
+      // A real scrolling rail of template mockups -- 2 before, the picked
+      // one, 2 after -- like the site's own style picker, not a static grid.
+      var idx = STYLE_META.findIndex(function (s) { return s.id === data.styleId; });
+      var n = STYLE_META.length;
+      var neighbourIdxs = [idx - 2, idx - 1, idx, idx + 1, idx + 2].map(function (k) { return ((k % n) + n) % n; });
+      var cardsHtml = neighbourIdxs.map(function (k) {
+        var s = STYLE_META[k];
+        var isPicked = s.id === data.styleId;
+        return '<div class="style-rail-card' + (isPicked ? ' is-picked' : '') + '">' +
+          '<div class="style-rail-frame"><img src="' + s.preview + '" alt="" loading="eager"></div>' +
+          '<div class="style-rail-label">' + s.name + '</div>' +
+        '</div>';
       }).join('');
       el.innerHTML =
         '<span class="panel-eyebrow">Step 02 &mdash; Pick your style</span>' +
         '<div class="panel-title">' + data.styleMeta.name + '</div>' +
         '<div class="panel-sub">Selected</div>' +
-        '<div class="style-grid">' + chipsHtml + '</div>';
+        '<div class="style-rail">' + cardsHtml + '</div>';
     }
 
     if (key === 'name') {
-      el.innerHTML =
-        '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
-        '<div class="name-field">' +
-          '<div class="name-field-label">Name</div>' +
-          '<div class="name-field-value" id="typeTarget"><span class="name-caret"></span></div>' +
-          (data.tagline ? '<div class="tagline-field">"' + data.tagline + '"</div>' : '') +
-        '</div>';
+      if (data.styleId === 'I_LOVE_MY') {
+        el.innerHTML =
+          '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
+          '<div class="ilm-lockup">' +
+            '<div class="ilm-i-love">I LOVE</div>' +
+            '<div class="ilm-my">My</div>' +
+            '<div class="ilm-subject" id="typeTarget"><span class="name-caret"></span></div>' +
+          '</div>';
+      } else {
+        el.innerHTML =
+          '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
+          '<div class="name-field">' +
+            '<div class="name-field-label">Name</div>' +
+            '<div class="name-field-value" id="typeTarget"><span class="name-caret"></span></div>' +
+            (data.tagline ? '<div class="tagline-field">"' + data.tagline + '"</div>' : '') +
+          '</div>';
+      }
     }
 
     if (key === 'generating') {
@@ -448,6 +529,18 @@ body{
         '<div class="reveal-frame"><img src="' + data.mockup + '" alt=""></div>';
     }
 
+    if (key === 'fulfilment') {
+      el.innerHTML =
+        '<span class="panel-eyebrow">What happens next</span>' +
+        '<div class="panel-title">Real garment.<br>Really shipped.</div>' +
+        '<div class="panel-sub">&nbsp;</div>' +
+        '<div class="fulfil-list">' +
+          '<div class="fulfil-row" style="animation-delay:.1s"><span class="fulfil-check">&#10003;</span>Design generated</div>' +
+          '<div class="fulfil-row" style="animation-delay:1.3s"><span class="fulfil-check">&#10003;</span>We print &amp; quality-check your order</div>' +
+          '<div class="fulfil-row" style="animation-delay:2.5s"><span class="fulfil-check">&#10003;</span>Your order is on the way</div>' +
+        '</div>';
+    }
+
     if (key === 'cta') {
       el.innerHTML =
         '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
@@ -466,7 +559,7 @@ body{
     segFills = [];
     panels = [];
 
-    STEP_DEFS.forEach(function () {
+    currentSteps.forEach(function () {
       var seg = document.createElement('div');
       seg.className = 'seg';
       var fill = document.createElement('div');
@@ -476,7 +569,7 @@ body{
       segFills.push(fill);
     });
 
-    STEP_DEFS.forEach(function (step) {
+    currentSteps.forEach(function (step) {
       var panel = buildPanel(step.key, data);
       storyPanels.appendChild(panel);
       panels.push(panel);
@@ -528,15 +621,18 @@ body{
 
   function goTo(i, data) {
     if (i < 0) i = 0;
-    if (i >= STEP_DEFS.length) i = STEP_DEFS.length - 1;
+    if (i >= currentSteps.length) i = currentSteps.length - 1;
     clearTimeout(stepTimer);
     index = i;
     panels.forEach(function (p, j) { p.classList.toggle('is-active', j === i); });
     setSegState(i);
-    var step = STEP_DEFS[i];
+    var step = currentSteps[i];
     activateSeg(i, step.ms);
 
-    if (step.key === 'name' && data) typewrite((data.name || '').toUpperCase());
+    if (step.key === 'name' && data) {
+      var typed = data.styleId === 'I_LOVE_MY' ? cleanSubjectLabel(data.name) : data.name;
+      typewrite((typed || '').toUpperCase());
+    }
 
     if (step.ms) {
       currentStepMs = step.ms;
@@ -571,15 +667,17 @@ body{
 
   btnCreate.addEventListener('click', function () {
     var styleMeta = STYLE_META.find(function (s) { return s.id === styleSelect.value; }) || STYLE_META[0];
+    var isLoveMy = styleMeta.id === 'I_LOVE_MY';
     currentData = {
-      name: nameInp.value.trim(),
-      tagline: taglineInp.value.trim(),
+      name: isLoveMy ? cleanSubjectLabel(nameInp.value) : nameInp.value.trim(),
+      tagline: isLoveMy ? '' : taglineInp.value.trim(),
       styleId: styleMeta.id,
       styleMeta: styleMeta,
       photos: picked.photos.map(function (f) { return URL.createObjectURL(f); }),
       design: URL.createObjectURL(picked.design),
       mockup: URL.createObjectURL(picked.mockup)
     };
+    currentSteps = buildSteps(currentData);
     stageEmpty.style.display = 'none';
     stage.classList.add('is-live');
     stageControls.hidden = false;
@@ -607,6 +705,72 @@ body{
     if (e.code === 'Space') { e.preventDefault(); if (paused) resume(currentData); else pause(); }
     if (e.code === 'ArrowRight') goTo(index + 1, currentData);
     if (e.code === 'ArrowLeft') goTo(index - 1, currentData);
+  });
+
+  // ── Export to an actual video file ──
+  // No canvas re-render involved: this asks the browser to share/record this
+  // very tab (the only way to turn a real DOM+CSS animation into a video
+  // file without a backend), isolates the stage full-viewport for a clean
+  // capture, replays the story once end-to-end, then auto-stops and
+  // downloads it. The browser's own "share this tab" permission prompt is
+  // unavoidable -- there's no way around it from a webpage.
+  btnExport.addEventListener('click', function () {
+    if (!currentData) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      alert('Video export needs screen-recording support, which this browser doesn\'t offer. Use Chrome, Edge or Firefox on desktop, or just screen-record the preview manually.');
+      return;
+    }
+
+    navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false }).then(function (stream) {
+      var mimeType = ['video/mp4;codecs=h264', 'video/webm;codecs=vp9', 'video/webm']
+        .find(function (t) { return window.MediaRecorder && MediaRecorder.isTypeSupported(t); }) || '';
+      var recorder;
+      try {
+        recorder = new MediaRecorder(stream, mimeType ? { mimeType: mimeType } : undefined);
+      } catch (err) {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        alert('Could not start recording: ' + err.message);
+        return;
+      }
+
+      var chunks = [];
+      recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      recorder.onstop = function () {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        document.body.classList.remove('is-exporting');
+        btnExport.disabled = false;
+        btnExport.textContent = 'Export video';
+        if (!chunks.length) return;
+        var blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+        var url = URL.createObjectURL(blob);
+        var ext = mimeType.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'unik-recap.' + ext;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      };
+
+      document.body.classList.add('is-exporting');
+      btnExport.disabled = true;
+      btnExport.textContent = 'Recording…';
+      paused = false;
+      stage.classList.remove('is-paused');
+      btnPlayPause.textContent = 'Pause';
+
+      recorder.start();
+      goTo(0, currentData);
+
+      var totalMs = currentSteps.reduce(function (sum, s) { return sum + (s.ms || EXPORT_CTA_HOLD_MS); }, 0);
+      setTimeout(function () { if (recorder.state !== 'inactive') recorder.stop(); }, totalMs);
+      stream.getVideoTracks()[0].addEventListener('ended', function () {
+        if (recorder.state !== 'inactive') recorder.stop();
+      });
+    }).catch(function () {
+      // User dismissed the "share this tab" picker -- nothing to clean up.
+    });
   });
 })();
 </script>
