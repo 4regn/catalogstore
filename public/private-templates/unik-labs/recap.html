@@ -119,28 +119,40 @@ body{
 .panel-intro h2{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:26px;line-height:1.08;letter-spacing:.3px;animation:popIn .6s ease .1s both;}
 .panel-intro p{margin-top:12px;font-size:12.5px;color:rgba(255,255,255,.55);animation:popIn .6s ease .2s both;}
 
-/* Upload: photos pop in one at a time in a single frame, not all together */
+/* Upload: photos line up together and pop in one at a time, staying visible */
 .panel-title{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:20px;letter-spacing:.3px;margin-bottom:4px;}
 .panel-sub{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;}
-.upload-single-frame{
-  width:158px;height:198px;border-radius:16px;overflow:hidden;position:relative;
-  background:#111;border:1.5px solid rgba(255,255,255,.16);
-  box-shadow:0 16px 40px rgba(0,0,0,.5);
+.upload-thumbs{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;max-width:290px;}
+.upload-thumbs img{
+  width:54px;height:54px;object-fit:cover;border-radius:12px;
+  border:1.5px solid rgba(255,255,255,.18);box-shadow:0 8px 20px rgba(0,0,0,.45);
+  opacity:0;transform:translateY(16px) scale(.85);
+  animation:thumbIn .5s cubic-bezier(.2,.9,.25,1) forwards;
 }
-.upload-single-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;}
-@keyframes photoPop{0%{opacity:0;transform:scale(.86)}10%{opacity:1;transform:scale(1)}88%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.96)}}
+@keyframes thumbIn{to{opacity:1;transform:translateY(0) scale(1)}}
 
-/* Style select: a real scrolling rail of template mockups, like the site */
-.style-rail{display:flex;gap:11px;align-items:flex-end;justify-content:center;animation:railSlide 1.5s cubic-bezier(.22,.9,.28,1) both;}
-@keyframes railSlide{from{transform:translateX(96px)}to{transform:translateX(0)}}
-.style-rail-card{flex:none;width:64px;opacity:.34;transform:scale(.82);text-align:center;}
-.style-rail-frame{width:64px;height:80px;border-radius:11px;overflow:hidden;border:1.5px solid rgba(255,255,255,.14);background:#111;}
-.style-rail-frame img{width:100%;height:100%;object-fit:cover;display:block;}
-.style-rail-label{margin-top:6px;font-size:7.6px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.style-rail-card.is-picked{animation:cardPop .5s ease 1.5s both;}
-.style-rail-card.is-picked .style-rail-label{color:#fff;}
-.style-rail-card.is-picked .style-rail-frame{border-color:var(--accent,#C8392B);animation:pulseGlow 1.6s ease-in-out 2s infinite;}
-@keyframes cardPop{from{opacity:.34;transform:scale(.82)}to{opacity:1;transform:scale(1.14)}}
+/* Style select: a small grid of real mockups with a fake cursor that moves
+   over and clicks the picked one, mirroring how a customer actually taps a
+   style card on the site, instead of an ambient auto-scroll. */
+.style-pick-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;width:100%;max-width:230px;position:relative;}
+.style-pick-card{opacity:0;transform:scale(.9);animation:popIn .4s ease forwards;text-align:center;}
+.style-pick-card:nth-child(1){animation-delay:.04s;}
+.style-pick-card:nth-child(2){animation-delay:.11s;}
+.style-pick-card:nth-child(3){animation-delay:.18s;}
+.style-pick-card:nth-child(4){animation-delay:.25s;}
+.style-pick-frame{width:100%;aspect-ratio:4/5;border-radius:13px;overflow:hidden;border:1.5px solid rgba(255,255,255,.16);background:#111;transition:border-color .18s,box-shadow .18s;}
+.style-pick-frame img{width:100%;height:100%;object-fit:cover;display:block;}
+.style-pick-label{margin-top:6px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.55);}
+.style-pick-card.is-selected .style-pick-frame{border-color:var(--accent,#C8392B);box-shadow:0 0 0 1px var(--accent,#C8392B),0 0 24px color-mix(in srgb, var(--accent,#C8392B) 60%, transparent);}
+.style-pick-card.is-selected .style-pick-label{color:#fff;}
+
+.fake-cursor{position:absolute;left:0;top:0;width:26px;height:26px;pointer-events:none;z-index:30;opacity:0;}
+.fake-cursor svg{display:block;filter:drop-shadow(0 3px 6px rgba(0,0,0,.55));}
+.fake-cursor.is-clicking svg{animation:cursorClick .28s ease;}
+.cursor-ripple{position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:50%;border:2px solid var(--accent,#C8392B);opacity:0;}
+.fake-cursor.is-clicking .cursor-ripple{animation:cursorRipple .5s ease-out;}
+@keyframes cursorClick{0%{transform:scale(1)}40%{transform:scale(.78)}100%{transform:scale(1)}}
+@keyframes cursorRipple{0%{opacity:.9;transform:scale(.3)}100%{opacity:0;transform:scale(1.9)}}
 
 /* Name: standard name+tagline, or the I Love My... "who do you love" lockup */
 .name-field{
@@ -189,15 +201,19 @@ body{
   opacity:0;animation:glowBurst 1s ease .15s forwards;
 }
 
-/* This isn't "just an image generator" -- show the order actually becoming a real, shipped garment */
+/* This isn't "just an image generator" -- show the order actually being
+   fulfilled. This is a status/success readout, not artwork, so it's a
+   fixed green regardless of which template's accent colour is active. */
 .fulfil-list{display:flex;flex-direction:column;gap:14px;align-items:flex-start;width:100%;max-width:250px;}
+.panel-fulfilment .panel-eyebrow,.panel-fulfilment .panel-title{color:#22d46b;}
 .fulfil-row{
-  display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#fff;text-align:left;
+  display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#22d46b;text-align:left;
   opacity:0;transform:translateY(8px);animation:popIn .5s ease forwards;
 }
 .fulfil-check{
-  width:21px;height:21px;border-radius:50%;background:var(--accent,#C8392B);color:#000;flex:none;
+  width:21px;height:21px;border-radius:50%;background:#22d46b;color:#04160b;flex:none;
   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+  box-shadow:0 0 14px rgba(34,212,107,.55);
 }
 
 /* CTA */
@@ -224,7 +240,6 @@ body{
 @keyframes genFill{from{width:0%}to{width:100%}}
 @keyframes revealIn{to{opacity:1;transform:scale(1)}}
 @keyframes glowBurst{0%{opacity:.9}100%{opacity:0}}
-@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 1px var(--accent,#C8392B),0 0 20px color-mix(in srgb, var(--accent,#C8392B) 45%, transparent)}50%{box-shadow:0 0 0 1px var(--accent,#C8392B),0 0 34px color-mix(in srgb, var(--accent,#C8392B) 70%, transparent)}}
 @keyframes domainPulse{0%,100%{text-shadow:0 0 12px rgba(255,42,61,.9),0 0 30px rgba(255,42,61,.55),0 0 60px rgba(255,42,61,.3)}50%{text-shadow:0 0 16px rgba(255,42,61,1),0 0 42px rgba(255,42,61,.75),0 0 80px rgba(255,42,61,.45)}}
 
 .stage-controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
@@ -304,7 +319,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
 <button id="btnReplay" type="button">Replay</button>
 <button id="btnExport" type="button">Export video</button>
 </div>
-<p class="stage-hint">Tap the left/right edge of the preview to step back or forward, like a Story. Space bar pauses on desktop. <strong>Export video</strong> asks you to share this tab, then records the whole story to a downloadable file automatically.</p>
+<p class="stage-hint">Tap the left/right edge of the preview to step back or forward, like a Story. Space bar pauses on desktop. <strong>Export video</strong> works on laptop/desktop browsers only — phone browsers can't record a tab, so there you'll get instructions to use your phone's own screen recorder instead.</p>
 </div>
 </div>
 </div>
@@ -326,7 +341,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     { id: 'CHROME_COLLAGE', name: 'Chrome Collage', accent: '#1E90FF', preview: 'assets/dark-studio/hoodie-white-chrome-collage.jpg' },
     { id: 'I_LOVE_MY', name: 'I Love My...', accent: '#FF3D8A', preview: 'assets/dark-studio/tee-white-i-love-my.jpg' }
   ];
-  var PER_PHOTO_MS = 750;
+  var PHOTO_STAGGER_MS = 380;
   var EXPORT_CTA_HOLD_MS = 3000;
 
   var styleSelect = document.getElementById('fStyle');
@@ -414,11 +429,11 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
   var tapNext = document.getElementById('tapNext');
 
   function buildSteps(data) {
-    var uploadMs = Math.max(PER_PHOTO_MS, data.photos.length * PER_PHOTO_MS);
+    var uploadMs = data.photos.length * PHOTO_STAGGER_MS + 1100;
     return [
       { key: 'intro', ms: 2200 },
       { key: 'upload', ms: uploadMs },
-      { key: 'style', ms: 3600 },
+      { key: 'style', ms: 2400 },
       { key: 'name', ms: 2800 },
       { key: 'generating', ms: 3200 },
       { key: 'design', ms: 3400 },
@@ -437,73 +452,79 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
   var stepStart = 0;
   var stepRemaining = 0;
   var currentStepMs = 0;
+  var cursorTimerA = null;
+  var cursorTimerB = null;
 
-  function buildPanel(key, data) {
-    var el = document.createElement('div');
-    el.className = 'panel panel-' + key;
-
+  // Every panel's inner content is (re)built the instant it becomes active --
+  // not once up front at "Create recap" time -- so its pop-in/typewriter/
+  // cursor animations always start fresh relative to when it's actually
+  // shown. Building everything up front meant short animations (like each
+  // photo popping in) had often already finished playing, invisibly, behind
+  // an earlier panel by the time their own panel appeared -- and Replay
+  // never restarted them at all, since a CSS animation that already
+  // finished doesn't replay just because its parent becomes visible again.
+  function panelHtml(key, data) {
     if (key === 'intro') {
-      el.innerHTML =
-        '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
+      return '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
         '<h2>Your photos.<br>Your own design.</h2>' +
         '<p>Here’s how it came together —</p>';
     }
 
     if (key === 'upload') {
       var imgsHtml = data.photos.map(function (url, i) {
-        return '<img src="' + url + '" style="animation:photoPop ' + PER_PHOTO_MS + 'ms ease ' + (i * PER_PHOTO_MS) + 'ms 1 both">';
+        return '<img src="' + url + '" style="animation-delay:' + (i * PHOTO_STAGGER_MS) + 'ms">';
       }).join('');
-      el.innerHTML =
-        '<span class="panel-eyebrow">Step 01 &mdash; Your photos</span>' +
+      return '<span class="panel-eyebrow">Step 01 &mdash; Your photos</span>' +
         '<div class="panel-title">Upload</div>' +
         '<div class="panel-sub">' + data.photos.length + ' reference photo' + (data.photos.length === 1 ? '' : 's') + '</div>' +
-        '<div class="upload-single-frame">' + imgsHtml + '</div>';
+        '<div class="upload-thumbs">' + imgsHtml + '</div>';
     }
 
     if (key === 'style') {
-      // A real scrolling rail of template mockups -- 2 before, the picked
-      // one, 2 after -- like the site's own style picker, not a static grid.
+      // A small grid of real mockups. The picked one's grid position rotates
+      // with the style index so it isn't always the same corner, and a fake
+      // cursor animates over to it and "clicks" it (see runStyleCursor).
       var idx = STYLE_META.findIndex(function (s) { return s.id === data.styleId; });
       var n = STYLE_META.length;
-      var neighbourIdxs = [idx - 2, idx - 1, idx, idx + 1, idx + 2].map(function (k) { return ((k % n) + n) % n; });
-      var cardsHtml = neighbourIdxs.map(function (k) {
-        var s = STYLE_META[k];
+      var slot = idx % 4;
+      var others = [];
+      for (var k = 1; others.length < 3; k++) others.push(STYLE_META[(idx + k) % n]);
+      var grid = [null, null, null, null];
+      grid[slot] = data.styleMeta;
+      var oi = 0;
+      for (var g = 0; g < 4; g++) if (g !== slot) grid[g] = others[oi++];
+      var cardsHtml = grid.map(function (s) {
         var isPicked = s.id === data.styleId;
-        return '<div class="style-rail-card' + (isPicked ? ' is-picked' : '') + '">' +
-          '<div class="style-rail-frame"><img src="' + s.preview + '" alt="" loading="eager"></div>' +
-          '<div class="style-rail-label">' + s.name + '</div>' +
+        return '<div class="style-pick-card" data-picked="' + isPicked + '">' +
+          '<div class="style-pick-frame"><img src="' + s.preview + '" alt=""></div>' +
+          '<div class="style-pick-label">' + s.name + '</div>' +
         '</div>';
       }).join('');
-      el.innerHTML =
-        '<span class="panel-eyebrow">Step 02 &mdash; Pick your style</span>' +
-        '<div class="panel-title">' + data.styleMeta.name + '</div>' +
-        '<div class="panel-sub">Selected</div>' +
-        '<div class="style-rail">' + cardsHtml + '</div>';
+      return '<span class="panel-eyebrow">Step 02 &mdash; Pick your style</span>' +
+        '<div class="style-pick-grid" id="stylePickGrid">' + cardsHtml +
+          '<div class="fake-cursor" id="fakeCursor"><svg viewbox="0 0 24 24" width="26" height="26"><path d="M4 2 L4 20 L9 15 L12.5 21.5 L15 20.2 L11.5 14 L18 14 Z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"></path></svg><span class="cursor-ripple"></span></div>' +
+        '</div>';
     }
 
     if (key === 'name') {
       if (data.styleId === 'I_LOVE_MY') {
-        el.innerHTML =
-          '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
+        return '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
           '<div class="ilm-lockup">' +
             '<div class="ilm-i-love">I LOVE</div>' +
             '<div class="ilm-my">My</div>' +
             '<div class="ilm-subject" id="typeTarget"><span class="name-caret"></span></div>' +
           '</div>';
-      } else {
-        el.innerHTML =
-          '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
-          '<div class="name-field">' +
-            '<div class="name-field-label">Name</div>' +
-            '<div class="name-field-value" id="typeTarget"><span class="name-caret"></span></div>' +
-            (data.tagline ? '<div class="tagline-field">"' + data.tagline + '"</div>' : '') +
-          '</div>';
       }
+      return '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
+        '<div class="name-field">' +
+          '<div class="name-field-label">Name</div>' +
+          '<div class="name-field-value" id="typeTarget"><span class="name-caret"></span></div>' +
+          (data.tagline ? '<div class="tagline-field">"' + data.tagline + '"</div>' : '') +
+        '</div>';
     }
 
     if (key === 'generating') {
-      el.innerHTML =
-        '<span class="panel-eyebrow">Step 04</span>' +
+      return '<span class="panel-eyebrow">Step 04</span>' +
         '<div class="spinner"></div>' +
         '<div class="gen-caption-stack">' +
           '<span class="gen-caption">Analysing your photos&hellip;</span>' +
@@ -514,43 +535,70 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     }
 
     if (key === 'design') {
-      el.innerHTML =
-        '<span class="panel-eyebrow">Reveal</span>' +
+      return '<span class="panel-eyebrow">Reveal</span>' +
         '<div class="panel-title">Your design</div>' +
         '<div class="panel-sub">&nbsp;</div>' +
         '<div class="reveal-frame"><img src="' + data.design + '" alt=""></div>';
     }
 
     if (key === 'mockup') {
-      el.innerHTML =
-        '<span class="panel-eyebrow">On your garment</span>' +
+      return '<span class="panel-eyebrow">On your garment</span>' +
         '<div class="panel-title">' + (data.name || 'Your piece') + '</div>' +
         '<div class="panel-sub">&nbsp;</div>' +
         '<div class="reveal-frame"><img src="' + data.mockup + '" alt=""></div>';
     }
 
     if (key === 'fulfilment') {
-      el.innerHTML =
-        '<span class="panel-eyebrow">What happens next</span>' +
-        '<div class="panel-title">Real garment.<br>Really shipped.</div>' +
+      return '<span class="panel-eyebrow">What happens next</span>' +
+        '<div class="panel-title">Your order is<br>prepared and shipped.</div>' +
         '<div class="panel-sub">&nbsp;</div>' +
         '<div class="fulfil-list">' +
           '<div class="fulfil-row" style="animation-delay:.1s"><span class="fulfil-check">&#10003;</span>Design generated</div>' +
-          '<div class="fulfil-row" style="animation-delay:1.3s"><span class="fulfil-check">&#10003;</span>We print &amp; quality-check your order</div>' +
-          '<div class="fulfil-row" style="animation-delay:2.5s"><span class="fulfil-check">&#10003;</span>Your order is on the way</div>' +
+          '<div class="fulfil-row" style="animation-delay:1.3s"><span class="fulfil-check">&#10003;</span>Printed and shipped</div>' +
+          '<div class="fulfil-row" style="animation-delay:2.5s"><span class="fulfil-check">&#10003;</span>Your order is delivered to your door</div>' +
         '</div>';
     }
 
     if (key === 'cta') {
-      el.innerHTML =
-        '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
+      return '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
         '<div class="cta-headline">Shop now</div>' +
         '<div class="cta-sub">AI-powered custom streetwear, made from your own photos.</div>' +
         '<div class="cta-btn">Create yours &rarr;</div>' +
         '<div class="cta-domain">uniklabs.com</div>';
     }
 
-    return el;
+    return '';
+  }
+
+  // Animates a fake cursor from the bottom of the frame over to the picked
+  // style card, then "clicks" it, right after the grid itself has rendered.
+  function runStyleCursor(panelEl) {
+    var cursor = panelEl.querySelector('#fakeCursor');
+    var pickedCard = panelEl.querySelector('.style-pick-card[data-picked="true"]');
+    if (!cursor || !pickedCard) return;
+    var gridEl = panelEl.querySelector('#stylePickGrid');
+    var gridRect = gridEl.getBoundingClientRect();
+    var cardRect = pickedCard.getBoundingClientRect();
+    var targetX = cardRect.left - gridRect.left + cardRect.width / 2 - 13;
+    var targetY = cardRect.top - gridRect.top + cardRect.height / 2 - 13;
+    var startX = gridRect.width / 2 - 13;
+    var startY = gridRect.height + 46;
+
+    cursor.style.transition = 'none';
+    cursor.style.opacity = '0';
+    cursor.style.transform = 'translate(' + startX + 'px,' + startY + 'px)';
+    void cursor.offsetWidth; // force reflow so the transition below doesn't apply to this initial jump
+    cursor.style.transition = 'opacity .3s ease';
+    cursor.style.opacity = '1';
+
+    cursorTimerA = setTimeout(function () {
+      cursor.style.transition = 'transform .68s cubic-bezier(.35,.1,.2,1)';
+      cursor.style.transform = 'translate(' + targetX + 'px,' + targetY + 'px)';
+    }, 480);
+    cursorTimerB = setTimeout(function () {
+      cursor.classList.add('is-clicking');
+      pickedCard.classList.add('is-selected');
+    }, 480 + 680 + 40);
   }
 
   function buildStage(data) {
@@ -570,7 +618,8 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     });
 
     currentSteps.forEach(function (step) {
-      var panel = buildPanel(step.key, data);
+      var panel = document.createElement('div');
+      panel.className = 'panel panel-' + step.key;
       storyPanels.appendChild(panel);
       panels.push(panel);
     });
@@ -623,16 +672,21 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     if (i < 0) i = 0;
     if (i >= currentSteps.length) i = currentSteps.length - 1;
     clearTimeout(stepTimer);
+    clearTimeout(cursorTimerA);
+    clearTimeout(cursorTimerB);
     index = i;
+    var step = currentSteps[i];
+    var panelEl = panels[i];
+    panelEl.innerHTML = panelHtml(step.key, data);
     panels.forEach(function (p, j) { p.classList.toggle('is-active', j === i); });
     setSegState(i);
-    var step = currentSteps[i];
     activateSeg(i, step.ms);
 
     if (step.key === 'name' && data) {
       var typed = data.styleId === 'I_LOVE_MY' ? cleanSubjectLabel(data.name) : data.name;
       typewrite((typed || '').toUpperCase());
     }
+    if (step.key === 'style') runStyleCursor(panelEl);
 
     if (step.ms) {
       currentStepMs = step.ms;
@@ -707,17 +761,25 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     if (e.code === 'ArrowLeft') goTo(index - 1, currentData);
   });
 
-  // ── Export to an actual video file ──
+  // ── Export to an actual video file (desktop only) ──
   // No canvas re-render involved: this asks the browser to share/record this
-  // very tab (the only way to turn a real DOM+CSS animation into a video
-  // file without a backend), isolates the stage full-viewport for a clean
-  // capture, replays the story once end-to-end, then auto-stops and
-  // downloads it. The browser's own "share this tab" permission prompt is
-  // unavoidable -- there's no way around it from a webpage.
+  // very tab, the only way to turn a real DOM+CSS animation into a video
+  // file without a backend. That capability (getDisplayMedia) is a desktop
+  // browser feature -- iOS Safari doesn't expose in-page screen capture at
+  // all, and Android browsers are unreliable about it -- so on a phone this
+  // instead points at the OS's own screen recorder, which always works and
+  // is exactly what the tap/pause/replay controls above are built for.
+  function isProbablyMobile() {
+    var ua = navigator.userAgent || '';
+    var iPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return /Android|iPhone|iPod|iPad|Mobile/i.test(ua) || iPadOS;
+  }
+
   btnExport.addEventListener('click', function () {
     if (!currentData) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      alert('Video export needs screen-recording support, which this browser doesn\'t offer. Use Chrome, Edge or Firefox on desktop, or just screen-record the preview manually.');
+
+    if (isProbablyMobile() || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      alert('Phone browsers can\'t export video directly -- iOS and most Android browsers block in-page screen capture. Use your phone\'s own screen recorder instead: iOS -- Control Centre -> Screen Recording. Android -- Quick Settings -> Screen Record. Then hit Replay and record the preview above. Export video works directly on a laptop/desktop browser.');
       return;
     }
 
@@ -768,8 +830,9 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
       stream.getVideoTracks()[0].addEventListener('ended', function () {
         if (recorder.state !== 'inactive') recorder.stop();
       });
-    }).catch(function () {
-      // User dismissed the "share this tab" picker -- nothing to clean up.
+    }).catch(function (err) {
+      if (err && err.name === 'NotAllowedError') return; // user dismissed the share picker
+      alert('Could not start screen recording: ' + (err && err.message ? err.message : 'unknown error') + '. You can still screen-record the preview manually.');
     });
   });
 })();
