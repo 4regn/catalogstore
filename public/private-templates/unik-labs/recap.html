@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0" name="viewport"/>
+<title>UNIK Labs — Recap Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&amp;family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter',sans-serif;
+  background:#0a0a0a;color:#fff;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+
+/* ── Builder shell ── */
+.builder{max-width:1180px;margin:0 auto;padding:36px 20px 80px;}
+.builder-head{max-width:640px;margin:0 auto 34px;text-align:center;}
+.builder-logo{height:26px;width:auto;display:inline-block;margin-bottom:18px;filter:brightness(0) invert(1);}
+.builder-head h1{
+  font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;
+  font-size:clamp(24px,4.6vw,32px);letter-spacing:.4px;margin-bottom:10px;
+}
+.builder-head p{font-size:13.5px;line-height:1.6;color:rgba(255,255,255,.6);}
+
+.builder-grid{display:grid;grid-template-columns:360px 1fr;gap:36px;align-items:start;}
+@media (max-width:860px){.builder-grid{grid-template-columns:1fr;}}
+
+/* ── Form ── */
+.builder-form{
+  background:#111;border:1px solid rgba(255,255,255,.1);border-radius:16px;
+  padding:22px;display:flex;flex-direction:column;gap:16px;
+}
+.field{display:flex;flex-direction:column;gap:7px;}
+.field>span{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);}
+.field input[type="text"],.field select{
+  background:#0d0f0e;border:1px solid rgba(255,255,255,.16);border-radius:9px;
+  color:#fff;font-family:'Inter',sans-serif;font-size:13.5px;padding:11px 13px;
+  outline:none;transition:border-color .15s;
+}
+.field input[type="text"]:focus,.field select:focus{border-color:rgba(255,255,255,.5);}
+.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%23999' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:32px;}
+.field input[type="file"]{
+  font-size:11.5px;color:rgba(255,255,255,.7);
+  border:1.5px dashed rgba(255,255,255,.22);border-radius:9px;padding:14px 12px;
+  background:#0d0f0e;cursor:pointer;
+}
+.field input[type="file"]::file-selector-button{
+  background:#fff;color:#000;border:none;border-radius:999px;
+  padding:6px 12px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  margin-right:10px;cursor:pointer;
+}
+.thumb-row{display:flex;gap:6px;flex-wrap:wrap;}
+.thumb-row:empty{display:none;}
+.thumb{width:44px;height:44px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.14);flex:none;}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+
+.btn-create{
+  margin-top:4px;
+  background:#fff;color:#000;border:none;border-radius:100px;
+  padding:14px 18px;font-family:'Inter',sans-serif;font-size:13.5px;font-weight:800;
+  letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
+  transition:opacity .2s,transform .2s;
+}
+.btn-create:disabled{opacity:.32;cursor:not-allowed;}
+.btn-create:not(:disabled):hover{transform:translateY(-1px);}
+
+.form-hint{font-size:11px;line-height:1.55;color:rgba(255,255,255,.4);}
+
+/* ── Stage column ── */
+.stage-col{display:flex;flex-direction:column;align-items:center;gap:16px;}
+.stage-wrap{
+  position:relative;width:100%;max-width:380px;aspect-ratio:9/16;
+  border-radius:22px;overflow:hidden;background:#000;
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 30px 80px rgba(0,0,0,.55);
+}
+.stage-empty{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:40px;font-size:12.5px;line-height:1.6;color:rgba(255,255,255,.4);
+}
+.stage{position:absolute;inset:0;display:none;}
+.stage.is-live{display:block;}
+
+/* Segmented story progress bar */
+.story-bars{position:absolute;top:14px;left:14px;right:14px;z-index:20;display:flex;gap:5px;}
+.seg{flex:1;height:2.5px;background:rgba(255,255,255,.28);border-radius:2px;overflow:hidden;}
+.seg-fill{display:block;height:100%;width:0%;background:#fff;border-radius:2px;}
+.seg-fill.is-done{width:100%;}
+.seg-fill.is-filling{animation-name:segFill;animation-timing-function:linear;animation-fill-mode:forwards;}
+.stage.is-paused .seg-fill.is-filling{animation-play-state:paused;}
+.stage.is-paused *{animation-play-state:paused !important;}
+@keyframes segFill{from{width:0%}to{width:100%}}
+
+/* Tap navigation zones (story-style) */
+.story-tap{position:absolute;top:0;bottom:0;width:32%;z-index:15;cursor:pointer;}
+.story-tap-prev{left:0;}
+.story-tap-next{right:0;}
+
+.story-brand{position:absolute;top:26px;left:18px;right:18px;z-index:18;display:flex;align-items:center;gap:8px;}
+.story-brand img{height:14px;width:auto;filter:brightness(0) invert(1);opacity:.9;}
+.story-brand span{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.75);}
+
+.story-panels{position:absolute;inset:0;}
+.panel{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:80px 26px 40px;text-align:center;opacity:0;pointer-events:none;
+  transition:opacity .25s ease;
+  background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.05),transparent 60%),#000;
+}
+.panel.is-active{opacity:1;pointer-events:auto;}
+
+.panel-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#C8392B);margin-bottom:14px;}
+
+/* Intro */
+.panel-intro .intro-logo{height:30px;width:auto;filter:brightness(0) invert(1);margin-bottom:16px;animation:popIn .6s ease both;}
+.panel-intro h2{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:26px;line-height:1.08;letter-spacing:.3px;animation:popIn .6s ease .1s both;}
+.panel-intro p{margin-top:12px;font-size:12.5px;color:rgba(255,255,255,.55);animation:popIn .6s ease .2s both;}
+
+/* Upload */
+.upload-thumbs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;max-width:260px;margin-top:6px;}
+.upload-thumbs img{
+  width:64px;height:64px;object-fit:cover;border-radius:10px;
+  border:1.5px solid rgba(255,255,255,.18);
+  opacity:0;transform:translateY(14px) scale(.92);
+  animation:thumbIn .5s ease forwards;
+}
+.panel-title{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:20px;letter-spacing:.3px;margin-bottom:4px;}
+.panel-sub{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;}
+
+/* Style select */
+.style-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;width:100%;max-width:260px;}
+.style-chip{
+  border:1.5px solid rgba(255,255,255,.14);border-radius:11px;padding:14px 8px;
+  font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.4);
+  opacity:0;animation:popIn .45s ease forwards;
+}
+.style-chip.is-picked{
+  color:#fff;border-color:var(--accent,#C8392B);
+  background:color-mix(in srgb, var(--accent,#C8392B) 16%, transparent);
+  box-shadow:0 0 0 1px var(--accent,#C8392B), 0 0 26px color-mix(in srgb, var(--accent,#C8392B) 55%, transparent);
+  animation:popIn .45s ease forwards, pulseGlow 1.6s ease-in-out .5s infinite;
+}
+.style-chip-check{display:block;font-size:14px;margin-bottom:5px;color:var(--accent,#C8392B);}
+
+/* Name */
+.name-field{
+  width:100%;max-width:260px;border:1.5px solid rgba(255,255,255,.2);border-radius:11px;
+  padding:16px 16px;text-align:left;background:rgba(255,255,255,.03);
+}
+.name-field-label{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:6px;}
+.name-field-value{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:19px;letter-spacing:.3px;min-height:24px;}
+.name-caret{display:inline-block;width:2px;height:16px;background:var(--accent,#C8392B);margin-left:2px;vertical-align:middle;animation:caretBlink .9s steps(1) infinite;}
+.tagline-field{margin-top:10px;font-size:12px;color:rgba(255,255,255,.55);opacity:0;animation:fadeUp .5s ease forwards;}
+
+/* Generating */
+.spinner{width:46px;height:46px;border-radius:50%;border:3px solid rgba(255,255,255,.16);border-top-color:var(--accent,#C8392B);animation:spin 1s linear infinite;margin-bottom:20px;}
+.gen-caption-stack{position:relative;height:18px;width:100%;max-width:230px;margin-bottom:18px;}
+.gen-caption{position:absolute;inset:0;font-size:12px;color:rgba(255,255,255,.55);opacity:0;animation:capCycle 3.2s ease infinite;}
+.gen-caption:nth-child(1){animation-delay:0s;}
+.gen-caption:nth-child(2){animation-delay:1.05s;}
+.gen-caption:nth-child(3){animation-delay:2.1s;}
+.gen-bar{width:100%;max-width:230px;height:3px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;}
+.gen-bar-fill{height:100%;width:0%;background:var(--accent,#C8392B);border-radius:3px;animation:genFill 3.2s linear forwards;}
+
+/* Reveals */
+.reveal-frame{
+  width:100%;max-width:250px;aspect-ratio:3/4;border-radius:16px;overflow:hidden;
+  position:relative;opacity:0;transform:scale(.85);
+  animation:revealIn .7s cubic-bezier(.2,.9,.25,1) forwards;
+  box-shadow:0 0 0 1px rgba(255,255,255,.14), 0 20px 60px color-mix(in srgb, var(--accent,#C8392B) 40%, transparent);
+}
+.reveal-frame img{width:100%;height:100%;object-fit:cover;display:block;}
+.reveal-frame::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent,#C8392B) 55%, transparent), transparent 70%);
+  opacity:0;animation:glowBurst 1s ease .15s forwards;
+}
+
+/* CTA */
+.panel-cta .intro-logo{height:28px;width:auto;filter:brightness(0) invert(1);margin-bottom:18px;animation:popIn .6s ease both;}
+.cta-headline{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:24px;line-height:1.08;letter-spacing:.3px;animation:popIn .6s ease .1s both;}
+.cta-sub{margin-top:10px;font-size:12px;color:rgba(255,255,255,.55);animation:popIn .6s ease .18s both;}
+.cta-btn{
+  margin-top:22px;background:#fff;color:#000;border-radius:100px;
+  padding:13px 26px;font-size:12.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  display:inline-flex;align-items:center;gap:7px;
+  animation:popIn .6s ease .26s both;
+}
+.cta-domain{margin-top:14px;font-size:11px;letter-spacing:.08em;color:var(--accent,#C8392B);font-weight:700;text-transform:uppercase;animation:popIn .6s ease .34s both;}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes popIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes thumbIn{to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes caretBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes capCycle{0%,4%{opacity:0;transform:translateY(6px)}10%,28%{opacity:1;transform:translateY(0)}34%,100%{opacity:0;transform:translateY(-6px)}}
+@keyframes genFill{from{width:0%}to{width:100%}}
+@keyframes revealIn{to{opacity:1;transform:scale(1)}}
+@keyframes glowBurst{0%{opacity:.9}100%{opacity:0}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 1px var(--accent,#C8392B),0 0 20px color-mix(in srgb, var(--accent,#C8392B) 45%, transparent)}50%{box-shadow:0 0 0 1px var(--accent,#C8392B),0 0 34px color-mix(in srgb, var(--accent,#C8392B) 70%, transparent)}}
+
+.stage-controls{display:flex;gap:10px;}
+.stage-controls button{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;
+  border-radius:100px;padding:9px 16px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
+  transition:background .2s;
+}
+.stage-controls button:hover{background:rgba(255,255,255,.16);}
+.stage-hint{max-width:340px;text-align:center;font-size:11px;line-height:1.55;color:rgba(255,255,255,.4);}
+</style>
+</head>
+<body>
+<div class="builder">
+<header class="builder-head">
+<img alt="UNIK Labs" class="builder-logo" src="assets/unik-logo-v3-header.png"/>
+<h1>Recap Builder</h1>
+<p>Turn one finished generation into a shareable 9:16 story — matching the studio UI — that walks through the photos, the style, the name, the AI reveal and the mockup. Fill in the form, hit Create, then screen-record the preview for Reels, TikTok or Stories.</p>
+</header>
+
+<div class="builder-grid">
+<form class="builder-form" id="builderForm">
+<label class="field">
+<span>Name on the design</span>
+<input autocomplete="off" id="fName" maxlength="80" placeholder="e.g. Londeka Mpanza" type="text"/>
+</label>
+<label class="field">
+<span>Tagline (optional)</span>
+<input autocomplete="off" id="fTagline" maxlength="100" placeholder="e.g. EST. 2026" type="text"/>
+</label>
+<label class="field">
+<span>Template used</span>
+<select id="fStyle"></select>
+</label>
+<div class="field">
+<span>Uploaded photos (1–5, in the order used)</span>
+<input accept="image/*" id="fPhotos" multiple="" type="file"/>
+<div class="thumb-row" id="photosPreview"></div>
+</div>
+<div class="field">
+<span>Generated design</span>
+<input accept="image/*" id="fDesign" type="file"/>
+<div class="thumb-row" id="designPreview"></div>
+</div>
+<div class="field">
+<span>Mockup on garment</span>
+<input accept="image/*" id="fMockup" type="file"/>
+<div class="thumb-row" id="mockupPreview"></div>
+</div>
+<button class="btn-create" disabled="" id="btnCreate" type="button">Create recap</button>
+<p class="form-hint">Nothing here uploads anywhere — every image stays local in your browser tab and is only used to render the preview.</p>
+</form>
+
+<div class="stage-col">
+<div class="stage-wrap">
+<div class="stage-empty" id="stageEmpty">Fill in the form on the left, then hit <strong>Create recap</strong> to preview your story here.</div>
+<div class="stage" id="stage">
+<div class="story-bars" id="storyBars"></div>
+<div class="story-brand"><img alt="" src="assets/unik-logo-v3-header.png"/><span>UNIK Labs</span></div>
+<div class="story-tap story-tap-prev" id="tapPrev"></div>
+<div class="story-tap story-tap-next" id="tapNext"></div>
+<div class="story-panels" id="storyPanels"></div>
+</div>
+</div>
+<div class="stage-controls" hidden="" id="stageControls">
+<button id="btnPlayPause" type="button">Pause</button>
+<button id="btnReplay" type="button">Replay</button>
+</div>
+<p class="stage-hint">Tap the left/right edge of the preview to step back or forward, like a Story. Space bar pauses on desktop. Recommended recording size: crop to this frame, or open it full-screen on your phone.</p>
+</div>
+</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STYLE_META = [
+    { id: 'TOUR_POSTER', name: 'Tour Poster', accent: '#C8392B' },
+    { id: 'BOOTLEG', name: 'Bootleg', accent: '#1E90FF' },
+    { id: 'EDITORIAL', name: 'Editorial', accent: '#D8B34A' },
+    { id: 'CHROME', name: 'Chrome', accent: '#B33A3A' },
+    { id: 'GIANT_FACE', name: 'Giant Face', accent: '#D98A3D' },
+    { id: 'BLING_ERA', name: 'Bling Era', accent: '#D4AF37' },
+    { id: 'PAPER_CUT', name: 'Paper Cut', accent: '#C6FF00' },
+    { id: 'VTG_BOOTLEG', name: 'Vintage Bootleg', accent: '#B08D57' },
+    { id: 'TOON_DRIP', name: 'Toon Drip', accent: '#33D6FF' },
+    { id: 'CHROME_COLLAGE', name: 'Chrome Collage', accent: '#1E90FF' },
+    { id: 'I_LOVE_MY', name: 'I Love My...', accent: '#FF3D8A' }
+  ];
+
+  var styleSelect = document.getElementById('fStyle');
+  STYLE_META.forEach(function (s) {
+    var opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.name;
+    styleSelect.appendChild(opt);
+  });
+
+  function previewInto(container, files) {
+    container.innerHTML = '';
+    files.forEach(function (file) {
+      var wrap = document.createElement('span');
+      wrap.className = 'thumb';
+      var img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      img.alt = '';
+      wrap.appendChild(img);
+      container.appendChild(wrap);
+    });
+  }
+
+  var nameInp = document.getElementById('fName');
+  var taglineInp = document.getElementById('fTagline');
+  var photosInp = document.getElementById('fPhotos');
+  var designInp = document.getElementById('fDesign');
+  var mockupInp = document.getElementById('fMockup');
+  var btnCreate = document.getElementById('btnCreate');
+
+  var picked = { photos: [], design: null, mockup: null };
+
+  photosInp.addEventListener('change', function () {
+    picked.photos = Array.from(photosInp.files || []).slice(0, 5);
+    previewInto(document.getElementById('photosPreview'), picked.photos);
+    validate();
+  });
+  designInp.addEventListener('change', function () {
+    picked.design = (designInp.files || [])[0] || null;
+    previewInto(document.getElementById('designPreview'), picked.design ? [picked.design] : []);
+    validate();
+  });
+  mockupInp.addEventListener('change', function () {
+    picked.mockup = (mockupInp.files || [])[0] || null;
+    previewInto(document.getElementById('mockupPreview'), picked.mockup ? [picked.mockup] : []);
+    validate();
+  });
+  nameInp.addEventListener('input', validate);
+
+  function validate() {
+    btnCreate.disabled = !(nameInp.value.trim() && picked.photos.length && picked.design && picked.mockup);
+  }
+
+  // ── Story engine ──
+  var stageEmpty = document.getElementById('stageEmpty');
+  var stage = document.getElementById('stage');
+  var storyBars = document.getElementById('storyBars');
+  var storyPanels = document.getElementById('storyPanels');
+  var stageControls = document.getElementById('stageControls');
+  var btnPlayPause = document.getElementById('btnPlayPause');
+  var btnReplay = document.getElementById('btnReplay');
+  var tapPrev = document.getElementById('tapPrev');
+  var tapNext = document.getElementById('tapNext');
+
+  var STEP_DEFS = [
+    { key: 'intro', ms: 2200 },
+    { key: 'upload', ms: 2800 },
+    { key: 'style', ms: 2600 },
+    { key: 'name', ms: 2800 },
+    { key: 'generating', ms: 3200 },
+    { key: 'design', ms: 3400 },
+    { key: 'mockup', ms: 3400 },
+    { key: 'cta', ms: null } // holds indefinitely
+  ];
+
+  var panels = [];
+  var segFills = [];
+  var index = 0;
+  var paused = false;
+  var stepTimer = null;
+  var stepStart = 0;
+  var stepRemaining = 0;
+  var currentStepMs = 0;
+
+  function buildPanel(key, data) {
+    var el = document.createElement('div');
+    el.className = 'panel panel-' + key;
+
+    if (key === 'intro') {
+      el.innerHTML =
+        '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
+        '<h2>Your photos.<br>Your own design.</h2>' +
+        '<p>Here’s how it came together —</p>';
+    }
+
+    if (key === 'upload') {
+      var thumbsHtml = data.photos.map(function (url, i) {
+        return '<img src="' + url + '" style="animation-delay:' + (i * 0.14) + 's">';
+      }).join('');
+      el.innerHTML =
+        '<span class="panel-eyebrow">Step 01 &mdash; Your photos</span>' +
+        '<div class="panel-title">Upload</div>' +
+        '<div class="panel-sub">' + data.photos.length + ' reference photo' + (data.photos.length === 1 ? '' : 's') + '</div>' +
+        '<div class="upload-thumbs">' + thumbsHtml + '</div>';
+    }
+
+    if (key === 'style') {
+      var others = STYLE_META.filter(function (s) { return s.id !== data.styleId; }).slice(0, 3);
+      var chips = others.slice(0, 1).concat([data.styleMeta]).concat(others.slice(1, 3));
+      var chipsHtml = chips.map(function (s, i) {
+        var picked = s.id === data.styleId;
+        return '<div class="style-chip' + (picked ? ' is-picked' : '') + '" style="animation-delay:' + (i * 0.1) + 's">' +
+          (picked ? '<span class="style-chip-check">&#10003;</span>' : '') + s.name + '</div>';
+      }).join('');
+      el.innerHTML =
+        '<span class="panel-eyebrow">Step 02 &mdash; Pick your style</span>' +
+        '<div class="panel-title">' + data.styleMeta.name + '</div>' +
+        '<div class="panel-sub">Selected</div>' +
+        '<div class="style-grid">' + chipsHtml + '</div>';
+    }
+
+    if (key === 'name') {
+      el.innerHTML =
+        '<span class="panel-eyebrow">Step 03 &mdash; Make it yours</span>' +
+        '<div class="name-field">' +
+          '<div class="name-field-label">Name</div>' +
+          '<div class="name-field-value" id="typeTarget"><span class="name-caret"></span></div>' +
+          (data.tagline ? '<div class="tagline-field">"' + data.tagline + '"</div>' : '') +
+        '</div>';
+    }
+
+    if (key === 'generating') {
+      el.innerHTML =
+        '<span class="panel-eyebrow">Step 04</span>' +
+        '<div class="spinner"></div>' +
+        '<div class="gen-caption-stack">' +
+          '<span class="gen-caption">Analysing your photos&hellip;</span>' +
+          '<span class="gen-caption">Applying ' + data.styleMeta.name + '&hellip;</span>' +
+          '<span class="gen-caption">Finishing touches&hellip;</span>' +
+        '</div>' +
+        '<div class="gen-bar"><div class="gen-bar-fill"></div></div>';
+    }
+
+    if (key === 'design') {
+      el.innerHTML =
+        '<span class="panel-eyebrow">Reveal</span>' +
+        '<div class="panel-title">Your design</div>' +
+        '<div class="panel-sub">&nbsp;</div>' +
+        '<div class="reveal-frame"><img src="' + data.design + '" alt=""></div>';
+    }
+
+    if (key === 'mockup') {
+      el.innerHTML =
+        '<span class="panel-eyebrow">On your garment</span>' +
+        '<div class="panel-title">' + (data.name || 'Your piece') + '</div>' +
+        '<div class="panel-sub">&nbsp;</div>' +
+        '<div class="reveal-frame"><img src="' + data.mockup + '" alt=""></div>';
+    }
+
+    if (key === 'cta') {
+      el.innerHTML =
+        '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
+        '<div class="cta-headline">Shop now</div>' +
+        '<div class="cta-sub">AI-powered custom streetwear, made from your own photos.</div>' +
+        '<div class="cta-btn">Create yours &rarr;</div>' +
+        '<div class="cta-domain">uniklabs.com</div>';
+    }
+
+    return el;
+  }
+
+  function buildStage(data) {
+    storyBars.innerHTML = '';
+    storyPanels.innerHTML = '';
+    segFills = [];
+    panels = [];
+
+    STEP_DEFS.forEach(function () {
+      var seg = document.createElement('div');
+      seg.className = 'seg';
+      var fill = document.createElement('div');
+      fill.className = 'seg-fill';
+      seg.appendChild(fill);
+      storyBars.appendChild(seg);
+      segFills.push(fill);
+    });
+
+    STEP_DEFS.forEach(function (step) {
+      var panel = buildPanel(step.key, data);
+      storyPanels.appendChild(panel);
+      panels.push(panel);
+    });
+
+    stage.style.setProperty('--accent', data.styleMeta.accent);
+  }
+
+  function typewrite(text) {
+    var target = document.getElementById('typeTarget');
+    if (!target) return;
+    var caret = target.querySelector('.name-caret');
+    var i = 0;
+    var perChar = Math.max(35, Math.min(90, 1600 / Math.max(text.length, 1)));
+    (function tick() {
+      if (i > text.length) return;
+      target.textContent = text.slice(0, i);
+      target.appendChild(caret);
+      i++;
+      if (i <= text.length) setTimeout(tick, perChar);
+    })();
+  }
+
+  function setSegState(i) {
+    segFills.forEach(function (fill, j) {
+      fill.classList.remove('is-done', 'is-filling');
+      fill.style.animationDuration = '';
+      if (j < i) {
+        fill.classList.add('is-done');
+      } else if (j > i) {
+        fill.style.width = '0%';
+      }
+    });
+  }
+
+  function activateSeg(i, ms) {
+    var fill = segFills[i];
+    if (!fill) return;
+    fill.style.width = '0%';
+    fill.classList.remove('is-filling');
+    void fill.offsetWidth;
+    if (ms) {
+      fill.style.animationDuration = ms + 'ms';
+      fill.classList.add('is-filling');
+    } else {
+      fill.classList.add('is-done');
+    }
+  }
+
+  function goTo(i, data) {
+    if (i < 0) i = 0;
+    if (i >= STEP_DEFS.length) i = STEP_DEFS.length - 1;
+    clearTimeout(stepTimer);
+    index = i;
+    panels.forEach(function (p, j) { p.classList.toggle('is-active', j === i); });
+    setSegState(i);
+    var step = STEP_DEFS[i];
+    activateSeg(i, step.ms);
+
+    if (step.key === 'name' && data) typewrite((data.name || '').toUpperCase());
+
+    if (step.ms) {
+      currentStepMs = step.ms;
+      stepStart = Date.now();
+      stepRemaining = step.ms;
+      stepTimer = setTimeout(function () { goTo(index + 1, data); }, step.ms);
+    }
+  }
+
+  function pause() {
+    if (paused || !stepTimer) return;
+    paused = true;
+    clearTimeout(stepTimer);
+    stepRemaining = currentStepMs - (Date.now() - stepStart);
+    stage.classList.add('is-paused');
+    btnPlayPause.textContent = 'Play';
+  }
+
+  function resume(data) {
+    if (!paused) return;
+    paused = false;
+    stage.classList.remove('is-paused');
+    btnPlayPause.textContent = 'Pause';
+    if (stepRemaining > 0) {
+      stepStart = Date.now();
+      currentStepMs = stepRemaining;
+      stepTimer = setTimeout(function () { goTo(index + 1, data); }, stepRemaining);
+    }
+  }
+
+  var currentData = null;
+
+  btnCreate.addEventListener('click', function () {
+    var styleMeta = STYLE_META.find(function (s) { return s.id === styleSelect.value; }) || STYLE_META[0];
+    currentData = {
+      name: nameInp.value.trim(),
+      tagline: taglineInp.value.trim(),
+      styleId: styleMeta.id,
+      styleMeta: styleMeta,
+      photos: picked.photos.map(function (f) { return URL.createObjectURL(f); }),
+      design: URL.createObjectURL(picked.design),
+      mockup: URL.createObjectURL(picked.mockup)
+    };
+    stageEmpty.style.display = 'none';
+    stage.classList.add('is-live');
+    stageControls.hidden = false;
+    paused = false;
+    btnPlayPause.textContent = 'Pause';
+    buildStage(currentData);
+    goTo(0, currentData);
+  });
+
+  btnPlayPause.addEventListener('click', function () {
+    if (paused) resume(currentData); else pause();
+  });
+  btnReplay.addEventListener('click', function () {
+    if (!currentData) return;
+    paused = false;
+    stage.classList.remove('is-paused');
+    btnPlayPause.textContent = 'Pause';
+    goTo(0, currentData);
+  });
+  tapPrev.addEventListener('click', function () { if (currentData) goTo(index - 1, currentData); });
+  tapNext.addEventListener('click', function () { if (currentData) goTo(index + 1, currentData); });
+
+  document.addEventListener('keydown', function (e) {
+    if (!currentData) return;
+    if (e.code === 'Space') { e.preventDefault(); if (paused) resume(currentData); else pause(); }
+    if (e.code === 'ArrowRight') goTo(index + 1, currentData);
+    if (e.code === 'ArrowLeft') goTo(index - 1, currentData);
+  });
+})();
+</script>
+</body>
+</html>
