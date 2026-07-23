@@ -830,9 +830,21 @@ body{
   function render() {
     frames.forEach(function (f, i) { f.classList.toggle('is-active', i === index); });
     cards.forEach(function (c, i) { c.classList.toggle('is-active', i === index); });
-    if (cards[index]) cards[index].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    scrollRailToActiveCard();
     if (counter) counter.textContent = String(index + 1).padStart(2, '0');
     restartProgress();
+  }
+
+  // Scrolls only the thumbnail rail's own horizontal scroll position.
+  // scrollIntoView() was used here before, but block:'nearest' also drags
+  // the whole PAGE back down once the card scrolls out of the vertical
+  // viewport (e.g. the visitor scrolled away) -- fighting the user's own
+  // scroll on every autoplay tick. rail.scrollTo() never touches the page.
+  function scrollRailToActiveCard() {
+    var card = cards[index];
+    if (!rail || !card) return;
+    var target = card.offsetLeft - (rail.clientWidth - card.offsetWidth) / 2;
+    rail.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
   }
 
   function restartProgress() {
