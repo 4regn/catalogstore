@@ -394,6 +394,16 @@ body {
 .quick-name::placeholder { color: #ccc; }
 .quick-name-hint { font-size: 10px; color: var(--muted); margin-top: 4px; letter-spacing: 0.5px; }
 
+/* Suggestion chips — quick-fill for template-specific text fields (e.g. I Love My...) */
+.suggestion-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.suggestion-chip {
+  padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: rgba(255,255,255,0.8); font-family: 'Montserrat', sans-serif;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.4px; cursor: pointer;
+  color: var(--black); transition: all 0.18s; -webkit-tap-highlight-color: transparent;
+}
+.suggestion-chip:hover { background: var(--white); border-color: #aaa; }
+
 /* Style grid — 2 columns, all 8 visible */
 .style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
@@ -438,6 +448,31 @@ body {
 .thumb-rm { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,0.65); border: none; color: white; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; line-height: 1; }
 
 .photo-count { margin-top: 12px; font-size: 12px; color: var(--success); font-weight: 600; display: none; align-items: center; gap: 7px; }
+
+/* Numbered, labelled upload slots — used by templates that need a fixed,
+   ordered set of photos (e.g. Chrome Collage, I Love My...) instead of the
+   free-form drop zone above. */
+.photo-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.photo-slot {
+  position: relative; border: 2px dashed var(--border); border-radius: 12px;
+  padding: 14px 8px; text-align: center; cursor: pointer; transition: all 0.2s;
+  background: var(--bg); aspect-ratio: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; overflow: hidden;
+}
+.photo-slot:first-child { grid-column: 1 / -1; aspect-ratio: 16/9; }
+.photo-slot:hover { border-color: var(--black); background: var(--white); }
+.photo-slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.photo-slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.photo-slot-num { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 4px; }
+.photo-slot-label { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; color: var(--muted); line-height: 1.4; padding: 0 4px; }
+.photo-slot.filled { border-style: solid; border-color: var(--success); }
+.photo-slot.filled .photo-slot-label, .photo-slot.filled .photo-slot-num { display: none; }
+.photo-slot-rm {
+  position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(0,0,0,0.65); border: none; color: white; font-size: 12px; cursor: pointer;
+  display: none; align-items: center; justify-content: center; font-weight: 700; line-height: 1; z-index: 2;
+}
+.photo-slot.filled .photo-slot-rm { display: flex; }
 
 /* ── STEP 6: Size ── */
 .size-seg { display: flex; background: var(--bg); border-radius: 12px; padding: 4px; gap: 3px; border: 1px solid var(--border); }
@@ -769,10 +804,12 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
       </div>
       <div class="step-body">
         <div class="name-field">
-          <label class="field-label" for="nameInp">Name</label>
+          <label class="field-label" id="nameFieldLabel" for="nameInp">Name</label>
           <input class="name-inp" id="nameInp" type="text" placeholder="eg. DRAKE" maxlength="30" autocomplete="off" autocapitalize="characters">
+          <div class="name-hint" id="nameFieldHint" style="display:none"></div>
+          <div class="suggestion-chips" id="step2Chips" style="display:none"></div>
         </div>
-        <div class="name-field">
+        <div class="name-field" id="taglineFieldWrap">
           <label class="field-label" for="tagInp">Tagline <span class="field-label-opt">(optional)</span></label>
           <input class="tag-inp" id="tagInp" type="text" placeholder="e.g. PRIVATE SCHOOL PIANO" maxlength="40" autocomplete="off" autocapitalize="characters">
           <div class="name-hint">Leave blank — we create one from the vibe</div>
@@ -865,7 +902,8 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
         <!-- Quick name edit -->
         <div class="quick-name-wrap">
           <input class="quick-name" id="quickName" type="text" placeholder="NAME" maxlength="30" autocapitalize="characters">
-          <div class="quick-name-hint">Edit name above to update your design</div>
+          <div class="quick-name-hint" id="quickNameHint">Edit name above to update your design</div>
+          <div class="suggestion-chips" id="step4Chips" style="display:none"></div>
         </div>
         <!-- Filter chips: current colour + subject as toggleable tags -->
         <div class="style-filters">
@@ -906,7 +944,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
       <div class="step-head">
         <div class="step-eyebrow">Step 5 of 7</div>
         <h2 class="step-title">UPLOAD YOUR PHOTOS</h2>
-        <p class="step-desc">Best face photo first. All same person. JPG or PNG only.</p>
+        <p class="step-desc" id="step5Desc">Best face photo first. All same person. JPG or PNG only.</p>
       </div>
       <div class="step-body">
         <div class="upload-zone" id="uploadZone">
@@ -916,8 +954,9 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
             <path d="M8 30h24" stroke-linecap="round"/>
           </svg>
           <div class="upload-title">Drop photos here</div>
-          <div class="upload-sub">Up to 5 photos · Same person · Best face first</div>
+          <div class="upload-sub" id="uploadSub">Up to 5 photos · Same person · Best face first</div>
         </div>
+        <div class="photo-slots" id="photoSlots" style="display:none"></div>
         <div class="photo-strip" id="photoStrip"></div>
         <div class="photo-count" id="photoCount">
           <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><circle cx="8" cy="8" r="7" stroke="#16A34A" stroke-width="1.5"/><path d="M5 8l2.5 2.5L11 5.5" stroke="#16A34A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -976,7 +1015,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
       <div class="step-body">
         <div class="review-card">
           <div class="review-row"><span class="review-label">Garment</span><span class="review-val" id="rv-garment">—</span></div>
-          <div class="review-row"><span class="review-label">Name</span><span class="review-val" id="rv-name">—</span></div>
+          <div class="review-row"><span class="review-label" id="rvNameLabel">Name</span><span class="review-val" id="rv-name">—</span></div>
           <div class="review-row"><span class="review-label">Subject</span><span class="review-val" id="rv-subject">—</span></div>
           <div class="review-row"><span class="review-label">Style</span><span class="review-val" id="rv-style">—</span></div>
           <div class="review-row"><span class="review-label">Photos</span><span class="review-val" id="rv-photos">—</span></div>
@@ -1125,12 +1164,12 @@ const CDN = 'https://cdn.shopify.com/s/files/1/0613/0342/3021/files/';
 
 const PREVIEWS = {
   tee: {
-    black: { TOUR_POSTER:'studio_prev_tour_model.jpg?v=1777654763', BOOTLEG:'studio_prev_bootleg_model.jpg?v=1777654763', EDITORIAL:'studio_prev_editorial_model.jpg?v=1777654762', CHROME:'studio_prev_chrome_model.jpg?v=1777654763', GIANT_FACE:'studio_prev_giant_model_1.jpg?v=1777655935', BLING_ERA:'studio_prev_bling_model_1.jpg?v=1777655805', PAPER_CUT:'IMG_9367.jpg?v=1784342366', VTG_BOOTLEG:'10AA8C9C-838A-4A81-BFC3-95BA495F4809.jpg?v=1784322226' },
-    white: { TOUR_POSTER:'IMG_9341.jpg?v=1784342366', BOOTLEG:'IMG_9339.jpg?v=1784342366', EDITORIAL:'IMG_9340.jpg?v=1784342366', CHROME:'IMG_9337.jpg?v=1784342367', GIANT_FACE:'IMG_9369.jpg?v=1784345458', BLING_ERA:'IMG_9338.jpg?v=1784342366', PAPER_CUT:'E5CA8646-9F7A-4D8C-B5BA-029E6E8C7F73.jpg?v=1784322226', VTG_BOOTLEG:'IMG_9336.jpg?v=1784342367' }
+    black: { TOUR_POSTER:'studio_prev_tour_model.jpg?v=1777654763', BOOTLEG:'studio_prev_bootleg_model.jpg?v=1777654763', EDITORIAL:'studio_prev_editorial_model.jpg?v=1777654762', CHROME:'studio_prev_chrome_model.jpg?v=1777654763', GIANT_FACE:'studio_prev_giant_model_1.jpg?v=1777655935', BLING_ERA:'studio_prev_bling_model_1.jpg?v=1777655805', PAPER_CUT:'IMG_9367.jpg?v=1784342366', VTG_BOOTLEG:'10AA8C9C-838A-4A81-BFC3-95BA495F4809.jpg?v=1784322226', TOON_DRIP:'assets/studio-previews/tee-black-toon-drip.jpg', CHROME_COLLAGE:'assets/studio-previews/tee-black-chrome-collage.jpg', I_LOVE_MY:'assets/studio-previews/tee-black-i-love-my.jpg' },
+    white: { TOUR_POSTER:'IMG_9341.jpg?v=1784342366', BOOTLEG:'IMG_9339.jpg?v=1784342366', EDITORIAL:'IMG_9340.jpg?v=1784342366', CHROME:'IMG_9337.jpg?v=1784342367', GIANT_FACE:'IMG_9369.jpg?v=1784345458', BLING_ERA:'IMG_9338.jpg?v=1784342366', PAPER_CUT:'E5CA8646-9F7A-4D8C-B5BA-029E6E8C7F73.jpg?v=1784322226', VTG_BOOTLEG:'IMG_9336.jpg?v=1784342367', TOON_DRIP:'assets/studio-previews/tee-white-toon-drip.jpg', CHROME_COLLAGE:'assets/studio-previews/tee-white-chrome-collage.jpg', I_LOVE_MY:'assets/studio-previews/tee-white-i-love-my.jpg' }
   },
   hoodie: {
-    black: { TOUR_POSTER:'66CC373A-F904-469C-8DFD-273CB220CA76.jpg?v=1784322194', BOOTLEG:'B91D5DDF-382C-41F2-A324-6F88238F6468.jpg?v=1784322194', EDITORIAL:'029278E5-4518-43E3-B1A1-06DB1B26F901.jpg?v=1784322194', CHROME:'DA525BDB-D990-49BA-B442-7550D4C26F8C.jpg?v=1784322194', GIANT_FACE:'8ED02709-8871-4C49-9E65-64F44682CEA5.jpg?v=1784322194', BLING_ERA:'0C7B0E80-9433-4A3D-A4B7-117CA3D51449.jpg?v=1784322195', PAPER_CUT:'IMG_9320.jpg?v=1784342368', VTG_BOOTLEG:'IMG_9318.jpg?v=1784342368' },
-    white: { TOUR_POSTER:'IMG_9329_g45dzt.jpg?v=1784343551', BOOTLEG:'IMG_9323_c1woog.jpg?v=1784343551', EDITORIAL:'IMG_9326_aeae4s.jpg?v=1784343547', CHROME:'IMG_9330_vxwycy.jpg?v=1784343550', GIANT_FACE:'IMG_9331_iflk5q.jpg?v=1784343550', BLING_ERA:'IMG_9327_rn7dxo.jpg?v=1784343549', PAPER_CUT:'421809B2-FEAD-44FF-B42C-2390CC320C00_65feda41-c42d-4b54-9211-e4af3fc5fd1f.jpg?v=1784344675', VTG_BOOTLEG:'IMG_9372.png?v=1784369713' }
+    black: { TOUR_POSTER:'66CC373A-F904-469C-8DFD-273CB220CA76.jpg?v=1784322194', BOOTLEG:'B91D5DDF-382C-41F2-A324-6F88238F6468.jpg?v=1784322194', EDITORIAL:'029278E5-4518-43E3-B1A1-06DB1B26F901.jpg?v=1784322194', CHROME:'DA525BDB-D990-49BA-B442-7550D4C26F8C.jpg?v=1784322194', GIANT_FACE:'8ED02709-8871-4C49-9E65-64F44682CEA5.jpg?v=1784322194', BLING_ERA:'0C7B0E80-9433-4A3D-A4B7-117CA3D51449.jpg?v=1784322195', PAPER_CUT:'IMG_9320.jpg?v=1784342368', VTG_BOOTLEG:'IMG_9318.jpg?v=1784342368', TOON_DRIP:'assets/studio-previews/hoodie-black-toon-drip.jpg', CHROME_COLLAGE:'assets/studio-previews/hoodie-black-chrome-collage.jpg', I_LOVE_MY:'assets/studio-previews/hoodie-black-i-love-my.jpg' },
+    white: { TOUR_POSTER:'IMG_9329_g45dzt.jpg?v=1784343551', BOOTLEG:'IMG_9323_c1woog.jpg?v=1784343551', EDITORIAL:'IMG_9326_aeae4s.jpg?v=1784343547', CHROME:'IMG_9330_vxwycy.jpg?v=1784343550', GIANT_FACE:'IMG_9331_iflk5q.jpg?v=1784343550', BLING_ERA:'IMG_9327_rn7dxo.jpg?v=1784343549', PAPER_CUT:'421809B2-FEAD-44FF-B42C-2390CC320C00_65feda41-c42d-4b54-9211-e4af3fc5fd1f.jpg?v=1784344675', VTG_BOOTLEG:'IMG_9372.png?v=1784369713', TOON_DRIP:'assets/studio-previews/hoodie-white-toon-drip.jpg', CHROME_COLLAGE:'assets/studio-previews/hoodie-white-chrome-collage.jpg', I_LOVE_MY:'assets/studio-previews/hoodie-white-i-love-my.jpg' }
   }
 };
 
@@ -1161,15 +1200,154 @@ function darkPreviewUrl(id) {
 }
 
 const STYLES = [
-  { id:'TOUR_POSTER', name:'TOUR POSTER',    desc:'Vintage distressed energy',   badge:'Most Popular' },
-  { id:'BOOTLEG',     name:'BOOTLEG',         desc:'90s rap aesthetic'                                 },
-  { id:'EDITORIAL',   name:'EDITORIAL',       desc:'Art zine collage'                                  },
-  { id:'CHROME',      name:'CHROME',          desc:'Luxury metallic type'                              },
-  { id:'GIANT_FACE',  name:'GIANT FACE',      desc:'Face fills the garment'                           },
-  { id:'BLING_ERA',   name:'BLING ERA',       desc:'3D type, airbrush glow'                           },
-  { id:'PAPER_CUT',   name:'PAPER CUT',       desc:'Editorial collage portrait'                        },
-  { id:'VTG_BOOTLEG', name:'VINTAGE BOOTLEG', desc:'Collector concert poster'                          }
+  { id:'TOUR_POSTER',     name:'TOUR POSTER',     desc:'Vintage distressed energy',   badge:'Most Popular' },
+  { id:'BOOTLEG',         name:'BOOTLEG',         desc:'90s rap aesthetic'                                 },
+  { id:'EDITORIAL',       name:'EDITORIAL',       desc:'Art zine collage'                                  },
+  { id:'CHROME',          name:'CHROME',          desc:'Luxury metallic type'                              },
+  { id:'GIANT_FACE',      name:'GIANT FACE',      desc:'Face fills the garment'                           },
+  { id:'BLING_ERA',       name:'BLING ERA',       desc:'3D type, airbrush glow'                           },
+  { id:'PAPER_CUT',       name:'PAPER CUT',       desc:'Editorial collage portrait'                        },
+  { id:'VTG_BOOTLEG',     name:'VINTAGE BOOTLEG', desc:'Collector concert poster'                          },
+  { id:'TOON_DRIP',       name:'TOON DRIP',       desc:'Chibi anime portrait',         badge:'New'          },
+  { id:'CHROME_COLLAGE',  name:'CHROME COLLAGE',  desc:'5-photo chrome bootleg',        badge:'New'          },
+  { id:'I_LOVE_MY',       name:'I LOVE MY...',    desc:'5-photo heart collage',         badge:'New'          }
 ];
+
+// ── Template-aware Name/Tagline/Photos config ──
+// Drives step 2 and step 4's text fields plus step 5's upload requirements
+// per selected style, instead of scattering per-template conditionals
+// through the UI code. Styles not listed here (the original 8) fall back
+// to DEFAULT_TEMPLATE_CONFIG, matching their existing behaviour exactly.
+const TEMPLATE_CONFIG = {
+  TOON_DRIP: {
+    textMode: 'name-and-tagline', nameLabel: 'Name', namePlaceholder: 'eg. DRAKE',
+    taglineVisible: true, minImages: 1, maxImages: 1
+  },
+  CHROME_COLLAGE: {
+    textMode: 'full-name', nameLabel: 'Full name', namePlaceholder: 'Enter the full name',
+    taglineVisible: false, minImages: 5, maxImages: 5,
+    photoSlotLabels: ['Central hero', 'Top-left', 'Top-right', 'Lower-left', 'Lower-right circular inset']
+  },
+  I_LOVE_MY: {
+    textMode: 'subject-label', nameLabel: 'Who do you love?', namePlaceholder: 'Girlfriend, boyfriend, bestie, dog…',
+    helperText: 'Enter only the relationship, person or pet — not the full phrase.',
+    taglineVisible: false, minImages: 5, maxImages: 5,
+    suggestions: ['Girlfriend', 'Boyfriend', 'Bestie', 'Dog', 'Mom', 'Dad'],
+    photoSlotLabels: ['Main hero', 'Top-left heart', 'Top-right heart', 'Lower-left heart', 'Lower-right heart']
+  }
+};
+const DEFAULT_TEMPLATE_CONFIG = {
+  textMode: 'name-and-tagline', nameLabel: 'Name', namePlaceholder: 'eg. DRAKE',
+  taglineVisible: true, minImages: 1, maxImages: 5
+};
+function templateConfig(styleId) {
+  return TEMPLATE_CONFIG[styleId] || DEFAULT_TEMPLATE_CONFIG;
+}
+
+// Mirrors lib/unik-generation.ts's cleanSubjectLabel() -- kept in sync so
+// the "3 words or fewer" validation below matches what the server accepts.
+function cleanSubjectLabel(raw) {
+  return String(raw || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/^i\s+love\s+my\s+/i, '')
+    .replace(/^my\s+/i, '')
+    .trim();
+}
+
+function isNameTextValid() {
+  const cfg = templateConfig(S.style);
+  if (cfg.textMode === 'subject-label') {
+    const cleaned = cleanSubjectLabel(S.name);
+    return cleaned.length > 0 && cleaned.split(' ').filter(Boolean).length <= 3;
+  }
+  return !!(S.name && S.name.trim().length > 0);
+}
+
+function renderSuggestionChips(containerId, cfg) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!cfg.suggestions) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = cfg.suggestions.map(s =>
+    '<button type="button" class="suggestion-chip" data-suggest="' + s + '">' + s + '</button>'
+  ).join('') + '<button type="button" class="suggestion-chip" data-suggest="__other__">Other</button>';
+  const targetInput = containerId === 'step2Chips' ? document.getElementById('nameInp') : document.getElementById('quickName');
+  el.querySelectorAll('[data-suggest]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!targetInput) return;
+      if (btn.dataset.suggest === '__other__') targetInput.value = '';
+      else targetInput.value = btn.dataset.suggest;
+      targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+      targetInput.focus();
+    });
+  });
+}
+
+// Keeps step 2's name/tagline fields, step 4's quick-name field, and the
+// review step's field label all reflecting whichever style is currently
+// selected (or the default Name/Tagline shape when none is selected yet).
+function syncTemplateTextUI() {
+  const cfg = templateConfig(S.style);
+
+  const nameLabelEl = document.getElementById('nameFieldLabel');
+  if (nameLabelEl) nameLabelEl.textContent = cfg.nameLabel;
+  const nameInp = document.getElementById('nameInp');
+  if (nameInp) nameInp.placeholder = cfg.namePlaceholder;
+  const nameHint = document.getElementById('nameFieldHint');
+  if (nameHint) {
+    if (cfg.helperText) { nameHint.textContent = cfg.helperText; nameHint.style.display = 'block'; }
+    else nameHint.style.display = 'none';
+  }
+  const taglineWrap = document.getElementById('taglineFieldWrap');
+  if (taglineWrap) taglineWrap.style.display = cfg.taglineVisible ? '' : 'none';
+
+  const qn = document.getElementById('quickName');
+  if (qn) qn.placeholder = cfg.namePlaceholder;
+  const qnHint = document.getElementById('quickNameHint');
+  if (qnHint) qnHint.textContent = cfg.helperText || 'Edit name above to update your design';
+
+  renderSuggestionChips('step2Chips', cfg);
+  renderSuggestionChips('step4Chips', cfg);
+
+  const reviewLabel = document.getElementById('rvNameLabel');
+  if (reviewLabel) reviewLabel.textContent = cfg.nameLabel;
+}
+
+// Separate saved state per text mode so switching templates never silently
+// discards what the customer already typed -- switching TO I_LOVE_MY
+// starts the subject label empty (unless they'd already filled it in
+// before), and switching AWAY restores the standard Name/Tagline values.
+let savedStandardName = '';
+let savedStandardTagline = '';
+let savedSubjectLabel = '';
+
+function uploadShapeKey(cfg) {
+  return cfg.photoSlotLabels ? ('slots:' + cfg.photoSlotLabels.length) : ('free:' + cfg.minImages + '-' + cfg.maxImages);
+}
+
+function applyStyleSelection(styleId) {
+  const oldCfg = templateConfig(S.style);
+  const newCfg = templateConfig(styleId);
+  const oldIsSubject = oldCfg.textMode === 'subject-label';
+  const newIsSubject = newCfg.textMode === 'subject-label';
+
+  if (oldIsSubject !== newIsSubject) {
+    if (oldIsSubject) savedSubjectLabel = S.name; else { savedStandardName = S.name; savedStandardTagline = S.tagline; }
+    if (newIsSubject) { S.name = savedSubjectLabel; S.tagline = ''; } else { S.name = savedStandardName; S.tagline = savedStandardTagline; }
+    document.getElementById('nameInp').value = S.name;
+    document.getElementById('tagInp').value = S.tagline;
+    document.getElementById('quickName').value = S.name ? S.name.toUpperCase() : '';
+  }
+
+  if (uploadShapeKey(oldCfg) !== uploadShapeKey(newCfg)) S.photos = [];
+
+  S.style = styleId;
+  syncTemplateTextUI();
+  renderPhotoUploadUI();
+  checkStep2();
+  checkStep4();
+}
 
 // Warm the local dark set in the background so switching themes does not
 // wait for a network round trip or move any existing composition.
@@ -1202,10 +1380,28 @@ const S = {
   photos: [], size: null, agreed: false
 };
 
+function lightPreviewUrl(id) {
+  if (!S.garment || !S.colour) return '';
+  const raw = PREVIEWS[S.garment][S.colour][id] || '';
+  return raw.startsWith('assets/') ? raw : CDN + raw;
+}
+
+// A style preview image occasionally has no dark-mode counterpart yet
+// (e.g. a template's asset upload is still incomplete for one garment or
+// colour combo). Rather than show a broken image, fall back to the
+// light-mode version -- once, guarded by data-fallback-applied so a
+// genuinely broken light image doesn't error-loop.
+function onStyleImgError(event) {
+  const img = event.target;
+  if (img.dataset.fallbackApplied) return;
+  img.dataset.fallbackApplied = '1';
+  img.src = img.dataset.fallback;
+}
+
 function previewUrl(id) {
   if (!S.garment || !S.colour) return '';
   if (studioIsDark()) return darkPreviewUrl(id);
-  return CDN + (PREVIEWS[S.garment][S.colour][id] || '');
+  return lightPreviewUrl(id);
 }
 
 // ── Update garment picker images ──
@@ -1282,7 +1478,7 @@ function editStep(n) {
   if (n <= 2) { S.name = ''; S.tagline = ''; document.getElementById('nameInp').value = ''; document.getElementById('tagInp').value = ''; checkStep2(); }
   if (n <= 3) { S.subject = null; checkStep3(); }
   if (n <= 4) { S.style = null; checkStep4(); }
-  if (n <= 5) { S.photos = []; renderThumbs(); checkStep5(); }
+  if (n <= 5) { S.photos = []; }
   if (n <= 6) { S.size = null; checkStep6(); }
   S.agreed = false; document.getElementById('trustBar').style.display = 'none';
   const done = document.getElementById('stepDone' + n);
@@ -1290,6 +1486,11 @@ function editStep(n) {
   if (done) done.classList.remove('visible');
   if (card) { card.classList.add('visible', 'entering'); setTimeout(() => card.classList.remove('entering'), 400); }
   updateProgress(n);
+  // Keep the template-aware text/upload UI (labels, chips, tagline
+  // visibility, photo slots vs free-form zone) in sync with whatever
+  // S.style now is, regardless of which step was reopened.
+  syncTemplateTextUI();
+  renderPhotoUploadUI();
   setTimeout(() => document.getElementById('stepWrap' + n).scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
 }
 
@@ -1334,7 +1535,7 @@ document.getElementById('btnNext1').addEventListener('click', () => {
 
 // ── STEP 2: Name ──
 function checkStep2() {
-  document.getElementById('btnNext2').classList.toggle('ready', S.name.trim().length > 0);
+  document.getElementById('btnNext2').classList.toggle('ready', isNameTextValid());
 }
 
 document.getElementById('nameInp').addEventListener('input', e => {
@@ -1384,17 +1585,20 @@ function buildStyleGrid() {
       (s.badge ? '<div class="style-badge">' + s.badge + '</div>' : '') +
       '<img class="style-img" src="' + previewUrl(s.id) + '" alt="' + s.name + '" loading="lazy">' +
       '<div class="style-info"><div class="style-name">' + s.name + '</div><div class="style-desc">' + s.desc + '</div></div>';
+    const cardImg = card.querySelector('.style-img');
+    cardImg.dataset.fallback = lightPreviewUrl(s.id);
+    cardImg.addEventListener('error', onStyleImgError);
     card.addEventListener('click', () => {
       document.querySelectorAll('.style-card').forEach(c => c.classList.remove('sel'));
       card.classList.add('sel');
-      S.style = s.id;
-      checkStep4();
+      applyStyleSelection(s.id);
     });
     grid.appendChild(card);
   });
   // Sync quick name
   const qn = document.getElementById('quickName');
   if (qn) qn.value = S.name ? S.name.toUpperCase() : '';
+  syncTemplateTextUI();
   checkStep4();
 }
 
@@ -1403,7 +1607,7 @@ function refreshStyleImages() {
     const id = card.dataset.styleId;
     if (!id) return;
     const img = card.querySelector('.style-img');
-    if (img) img.src = previewUrl(id);
+    if (img) { delete img.dataset.fallbackApplied; img.dataset.fallback = lightPreviewUrl(id); img.src = previewUrl(id); }
   });
 }
 
@@ -1426,7 +1630,7 @@ function refreshStudioThemeImages() {
 window.addEventListener('unik:themechange', refreshStudioThemeImages);
 
 function checkStep4() {
-  document.getElementById('btnNext4').classList.toggle('ready', !!S.style);
+  document.getElementById('btnNext4').classList.toggle('ready', !!S.style && isNameTextValid());
 }
 
 // Quick name edit in style step
@@ -1435,6 +1639,7 @@ document.getElementById('quickName').addEventListener('input', e => {
   // Sync back to step 2 input
   const ni = document.getElementById('nameInp');
   if (ni) ni.value = S.name;
+  checkStep4();
 });
 
 // Switch colour pill
@@ -1489,8 +1694,9 @@ uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classL
 photoInput.addEventListener('change', e => { handleFiles(Array.from(e.target.files)); e.target.value = ''; });
 
 function handleFiles(files) {
+  const max = templateConfig(S.style).maxImages || 5;
   files.forEach(f => {
-    if (S.photos.length >= 5) return;
+    if (S.photos.length >= max) return;
     const n = f.name.toLowerCase();
     if (n.endsWith('.heic') || n.endsWith('.heif')) return;
     const r = new FileReader();
@@ -1524,7 +1730,90 @@ function renderThumbs() {
 }
 
 function checkStep5() {
-  document.getElementById('btnNext5').classList.toggle('ready', S.photos.length > 0);
+  const cfg = templateConfig(S.style);
+  let ready;
+  if (cfg.photoSlotLabels) {
+    ready = cfg.photoSlotLabels.every((_, i) => !!S.photos[i]);
+  } else {
+    const count = S.photos.length;
+    const max = cfg.maxImages || 5;
+    ready = cfg.minImages === cfg.maxImages ? count === max : count > 0 && count <= max;
+  }
+  document.getElementById('btnNext5').classList.toggle('ready', ready);
+}
+
+// Numbered, labelled slots for templates with a fixed photo layout
+// (e.g. CHROME_COLLAGE, I_LOVE_MY) instead of the free-form drop zone.
+function renderPhotoSlots(cfg) {
+  const container = document.getElementById('photoSlots');
+  container.innerHTML = '';
+  cfg.photoSlotLabels.forEach((label, i) => {
+    const photo = S.photos[i];
+    const slot = document.createElement('div');
+    slot.className = 'photo-slot' + (photo ? ' filled' : '');
+    slot.innerHTML =
+      '<input type="file" accept="image/jpeg,image/png,image/webp" data-slot="' + i + '">' +
+      (photo ? '<img src="' + photo.url + '" alt="">' : '') +
+      '<div class="photo-slot-num">PHOTO ' + (i + 1) + '</div>' +
+      '<div class="photo-slot-label">' + label + '</div>' +
+      (photo ? '<button type="button" class="photo-slot-rm" data-slot-rm="' + i + '">×</button>' : '');
+    container.appendChild(slot);
+  });
+  container.querySelectorAll('input[data-slot]').forEach(input => {
+    input.addEventListener('change', e => {
+      const idx = parseInt(input.dataset.slot, 10);
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      const n = f.name.toLowerCase();
+      if (n.endsWith('.heic') || n.endsWith('.heif')) return;
+      const r = new FileReader();
+      r.onload = ev => { S.photos[idx] = { url: ev.target.result }; renderPhotoSlots(cfg); checkStep5(); };
+      r.readAsDataURL(f);
+    });
+  });
+  container.querySelectorAll('[data-slot-rm]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.slotRm, 10);
+      S.photos[idx] = undefined;
+      renderPhotoSlots(cfg);
+      checkStep5();
+    });
+  });
+}
+
+// Switches step 5 between the free-form drop zone (original 8 styles,
+// TOON_DRIP) and the numbered labelled-slot layout (CHROME_COLLAGE,
+// I_LOVE_MY), and keeps the step's copy in sync with the selected
+// template's photo requirements.
+function renderPhotoUploadUI() {
+  const cfg = templateConfig(S.style);
+  const uploadZone = document.getElementById('uploadZone');
+  const photoStrip = document.getElementById('photoStrip');
+  const photoCount = document.getElementById('photoCount');
+  const photoSlots = document.getElementById('photoSlots');
+  const uploadSub = document.getElementById('uploadSub');
+  const desc = document.getElementById('step5Desc');
+  if (cfg.photoSlotLabels) {
+    uploadZone.style.display = 'none';
+    photoStrip.style.display = 'none';
+    photoCount.style.display = 'none';
+    photoSlots.style.display = 'grid';
+    desc.textContent = 'Upload one photo for each labelled slot below.';
+    renderPhotoSlots(cfg);
+  } else {
+    photoSlots.style.display = 'none';
+    uploadZone.style.display = '';
+    photoStrip.style.display = '';
+    desc.textContent = cfg.maxImages === 1 ? 'One clear reference photo.' : 'Best face photo first. All same person. JPG or PNG only.';
+    uploadSub.textContent = cfg.minImages === cfg.maxImages
+      ? ('Exactly ' + cfg.maxImages + ' photo' + (cfg.maxImages > 1 ? 's' : '') + ' · Same person')
+      : ('Up to ' + (cfg.maxImages || 5) + ' photos · Same person · Best face first');
+    renderThumbs();
+  }
+  checkStep5();
 }
 
 document.getElementById('btnNext5').addEventListener('click', () => {
@@ -1559,8 +1848,10 @@ function buildReview() {
   const sj = S.subject === 'artist' ? 'An Artist' : 'Personal';
   const found = STYLES.find(x => x.id === S.style);
 
+  const nameCfg = templateConfig(S.style);
+  const rvNameText = nameCfg.textMode === 'subject-label' ? cleanSubjectLabel(S.name).toUpperCase() : S.name.toUpperCase();
   document.getElementById('rv-garment').textContent = g + ' · ' + c;
-  document.getElementById('rv-name').textContent = S.name.toUpperCase() + (S.tagline ? ' / ' + S.tagline.toUpperCase() : '');
+  document.getElementById('rv-name').textContent = rvNameText + (nameCfg.taglineVisible && S.tagline ? ' / ' + S.tagline.toUpperCase() : '');
   document.getElementById('rv-subject').textContent = sj;
 
   const rvStyle = document.getElementById('rv-style');
@@ -1620,9 +1911,15 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
     startLoading();
     const photos = [];
     for (const photo of S.photos) photos.push(await compressGenerationPhoto(photo.url));
+    const cfg = templateConfig(S.style);
+    // I_LOVE_MY has no tagline field -- its "name" carries the cleaned
+    // subject label instead (e.g. "bestie"), which the server treats as
+    // this design's name too.
+    const payloadName = cfg.textMode === 'subject-label' ? cleanSubjectLabel(S.name) : S.name;
+    const payloadTagline = cfg.textMode === 'subject-label' ? '' : S.tagline;
     const response = await fetch('/api/unik/generations', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ garment:S.garment, colour:S.colour, subject:S.subject, style:S.style, name:S.name, tagline:S.tagline, size:S.size, photos })
+      body:JSON.stringify({ garment:S.garment, colour:S.colour, subject:S.subject, style:S.style, name:payloadName, tagline:payloadTagline, size:S.size, photos })
     });
     const contentType = response.headers.get('content-type') || '';
     const payload = contentType.includes('application/json')
