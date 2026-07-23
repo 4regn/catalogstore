@@ -725,7 +725,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     </div>
     <div class="step-card visible" id="stepCard1">
       <div class="step-head">
-        <div class="step-eyebrow">Step 1 of 7</div>
+        <div class="step-eyebrow">Step 1 of 5</div>
         <h2 class="step-title">CHOOSE YOUR GARMENT</h2>
         <p class="step-desc">Pick the style and colour.</p>
       </div>
@@ -757,14 +757,14 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     </div>
   </div>
 
-  <!-- ── STEP 2: Name + Tagline ── -->
+  <!-- ── STEP 2: Design — Name/Tagline, Subject, Style all together ── -->
   <div class="step-wrap s-hidden" id="stepWrap2">
     <div class="step-done-bar" id="stepDone2">
       <div class="done-bar-inner">
         <div class="done-left">
           <div class="done-check"><svg viewBox="0 0 12 10" fill="none" width="12" height="10"><path d="M1 5 L4.5 8.5 L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="done-info">
-            <div class="done-label">Name</div>
+            <div class="done-label">Design</div>
             <div class="done-value" id="step2Summary">—</div>
           </div>
         </div>
@@ -773,35 +773,85 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     </div>
     <div class="step-card" id="stepCard2">
       <div class="step-head">
-        <div class="step-eyebrow">Step 2 of 7</div>
-        <h2 class="step-title">ENTER THE NAME</h2>
-        <p class="step-desc">The name that will be on your design.</p>
+        <div class="step-eyebrow">Step 2 of 5</div>
+        <h2 class="step-title" id="step2Title">DESIGN YOUR PIECE</h2>
+        <p class="step-desc" id="step2Desc">Add a name, tell us who's in the picture, then choose your style.</p>
       </div>
       <div class="step-body">
-        <div class="name-field">
-          <label class="field-label" id="nameFieldLabel" for="nameInp">Name</label>
-          <input class="name-inp" id="nameInp" type="text" placeholder="eg. DRAKE" maxlength="30" autocomplete="off" autocapitalize="characters">
-          <div class="name-hint" id="nameFieldHint" style="display:none"></div>
-          <div class="suggestion-chips" id="step2Chips" style="display:none"></div>
+        <div id="standardFieldsBlock">
+          <div class="name-field">
+            <label class="field-label" id="nameFieldLabel" for="nameInp">Name</label>
+            <input class="name-inp" id="nameInp" type="text" placeholder="eg. DRAKE" maxlength="30" autocomplete="off" autocapitalize="characters">
+            <div class="name-hint" id="nameFieldHint" style="display:none"></div>
+            <div class="suggestion-chips" id="nameChips" style="display:none"></div>
+          </div>
+          <div class="name-field" id="taglineFieldWrap">
+            <label class="field-label" for="tagInp">Tagline <span class="field-label-opt">(optional)</span></label>
+            <input class="tag-inp" id="tagInp" type="text" placeholder="e.g. PRIVATE SCHOOL PIANO" maxlength="40" autocomplete="off" autocapitalize="characters">
+            <div class="name-hint">Leave blank — we create one from the vibe</div>
+          </div>
+          <div class="step-divider" id="subjectDivider"></div>
+          <div class="colour-sub-head" id="subjectSubHead">Who is in the picture?</div>
+          <div class="subject-list" id="subjectBlock">
+            <div class="subject-card" data-subject="artist" id="subjectArtist">
+              <div class="subj-icon">
+                <!-- Microphone icon — premium line art -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="2" width="6" height="11" rx="3"/>
+                  <path d="M5 10a7 7 0 0 0 14 0"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                  <line x1="9" y1="22" x2="15" y2="22"/>
+                </svg>
+              </div>
+              <div class="subj-text">
+                <div class="subj-name">AN ARTIST</div>
+                <div class="subj-desc">Musician · Performer · Public Figure</div>
+              </div>
+              <div class="subj-radio"><div class="subj-dot"></div></div>
+            </div>
+            <div class="subject-card" data-subject="personal" id="subjectPersonal">
+              <div class="subj-icon">
+                <!-- Portrait / person icon — premium line art -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8" r="4"/>
+                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                  <path d="M16 3.5c1.2.6 2 1.9 2 3.4 0 1.5-.8 2.9-2 3.5"/>
+                </svg>
+              </div>
+              <div class="subj-text">
+                <div class="subj-name">PERSONAL</div>
+                <div class="subj-desc">You · Someone You Know · A Gift</div>
+              </div>
+              <div class="subj-radio"><div class="subj-dot"></div></div>
+            </div>
+          </div>
         </div>
-        <div class="name-field" id="taglineFieldWrap">
-          <label class="field-label" for="tagInp">Tagline <span class="field-label-opt">(optional)</span></label>
-          <input class="tag-inp" id="tagInp" type="text" placeholder="e.g. PRIVATE SCHOOL PIANO" maxlength="40" autocomplete="off" autocapitalize="characters">
-          <div class="name-hint">Leave blank — we create one from the vibe</div>
+        <div class="step-divider"></div>
+        <div class="colour-sub-head">Choose your style</div>
+        <!-- Quick colour switch -- colour itself is chosen in Step 1, this
+             just avoids forcing a trip back there to preview both. -->
+        <div class="style-filters">
+          <button class="filter-chip" id="switchColourBtn">
+            <span class="filter-chip-dot is-black" id="colourDot"></span>
+            <span class="filter-chip-current" id="colourLabel">Black</span>
+            <span class="filter-chip-sep">·</span>
+            <span class="filter-chip-alt" id="colourAlt">switch to White</span>
+          </button>
         </div>
+        <div class="style-grid" id="styleGrid"></div>
       </div>
       <div class="step-foot"><button class="btn-next" id="btnNext2">Next Step →</button></div>
     </div>
   </div>
 
-  <!-- ── STEP 3: Who is in the picture? ── -->
+  <!-- ── STEP 3: Upload ── -->
   <div class="step-wrap s-hidden" id="stepWrap3">
     <div class="step-done-bar" id="stepDone3">
       <div class="done-bar-inner">
         <div class="done-left">
           <div class="done-check"><svg viewBox="0 0 12 10" fill="none" width="12" height="10"><path d="M1 5 L4.5 8.5 L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="done-info">
-            <div class="done-label">Subject</div>
+            <div class="done-label">Photos</div>
             <div class="done-value" id="step3Summary">—</div>
           </div>
         </div>
@@ -810,116 +860,9 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     </div>
     <div class="step-card" id="stepCard3">
       <div class="step-head">
-        <div class="step-eyebrow">Step 3 of 7</div>
-        <h2 class="step-title">WHO IS IN THE PICTURE?</h2>
-        <p class="step-desc">This helps our AI nail the creative direction.</p>
-      </div>
-      <div class="step-body">
-        <div class="subject-list">
-          <div class="subject-card" data-subject="artist" id="subjectArtist">
-            <div class="subj-icon">
-              <!-- Microphone icon — premium line art -->
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="2" width="6" height="11" rx="3"/>
-                <path d="M5 10a7 7 0 0 0 14 0"/>
-                <line x1="12" y1="19" x2="12" y2="22"/>
-                <line x1="9" y1="22" x2="15" y2="22"/>
-              </svg>
-            </div>
-            <div class="subj-text">
-              <div class="subj-name">AN ARTIST</div>
-              <div class="subj-desc">Musician · Performer · Public Figure</div>
-            </div>
-            <div class="subj-radio"><div class="subj-dot"></div></div>
-          </div>
-          <div class="subject-card" data-subject="personal" id="subjectPersonal">
-            <div class="subj-icon">
-              <!-- Portrait / person icon — premium line art -->
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="4"/>
-                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                <path d="M16 3.5c1.2.6 2 1.9 2 3.4 0 1.5-.8 2.9-2 3.5"/>
-              </svg>
-            </div>
-            <div class="subj-text">
-              <div class="subj-name">PERSONAL</div>
-              <div class="subj-desc">You · Someone You Know · A Gift</div>
-            </div>
-            <div class="subj-radio"><div class="subj-dot"></div></div>
-          </div>
-        </div>
-      </div>
-      <div class="step-foot"><button class="btn-next" id="btnNext3">Next Step →</button></div>
-    </div>
-  </div>
-
-  <!-- ── STEP 4: Style ── -->
-  <div class="step-wrap s-hidden" id="stepWrap4">
-    <div class="step-done-bar" id="stepDone4">
-      <div class="done-bar-inner">
-        <div class="done-left">
-          <div class="done-check"><svg viewBox="0 0 12 10" fill="none" width="12" height="10"><path d="M1 5 L4.5 8.5 L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="done-info">
-            <div class="done-label">Style</div>
-            <div class="done-value" id="step4Summary">—</div>
-          </div>
-        </div>
-        <button class="done-edit" data-step="4">Edit</button>
-      </div>
-    </div>
-    <div class="step-card" id="stepCard4">
-      <div class="step-head">
-        <div class="step-eyebrow">Step 4 of 7</div>
-        <h2 class="step-title" id="step4Title">PICK YOUR VIBE</h2>
-        <p class="step-desc" id="step4Desc">Choose the design style that matches your vision.</p>
-      </div>
-      <div class="step-body">
-        <!-- Quick name edit -->
-        <div class="quick-name-wrap">
-          <input class="quick-name" id="quickName" type="text" placeholder="NAME" maxlength="30" autocapitalize="characters">
-          <div class="quick-name-hint" id="quickNameHint">Edit name above to update your design</div>
-          <div class="suggestion-chips" id="step4Chips" style="display:none"></div>
-        </div>
-        <!-- Filter chips: current colour + subject as toggleable tags -->
-        <div class="style-filters">
-          <button class="filter-chip" id="switchColourBtn">
-            <span class="filter-chip-dot is-black" id="colourDot"></span>
-            <span class="filter-chip-current" id="colourLabel">Black</span>
-            <span class="filter-chip-sep">·</span>
-            <span class="filter-chip-alt" id="colourAlt">switch to White</span>
-          </button>
-          <button class="filter-chip" id="switchSubjectBtn">
-            <span class="filter-chip-current" id="subjectLabel">Artist</span>
-            <span class="filter-chip-sep">·</span>
-            <span class="filter-chip-alt" id="subjectAlt">switch to Personal</span>
-          </button>
-        </div>
-        <!-- All 8 styles -->
-        <div class="style-grid" id="styleGrid"></div>
-      </div>
-      <div class="step-foot"><button class="btn-next" id="btnNext4">Next Step →</button></div>
-    </div>
-  </div>
-
-  <!-- ── STEP 5: Upload ── -->
-  <div class="step-wrap s-hidden" id="stepWrap5">
-    <div class="step-done-bar" id="stepDone5">
-      <div class="done-bar-inner">
-        <div class="done-left">
-          <div class="done-check"><svg viewBox="0 0 12 10" fill="none" width="12" height="10"><path d="M1 5 L4.5 8.5 L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="done-info">
-            <div class="done-label">Photos</div>
-            <div class="done-value" id="step5Summary">—</div>
-          </div>
-        </div>
-        <button class="done-edit" data-step="5">Edit</button>
-      </div>
-    </div>
-    <div class="step-card" id="stepCard5">
-      <div class="step-head">
-        <div class="step-eyebrow">Step 5 of 7</div>
+        <div class="step-eyebrow">Step 3 of 5</div>
         <h2 class="step-title">UPLOAD YOUR PHOTOS</h2>
-        <p class="step-desc" id="step5Desc">Best face photo first. All same person. JPG or PNG only.</p>
+        <p class="step-desc" id="step3Desc">Best face photo first. All same person. JPG or PNG only.</p>
       </div>
       <div class="step-body">
         <div class="upload-zone" id="uploadZone">
@@ -937,27 +880,27 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
           <span id="photoCountText"></span>
         </div>
       </div>
-      <div class="step-foot"><button class="btn-next" id="btnNext5">Next Step →</button></div>
+      <div class="step-foot"><button class="btn-next" id="btnNext3">Next Step →</button></div>
     </div>
   </div>
 
-  <!-- ── STEP 6: Size ── -->
-  <div class="step-wrap s-hidden" id="stepWrap6">
-    <div class="step-done-bar" id="stepDone6">
+  <!-- ── STEP 4: Size ── -->
+  <div class="step-wrap s-hidden" id="stepWrap4">
+    <div class="step-done-bar" id="stepDone4">
       <div class="done-bar-inner">
         <div class="done-left">
           <div class="done-check"><svg viewBox="0 0 12 10" fill="none" width="12" height="10"><path d="M1 5 L4.5 8.5 L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="done-info">
             <div class="done-label">Size</div>
-            <div class="done-value" id="step6Summary">—</div>
+            <div class="done-value" id="step4Summary">—</div>
           </div>
         </div>
-        <button class="done-edit" data-step="6">Edit</button>
+        <button class="done-edit" data-step="4">Edit</button>
       </div>
     </div>
-    <div class="step-card" id="stepCard6">
+    <div class="step-card" id="stepCard4">
       <div class="step-head">
-        <div class="step-eyebrow">Step 6 of 7</div>
+        <div class="step-eyebrow">Step 4 of 5</div>
         <h2 class="step-title">CHOOSE YOUR SIZE</h2>
         <p class="step-desc">Select the size that fits you best.</p>
       </div>
@@ -974,15 +917,15 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
           <button class="unik-size-guide-trigger" type="button" data-unik-size-guide hidden><span>View T-shirt Size Guide</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5.5 18.5 9.5 9.5 18.5 5.5 14.5 14.5 5.5Z"/><path d="m12.5 7.5 2 2M10.5 9.5l2 2M8.5 11.5l2 2M6.5 13.5l2 2"/></svg></button>
         </div>
       </div>
-      <div class="step-foot"><button class="btn-next" id="btnNext6">Next Step →</button></div>
+      <div class="step-foot"><button class="btn-next" id="btnNext4">Next Step →</button></div>
     </div>
   </div>
 
-  <!-- ── STEP 7: Review ── -->
-  <div class="step-wrap s-hidden" id="stepWrap7">
-    <div class="step-card" id="stepCard7">
+  <!-- ── STEP 5: Review ── -->
+  <div class="step-wrap s-hidden" id="stepWrap5">
+    <div class="step-card" id="stepCard5">
       <div class="step-head">
-        <div class="step-eyebrow">Step 7 of 7</div>
+        <div class="step-eyebrow">Step 5 of 5</div>
         <h2 class="step-title">REVIEW YOUR ORDER</h2>
         <p class="step-desc">Almost there. Let's create something legendary.</p>
       </div>
@@ -990,7 +933,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
         <div class="review-card">
           <div class="review-row"><span class="review-label">Garment</span><span class="review-val" id="rv-garment">—</span></div>
           <div class="review-row"><span class="review-label" id="rvNameLabel">Name</span><span class="review-val" id="rv-name">—</span></div>
-          <div class="review-row"><span class="review-label">Subject</span><span class="review-val" id="rv-subject">—</span></div>
+          <div class="review-row" id="rvSubjectRow"><span class="review-label" id="rvSubjectLabel">Subject</span><span class="review-val" id="rv-subject">—</span></div>
           <div class="review-row"><span class="review-label">Style</span><span class="review-val" id="rv-style">—</span></div>
           <div class="review-row"><span class="review-label">Photos</span><span class="review-val" id="rv-photos">—</span></div>
           <div class="review-row"><span class="review-label">Size</span><span class="review-val" id="rv-size">—</span></div>
@@ -1212,13 +1155,13 @@ const TEMPLATE_CONFIG = {
   },
   CHROME_COLLAGE: {
     textMode: 'full-name', nameLabel: 'Full name', namePlaceholder: 'Enter the full name',
-    taglineVisible: false, minImages: 5, maxImages: 5,
+    taglineVisible: false, subjectVisible: false, minImages: 5, maxImages: 5,
     uploadHint: 'Upload exactly 5 photos at once · First photo is used as the hero image'
   },
   I_LOVE_MY: {
     textMode: 'subject-label', nameLabel: 'Who do you love?', namePlaceholder: 'Girlfriend, boyfriend, bestie, dog…',
     helperText: 'Enter only the relationship, person or pet — not the full phrase.',
-    taglineVisible: false, minImages: 5, maxImages: 5,
+    taglineVisible: false, subjectVisible: false, minImages: 5, maxImages: 5,
     suggestions: ['Girlfriend', 'Boyfriend', 'Bestie', 'Dog', 'Mom', 'Dad'],
     uploadHint: 'Upload exactly 5 photos at once · First photo is used as the hero image',
     pickSubtitle: 'Who is in the picture?'
@@ -1252,15 +1195,15 @@ function isNameTextValid() {
   return !!(S.name && S.name.trim().length > 0);
 }
 
-function renderSuggestionChips(containerId, cfg) {
-  const el = document.getElementById(containerId);
+function renderSuggestionChips(cfg) {
+  const el = document.getElementById('nameChips');
   if (!el) return;
   if (!cfg.suggestions) { el.innerHTML = ''; el.style.display = 'none'; return; }
   el.style.display = 'flex';
   el.innerHTML = cfg.suggestions.map(s =>
     '<button type="button" class="suggestion-chip" data-suggest="' + s + '">' + s + '</button>'
   ).join('') + '<button type="button" class="suggestion-chip" data-suggest="__other__">Other</button>';
-  const targetInput = containerId === 'step2Chips' ? document.getElementById('nameInp') : document.getElementById('quickName');
+  const targetInput = document.getElementById('nameInp');
   el.querySelectorAll('[data-suggest]').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!targetInput) return;
@@ -1272,9 +1215,12 @@ function renderSuggestionChips(containerId, cfg) {
   });
 }
 
-// Keeps step 2's name/tagline fields, step 4's quick-name field, and the
-// review step's field label all reflecting whichever style is currently
+// Keeps the merged Design step's name/tagline/subject fields and the
+// review step's field labels reflecting whichever style is currently
 // selected (or the default Name/Tagline shape when none is selected yet).
+// Tagline and Subject are hidden entirely for templates where they don't
+// apply (e.g. I_LOVE_MY has no "artist or personal" answer) so the step
+// doesn't carry unused fields once a style narrows down what's needed.
 function syncTemplateTextUI() {
   const cfg = templateConfig(S.style);
 
@@ -1289,26 +1235,27 @@ function syncTemplateTextUI() {
   }
   const taglineWrap = document.getElementById('taglineFieldWrap');
   if (taglineWrap) taglineWrap.style.display = cfg.taglineVisible ? '' : 'none';
+  const subjectVisible = cfg.subjectVisible !== false;
+  ['subjectDivider', 'subjectSubHead', 'subjectBlock'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = subjectVisible ? '' : 'none';
+  });
 
-  const qn = document.getElementById('quickName');
-  if (qn) qn.placeholder = cfg.namePlaceholder;
-  const qnHint = document.getElementById('quickNameHint');
-  if (qnHint) qnHint.textContent = cfg.helperText || 'Edit name above to update your design';
-
-  renderSuggestionChips('step2Chips', cfg);
-  renderSuggestionChips('step4Chips', cfg);
+  renderSuggestionChips(cfg);
 
   const reviewLabel = document.getElementById('rvNameLabel');
   if (reviewLabel) reviewLabel.textContent = cfg.nameLabel;
+  const rvSubjectRow = document.getElementById('rvSubjectRow');
+  if (rvSubjectRow) rvSubjectRow.style.display = subjectVisible ? '' : 'none';
 
-  // Once a style is picked, "PICK YOUR VIBE" is no longer useful -- show
-  // the chosen style's name instead so it's obvious what's selected and
-  // what the fields below it are asking for.
-  const step4Title = document.getElementById('step4Title');
-  const step4Desc = document.getElementById('step4Desc');
+  // Once a style is picked, "DESIGN YOUR PIECE" is no longer the most
+  // useful heading -- show the chosen style's name instead so it's
+  // obvious what's selected and what the fields above are asking for.
+  const step2Title = document.getElementById('step2Title');
+  const step2Desc = document.getElementById('step2Desc');
   const selected = STYLES.find(s => s.id === S.style);
-  if (step4Title) step4Title.textContent = selected ? selected.name : 'PICK YOUR VIBE';
-  if (step4Desc) step4Desc.textContent = selected ? (cfg.pickSubtitle || 'Confirm the details below, then continue.') : 'Choose the design style that matches your vision.';
+  if (step2Title) step2Title.textContent = selected ? selected.name : 'DESIGN YOUR PIECE';
+  if (step2Desc) step2Desc.textContent = selected ? (cfg.pickSubtitle || 'Confirm the details below, then continue.') : "Add a name, tell us who's in the picture, then choose your style.";
 }
 
 // Separate saved state per text mode so switching templates never silently
@@ -1334,8 +1281,11 @@ function applyStyleSelection(styleId) {
     if (newIsSubject) { S.name = savedSubjectLabel; S.tagline = ''; } else { S.name = savedStandardName; S.tagline = savedStandardTagline; }
     document.getElementById('nameInp').value = S.name;
     document.getElementById('tagInp').value = S.tagline;
-    document.getElementById('quickName').value = S.name ? S.name.toUpperCase() : '';
   }
+  // Templates that hide the artist/personal choice still need a value to
+  // submit -- these are all personal/relationship-driven collages, so
+  // "personal" is the only sensible default.
+  if (newCfg.subjectVisible === false && !S.subject) S.subject = 'personal';
 
   if (uploadShapeKey(oldCfg) !== uploadShapeKey(newCfg)) S.photos = [];
 
@@ -1343,18 +1293,17 @@ function applyStyleSelection(styleId) {
   syncTemplateTextUI();
   renderPhotoUploadUI();
   checkStep2();
-  checkStep4();
 
-  // The style grid can run well below the fold (11 cards deep), so a
-  // customer picking a style near the bottom never sees the quick-name
-  // field above it -- they just see a disabled Next button with no clue
-  // why. If that field still needs filling in, bring it into view and
-  // focus it immediately instead of leaving them to figure it out.
+  // The style grid runs well below the fold (11 cards deep), so a
+  // customer picking a style near the bottom never sees the name field
+  // above it -- they just see a disabled Next button with no clue why.
+  // If it still needs filling in, bring it into view and focus it
+  // immediately instead of leaving them to figure it out.
   if (!isNameTextValid()) {
-    const qn = document.getElementById('quickName');
-    if (qn) {
-      qn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(() => qn.focus({ preventScroll: true }), 350);
+    const nameInp = document.getElementById('nameInp');
+    if (nameInp) {
+      nameInp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => nameInp.focus({ preventScroll: true }), 350);
     }
   }
 }
@@ -1375,8 +1324,8 @@ const DARK_STUDIO_CACHE = [...new Set([
   return image;
 });
 
-const STEP_LABELS = ['Garment','Name','Subject','Style','Photos','Size','Review'];
-const TOTAL_STEPS = 7;
+const STEP_LABELS = ['Garment','Design','Photos','Size','Review'];
+const TOTAL_STEPS = 5;
 const AI_PRICES = {
   tee: { sale: 349, original: 450 },
   hoodie: { sale: 399, original: 500 }
@@ -1450,20 +1399,54 @@ function updateProgress(n) {
     if (!d) continue;
     d.className = 'pb-dot' + (i < n ? ' done' : i === n ? ' active' : '');
   }
-  document.getElementById('pbLabel').textContent = 'Step ' + n + ' of 7 — ' + STEP_LABELS[n - 1];
+  document.getElementById('pbLabel').textContent = 'Step ' + n + ' of ' + TOTAL_STEPS + ' — ' + STEP_LABELS[n - 1];
+}
+
+// Whether step n's existing data still satisfies that step's own
+// requirements -- used to silently fast-forward back through
+// already-completed steps after editing an earlier one, instead of
+// re-prompting for input that never actually changed.
+function isStepStillValid(n) {
+  const cfg = templateConfig(S.style);
+  switch (n) {
+    case 1: return !!(S.garment && S.colour);
+    case 2: return isNameTextValid() && !!S.style && (cfg.subjectVisible === false || !!S.subject);
+    case 3: {
+      const count = S.photos.length;
+      const max = cfg.maxImages || 5;
+      return cfg.minImages === cfg.maxImages ? count === max : count > 0 && count <= max;
+    }
+    case 4: return !!S.size;
+    default: return true;
+  }
 }
 
 // ── Step system ──
+// The furthest step the customer has actually reached. Editing an earlier
+// step never lowers this -- it's how showStep() knows to fast-forward
+// back through still-valid steps rather than re-prompting for them.
+let furthestStep = 1;
+
 function showStep(n) {
   const wrap = document.getElementById('stepWrap' + n);
   if (!wrap) return;
+  furthestStep = Math.max(furthestStep, n);
+
+  // Catching back up after an edit: this step was already completed and
+  // its data is untouched, so skip straight through instead of asking
+  // the customer to re-confirm something they never changed.
+  if (n < furthestStep && isStepStillValid(n)) {
+    completeStep(n);
+    return;
+  }
+
   wrap.classList.remove('s-hidden');
   const done = document.getElementById('stepDone' + n);
   const card = document.getElementById('stepCard' + n);
   if (done) done.classList.remove('visible');
   if (card) { card.classList.add('visible', 'entering'); setTimeout(() => card.classList.remove('entering'), 400); }
   updateProgress(n);
-  if (n === 7) document.getElementById('trustBar').style.display = 'block';
+  if (n === TOTAL_STEPS) { document.getElementById('trustBar').style.display = 'block'; buildReview(); }
   setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
 }
 
@@ -1475,32 +1458,31 @@ function completeStep(n) {
   if (n < TOTAL_STEPS) setTimeout(() => showStep(n + 1), 100);
 }
 
+// Reopens step n for editing WITHOUT clearing any state -- every other
+// step's data (photos, size, style, everything) stays exactly as it was.
+// Confirming the edit (via that step's own Next button, which routes back
+// through showStep/completeStep) fast-forwards straight back to wherever
+// the customer actually was, instead of forcing them back through every
+// step in between.
 function editStep(n) {
   for (let i = n + 1; i <= TOTAL_STEPS; i++) {
     const w = document.getElementById('stepWrap' + i);
     const c = document.getElementById('stepCard' + i);
-    const d = document.getElementById('stepDone' + i);
     if (i > 1) w.classList.add('s-hidden');
     if (c) c.classList.remove('visible');
-    if (d) d.classList.remove('visible');
   }
-  if (n <= 1) { S.garment = S.colour = null; checkStep1(); }
-  if (n <= 2) { S.name = ''; S.tagline = ''; document.getElementById('nameInp').value = ''; document.getElementById('tagInp').value = ''; checkStep2(); }
-  if (n <= 3) { S.subject = null; checkStep3(); }
-  if (n <= 4) { S.style = null; checkStep4(); }
-  if (n <= 5) { S.photos = []; }
-  if (n <= 6) { S.size = null; checkStep6(); }
-  S.agreed = false; document.getElementById('trustBar').style.display = 'none';
   const done = document.getElementById('stepDone' + n);
   const card = document.getElementById('stepCard' + n);
   if (done) done.classList.remove('visible');
   if (card) { card.classList.add('visible', 'entering'); setTimeout(() => card.classList.remove('entering'), 400); }
   updateProgress(n);
-  // Keep the template-aware text/upload UI (labels, chips, tagline
-  // visibility, photo slots vs free-form zone) in sync with whatever
-  // S.style now is, regardless of which step was reopened.
+  // Re-sync the template-aware UI and every step's Next-button ready
+  // state against the (unchanged) existing values, so re-opening a step
+  // that was already valid shows it as ready immediately rather than
+  // looking freshly incomplete.
   syncTemplateTextUI();
   renderPhotoUploadUI();
+  checkStep1(); checkStep2(); checkStep3(); checkStep4();
   setTimeout(() => document.getElementById('stepWrap' + n).scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
 }
 
@@ -1540,50 +1522,33 @@ document.querySelectorAll('[data-colour]').forEach(card => {
 document.getElementById('btnNext1').addEventListener('click', () => {
   const gLabel = S.garment === 'tee' ? 'Tee' : 'Hoodie';
   document.getElementById('step1Summary').textContent = gLabel + ' · ' + (S.colour === 'black' ? 'Black' : 'White');
+  buildStyleGrid();
   completeStep(1);
 });
 
-// ── STEP 2: Name ──
+// ── STEP 2: Design (name/tagline + subject + style, merged) ──
 function checkStep2() {
-  document.getElementById('btnNext2').classList.toggle('ready', isNameTextValid());
+  const cfg = templateConfig(S.style);
+  const ready = isNameTextValid() && !!S.style && (cfg.subjectVisible === false || !!S.subject);
+  document.getElementById('btnNext2').classList.toggle('ready', ready);
 }
 
 document.getElementById('nameInp').addEventListener('input', e => {
   S.name = e.target.value;
-  // Keep quick-name in sync
-  const qn = document.getElementById('quickName');
-  if (qn) qn.value = S.name.toUpperCase();
   checkStep2();
 });
 
 document.getElementById('tagInp').addEventListener('input', e => { S.tagline = e.target.value; });
-
-document.getElementById('btnNext2').addEventListener('click', () => {
-  document.getElementById('step2Summary').textContent = S.name.toUpperCase() + (S.tagline ? ' · ' + S.tagline.toUpperCase() : '');
-  completeStep(2);
-});
-
-// ── STEP 3: Subject ──
-function checkStep3() {
-  document.getElementById('btnNext3').classList.toggle('ready', !!S.subject);
-}
 
 document.querySelectorAll('[data-subject]').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('[data-subject]').forEach(c => c.classList.remove('sel'));
     card.classList.add('sel');
     S.subject = card.dataset.subject;
-    checkStep3();
+    checkStep2();
   });
 });
 
-document.getElementById('btnNext3').addEventListener('click', () => {
-  document.getElementById('step3Summary').textContent = S.subject === 'artist' ? 'An Artist' : 'Personal';
-  buildStyleGrid();
-  completeStep(3);
-});
-
-// ── STEP 4: Style ──
 function buildStyleGrid() {
   const grid = document.getElementById('styleGrid');
   grid.innerHTML = '';
@@ -1605,11 +1570,8 @@ function buildStyleGrid() {
     });
     grid.appendChild(card);
   });
-  // Sync quick name
-  const qn = document.getElementById('quickName');
-  if (qn) qn.value = S.name ? S.name.toUpperCase() : '';
   syncTemplateTextUI();
-  checkStep4();
+  checkStep2();
 }
 
 function refreshStyleImages() {
@@ -1639,19 +1601,6 @@ function refreshStudioThemeImages() {
 
 window.addEventListener('unik:themechange', refreshStudioThemeImages);
 
-function checkStep4() {
-  document.getElementById('btnNext4').classList.toggle('ready', !!S.style && isNameTextValid());
-}
-
-// Quick name edit in style step
-document.getElementById('quickName').addEventListener('input', e => {
-  S.name = e.target.value;
-  // Sync back to step 2 input
-  const ni = document.getElementById('nameInp');
-  if (ni) ni.value = S.name;
-  checkStep4();
-});
-
 // Switch colour pill
 document.getElementById('switchColourBtn').addEventListener('click', () => {
   S.colour = S.colour === 'black' ? 'white' : 'black';
@@ -1665,36 +1614,27 @@ document.getElementById('switchColourBtn').addEventListener('click', () => {
   document.getElementById('step1Summary').textContent = gLabel + ' · ' + (S.colour === 'black' ? 'Black' : 'White');
 });
 
-// Switch subject pill
-document.getElementById('switchSubjectBtn').addEventListener('click', () => {
-  S.subject = S.subject === 'artist' ? 'personal' : 'artist';
-  document.querySelectorAll('[data-subject]').forEach(c => c.classList.toggle('sel', c.dataset.subject === S.subject));
-  document.getElementById('step3Summary').textContent = S.subject === 'artist' ? 'An Artist' : 'Personal';
-  updateSwitchBtns();
-});
-
 function updateSwitchBtns() {
   const dot   = document.getElementById('colourDot');
   const cLbl  = document.getElementById('colourLabel');
   const cAlt  = document.getElementById('colourAlt');
-  const sLbl  = document.getElementById('subjectLabel');
-  const sAlt  = document.getElementById('subjectAlt');
   if (dot)  { dot.className = 'filter-chip-dot ' + (S.colour === 'black' ? 'is-black' : 'is-white'); }
   if (cLbl) cLbl.textContent = S.colour === 'black' ? 'Black' : 'White';
   if (cAlt) cAlt.textContent = 'switch to ' + (S.colour === 'black' ? 'White' : 'Black');
-  if (sLbl) sLbl.textContent = S.subject === 'artist' ? 'Artist' : 'Personal';
-  if (sAlt) sAlt.textContent = 'switch to ' + (S.subject === 'artist' ? 'Personal' : 'Artist');
 }
 
-document.getElementById('btnNext4').addEventListener('click', () => {
+document.getElementById('btnNext2').addEventListener('click', () => {
   const found = STYLES.find(s => s.id === S.style);
-  document.getElementById('step4Summary').textContent = found ? found.name : S.style;
-  // Sync name from quick field
-  S.name = document.getElementById('quickName').value || S.name;
-  completeStep(4);
+  const cfg = templateConfig(S.style);
+  const nameText = cfg.textMode === 'subject-label' ? cleanSubjectLabel(S.name).toUpperCase() : S.name.toUpperCase();
+  const parts = [nameText];
+  if (cfg.subjectVisible !== false) parts.push(S.subject === 'artist' ? 'An Artist' : 'Personal');
+  parts.push(found ? found.name : S.style);
+  document.getElementById('step2Summary').textContent = parts.join(' · ');
+  completeStep(2);
 });
 
-// ── STEP 5: Photos ──
+// ── STEP 3: Photos ──
 const uploadZone = document.getElementById('uploadZone');
 const photoInput = document.getElementById('photoInput');
 
@@ -1723,7 +1663,7 @@ async function handleFiles(files) {
     if (!url) continue;
     S.photos.push({ url });
     renderThumbs();
-    checkStep5();
+    checkStep3();
   }
 }
 
@@ -1740,7 +1680,7 @@ function renderThumbs() {
     const btn = document.createElement('button');
     btn.className = 'thumb-rm';
     btn.textContent = '×';
-    btn.addEventListener('click', () => { S.photos.splice(i, 1); renderThumbs(); checkStep5(); });
+    btn.addEventListener('click', () => { S.photos.splice(i, 1); renderThumbs(); checkStep3(); });
     w.appendChild(img); w.appendChild(btn); strip.appendChild(w);
   });
   if (S.photos.length > 0) {
@@ -1751,12 +1691,12 @@ function renderThumbs() {
   }
 }
 
-function checkStep5() {
+function checkStep3() {
   const cfg = templateConfig(S.style);
   const count = S.photos.length;
   const max = cfg.maxImages || 5;
   const ready = cfg.minImages === cfg.maxImages ? count === max : count > 0 && count <= max;
-  document.getElementById('btnNext5').classList.toggle('ready', ready);
+  document.getElementById('btnNext3').classList.toggle('ready', ready);
 }
 
 // All templates -- including the multi-photo collages -- share the same
@@ -1766,7 +1706,7 @@ function checkStep5() {
 function renderPhotoUploadUI() {
   const cfg = templateConfig(S.style);
   const uploadSub = document.getElementById('uploadSub');
-  const desc = document.getElementById('step5Desc');
+  const desc = document.getElementById('step3Desc');
   desc.textContent = cfg.maxImages === 1 ? 'One clear reference photo.' : 'Best face photo first. JPG or PNG only.';
   uploadSub.textContent = cfg.uploadHint
     ? cfg.uploadHint
@@ -1774,35 +1714,34 @@ function renderPhotoUploadUI() {
       ? ('Exactly ' + cfg.maxImages + ' photo' + (cfg.maxImages > 1 ? 's' : '') + ' · Same person')
       : ('Up to ' + (cfg.maxImages || 5) + ' photos · Same person · Best face first'));
   renderThumbs();
-  checkStep5();
+  checkStep3();
 }
 
-document.getElementById('btnNext5').addEventListener('click', () => {
-  document.getElementById('step5Summary').textContent = S.photos.length + ' photo' + (S.photos.length > 1 ? 's' : '');
-  completeStep(5);
+document.getElementById('btnNext3').addEventListener('click', () => {
+  document.getElementById('step3Summary').textContent = S.photos.length + ' photo' + (S.photos.length > 1 ? 's' : '');
+  completeStep(3);
 });
 
-// ── STEP 6: Size ──
+// ── STEP 4: Size ──
 document.querySelectorAll('.size-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('sel'));
     btn.classList.add('sel');
     S.size = btn.dataset.size;
-    checkStep6();
+    checkStep4();
   });
 });
 
-function checkStep6() {
-  document.getElementById('btnNext6').classList.toggle('ready', !!S.size);
+function checkStep4() {
+  document.getElementById('btnNext4').classList.toggle('ready', !!S.size);
 }
 
-document.getElementById('btnNext6').addEventListener('click', () => {
-  document.getElementById('step6Summary').textContent = S.size;
-  buildReview();
-  completeStep(6);
+document.getElementById('btnNext4').addEventListener('click', () => {
+  document.getElementById('step4Summary').textContent = S.size;
+  completeStep(4);
 });
 
-// ── STEP 7: Review ──
+// ── STEP 5: Review ──
 function buildReview() {
   const g = S.garment === 'tee' ? 'Tee' : 'Hoodie';
   const c = S.colour === 'black' ? 'Black' : 'White';
@@ -1977,15 +1916,50 @@ function finishLoading(result) {
 }
 
 // ── Reset ──
-document.getElementById('btnDownload').addEventListener('click', () => {
-  const url = currentGeneratedDesign && currentGeneratedDesign.previewUrl;
-  if (!url) return;
-  const link = document.createElement('a');
-  link.href = url;
-  link.target = '_blank';
-  link.rel = 'noopener';
-  link.click();
-  UNIK_CART.notify('Preview opened — save the image from your browser');
+// The design/mockup images live on a different origin (Supabase Storage),
+// so a plain <a download> or target="_blank" doesn't reliably trigger a
+// real download -- browsers often just navigate the current tab to the
+// image instead. That navigation is also what was destroying the wizard's
+// state: this is a single-page flow with no per-step URLs, so pressing
+// Back after that "download" landed the customer back on a fresh load of
+// studio.html (step 1), not the results screen -- even though their
+// design was already safely saved to their account. Fetching the image as
+// a blob and downloading THAT never navigates the page at all, so there's
+// nothing for Back to undo.
+async function downloadImage(url, filename) {
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) return false;
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+document.getElementById('btnDownload').addEventListener('click', async () => {
+  const design = currentGeneratedDesign;
+  if (!design) return;
+  const button = document.getElementById('btnDownload');
+  if (button.dataset.downloading === '1') return;
+  button.dataset.downloading = '1';
+  const original = button.innerHTML;
+  button.textContent = 'Downloading…';
+  const [designOk, mockupOk] = await Promise.all([
+    design.previewUrl ? downloadImage(design.previewUrl, 'unik-labs-design.jpg') : Promise.resolve(false),
+    design.mockupUrl ? downloadImage(design.mockupUrl, 'unik-labs-mockup.jpg') : Promise.resolve(false),
+  ]);
+  button.innerHTML = original;
+  delete button.dataset.downloading;
+  UNIK_CART.notify(designOk || mockupOk ? 'Downloaded to your device' : 'Could not download — please try again');
 });
 
 document.getElementById('btnShare').addEventListener('click', async () => {
@@ -2034,7 +2008,7 @@ document.getElementById('btnAgain').addEventListener('click', () => {
   document.getElementById('photoCount').style.display = 'none';
   document.getElementById('styleGrid').innerHTML = '';
   document.querySelectorAll('[data-garment],[data-colour],[data-subject],.size-btn').forEach(e => e.classList.remove('sel'));
-  for (let i = 1; i <= 7; i++) {
+  for (let i = 1; i <= TOTAL_STEPS; i++) {
     const w = document.getElementById('stepWrap' + i);
     const c = document.getElementById('stepCard' + i);
     const d = document.getElementById('stepDone' + i);
@@ -2044,6 +2018,7 @@ document.getElementById('btnAgain').addEventListener('click', () => {
     const nb = document.getElementById('btnNext' + i);
     if (nb) nb.classList.remove('ready');
   }
+  furthestStep = 1;
   document.getElementById('btnGenerate').classList.remove('ready');
   document.getElementById('trustBar').style.display = 'none';
   updateProgress(1);
