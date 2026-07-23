@@ -564,6 +564,53 @@ body{
   .trust-desc{font-size:6.6px !important;}
 }
 
+/* ── Template showcase ── */
+.unik-showcase{background:#000;padding:56px 0 8px;border-top:1px solid rgba(255,255,255,.08);}
+.unik-showcase-inner{padding:0 24px;}
+.unik-showcase-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;}
+.us-kicker{display:block;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:10px;}
+.us-title{font-family:'Anton',sans-serif;font-weight:400;font-size:clamp(28px,7.4vw,36px);line-height:1.04;letter-spacing:.3px;text-transform:uppercase;}
+.us-counter{font-size:11px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,.5);white-space:nowrap;padding-bottom:4px;}
+.us-counter strong{color:#fff;}
+
+.unik-stage{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;background:#0a0a0a;}
+.unik-deck{position:relative;width:100%;height:100%;}
+.unik-frame{position:absolute;inset:0;opacity:0;transition:opacity .5s ease;pointer-events:none;}
+.unik-frame.is-active{opacity:1;pointer-events:auto;}
+.unik-frame img{width:100%;height:100%;object-fit:cover;display:block;background:#111;}
+.unik-frame-shade{position:absolute;left:0;right:0;bottom:0;height:52%;background:linear-gradient(to bottom,rgba(0,0,0,0) 0%,rgba(0,0,0,.55) 55%,rgba(0,0,0,.92) 100%);pointer-events:none;}
+.unik-frame-badge{position:absolute;top:14px;left:14px;font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#000;background:#fff;border-radius:999px;padding:5px 11px;}
+.unik-frame-copy{position:absolute;left:16px;right:16px;bottom:16px;}
+.unik-frame-garment{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.68);margin-bottom:4px;}
+.unik-frame-name{font-family:'Anton',sans-serif;font-weight:400;font-size:clamp(22px,6vw,28px);line-height:1;letter-spacing:.3px;text-transform:uppercase;color:#fff;}
+
+.unik-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.28);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;line-height:1;z-index:5;transition:background .2s,border-color .2s;}
+.unik-arrow:hover{background:rgba(0,0,0,.66);border-color:rgba(255,255,255,.5);}
+.unik-arrow-prev{left:12px;}
+.unik-arrow-next{right:12px;}
+
+.unik-progress{height:2px;background:rgba(255,255,255,.14);margin:14px 24px 0;overflow:hidden;}
+.unik-progress-bar{height:100%;width:0%;background:#fff;}
+.unik-progress-bar.is-animating{transition:width linear;}
+
+.unik-rail{display:flex;gap:9px;overflow-x:auto;padding:16px 24px 4px;scrollbar-width:none;}
+.unik-rail::-webkit-scrollbar{display:none;}
+.unik-card{flex:none;width:64px;border:none;background:none;padding:0;cursor:pointer;opacity:.5;transition:opacity .2s;}
+.unik-card.is-active{opacity:1;}
+.unik-card-frame{display:block;width:64px;height:80px;border-radius:9px;overflow:hidden;border:1.5px solid transparent;}
+.unik-card.is-active .unik-card-frame{border-color:#fff;}
+.unik-card img{width:100%;height:100%;object-fit:cover;display:block;background:#111;}
+.unik-card-label{display:block;margin-top:6px;font-size:8.4px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.6);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.unik-card.is-active .unik-card-label{color:#fff;}
+
+.unik-showcase-cta{padding:26px 24px 8px;}
+.unik-showcase-cta .btn-primary{width:100%;}
+
+@media (max-width:360px){
+  .unik-card,.unik-card-frame{width:56px;}
+  .unik-card-frame{height:70px;}
+}
+
 </style>
 </head>
 <body>
@@ -641,6 +688,206 @@ body{
 </div>
 </div>
 </div>
+<!-- Template showcase: previews are wired up by the script below, which
+     picks each image's dark- or light-mode file based on the customer's
+     saved theme preference (the same dark/light toggle studio.html uses),
+     not the browser's colour-scheme. -->
+<section aria-label="Template gallery" class="unik-showcase" id="templates">
+<div class="unik-showcase-inner">
+<div class="unik-showcase-head">
+<div>
+<span class="us-kicker">Made from your photos</span>
+<h2 class="us-title">Pick your<br/>visual language.</h2>
+</div>
+<div class="us-counter"><strong id="unikCounterCurrent">01</strong> / 11</div>
+</div>
+<div class="unik-stage" id="unikStage">
+<div class="unik-deck" id="unikDeck"></div>
+<button aria-label="Previous template" class="unik-arrow unik-arrow-prev" id="unikPrev">‹</button>
+<button aria-label="Next template" class="unik-arrow unik-arrow-next" id="unikNext">›</button>
+</div>
+<div class="unik-progress"><div class="unik-progress-bar" id="unikProgressBar"></div></div>
+<div class="unik-rail" id="unikRail"></div>
+</div>
+<div class="unik-showcase-cta">
+<a class="btn-primary" href="studio.html">
+        Create yours
+        <svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 15 12" width="15"><path d="M1 6h12M8 1l5 5-5 5"></path></svg>
+</a>
+</div>
+</section>
 <script src="store.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var CDN = 'https://cdn.shopify.com/s/files/1/0613/0342/3021/files/';
+  var THEME_KEY = 'unik-labs-theme-v1';
+
+  // One representative garment/colour per template, pointing at the exact
+  // same files studio.html's own preview system already serves --
+  // assets/dark-studio/ for the dark-mode variant (studio.html: darkPreviewUrl),
+  // the legacy CDN/asset files studio.html calls PREVIEWS for the light
+  // variant (studio.html: lightPreviewUrl). Nothing here is guessed --
+  // every path was checked against what's actually on disk.
+  var TEMPLATES = [
+    { id: 'TOUR_POSTER', name: 'Tour Poster', garment: 'Tee', colour: 'Black', badge: 'Most Popular',
+      light: CDN + 'studio_prev_tour_model.jpg?v=1777654763', dark: 'assets/dark-studio/tee-black-tour-poster.jpg' },
+    { id: 'BOOTLEG', name: 'Bootleg', garment: 'Hoodie', colour: 'White', badge: null,
+      light: CDN + 'IMG_9323_c1woog.jpg?v=1784343551', dark: 'assets/dark-studio/hoodie-white-bootleg.jpg' },
+    { id: 'EDITORIAL', name: 'Editorial', garment: 'Tee', colour: 'White', badge: null,
+      light: CDN + 'IMG_9340.jpg?v=1784342366', dark: 'assets/dark-studio/tee-white-editorial.jpg' },
+    { id: 'CHROME', name: 'Chrome', garment: 'Hoodie', colour: 'Black', badge: null,
+      light: CDN + 'DA525BDB-D990-49BA-B442-7550D4C26F8C.jpg?v=1784322194', dark: 'assets/dark-studio/hoodie-black-chrome.jpg' },
+    { id: 'GIANT_FACE', name: 'Giant Face', garment: 'Tee', colour: 'Black', badge: null,
+      light: CDN + 'studio_prev_giant_model_1.jpg?v=1777655935', dark: 'assets/dark-studio/tee-black-giant-face.jpg' },
+    { id: 'BLING_ERA', name: 'Bling Era', garment: 'Hoodie', colour: 'White', badge: null,
+      light: CDN + 'IMG_9327_rn7dxo.jpg?v=1784343549', dark: 'assets/dark-studio/hoodie-white-bling-era.jpg' },
+    { id: 'PAPER_CUT', name: 'Paper Cut', garment: 'Tee', colour: 'White', badge: null,
+      light: CDN + 'E5CA8646-9F7A-4D8C-B5BA-029E6E8C7F73.jpg?v=1784322226', dark: 'assets/dark-studio/tee-white-paper-cut.jpg' },
+    { id: 'VTG_BOOTLEG', name: 'Vintage Bootleg', garment: 'Hoodie', colour: 'Black', badge: null,
+      light: CDN + 'IMG_9318.jpg?v=1784342368', dark: 'assets/dark-studio/hoodie-black-vtg-bootleg.jpg' },
+    { id: 'TOON_DRIP', name: 'Toon Drip', garment: 'Tee', colour: 'Black', badge: 'New',
+      light: 'assets/studio-previews/tee-black-toon-drip.jpg', dark: 'assets/dark-studio/tee-black-toon-drip.jpg' },
+    { id: 'CHROME_COLLAGE', name: 'Chrome Collage', garment: 'Hoodie', colour: 'White', badge: 'New',
+      light: 'assets/studio-previews/hoodie-white-chrome-collage.jpg', dark: 'assets/dark-studio/hoodie-white-chrome-collage.jpg' },
+    { id: 'I_LOVE_MY', name: 'I Love My...', garment: 'Tee', colour: 'White', badge: 'New',
+      light: 'assets/studio-previews/tee-white-i-love-my.jpg', dark: 'assets/dark-studio/tee-white-i-love-my.jpg' }
+  ];
+
+  var AUTOPLAY_MS = 4400;
+  var RESUME_DELAY_MS = 9000;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var deck = document.getElementById('unikDeck');
+  var rail = document.getElementById('unikRail');
+  var counter = document.getElementById('unikCounterCurrent');
+  var progressBar = document.getElementById('unikProgressBar');
+  var prevBtn = document.getElementById('unikPrev');
+  var nextBtn = document.getElementById('unikNext');
+  var stage = document.getElementById('unikStage');
+  if (!deck || !rail) return;
+
+  function currentTheme() {
+    // Same key + same default studio.html's store.js reads, so the
+    // showcase always agrees with whatever the customer last picked there.
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+  }
+
+  function sourceFor(template, theme) { return theme === 'dark' ? template.dark : template.light; }
+  function fallbackFor(template, theme) { return theme === 'dark' ? template.light : template.dark; }
+
+  var frameImgs = [];
+  var cardImgs = [];
+
+  TEMPLATES.forEach(function (t, i) {
+    var frame = document.createElement('div');
+    frame.className = 'unik-frame';
+    frame.innerHTML =
+      '<img alt="' + t.name + ' template preview" loading="' + (i === 0 ? 'eager' : 'lazy') + '" decoding="async">' +
+      '<div class="unik-frame-shade"></div>' +
+      (t.badge ? '<span class="unik-frame-badge">' + t.badge + '</span>' : '') +
+      '<div class="unik-frame-copy">' +
+        '<span class="unik-frame-garment">' + t.garment + ' &middot; ' + t.colour + '</span>' +
+        '<div class="unik-frame-name">' + t.name + '</div>' +
+      '</div>';
+    deck.appendChild(frame);
+    frameImgs.push(frame.querySelector('img'));
+
+    var card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'unik-card';
+    card.setAttribute('aria-label', 'Show ' + t.name + ' template');
+    card.innerHTML =
+      '<span class="unik-card-frame"><img alt="" loading="lazy" decoding="async"></span>' +
+      '<span class="unik-card-label">' + t.name + '</span>';
+    card.addEventListener('click', function () { goTo(i, true); });
+    rail.appendChild(card);
+    cardImgs.push(card.querySelector('img'));
+  });
+
+  function applyImages() {
+    var theme = currentTheme();
+    TEMPLATES.forEach(function (t, i) {
+      [frameImgs[i], cardImgs[i]].forEach(function (img) {
+        img.dataset.fallbackApplied = '';
+        img.onerror = function () {
+          if (img.dataset.fallbackApplied) return;
+          img.dataset.fallbackApplied = '1';
+          img.src = fallbackFor(t, theme);
+        };
+        img.src = sourceFor(t, theme);
+      });
+    });
+  }
+
+  var frames = Array.prototype.slice.call(deck.children);
+  var cards = Array.prototype.slice.call(rail.children);
+  var index = 0;
+  var timer = null;
+  var resumeTimer = null;
+
+  function render() {
+    frames.forEach(function (f, i) { f.classList.toggle('is-active', i === index); });
+    cards.forEach(function (c, i) { c.classList.toggle('is-active', i === index); });
+    if (cards[index]) cards[index].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    if (counter) counter.textContent = String(index + 1).padStart(2, '0');
+    restartProgress();
+  }
+
+  function restartProgress() {
+    if (!progressBar) return;
+    progressBar.classList.remove('is-animating');
+    progressBar.style.transitionDuration = '0ms';
+    progressBar.style.width = '0%';
+    if (reduceMotion) return;
+    void progressBar.offsetWidth; // force reflow so the transition below restarts from 0%
+    progressBar.classList.add('is-animating');
+    progressBar.style.transitionDuration = AUTOPLAY_MS + 'ms';
+    progressBar.style.width = '100%';
+  }
+
+  function goTo(i, manual) {
+    index = (i + TEMPLATES.length) % TEMPLATES.length;
+    render();
+    if (manual) pauseThenResume();
+  }
+
+  function next() { goTo(index + 1); }
+  function prev() { goTo(index - 1, true); }
+
+  function startAutoplay() {
+    stopAutoplay();
+    if (reduceMotion) return;
+    timer = setInterval(next, AUTOPLAY_MS);
+  }
+  function stopAutoplay() {
+    if (timer) clearInterval(timer);
+    timer = null;
+  }
+  function pauseThenResume() {
+    stopAutoplay();
+    clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(startAutoplay, RESUME_DELAY_MS);
+  }
+
+  if (nextBtn) nextBtn.addEventListener('click', function () { goTo(index + 1, true); });
+  if (prevBtn) prevBtn.addEventListener('click', prev);
+  if (stage) {
+    stage.addEventListener('mouseenter', stopAutoplay);
+    stage.addEventListener('mouseleave', startAutoplay);
+  }
+
+  applyImages();
+  render();
+  startAutoplay();
+
+  // Stay in sync with the theme toggle on studio.html/other pages: a live
+  // event when it changes in this tab, a storage event when it changes in
+  // another tab.
+  window.addEventListener('unik:themechange', applyImages);
+  window.addEventListener('storage', function (e) { if (e.key === THEME_KEY) applyImages(); });
+})();
+</script>
 </body>
 </html>
