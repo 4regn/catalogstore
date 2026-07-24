@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       // A Supabase auth user with this email may already exist (e.g. they're
       // also a customer somewhere) -- reuse that identity rather than fail.
       const message = createErr?.message || "";
-      if (!/already registered|already exists/i.test(message)) {
+      if (!/already.*(registered|exists)|already exists|email_exists/i.test(message)) {
         return NextResponse.json({ error: message || "Could not create account" }, { status: 500 });
       }
       const { data: list, error: listErr } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
