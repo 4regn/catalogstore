@@ -172,7 +172,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
 
         {panel === "sales" && <SalesPanel metrics={overview.metrics} authedFetch={authedFetch} toast={showToast} />}
         {panel === "growth" && <GrowthPanel manager={overview.manager} authedFetch={authedFetch} onSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
-        {panel === "support" && <SupportPanel />}
+        {panel === "support" && <SupportPanel authedFetch={authedFetch} />}
         {panel === "academy" && <AcademyPanel />}
         {panel === "settings" && <SettingsPanel manager={overview.manager} authedFetch={authedFetch} onProfileSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
       </main>
@@ -257,6 +257,20 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-list-item strong{font-size:11px}
         .bm-badge{padding:6px 9px;border-radius:999px;border:1px solid rgba(244,61,50,.25);background:rgba(244,61,50,.13);color:#ff8c85;font-size:8px;font-weight:900;text-transform:uppercase}
         .bm-error{color:#ff8b84;font-size:12px;margin:0 0 12px}
+        .bm-support-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:13px}
+        .bm-support-list{display:grid;gap:8px;align-content:start}
+        .bm-conversation-label{position:relative;padding:12px;border:1px solid #27272a;border-radius:14px;background:#0b0b0c;text-align:left;color:inherit}
+        .bm-conversation-label.active{border-color:rgba(244,61,50,.34);background:rgba(244,61,50,.13)}
+        .bm-conversation-label strong{display:block;font-size:10px}
+        .bm-conversation-label small{display:block;margin-top:4px;color:#999994;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .bm-unread-dot{position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:#f43d32}
+        .bm-chat{padding:14px;display:flex;flex-direction:column;min-height:305px;border:1px solid #27272a;border-radius:16px;background:#09090a}
+        .bm-chat-thread{display:flex;flex-direction:column;gap:10px;flex:1;overflow-y:auto}
+        .bm-message{max-width:78%;padding:10px 12px;border:1px solid #29292d;border-radius:14px;background:#17171a;font-size:12px;line-height:1.5}
+        .bm-message.out{margin-left:auto;border-color:rgba(244,61,50,.2);background:rgba(244,61,50,.13)}
+        .bm-reply{display:flex;gap:8px;margin-top:12px}
+        .bm-reply .bm-input{flex:1;min-width:0}
+        @media(max-width:900px){.bm-support-layout{grid-template-columns:1fr}}
         @media(max-width:900px){.bm-app{grid-template-columns:1fr}.bm-sidebar{display:none}.bm-metric{grid-column:span 6}.bm-form-grid{grid-template-columns:1fr}}
       `}</style>
     </div>
@@ -449,12 +463,79 @@ function GrowthPanel({ manager, authedFetch, onSaved, toast }: { manager: Manage
   );
 }
 
-function SupportPanel() {
+type Conversation = { id: string; name: string | null; email: string | null; status: string; seller_unread: number; last_message_at: string; last_message_preview: string | null; created_at: string };
+type ChatMessage = { id: string; sender: string; body: string; created_at: string };
+
+function SupportPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const loadConversations = useCallback(async () => {
+    const res = await authedFetch("/api/unik/brand-manager/conversations");
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) setConversations(payload.conversations || []);
+    setLoading(false);
+  }, [authedFetch]);
+
+  useEffect(() => {
+    loadConversations();
+    const timer = setInterval(loadConversations, 15000);
+    return () => clearInterval(timer);
+  }, [loadConversations]);
+
+  const loadThread = useCallback(async (id: string) => {
+    const res = await authedFetch(`/api/unik/brand-manager/conversations/${id}`);
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) setMessages(payload.messages || []);
+  }, [authedFetch]);
+
+  useEffect(() => {
+    if (!activeId) return;
+    loadThread(activeId);
+    const timer = setInterval(() => loadThread(activeId), 5000);
+    return () => clearInterval(timer);
+  }, [activeId, loadThread]);
+
+  async function sendReply() {
+    if (!activeId || !reply.trim()) return;
+    setSending(true);
+    const res = await authedFetch(`/api/unik/brand-manager/conversations/${activeId}`, { method: "POST", body: JSON.stringify({ message: reply.trim() }) });
+    if (res.ok) { setReply(""); loadThread(activeId); loadConversations(); }
+    setSending(false);
+  }
+
   return (
     <section>
       <article className="bm-card">
-        <div className="bm-section-head"><h2 className="bm-section-title">Customer conversations</h2><p className="bm-section-desc">Live chat is being wired up next — this will show real customer messages from the UNIK Labs storefront.</p></div>
-        <p className="bm-empty">Coming soon.</p>
+        <div className="bm-section-head"><h2 className="bm-section-title">Customer conversations</h2><p className="bm-section-desc">{conversations.filter((c) => c.seller_unread > 0).length} unread</p></div>
+        <div className="bm-support-layout">
+          <div className="bm-support-list">
+            {loading ? <p className="bm-empty">Loading…</p> : conversations.length === 0 ? <p className="bm-empty">No conversations yet.</p> : conversations.map((c) => (
+              <button key={c.id} type="button" className={"bm-conversation-label" + (activeId === c.id ? " active" : "")} onClick={() => setActiveId(c.id)}>
+                <strong>{c.name || c.email || "Customer"}</strong>
+                <small>{c.last_message_preview || "No messages yet"}</small>
+                {c.seller_unread > 0 && <span className="bm-unread-dot" />}
+              </button>
+            ))}
+          </div>
+          <div className="bm-chat">
+            {!activeId ? <p className="bm-empty">Select a conversation.</p> : (
+              <>
+                <div className="bm-chat-thread">
+                  {messages.map((m) => <div key={m.id} className={"bm-message" + (m.sender !== "visitor" ? " out" : "")}>{m.body}</div>)}
+                </div>
+                <div className="bm-reply">
+                  <input className="bm-input" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write a reply" onKeyDown={(e) => { if (e.key === "Enter") sendReply(); }} />
+                  <button type="button" className="bm-primary-btn" disabled={sending || !reply.trim()} onClick={sendReply}>Send</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </article>
     </section>
   );

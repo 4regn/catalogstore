@@ -536,6 +536,166 @@
     if (yearEl) yearEl.textContent = String(new Date().getFullYear());
   }
 
+  // Live chat widget: talks to the same /api/support/message + /api/support/messages
+  // endpoints the rest of the platform's storefront chat already uses
+  // (category="storefront"), so replies show up in the Brand Manager's
+  // real inbox. No React here -- these static pages share this one script,
+  // so the widget is built by hand the same way the footer above is.
+  const SUPPORT_VISITOR_KEY = 'unik-labs-support-visitor';
+  const SUPPORT_CONVERSATION_KEY = 'unik-labs-support-conversation';
+  const SUPPORT_IDENTITY_KEY = 'unik-labs-support-identity';
+  let supportSellerId = null;
+  let supportPollTimer = null;
+
+  function supportVisitorId() {
+    let id = null;
+    try { id = localStorage.getItem(SUPPORT_VISITOR_KEY); } catch (e) {}
+    if (!id) {
+      id = 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem(SUPPORT_VISITOR_KEY, id); } catch (e) {}
+    }
+    return id;
+  }
+
+  async function supportSeller() {
+    if (supportSellerId) return supportSellerId;
+    try {
+      const res = await fetch('/api/seller-public?slug=unik');
+      const data = await res.json();
+      supportSellerId = data.id || null;
+    } catch (e) {}
+    return supportSellerId;
+  }
+
+  function initSupportChat() {
+    const chatStyle = document.createElement('style');
+    chatStyle.textContent = `
+      .unik-chat-toggle{position:fixed;right:18px;bottom:18px;z-index:2000;width:56px;height:56px;border-radius:50%;background:#050505;border:1px solid rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 14px 40px rgba(0,0,0,.4)}
+      .unik-chat-toggle svg{width:24px;height:24px}
+      .unik-chat-panel{position:fixed;right:18px;bottom:86px;z-index:2000;width:min(340px,calc(100vw - 36px));height:min(460px,calc(100vh - 140px));background:#0d0d0f;border:1px solid #27272a;border-radius:20px;display:none;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.5);font-family:Arial,sans-serif}
+      .unik-chat-panel.open{display:flex}
+      .unik-chat-head{padding:14px 16px;border-bottom:1px solid #27272a;display:flex;align-items:center;justify-content:space-between}
+      .unik-chat-head strong{color:#fff;font-size:13px}
+      .unik-chat-close{background:none;border:0;color:#999;font-size:20px;cursor:pointer;line-height:1}
+      .unik-chat-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+      .unik-chat-msg{max-width:80%;padding:9px 12px;border-radius:14px;background:#17171a;color:#f4f1e9;font-size:12px;line-height:1.5;border:1px solid #26262a}
+      .unik-chat-msg.out{margin-left:auto;background:#f43d32;border-color:#f43d32;color:#fff}
+      .unik-chat-form{padding:12px;border-top:1px solid #27272a;display:flex;gap:8px}
+      .unik-chat-form input{flex:1;min-width:0;background:#111113;border:1px solid #27272a;border-radius:10px;color:#fff;padding:10px 12px;font-size:12px;outline:none}
+      .unik-chat-send{background:#f43d32;color:#fff;border:0;border-radius:10px;padding:0 14px;font-weight:800;cursor:pointer}
+      .unik-chat-intro{padding:16px;display:flex;flex-direction:column;gap:10px}
+      .unik-chat-intro p{margin:0;color:#c9c9c4;font-size:12px;line-height:1.5}
+      .unik-chat-intro input{background:#111113;border:1px solid #27272a;border-radius:10px;color:#fff;padding:10px 12px;font-size:12px;outline:none}
+      .unik-chat-intro button{background:#f43d32;color:#fff;border:0;border-radius:10px;padding:11px;font-weight:800;font-size:12px;cursor:pointer}
+    `;
+    document.head.appendChild(chatStyle);
+
+    const toggle = document.createElement('button');
+    toggle.className = 'unik-chat-toggle';
+    toggle.setAttribute('aria-label', 'Open live chat');
+    toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4z"/></svg>';
+    document.body.appendChild(toggle);
+
+    const panel = document.createElement('div');
+    panel.className = 'unik-chat-panel';
+    panel.innerHTML = `
+      <div class="unik-chat-head"><strong>Chat with us</strong><button class="unik-chat-close" type="button" aria-label="Close chat">&times;</button></div>
+      <div class="unik-chat-scroll" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
+    `;
+    document.body.appendChild(panel);
+    const scrollArea = panel.querySelector('.unik-chat-scroll');
+
+    function identity() {
+      try { return JSON.parse(localStorage.getItem(SUPPORT_IDENTITY_KEY) || 'null'); } catch (e) { return null; }
+    }
+
+    function renderIntro() {
+      scrollArea.innerHTML = `
+        <div class="unik-chat-intro">
+          <p>Tell us a little about yourself so we can help you out.</p>
+          <input type="text" id="unikChatName" placeholder="Your name" autocomplete="name">
+          <input type="email" id="unikChatEmail" placeholder="Email address" autocomplete="email">
+          <button type="button" id="unikChatStart">Start chat</button>
+        </div>`;
+      scrollArea.querySelector('#unikChatStart').addEventListener('click', () => {
+        const name = scrollArea.querySelector('#unikChatName').value.trim();
+        const email = scrollArea.querySelector('#unikChatEmail').value.trim();
+        if (!name || !email) return;
+        try { localStorage.setItem(SUPPORT_IDENTITY_KEY, JSON.stringify({ name, email })); } catch (e) {}
+        renderThread();
+      });
+    }
+
+    function renderThread() {
+      scrollArea.innerHTML = `
+        <div class="unik-chat-body" id="unikChatBody"></div>
+        <form class="unik-chat-form" id="unikChatForm">
+          <input type="text" id="unikChatInput" placeholder="Write a message" autocomplete="off">
+          <button class="unik-chat-send" type="submit">Send</button>
+        </form>`;
+      const body = scrollArea.querySelector('#unikChatBody');
+      const form = scrollArea.querySelector('#unikChatForm');
+      const input = scrollArea.querySelector('#unikChatInput');
+
+      function paint(messages) {
+        body.innerHTML = messages.map(m => `<div class="unik-chat-msg${m.sender === 'visitor' ? '' : ' out'}">${String(m.body || '').replace(/</g, '&lt;')}</div>`).join('');
+        body.scrollTop = body.scrollHeight;
+      }
+
+      async function poll() {
+        const conversationId = (function () { try { return localStorage.getItem(SUPPORT_CONVERSATION_KEY); } catch (e) { return null; } })();
+        if (!conversationId) return;
+        try {
+          const res = await fetch(`/api/support/messages?conversationId=${encodeURIComponent(conversationId)}&visitorId=${encodeURIComponent(supportVisitorId())}`);
+          const data = await res.json();
+          if (data.messages) paint(data.messages);
+        } catch (e) {}
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        const id = identity() || {};
+        const sellerId = await supportSeller();
+        let conversationId = null;
+        try { conversationId = localStorage.getItem(SUPPORT_CONVERSATION_KEY); } catch (e) {}
+        try {
+          const res = await fetch('/api/support/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              visitorId: supportVisitorId(),
+              conversationId: conversationId || undefined,
+              message: text,
+              name: id.name,
+              email: id.email,
+              category: 'storefront',
+              storefrontSellerId: sellerId,
+            }),
+          });
+          const data = await res.json();
+          if (data.conversationId) { try { localStorage.setItem(SUPPORT_CONVERSATION_KEY, data.conversationId); } catch (e) {} }
+        } catch (e) {}
+        poll();
+      });
+
+      poll();
+      clearInterval(supportPollTimer);
+      supportPollTimer = setInterval(poll, 5000);
+    }
+
+    toggle.addEventListener('click', () => {
+      panel.classList.add('open');
+      if (identity()) renderThread(); else renderIntro();
+    });
+    panel.querySelector('.unik-chat-close').addEventListener('click', () => {
+      panel.classList.remove('open');
+      clearInterval(supportPollTimer);
+    });
+  }
+
   function initNavigation() {
     const path = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
     const isHome = path === 'index.html' || path === '';
@@ -687,6 +847,7 @@
   initNavigation();
   initSizeGuide();
   initFooter();
+  initSupportChat();
   updateCount();
   window.addEventListener('storage', updateCount);
 })();
