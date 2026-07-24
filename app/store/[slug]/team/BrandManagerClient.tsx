@@ -94,11 +94,11 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
     window.location.href = "team/login";
   }
 
-  async function authedFetch(path: string, init: RequestInit = {}) {
+  const authedFetch = useCallback(async (path: string, init: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     return fetch(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
-  }
+  }, []);
 
   if (!sessionReady) return <main className="bm-loading">Connecting your secure session…</main>;
   if (!signedIn) return <main className="bm-loading">Redirecting to sign in…</main>;
@@ -170,7 +170,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
           </section>
         )}
 
-        {panel === "sales" && <SalesPanel recentOrders={overview.recentOrders} metrics={overview.metrics} />}
+        {panel === "sales" && <SalesPanel metrics={overview.metrics} authedFetch={authedFetch} toast={showToast} />}
         {panel === "growth" && <GrowthPanel manager={overview.manager} authedFetch={authedFetch} onSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
         {panel === "support" && <SupportPanel />}
         {panel === "academy" && <AcademyPanel />}
@@ -226,6 +226,11 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-row{display:grid;grid-template-columns:minmax(100px,1.2fr) minmax(90px,.9fr) minmax(90px,.9fr);gap:10px;align-items:center;padding:13px 14px;border-radius:14px;font-size:11px}
         .bm-row-header{padding-top:0;color:#999994;font-size:8px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
         .bm-row:not(.bm-row-header){border:1px solid #222225;background:#0b0b0c}
+        .bm-row-clickable{width:100%;color:inherit;text-align:left;cursor:pointer;transition:border-color .15s}
+        .bm-row-clickable:hover{border-color:rgba(244,61,50,.3)}
+        .bm-status-btn{padding:7px 14px;border-radius:100px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border:1px solid #27272a;background:#111113;color:#c0c0ba}
+        .bm-status-btn[data-active="true"]{border-color:rgba(244,61,50,.5);background:rgba(244,61,50,.13);color:#fff}
+        .bm-status-btn:disabled{opacity:.6;cursor:wait}
         .bm-status{width:max-content;padding:6px 9px;border:1px solid rgba(114,227,157,.2);border-radius:999px;background:rgba(114,227,157,.11);color:#72e39d;font-size:8px;font-weight:900;text-transform:uppercase}
         .bm-status.pending{color:#edc96c;border-color:rgba(237,201,108,.2);background:rgba(237,201,108,.1)}
         .bm-empty{color:#999994;font-size:12px}
@@ -258,7 +263,123 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
   );
 }
 
-function SalesPanel({ recentOrders, metrics }: { recentOrders: OrderRow[]; metrics: Overview["metrics"] }) {
+const UNIK_ORDER_STATUSES = ["pending", "fulfilled", "awaiting_pickup", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
+const PAYMENT_STATUSES = ["awaiting_payment", "pending", "paid", "refunded"];
+
+type OrderDetail = OrderRow & {
+  customer_email?: string;
+  customer_phone?: string;
+  payment_method?: string;
+  shipping_address?: { address?: string; apartment?: string; city?: string; province?: string; postal_code?: string } | null;
+  fulfillment_method?: string;
+  shipping_option?: string;
+  shipping_cost?: number;
+};
+
+function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metrics"]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+
+  const loadOrders = useCallback(async (targetPage: number) => {
+    setLoading(true);
+    const res = await authedFetch(`/api/unik/brand-manager/orders?page=${targetPage}`);
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setOrders((prev) => (targetPage === 0 ? payload.orders : [...prev, ...payload.orders]));
+      setHasMore(!!payload.hasMore);
+      setPage(targetPage);
+    }
+    setLoading(false);
+  }, [authedFetch]);
+
+  useEffect(() => { loadOrders(0); }, [loadOrders]);
+
+  const loadDetail = useCallback(async (id: string) => {
+    setSelectedId(id);
+    setDetail(null);
+    const res = await authedFetch(`/api/unik/brand-manager/orders/${id}`);
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) setDetail(payload.order);
+  }, [authedFetch]);
+
+  async function updateOrder(patch: { status?: string; paymentStatus?: string }, confirmMessage?: string) {
+    if (!selectedId || !detail) return;
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    setDetailBusy(true);
+    const res = await authedFetch(`/api/unik/brand-manager/orders/${selectedId}`, { method: "PATCH", body: JSON.stringify(patch) });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(payload.error || "Could not update order"); setDetailBusy(false); return; }
+    const updated = { ...detail, ...(patch.status ? { status: patch.status } : {}), ...(patch.paymentStatus ? { payment_status: patch.paymentStatus } : {}) };
+    setDetail(updated);
+    setOrders((prev) => prev.map((o) => (o.id === selectedId ? { ...o, ...updated } : o)));
+    toast("Order updated");
+    setDetailBusy(false);
+  }
+
+  if (selectedId) {
+    return (
+      <section>
+        <button type="button" className="bm-secondary-btn" style={{ marginBottom: 16 }} onClick={() => { setSelectedId(null); setDetail(null); }}>&larr; All orders</button>
+        {!detail ? <p className="bm-empty">Loading order…</p> : (
+          <>
+            <article className="bm-card" style={{ marginBottom: 16 }}>
+              <div className="bm-section-head"><h2 className="bm-section-title">Order #{detail.order_number}</h2><span className="bm-section-desc">{new Date(detail.created_at).toLocaleString()}</span></div>
+
+              <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+                <button type="button" className="bm-secondary-btn" disabled={detailBusy || detail.status === "cancelled"} onClick={() => updateOrder({ status: "cancelled" }, "Cancel this order? This only updates the order's status for tracking -- it does not refund the customer.")}>Cancel order</button>
+                <button type="button" className="bm-secondary-btn" disabled={detailBusy || detail.payment_status === "refunded"} onClick={() => updateOrder({ paymentStatus: "refunded" }, "Mark this order as refunded? This only updates the order's status for tracking -- you still need to process the actual refund through Yoco's merchant portal.")}>Mark refunded</button>
+              </div>
+
+              <div style={{ marginBottom: 8, fontSize: 10, fontWeight: 800, color: "#999994", textTransform: "uppercase", letterSpacing: ".08em" }}>Payment status</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+                {PAYMENT_STATUSES.map((s) => (
+                  <button key={s} type="button" disabled={detailBusy} onClick={() => updateOrder({ paymentStatus: s })} className="bm-status-btn" data-active={detail.payment_status === s}>{s.replace(/_/g, " ")}</button>
+                ))}
+              </div>
+
+              <div style={{ marginBottom: 8, fontSize: 10, fontWeight: 800, color: "#999994", textTransform: "uppercase", letterSpacing: ".08em" }}>Order status</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {UNIK_ORDER_STATUSES.map((s) => (
+                  <button key={s} type="button" disabled={detailBusy} onClick={() => updateOrder({ status: s })} className="bm-status-btn" data-active={detail.status === s}>{s.replace(/_/g, " ")}</button>
+                ))}
+              </div>
+            </article>
+
+            <div className="bm-form-grid" style={{ marginBottom: 16 }}>
+              <article className="bm-card">
+                <div className="bm-section-title" style={{ marginBottom: 10 }}>Customer</div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{detail.customer_name || "N/A"}</div>
+                {detail.customer_email && <div style={{ fontSize: 12, color: "#999994", marginTop: 4 }}>{detail.customer_email}</div>}
+                {detail.customer_phone && <div style={{ fontSize: 12, color: "#999994", marginTop: 2 }}>{detail.customer_phone}</div>}
+              </article>
+              <article className="bm-card">
+                <div className="bm-section-title" style={{ marginBottom: 10 }}>{detail.fulfillment_method === "pickup" ? "Pickup" : "Delivery"}</div>
+                {detail.fulfillment_method === "pickup" ? <div style={{ fontSize: 12, color: "#999994" }}>Customer will pick up</div> : detail.shipping_address ? (
+                  <div style={{ fontSize: 12, color: "#999994", lineHeight: 1.6 }}>{detail.shipping_address.address}{detail.shipping_address.apartment ? ", " + detail.shipping_address.apartment : ""}<br />{detail.shipping_address.city}, {detail.shipping_address.province}<br />{detail.shipping_address.postal_code}</div>
+                ) : <div style={{ fontSize: 12, color: "#999994" }}>No address provided</div>}
+              </article>
+            </div>
+
+            <article className="bm-card">
+              <div className="bm-section-title" style={{ marginBottom: 14 }}>Order items</div>
+              {(detail.items || []).map((item, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: i < detail.items.length - 1 ? "1px solid #27272a" : "none", fontSize: 13 }}>
+                  <span>{item.name} x{item.qty}</span><strong>{money(item.price * item.qty)}</strong>
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 14, marginTop: 6, borderTop: "1px solid #27272a", fontSize: 16, fontWeight: 900 }}><span>Total</span><span>{money(detail.total)}</span></div>
+            </article>
+          </>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section>
       <article className="bm-card" style={{ marginBottom: 18 }}>
@@ -270,19 +391,20 @@ function SalesPanel({ recentOrders, metrics }: { recentOrders: OrderRow[]; metri
         </div>
       </article>
       <article className="bm-card">
-        <div className="bm-section-head"><h2 className="bm-section-title">Recent orders</h2><p className="bm-section-desc">Full order tracking with status updates is coming in the next pass — this shows your latest orders for now.</p></div>
-        {recentOrders.length === 0 ? <p className="bm-empty">No orders yet.</p> : (
+        <div className="bm-section-head"><h2 className="bm-section-title">All orders</h2><p className="bm-section-desc">Click an order to view details, update its status, or cancel/refund it</p></div>
+        {orders.length === 0 && !loading ? <p className="bm-empty">No orders yet.</p> : (
           <div className="bm-table">
             <div className="bm-row bm-row-header"><div>Customer</div><div>Value</div><div>Status</div></div>
-            {recentOrders.map((order) => (
-              <div className="bm-row" key={order.id}>
+            {orders.map((order) => (
+              <button key={order.id} type="button" className="bm-row bm-row-clickable" onClick={() => loadDetail(order.id)}>
                 <div>{order.customer_name || "Customer"}</div>
                 <div>{money(order.total)}</div>
                 <div><span className={"bm-status" + (order.payment_status === "paid" ? "" : " pending")}>{order.payment_status === "paid" ? order.status.replace(/_/g, " ") : order.payment_status.replace(/_/g, " ")}</span></div>
-              </div>
+              </button>
             ))}
           </div>
         )}
+        {hasMore && <button type="button" className="bm-secondary-btn" style={{ marginTop: 14 }} disabled={loading} onClick={() => loadOrders(page + 1)}>{loading ? "Loading…" : "Load more"}</button>}
       </article>
     </section>
   );
