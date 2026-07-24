@@ -234,7 +234,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
     <aside class="cal-panel" aria-label="Calibration controls">
       <div class="cal-section">
         <label class="cal-label" for="calColour">Garment colour</label>
-        <select class="cal-select" id="calColour"><option value="black">Black</option><option value="white">White</option><option value="beige">Beige</option></select>
+        <select class="cal-select" id="calColour"><option value="black">Black</option><option value="white">White</option><option id="calColourBeige" value="beige">Beige</option></select>
       </div>
       <div class="cal-section">
         <div class="cal-fields">
@@ -247,6 +247,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
       </div>
       <div class="cal-actions">
         <button class="cal-btn primary" id="calApply" type="button">Apply to custom upload</button>
+        <button class="cal-btn" id="calSnapA4" type="button" style="display:none">Snap to A4 portrait</button>
         <button class="cal-btn" id="calCopy" type="button">Copy measurements</button>
         <button class="cal-btn" id="calReset" type="button">Reset supplied values</button>
         <a class="cal-btn" href="upload.html" style="text-align:center;text-decoration:none">Return to custom upload</a>
@@ -512,23 +513,41 @@ const UP = { front:{url:null,x:0,y:0,w:0,h:0,ar:1}, back:{url:null,x:0,y:0,w:0,h
 function artworkBlendMode(){
   return 'normal';
 }
-const CAL_KEY_BASE='unik-labs-hoodie-calibration-';
-const CAL_DEFAULTS={
-  front:{
-    black:{wP:0.3328,hP:0.1955,cxP:0.4957,tP:0.3477},
-    white:{wP:0.3328,hP:0.2045,cxP:0.4957,tP:0.3409},
-    beige:{wP:0.3328,hP:0.2045,cxP:0.4957,tP:0.3193}
+const CAL_DEFAULTS_BY_MODE={
+  hoodie:{
+    front:{
+      black:{wP:0.3328,hP:0.1955,cxP:0.4957,tP:0.3477},
+      white:{wP:0.3328,hP:0.2045,cxP:0.4957,tP:0.3409},
+      beige:{wP:0.3328,hP:0.2045,cxP:0.4957,tP:0.3193}
+    },
+    back:{
+      black:{wP:0.4283,hP:0.2977,cxP:0.5094,tP:0.3818},
+      white:{wP:0.4029,hP:0.3010,cxP:0.5103,tP:0.3820},
+      beige:{wP:0.4027,hP:0.3011,cxP:0.5085,tP:0.3761}
+    }
   },
-  back:{
-    black:{wP:0.4283,hP:0.2977,cxP:0.5094,tP:0.3818},
-    white:{wP:0.4029,hP:0.3010,cxP:0.5103,tP:0.3820},
-    beige:{wP:0.4027,hP:0.3011,cxP:0.5085,tP:0.3761}
+  // Starting point only -- an A4 sheet is a 210:297 ratio, but wP/hP are
+  // each relative to a different canvas dimension (width vs height), so the
+  // exact on-screen box depends on the mockup's own aspect ratio. Use
+  // "Snap to A4 portrait" in the tool to lock the true ratio, then drag to
+  // position -- don't trust these numbers as final.
+  'tee-budget':{
+    front:{
+      black:{wP:0.2600,hP:0.3400,cxP:0.5044,tP:0.4200},
+      white:{wP:0.2600,hP:0.3400,cxP:0.5044,tP:0.4200},
+      beige:{wP:0.2600,hP:0.3400,cxP:0.5044,tP:0.4200}
+    }
   }
 };
-function calibrationKey(side,colour){return CAL_KEY_BASE+(side||'front')+'-v1-'+(colour||'black');}
-function defaultCalibration(side,colour){return (CAL_DEFAULTS[side]&&CAL_DEFAULTS[side][colour])||CAL_DEFAULTS.front.black;}
+function calibrationKey(mode,side,colour){return 'unik-labs-'+(mode||'hoodie')+'-calibration-'+(side||'front')+'-v1-'+(colour||'black');}
+function defaultCalibration(mode,side,colour){
+  const byMode=CAL_DEFAULTS_BY_MODE[mode]||CAL_DEFAULTS_BY_MODE.hoodie;
+  return (byMode[side]&&byMode[side][colour])||byMode.front.black;
+}
 let CAL=null;
 let CAL_SIDE=null;
+let CAL_MODE='hoodie';
+let CAL_GARMENT='hoodie';
 let curView = 'front';
 let dragMode = null; // 'move' or 'resize'
 let dragStart = {mx:0,my:0,x:0,y:0,w:0,h:0};
@@ -754,17 +773,35 @@ function getZoneRect(){
   const stage=document.getElementById('uploadStage');
   const tW=stage.clientWidth,tH=stage.clientHeight;
 
-  // Calibrated hoodie print zones. Keep these calculations explicit so the
-  // physical front and back print areas always use the supplied measurements.
-  if(S.garment==='hoodie'){
+  // Active calibration session (hoodie or tee-budget) -- always read from
+  // the live CAL state for the side being edited, or that mode/side/colour's
+  // saved value when the other side hasn't been touched this session.
+  if(CAL){
     const side=curView==='back'?'back':'front';
-    let cfg=CAL&&CAL_SIDE===side?CAL:defaultCalibration(side,S.colour);
-    if(!(CAL&&CAL_SIDE===side)){
+    let cfg=CAL_SIDE===side?CAL:defaultCalibration(CAL_MODE,side,S.colour);
+    if(CAL_SIDE!==side){
       try{
-        const saved=JSON.parse(localStorage.getItem(calibrationKey(side,S.colour)));
+        const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,side,S.colour)));
         if(saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k]))))cfg=saved;
       }catch(_){}
     }
+    const maxPW=Math.round(tW*Number(cfg.wP));
+    const maxPH=Math.round(tH*Number(cfg.hP));
+    const px=Math.round(tW*Number(cfg.cxP)-maxPW/2);
+    const py=Math.round(tH*Number(cfg.tP));
+    return{x:px,y:py,w:maxPW,h:maxPH};
+  }
+
+  // Calibrated hoodie print zones (normal customer flow). Keep these
+  // calculations explicit so the physical front and back print areas always
+  // use the supplied measurements.
+  if(S.garment==='hoodie'){
+    const side=curView==='back'?'back':'front';
+    let cfg=defaultCalibration('hoodie',side,S.colour);
+    try{
+      const saved=JSON.parse(localStorage.getItem(calibrationKey('hoodie',side,S.colour)));
+      if(saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k]))))cfg=saved;
+    }catch(_){}
     const maxPW=Math.round(tW*Number(cfg.wP));
     const maxPH=Math.round(tH*Number(cfg.hP));
     const px=Math.round(tW*Number(cfg.cxP)-maxPW/2);
@@ -1012,19 +1049,26 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
 document.getElementById('btnUpCheckoutNow').addEventListener('click',()=>{location.href='checkout.html';});
 
 // ── Init ──
-function initCalibrationMode(side){
+function initCalibrationMode(mode,side){
+  CAL_MODE=mode==='tee-budget'?'tee-budget':'hoodie';
+  CAL_GARMENT=CAL_MODE==='tee-budget'?'tee':'hoodie';
   CAL_SIDE=side==='back'?'back':'front';
   document.body.classList.add('calibration-mode');
-  S.garment='hoodie';S.colour='black';S.zone=CAL_SIDE==='back'?'both':'front';
+  S.garment=CAL_GARMENT;S.colour='black';S.zone=CAL_SIDE==='back'?'both':'front';
   curView=CAL_SIDE;fuRot=0;
-  document.querySelector('.cal-title').innerHTML='HOODIE '+CAL_SIDE.toUpperCase()+'<br>ZONE CALIBRATOR';
-  document.querySelector('.cal-sub').textContent='Drag the red '+CAL_SIDE+' zone into position and resize it from the bottom-right handle. The normalized measurements stay accurate at every screen size.';
+  const garmentLabel=CAL_GARMENT==='tee'?'TEE BUDGET (A4)':'HOODIE';
+  document.querySelector('.cal-title').innerHTML=garmentLabel+' '+CAL_SIDE.toUpperCase()+'<br>ZONE CALIBRATOR';
+  document.querySelector('.cal-sub').textContent='Drag the red '+CAL_SIDE+' zone into position and resize it from the bottom-right handle. The normalized measurements stay accurate at every screen size.'+(CAL_MODE==='tee-budget'?' Use "Snap to A4 portrait" to lock the box to an A4 print ratio, then drag it into position.':'');
+  const beigeOpt=document.getElementById('calColourBeige');
+  if(beigeOpt)beigeOpt.style.display=CAL_MODE==='tee-budget'?'none':'';
+  const snapBtn=document.getElementById('calSnapA4');
+  if(snapBtn)snapBtn.style.display=CAL_MODE==='tee-budget'?'':'none';
   try{
-    const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_SIDE,S.colour)));
+    const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour)));
     CAL=saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k])))
       ?{wP:Number(saved.wP),hP:Number(saved.hP),cxP:Number(saved.cxP),tP:Number(saved.tP)}
-      :{...defaultCalibration(CAL_SIDE,S.colour)};
-  }catch(_){CAL={...defaultCalibration(CAL_SIDE,S.colour)};}
+      :{...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};
+  }catch(_){CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};}
 
   document.getElementById('calVisualHost').appendChild(document.getElementById('fuPerspective'));
   const card=document.getElementById('fuCard');
@@ -1053,13 +1097,24 @@ function initCalibrationMode(side){
     renderCal();
   }
   function outputText(){
-    return '// Hoodie '+CAL_SIDE.charAt(0).toUpperCase()+CAL_SIDE.slice(1)+' — '+S.colour.charAt(0).toUpperCase()+S.colour.slice(1)+'\nmaxPW = Math.round(tW * '+CAL.wP.toFixed(4)+');\nmaxPH = Math.round(tH * '+CAL.hP.toFixed(4)+');\npx = Math.round(tW * '+CAL.cxP.toFixed(4)+' - pw / 2);\npy = Math.round(tH * '+CAL.tP.toFixed(4)+');';
+    const garmentLabel=CAL_GARMENT==='tee'?'Tee Budget (A4)':'Hoodie';
+    return '// '+garmentLabel+' '+CAL_SIDE.charAt(0).toUpperCase()+CAL_SIDE.slice(1)+' — '+S.colour.charAt(0).toUpperCase()+S.colour.slice(1)+'\nmaxPW = Math.round(tW * '+CAL.wP.toFixed(4)+');\nmaxPH = Math.round(tH * '+CAL.hP.toFixed(4)+');\npx = Math.round(tW * '+CAL.cxP.toFixed(4)+' - pw / 2);\npy = Math.round(tH * '+CAL.tP.toFixed(4)+');';
   }
   async function copyMeasurements(){
     const text=outputText();
     try{await navigator.clipboard.writeText(text);}
     catch(_){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}
     UNIK_CART.notify('Calibration measurements copied');
+  }
+  function snapToA4Portrait(){
+    const stage=document.getElementById('uploadStage');
+    const tW=stage.clientWidth,tH=stage.clientHeight;
+    if(!tW||!tH)return;
+    const pw=tW*CAL.wP;
+    const ph=pw*(297/210);
+    CAL.hP=clamp(round4(ph/tH),.03,.95);
+    renderCal();
+    UNIK_CART.notify('Snapped to A4 portrait ratio');
   }
 
   Object.entries(fields).forEach(([key,input])=>input.addEventListener('input',()=>{
@@ -1070,19 +1125,21 @@ function initCalibrationMode(side){
   document.getElementById('calColour').addEventListener('change',e=>{
     S.colour=e.target.value;
     try{
-      const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_SIDE,S.colour)));
+      const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour)));
       CAL=saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k])))
         ?{wP:Number(saved.wP),hP:Number(saved.hP),cxP:Number(saved.cxP),tP:Number(saved.tP)}
-        :{...defaultCalibration(CAL_SIDE,S.colour)};
-    }catch(_){CAL={...defaultCalibration(CAL_SIDE,S.colour)};}
+        :{...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};
+    }catch(_){CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};}
     updateStageView();syncCalUI();
   });
   document.getElementById('calCopy').addEventListener('click',copyMeasurements);
   document.getElementById('calApply').addEventListener('click',()=>{
-    localStorage.setItem(calibrationKey(CAL_SIDE,S.colour),JSON.stringify(CAL));
-    UNIK_CART.notify(S.colour+' hoodie '+CAL_SIDE+' zone applied');
+    localStorage.setItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour),JSON.stringify(CAL));
+    UNIK_CART.notify(S.colour+' '+(CAL_GARMENT==='tee'?'tee budget':'hoodie')+' '+CAL_SIDE+' zone applied');
   });
-  document.getElementById('calReset').addEventListener('click',()=>{CAL={...defaultCalibration(CAL_SIDE,S.colour)};renderCal();UNIK_CART.notify(S.colour+' supplied values restored');});
+  document.getElementById('calReset').addEventListener('click',()=>{CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};renderCal();UNIK_CART.notify(S.colour+' supplied values restored');});
+  const snapBtnEl=document.getElementById('calSnapA4');
+  if(snapBtnEl)snapBtnEl.addEventListener('click',snapToA4Portrait);
 
   let calDrag=null;
   zone.addEventListener('pointerdown',e=>{
@@ -1121,7 +1178,8 @@ function initCalibrationMode(side){
 }
 
 const calibrationMode=new URLSearchParams(location.search).get('calibrate');
-if(calibrationMode==='hoodie-front'||calibrationMode==='hoodie-back')initCalibrationMode(calibrationMode==='hoodie-back'?'back':'front');
+if(calibrationMode==='hoodie-front'||calibrationMode==='hoodie-back')initCalibrationMode('hoodie',calibrationMode==='hoodie-back'?'back':'front');
+else if(calibrationMode==='tee-budget-front')initCalibrationMode('tee-budget','front');
 else{buildPB();updatePB(1);updatePicker();}
 
 window.addEventListener('unik:themechange',()=>{
