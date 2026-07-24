@@ -271,7 +271,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-page-title{margin:0;font-size:clamp(29px,3vw,44px);line-height:1.03;letter-spacing:-.05em}
         .bm-manager-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px 26px;border:1px solid #27272a;border-radius:25px;background:linear-gradient(120deg,rgba(244,61,50,.15),rgba(18,18,20,.96) 38%,rgba(10,10,11,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
         .bm-avatar-banner{width:112px;height:112px;flex:0 0 auto;border-width:3px;border-color:rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.4),0 0 0 6px rgba(244,61,50,.08)}
-        @media(max-width:560px){.bm-manager-banner{flex-direction:column;align-items:flex-start}.bm-avatar-banner{width:76px;height:76px}}
+        @media(max-width:560px){.bm-manager-banner{align-items:flex-start;gap:14px;padding:20px}.bm-avatar-banner{width:58px;height:58px;border-width:2px}}
         .bm-manager-kicker{color:#ff8b84;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}
         .bm-manager-name{margin:8px 0 0;font-size:clamp(25px,3vw,39px);letter-spacing:-.045em}
         .bm-manager-sub{margin:7px 0 0;color:#c0c0ba;font-size:13px}
