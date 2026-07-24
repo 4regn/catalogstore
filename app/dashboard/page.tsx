@@ -209,7 +209,7 @@ const templatesForSeller = (subdomain?: string | null) =>
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -296,6 +296,13 @@ export default function Dashboard() {
   const [domainError, setDomainError] = useState("");
   const [domainUrlCopied, setDomainUrlCopied] = useState(false);
   const [domainTabLoaded, setDomainTabLoaded] = useState(false);
+  const [teamManagers, setTeamManagers] = useState<Array<{ id: string; full_name: string; email: string; created_at: string }>>([]);
+  const [teamLoaded, setTeamLoaded] = useState(false);
+  const [teamName, setTeamName] = useState("");
+  const [teamEmail, setTeamEmail] = useState("");
+  const [teamInviteBusy, setTeamInviteBusy] = useState(false);
+  const [teamInviteError, setTeamInviteError] = useState("");
+  const [teamInviteSuccess, setTeamInviteSuccess] = useState("");
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [growDismissed, setGrowDismissed] = useState(() => typeof window !== "undefined" && localStorage.getItem("cs_grow_dismissed") === "1");
@@ -542,6 +549,33 @@ export default function Dashboard() {
       refreshDomainStatus();
     }
   }, [tab, seller?.custom_domain, domainTabLoaded]);
+
+  const loadTeamManagers = async () => {
+    const token = await getAccessToken();
+    if (!token) return;
+    const res = await fetch("/api/unik/brand-manager/list", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) setTeamManagers(data.managers || []);
+  };
+
+  useEffect(() => {
+    if (tab === "team" && !teamLoaded) {
+      setTeamLoaded(true);
+      loadTeamManagers();
+    }
+  }, [tab, teamLoaded]);
+
+  const inviteTeamManager = async () => {
+    setTeamInviteBusy(true); setTeamInviteError(""); setTeamInviteSuccess("");
+    const token = await getAccessToken();
+    try {
+      const res = await fetch("/api/unik/brand-manager/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ full_name: teamName, email: teamEmail, access_token: token }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setTeamInviteError(data.error || "Could not send invite"); }
+      else { setTeamInviteSuccess(`Invite sent to ${teamEmail}`); setTeamName(""); setTeamEmail(""); loadTeamManagers(); }
+    } catch { setTeamInviteError("Couldn't reach the server. Try again."); }
+    setTeamInviteBusy(false);
+  };
 
   const saveStoreSettings = async () => {
     if (!seller) return; setStoreSaving(true); setStoreSaved(false);
@@ -959,6 +993,7 @@ export default function Dashboard() {
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
         { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
         ...(seller?.template === "velour" ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
+        ...(seller?.template === "unik-labs" ? [{ key: "team" as TabKey, name: "Brand Manager", icon: "affiliate" as DashIconName }] : []),
       ],
     },
     {
@@ -2617,6 +2652,39 @@ export default function Dashboard() {
                 )}
               </div>
             )}
+          </div>)}
+
+          {tab === "team" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Brand Manager</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Give someone limited access to run your store day-to-day — their own login, orders, live chat and campaigns, never your billing or account.</p>
+
+            <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 16 }}>Invite a Brand Manager</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: teamInviteError || teamInviteSuccess ? 10 : 16 }}>
+                <input type="text" placeholder="Full name" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ padding: "11px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                <input type="email" placeholder="Email address" value={teamEmail} onChange={(e) => setTeamEmail(e.target.value)} style={{ padding: "11px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+              </div>
+              {teamInviteError && <div style={{ marginBottom: 16, fontSize: 12, color: "#ff6b35" }}>{teamInviteError}</div>}
+              {teamInviteSuccess && <div style={{ marginBottom: 16, fontSize: 12, color: "#22c55e" }}>{teamInviteSuccess}</div>}
+              <button onClick={inviteTeamManager} disabled={teamInviteBusy || !teamName.trim() || !teamEmail.trim()} style={{ padding: "11px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: teamInviteBusy || !teamName.trim() || !teamEmail.trim() ? "not-allowed" : "pointer", opacity: teamInviteBusy || !teamName.trim() || !teamEmail.trim() ? 0.55 : 1, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{teamInviteBusy ? "Sending…" : "Send Invite"}</button>
+              <div style={{ marginTop: 12, fontSize: 11, color: "var(--muted-2)" }}>They'll get an email to set their own password and sign in at <strong>{seller?.subdomain}.catalogstore.co.za/team</strong>.</div>
+            </div>
+
+            <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 16 }}>Brand Managers</h3>
+              {teamManagers.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted-2)" }}>No one has Brand Manager access yet.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {teamManagers.map((m) => (
+                    <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 8 }}>
+                      <div><div style={{ fontSize: 13, fontWeight: 700 }}>{m.full_name}</div><div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{m.email}</div></div>
+                      <span style={{ fontSize: 10, color: "var(--muted-2)" }}>Added {new Date(m.created_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>)}
 
           {tab === "analytics" && (<div>
