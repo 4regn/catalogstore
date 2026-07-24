@@ -8,8 +8,14 @@ const COOKIE = "unik-brand-manager-access";
 
 async function isBrandManager(authUserId: string) {
   const seller = await getUnikSeller();
-  if (!seller) return false;
-  const { data } = await getAdmin().from("brand_managers").select("id").eq("seller_id", seller.id).eq("auth_user_id", authUserId).maybeSingle();
+  if (!seller) {
+    console.error("Brand manager session: getUnikSeller() found no seller", { authUserId });
+    return false;
+  }
+  const { data, error } = await getAdmin().from("brand_managers").select("id").eq("seller_id", seller.id).eq("auth_user_id", authUserId).maybeSingle();
+  if (error || !data) {
+    console.error("Brand manager session: no matching brand_managers row", { authUserId, sellerId: seller.id, error });
+  }
   return !!data;
 }
 
