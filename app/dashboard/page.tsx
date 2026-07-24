@@ -577,6 +577,14 @@ export default function Dashboard() {
     setTeamInviteBusy(false);
   };
 
+  const removeTeamManager = async (id: string, name: string) => {
+    if (!confirm(`Remove ${name}'s Brand Manager access? They won't be able to sign in to the dashboard anymore.`)) return;
+    const token = await getAccessToken();
+    const res = await fetch("/api/unik/brand-manager/remove", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_manager_id: id, access_token: token }) });
+    if (res.ok) setTeamManagers(teamManagers.filter((m) => m.id !== id));
+    else { const data = await res.json().catch(() => ({})); alert(data.error || "Could not remove access"); }
+  };
+
   const saveStoreSettings = async () => {
     if (!seller) return; setStoreSaving(true); setStoreSaved(false);
     let logoUrl: string | null = logoRemoved ? null : (seller.logo_url || ""); let bannerUrl: string | null = bannerRemoved ? null : (seller.banner_url || "");
@@ -2679,7 +2687,10 @@ export default function Dashboard() {
                   {teamManagers.map((m) => (
                     <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 8 }}>
                       <div><div style={{ fontSize: 13, fontWeight: 700 }}>{m.full_name}</div><div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{m.email}</div></div>
-                      <span style={{ fontSize: 10, color: "var(--muted-2)" }}>Added {new Date(m.created_at).toLocaleDateString()}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 10, color: "var(--muted-2)" }}>Added {new Date(m.created_at).toLocaleDateString()}</span>
+                        <button onClick={() => removeTeamManager(m.id, m.full_name)} style={{ padding: "7px 14px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", color: "#ff6b35", borderRadius: 100, fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Remove</button>
+                      </div>
                     </div>
                   ))}
                 </div>
