@@ -238,6 +238,23 @@ body {
 .garment-price strong { color:#007517; font-size:13px; }
 .price-was { margin-left:5px; color:var(--muted); font-size:10px; font-weight:500; text-decoration:line-through; }
 
+.budget-toggle {
+  display: flex; align-items: center; gap: 10px;
+  margin: 10px 0 20px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  background: var(--bg);
+}
+.budget-toggle:hover { border-color: #aaa; }
+.budget-toggle.sel { border-color: var(--black); border-width: 2px; background: var(--white); }
+.budget-toggle input { width: 18px; height: 18px; accent-color: var(--black); flex: 0 0 auto; }
+.budget-toggle-text { font-size: 12px; line-height: 1.4; }
+.budget-toggle-price { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.budget-toggle-price strong { color: #007517; font-size: 12px; font-weight: 700; }
+
 /* Colour picker — model images */
 .step-divider { height: 1px; background: var(--border); margin: 16px 0; }
 .colour-sub-head { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
@@ -740,6 +757,10 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
             <div class="garment-label">Hoodie<span class="garment-price"><strong>R399</strong><span class="price-was">R500</span></span></div>
           </div>
         </div>
+        <label class="budget-toggle" id="budgetToggleWrap" hidden>
+          <input type="checkbox" id="budgetToggle">
+          <span class="budget-toggle-text"><strong>Budget print (A4)</strong><span class="budget-toggle-price">Smaller print area on the same tee — <strong>R250</strong> flat</span></span>
+        </label>
         <div class="step-divider"></div>
         <div class="colour-sub-head">Choose colour</div>
         <div class="colour-grid">
@@ -1328,7 +1349,8 @@ const STEP_LABELS = ['Garment','Design','Photos','Size','Review'];
 const TOTAL_STEPS = 5;
 const AI_PRICES = {
   tee: { sale: 349, original: 450 },
-  hoodie: { sale: 399, original: 500 }
+  hoodie: { sale: 399, original: 500 },
+  'tee-budget': { sale: 250, original: 250 }
 };
 
 // ── State ──
@@ -1336,8 +1358,19 @@ const S = {
   garment: null, colour: null,
   name: '', tagline: '',
   subject: null, style: null,
-  photos: [], size: null, agreed: false
+  photos: [], size: null, agreed: false,
+  budget: false
 };
+
+// The budget print is a smaller A4 zone on the exact same tee -- same
+// mockup/style-preview assets, same asset key ("tee") everywhere in the UI.
+// Only pricing and what gets sent to the generation API differ, via these:
+function apiGarment() { return (S.garment === 'tee' && S.budget) ? 'tee-budget' : S.garment; }
+function currentPricing() { return AI_PRICES[apiGarment()] || AI_PRICES.tee; }
+function garmentLabel() {
+  if (S.garment === 'hoodie') return 'Hoodie';
+  return S.budget ? 'Tee (Budget A4)' : 'Tee';
+}
 
 function lightPreviewUrl(id) {
   if (!S.garment || !S.colour) return '';
@@ -1493,7 +1526,9 @@ function checkStep1() {
   document.getElementById('btnNext1').classList.toggle('ready', !!(S.garment && S.colour));
   const sizeGuide = document.querySelector('[data-unik-size-guide]');
   if (sizeGuide) sizeGuide.hidden = S.garment !== 'tee';
-  const pricing = AI_PRICES[S.garment] || AI_PRICES.tee;
+  const budgetWrap = document.getElementById('budgetToggleWrap');
+  budgetWrap.hidden = S.garment !== 'tee';
+  const pricing = currentPricing();
   document.getElementById('aiSalePrice').textContent = `R${pricing.sale.toFixed(2)}`;
   document.getElementById('aiWasPrice').textContent = `R${pricing.original.toFixed(2)}`;
 }
@@ -1503,10 +1538,21 @@ document.querySelectorAll('[data-garment]').forEach(card => {
     document.querySelectorAll('[data-garment]').forEach(c => c.classList.remove('sel'));
     card.classList.add('sel');
     S.garment = card.dataset.garment;
+    if (S.garment !== 'tee') {
+      S.budget = false;
+      document.getElementById('budgetToggle').checked = false;
+      document.getElementById('budgetToggleWrap').classList.remove('sel');
+    }
     updateColourImages();
     updateGarmentImages();
     checkStep1();
   });
+});
+
+document.getElementById('budgetToggle').addEventListener('change', e => {
+  S.budget = e.target.checked;
+  document.getElementById('budgetToggleWrap').classList.toggle('sel', S.budget);
+  checkStep1();
 });
 
 document.querySelectorAll('[data-colour]').forEach(card => {
@@ -1520,7 +1566,7 @@ document.querySelectorAll('[data-colour]').forEach(card => {
 });
 
 document.getElementById('btnNext1').addEventListener('click', () => {
-  const gLabel = S.garment === 'tee' ? 'Tee' : 'Hoodie';
+  const gLabel = garmentLabel();
   document.getElementById('step1Summary').textContent = gLabel + ' · ' + (S.colour === 'black' ? 'Black' : 'White');
   buildStyleGrid();
   completeStep(1);
@@ -1610,7 +1656,7 @@ document.getElementById('switchColourBtn').addEventListener('click', () => {
   refreshStyleImages();
   updateSwitchBtns();
   // Update step 1 summary
-  const gLabel = S.garment === 'tee' ? 'Tee' : 'Hoodie';
+  const gLabel = garmentLabel();
   document.getElementById('step1Summary').textContent = gLabel + ' · ' + (S.colour === 'black' ? 'Black' : 'White');
 });
 
@@ -1743,7 +1789,7 @@ document.getElementById('btnNext4').addEventListener('click', () => {
 
 // ── STEP 5: Review ──
 function buildReview() {
-  const g = S.garment === 'tee' ? 'Tee' : 'Hoodie';
+  const g = garmentLabel();
   const c = S.colour === 'black' ? 'Black' : 'White';
   const sj = S.subject === 'artist' ? 'An Artist' : 'Personal';
   const found = STYLES.find(x => x.id === S.style);
@@ -1819,7 +1865,7 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
     const payloadTagline = cfg.textMode === 'subject-label' ? '' : S.tagline;
     const response = await fetch('/api/unik/generations', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ garment:S.garment, colour:S.colour, subject:S.subject, style:S.style, name:payloadName, tagline:payloadTagline, size:S.size, photos })
+      body:JSON.stringify({ garment:apiGarment(), colour:S.colour, subject:S.subject, style:S.style, name:payloadName, tagline:payloadTagline, size:S.size, photos })
     });
     const contentType = response.headers.get('content-type') || '';
     const payload = contentType.includes('application/json')
@@ -1979,16 +2025,16 @@ document.getElementById('qtyInc').addEventListener('click', () => setCartQty(car
 document.getElementById('qtyDec').addEventListener('click', () => setCartQty(cartQty - 1));
 
 document.getElementById('btnAddToCart').addEventListener('click', () => {
-  const pricing = AI_PRICES[S.garment] || AI_PRICES.tee;
+  const pricing = currentPricing();
   UNIK_CART.add({
     source:'ai-studio',
     name:'UNIK Labs AI Design',
-    meta:`${S.garment === 'hoodie' ? 'Hoodie' : 'Tee'} · ${S.colour} · ${S.size} · ${S.style.replaceAll('_',' ')}`,
+    meta:`${garmentLabel()} · ${S.colour} · ${S.size} · ${S.style.replaceAll('_',' ')}`,
     price:pricing.sale,
     compareAtPrice:pricing.original,
     preview:currentGeneratedDesign && currentGeneratedDesign.mockupUrl,
     qty: cartQty,
-    options:{ designId:currentGeneratedDesign && currentGeneratedDesign.id, garment:S.garment, colour:S.colour, size:S.size, style:S.style, name:S.name, tagline:S.tagline }
+    options:{ designId:currentGeneratedDesign && currentGeneratedDesign.id, garment:apiGarment(), colour:S.colour, size:S.size, style:S.style, name:S.name, tagline:S.tagline }
   });
   document.getElementById('addedNote').style.display = 'block';
   document.getElementById('btnCheckoutNow').style.display = 'block';
@@ -2000,10 +2046,13 @@ document.getElementById('btnCheckoutNow').addEventListener('click', () => { loca
 document.getElementById('btnAgain').addEventListener('click', () => {
   document.getElementById('resultsScreen').classList.remove('visible');
   currentGeneratedDesign = null;
-  Object.assign(S, { garment:null, colour:null, name:'', tagline:'', subject:null, style:null, photos:[], size:null, agreed:false });
+  Object.assign(S, { garment:null, colour:null, name:'', tagline:'', subject:null, style:null, photos:[], size:null, agreed:false, budget:false });
   document.getElementById('nameInp').value = '';
   document.getElementById('tagInp').value = '';
   document.getElementById('termsCb').checked = false;
+  document.getElementById('budgetToggle').checked = false;
+  document.getElementById('budgetToggleWrap').hidden = true;
+  document.getElementById('budgetToggleWrap').classList.remove('sel');
   document.getElementById('photoStrip').innerHTML = '';
   document.getElementById('photoCount').style.display = 'none';
   document.getElementById('styleGrid').innerHTML = '';

@@ -36,6 +36,14 @@ const trackIndex = (status: string) => { const s = status === "confirmed" ? "pen
 
 const money = (value: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(Number(value || 0));
 const date = (value: string) => new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+// Mirrors AI_PRICES/PRODUCT_BY_GARMENT in studio.html and checkout/create --
+// "tee-budget" is the same tee, just a smaller print and a lower price.
+const AI_GARMENT_INFO: Record<string, { label: string; price: number; compareAtPrice: number }> = {
+  hoodie: { label: "Hoodie", price: 399, compareAtPrice: 500 },
+  tee: { label: "Tee", price: 349, compareAtPrice: 450 },
+  "tee-budget": { label: "Tee (Budget A4)", price: 250, compareAtPrice: 250 },
+};
+const garmentInfo = (garment: string | null) => AI_GARMENT_INFO[garment || "tee"] || AI_GARMENT_INFO.tee;
 
 export default function UnikAccountClient({ storeName, basePath }: { storeName: string; basePath: string }) {
   const [sessionReady, setSessionReady] = useState(false);
@@ -149,16 +157,16 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
     const key = "unik-labs-cart-v1";
     let items: Array<Record<string, unknown>> = [];
     try { items = JSON.parse(localStorage.getItem(key) || "[]"); } catch { items = []; }
-    const isHoodie = design.garment === "hoodie";
+    const info = garmentInfo(design.garment);
     items.push({
       id: `unik-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       qty: 1,
       addedAt: new Date().toISOString(),
       source: "ai-studio",
       name: design.name || "UNIK Labs AI Design",
-      meta: [isHoodie ? "Hoodie" : "Tee", design.colour, design.size, design.style?.replaceAll("_", " ")].filter(Boolean).join(" · "),
-      price: isHoodie ? 399 : 349,
-      compareAtPrice: isHoodie ? 500 : 450,
+      meta: [info.label, design.colour, design.size, design.style?.replaceAll("_", " ")].filter(Boolean).join(" · "),
+      price: info.price,
+      compareAtPrice: info.compareAtPrice,
       preview: design.mockup_url,
       options: { ...(design.options || {}), designId: design.id, garment: design.garment, colour: design.colour, size: design.size, style: design.style, name: design.name },
     });
@@ -214,7 +222,7 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
             <section><div className="ua-section-head"><h2>Generation history</h2><span>{account.designs.length} pieces</span></div>
               <div className="ua-list">{account.designs.length ? account.designs.map((design) => <button className="ua-item" key={design.id} type="button" onClick={() => setSelectedDesign(design)}>
                 {(design.mockup_url || design.preview_url) ? <img src={design.mockup_url || design.preview_url || ""} alt="" /> : <div className="ua-thumb" />}
-                <div><strong>{design.name || "UNIK AI Design"}</strong><p>{[design.garment, design.colour, design.size, design.style].filter(Boolean).join(" · ")}</p><small>{date(design.created_at)} · View piece</small></div>
+                <div><strong>{design.name || "UNIK AI Design"}</strong><p>{[garmentInfo(design.garment).label, design.colour, design.size, design.style].filter(Boolean).join(" · ")}</p><small>{date(design.created_at)} · View piece</small></div>
               </button>) : <div className="ua-empty">Your saved generations will appear here.<br /><a href="/">Create your first piece</a></div>}</div>
             </section>
             <section><div className="ua-section-head"><h2>Order history</h2><span>{account.orders.length} orders</span></div>
@@ -256,8 +264,8 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
               <div className="ua-design-info">
                 <p className="ua-kicker">{isCustom ? "Custom upload" : "Saved generation"}</p>
                 <h2>{selectedDesign.name || "UNIK AI Design"}</h2>
-                <p>{[selectedDesign.garment, selectedDesign.colour, selectedDesign.size, selectedDesign.style?.replaceAll("_", " ")].filter(Boolean).join(" · ")}</p>
-                {!isCustom && <button className="ua-design-cart" type="button" onClick={() => addDesignToCart(selectedDesign)}>Add to cart · {money(selectedDesign.garment === "hoodie" ? 399 : 349)}</button>}
+                <p>{[garmentInfo(selectedDesign.garment).label, selectedDesign.colour, selectedDesign.size, selectedDesign.style?.replaceAll("_", " ")].filter(Boolean).join(" · ")}</p>
+                {!isCustom && <button className="ua-design-cart" type="button" onClick={() => addDesignToCart(selectedDesign)}>Add to cart · {money(garmentInfo(selectedDesign.garment).price)}</button>}
               </div>
             </section>
           </div>

@@ -24,7 +24,7 @@ function safeOrigin(raw: unknown): string {
   }
 }
 
-const PRODUCT_BY_GARMENT: Record<string, string> = { tee: "AI Tee", hoodie: "AI Hoodie" };
+const PRODUCT_BY_GARMENT: Record<string, string> = { tee: "AI Tee", hoodie: "AI Hoodie", "tee-budget": "AI Tee — Budget (A4)" };
 const CUSTOM_PRODUCT_BY_GARMENT_ZONE: Record<string, string> = {
   tee_front: "Custom Tee — Front", tee_both: "Custom Tee — Front + Back",
   hoodie_front: "Custom Hoodie — Front", hoodie_both: "Custom Hoodie — Front + Back",

@@ -3,7 +3,10 @@ import path from "node:path";
 import sharp from "sharp";
 
 const RAILWAY_FALLBACK = "https://4regn-sms-production.up.railway.app/generate";
-const GARMENTS = new Set(["tee", "hoodie"]);
+// "tee-budget" is the same tee as "tee" in every respect except a smaller
+// (A4) print zone and a lower price -- it reuses the "tee" mockup asset and
+// prompt wording (see garmentAssetName()) rather than needing its own.
+const GARMENTS = new Set(["tee", "hoodie", "tee-budget"]);
 const COLOURS = new Set(["black", "white"]);
 const SUBJECTS = new Set(["artist", "personal"]);
 const STYLES = new Set([
@@ -35,7 +38,7 @@ export function cleanSubjectLabel(raw: unknown): string {
 }
 
 export type UnikGenerationInput = {
-  garment: "tee" | "hoodie";
+  garment: "tee" | "hoodie" | "tee-budget";
   colour: "black" | "white";
   subject: "artist" | "personal";
   style: string;
@@ -47,6 +50,14 @@ export type UnikGenerationInput = {
 
 function text(value: unknown, max: number) {
   return String(value || "").trim().slice(0, max);
+}
+
+// "tee-budget" has no mockup/prompt identity of its own -- it prints on the
+// exact same tee, just smaller and cheaper. Anywhere the generation flow
+// needs an actual garment name (the mockup asset file, the AI prompt text),
+// resolve it through here rather than the raw input.garment.
+function garmentAssetName(garment: UnikGenerationInput["garment"]): "tee" | "hoodie" {
+  return garment === "hoodie" ? "hoodie" : "tee";
 }
 
 export function parseGenerationInput(body: unknown): UnikGenerationInput {
@@ -78,7 +89,7 @@ export function parseGenerationInput(body: unknown): UnikGenerationInput {
   });
   if (total > 4_200_000) throw new Error("Your photos are too large. Remove one or use smaller photos.");
 
-  return { garment: garment as "tee" | "hoodie", colour: colour as "black" | "white", subject: subject as "artist" | "personal", style, name, tagline, size, photos: cleaned };
+  return { garment: garment as "tee" | "hoodie" | "tee-budget", colour: colour as "black" | "white", subject: subject as "artist" | "personal", style, name, tagline, size, photos: cleaned };
 }
 
 export function buildUnikPrompt(input: UnikGenerationInput) {
@@ -92,7 +103,7 @@ export function buildUnikPrompt(input: UnikGenerationInput) {
   const signatureColor = input.colour === "black" ? "white" : "black";
   const subjectRule = input.subject === "artist" ? "Treat the subject as an artist, but do not invent instruments, stages, locations or biography." : "This is a personal portrait. Do not add performance, concert, microphone or stage references.";
   const photoRules = `PHOTO RULES:\n- ${count} reference photo(s) attached. Use EACH exactly once, except stylistic close crops may come from the same visible portrait.\n- Use ONLY the people in the uploaded photos. Never substitute another face.\n- Preserve identity, facial features, skin tone and expression.\n- Do not infer private details or location.\n- ${subjectRule}\n`;
-  const footer = `\nGARMENT: The finished graphic is intended for a ${input.colour} ${input.garment}.\nOUTPUT: A single print-ready portrait 3:4 artwork, no garment, no model, no mockup, no border. ${background} must bleed cleanly to every edge.`;
+  const footer = `\nGARMENT: The finished graphic is intended for a ${input.colour} ${garmentAssetName(input.garment)}.\nOUTPUT: A single print-ready portrait 3:4 artwork, no garment, no model, no mockup, no border. ${background} must bleed cleanly to every edge.`;
   const line = tagline || (input.subject === "artist" ? "THE ICON" : "ONE OF ONE");
 
   // CHROME_COLLAGE splits the customer's name into a top word and an
@@ -162,16 +173,19 @@ export async function makeWatermarkedPreview(clean: Buffer) {
 }
 
 export async function makeMockup(clean: Buffer, input: UnikGenerationInput) {
-  const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "dark", `front-${input.colour}-${input.garment}.jpg`);
+  const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "dark", `front-${input.colour}-${garmentAssetName(input.garment)}.jpg`);
   const base = sharp(basePath).rotate();
   const metadata = await base.metadata();
   const width = metadata.width || 828;
   const height = metadata.height || 1242;
-  const zone = input.garment === "tee"
-    ? { width: 0.3853, height: 0.3520, centreX: 0.5044, top: 0.4565 }
-    : input.colour === "black"
-      ? { width: 0.3328, height: 0.1955, centreX: 0.4957, top: 0.3477 }
-      : { width: 0.3328, height: 0.2045, centreX: 0.4957, top: 0.3409 };
+  // Calibrated via calibrate-tee-budget-front.html.
+  const zone = input.garment === "tee-budget"
+    ? { width: 0.2600, height: 0.3400, centreX: 0.5044, top: 0.4200 }
+    : input.garment === "tee"
+      ? { width: 0.3853, height: 0.3520, centreX: 0.5044, top: 0.4565 }
+      : input.colour === "black"
+        ? { width: 0.3328, height: 0.1955, centreX: 0.4957, top: 0.3477 }
+        : { width: 0.3328, height: 0.2045, centreX: 0.4957, top: 0.3409 };
   const zoneWidth = Math.round(width * zone.width);
   const zoneHeight = Math.round(height * zone.height);
   const artwork = await sharp(clean).rotate().resize({ width: zoneWidth, height: zoneHeight, fit: "inside", withoutEnlargement: false }).png().toBuffer();
