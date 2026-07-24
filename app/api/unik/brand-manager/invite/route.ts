@@ -83,7 +83,9 @@ export async function POST(req: NextRequest) {
       email: cleanEmail,
       options: { redirectTo: `https://${STORE_ROOT_DOMAIN}/reset-password` },
     });
-    if (!linkErr && link?.properties?.action_link) {
+    if (linkErr || !link?.properties?.action_link) {
+      console.error("Brand manager invite: generateLink failed", { email: cleanEmail, linkErr });
+    } else {
       await sendEmail({
         to: cleanEmail,
         subject: `You've been added as a Brand Manager — ${seller.store_name}`,
