@@ -47,15 +47,25 @@ export async function POST(req: NextRequest) {
     });
     if (createErr || !created?.user) {
       // A Supabase auth user with this email may already exist (e.g. they're
-      // also a customer somewhere) -- reuse that identity rather than fail.
+      // also a customer somewhere, or -- while testing -- the seller's own
+      // login) -- reuse that identity rather than fail.
       const message = createErr?.message || "";
       if (!/already.*(registered|exists)|already exists|email_exists/i.test(message)) {
         return NextResponse.json({ error: message || "Could not create account" }, { status: 500 });
       }
-      const { data: list, error: listErr } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      const match = !listErr && list?.users.find((u) => (u.email || "").toLowerCase() === cleanEmail);
-      if (!match) return NextResponse.json({ error: "Could not find or create that account" }, { status: 500 });
-      authUserId = match.id;
+      if ((userData.user.email || "").toLowerCase() === cleanEmail) {
+        authUserId = userData.user.id;
+      } else {
+        let match: { id: string } | undefined;
+        for (let page = 1; page <= 20 && !match; page++) {
+          const { data: list, error: listErr } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+          if (listErr || !list?.users?.length) break;
+          match = list.users.find((u) => (u.email || "").toLowerCase() === cleanEmail);
+          if (list.users.length < 1000) break;
+        }
+        if (!match) return NextResponse.json({ error: "Could not find or create that account" }, { status: 500 });
+        authUserId = match.id;
+      }
     } else {
       authUserId = created.user.id;
     }
