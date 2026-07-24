@@ -637,11 +637,17 @@ html[data-unik-theme='dark'] .upload-zone:hover,
 html[data-unik-theme='dark'] .upload-zone.dragover,
 html[data-unik-theme='dark'] .size-seg,
 html[data-unik-theme='dark'] .size-guide,
-html[data-unik-theme='dark'] .review-card {
+html[data-unik-theme='dark'] .review-card,
+html[data-unik-theme='dark'] .budget-toggle {
   background: #151716 !important;
   color: #f4f1e9 !important;
   border-color: #30322f !important;
 }
+html[data-unik-theme='dark'] .budget-toggle.sel {
+  background: #0d0f0e !important;
+  border-color: #f1eee7 !important;
+}
+html[data-unik-theme='dark'] .budget-toggle-price { color: #9b9d97 !important; }
 html[data-unik-theme='dark'] .upload-title { color: #f4f1e9 !important; }
 html[data-unik-theme='dark'] .upload-icon,
 html[data-unik-theme='dark'] .upload-sub,
@@ -750,7 +756,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
         <div class="garment-grid">
           <div class="garment-card" data-garment="tee" id="pickTee">
             <img class="garment-img" id="imgPickTee" src="" alt="Tee">
-            <div class="garment-label">Tee<span class="garment-price"><strong>R349</strong><span class="price-was">R450</span></span></div>
+            <div class="garment-label">Tee<span class="garment-price"><strong id="teePriceSale">R349</strong><span class="price-was" id="teePriceWas">R450</span></span></div>
           </div>
           <div class="garment-card" data-garment="hoodie" id="pickHoodie">
             <img class="garment-img" id="imgPickHoodie" src="" alt="Hoodie">
@@ -1531,6 +1537,10 @@ function checkStep1() {
   const pricing = currentPricing();
   document.getElementById('aiSalePrice').textContent = `R${pricing.sale.toFixed(2)}`;
   document.getElementById('aiWasPrice').textContent = `R${pricing.original.toFixed(2)}`;
+  const teePricing = S.budget ? AI_PRICES['tee-budget'] : AI_PRICES.tee;
+  document.getElementById('teePriceSale').textContent = `R${teePricing.sale}`;
+  document.getElementById('teePriceWas').style.display = teePricing.sale === teePricing.original ? 'none' : '';
+  document.getElementById('teePriceWas').textContent = `R${teePricing.original}`;
 }
 
 document.querySelectorAll('[data-garment]').forEach(card => {
