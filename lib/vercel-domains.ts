@@ -13,6 +13,24 @@
 
 const VERCEL_API = "https://api.vercel.com";
 
+// Two-label public suffixes where the registrable ("apex") domain is three
+// parts, not two -- e.g. uniklabs.co.za is itself the apex, not a "uniklabs"
+// subdomain of "co.za". Counting dot-separated labels alone (the old check)
+// gets this wrong for exactly this shape of domain and sends sellers a CNAME
+// instruction for what's actually an apex A-record domain.
+const TWO_LABEL_TLDS = new Set([
+  "co.za", "org.za", "net.za", "web.za", "gov.za", "ac.za",
+  "co.uk", "org.uk", "me.uk", "ltd.uk", "plc.uk", "gov.uk", "ac.uk",
+  "com.au", "net.au", "org.au", "co.nz", "co.in", "co.jp", "com.br", "com.mx",
+]);
+
+function isApexDomain(domain: string): boolean {
+  const parts = domain.split(".");
+  if (parts.length <= 2) return true;
+  const lastTwo = parts.slice(-2).join(".");
+  return TWO_LABEL_TLDS.has(lastTwo) && parts.length === 3;
+}
+
 function requireEnv() {
   const token = process.env.VERCEL_API_TOKEN;
   const projectId = process.env.VERCEL_PROJECT_ID;
@@ -77,7 +95,7 @@ export async function getVercelDomainStatus(domain: string): Promise<VercelDomai
     throw new Error(domainData?.error?.message || `Couldn't find domain "${domain}" on this project.`);
   }
 
-  const isApex = domain.split(".").length === 2;
+  const isApex = isApexDomain(domain);
   return {
     domain,
     verified: !!domainData.verified,
