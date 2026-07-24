@@ -2559,7 +2559,20 @@ export default function Dashboard() {
                 <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Custom Domain</h3>
                 {!seller?.custom_domain ? (
                   <>
-                    <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>We're still refining self-serve domain connection, so for now our team sets it up for you by hand. Message us below with the domain you'd like to use (e.g. yourstore.co.za) — we'll usually have it connected within one business day.</p>
+                    <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Connect a domain you already own (e.g. yourstore.co.za). We'll show you the DNS record to add at your registrar — it usually takes effect within a few minutes to a few hours.</p>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, marginBottom: domainError ? 10 : 16 }}>
+                      <input
+                        type="text"
+                        placeholder="yourstore.co.za"
+                        value={domainInput}
+                        onChange={(e) => setDomainInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !domainLoading) connectDomain(); }}
+                        style={{ flex: "1 1 220px", padding: "11px 16px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }}
+                      />
+                      <button onClick={connectDomain} disabled={domainLoading || !domainInput.trim()} style={{ padding: "11px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: domainLoading || !domainInput.trim() ? "not-allowed" : "pointer", opacity: domainLoading || !domainInput.trim() ? 0.55 : 1, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{domainLoading ? "Connecting..." : "Connect Domain"}</button>
+                    </div>
+                    {domainError && <div style={{ marginBottom: 16, fontSize: 12, color: "#ff6b35" }}>{domainError}</div>}
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 16 }}>Having trouble? Message us below and we'll help you get it connected.</div>
                     <div style={{ borderRadius: 16, overflow: "hidden" }}>
                       <SupportChat embedded category="domain" seller={{ name: seller?.store_name, email: seller?.email, getAccessToken }} />
                     </div>
