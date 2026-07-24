@@ -47,6 +47,11 @@ export async function GET(req: NextRequest) {
       avatarUrl: manager.avatar_url,
       campaignCode: manager.campaign_code,
       campaignDiscountPercent: manager.campaign_discount_percent,
+      payoutAccountHolder: manager.payout_account_holder,
+      payoutBank: manager.payout_bank,
+      payoutAccountType: manager.payout_account_type,
+      payoutBranchCode: manager.payout_branch_code,
+      payoutAccountLast4: manager.payout_account_last4,
     },
     metrics: {
       ordersToday: todayPaid.length,

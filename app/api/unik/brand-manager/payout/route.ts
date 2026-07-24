@@ -29,17 +29,25 @@ export async function PATCH(req: NextRequest) {
   if (!BANKS.includes(bank)) return NextResponse.json({ error: "Choose a valid bank" }, { status: 400 });
   if (!ACCOUNT_TYPES.includes(accountType)) return NextResponse.json({ error: "Choose a valid account type" }, { status: 400 });
   if (branchCode.length !== 6) return NextResponse.json({ error: "Branch code must be 6 digits" }, { status: 400 });
-  if (accountNumber.length < 6) return NextResponse.json({ error: "Enter a valid account number" }, { status: 400 });
+  // Account number is optional on re-save -- leaving it blank keeps whatever
+  // last4 is already on file instead of forcing it to be retyped every time
+  // just to update the bank or branch code. It's still required the first time.
+  if (!accountNumber && !manager.payout_account_last4) {
+    return NextResponse.json({ error: "Enter your account number" }, { status: 400 });
+  }
+  if (accountNumber && accountNumber.length < 6) return NextResponse.json({ error: "Enter a valid account number" }, { status: 400 });
 
-  const { error } = await getAdmin().from("brand_managers").update({
+  const update: Record<string, string> = {
     payout_account_holder: accountHolder,
     payout_bank: bank,
     payout_account_type: accountType,
     payout_branch_code: branchCode,
-    payout_account_last4: accountNumber.slice(-4),
     updated_at: new Date().toISOString(),
-  }).eq("id", manager.id);
+  };
+  if (accountNumber) update.payout_account_last4 = accountNumber.slice(-4);
+
+  const { error } = await getAdmin().from("brand_managers").update(update).eq("id", manager.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, accountLast4: (update.payout_account_last4 as string) || undefined });
 }

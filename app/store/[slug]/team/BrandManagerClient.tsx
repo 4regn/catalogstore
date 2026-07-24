@@ -9,6 +9,11 @@ type Manager = {
   avatarUrl: string | null;
   campaignCode: string | null;
   campaignDiscountPercent: number;
+  payoutAccountHolder: string | null;
+  payoutBank: string | null;
+  payoutAccountType: string | null;
+  payoutBranchCode: string | null;
+  payoutAccountLast4: string | null;
 };
 
 type OrderRow = {
@@ -49,6 +54,34 @@ const MOBILE_NAV_LABELS: Record<Panel, string> = {
   academy: "Academy",
   settings: "Settings",
 };
+
+const NAV_ICON_PATHS: Record<Panel, string> = {
+  overview: "M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z",
+  sales: "M3 6h18M6 3v6M18 3v6M5 11h14v9H5z",
+  growth: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 12h8M12 8v8",
+  content: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 9l5 3-5 3Z",
+  support: "M4 5h16v11H8l-4 4Z",
+  academy: "M5 4h14v16H5ZM8 8h8M8 12h6",
+  settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a8 8 0 0 0-1.8 1l-2.4-1-2 3.4L5.1 11a7 7 0 0 0 0 2L3 14.5l2 3.4 2.4-1a8 8 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.5a7 7 0 0 0 .1-1Z",
+};
+
+function NavIcon({ panel }: { panel: Panel }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="19" height="19" aria-hidden="true">
+      <path d={NAV_ICON_PATHS[panel]} />
+    </svg>
+  );
+}
+
+function MetricIcon({ path }: { path: string }) {
+  return (
+    <div className="bm-metric-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="17" height="17" aria-hidden="true">
+        <path d={path} />
+      </svg>
+    </div>
+  );
+}
 
 function money(n: number) {
   return "R" + Math.round(Number(n) || 0).toLocaleString("en-ZA");
@@ -126,7 +159,8 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         <nav className="bm-navigation" aria-label="Dashboard navigation">
           {(Object.keys(PANEL_TITLES) as Panel[]).map((key) => (
             <button key={key} type="button" className={"bm-nav-link" + (panel === key ? " active" : "")} onClick={() => setPanel(key)}>
-              {PANEL_TITLES[key].replace("Brand Manager overview", "Overview")}
+              <NavIcon panel={key} />
+              <span>{PANEL_TITLES[key].replace("Brand Manager overview", "Overview")}</span>
             </button>
           ))}
         </nav>
@@ -161,10 +195,10 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
             </article>
 
             <div className="bm-grid">
-              <article className="bm-card bm-metric"><span className="bm-metric-label">Orders today</span><div className="bm-metric-value">{overview.metrics.ordersToday}</div></article>
-              <article className="bm-card bm-metric"><span className="bm-metric-label">Sales today</span><div className="bm-metric-value">{money(overview.metrics.salesToday)}</div></article>
-              <article className="bm-card bm-metric"><span className="bm-metric-label">Orders this month</span><div className="bm-metric-value">{overview.metrics.ordersThisMonth}</div></article>
-              <article className="bm-card bm-metric"><span className="bm-metric-label">Sales this month</span><div className="bm-metric-value">{money(overview.metrics.salesThisMonth)}</div></article>
+              <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Orders today</span><MetricIcon path="M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0" /></div><div className="bm-metric-value">{overview.metrics.ordersToday}</div></article>
+              <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Sales today</span><MetricIcon path="M4 18V9M10 18V5M16 18v-7M22 18H2" /></div><div className="bm-metric-value">{money(overview.metrics.salesToday)}</div></article>
+              <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Orders this month</span><MetricIcon path="M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0" /></div><div className="bm-metric-value">{overview.metrics.ordersThisMonth}</div></article>
+              <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Sales this month</span><MetricIcon path="M4 18V9M10 18V5M16 18v-7M22 18H2" /></div><div className="bm-metric-value">{money(overview.metrics.salesThisMonth)}</div></article>
 
               <article className="bm-card bm-orders-card">
                 <div className="bm-section-head"><h2 className="bm-section-title">Recent orders</h2><p className="bm-section-desc">Latest AI Studio and custom-upload purchases</p></div>
@@ -196,7 +230,8 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
       <nav className="bm-mobile-nav" aria-label="Mobile navigation">
         {(Object.keys(PANEL_TITLES) as Panel[]).map((key) => (
           <button key={key} type="button" className={"bm-mobile-link" + (panel === key ? " active" : "")} onClick={() => setPanel(key)}>
-            {MOBILE_NAV_LABELS[key]}
+            <NavIcon panel={key} />
+            <span>{MOBILE_NAV_LABELS[key]}</span>
           </button>
         ))}
       </nav>
@@ -217,14 +252,15 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-brand-sub{display:block;margin-top:4px;color:#999994;font-size:9px;font-weight:750;letter-spacing:.13em;text-transform:uppercase}
         .bm-navigation{display:grid;gap:7px}
         .bm-nav-link{min-height:47px;padding:0 13px;display:flex;align-items:center;gap:12px;color:#969691;border:1px solid transparent;border-radius:14px;background:none;text-align:left;transition:.18s ease}
+        .bm-nav-link svg{flex:0 0 auto}
         .bm-nav-link:hover{color:#fff;background:#131315}
         .bm-nav-link.active{color:#fff;border-color:rgba(244,61,50,.28);background:linear-gradient(90deg,rgba(244,61,50,.13),rgba(255,255,255,.02))}
-        .bm-sidebar-profile{margin-top:auto;padding:14px;border:1px solid #27272a;border-radius:18px;background:linear-gradient(145deg,#111113,#09090a)}
+        .bm-sidebar-profile{margin-top:auto;padding:16px;border:1px solid #27272a;border-radius:20px;background:linear-gradient(145deg,#111113,#09090a);box-shadow:0 18px 40px rgba(0,0,0,.3)}
         .bm-tiny-label{color:#999994;font-size:9px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}
         .bm-sidebar-profile-row{display:flex;align-items:center;gap:11px;margin-top:11px}
-        .bm-avatar{overflow:hidden;border-radius:50%;background:#1b1b1d;border:1px solid #39393d;flex:0 0 auto;width:54px;height:54px}
+        .bm-avatar{overflow:hidden;border-radius:50%;background:#1b1b1d;border:1px solid #39393d;flex:0 0 auto;width:64px;height:64px;box-shadow:0 10px 26px rgba(0,0,0,.35)}
         .bm-avatar img{width:100%;height:100%;object-fit:cover;display:block}
-        .bm-avatar-fallback{width:100%;height:100%;display:grid;place-items:center;font-weight:800}
+        .bm-avatar-fallback{width:100%;height:100%;display:grid;place-items:center;font-weight:900;font-size:1.4em;background:linear-gradient(145deg,rgba(244,61,50,.32),rgba(244,61,50,.08));color:#ff9d97}
         .bm-profile-name{display:block;font-size:13px;font-weight:800}
         .bm-profile-role{display:block;margin-top:3px;color:#999994;font-size:10px}
         .bm-signout{width:100%;margin-top:12px;padding:10px;border:1px solid #27272a;border-radius:12px;background:#111113;color:#c0c0ba;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
@@ -234,17 +270,19 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-signout-mobile{display:none;width:auto;margin-top:0;flex:0 0 auto}
         .bm-page-title{margin:0;font-size:clamp(29px,3vw,44px);line-height:1.03;letter-spacing:-.05em}
         .bm-manager-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px 26px;border:1px solid #27272a;border-radius:25px;background:linear-gradient(120deg,rgba(244,61,50,.15),rgba(18,18,20,.96) 38%,rgba(10,10,11,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
-        .bm-avatar-banner{width:88px;height:88px;flex:0 0 auto;border-width:2px;border-color:rgba(255,255,255,.14)}
-        @media(max-width:560px){.bm-manager-banner{flex-direction:column;align-items:flex-start}.bm-avatar-banner{width:64px;height:64px}}
+        .bm-avatar-banner{width:112px;height:112px;flex:0 0 auto;border-width:3px;border-color:rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.4),0 0 0 6px rgba(244,61,50,.08)}
+        @media(max-width:560px){.bm-manager-banner{flex-direction:column;align-items:flex-start}.bm-avatar-banner{width:76px;height:76px}}
         .bm-manager-kicker{color:#ff8b84;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}
         .bm-manager-name{margin:8px 0 0;font-size:clamp(25px,3vw,39px);letter-spacing:-.045em}
         .bm-manager-sub{margin:7px 0 0;color:#c0c0ba;font-size:13px}
         .bm-role-chip{display:inline-flex;margin-top:15px;padding:7px 11px;border-radius:999px;border:1px solid rgba(244,61,50,.27);background:rgba(244,61,50,.13);font-size:10px;font-weight:850;color:#ff918b}
         .bm-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
         .bm-card{min-width:0;padding:20px;border:1px solid #27272a;border-radius:22px;background:linear-gradient(145deg,rgba(18,18,20,.98),rgba(11,11,12,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
-        .bm-metric{grid-column:span 3;min-height:120px}
+        .bm-metric{grid-column:span 3;min-height:130px}
+        .bm-metric-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
         .bm-metric-label{color:#c0c0ba;font-size:12px}
-        .bm-metric-value{margin-top:21px;font-size:29px;font-weight:850;letter-spacing:-.045em}
+        .bm-metric-icon{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border:1px solid #2d2d31;border-radius:11px;background:#18181b;color:#ff8b84}
+        .bm-metric-value{margin-top:21px;font-size:30px;font-weight:850;letter-spacing:-.045em}
         .bm-orders-card{grid-column:span 12}
         .bm-section-head{margin-bottom:18px}
         .bm-section-title{margin:0;font-size:17px;letter-spacing:-.02em}
@@ -262,10 +300,11 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-status.pending{color:#edc96c;border-color:rgba(237,201,108,.2);background:rgba(237,201,108,.1)}
         .bm-empty{color:#999994;font-size:12px}
         .bm-toast{position:fixed;right:22px;bottom:22px;z-index:150;padding:12px 15px;border:1px solid #27272a;border-radius:13px;background:#171719;box-shadow:0 20px 55px rgba(0,0,0,.5);font-size:10px;font-weight:850}
-        .bm-settings-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px}
-        .bm-avatar-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px 18px}
-        .bm-avatar-xl{width:112px;height:112px;margin-bottom:14px}
-        .bm-avatar-name{margin:0;font-size:16px}
+        .bm-settings-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px}
+        .bm-avatar-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 18px}
+        .bm-avatar-xl{width:160px;height:160px;margin-bottom:16px;border-width:3px;border-color:rgba(255,255,255,.14);box-shadow:0 20px 48px rgba(0,0,0,.42),0 0 0 7px rgba(244,61,50,.07)}
+        .bm-avatar-xl .bm-avatar-fallback{font-size:2.4em}
+        .bm-avatar-name{margin:0;font-size:19px;letter-spacing:-.01em}
         .bm-avatar-role{margin:4px 0 0;color:#999994;font-size:11px}
         .bm-photo-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:16px}
         @media(max-width:900px){.bm-settings-layout{grid-template-columns:1fr}}
@@ -315,7 +354,8 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
           .bm-metric{grid-column:span 6}
           .bm-form-grid{grid-template-columns:1fr}
           .bm-mobile-nav{position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:80;display:flex;justify-content:space-around;align-items:center;gap:2px;height:64px;padding:0 4px;border:1px solid #27272a;border-radius:20px;background:rgba(14,14,15,.96);backdrop-filter:blur(20px);box-shadow:0 18px 48px rgba(0,0,0,.48);overflow-x:auto}
-          .bm-mobile-link{flex:1 0 auto;min-width:52px;padding:6px 4px;border:0;background:none;color:#83837f;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+          .bm-mobile-link{flex:1 0 auto;min-width:52px;padding:6px 4px;display:grid;place-items:center;gap:3px;border:0;background:none;color:#83837f;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+          .bm-mobile-link svg{width:18px;height:18px}
           .bm-mobile-link.active{color:#ff8b84}
         }
       `}</style>
@@ -662,14 +702,14 @@ function SettingsPanel({ manager, authedFetch, onProfileSaved, toast }: { manage
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
 
-  const [holder, setHolder] = useState("");
-  const [bank, setBank] = useState("");
-  const [accountType, setAccountType] = useState("");
-  const [branchCode, setBranchCode] = useState("");
+  const [holder, setHolder] = useState(manager.payoutAccountHolder || "");
+  const [bank, setBank] = useState(manager.payoutBank || "");
+  const [accountType, setAccountType] = useState(manager.payoutAccountType || "");
+  const [branchCode, setBranchCode] = useState(manager.payoutBranchCode || "");
   const [accountNumber, setAccountNumber] = useState("");
+  const [accountLast4, setAccountLast4] = useState(manager.payoutAccountLast4 || "");
   const [payoutBusy, setPayoutBusy] = useState(false);
   const [payoutError, setPayoutError] = useState("");
-  const [payoutSaved, setPayoutSaved] = useState(false);
 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -723,7 +763,7 @@ function SettingsPanel({ manager, authedFetch, onProfileSaved, toast }: { manage
     const res = await authedFetch("/api/unik/brand-manager/payout", { method: "PATCH", body: JSON.stringify({ accountHolder: holder, bank, accountType, branchCode, accountNumber }) });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) { setPayoutError(payload.error || "Could not save"); setPayoutBusy(false); return; }
-    setPayoutSaved(true);
+    if (payload.accountLast4) setAccountLast4(payload.accountLast4);
     setAccountNumber("");
     toast("Personal earnings account updated");
     setPayoutBusy(false);
@@ -762,8 +802,8 @@ function SettingsPanel({ manager, authedFetch, onProfileSaved, toast }: { manage
         <div className="bm-security-note"><strong>Company money stays separate.</strong><br />This account does not receive customer payments, company revenue, refunds or operating funds.</div>
         <div className="bm-summary-strip">
           <div className="bm-summary-box"><span>Bank</span><strong>{bank || "Not added"}</strong></div>
-          <div className="bm-summary-box"><span>Account</span><strong>{payoutSaved ? "Saved" : "Not added"}</strong></div>
-          <div className="bm-summary-box"><span>Status</span><strong>{payoutSaved ? "Ready for verification" : "Setup required"}</strong></div>
+          <div className="bm-summary-box"><span>Account</span><strong>{accountLast4 ? `•••• ${accountLast4}` : "Not added"}</strong></div>
+          <div className="bm-summary-box"><span>Status</span><strong>{accountLast4 ? "Ready for verification" : "Setup required"}</strong></div>
         </div>
         <form onSubmit={savePayout} className="bm-form-grid">
           <div className="bm-field full"><label>Account holder</label><input className="bm-input" value={holder} onChange={(e) => setHolder(e.target.value)} required /></div>
@@ -778,7 +818,7 @@ function SettingsPanel({ manager, authedFetch, onProfileSaved, toast }: { manage
             </select>
           </div>
           <div className="bm-field"><label>Branch code</label><input className="bm-input" inputMode="numeric" maxLength={6} value={branchCode} onChange={(e) => setBranchCode(e.target.value)} placeholder="000000" required /></div>
-          <div className="bm-field"><label>Account number</label><input className="bm-input" inputMode="numeric" maxLength={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Enter account number" required /></div>
+          <div className="bm-field"><label>Account number</label><input className="bm-input" inputMode="numeric" maxLength={16} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder={accountLast4 ? `Currently •••• ${accountLast4} -- leave blank to keep` : "Enter account number"} required={!accountLast4} /></div>
           {payoutError && <div className="bm-field full"><p className="bm-error">{payoutError}</p></div>}
           <div className="bm-field full bm-form-actions"><button className="bm-primary-btn" disabled={payoutBusy}>{payoutBusy ? "Saving…" : "Update payout account"}</button></div>
         </form>
