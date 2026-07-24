@@ -11,19 +11,12 @@ export async function sendEmail({ to, from, subject, html }: { to: string; from?
     console.warn("sendEmail: RESEND_API_KEY is not set -- email not sent", { to, subject });
     return;
   }
-  // catalogstore.co.za isn't verified in Resend yet, so any address on that
-  // domain gets rejected outright. Until it's verified (resend.com/domains),
-  // fall back to Resend's built-in sandbox sender -- which needs no
-  // verification -- while keeping whatever display name the caller wanted.
-  const requested = from || process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>";
-  const displayName = requested.match(/^(.*)<.*>$/)?.[1]?.trim();
-  const sender = displayName ? `${displayName} <onboarding@resend.dev>` : "onboarding@resend.dev";
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: sender,
+        from: from || process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>",
         to: [to],
         subject,
         html,
