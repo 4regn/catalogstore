@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest) {
   if ("response" in auth) return auth.response;
   const { manager } = auth;
 
-  let body: { fullName?: string; email?: string };
+  let body: { fullName?: string; email?: string; avatarUrl?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
 
   const fullName = String(body.fullName || "").trim();
@@ -17,7 +17,10 @@ export async function PATCH(req: NextRequest) {
   if (!fullName) return NextResponse.json({ error: "Add your name" }, { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
 
-  const { error } = await getAdmin().from("brand_managers").update({ full_name: fullName, email, updated_at: new Date().toISOString() }).eq("id", manager.id);
+  const update: Record<string, string | null> = { full_name: fullName, email, updated_at: new Date().toISOString() };
+  if (body.avatarUrl !== undefined) update.avatar_url = body.avatarUrl ? String(body.avatarUrl).slice(0, 500) : null;
+
+  const { error } = await getAdmin().from("brand_managers").update(update).eq("id", manager.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ success: true });

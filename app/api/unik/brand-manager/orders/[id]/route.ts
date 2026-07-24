@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
   const { data: order, error } = await getAdmin()
     .from("orders")
-    .select("id, order_number, customer_name, customer_email, customer_phone, items, total, status, payment_status, payment_method, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost")
+    .select("id, order_number, customer_name, customer_email, customer_phone, items, total, status, payment_status, payment_method, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, refund_amount")
     .eq("id", id)
     .eq("seller_id", seller.id)
     .maybeSingle();
@@ -38,10 +38,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const { seller } = auth;
   const { id } = await context.params;
 
-  let body: { status?: string; paymentStatus?: string };
+  let body: { status?: string; paymentStatus?: string; refundAmount?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
 
-  const update: Record<string, string> = {};
+  const update: Record<string, string | number | null> = {};
   if (body.status !== undefined) {
     if (!UNIK_ORDER_STATUSES.includes(body.status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     update.status = body.status;
@@ -49,6 +49,15 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (body.paymentStatus !== undefined) {
     if (!PAYMENT_STATUSES.includes(body.paymentStatus)) return NextResponse.json({ error: "Invalid payment status" }, { status: 400 });
     update.payment_status = body.paymentStatus;
+  }
+  if (body.refundAmount !== undefined) {
+    const { data: existing } = await getAdmin().from("orders").select("total").eq("id", id).eq("seller_id", seller.id).maybeSingle();
+    if (!existing) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    const amount = Number(body.refundAmount);
+    if (!Number.isFinite(amount) || amount < 0 || amount > Number(existing.total)) {
+      return NextResponse.json({ error: "Refund amount must be between 0 and the order total" }, { status: 400 });
+    }
+    update.refund_amount = amount;
   }
   if (!Object.keys(update).length) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
 

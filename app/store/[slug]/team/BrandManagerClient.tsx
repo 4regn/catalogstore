@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
 
 type Manager = {
@@ -144,6 +144,9 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
                 <p className="bm-manager-sub">Manage brand activity, customers, campaigns and personal earnings.</p>
                 <span className="bm-role-chip">Brand Manager</span>
               </div>
+              <div className="bm-avatar bm-avatar-banner">
+                {overview.manager.avatarUrl ? <img src={overview.manager.avatarUrl} alt="" /> : <div className="bm-avatar-fallback">{overview.manager.fullName.charAt(0)}</div>}
+              </div>
             </article>
 
             <div className="bm-grid">
@@ -210,7 +213,9 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-main{min-width:0;padding:28px 30px 58px}
         .bm-topbar{margin-bottom:22px}
         .bm-page-title{margin:0;font-size:clamp(29px,3vw,44px);line-height:1.03;letter-spacing:-.05em}
-        .bm-manager-banner{margin-bottom:18px;padding:24px 26px;border:1px solid #27272a;border-radius:25px;background:linear-gradient(120deg,rgba(244,61,50,.15),rgba(18,18,20,.96) 38%,rgba(10,10,11,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
+        .bm-manager-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px 26px;border:1px solid #27272a;border-radius:25px;background:linear-gradient(120deg,rgba(244,61,50,.15),rgba(18,18,20,.96) 38%,rgba(10,10,11,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
+        .bm-avatar-banner{width:88px;height:88px;flex:0 0 auto;border-width:2px;border-color:rgba(255,255,255,.14)}
+        @media(max-width:560px){.bm-manager-banner{flex-direction:column;align-items:flex-start}.bm-avatar-banner{width:64px;height:64px}}
         .bm-manager-kicker{color:#ff8b84;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}
         .bm-manager-name{margin:8px 0 0;font-size:clamp(25px,3vw,39px);letter-spacing:-.045em}
         .bm-manager-sub{margin:7px 0 0;color:#c0c0ba;font-size:13px}
@@ -237,6 +242,13 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-status.pending{color:#edc96c;border-color:rgba(237,201,108,.2);background:rgba(237,201,108,.1)}
         .bm-empty{color:#999994;font-size:12px}
         .bm-toast{position:fixed;right:22px;bottom:22px;z-index:150;padding:12px 15px;border:1px solid #27272a;border-radius:13px;background:#171719;box-shadow:0 20px 55px rgba(0,0,0,.5);font-size:10px;font-weight:850}
+        .bm-settings-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px}
+        .bm-avatar-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px 18px}
+        .bm-avatar-xl{width:112px;height:112px;margin-bottom:14px}
+        .bm-avatar-name{margin:0;font-size:16px}
+        .bm-avatar-role{margin:4px 0 0;color:#999994;font-size:11px}
+        .bm-photo-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:16px}
+        @media(max-width:900px){.bm-settings-layout{grid-template-columns:1fr}}
         .bm-form-card{padding:20px;border:1px solid #27272a;border-radius:20px;background:#0d0d0f}
         .bm-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
         .bm-field{display:grid;gap:7px}
@@ -291,6 +303,7 @@ type OrderDetail = OrderRow & {
   fulfillment_method?: string;
   shipping_option?: string;
   shipping_cost?: number;
+  refund_amount?: number | null;
 };
 
 function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metrics"]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
@@ -301,6 +314,7 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
 
   const loadOrders = useCallback(async (targetPage: number) => {
     setLoading(true);
@@ -321,21 +335,40 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
     setDetail(null);
     const res = await authedFetch(`/api/unik/brand-manager/orders/${id}`);
     const payload = await res.json().catch(() => ({}));
-    if (res.ok) setDetail(payload.order);
+    if (res.ok) {
+      setDetail(payload.order);
+      setRefundAmount(String(payload.order.refund_amount ?? payload.order.total));
+    }
   }, [authedFetch]);
 
-  async function updateOrder(patch: { status?: string; paymentStatus?: string }, confirmMessage?: string) {
+  async function updateOrder(patch: { status?: string; paymentStatus?: string; refundAmount?: number }, confirmMessage?: string) {
     if (!selectedId || !detail) return;
     if (confirmMessage && !window.confirm(confirmMessage)) return;
     setDetailBusy(true);
     const res = await authedFetch(`/api/unik/brand-manager/orders/${selectedId}`, { method: "PATCH", body: JSON.stringify(patch) });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) { toast(payload.error || "Could not update order"); setDetailBusy(false); return; }
-    const updated = { ...detail, ...(patch.status ? { status: patch.status } : {}), ...(patch.paymentStatus ? { payment_status: patch.paymentStatus } : {}) };
+    const updated = {
+      ...detail,
+      ...(patch.status ? { status: patch.status } : {}),
+      ...(patch.paymentStatus ? { payment_status: patch.paymentStatus } : {}),
+      ...(patch.refundAmount !== undefined ? { refund_amount: patch.refundAmount } : {}),
+    };
     setDetail(updated);
     setOrders((prev) => prev.map((o) => (o.id === selectedId ? { ...o, ...updated } : o)));
     toast("Order updated");
     setDetailBusy(false);
+  }
+
+  function markRefunded() {
+    if (!detail) return;
+    const amount = Number(refundAmount);
+    if (!refundAmount.trim() || !Number.isFinite(amount) || amount < 0 || amount > detail.total) {
+      toast(`Enter a refund amount between R0 and ${money(detail.total)}`);
+      return;
+    }
+    if (!window.confirm(`Mark ${money(amount)} of ${money(detail.total)} as refunded? This only updates the order's status for tracking -- you still need to process the actual refund through Yoco's merchant portal.`)) return;
+    updateOrder({ paymentStatus: "refunded", refundAmount: amount });
   }
 
   if (selectedId) {
@@ -347,9 +380,28 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
             <article className="bm-card" style={{ marginBottom: 16 }}>
               <div className="bm-section-head"><h2 className="bm-section-title">Order #{detail.order_number}</h2><span className="bm-section-desc">{new Date(detail.created_at).toLocaleString()}</span></div>
 
-              <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                 <button type="button" className="bm-secondary-btn" disabled={detailBusy || detail.status === "cancelled"} onClick={() => updateOrder({ status: "cancelled" }, "Cancel this order? This only updates the order's status for tracking -- it does not refund the customer.")}>Cancel order</button>
-                <button type="button" className="bm-secondary-btn" disabled={detailBusy || detail.payment_status === "refunded"} onClick={() => updateOrder({ paymentStatus: "refunded" }, "Mark this order as refunded? This only updates the order's status for tracking -- you still need to process the actual refund through Yoco's merchant portal.")}>Mark refunded</button>
+              </div>
+
+              <div style={{ marginBottom: 8, fontSize: 10, fontWeight: 800, color: "#999994", textTransform: "uppercase", letterSpacing: ".08em" }}>Refund</div>
+              {detail.payment_status === "refunded" && detail.refund_amount != null && (
+                <p className="bm-section-desc" style={{ margin: "0 0 8px" }}>Currently marked refunded: {money(detail.refund_amount)} of {money(detail.total)}</p>
+              )}
+              <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  className="bm-input"
+                  style={{ maxWidth: 140 }}
+                  type="number"
+                  min={0}
+                  max={detail.total}
+                  step="0.01"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  aria-label="Refund amount"
+                />
+                <span className="bm-section-desc" style={{ margin: 0 }}>of {money(detail.total)} -- edit to refund only delivery, a single item, or a partial amount</span>
+                <button type="button" className="bm-secondary-btn" disabled={detailBusy} onClick={markRefunded}>Mark refunded</button>
               </div>
 
               <div style={{ marginBottom: 8, fontSize: 10, fontWeight: 800, color: "#999994", textTransform: "uppercase", letterSpacing: ".08em" }}>Payment status</div>
@@ -588,6 +640,38 @@ function SettingsPanel({ manager, authedFetch, onProfileSaved, toast }: { manage
   const [payoutError, setPayoutError] = useState("");
   const [payoutSaved, setPayoutSaved] = useState(false);
 
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setPhotoError("Photo must be under 5MB"); return; }
+    setUploadingPhoto(true);
+    setPhotoError("");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) { setPhotoError("Your session has expired -- please sign in again"); return; }
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `brand-manager/${userId}/photo-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
+      if (uploadErr) { setPhotoError("Could not upload photo"); return; }
+      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+      const avatarUrl = data.publicUrl;
+      const res = await authedFetch("/api/unik/brand-manager/profile", { method: "PATCH", body: JSON.stringify({ fullName: manager.fullName, email, avatarUrl }) });
+      if (!res.ok) { setPhotoError("Could not save photo"); return; }
+      onProfileSaved({ ...manager, avatarUrl });
+      toast("Photo updated");
+    } catch {
+      setPhotoError("Network error -- please try again");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
     setProfileBusy(true);
@@ -616,7 +700,20 @@ function SettingsPanel({ manager, authedFetch, onProfileSaved, toast }: { manage
 
   return (
     <section>
-      <div className="bm-form-grid" style={{ marginBottom: 18 }}>
+      <div className="bm-settings-layout" style={{ marginBottom: 18 }}>
+        <div className="bm-card bm-avatar-card">
+          <div className="bm-avatar bm-avatar-xl">
+            {manager.avatarUrl ? <img src={manager.avatarUrl} alt="" /> : <div className="bm-avatar-fallback">{manager.fullName.charAt(0)}</div>}
+          </div>
+          <h3 className="bm-avatar-name">{manager.fullName}</h3>
+          <p className="bm-avatar-role">Brand Manager</p>
+          <div className="bm-photo-actions">
+            <button type="button" className="bm-secondary-btn" disabled={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>{uploadingPhoto ? "Uploading…" : "Change photo"}</button>
+          </div>
+          <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: "none" }} />
+          {photoError && <p className="bm-error" style={{ textAlign: "center", marginTop: 10 }}>{photoError}</p>}
+        </div>
+
         <div className="bm-form-card">
           <div className="bm-section-head"><h2 className="bm-section-title">Profile details</h2><p className="bm-section-desc">Public account information</p></div>
           <form onSubmit={saveProfile} className="bm-form-grid">
