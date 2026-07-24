@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { isSubdomainHost } from "../../lib/store-url";
+import { usesCleanStorePaths } from "../../lib/store-url";
 
 /**
  * SupportChat
@@ -104,7 +104,7 @@ export default function SupportChat({
   // ---- identity bootstrap ------------------------------------------------
   useEffect(() => {
     setMounted(true);
-    setOnSellerSubdomain(isSubdomainHost(window.location.hostname));
+    setOnSellerSubdomain(usesCleanStorePaths(window.location.hostname));
     try {
       let vid = localStorage.getItem(VISITOR_KEY);
       if (!vid || vid.length < 16) {

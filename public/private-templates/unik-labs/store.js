@@ -434,18 +434,21 @@
   `;
   document.head.appendChild(footerStyle);
 
-  // Mirrors lib/store-url.ts's isSubdomainHost()/storePath() -- store.js is
-  // plain static JS (no bundler) so it can't import that TS module, but the
-  // branch must stay in sync: on unik.catalogstore.co.za the platform's
-  // middleware already rewrites "/help" to "/store/unik/help" internally,
-  // so the link here must be the bare path. Anywhere else (the legacy
-  // catalogstore.co.za/store/unik path form, localhost, preview URLs) the
-  // /store/unik prefix is the real, literal route.
+  // Mirrors lib/store-url.ts's usesCleanStorePaths()/storePath() -- store.js
+  // is plain static JS (no bundler) so it can't import that TS module, but
+  // the branch must stay in sync: on unik.catalogstore.co.za, AND on any
+  // custom domain connected to this store (e.g. uniklabs.co.za), the
+  // platform's middleware already rewrites "/help" to "/store/unik/help"
+  // internally, so the link here must be the bare path -- otherwise the
+  // /store/unik prefix gets applied twice and every link 404s, which is
+  // exactly what happened here before custom domains were accounted for.
+  // Only the bare platform root domain, localhost and preview URLs (which
+  // middleware does NOT rewrite) need the literal /store/unik prefix.
   function unikBasePath() {
     var ROOT = 'catalogstore.co.za';
     var host = location.hostname.toLowerCase();
-    var isSubdomain = host !== ROOT && host !== 'www.' + ROOT && host.indexOf('.' + ROOT) === host.length - ROOT.length - 1;
-    return isSubdomain ? '' : '/store/unik';
+    var needsPrefix = host === ROOT || host === 'www.' + ROOT || host === 'localhost' || host.slice(-11) === '.vercel.app';
+    return needsPrefix ? '/store/unik' : '';
   }
 
   function initFooter() {

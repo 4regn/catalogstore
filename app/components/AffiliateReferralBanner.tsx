@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "../../lib/supabase";
-import { isSubdomainHost } from "../../lib/store-url";
+import { usesCleanStorePaths } from "../../lib/store-url";
 
 /* Hidden once a visitor is inside the app proper — a seller working in their
    own dashboard/editor has already signed up; showing "Referred by X" there
@@ -42,7 +42,7 @@ export default function AffiliateReferralBanner() {
 
   useEffect(() => {
     setMounted(true);
-    setOnSellerSubdomain(isSubdomainHost(window.location.hostname));
+    setOnSellerSubdomain(usesCleanStorePaths(window.location.hostname));
     try {
       const wasDismissed = sessionStorage.getItem("affiliate_banner_dismissed");
       if (wasDismissed === "1") {

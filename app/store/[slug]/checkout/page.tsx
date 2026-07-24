@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
-import { isSubdomainHost } from "../../../../lib/store-url";
+import { usesCleanStorePaths } from "../../../../lib/store-url";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 
@@ -33,7 +33,7 @@ export default function CheckoutPage() {
   // Entirely client-rendered (no SSR data), so reading window.location here
   // carries no hydration-mismatch risk.
   const sp = (suffix: string = "") =>
-    typeof window !== "undefined" && isSubdomainHost(window.location.hostname)
+    typeof window !== "undefined" && usesCleanStorePaths(window.location.hostname)
       ? suffix || "/"
       : `/store/${slug}${suffix}`;
   const [seller, setSeller] = useState<Seller | null>(null);
