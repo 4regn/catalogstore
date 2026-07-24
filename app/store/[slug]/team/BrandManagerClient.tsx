@@ -40,6 +40,16 @@ const PANEL_TITLES: Record<Panel, string> = {
   settings: "Settings",
 };
 
+const MOBILE_NAV_LABELS: Record<Panel, string> = {
+  overview: "Home",
+  sales: "Sales",
+  growth: "Growth",
+  content: "Recap",
+  support: "Support",
+  academy: "Academy",
+  settings: "Settings",
+};
+
 function money(n: number) {
   return "R" + Math.round(Number(n) || 0).toLocaleString("en-ZA");
 }
@@ -133,6 +143,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
       <main className="bm-main">
         <header className="bm-topbar">
           <div><h1 className="bm-page-title">{PANEL_TITLES[panel]}</h1></div>
+          <button type="button" className="bm-signout bm-signout-mobile" onClick={signOut}>Sign out</button>
         </header>
 
         {panel === "overview" && (
@@ -182,6 +193,14 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         {panel === "settings" && <SettingsPanel manager={overview.manager} authedFetch={authedFetch} onProfileSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
       </main>
 
+      <nav className="bm-mobile-nav" aria-label="Mobile navigation">
+        {(Object.keys(PANEL_TITLES) as Panel[]).map((key) => (
+          <button key={key} type="button" className={"bm-mobile-link" + (panel === key ? " active" : "")} onClick={() => setPanel(key)}>
+            {MOBILE_NAV_LABELS[key]}
+          </button>
+        ))}
+      </nav>
+
       {toastText && <div className="bm-toast show">{toastText}</div>}
 
       <style jsx global>{`
@@ -211,7 +230,8 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-signout{width:100%;margin-top:12px;padding:10px;border:1px solid #27272a;border-radius:12px;background:#111113;color:#c0c0ba;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
         .bm-signout:hover{background:rgba(244,61,50,.13);color:#fff}
         .bm-main{min-width:0;padding:28px 30px 58px}
-        .bm-topbar{margin-bottom:22px}
+        .bm-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+        .bm-signout-mobile{display:none;width:auto;margin-top:0;flex:0 0 auto}
         .bm-page-title{margin:0;font-size:clamp(29px,3vw,44px);line-height:1.03;letter-spacing:-.05em}
         .bm-manager-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px 26px;border:1px solid #27272a;border-radius:25px;background:linear-gradient(120deg,rgba(244,61,50,.15),rgba(18,18,20,.96) 38%,rgba(10,10,11,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
         .bm-avatar-banner{width:88px;height:88px;flex:0 0 auto;border-width:2px;border-color:rgba(255,255,255,.14)}
@@ -286,7 +306,18 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-reply .bm-input{flex:1;min-width:0}
         @media(max-width:900px){.bm-support-layout{grid-template-columns:1fr}}
         .bm-content-frame{width:100%;height:min(860px,calc(100vh - 220px));min-height:520px;border:0;display:block}
-        @media(max-width:900px){.bm-app{grid-template-columns:1fr}.bm-sidebar{display:none}.bm-metric{grid-column:span 6}.bm-form-grid{grid-template-columns:1fr}}
+        .bm-mobile-nav{display:none}
+        @media(max-width:900px){
+          .bm-app{grid-template-columns:1fr}
+          .bm-sidebar{display:none}
+          .bm-main{padding:16px 13px 95px}
+          .bm-signout-mobile{display:block}
+          .bm-metric{grid-column:span 6}
+          .bm-form-grid{grid-template-columns:1fr}
+          .bm-mobile-nav{position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:80;display:flex;justify-content:space-around;align-items:center;gap:2px;height:64px;padding:0 4px;border:1px solid #27272a;border-radius:20px;background:rgba(14,14,15,.96);backdrop-filter:blur(20px);box-shadow:0 18px 48px rgba(0,0,0,.48);overflow-x:auto}
+          .bm-mobile-link{flex:1 0 auto;min-width:52px;padding:6px 4px;border:0;background:none;color:#83837f;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+          .bm-mobile-link.active{color:#ff8b84}
+        }
       `}</style>
     </div>
   );
