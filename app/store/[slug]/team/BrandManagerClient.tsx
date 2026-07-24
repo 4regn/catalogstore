@@ -28,12 +28,13 @@ type Overview = {
   recentOrders: OrderRow[];
 };
 
-type Panel = "overview" | "sales" | "growth" | "support" | "academy" | "settings";
+type Panel = "overview" | "sales" | "growth" | "content" | "support" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Brand Manager overview",
   sales: "Sales",
   growth: "Growth Tools",
+  content: "Recap Builder",
   support: "Live Support",
   academy: "UNIK Academy",
   settings: "Settings",
@@ -172,6 +173,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
 
         {panel === "sales" && <SalesPanel metrics={overview.metrics} authedFetch={authedFetch} toast={showToast} />}
         {panel === "growth" && <GrowthPanel manager={overview.manager} authedFetch={authedFetch} onSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
+        {panel === "content" && <ContentPanel />}
         {panel === "support" && <SupportPanel authedFetch={authedFetch} />}
         {panel === "academy" && <AcademyPanel />}
         {panel === "settings" && <SettingsPanel manager={overview.manager} authedFetch={authedFetch} onProfileSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
@@ -271,6 +273,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-reply{display:flex;gap:8px;margin-top:12px}
         .bm-reply .bm-input{flex:1;min-width:0}
         @media(max-width:900px){.bm-support-layout{grid-template-columns:1fr}}
+        .bm-content-frame{width:100%;height:min(860px,calc(100vh - 220px));min-height:520px;border:0;display:block}
         @media(max-width:900px){.bm-app{grid-template-columns:1fr}.bm-sidebar{display:none}.bm-metric{grid-column:span 6}.bm-form-grid{grid-template-columns:1fr}}
       `}</style>
     </div>
@@ -463,6 +466,19 @@ function GrowthPanel({ manager, authedFetch, onSaved, toast }: { manager: Manage
   );
 }
 
+function ContentPanel() {
+  return (
+    <section>
+      <article className="bm-card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="bm-section-head" style={{ padding: "20px 20px 0" }}>
+          <h2 className="bm-section-title">Recap Builder</h2>
+          <p className="bm-section-desc">Turn a finished generation into a shareable 9:16 story for Reels, TikTok or Stories. Drop in the photos, the design and the mockup, then export or screen-record it.</p>
+        </div>
+        <iframe src="/private-templates/unik-labs/recap.html" title="Recap Builder" className="bm-content-frame" />
+      </article>
+    </section>
+  );
+}
 type Conversation = { id: string; name: string | null; email: string | null; status: string; seller_unread: number; last_message_at: string; last_message_preview: string | null; created_at: string };
 type ChatMessage = { id: string; sender: string; body: string; created_at: string };
 
