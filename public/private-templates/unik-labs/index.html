@@ -247,14 +247,6 @@ body{
 }
 .btn-secondary:hover{border-color:#fff;background:rgba(255,255,255,0.06);}
 
-.hero-upload-link{
-  display:flex;align-items:center;gap:7px;
-  font-size:13px;font-weight:600;color:rgba(255,255,255,0.75);
-  text-decoration:underline;text-underline-offset:3px;
-  transition:color 0.2s;
-}
-.hero-upload-link:hover{color:#fff;}
-
 /* ── Trust bar ── */
 .trust-bar{
   display:grid;
@@ -715,20 +707,16 @@ body{
 <h1 class="hero-title">Turn your photos into<br/>something you can wear.</h1>
 <p class="hero-sub">Choose a garment, personalise it with AI or upload your own artwork, and we'll print and deliver it anywhere in South Africa.</p>
 <div class="hero-ai-line">
-<svg fill="currentColor" height="13" viewbox="0 0 13 13" width="13"><path d="M6.5 0l1.2 4.3L12 6.5l-4.3 1.2L6.5 13l-1.2-4.3L1 6.5l4.3-1.2z"></path></svg>
+<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="13"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><circle cx="7" cy="7" fill="currentColor" r="1.3" stroke="none"></circle></svg>
         From <strong>R349</strong> &middot; Printed in Durban &middot; Nationwide delivery
       </div>
 <div class="cta-row">
 <a class="btn-primary" href="#choose-garment">
-          Shop custom tees
+          Shop Custom Tees/Hoodies
           <svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 15 12" width="15"><path d="M1 6h12M8 1l5 5-5 5"></path></svg>
 </a>
 <a class="btn-secondary" href="studio.html">Create with AI</a>
 </div>
-<a class="hero-upload-link" href="upload.html">
-<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 14 14" width="13"><path d="M7 13V3M2.5 6.5L7 2l4.5 4.5"></path></svg>
-        Upload artwork
-      </a>
 </div>
 </div>
 <!-- Trust bar -->
@@ -762,6 +750,64 @@ body{
 </div>
 </div>
 </div>
+<!-- Template showcase: previews are wired up by the script below, which
+     picks each image's dark- or light-mode file based on the customer's
+     saved theme preference (the same dark/light toggle studio.html uses),
+     not the browser's colour-scheme. -->
+<section aria-label="Template gallery" class="unik-showcase" id="templates">
+<div class="unik-showcase-inner">
+<div class="unik-showcase-head">
+<div>
+<span class="us-kicker">Made from your photos</span>
+<h2 class="us-title">Pick your<br/>visual language.</h2>
+</div>
+<div class="us-counter"><strong id="unikCounterCurrent">01</strong> / 11</div>
+</div>
+<div class="unik-stage" id="unikStage">
+<div class="unik-deck" id="unikDeck"></div>
+<button aria-label="Previous template" class="unik-arrow unik-arrow-prev" id="unikPrev">‹</button>
+<button aria-label="Next template" class="unik-arrow unik-arrow-next" id="unikNext">›</button>
+</div>
+<div class="unik-progress"><div class="unik-progress-bar" id="unikProgressBar"></div></div>
+<div class="unik-rail" id="unikRail"></div>
+</div>
+<div class="unik-showcase-cta">
+<a class="btn-primary" href="studio.html">
+        Create yours
+        <svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 15 12" width="15"><path d="M1 6h12M8 1l5 5-5 5"></path></svg>
+</a>
+</div>
+</section>
+<!-- How it works -->
+<section aria-label="How it works" class="unik-shop-section">
+<div class="unik-shop-inner">
+<span class="unik-shop-kicker">Start to finish</span>
+<h2 class="unik-shop-title">How it works.</h2>
+<div class="how-list">
+<div class="how-step">
+<div class="how-step-num">1</div>
+<div>
+<div class="how-step-name">Choose your garment</div>
+<div class="how-step-desc">Pick your favourite tee or hoodie.</div>
+</div>
+</div>
+<div class="how-step">
+<div class="how-step-num">2</div>
+<div>
+<div class="how-step-name">Personalise your design</div>
+<div class="how-step-desc">Create with AI or upload your own artwork.</div>
+</div>
+</div>
+<div class="how-step">
+<div class="how-step-num">3</div>
+<div>
+<div class="how-step-name">We print &amp; deliver</div>
+<div class="how-step-desc">Premium quality printing and delivery to your door.</div>
+</div>
+</div>
+</div>
+</div>
+</section>
 <!-- Choose your garment -->
 <section aria-label="Choose your garment" class="unik-shop-section" id="choose-garment">
 <div class="unik-shop-inner">
@@ -820,65 +866,7 @@ body{
 </div>
 </div>
 </section>
-<!-- Template showcase: previews are wired up by the script below, which
-     picks each image's dark- or light-mode file based on the customer's
-     saved theme preference (the same dark/light toggle studio.html uses),
-     not the browser's colour-scheme. -->
-<section aria-label="Template gallery" class="unik-showcase" id="templates">
-<div class="unik-showcase-inner">
-<div class="unik-showcase-head">
-<div>
-<span class="us-kicker">Made from your photos</span>
-<h2 class="us-title">Pick your<br/>visual language.</h2>
-</div>
-<div class="us-counter"><strong id="unikCounterCurrent">01</strong> / 11</div>
-</div>
-<div class="unik-stage" id="unikStage">
-<div class="unik-deck" id="unikDeck"></div>
-<button aria-label="Previous template" class="unik-arrow unik-arrow-prev" id="unikPrev">‹</button>
-<button aria-label="Next template" class="unik-arrow unik-arrow-next" id="unikNext">›</button>
-</div>
-<div class="unik-progress"><div class="unik-progress-bar" id="unikProgressBar"></div></div>
-<div class="unik-rail" id="unikRail"></div>
-</div>
-<div class="unik-showcase-cta">
-<a class="btn-primary" href="studio.html">
-        Create yours
-        <svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 15 12" width="15"><path d="M1 6h12M8 1l5 5-5 5"></path></svg>
-</a>
-</div>
-</section>
-<!-- How it works -->
-<section aria-label="How it works" class="unik-shop-section">
-<div class="unik-shop-inner">
-<span class="unik-shop-kicker">Start to finish</span>
-<h2 class="unik-shop-title">How it works.</h2>
-<div class="how-list">
-<div class="how-step">
-<div class="how-step-num">1</div>
-<div>
-<div class="how-step-name">Choose your garment</div>
-<div class="how-step-desc">Pick your favourite tee or hoodie.</div>
-</div>
-</div>
-<div class="how-step">
-<div class="how-step-num">2</div>
-<div>
-<div class="how-step-name">Personalise your design</div>
-<div class="how-step-desc">Create with AI or upload your own artwork.</div>
-</div>
-</div>
-<div class="how-step">
-<div class="how-step-num">3</div>
-<div>
-<div class="how-step-name">We print &amp; deliver</div>
-<div class="how-step-desc">Premium quality printing and delivery to your door.</div>
-</div>
-</div>
-</div>
-</div>
 <p class="unik-trust-strip"><span>Premium quality printing</span> &middot; <span>Built in Durban, South Africa</span> &middot; <span>Delivery within South Africa only</span></p>
-</section>
 <script src="store.js"></script>
 <script>
 (function () {
