@@ -1423,10 +1423,19 @@ function updateGarmentImages() {
   }
 }
 
+// Reuses the same plain product photos as the garment card (tee's
+// tee_black_flat/tee_white_flat are already model-free; hoodie's own plain
+// photos come from Custom Upload via hoodiePlainImage) instead of the old
+// on-model photography, so colour selection shows the actual product.
 function updateColourImages() {
   const g = S.garment || 'tee';
-  document.getElementById('imgColourBlack').src = selectionImage(g + '_black_model');
-  document.getElementById('imgColourWhite').src = selectionImage(g + '_white_model');
+  if (g === 'hoodie') {
+    document.getElementById('imgColourBlack').src = hoodiePlainImage('black');
+    document.getElementById('imgColourWhite').src = hoodiePlainImage('white');
+  } else {
+    document.getElementById('imgColourBlack').src = selectionImage('tee_black_flat');
+    document.getElementById('imgColourWhite').src = selectionImage('tee_white_flat');
+  }
 }
 
 // ── Progress ──
