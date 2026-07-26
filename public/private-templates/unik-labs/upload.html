@@ -97,12 +97,12 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 
 /* Mini garment thumbnail */
 .mini-garment{width:56px;flex-shrink:0;perspective:300px;}
-.mg-img{width:56px;height:84px;border-radius:6px;object-fit:cover;display:block;box-shadow:0 4px 12px rgba(0,0,0,.15);}
+.mg-img{width:56px;height:84px;border-radius:6px;object-fit:contain;background:var(--bg);display:block;box-shadow:0 4px 12px rgba(0,0,0,.15);}
 
 /* Auto-flip card for front+back */
 .flip-mini{width:56px;height:84px;position:relative;transform-style:preserve-3d;animation:autoFlip 3s ease-in-out infinite;border-radius:6px;flex-shrink:0;}
-.fm-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:6px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.15);}
-.fm-face img{width:100%;height:100%;object-fit:cover;display:block;}
+.fm-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:6px;overflow:hidden;background:var(--bg);box-shadow:0 4px 12px rgba(0,0,0,.15);}
+.fm-face img{width:100%;height:100%;object-fit:contain;display:block;}
 .fm-back{transform:rotateY(180deg);}
 @keyframes autoFlip{
   0%,33.3%{transform:rotateY(0deg);}
@@ -493,12 +493,6 @@ const modeControls=[...document.querySelectorAll('[data-unik-theme-toggle]')];
 modeControls.forEach(control=>{control.disabled=true;control.setAttribute('aria-busy','true');});
 GARMENT_IMAGES_READY.finally(()=>modeControls.forEach(control=>{control.disabled=false;control.removeAttribute('aria-busy');}));
 
-// ── Calibrated zones ──
-const ZONES = {
-  hoodie:{ front:{wP:.3265,hP:.1931,cxP:.5044,tP:.3506}, back:{wP:.4029,hP:.3010,cxP:.5103,tP:.3820} },
-  tee:   { front:{wP:.3853,hP:.3520,cxP:.5044,tP:.4565}, back:{wP:.3735,hP:.3833,cxP:.4985,tP:.4150} }
-};
-
 const PRICES = {
   hoodie:{front:{sale:350,original:450},both:{sale:450,original:550}},
   tee:{front:{sale:299,original:399},both:{sale:379,original:479}}
@@ -526,14 +520,16 @@ const CAL_DEFAULTS_BY_MODE={
       beige:{wP:0.4027,hP:0.3011,cxP:0.5085,tP:0.3761}
     }
   },
-  // Full-size tee -- colour-independent starting point (matching ZONES.tee,
-  // the values this replaces), same value repeated per colour so the
-  // colour switcher still works in the tool even though the underlying
-  // mockup doesn't vary the print position by colour.
+  // Full-size tee. Front differs by colour because black/white use the
+  // new square (1254x1254) flat-lay while beige is still the original 2:3
+  // portrait photo -- black/white calibrated via calibrate-tee-front.html
+  // against that square image; beige keeps the original portrait
+  // calibration. Back is the same 2:3 portrait photo for every colour, so
+  // one calibration covers all three.
   tee:{
     front:{
-      black:{wP:0.3853,hP:0.3520,cxP:0.5044,tP:0.4565},
-      white:{wP:0.3853,hP:0.3520,cxP:0.5044,tP:0.4565},
+      black:{wP:0.3754,hP:0.5000,cxP:0.5123,tP:0.3200},
+      white:{wP:0.3754,hP:0.5000,cxP:0.5123,tP:0.3200},
       beige:{wP:0.3853,hP:0.3520,cxP:0.5044,tP:0.4565}
     },
     back:{
@@ -611,14 +607,24 @@ function editStep(n){
 
 document.querySelectorAll('.dedit').forEach(b=>b.addEventListener('click',()=>editStep(parseInt(b.dataset.s))));
 
+// Tee's black/white front photos are square flat-lays (1254x1254); every
+// other garment/colour front photo is the original 2:3 portrait. Cards use
+// a fixed aspect-ratio in CSS, so cover-fit crops whichever shape doesn't
+// match unless we set the real ratio per image here.
+function frontAspect(garment,colour){
+  return (garment==='tee'&&(colour==='black'||colour==='white'))?'1':'2/3';
+}
+
 // ── Step 1 ──
 function updatePicker(){
   const g=S.garment||'tee',c=S.colour||'black';
-  document.getElementById('igH').src=garmentImage('front_'+(c)+'_hoodie');
-  document.getElementById('igT').src=garmentImage('front_'+(c)+'_tee');
-  document.getElementById('icB').src=garmentImage('front_black_'+(g));
-  document.getElementById('icW').src=garmentImage('front_white_'+(g));
-  document.getElementById('icBg').src=garmentImage('front_beige_'+(g));
+  const igH=document.getElementById('igH'),igT=document.getElementById('igT');
+  const icB=document.getElementById('icB'),icW=document.getElementById('icW'),icBg=document.getElementById('icBg');
+  igH.src=garmentImage('front_'+(c)+'_hoodie');igH.style.aspectRatio=frontAspect('hoodie',c);
+  igT.src=garmentImage('front_'+(c)+'_tee');igT.style.aspectRatio=frontAspect('tee',c);
+  icB.src=garmentImage('front_black_'+(g));icB.style.aspectRatio=frontAspect(g,'black');
+  icW.src=garmentImage('front_white_'+(g));icW.style.aspectRatio=frontAspect(g,'white');
+  icBg.src=garmentImage('front_beige_'+(g));icBg.style.aspectRatio=frontAspect(g,'beige');
 }
 
 function updateZonePreviews(){
@@ -825,13 +831,21 @@ function getZoneRect(){
     return{x:px,y:py,w:maxPW,h:maxPH};
   }
 
-  const z=ZONES.tee[curView];
-  return{
-    x:Math.round((z.cxP-z.wP/2)*tW),
-    y:Math.round(z.tP*tH),
-    w:Math.round(z.wP*tW),
-    h:Math.round(z.hP*tH)
-  };
+  // Calibrated tee print zones (normal customer flow) -- colour-aware for
+  // the same reason the hoodie branch above is: front differs by colour
+  // (black/white square vs beige portrait), so this has to go through
+  // defaultCalibration('tee', ...) rather than the old flat ZONES.tee.
+  const side=curView==='back'?'back':'front';
+  let cfg=defaultCalibration('tee',side,S.colour);
+  try{
+    const saved=JSON.parse(localStorage.getItem(calibrationKey('tee',side,S.colour)));
+    if(saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k]))))cfg=saved;
+  }catch(_){}
+  const maxPW=Math.round(tW*Number(cfg.wP));
+  const maxPH=Math.round(tH*Number(cfg.hP));
+  const px=Math.round(tW*Number(cfg.cxP)-maxPW/2);
+  const py=Math.round(tH*Number(cfg.tP));
+  return{x:px,y:py,w:maxPW,h:maxPH};
 }
 
 function positionZone(){
