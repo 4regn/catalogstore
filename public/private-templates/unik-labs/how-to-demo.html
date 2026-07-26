@@ -12,6 +12,7 @@
     --border:rgba(255,255,255,.1);
     --muted:#9b9d97;
     --white:#f4f1e9;
+    --green:#3ecf6e;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:transparent;}
@@ -51,6 +52,7 @@
   .demo-dots{display:flex;gap:5px;}
   .demo-dot{width:14px;height:3px;border-radius:2px;background:var(--border);transition:background .3s;}
   .demo-dot.on{background:var(--white);}
+  .demo-dots.is-hidden{opacity:0;}
 
   .demo-stage{
     position:relative;
@@ -83,7 +85,49 @@
   }
   .demo-sub{font-size:11.5px;color:var(--muted);margin-bottom:16px;line-height:1.4;}
 
-  /* ── Phase 1: photo grid ── */
+  /* ── Garment / Colour picker cards (shared) ── */
+  .pick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .pick-card{border-radius:12px;border:1.5px solid var(--border);overflow:hidden;background:#111;transition:border-color .25s;}
+  .pick-card.sel{border-color:var(--white);}
+  .pick-card-img{width:100%;aspect-ratio:1;background:#161616;position:relative;}
+  .pick-card-img img{width:100%;height:100%;object-fit:contain;display:block;}
+  .pick-card-name{padding:8px 10px 10px;font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:space-between;}
+  .pick-check{
+    width:15px;height:15px;border-radius:50%;background:var(--border);
+    display:flex;align-items:center;justify-content:center;font-size:9px;color:transparent;
+    transition:background .25s,color .25s;flex-shrink:0;
+  }
+  .pick-card.sel .pick-check{background:var(--white);color:var(--black);}
+
+  /* ── Name step ── */
+  .name-field-label{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;}
+  .name-field{
+    border:1.5px solid var(--border);border-radius:10px;padding:12px 13px;
+    font-family:'Anton',sans-serif;font-size:17px;letter-spacing:.3px;text-transform:uppercase;
+    min-height:22px;margin-bottom:16px;
+  }
+  .name-field .cursor{display:inline-block;width:2px;height:15px;background:var(--white);margin-left:2px;vertical-align:-2px;animation:blink 1s step-end infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .tag-field{
+    border:1.5px solid var(--border);border-radius:10px;padding:12px 13px;
+    font-size:12px;color:var(--muted);min-height:16px;
+    opacity:0;transform:translateY(4px);transition:opacity .4s ease,transform .4s ease;
+  }
+  .tag-field.on{opacity:1;transform:translateY(0);}
+  .tag-field strong{color:var(--white);font-weight:600;}
+
+  /* ── Style grid ── */
+  .style-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .style-card{border-radius:11px;border:1.5px solid var(--border);overflow:hidden;background:#111;position:relative;transition:border-color .25s;}
+  .style-card.sel{border-color:var(--white);}
+  .style-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;}
+  .style-card-name{padding:6px 8px 8px;font-size:9.5px;font-weight:700;letter-spacing:.02em;}
+  .style-badge{
+    position:absolute;top:6px;left:6px;background:#fff;color:#000;font-size:7px;font-weight:800;
+    letter-spacing:.06em;text-transform:uppercase;padding:2.5px 6px;border-radius:999px;
+  }
+
+  /* ── Photo grid ── */
   .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
   .photo-grid img{
     width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:9px;
@@ -102,9 +146,9 @@
     margin-top:14px;font-size:10.5px;color:var(--muted);
     display:flex;align-items:center;gap:6px;
   }
-  .photo-count .ok{color:#3ecf6e;font-weight:700;}
+  .photo-count .ok{color:var(--green);font-weight:700;}
 
-  /* ── Phase 2: generating ── */
+  /* ── Generating ── */
   .gen-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding-top:60px;}
   .gen-bubble{
     width:52px;height:52px;border-radius:50%;
@@ -117,8 +161,7 @@
   .gen-text{font-size:12px;letter-spacing:.5px;color:var(--muted);}
   .gen-text strong{color:var(--white);font-weight:600;}
 
-  /* ── Phase 3: result (artwork + mockup side by side so this fits
-     without scrolling wherever the demo gets embedded) ── */
+  /* ── Result: artwork + mockup side by side ── */
   .result-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;}
   .result-col-label{font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;}
   .result-artwork{
@@ -137,6 +180,21 @@
     font-size:12px;font-weight:700;letter-spacing:.02em;
   }
 
+  /* ── Order journey (after Add to Cart -- this is a physical product) ── */
+  .journey-list{display:grid;gap:0;margin-top:4px;}
+  .journey-row{display:flex;align-items:flex-start;gap:11px;padding:9px 0;position:relative;}
+  .journey-row:not(:last-child)::after{
+    content:'';position:absolute;left:9px;top:28px;bottom:-3px;width:1px;background:var(--border);
+  }
+  .journey-check{
+    width:19px;height:19px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;
+    background:transparent;transition:background .3s,border-color .3s,color .3s;
+  }
+  .journey-row.done .journey-check{background:var(--green);border-color:var(--green);color:#04150a;}
+  .journey-text{font-size:12px;color:var(--muted);padding-top:1px;transition:color .3s;}
+  .journey-row.done .journey-text{color:var(--white);}
+
   @media (max-width:380px){
     .demo{max-width:100%;}
     .demo-stage{min-height:400px;}
@@ -147,19 +205,87 @@
 
 <div class="demo" id="demo">
   <div class="demo-topbar">
-    <span class="demo-kicker">AI Studio &middot; <strong id="demoStepLabel">Step 3 of 5</strong></span>
-    <div class="demo-dots">
-      <span class="demo-dot on"></span>
-      <span class="demo-dot on"></span>
+    <span class="demo-kicker" id="demoKicker">AI Studio &middot; <strong id="demoStepLabel">Step 1 of 6</strong></span>
+    <div class="demo-dots" id="demoDots">
+      <span class="demo-dot" id="dot1"></span>
+      <span class="demo-dot" id="dot2"></span>
       <span class="demo-dot" id="dot3"></span>
       <span class="demo-dot" id="dot4"></span>
       <span class="demo-dot" id="dot5"></span>
+      <span class="demo-dot" id="dot6"></span>
     </div>
   </div>
 
   <div class="demo-stage">
 
-    <!-- Phase 1: photos selected -->
+    <!-- Phase: choose garment -->
+    <div class="demo-phase" data-phase="garment">
+      <div class="demo-title">Choose your garment</div>
+      <div class="demo-sub">Pick your favourite tee or hoodie.</div>
+      <div class="pick-grid">
+        <div class="pick-card sel" id="garmentTee">
+          <div class="pick-card-img"><img alt="Tee" src="assets/dark-studio/tee-black-flat.jpg"></div>
+          <div class="pick-card-name">Tee<span class="pick-check">&#10003;</span></div>
+        </div>
+        <div class="pick-card" id="garmentHoodie">
+          <div class="pick-card-img"><img alt="Hoodie" src="assets/dark/front-black-hoodie.jpg"></div>
+          <div class="pick-card-name">Hoodie<span class="pick-check">&#10003;</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase: choose colour -->
+    <div class="demo-phase" data-phase="colour">
+      <div class="demo-title">Choose your colour</div>
+      <div class="demo-sub">Black or white, either way it's premium cotton.</div>
+      <div class="pick-grid">
+        <div class="pick-card sel" id="colourBlack">
+          <div class="pick-card-img"><img alt="Black" src="assets/dark-studio/tee-black-flat.jpg"></div>
+          <div class="pick-card-name">Black<span class="pick-check">&#10003;</span></div>
+        </div>
+        <div class="pick-card" id="colourWhite">
+          <div class="pick-card-img"><img alt="White" src="assets/dark-studio/tee-white-flat.jpg"></div>
+          <div class="pick-card-name">White<span class="pick-check">&#10003;</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase: write your name -->
+    <div class="demo-phase" data-phase="name">
+      <div class="demo-title">Make it yours</div>
+      <div class="demo-sub">Add the name that goes on the design.</div>
+      <div class="name-field-label">Name</div>
+      <div class="name-field" id="nameField"><span class="cursor"></span></div>
+      <div class="name-field-label">Tagline <span style="text-transform:none;letter-spacing:0;">(optional)</span></div>
+      <div class="tag-field" id="tagField">&ldquo;<strong>THE ICON</strong>&rdquo;</div>
+    </div>
+
+    <!-- Phase: select style -->
+    <div class="demo-phase" data-phase="style">
+      <div class="demo-title">Pick your style</div>
+      <div class="demo-sub">Every style is generated from your own photos.</div>
+      <div class="style-grid">
+        <div class="style-card sel" id="styleBootleg">
+          <span class="style-badge">Popular</span>
+          <img alt="Bootleg" src="assets/studio-previews/tee-black-bootleg.jpg">
+          <div class="style-card-name">Bootleg</div>
+        </div>
+        <div class="style-card" id="styleTour">
+          <img alt="Tour Poster" src="assets/studio-previews/tee-black-tour-poster.jpg">
+          <div class="style-card-name">Tour Poster</div>
+        </div>
+        <div class="style-card" id="styleEditorial">
+          <img alt="Editorial" src="assets/studio-previews/tee-black-editorial.jpg">
+          <div class="style-card-name">Editorial</div>
+        </div>
+        <div class="style-card" id="styleChrome">
+          <img alt="Chrome" src="assets/studio-previews/tee-black-chrome.jpg">
+          <div class="style-card-name">Chrome</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase: photos selected -->
     <div class="demo-phase" data-phase="photos">
       <div class="demo-title">Your photos</div>
       <div class="demo-sub">5 reference photos, ready to become one design.</div>
@@ -173,7 +299,7 @@
       <div class="photo-count"><span class="ok">&#10003;</span> 5 of 5 photos added</div>
     </div>
 
-    <!-- Phase 2: generating -->
+    <!-- Phase: generating -->
     <div class="demo-phase" data-phase="generating">
       <div class="gen-wrap">
         <div class="gen-bubble"><div class="gen-dot"></div></div>
@@ -181,7 +307,7 @@
       </div>
     </div>
 
-    <!-- Phase 3: result -->
+    <!-- Phase: result -->
     <div class="demo-phase" data-phase="result">
       <div class="demo-title">Your design</div>
       <div class="demo-sub">Generated from your photos, ready to print.</div>
@@ -198,44 +324,104 @@
       <div class="result-cta">ADD TO CART — R349</div>
     </div>
 
+    <!-- Phase: order journey (this is a physical product) -->
+    <div class="demo-phase" data-phase="journey">
+      <div class="demo-title">It's a real, physical tee</div>
+      <div class="demo-sub">Once you add to cart, here's what happens next.</div>
+      <div class="journey-list" id="journeyList">
+        <div class="journey-row" data-j="1"><span class="journey-check">&#10003;</span><span class="journey-text">Proceed to checkout</span></div>
+        <div class="journey-row" data-j="2"><span class="journey-check">&#10003;</span><span class="journey-text">Enter delivery details</span></div>
+        <div class="journey-row" data-j="3"><span class="journey-check">&#10003;</span><span class="journey-text">Proceed to pay</span></div>
+        <div class="journey-row" data-j="4"><span class="journey-check">&#10003;</span><span class="journey-text">Your order is prepared &amp; dispatched</span></div>
+        <div class="journey-row" data-j="5"><span class="journey-check">&#10003;</span><span class="journey-text">Delivered to your door</span></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
 (function(){
-  // Hardcoded demo loop -- not a live tool. Three phases cycle on a fixed
-  // timer to show photos -> generating -> result, then repeat. Swap the
-  // five photo-N.jpg / design-preview.jpg / mockup-preview.jpg files in
-  // assets/how-to-demo/ for real examples; nothing else needs to change.
+  // Hardcoded demo loop -- not a live tool. Fixed phases cycle on a timer
+  // to walk through the real AI Studio flow (garment -> colour -> name ->
+  // style -> photos -> generating -> design) then show what happens after
+  // Add to Cart, since this is a physical, shipped product. Swap the files
+  // in assets/how-to-demo/ (the 5 reference photos, design preview, mockup
+  // preview) for a real example; nothing else needs to change.
+  var NAME_TEXT = 'TYLA';
+  var TOTAL_DOTS = 6;
+
   var PHASES = [
-    { key: 'photos',     label: 'Step 3 of 5', dots: [1,1,1,0,0], hold: 3400 },
-    { key: 'generating', label: 'Step 4 of 5', dots: [1,1,1,1,0], hold: 2200 },
-    { key: 'result',     label: 'Step 5 of 5', dots: [1,1,1,1,1], hold: 4200 }
+    { key: 'garment',    label: 'Step 1 of 6', dots: 1, hold: 2400 },
+    { key: 'colour',     label: 'Step 2 of 6', dots: 2, hold: 2000 },
+    { key: 'name',       label: 'Step 3 of 6', dots: 3, hold: 2800, run: runNamePhase },
+    { key: 'style',      label: 'Step 4 of 6', dots: 4, hold: 2600 },
+    { key: 'photos',     label: 'Step 5 of 6', dots: 5, hold: 3400, run: runPhotosPhase },
+    { key: 'generating', label: 'Generating',  dots: 5, hold: 2200 },
+    { key: 'result',     label: 'Step 6 of 6', dots: 6, hold: 4000 },
+    { key: 'journey',    label: 'Order placed', dots: 6, hold: 5200, run: runJourneyPhase, hideDots: true }
   ];
+
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var els = Array.prototype.slice.call(document.querySelectorAll('.demo-phase'));
   var stepLabel = document.getElementById('demoStepLabel');
-  var dotEls = [null, null, document.getElementById('dot3'), document.getElementById('dot4'), document.getElementById('dot5')];
+  var dotsWrap = document.getElementById('demoDots');
+  var dotEls = [];
+  for (var d = 1; d <= TOTAL_DOTS; d++) dotEls.push(document.getElementById('dot' + d));
   var i = 0;
   var timer = null;
+  var innerTimers = [];
+
+  function clearInnerTimers() {
+    innerTimers.forEach(function (t) { clearTimeout(t); });
+    innerTimers = [];
+  }
+
+  function runNamePhase() {
+    var field = document.getElementById('nameField');
+    var tag = document.getElementById('tagField');
+    field.innerHTML = '<span class="cursor"></span>';
+    tag.classList.remove('on');
+    var chars = NAME_TEXT.split('');
+    chars.forEach(function (ch, idx) {
+      innerTimers.push(setTimeout(function () {
+        field.textContent = NAME_TEXT.slice(0, idx + 1);
+        var cursor = document.createElement('span');
+        cursor.className = 'cursor';
+        field.appendChild(cursor);
+      }, 220 + idx * 140));
+    });
+    innerTimers.push(setTimeout(function () { tag.classList.add('on'); }, 220 + chars.length * 140 + 300));
+  }
+
+  function runPhotosPhase() {
+    document.querySelectorAll('.photo-grid img').forEach(function (img) {
+      img.style.animation = 'none';
+      void img.offsetWidth;
+      img.style.animation = '';
+    });
+  }
+
+  function runJourneyPhase() {
+    var rows = document.querySelectorAll('.journey-row');
+    rows.forEach(function (row) { row.classList.remove('done'); });
+    rows.forEach(function (row, idx) {
+      innerTimers.push(setTimeout(function () { row.classList.add('done'); }, 400 + idx * 620));
+    });
+  }
 
   function show(index) {
+    clearInnerTimers();
     var phase = PHASES[index];
     els.forEach(function (el) {
       el.classList.toggle('on', el.dataset.phase === phase.key);
     });
     stepLabel.textContent = phase.label;
-    phase.dots.forEach(function (on, di) {
-      if (dotEls[di]) dotEls[di].classList.toggle('on', !!on);
+    dotsWrap.classList.toggle('is-hidden', !!phase.hideDots);
+    dotEls.forEach(function (dot, di) {
+      if (dot) dot.classList.toggle('on', di < phase.dots);
     });
-    // Restart the photo pop-in animation each time this phase is shown.
-    if (phase.key === 'photos') {
-      document.querySelectorAll('.photo-grid img').forEach(function (img) {
-        img.style.animation = 'none';
-        void img.offsetWidth;
-        img.style.animation = '';
-      });
-    }
+    if (phase.run) phase.run();
   }
 
   function tick() {
