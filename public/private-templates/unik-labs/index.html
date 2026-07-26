@@ -708,7 +708,7 @@ body{
 <p class="hero-sub">Choose a garment, personalise it with AI or upload your own artwork, and we'll print and deliver it anywhere in South Africa.</p>
 <div class="hero-ai-line">
 <svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="13"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><circle cx="7" cy="7" fill="currentColor" r="1.3" stroke="none"></circle></svg>
-        From <strong>R349</strong> &middot; Printed in Durban &middot; Nationwide delivery
+        From <strong>R250</strong> &middot; Printed in Durban &middot; Nationwide delivery
       </div>
 <div class="cta-row">
 <a class="btn-primary" href="#choose-garment">
@@ -942,7 +942,12 @@ body{
         '<div class="unik-frame-name">' + t.name + '</div>' +
       '</div>';
     deck.appendChild(frame);
-    frameImgs.push(frame.querySelector('img'));
+    var frameImg = frame.querySelector('img');
+    // Tee previews are square flat-lays, not the 4:5 portrait this deck's
+    // frame is built for -- cover-fit would crop their sides off. Hoodie
+    // previews are already close to 4:5, so cover still reads as full-bleed.
+    if (t.garment === 'Tee') frameImg.style.objectFit = 'contain';
+    frameImgs.push(frameImg);
 
     var card = document.createElement('button');
     card.type = 'button';
@@ -953,7 +958,9 @@ body{
       '<span class="unik-card-label">' + t.name + '</span>';
     card.addEventListener('click', function () { goTo(i, true); });
     rail.appendChild(card);
-    cardImgs.push(card.querySelector('img'));
+    var cardImg = card.querySelector('img');
+    if (t.garment === 'Tee') cardImg.style.objectFit = 'contain';
+    cardImgs.push(cardImg);
   });
 
   function applyImages() {
