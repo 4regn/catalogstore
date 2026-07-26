@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UNIK Labs — AI Studio demo loop</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0a0a0a;
+    --panel:#131313;
+    --border:rgba(255,255,255,.1);
+    --muted:#9b9d97;
+    --white:#f4f1e9;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:transparent;}
+  body{
+    font-family:'Inter',sans-serif;
+    color:var(--white);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:18px;
+  }
+
+  .demo{
+    width:100%;
+    max-width:360px;
+    background:var(--black);
+    border:1px solid var(--border);
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .demo-topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 18px 0;
+  }
+  .demo-kicker{
+    font-size:9.5px;
+    font-weight:700;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .demo-kicker strong{color:var(--white);}
+  .demo-dots{display:flex;gap:5px;}
+  .demo-dot{width:14px;height:3px;border-radius:2px;background:var(--border);transition:background .3s;}
+  .demo-dot.on{background:var(--white);}
+
+  .demo-stage{
+    position:relative;
+    padding:16px 18px 20px;
+    min-height:430px;
+  }
+  .demo-phase{
+    position:absolute;
+    inset:16px 18px 20px;
+    opacity:0;
+    transform:translateY(6px);
+    pointer-events:none;
+    transition:opacity .45s ease,transform .45s ease;
+  }
+  .demo-phase.on{
+    position:relative;
+    inset:auto;
+    opacity:1;
+    transform:translateY(0);
+    pointer-events:auto;
+  }
+
+  .demo-title{
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    font-size:19px;
+    letter-spacing:.3px;
+    text-transform:uppercase;
+    margin:2px 0 3px;
+  }
+  .demo-sub{font-size:11.5px;color:var(--muted);margin-bottom:16px;line-height:1.4;}
+
+  /* ── Phase 1: photo grid ── */
+  .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+  .photo-grid img{
+    width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:9px;
+    background:#1c1c1c;border:1px solid var(--border);
+    opacity:0;transform:scale(.85);
+    animation:popIn .5s ease forwards;
+  }
+  .photo-grid .p5{grid-column:2;}
+  .photo-grid img:nth-child(1){animation-delay:.15s;}
+  .photo-grid img:nth-child(2){animation-delay:.35s;}
+  .photo-grid img:nth-child(3){animation-delay:.55s;}
+  .photo-grid img:nth-child(4){animation-delay:.75s;}
+  .photo-grid img:nth-child(5){animation-delay:.95s;}
+  @keyframes popIn{to{opacity:1;transform:scale(1);}}
+  .photo-count{
+    margin-top:14px;font-size:10.5px;color:var(--muted);
+    display:flex;align-items:center;gap:6px;
+  }
+  .photo-count .ok{color:#3ecf6e;font-weight:700;}
+
+  /* ── Phase 2: generating ── */
+  .gen-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding-top:60px;}
+  .gen-bubble{
+    width:52px;height:52px;border-radius:50%;
+    border:1.5px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:18px;
+  }
+  .gen-dot{width:9px;height:9px;border-radius:50%;background:var(--white);animation:pulse 1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{transform:scale(.7);opacity:.5;}50%{transform:scale(1.1);opacity:1;}}
+  .gen-text{font-size:12px;letter-spacing:.5px;color:var(--muted);}
+  .gen-text strong{color:var(--white);font-weight:600;}
+
+  /* ── Phase 3: result (artwork + mockup side by side so this fits
+     without scrolling wherever the demo gets embedded) ── */
+  .result-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;}
+  .result-col-label{font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;}
+  .result-artwork{
+    width:100%;aspect-ratio:3/4;border-radius:11px;overflow:hidden;
+    background:#111;border:1px solid var(--border);
+  }
+  .result-artwork img{width:100%;height:100%;object-fit:contain;display:block;}
+  .result-mockup{
+    width:100%;aspect-ratio:1;border-radius:11px;overflow:hidden;
+    background:#1c1c1c;border:1px solid var(--border);
+  }
+  .result-mockup img{width:100%;height:100%;object-fit:contain;display:block;}
+  .result-cta{
+    margin-top:14px;width:100%;padding:12px;border-radius:10px;
+    background:var(--white);color:var(--black);text-align:center;
+    font-size:12px;font-weight:700;letter-spacing:.02em;
+  }
+
+  @media (max-width:380px){
+    .demo{max-width:100%;}
+    .demo-stage{min-height:400px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="demo" id="demo">
+  <div class="demo-topbar">
+    <span class="demo-kicker">AI Studio &middot; <strong id="demoStepLabel">Step 3 of 5</strong></span>
+    <div class="demo-dots">
+      <span class="demo-dot on"></span>
+      <span class="demo-dot on"></span>
+      <span class="demo-dot" id="dot3"></span>
+      <span class="demo-dot" id="dot4"></span>
+      <span class="demo-dot" id="dot5"></span>
+    </div>
+  </div>
+
+  <div class="demo-stage">
+
+    <!-- Phase 1: photos selected -->
+    <div class="demo-phase" data-phase="photos">
+      <div class="demo-title">Your photos</div>
+      <div class="demo-sub">5 reference photos, ready to become one design.</div>
+      <div class="photo-grid">
+        <img alt="" src="assets/how-to-demo/photo-1.jpg">
+        <img alt="" src="assets/how-to-demo/photo-2.jpg">
+        <img alt="" src="assets/how-to-demo/photo-3.jpg">
+        <img alt="" src="assets/how-to-demo/photo-4.jpg">
+        <img alt="" class="p5" src="assets/how-to-demo/photo-5.jpg">
+      </div>
+      <div class="photo-count"><span class="ok">&#10003;</span> 5 of 5 photos added</div>
+    </div>
+
+    <!-- Phase 2: generating -->
+    <div class="demo-phase" data-phase="generating">
+      <div class="gen-wrap">
+        <div class="gen-bubble"><div class="gen-dot"></div></div>
+        <div class="gen-text">Creating your <strong>design</strong>&hellip;</div>
+      </div>
+    </div>
+
+    <!-- Phase 3: result -->
+    <div class="demo-phase" data-phase="result">
+      <div class="demo-title">Your design</div>
+      <div class="demo-sub">Generated from your photos, ready to print.</div>
+      <div class="result-row">
+        <div>
+          <div class="result-col-label">Design</div>
+          <div class="result-artwork"><img alt="" src="assets/how-to-demo/design-preview.jpg"></div>
+        </div>
+        <div>
+          <div class="result-col-label">Mockup</div>
+          <div class="result-mockup"><img alt="" src="assets/how-to-demo/mockup-preview.jpg"></div>
+        </div>
+      </div>
+      <div class="result-cta">ADD TO CART — R349</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  // Hardcoded demo loop -- not a live tool. Three phases cycle on a fixed
+  // timer to show photos -> generating -> result, then repeat. Swap the
+  // five photo-N.jpg / design-preview.jpg / mockup-preview.jpg files in
+  // assets/how-to-demo/ for real examples; nothing else needs to change.
+  var PHASES = [
+    { key: 'photos',     label: 'Step 3 of 5', dots: [1,1,1,0,0], hold: 3400 },
+    { key: 'generating', label: 'Step 4 of 5', dots: [1,1,1,1,0], hold: 2200 },
+    { key: 'result',     label: 'Step 5 of 5', dots: [1,1,1,1,1], hold: 4200 }
+  ];
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var els = Array.prototype.slice.call(document.querySelectorAll('.demo-phase'));
+  var stepLabel = document.getElementById('demoStepLabel');
+  var dotEls = [null, null, document.getElementById('dot3'), document.getElementById('dot4'), document.getElementById('dot5')];
+  var i = 0;
+  var timer = null;
+
+  function show(index) {
+    var phase = PHASES[index];
+    els.forEach(function (el) {
+      el.classList.toggle('on', el.dataset.phase === phase.key);
+    });
+    stepLabel.textContent = phase.label;
+    phase.dots.forEach(function (on, di) {
+      if (dotEls[di]) dotEls[di].classList.toggle('on', !!on);
+    });
+    // Restart the photo pop-in animation each time this phase is shown.
+    if (phase.key === 'photos') {
+      document.querySelectorAll('.photo-grid img').forEach(function (img) {
+        img.style.animation = 'none';
+        void img.offsetWidth;
+        img.style.animation = '';
+      });
+    }
+  }
+
+  function tick() {
+    show(i);
+    var hold = PHASES[i].hold;
+    i = (i + 1) % PHASES.length;
+    if (!reduceMotion) timer = setTimeout(tick, hold);
+  }
+
+  tick();
+})();
+</script>
+
+</body>
+</html>
