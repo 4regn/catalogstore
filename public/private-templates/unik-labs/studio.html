@@ -1660,6 +1660,10 @@ function buildStyleGrid() {
       '<img class="style-img" src="' + previewUrl(s.id) + '" alt="' + s.name + '" loading="lazy">' +
       '<div class="style-info"><div class="style-name">' + s.name + '</div><div class="style-desc">' + s.desc + '</div></div>';
     const cardImg = card.querySelector('.style-img');
+    // Style-preview photos are the same shape as the garment's other photos
+    // (tee flat-lay is square, hoodie is 2:3) -- match the frame to that
+    // real ratio instead of the old fixed 3:4, so cover-fit stops cropping.
+    cardImg.style.aspectRatio = S.garment === 'hoodie' ? HOODIE_RATIO : TEE_RATIO;
     cardImg.dataset.fallback = lightPreviewUrl(s.id);
     cardImg.addEventListener('error', onStyleImgError);
     card.addEventListener('click', () => {
