@@ -226,7 +226,7 @@ body {
 }
 
 .garment-img {
-  width: 100%; aspect-ratio: 1; object-fit: cover; display: block;
+  width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block;
   border-radius: 10px 10px 0 0;
 }
 .garment-label {
@@ -1399,15 +1399,27 @@ function previewUrl(id) {
   return lightPreviewUrl(id);
 }
 
+// Same plain product photo Custom Upload uses for the hoodie garment card
+// and print positioning -- reused here instead of the old flat-lay-with-
+// model image, so the picker shows the actual product rather than someone
+// wearing it.
+const HOODIE_PLAIN = {
+  dark: { black: 'assets/dark/front-black-hoodie.jpg', white: 'assets/dark/front-white-hoodie.jpg' },
+  light: { black: 'assets/light/front-black-hoodie.jpg', white: 'assets/light/front-white-hoodie.jpg' }
+};
+function hoodiePlainImage(colour) {
+  return (studioIsDark() ? HOODIE_PLAIN.dark : HOODIE_PLAIN.light)[colour];
+}
+
 // ── Update garment picker images ──
 function updateGarmentImages() {
   const g = S.garment || 'tee';
   document.getElementById('imgPickTee').src = selectionImage(S.colour === 'white' ? 'tee_white_flat' : 'tee_black_flat');
-  document.getElementById('imgPickHoodie').src = selectionImage(S.colour === 'white' ? 'hoodie_white_flat' : 'hoodie_black_flat');
+  document.getElementById('imgPickHoodie').src = hoodiePlainImage(S.colour === 'white' ? 'white' : 'black');
   // Init both to default when no colour selected
   if (!S.colour) {
     document.getElementById('imgPickTee').src = selectionImage('tee_black_flat');
-    document.getElementById('imgPickHoodie').src = selectionImage('hoodie_black_flat');
+    document.getElementById('imgPickHoodie').src = hoodiePlainImage('black');
   }
 }
 
