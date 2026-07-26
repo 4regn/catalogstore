@@ -180,7 +180,7 @@ export async function makeMockup(clean: Buffer, input: UnikGenerationInput) {
   const height = metadata.height || 1242;
   // Calibrated via calibrate-tee-budget-front.html.
   const zone = input.garment === "tee-budget"
-    ? { width: 0.2600, height: 0.3400, centreX: 0.5044, top: 0.4200 }
+    ? { width: 0.2585, height: 0.3415, centreX: 0.5031, top: 0.3369 }
     : input.garment === "tee"
       ? { width: 0.3754, height: 0.5000, centreX: 0.5123, top: 0.3200 }
       : input.colour === "black"
