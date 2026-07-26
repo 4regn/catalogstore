@@ -182,7 +182,7 @@ export async function makeMockup(clean: Buffer, input: UnikGenerationInput) {
   const zone = input.garment === "tee-budget"
     ? { width: 0.2600, height: 0.3400, centreX: 0.5044, top: 0.4200 }
     : input.garment === "tee"
-      ? { width: 0.3853, height: 0.3520, centreX: 0.5044, top: 0.4565 }
+      ? { width: 0.3754, height: 0.5000, centreX: 0.5123, top: 0.3200 }
       : input.colour === "black"
         ? { width: 0.3328, height: 0.1955, centreX: 0.4957, top: 0.3477 }
         : { width: 0.3328, height: 0.2045, centreX: 0.4957, top: 0.3409 };
