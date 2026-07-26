@@ -872,32 +872,31 @@ body{
 (function () {
   'use strict';
 
-  var CDN = 'https://cdn.shopify.com/s/files/1/0613/0342/3021/files/';
   var THEME_KEY = 'unik-labs-theme-v1';
 
   // One representative garment/colour per template, pointing at the exact
   // same files studio.html's own preview system already serves --
-  // assets/dark-studio/ for the dark-mode variant (studio.html: darkPreviewUrl),
-  // the legacy CDN/asset files studio.html calls PREVIEWS for the light
-  // variant (studio.html: lightPreviewUrl). Nothing here is guessed --
-  // every path was checked against what's actually on disk.
+  // assets/dark-studio/ for the dark-mode variant (studio.html:
+  // darkPreviewUrl) and assets/studio-previews/ for the light-mode variant
+  // (studio.html: lightPreviewUrl/PREVIEWS). Every path was checked against
+  // what's actually on disk.
   var TEMPLATES = [
     { id: 'TOUR_POSTER', name: 'Tour Poster', garment: 'Tee', colour: 'Black', badge: 'Most Popular',
-      light: CDN + 'studio_prev_tour_model.jpg?v=1777654763', dark: 'assets/dark-studio/tee-black-tour-poster.jpg' },
+      light: 'assets/studio-previews/tee-black-tour-poster.jpg', dark: 'assets/dark-studio/tee-black-tour-poster.jpg' },
     { id: 'BOOTLEG', name: 'Bootleg', garment: 'Hoodie', colour: 'White', badge: null,
-      light: CDN + 'IMG_9323_c1woog.jpg?v=1784343551', dark: 'assets/dark-studio/hoodie-white-bootleg.jpg' },
+      light: 'assets/studio-previews/hoodie-white-bootleg.jpg', dark: 'assets/dark-studio/hoodie-white-bootleg.jpg' },
     { id: 'EDITORIAL', name: 'Editorial', garment: 'Tee', colour: 'White', badge: null,
-      light: CDN + 'IMG_9340.jpg?v=1784342366', dark: 'assets/dark-studio/tee-white-editorial.jpg' },
+      light: 'assets/studio-previews/tee-white-editorial.jpg', dark: 'assets/dark-studio/tee-white-editorial.jpg' },
     { id: 'CHROME', name: 'Chrome', garment: 'Hoodie', colour: 'Black', badge: null,
-      light: CDN + 'DA525BDB-D990-49BA-B442-7550D4C26F8C.jpg?v=1784322194', dark: 'assets/dark-studio/hoodie-black-chrome.jpg' },
+      light: 'assets/studio-previews/hoodie-black-chrome.jpg', dark: 'assets/dark-studio/hoodie-black-chrome.jpg' },
     { id: 'GIANT_FACE', name: 'Giant Face', garment: 'Tee', colour: 'Black', badge: null,
-      light: CDN + 'studio_prev_giant_model_1.jpg?v=1777655935', dark: 'assets/dark-studio/tee-black-giant-face.jpg' },
+      light: 'assets/studio-previews/tee-black-giant-face.jpg', dark: 'assets/dark-studio/tee-black-giant-face.jpg' },
     { id: 'BLING_ERA', name: 'Bling Era', garment: 'Hoodie', colour: 'White', badge: null,
-      light: CDN + 'IMG_9327_rn7dxo.jpg?v=1784343549', dark: 'assets/dark-studio/hoodie-white-bling-era.jpg' },
+      light: 'assets/studio-previews/hoodie-white-bling-era.jpg', dark: 'assets/dark-studio/hoodie-white-bling-era.jpg' },
     { id: 'PAPER_CUT', name: 'Paper Cut', garment: 'Tee', colour: 'White', badge: null,
-      light: CDN + 'E5CA8646-9F7A-4D8C-B5BA-029E6E8C7F73.jpg?v=1784322226', dark: 'assets/dark-studio/tee-white-paper-cut.jpg' },
+      light: 'assets/studio-previews/tee-white-paper-cut.jpg', dark: 'assets/dark-studio/tee-white-paper-cut.jpg' },
     { id: 'VTG_BOOTLEG', name: 'Vintage Bootleg', garment: 'Hoodie', colour: 'Black', badge: null,
-      light: CDN + 'IMG_9318.jpg?v=1784342368', dark: 'assets/dark-studio/hoodie-black-vtg-bootleg.jpg' },
+      light: 'assets/studio-previews/hoodie-black-vtg-bootleg.jpg', dark: 'assets/dark-studio/hoodie-black-vtg-bootleg.jpg' },
     { id: 'TOON_DRIP', name: 'Toon Drip', garment: 'Tee', colour: 'Black', badge: 'New',
       light: 'assets/studio-previews/tee-black-toon-drip.jpg', dark: 'assets/dark-studio/tee-black-toon-drip.jpg' },
     { id: 'CHROME_COLLAGE', name: 'Chrome Collage', garment: 'Hoodie', colour: 'White', badge: 'New',
