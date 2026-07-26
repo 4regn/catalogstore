@@ -56,6 +56,10 @@
   .garment-hero{width:140px;aspect-ratio:2/3;margin:0 auto 12px;border-radius:12px;overflow:hidden;background:#111;border:1px solid var(--border);position:relative;}
   .garment-hero img{width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0;opacity:0;transition:opacity .5s ease;}
   .garment-hero img.on{opacity:1;}
+  /* Same real front print-zone fractions used on the upload step, so the
+     finished hoodie (size + cart steps) shows the actual front print
+     instead of reverting to a plain, unprinted garment. */
+  .garment-hero .hero-print{position:absolute;width:32.65%;height:19.31%;left:34.11%;top:35.06%;object-fit:contain;display:block;opacity:1;}
   .garment-toggle{display:flex;justify-content:center;gap:8px;margin-bottom:16px;}
   .g-pill{font-size:10px;font-weight:700;letter-spacing:.04em;padding:6px 14px;border-radius:999px;border:1.5px solid var(--border);color:var(--muted);}
   .g-pill.sel{border-color:var(--white);color:var(--white);}
@@ -247,6 +251,7 @@
       <div class="demo-sub">Both prints are on, now pick a size.</div>
       <div class="garment-hero" style="margin-bottom:18px;">
         <img alt="" class="on" src="assets/dark/front-beige-hoodie.jpg">
+        <img alt="" class="hero-print" src="assets/how-to-demo-custom/front-print.png">
       </div>
       <div class="size-row">
         <div class="sz-btn" id="szS">S</div>
@@ -264,6 +269,7 @@
       <div class="demo-sub">Beige hoodie &middot; Front + Back &middot; Size M</div>
       <div class="garment-hero" style="margin-bottom:14px;">
         <img alt="" class="on" src="assets/dark/front-beige-hoodie.jpg">
+        <img alt="" class="hero-print" src="assets/how-to-demo-custom/front-print.png">
       </div>
       <div class="cta-stack">
         <div class="result-cta" id="atcBtn">ADD TO CART — R450</div>
