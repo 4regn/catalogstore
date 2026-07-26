@@ -526,6 +526,22 @@ const CAL_DEFAULTS_BY_MODE={
       beige:{wP:0.4027,hP:0.3011,cxP:0.5085,tP:0.3761}
     }
   },
+  // Full-size tee -- colour-independent starting point (matching ZONES.tee,
+  // the values this replaces), same value repeated per colour so the
+  // colour switcher still works in the tool even though the underlying
+  // mockup doesn't vary the print position by colour.
+  tee:{
+    front:{
+      black:{wP:0.3853,hP:0.3520,cxP:0.5044,tP:0.4565},
+      white:{wP:0.3853,hP:0.3520,cxP:0.5044,tP:0.4565},
+      beige:{wP:0.3853,hP:0.3520,cxP:0.5044,tP:0.4565}
+    },
+    back:{
+      black:{wP:0.3735,hP:0.3833,cxP:0.4985,tP:0.4150},
+      white:{wP:0.3735,hP:0.3833,cxP:0.4985,tP:0.4150},
+      beige:{wP:0.3735,hP:0.3833,cxP:0.4985,tP:0.4150}
+    }
+  },
   // Starting point only -- an A4 sheet is a 210:297 ratio, but wP/hP are
   // each relative to a different canvas dimension (width vs height), so the
   // exact on-screen box depends on the mockup's own aspect ratio. Use
@@ -1050,13 +1066,13 @@ document.getElementById('btnUpCheckoutNow').addEventListener('click',()=>{locati
 
 // ── Init ──
 function initCalibrationMode(mode,side){
-  CAL_MODE=mode==='tee-budget'?'tee-budget':'hoodie';
-  CAL_GARMENT=CAL_MODE==='tee-budget'?'tee':'hoodie';
+  CAL_MODE=['hoodie','tee','tee-budget'].includes(mode)?mode:'hoodie';
+  CAL_GARMENT=CAL_MODE==='hoodie'?'hoodie':'tee';
   CAL_SIDE=side==='back'?'back':'front';
   document.body.classList.add('calibration-mode');
   S.garment=CAL_GARMENT;S.colour='black';S.zone=CAL_SIDE==='back'?'both':'front';
   curView=CAL_SIDE;fuRot=0;
-  const garmentLabel=CAL_GARMENT==='tee'?'TEE BUDGET (A4)':'HOODIE';
+  const garmentLabel=CAL_MODE==='tee-budget'?'TEE BUDGET (A4)':CAL_GARMENT==='tee'?'TEE':'HOODIE';
   document.querySelector('.cal-title').innerHTML=garmentLabel+' '+CAL_SIDE.toUpperCase()+'<br>ZONE CALIBRATOR';
   document.querySelector('.cal-sub').textContent='Drag the red '+CAL_SIDE+' zone into position and resize it from the bottom-right handle. The normalized measurements stay accurate at every screen size.'+(CAL_MODE==='tee-budget'?' Use "Snap to A4 portrait" to lock the box to an A4 print ratio, then drag it into position.':'');
   const beigeOpt=document.getElementById('calColourBeige');
@@ -1097,7 +1113,7 @@ function initCalibrationMode(mode,side){
     renderCal();
   }
   function outputText(){
-    const garmentLabel=CAL_GARMENT==='tee'?'Tee Budget (A4)':'Hoodie';
+    const garmentLabel=CAL_MODE==='tee-budget'?'Tee Budget (A4)':CAL_GARMENT==='tee'?'Tee':'Hoodie';
     return '// '+garmentLabel+' '+CAL_SIDE.charAt(0).toUpperCase()+CAL_SIDE.slice(1)+' — '+S.colour.charAt(0).toUpperCase()+S.colour.slice(1)+'\nmaxPW = Math.round(tW * '+CAL.wP.toFixed(4)+');\nmaxPH = Math.round(tH * '+CAL.hP.toFixed(4)+');\npx = Math.round(tW * '+CAL.cxP.toFixed(4)+' - pw / 2);\npy = Math.round(tH * '+CAL.tP.toFixed(4)+');';
   }
   async function copyMeasurements(){
@@ -1135,7 +1151,7 @@ function initCalibrationMode(mode,side){
   document.getElementById('calCopy').addEventListener('click',copyMeasurements);
   document.getElementById('calApply').addEventListener('click',()=>{
     localStorage.setItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour),JSON.stringify(CAL));
-    UNIK_CART.notify(S.colour+' '+(CAL_GARMENT==='tee'?'tee budget':'hoodie')+' '+CAL_SIDE+' zone applied');
+    UNIK_CART.notify(S.colour+' '+(CAL_MODE==='tee-budget'?'tee budget':CAL_GARMENT)+' '+CAL_SIDE+' zone applied');
   });
   document.getElementById('calReset').addEventListener('click',()=>{CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};renderCal();UNIK_CART.notify(S.colour+' supplied values restored');});
   const snapBtnEl=document.getElementById('calSnapA4');
@@ -1179,6 +1195,7 @@ function initCalibrationMode(mode,side){
 
 const calibrationMode=new URLSearchParams(location.search).get('calibrate');
 if(calibrationMode==='hoodie-front'||calibrationMode==='hoodie-back')initCalibrationMode('hoodie',calibrationMode==='hoodie-back'?'back':'front');
+else if(calibrationMode==='tee-front'||calibrationMode==='tee-back')initCalibrationMode('tee',calibrationMode==='tee-back'?'back':'front');
 else if(calibrationMode==='tee-budget-front')initCalibrationMode('tee-budget','front');
 else{buildPB();updatePB(1);updatePicker();}
 
