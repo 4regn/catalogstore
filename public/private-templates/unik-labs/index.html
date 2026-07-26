@@ -880,8 +880,6 @@ body{
 (function () {
   'use strict';
 
-  var THEME_KEY = 'unik-labs-theme-v1';
-
   // One representative garment/colour per template, pointing at the exact
   // same files studio.html's own preview system already serves --
   // assets/dark-studio/ for the dark-mode variant (studio.html:
@@ -926,15 +924,6 @@ body{
   var stage = document.getElementById('unikStage');
   if (!deck || !rail) return;
 
-  function currentTheme() {
-    // Same key + same default studio.html's store.js reads, so the
-    // showcase always agrees with whatever the customer last picked there.
-    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
-  }
-
-  function sourceFor(template, theme) { return theme === 'dark' ? template.dark : template.light; }
-  function fallbackFor(template, theme) { return theme === 'dark' ? template.light : template.dark; }
-
   var frameImgs = [];
   var cardImgs = [];
 
@@ -972,17 +961,11 @@ body{
   });
 
   function applyImages() {
-    var theme = currentTheme();
+    // Always the dark-studio set -- this showcase runs on its own black
+    // background regardless of which theme the customer has picked
+    // elsewhere, so it should never switch to the light-mode photos.
     TEMPLATES.forEach(function (t, i) {
-      [frameImgs[i], cardImgs[i]].forEach(function (img) {
-        img.dataset.fallbackApplied = '';
-        img.onerror = function () {
-          if (img.dataset.fallbackApplied) return;
-          img.dataset.fallbackApplied = '1';
-          img.src = fallbackFor(t, theme);
-        };
-        img.src = sourceFor(t, theme);
-      });
+      [frameImgs[i], cardImgs[i]].forEach(function (img) { img.src = t.dark; });
     });
   }
 
@@ -1058,12 +1041,6 @@ body{
   applyImages();
   render();
   startAutoplay();
-
-  // Stay in sync with the theme toggle on studio.html/other pages: a live
-  // event when it changes in this tab, a storage event when it changes in
-  // another tab.
-  window.addEventListener('unik:themechange', applyImages);
-  window.addEventListener('storage', function (e) { if (e.key === THEME_KEY) applyImages(); });
 })();
 </script>
 </body>

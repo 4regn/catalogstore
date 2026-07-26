@@ -13,6 +13,7 @@
     --muted:#9b9d97;
     --white:#f4f1e9;
     --green:#3ecf6e;
+    --btn-idle:#242424;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:transparent;}
@@ -169,12 +170,12 @@
   .result-mockup img{width:100%;height:100%;object-fit:contain;display:block;}
   .result-cta{
     margin-top:14px;width:100%;padding:12px;border-radius:10px;
-    background:var(--white);color:var(--black);text-align:center;
+    background:var(--btn-idle);color:var(--white);text-align:center;
     font-size:12px;font-weight:700;letter-spacing:.02em;
-    transition:background .25s ease,color .25s ease;
+    border:1px solid var(--border);transition:background .25s ease,border-color .25s ease;
   }
   .result-cta.result-cta-secondary{margin-top:8px;}
-  .result-cta.done{background:var(--green);color:#04150a;}
+  .result-cta.done{background:var(--green);color:var(--white);border-color:var(--green);}
 
   /* ── Animated cursor that "clicks" Add to Cart, then Proceed to Checkout ── */
   .ai-cursor{

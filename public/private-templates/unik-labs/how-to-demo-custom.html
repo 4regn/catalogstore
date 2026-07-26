@@ -12,6 +12,7 @@
     --muted:#9b9d97;
     --white:#f4f1e9;
     --green:#3ecf6e;
+    --btn-idle:#242424;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:transparent;}
@@ -120,11 +121,12 @@
   /* ── Cart buttons + cursor (shared with the AI Studio demo) ── */
   .cta-stack{margin-top:20px;}
   .result-cta{
-    width:100%;padding:12px;border-radius:10px;background:var(--white);color:var(--black);
-    text-align:center;font-size:12px;font-weight:700;letter-spacing:.02em;transition:background .25s ease,color .25s ease;
+    width:100%;padding:12px;border-radius:10px;background:var(--btn-idle);color:var(--white);
+    text-align:center;font-size:12px;font-weight:700;letter-spacing:.02em;
+    border:1px solid var(--border);transition:background .25s ease,border-color .25s ease;
   }
   .result-cta.result-cta-secondary{margin-top:8px;}
-  .result-cta.done{background:var(--green);color:#04150a;}
+  .result-cta.done{background:var(--green);color:var(--white);border-color:var(--green);}
   .ai-cursor{position:absolute;top:0;left:0;width:24px;height:24px;opacity:0;pointer-events:none;z-index:20;transition:opacity .3s ease,transform .6s cubic-bezier(.4,0,.2,1);}
   .ai-cursor.show{opacity:1;}
   .ai-cursor svg{width:100%;height:100%;display:block;filter:drop-shadow(0 3px 6px rgba(0,0,0,.55));transform-origin:14% 10%;}
