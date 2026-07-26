@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UNIK Labs — Custom Upload demo loop</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0a0a0a;
+    --border:rgba(255,255,255,.1);
+    --muted:#9b9d97;
+    --white:#f4f1e9;
+    --green:#3ecf6e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:transparent;}
+  body{
+    font-family:'Inter',sans-serif;
+    color:var(--white);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:18px;
+  }
+
+  .demo{
+    width:100%;
+    max-width:360px;
+    background:var(--black);
+    border:1px solid var(--border);
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .demo-topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 0;}
+  .demo-kicker{font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+  .demo-kicker strong{color:var(--white);}
+  .demo-dots{display:flex;gap:5px;}
+  .demo-dot{width:14px;height:3px;border-radius:2px;background:var(--border);transition:background .3s;}
+  .demo-dot.on{background:var(--white);}
+  .demo-dots.is-hidden{opacity:0;}
+
+  .demo-stage{position:relative;padding:16px 18px 20px;min-height:472px;}
+  .demo-phase{
+    position:absolute;inset:16px 18px 20px;opacity:0;transform:translateY(6px);
+    pointer-events:none;transition:opacity .45s ease,transform .45s ease;
+  }
+  .demo-phase.on{position:relative;inset:auto;opacity:1;transform:translateY(0);pointer-events:auto;}
+
+  .demo-title{font-family:'Anton',sans-serif;font-weight:400;font-size:19px;letter-spacing:.3px;text-transform:uppercase;margin:2px 0 3px;}
+  .demo-sub{font-size:11.5px;color:var(--muted);margin-bottom:14px;line-height:1.4;}
+
+  /* ── Garment hero + colour swatches ── */
+  .garment-hero{width:140px;aspect-ratio:2/3;margin:0 auto 12px;border-radius:12px;overflow:hidden;background:#111;border:1px solid var(--border);position:relative;}
+  .garment-hero img{width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0;opacity:0;transition:opacity .5s ease;}
+  .garment-hero img.on{opacity:1;}
+  .garment-toggle{display:flex;justify-content:center;gap:8px;margin-bottom:16px;}
+  .g-pill{font-size:10px;font-weight:700;letter-spacing:.04em;padding:6px 14px;border-radius:999px;border:1.5px solid var(--border);color:var(--muted);}
+  .g-pill.sel{border-color:var(--white);color:var(--white);}
+  .colour-row{display:flex;justify-content:center;gap:10px;}
+  .c-swatch{width:52px;text-align:center;}
+  .c-swatch-img{width:52px;height:69px;border-radius:8px;overflow:hidden;border:1.5px solid var(--border);background:#161616;transition:border-color .25s;}
+  .c-swatch.sel .c-swatch-img{border-color:var(--white);}
+  .c-swatch-img img{width:100%;height:100%;object-fit:cover;display:block;}
+  .c-swatch-lbl{font-size:9.5px;color:var(--muted);margin-top:5px;transition:color .25s;}
+  .c-swatch.sel .c-swatch-lbl{color:var(--white);font-weight:600;}
+
+  /* ── Print-zone cards (step 2) ── */
+  .zone-cards{display:grid;gap:10px;}
+  .zone-card{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;border:1.5px solid var(--border);background:#111;transition:border-color .25s;}
+  .zone-card.sel{border-color:var(--white);}
+  .zone-thumb{width:44px;height:58px;border-radius:7px;overflow:hidden;background:#1c1c1c;flex-shrink:0;position:relative;}
+  .zone-thumb img{width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0;opacity:0;transition:opacity .5s ease;}
+  .zone-thumb img.on{opacity:1;}
+  .zone-info{flex:1;min-width:0;}
+  .zone-name{font-size:12.5px;font-weight:700;}
+  .zone-desc{font-size:10px;color:var(--muted);margin-top:1px;}
+  .zone-price{font-size:12px;font-weight:700;text-align:right;flex-shrink:0;}
+  .zone-price .was{display:block;font-size:9.5px;color:var(--muted);font-weight:400;text-decoration:line-through;}
+
+  /* ── Flip card (upload stage) ── */
+  .flip-wrap{display:flex;flex-direction:column;align-items:center;}
+  .flip-outer{width:150px;aspect-ratio:2/3;perspective:900px;}
+  .flip-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.4,0,.2,1);}
+  .flip-inner.flipped{transform:rotateY(180deg);}
+  .flip-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:12px;overflow:hidden;background:#111;border:1px solid var(--border);}
+  .flip-face img.base{width:100%;height:100%;object-fit:contain;display:block;}
+  .flip-back{transform:rotateY(180deg);}
+  .pz-box{
+    position:absolute;border-radius:6px;border:1.5px dashed rgba(255,255,255,.32);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    background:rgba(255,255,255,.02);transition:border-color .3s;
+  }
+  .pz-plus{font-size:16px;font-weight:700;color:rgba(255,255,255,.55);line-height:1;}
+  .pz-hint{font-size:6.6px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);text-align:center;padding:0 2px;}
+  .pz-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border-radius:5px;opacity:0;transform:scale(.7);transition:opacity .35s ease,transform .35s cubic-bezier(.34,1.56,.64,1);}
+  .pz-art.on{opacity:1;transform:scale(1);}
+  .pz-box.filled{border-style:solid;border-color:transparent;}
+  .pz-box.filled .pz-plus,.pz-box.filled .pz-hint{display:none;}
+
+  .flip-ctrls{display:flex;align-items:center;gap:14px;margin-top:12px;}
+  .flip-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--white);flex-shrink:0;transition:border-color .2s;}
+  .flip-btn.tap{border-color:var(--white);}
+  .flip-lbl{font-size:10.5px;font-weight:700;letter-spacing:.14em;width:46px;text-align:center;}
+  .flip-dots{display:flex;justify-content:center;gap:5px;margin-top:9px;}
+  .flip-dot{width:5px;height:5px;border-radius:50%;background:var(--border);}
+  .flip-dot.on{background:var(--white);}
+
+  /* ── Size step ── */
+  .size-row{display:flex;justify-content:center;gap:8px;margin-top:6px;}
+  .sz-btn{width:38px;height:38px;border-radius:9px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted);transition:border-color .25s,color .25s,background .25s;}
+  .sz-btn.sel{border-color:var(--white);color:var(--black);background:var(--white);}
+
+  /* ── Cart buttons + cursor (shared with the AI Studio demo) ── */
+  .cta-stack{margin-top:20px;}
+  .result-cta{
+    width:100%;padding:12px;border-radius:10px;background:var(--white);color:var(--black);
+    text-align:center;font-size:12px;font-weight:700;letter-spacing:.02em;transition:background .25s ease,color .25s ease;
+  }
+  .result-cta.result-cta-secondary{margin-top:8px;}
+  .result-cta.done{background:var(--green);color:#04150a;}
+  .ai-cursor{position:absolute;top:0;left:0;width:24px;height:24px;opacity:0;pointer-events:none;z-index:20;transition:opacity .3s ease,transform .6s cubic-bezier(.4,0,.2,1);}
+  .ai-cursor.show{opacity:1;}
+  .ai-cursor svg{width:100%;height:100%;display:block;filter:drop-shadow(0 3px 6px rgba(0,0,0,.55));transform-origin:14% 10%;}
+  .ai-cursor.tap svg{animation:cursorTap .32s ease;}
+  @keyframes cursorTap{0%{transform:scale(1);}45%{transform:scale(.72);}100%{transform:scale(1);}}
+
+  /* ── Order journey (identical to the AI Studio demo) ── */
+  .journey-list{display:grid;gap:0;margin-top:4px;}
+  .journey-row{display:flex;align-items:flex-start;gap:11px;padding:9px 0;position:relative;}
+  .journey-row:not(:last-child)::after{content:'';position:absolute;left:9px;top:28px;bottom:-3px;width:1px;background:var(--border);}
+  .journey-check{
+    width:19px;height:19px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;
+    background:transparent;transition:background .3s,border-color .3s,color .3s;
+  }
+  .journey-row.done .journey-check{background:var(--green);border-color:var(--green);color:#04150a;}
+  .journey-text{font-size:12px;color:var(--muted);padding-top:1px;transition:color .3s;}
+  .journey-row.done .journey-text{color:var(--white);}
+
+  @media (max-width:380px){
+    .demo{max-width:100%;}
+    .demo-stage{min-height:440px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="demo" id="demo">
+  <div class="demo-topbar">
+    <span class="demo-kicker" id="demoKicker">Custom Upload &middot; <strong id="demoStepLabel">Step 1 of 3</strong></span>
+    <div class="demo-dots" id="demoDots">
+      <span class="demo-dot" id="dot1"></span>
+      <span class="demo-dot" id="dot2"></span>
+      <span class="demo-dot" id="dot3"></span>
+    </div>
+  </div>
+
+  <div class="demo-stage">
+
+    <!-- Phase: choose garment + colour -->
+    <div class="demo-phase" data-phase="garment">
+      <div class="demo-title">Choose garment</div>
+      <div class="demo-sub">Pick the garment and colour.</div>
+      <div class="garment-hero">
+        <img alt="Black hoodie" class="on" id="heroBlack" src="assets/dark/front-black-hoodie.jpg">
+        <img alt="Beige hoodie" id="heroBeige" src="assets/dark/front-beige-hoodie.jpg">
+      </div>
+      <div class="garment-toggle">
+        <span class="g-pill sel">Hoodie</span>
+        <span class="g-pill">Tee</span>
+      </div>
+      <div class="colour-row">
+        <div class="c-swatch sel" id="swatchBlack">
+          <div class="c-swatch-img"><img alt="Black" src="assets/dark/front-black-hoodie.jpg"></div>
+          <div class="c-swatch-lbl">Black</div>
+        </div>
+        <div class="c-swatch" id="swatchWhite">
+          <div class="c-swatch-img"><img alt="White" src="assets/dark/front-white-hoodie.jpg"></div>
+          <div class="c-swatch-lbl">White</div>
+        </div>
+        <div class="c-swatch" id="swatchBeige">
+          <div class="c-swatch-img"><img alt="Beige" src="assets/dark/front-beige-hoodie.jpg"></div>
+          <div class="c-swatch-lbl">Beige</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase: print zone -->
+    <div class="demo-phase" data-phase="zone">
+      <div class="demo-title">Print zone</div>
+      <div class="demo-sub">Front only or both sides?</div>
+      <div class="zone-cards">
+        <div class="zone-card" id="zoneFront">
+          <div class="zone-thumb"><img alt="" class="on" src="assets/dark/front-beige-hoodie.jpg"></div>
+          <div class="zone-info"><div class="zone-name">Front Only</div><div class="zone-desc">Classic chest print</div></div>
+          <div class="zone-price">R350<span class="was">R450</span></div>
+        </div>
+        <div class="zone-card" id="zoneBoth">
+          <div class="zone-thumb" id="flipMini"><img alt="" class="on" src="assets/dark/front-beige-hoodie.jpg"></div>
+          <div class="zone-info"><div class="zone-name">Front + Back</div><div class="zone-desc">Printed both sides</div></div>
+          <div class="zone-price">R450<span class="was">R550</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase: upload (flip card front/back) -->
+    <div class="demo-phase" data-phase="upload">
+      <div class="demo-title">Add your design</div>
+      <div class="demo-sub">Upload your artwork on each side.</div>
+      <div class="flip-wrap">
+        <div class="flip-outer">
+          <div class="flip-inner" id="flipInner">
+            <div class="flip-face flip-front">
+              <img alt="" class="base" src="assets/dark/front-beige-hoodie.jpg">
+              <div class="pz-box" id="pzFront" style="width:33%;height:19%;left:33.5%;top:26%;">
+                <div class="pz-plus">+</div>
+                <div class="pz-hint">Tap to upload</div>
+                <img alt="" class="pz-art" id="pzArtFront" src="assets/how-to-demo-custom/front-print.jpg">
+              </div>
+            </div>
+            <div class="flip-face flip-back">
+              <img alt="" class="base" src="assets/dark/back-beige-hoodie.jpg">
+              <div class="pz-box" id="pzBack" style="width:40%;height:30%;left:30%;top:29%;">
+                <div class="pz-plus">+</div>
+                <div class="pz-hint">Tap to upload</div>
+                <img alt="" class="pz-art" id="pzArtBack" src="assets/how-to-demo-custom/back-print.jpg">
+              </div>
+            </div>
+          </div>
+          <div class="ai-cursor" id="aiCursorUpload"><svg fill="none" viewbox="0 0 24 24"><path d="M3 2 L3 19 L7.5 15.2 L10.6 21.3 L14 19.6 L11 13.6 L17.2 13.6 Z" fill="#ffffff" stroke="#0a0a0a" stroke-linejoin="round" stroke-width="1.3"></path></svg></div>
+        </div>
+        <div class="flip-ctrls">
+          <div class="flip-btn" id="flipPrev">&#8249;</div>
+          <div class="flip-lbl" id="flipLbl">FRONT</div>
+          <div class="flip-btn" id="flipNext">&#8250;</div>
+        </div>
+        <div class="flip-dots"><span class="flip-dot on" id="flipDotF"></span><span class="flip-dot" id="flipDotB"></span></div>
+      </div>
+    </div>
+
+    <!-- Phase: size -->
+    <div class="demo-phase" data-phase="size">
+      <div class="demo-title">Select size</div>
+      <div class="demo-sub">Both prints are on, now pick a size.</div>
+      <div class="garment-hero" style="margin-bottom:18px;">
+        <img alt="" class="on" src="assets/dark/front-beige-hoodie.jpg">
+      </div>
+      <div class="size-row">
+        <div class="sz-btn" id="szS">S</div>
+        <div class="sz-btn" id="szM">M</div>
+        <div class="sz-btn" id="szL">L</div>
+        <div class="sz-btn" id="szXL">XL</div>
+        <div class="sz-btn" id="szXXL">XXL</div>
+      </div>
+      <div class="ai-cursor" id="aiCursorSize"><svg fill="none" viewbox="0 0 24 24"><path d="M3 2 L3 19 L7.5 15.2 L10.6 21.3 L14 19.6 L11 13.6 L17.2 13.6 Z" fill="#ffffff" stroke="#0a0a0a" stroke-linejoin="round" stroke-width="1.3"></path></svg></div>
+    </div>
+
+    <!-- Phase: cart -->
+    <div class="demo-phase" data-phase="cart">
+      <div class="demo-title">Ready to print</div>
+      <div class="demo-sub">Beige hoodie &middot; Front + Back &middot; Size M</div>
+      <div class="garment-hero" style="margin-bottom:14px;">
+        <img alt="" class="on" src="assets/dark/front-beige-hoodie.jpg">
+      </div>
+      <div class="cta-stack">
+        <div class="result-cta" id="atcBtn">ADD TO CART — R450</div>
+        <div class="result-cta result-cta-secondary" id="checkoutBtn">PROCEED TO CHECKOUT</div>
+      </div>
+      <div class="ai-cursor" id="aiCursorCart"><svg fill="none" viewbox="0 0 24 24"><path d="M3 2 L3 19 L7.5 15.2 L10.6 21.3 L14 19.6 L11 13.6 L17.2 13.6 Z" fill="#ffffff" stroke="#0a0a0a" stroke-linejoin="round" stroke-width="1.3"></path></svg></div>
+    </div>
+
+    <!-- Phase: order journey (identical to the AI Studio demo) -->
+    <div class="demo-phase" data-phase="journey">
+      <div class="demo-title">Your order is on the way</div>
+      <div class="demo-sub">Once you add to cart, here's what happens next.</div>
+      <div class="journey-list" id="journeyList">
+        <div class="journey-row" data-j="1"><span class="journey-check">&#10003;</span><span class="journey-text">Proceed to checkout</span></div>
+        <div class="journey-row" data-j="2"><span class="journey-check">&#10003;</span><span class="journey-text">Enter delivery details</span></div>
+        <div class="journey-row" data-j="3"><span class="journey-check">&#10003;</span><span class="journey-text">Proceed to pay</span></div>
+        <div class="journey-row" data-j="4"><span class="journey-check">&#10003;</span><span class="journey-text">Your order is prepared &amp; dispatched</span></div>
+        <div class="journey-row" data-j="5"><span class="journey-check">&#10003;</span><span class="journey-text">Delivered to your door</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  // Hardcoded demo loop -- not a live tool. Walks the real Custom Upload
+  // flow (garment+colour -> print zone -> upload front/back -> size ->
+  // cart) for a fixed example: beige hoodie, front + back print, size M.
+  // Swap assets/how-to-demo-custom/front-print.jpg and back-print.jpg for
+  // real artwork; nothing else needs to change.
+  var TOTAL_DOTS = 3;
+
+  var PHASES = [
+    { key: 'garment', label: 'Step 1 of 3', dots: 1, hold: 3200 },
+    { key: 'zone',     label: 'Step 2 of 3', dots: 2, hold: 2800, run: runZonePhase },
+    { key: 'upload',   label: 'Step 3 of 3', dots: 3, hold: 8200, run: runUploadPhase },
+    { key: 'size',     label: 'Step 3 of 3', dots: 3, hold: 2600, run: runSizePhase },
+    { key: 'cart',     label: 'Step 3 of 3', dots: 3, hold: 5600, run: runCartPhase },
+    { key: 'journey',  label: 'Order placed', dots: 3, hold: 5200, run: runJourneyPhase, hideDots: true }
+  ];
+
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var els = Array.prototype.slice.call(document.querySelectorAll('.demo-phase'));
+  var stepLabel = document.getElementById('demoStepLabel');
+  var dotsWrap = document.getElementById('demoDots');
+  var dotEls = [];
+  for (var d = 1; d <= TOTAL_DOTS; d++) dotEls.push(document.getElementById('dot' + d));
+  var i = 0;
+  var timer = null;
+  var innerTimers = [];
+  var flipMiniTimer = null;
+
+  function clearInnerTimers() {
+    innerTimers.forEach(function (t) { clearTimeout(t); });
+    innerTimers = [];
+  }
+
+  function pointCursorAt(cursor, container, el) {
+    var pr = container.getBoundingClientRect();
+    var br = el.getBoundingClientRect();
+    var x = br.left - pr.left + br.width * 0.4;
+    var y = br.top - pr.top + br.height * 0.42;
+    cursor.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+  }
+
+  // Garment phase has its own inline cursor appended once, since the hero
+  // image + swatch row live directly in the phase (no separate wrapper).
+  var garmentCursor = document.createElement('div');
+  garmentCursor.className = 'ai-cursor';
+  garmentCursor.innerHTML = '<svg fill="none" viewBox="0 0 24 24"><path d="M3 2 L3 19 L7.5 15.2 L10.6 21.3 L14 19.6 L11 13.6 L17.2 13.6 Z" fill="#ffffff" stroke="#0a0a0a" stroke-linejoin="round" stroke-width="1.3"></path></svg>';
+  document.querySelector('.demo-phase[data-phase="garment"]').appendChild(garmentCursor);
+
+  function runGarmentPhaseReal() {
+    var phase = document.querySelector('.demo-phase[data-phase="garment"]');
+    var heroBlack = document.getElementById('heroBlack');
+    var heroBeige = document.getElementById('heroBeige');
+    var swBlack = document.getElementById('swatchBlack');
+    var swBeige = document.getElementById('swatchBeige');
+    heroBlack.classList.add('on'); heroBeige.classList.remove('on');
+    swBlack.classList.add('sel'); swBeige.classList.remove('sel');
+    garmentCursor.classList.remove('show', 'tap');
+    pointCursorAt(garmentCursor, phase, swBlack);
+    innerTimers.push(setTimeout(function () { garmentCursor.classList.add('show'); }, 500));
+    innerTimers.push(setTimeout(function () { pointCursorAt(garmentCursor, phase, swBeige); }, 700));
+    innerTimers.push(setTimeout(function () { garmentCursor.classList.add('tap'); }, 1350));
+    innerTimers.push(setTimeout(function () {
+      garmentCursor.classList.remove('tap');
+      swBlack.classList.remove('sel'); swBeige.classList.add('sel');
+      heroBlack.classList.remove('on'); heroBeige.classList.add('on');
+    }, 1650));
+    innerTimers.push(setTimeout(function () { garmentCursor.classList.remove('show'); }, 2600));
+  }
+
+  var zoneCursor = document.createElement('div');
+  zoneCursor.className = 'ai-cursor';
+  zoneCursor.innerHTML = '<svg fill="none" viewBox="0 0 24 24"><path d="M3 2 L3 19 L7.5 15.2 L10.6 21.3 L14 19.6 L11 13.6 L17.2 13.6 Z" fill="#ffffff" stroke="#0a0a0a" stroke-linejoin="round" stroke-width="1.3"></path></svg>';
+  document.querySelector('.demo-phase[data-phase="zone"]').appendChild(zoneCursor);
+
+  function runZonePhase() {
+    var phase = document.querySelector('.demo-phase[data-phase="zone"]');
+    var zFront = document.getElementById('zoneFront');
+    var zBoth = document.getElementById('zoneBoth');
+    zFront.classList.remove('sel'); zBoth.classList.remove('sel');
+    zoneCursor.classList.remove('show', 'tap');
+
+    // Auto-flip the "Front + Back" thumbnail between front/back beige
+    // photos, mirroring the real flip-mini preview on this card.
+    var flipMini = document.getElementById('flipMini');
+    var showingFront = true;
+    function tickFlipMini() {
+      flipMini.innerHTML = '<img alt="" class="on" src="assets/dark/' + (showingFront ? 'front' : 'back') + '-beige-hoodie.jpg">';
+      showingFront = !showingFront;
+    }
+    tickFlipMini();
+    clearInterval(flipMiniTimer);
+    flipMiniTimer = setInterval(tickFlipMini, 1100);
+
+    pointCursorAt(zoneCursor, phase, zFront);
+    innerTimers.push(setTimeout(function () { zoneCursor.classList.add('show'); }, 500));
+    innerTimers.push(setTimeout(function () { pointCursorAt(zoneCursor, phase, zBoth); }, 700));
+    innerTimers.push(setTimeout(function () { zoneCursor.classList.add('tap'); }, 1350));
+    innerTimers.push(setTimeout(function () {
+      zoneCursor.classList.remove('tap');
+      zBoth.classList.add('sel');
+    }, 1650));
+    innerTimers.push(setTimeout(function () { zoneCursor.classList.remove('show'); }, 2500));
+  }
+
+  function runUploadPhase() {
+    var outer = document.querySelector('.flip-outer');
+    var cursor = document.getElementById('aiCursorUpload');
+    var inner = document.getElementById('flipInner');
+    var pzFront = document.getElementById('pzFront');
+    var pzBack = document.getElementById('pzBack');
+    var pzArtFront = document.getElementById('pzArtFront');
+    var pzArtBack = document.getElementById('pzArtBack');
+    var flipPrev = document.getElementById('flipPrev');
+    var flipNext = document.getElementById('flipNext');
+    var flipLbl = document.getElementById('flipLbl');
+    var flipDotF = document.getElementById('flipDotF');
+    var flipDotB = document.getElementById('flipDotB');
+
+    inner.classList.remove('flipped');
+    pzFront.classList.remove('filled'); pzArtFront.classList.remove('on');
+    pzBack.classList.remove('filled'); pzArtBack.classList.remove('on');
+    flipLbl.textContent = 'FRONT';
+    flipDotF.classList.add('on'); flipDotB.classList.remove('on');
+    cursor.classList.remove('show', 'tap');
+
+    // 1. tap the front print zone -> artwork pops in
+    pointCursorAt(cursor, outer, pzFront);
+    innerTimers.push(setTimeout(function () { cursor.classList.add('show'); }, 500));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 1150));
+    innerTimers.push(setTimeout(function () {
+      cursor.classList.remove('tap');
+      pzFront.classList.add('filled'); pzArtFront.classList.add('on');
+    }, 1450));
+
+    // 2. move to the next arrow -> flip to back
+    innerTimers.push(setTimeout(function () { pointCursorAt(cursor, outer, flipNext); }, 2200));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); flipNext.classList.add('tap'); }, 2850));
+    innerTimers.push(setTimeout(function () {
+      cursor.classList.remove('tap'); flipNext.classList.remove('tap');
+      inner.classList.add('flipped');
+      flipLbl.textContent = 'BACK';
+      flipDotF.classList.remove('on'); flipDotB.classList.add('on');
+    }, 3050));
+
+    // 3. tap the back print zone -> artwork pops in
+    innerTimers.push(setTimeout(function () { pointCursorAt(cursor, outer, pzBack); }, 4000));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 4650));
+    innerTimers.push(setTimeout(function () {
+      cursor.classList.remove('tap');
+      pzBack.classList.add('filled'); pzArtBack.classList.add('on');
+    }, 4950));
+
+    // 4. move to the prev arrow -> flip back to front (now showing the
+    //    finished print)
+    innerTimers.push(setTimeout(function () { pointCursorAt(cursor, outer, flipPrev); }, 5700));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); flipPrev.classList.add('tap'); }, 6350));
+    innerTimers.push(setTimeout(function () {
+      cursor.classList.remove('tap'); flipPrev.classList.remove('tap');
+      inner.classList.remove('flipped');
+      flipLbl.textContent = 'FRONT';
+      flipDotF.classList.add('on'); flipDotB.classList.remove('on');
+    }, 6550));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('show'); }, 7500));
+  }
+
+  function runSizePhase() {
+    var phase = document.querySelector('.demo-phase[data-phase="size"]');
+    var cursor = document.getElementById('aiCursorSize');
+    var szM = document.getElementById('szM');
+    document.querySelectorAll('.sz-btn').forEach(function (b) { b.classList.remove('sel'); });
+    cursor.classList.remove('show', 'tap');
+    pointCursorAt(cursor, phase, document.getElementById('szS'));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('show'); }, 400));
+    innerTimers.push(setTimeout(function () { pointCursorAt(cursor, phase, szM); }, 600));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 1200));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); szM.classList.add('sel'); }, 1500));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('show'); }, 2300));
+  }
+
+  function runCartPhase() {
+    var phase = document.querySelector('.demo-phase[data-phase="cart"]');
+    var cursor = document.getElementById('aiCursorCart');
+    var atc = document.getElementById('atcBtn');
+    var checkout = document.getElementById('checkoutBtn');
+    atc.classList.remove('done'); checkout.classList.remove('done');
+    cursor.classList.remove('show', 'tap');
+    pointCursorAt(cursor, phase, atc);
+    innerTimers.push(setTimeout(function () { cursor.classList.add('show'); }, 700));
+    innerTimers.push(setTimeout(function () { pointCursorAt(cursor, phase, atc); }, 900));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 1550));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); atc.classList.add('done'); }, 1870));
+    innerTimers.push(setTimeout(function () { pointCursorAt(cursor, phase, checkout); }, 2450));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 3100));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); checkout.classList.add('done'); }, 3420));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('show'); }, 4200));
+  }
+
+  function runJourneyPhase() {
+    var rows = document.querySelectorAll('.journey-row');
+    rows.forEach(function (row) { row.classList.remove('done'); });
+    rows.forEach(function (row, idx) {
+      innerTimers.push(setTimeout(function () { row.classList.add('done'); }, 400 + idx * 620));
+    });
+  }
+
+  function show(index) {
+    clearInnerTimers();
+    clearInterval(flipMiniTimer);
+    var phase = PHASES[index];
+    els.forEach(function (el) { el.classList.toggle('on', el.dataset.phase === phase.key); });
+    stepLabel.textContent = phase.label;
+    dotsWrap.classList.toggle('is-hidden', !!phase.hideDots);
+    dotEls.forEach(function (dot, di) { if (dot) dot.classList.toggle('on', di < phase.dots); });
+    if (phase.key === 'garment') runGarmentPhaseReal();
+    else if (phase.run) phase.run();
+  }
+
+  function tick() {
+    show(i);
+    var hold = PHASES[i].hold;
+    i = (i + 1) % PHASES.length;
+    if (!reduceMotion) timer = setTimeout(tick, hold);
+  }
+
+  tick();
+})();
+</script>
+
+</body>
+</html>
