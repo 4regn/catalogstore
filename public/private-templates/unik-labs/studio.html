@@ -1411,30 +1411,41 @@ function hoodiePlainImage(colour) {
   return (studioIsDark() ? HOODIE_PLAIN.dark : HOODIE_PLAIN.light)[colour];
 }
 
+// Real files on both sides now (replacing the old embedded-base64 light
+// image and the low-quality dark one) so either can be swapped out just by
+// replacing the file, same as every other asset here.
+const TEE_FLAT = {
+  dark: { black: 'assets/dark-studio/tee-black-flat.jpg', white: 'assets/dark-studio/tee-white-flat.jpg' },
+  light: { black: 'assets/light/tee-black-flat.jpg', white: 'assets/light/tee-white-flat.jpg' }
+};
+function teeFlatImage(colour) {
+  return (studioIsDark() ? TEE_FLAT.dark : TEE_FLAT.light)[colour];
+}
+
 // ── Update garment picker images ──
 function updateGarmentImages() {
   const g = S.garment || 'tee';
-  document.getElementById('imgPickTee').src = selectionImage(S.colour === 'white' ? 'tee_white_flat' : 'tee_black_flat');
+  document.getElementById('imgPickTee').src = teeFlatImage(S.colour === 'white' ? 'white' : 'black');
   document.getElementById('imgPickHoodie').src = hoodiePlainImage(S.colour === 'white' ? 'white' : 'black');
   // Init both to default when no colour selected
   if (!S.colour) {
-    document.getElementById('imgPickTee').src = selectionImage('tee_black_flat');
+    document.getElementById('imgPickTee').src = teeFlatImage('black');
     document.getElementById('imgPickHoodie').src = hoodiePlainImage('black');
   }
 }
 
 // Reuses the same plain product photos as the garment card (tee's
-// tee_black_flat/tee_white_flat are already model-free; hoodie's own plain
-// photos come from Custom Upload via hoodiePlainImage) instead of the old
-// on-model photography, so colour selection shows the actual product.
+// teeFlatImage is already model-free; hoodie's own plain photos come from
+// Custom Upload via hoodiePlainImage) instead of the old on-model
+// photography, so colour selection shows the actual product.
 function updateColourImages() {
   const g = S.garment || 'tee';
   if (g === 'hoodie') {
     document.getElementById('imgColourBlack').src = hoodiePlainImage('black');
     document.getElementById('imgColourWhite').src = hoodiePlainImage('white');
   } else {
-    document.getElementById('imgColourBlack').src = selectionImage('tee_black_flat');
-    document.getElementById('imgColourWhite').src = selectionImage('tee_white_flat');
+    document.getElementById('imgColourBlack').src = teeFlatImage('black');
+    document.getElementById('imgColourWhite').src = teeFlatImage('white');
   }
 }
 
