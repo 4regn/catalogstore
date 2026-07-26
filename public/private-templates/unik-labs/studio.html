@@ -226,7 +226,7 @@ body {
 }
 
 .garment-img {
-  width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block;
+  width: 100%; object-fit: cover; display: block;
   border-radius: 10px 10px 0 0;
 }
 .garment-label {
@@ -277,7 +277,7 @@ body {
   z-index: 2;
 }
 
-.colour-model-img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+.colour-model-img { width: 100%; object-fit: cover; display: block; }
 .colour-label {
   padding: 8px 12px;
   font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
@@ -1422,15 +1422,26 @@ function teeFlatImage(colour) {
   return (studioIsDark() ? TEE_FLAT.dark : TEE_FLAT.light)[colour];
 }
 
+// Tee's flat-lay photo is a square (1:1); the hoodie photo (reused from
+// Custom Upload) is portrait (2:3) -- each image gets its own real ratio
+// set here rather than a shared CSS rule, so neither gets cropped into the
+// other's frame.
+const TEE_RATIO = '1';
+const HOODIE_RATIO = '2/3';
+
 // ── Update garment picker images ──
 function updateGarmentImages() {
   const g = S.garment || 'tee';
-  document.getElementById('imgPickTee').src = teeFlatImage(S.colour === 'white' ? 'white' : 'black');
-  document.getElementById('imgPickHoodie').src = hoodiePlainImage(S.colour === 'white' ? 'white' : 'black');
+  const teeImg = document.getElementById('imgPickTee');
+  const hoodieImg = document.getElementById('imgPickHoodie');
+  teeImg.style.aspectRatio = TEE_RATIO;
+  hoodieImg.style.aspectRatio = HOODIE_RATIO;
+  teeImg.src = teeFlatImage(S.colour === 'white' ? 'white' : 'black');
+  hoodieImg.src = hoodiePlainImage(S.colour === 'white' ? 'white' : 'black');
   // Init both to default when no colour selected
   if (!S.colour) {
-    document.getElementById('imgPickTee').src = teeFlatImage('black');
-    document.getElementById('imgPickHoodie').src = hoodiePlainImage('black');
+    teeImg.src = teeFlatImage('black');
+    hoodieImg.src = hoodiePlainImage('black');
   }
 }
 
@@ -1440,12 +1451,15 @@ function updateGarmentImages() {
 // photography, so colour selection shows the actual product.
 function updateColourImages() {
   const g = S.garment || 'tee';
+  const blackImg = document.getElementById('imgColourBlack');
+  const whiteImg = document.getElementById('imgColourWhite');
+  blackImg.style.aspectRatio = whiteImg.style.aspectRatio = g === 'hoodie' ? HOODIE_RATIO : TEE_RATIO;
   if (g === 'hoodie') {
-    document.getElementById('imgColourBlack').src = hoodiePlainImage('black');
-    document.getElementById('imgColourWhite').src = hoodiePlainImage('white');
+    blackImg.src = hoodiePlainImage('black');
+    whiteImg.src = hoodiePlainImage('white');
   } else {
-    document.getElementById('imgColourBlack').src = teeFlatImage('black');
-    document.getElementById('imgColourWhite').src = teeFlatImage('white');
+    blackImg.src = teeFlatImage('black');
+    whiteImg.src = teeFlatImage('white');
   }
 }
 
