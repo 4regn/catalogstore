@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../../lib/unik-brand-manager";
+import { sweepAbandonedUnikOrders } from "../../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +9,15 @@ export const dynamic = "force-dynamic";
 // customer-facing order tracker (UnikAccountClient.tsx's TRACK_STEPS) --
 // keeping the same vocabulary everywhere an order's status is shown.
 const UNIK_ORDER_STATUSES = ["pending", "fulfilled", "awaiting_pickup", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
-const PAYMENT_STATUSES = ["awaiting_payment", "pending", "paid", "refunded"];
+const PAYMENT_STATUSES = ["awaiting_payment", "pending", "paid", "failed", "abandoned", "refunded"];
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const auth = await requireUnikBrandManager(req);
   if ("response" in auth) return auth.response;
   const { seller } = auth;
   const { id } = await context.params;
+
+  await sweepAbandonedUnikOrders(getAdmin(), seller.id);
 
   const { data: order, error } = await getAdmin()
     .from("orders")

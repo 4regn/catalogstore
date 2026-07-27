@@ -364,7 +364,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
 }
 
 const UNIK_ORDER_STATUSES = ["pending", "fulfilled", "awaiting_pickup", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
-const PAYMENT_STATUSES = ["awaiting_payment", "pending", "paid", "refunded"];
+const PAYMENT_STATUSES = ["awaiting_payment", "pending", "paid", "failed", "abandoned", "refunded"];
 
 type OrderDetail = OrderRow & {
   customer_email?: string;

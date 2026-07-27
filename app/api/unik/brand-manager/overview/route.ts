@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../lib/unik-brand-manager";
+import { sweepAbandonedUnikOrders } from "../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,15 @@ export async function GET(req: NextRequest) {
   const { seller, manager } = auth;
 
   const admin = getAdmin();
+
+  // A UNIK order sits at payment_status "pending" until either a real
+  // payment confirmation arrives or this sweep relabels it "abandoned"
+  // past ORDER_ABANDON_MS -- previously only the customer-facing account
+  // page ever triggered this, so an order the seller looks at here could
+  // still read "pending" (a stale, no-longer-accurate label) well past
+  // the point a customer would actually see it as abandoned.
+  await sweepAbandonedUnikOrders(admin, seller.id);
+
   const now = new Date();
   const todayStart = startOfDay(now).toISOString();
   const monthStart = startOfMonth(now).toISOString();

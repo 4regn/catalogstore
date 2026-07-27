@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../lib/unik-brand-manager";
+import { sweepAbandonedUnikOrders } from "../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 25;
@@ -9,6 +10,11 @@ export async function GET(req: NextRequest) {
   const auth = await requireUnikBrandManager(req);
   if ("response" in auth) return auth.response;
   const { seller } = auth;
+
+  // See the identical comment in the overview route -- this sweep used to
+  // only run from the customer-facing account page, so an order could sit
+  // labelled "pending" here well past the point it's genuinely abandoned.
+  await sweepAbandonedUnikOrders(getAdmin(), seller.id);
 
   const page = Math.max(0, Number(req.nextUrl.searchParams.get("page") || "0"));
   const from = page * PAGE_SIZE;
