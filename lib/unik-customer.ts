@@ -6,7 +6,7 @@ export const UNIK_SLUG = "unik";
 export async function getUnikSeller() {
   const { data, error } = await getAdmin()
     .from("sellers")
-    .select("id, subdomain, store_name, template, email, whatsapp_number, logo_url, primary_color")
+    .select("id, subdomain, store_name, template, email, whatsapp_number, logo_url, primary_color, custom_domain, custom_domain_status")
     .eq("subdomain", UNIK_SLUG)
     .maybeSingle();
 

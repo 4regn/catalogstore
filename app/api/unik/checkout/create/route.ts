@@ -10,13 +10,22 @@ const DEFAULT_DELIVERY = { name: "Nationwide Delivery", price: 79 };
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
 const CHECKOUT_PATH = "/private-templates/unik-labs/checkout.html";
 
-function safeOrigin(raw: unknown): string {
+// A shopper on the seller's own verified custom domain (e.g. uniklabs.co.za)
+// must come back to THAT domain after Yoco, not the platform's own
+// catalogstore.co.za -- otherwise the redirect lands on a different origin
+// than the one the shopper's session/cookies belong to, which reads as a
+// broken/stuck checkout (and can look like an auth failure too, since a
+// Supabase session set on one origin isn't visible on another). sellerDomain
+// is passed in already scoped to custom_domain_status === "verified" by the
+// caller, so a domain still pending DNS verification is never trusted here.
+function safeOrigin(raw: unknown, sellerDomain: string | null): string {
   if (typeof raw !== "string") return APP_ORIGIN;
   try {
     const u = new URL(raw);
     const host = u.host.toLowerCase();
     const allowed = new URL(APP_ORIGIN).host.toLowerCase();
     if (host === allowed || host.endsWith("." + allowed)) return u.origin;
+    if (sellerDomain && (host === sellerDomain.toLowerCase() || host === `www.${sellerDomain.toLowerCase()}`)) return u.origin;
     if (host === "localhost" || host.startsWith("localhost:") || host.startsWith("127.0.0.1")) return u.origin;
     return APP_ORIGIN;
   } catch {
@@ -277,7 +286,8 @@ export async function POST(req: NextRequest) {
   await admin.from("unik_designs").update({ status: "checkout_started" }).in("id", lineItems.map((i) => i.designId));
   mark("designsStatusUpdate");
 
-  const origin = safeOrigin(body?.returnOrigin);
+  const sellerDomain = seller.custom_domain_status === "verified" ? seller.custom_domain : null;
+  const origin = safeOrigin(body?.returnOrigin, sellerDomain);
   const yocoLineItems: YocoLineItem[] = lineItems.map((i) => ({ displayName: i.name, quantity: i.qty, pricingDetails: { price: Math.round(i.price * 100) } }));
   if (shippingCost > 0) yocoLineItems.push({ displayName: shippingLabel, quantity: 1, pricingDetails: { price: Math.round(shippingCost * 100) } });
 
