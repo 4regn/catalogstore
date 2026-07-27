@@ -156,6 +156,14 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .dl-change,.dl-remove{font-size:17px;font-weight:300;line-height:1;}
 .dl-change{top:-11px;left:-11px;}
 .dl-remove{top:-11px;right:-11px;}
+/* All four controls fade out until the uploaded image is tapped, and fade
+   back out again on a tap elsewhere on the garment -- keeps them out of the
+   way of just looking at the design while still being one tap away. */
+.dl-handle,.dl-change,.dl-remove,.dl-crop{transition:opacity .18s ease;}
+.design-layer.dl-controls-hidden .dl-handle,
+.design-layer.dl-controls-hidden .dl-change,
+.design-layer.dl-controls-hidden .dl-remove,
+.design-layer.dl-controls-hidden .dl-crop{opacity:0;pointer-events:none;}
 .dl-crop{bottom:-11px;left:-11px;}
 .dl-crop svg{width:13px;height:13px;}
 
@@ -957,6 +965,9 @@ function initDesignInZone(view,zone){
   tmp.src=u.url;
 }
 
+function showDlControls(){document.getElementById('designLayer').classList.remove('dl-controls-hidden');}
+function hideDlControls(){document.getElementById('designLayer').classList.add('dl-controls-hidden');}
+
 function renderDesign(){
   const u=UP[curView];
   const emp=document.getElementById('pzEmpty');
@@ -965,6 +976,7 @@ function renderDesign(){
     emp.style.display='flex';
     dl.style.display='none';
   } else {
+    const wasHidden=dl.style.display==='none'||!dl.style.display;
     emp.style.display='none';
     dl.style.display='block';
     dl.style.left=u.x+'px';dl.style.top=u.y+'px';
@@ -972,6 +984,7 @@ function renderDesign(){
     const dImg=document.getElementById('designImg');
     if(dImg.src!==u.url)dImg.src=u.url;
     dImg.style.mixBlendMode=artworkBlendMode();
+    if(wasHidden)showDlControls(); // fresh upload / crop / newly-flipped-to view -- start with controls visible
   }
 }
 
@@ -1105,16 +1118,28 @@ document.getElementById('dlCrop').addEventListener('click',e=>{
   });
 });
 
+// ── Tap outside the print zone to hide the corner controls, tap the
+// uploaded image to bring them back -- keeps them out of the way of just
+// looking at the design without adding an extra step to reach them.
+document.getElementById('uploadStage').addEventListener('click',e=>{
+  const dl=document.getElementById('designLayer');
+  if(dl.style.display==='none')return; // nothing uploaded on this view
+  if(dl.contains(e.target))showDlControls();
+  else hideDlControls();
+});
+
 // ── Drag: move design ──
 function isDesignLayerCtrl(target){ return !!target.closest('.dl-handle,.dl-change,.dl-remove,.dl-crop'); }
 document.getElementById('designLayer').addEventListener('mousedown',e=>{
   if(isDesignLayerCtrl(e.target))return;
+  showDlControls();
   dragMode='move';
   dragStart={mx:e.clientX,my:e.clientY,...UP[curView]};
   e.preventDefault();
 });
 document.getElementById('designLayer').addEventListener('touchstart',e=>{
   if(isDesignLayerCtrl(e.target))return;
+  showDlControls();
   dragMode='move';
   dragStart={mx:e.touches[0].clientX,my:e.touches[0].clientY,...UP[curView]};
 },{passive:true});
