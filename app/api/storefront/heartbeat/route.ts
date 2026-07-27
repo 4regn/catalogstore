@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
+import { sastToday } from "../../../../lib/sast-time";
 
 export const dynamic = "force-dynamic";
 
 const STATUSES = new Set(["browsing", "active_cart", "checkout"]);
+
+// Vercel populates these on every request that comes through its edge
+// network (both Edge and Node serverless functions), no third-party geo-IP
+// service or API key needed. city is URL-encoded per Vercel's docs. Locally
+// (no Vercel edge in front) these are simply absent -- geolocation is a
+// production-only enrichment, not a hard requirement for tracking to work.
+function geoFromHeaders(req: NextRequest): { country: string | null; region: string | null; city: string | null } {
+  const country = req.headers.get("x-vercel-ip-country");
+  const region = req.headers.get("x-vercel-ip-country-region");
+  const cityRaw = req.headers.get("x-vercel-ip-city");
+  let city: string | null = null;
+  if (cityRaw) { try { city = decodeURIComponent(cityRaw); } catch { city = cityRaw; } }
+  return { country, region, city };
+}
 
 /* Public, unauthenticated -- every storefront visitor's browser calls this
    every ~20s. seller_id is already public information (returned as-is by
@@ -62,6 +77,17 @@ export async function POST(req: NextRequest) {
     console.error("storefront heartbeat upsert failed:", error);
     return NextResponse.json({ error: "Could not record heartbeat" }, { status: 500 });
   }
+
+  // Historical, once-per-visitor-per-day record for the sessions-by-day
+  // chart and top locations -- unlike the upsert above, this is deliberately
+  // insert-and-ignore-on-conflict, so only the FIRST heartbeat of a given
+  // visitor on a given day writes anything; the other ~50-100 heartbeats
+  // they'll send that same day are no-ops here.
+  const { error: sessionError } = await admin.from("store_visitor_sessions").upsert(
+    { seller_id: sellerId, visitor_id: visitorId, session_date: sastToday(), ...geoFromHeaders(req) },
+    { onConflict: "seller_id,visitor_id,session_date", ignoreDuplicates: true }
+  );
+  if (sessionError) console.error("storefront heartbeat session-log upsert failed:", sessionError);
 
   return NextResponse.json({ ok: true });
 }

@@ -2,17 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../lib/unik-brand-manager";
 import { sweepAbandonedUnikOrders } from "../../../../../lib/unik-orders";
+import { sastToday, sastDayStartUtc, sastMonthStartUtc } from "../../../../../lib/sast-time";
 
 export const dynamic = "force-dynamic";
-
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
 
 export async function GET(req: NextRequest) {
   const auth = await requireUnikBrandManager(req);
@@ -29,9 +21,13 @@ export async function GET(req: NextRequest) {
   // the point a customer would actually see it as abandoned.
   await sweepAbandonedUnikOrders(admin, seller.id);
 
-  const now = new Date();
-  const todayStart = startOfDay(now).toISOString();
-  const monthStart = startOfMonth(now).toISOString();
+  // "Today"/"this month" mean the seller's actual South African calendar
+  // day/month (see lib/sast-time.ts) -- this ran on Date.now()'s server-
+  // local boundaries before, which on Vercel is UTC, silently shifting the
+  // day cutoff by 2 hours from real SAST midnight.
+  const today = sastToday();
+  const todayStart = sastDayStartUtc(today).toISOString();
+  const monthStart = sastMonthStartUtc(today).toISOString();
 
   const [todayOrders, monthOrders, recentOrders] = await Promise.all([
     admin.from("orders").select("total, payment_status").eq("seller_id", seller.id).gte("created_at", todayStart),

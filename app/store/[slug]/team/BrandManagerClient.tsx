@@ -39,6 +39,12 @@ type LiveVisitor = {
   first_seen_at: string; last_seen_at: string;
 };
 
+type SessionAnalytics = {
+  sessionsToday: number; ordersToday: number; salesToday: number;
+  dailySessions: { date: string; sessions: number }[];
+  topLocations: { country: string; region: string; city: string; count: number }[];
+};
+
 type Panel = "overview" | "sales" | "growth" | "content" | "support" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
@@ -110,6 +116,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
   const [signedIn, setSignedIn] = useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
+  const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
   const [loadError, setLoadError] = useState("");
   const [panel, setPanel] = useState<Panel>("overview");
   const [toastText, setToastText] = useState("");
@@ -178,6 +185,21 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
     return () => { cancelled = true; clearInterval(id); };
   }, [signedIn, authedFetch]);
 
+  useEffect(() => {
+    if (!signedIn) return;
+    let cancelled = false;
+    const fetchSessionAnalytics = async () => {
+      try {
+        const res = await authedFetch("/api/unik/brand-manager/session-analytics");
+        const payload = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) setSessionAnalytics(payload);
+      } catch {}
+    };
+    fetchSessionAnalytics();
+    const id = setInterval(fetchSessionAnalytics, 30000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [signedIn, authedFetch]);
+
   if (!sessionReady) return <main className="bm-loading">Connecting your secure session…</main>;
   if (!signedIn) return <main className="bm-loading">Redirecting to sign in…</main>;
   if (loadError) return <main className="bm-loading">{loadError}</main>;
@@ -233,6 +255,42 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
               <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Sales today</span><MetricIcon path="M4 18V9M10 18V5M16 18v-7M22 18H2" /></div><div className="bm-metric-value">{money(overview.metrics.salesToday)}</div></article>
               <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Orders this month</span><MetricIcon path="M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0" /></div><div className="bm-metric-value">{overview.metrics.ordersThisMonth}</div></article>
               <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Sales this month</span><MetricIcon path="M4 18V9M10 18V5M16 18v-7M22 18H2" /></div><div className="bm-metric-value">{money(overview.metrics.salesThisMonth)}</div></article>
+              <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Live now</span><MetricIcon path="M6.5 6.5a5 5 0 0 0 0 7M13.5 6.5a5 5 0 0 1 0 7M4 4a9 9 0 0 0 0 12M16 4a9 9 0 0 1 0 12" /></div><div className="bm-metric-value">{liveVisitors.length}</div></article>
+              <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Sessions today</span><MetricIcon path="M4 18V9M10 18V5M16 18v-7M22 18H2" /></div><div className="bm-metric-value">{sessionAnalytics?.sessionsToday ?? "—"}</div></article>
+
+              {sessionAnalytics && (
+                <article className="bm-card bm-orders-card">
+                  <div className="bm-section-head"><h2 className="bm-section-title">Sessions by day &amp; top locations</h2><p className="bm-section-desc">Last 14 days · locations over the last 30 days</p></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginTop: 16 }}>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
+                      {sessionAnalytics.dailySessions.map((d) => {
+                        const max = Math.max(1, ...sessionAnalytics.dailySessions.map((x) => x.sessions));
+                        const dayLabel = new Date(d.date + "T00:00:00Z").getUTCDate();
+                        return (
+                          <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                            <div style={{ width: "100%", height: Math.max(2, Math.round((d.sessions / max) * 64)), background: "#f43d32", borderRadius: 3 }} />
+                            <span style={{ fontSize: 8, color: "#66665f" }}>{dayLabel}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div>
+                      {sessionAnalytics.topLocations.length === 0 ? (
+                        <p style={{ fontSize: 12, color: "#66665f" }}>No location data yet.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {sessionAnalytics.topLocations.map((loc, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                              <span>{[loc.city, loc.region, loc.country].filter(Boolean).join(", ") || "Unknown"}</span>
+                              <strong>{loc.count}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              )}
 
               <article className="bm-card bm-orders-card">
                 <div className="bm-section-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>

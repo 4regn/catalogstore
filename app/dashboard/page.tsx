@@ -163,6 +163,12 @@ interface LiveVisitor {
   first_seen_at: string; last_seen_at: string;
 }
 
+interface SessionAnalytics {
+  sessionsToday: number; ordersToday: number; salesToday: number;
+  dailySessions: { date: string; sessions: number }[];
+  topLocations: { country: string; region: string; city: string; count: number }[];
+}
+
 interface VelourService {
   id: string; category: string; name: string; price: number;
   media_url: string | null; media_type: string | null; sort_order: number;
@@ -267,6 +273,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
+  const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -483,6 +490,23 @@ export default function Dashboard() {
     if (loading) return;
     fetchLiveVisitors();
     const id = setInterval(fetchLiveVisitors, 10000);
+    return () => clearInterval(id);
+  }, [loading]);
+
+  const fetchSessionAnalytics = async () => {
+    const token = await getAccessToken();
+    if (!token) return;
+    try {
+      const res = await fetch("/api/dashboard/session-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setSessionAnalytics(data);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    fetchSessionAnalytics();
+    const id = setInterval(fetchSessionAnalytics, 30000);
     return () => clearInterval(id);
   }, [loading]);
 
@@ -2257,6 +2281,61 @@ export default function Dashboard() {
               {liveVisitors.length > 0 && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 4px rgba(34,197,94,0.18)" }} />}
             </div>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Who's on your store right now -- browsing, has an active cart, or is at checkout. Refreshes every 10 seconds.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
+              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Live now</div>
+                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{liveVisitors.length}</div>
+              </div>
+              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Sessions today</div>
+                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{sessionAnalytics?.sessionsToday ?? "—"}</div>
+              </div>
+              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Orders today</div>
+                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{sessionAnalytics?.ordersToday ?? "—"}</div>
+              </div>
+              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Sales today</div>
+                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>R{Math.round(sessionAnalytics?.salesToday ?? 0)}</div>
+              </div>
+            </div>
+
+            {sessionAnalytics && (
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 24 }}>
+                <div style={{ padding: "18px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 14 }}>Sessions by day</div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
+                    {sessionAnalytics.dailySessions.map((d) => {
+                      const max = Math.max(1, ...sessionAnalytics.dailySessions.map((x) => x.sessions));
+                      const dayLabel = new Date(d.date + "T00:00:00Z").getUTCDate();
+                      return (
+                        <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                          <div style={{ width: "100%", height: Math.max(2, Math.round((d.sessions / max) * 64)), background: d.sessions > 0 ? "#ff6b35" : "var(--input-bg)", borderRadius: 3 }} />
+                          <span style={{ fontSize: 8, color: "var(--muted-2)" }}>{dayLabel}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{ padding: "18px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 14 }}>Top locations · 30 days</div>
+                  {sessionAnalytics.topLocations.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No location data yet.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {sessionAnalytics.topLocations.map((loc, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                          <span>{[loc.city, loc.region, loc.country].filter(Boolean).join(", ") || "Unknown"}</span>
+                          <strong>{loc.count}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {liveVisitors.length === 0 ? (
               <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No one's on your store right now</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>As soon as someone visits, they'll show up here.</p></div>
             ) : (
