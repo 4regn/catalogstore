@@ -104,6 +104,13 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
     const token = data.session?.access_token;
     setSignedIn(Boolean(token));
     setSessionReady(true);
+    // The static storefront pages (checkout.html etc.) never load the
+    // Supabase SDK, so they can't refresh an expiring session themselves --
+    // stashing the refresh token here under a plain key lets them exchange
+    // it for a fresh unik-customer-access cookie via /api/unik/auth/refresh
+    // instead of bouncing the customer back to a full sign-in mid-checkout.
+    if (data.session?.refresh_token) localStorage.setItem("unik-labs-refresh-token-v1", data.session.refresh_token);
+    else localStorage.removeItem("unik-labs-refresh-token-v1");
     if (!token) { setAccount(null); return; }
 
     const sessionResponse = await fetch("/api/unik/auth/session", {
@@ -223,6 +230,7 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
   async function signOut() {
     setBusy(true);
     await fetch("/api/unik/auth/session", { method: "DELETE", credentials: "include" });
+    localStorage.removeItem("unik-labs-refresh-token-v1");
     await supabase.auth.signOut();
     setAccount(null); setSignedIn(false); setBusy(false);
     setEmail(""); setPassword(""); setConfirmPassword(""); setFullName("");

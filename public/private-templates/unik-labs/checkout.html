@@ -112,6 +112,51 @@
       function showError(message){ errorEl.textContent = message; errorEl.style.display = 'block'; }
       function clearError(){ errorEl.style.display = 'none'; errorEl.textContent = ''; }
 
+      // Exchanges the refresh token UnikAccountClient.tsx stashed at sign-in
+      // for a fresh unik-customer-access cookie -- see the comment at the
+      // call site in the submit handler below for why this exists.
+      async function refreshUnikSession(){
+        const refreshToken = localStorage.getItem('unik-labs-refresh-token-v1');
+        if (!refreshToken) return false;
+        try {
+          const res = await fetch('/api/unik/auth/refresh', {
+            method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ refreshToken }),
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) { localStorage.removeItem('unik-labs-refresh-token-v1'); return false; }
+          if (payload.refreshToken) localStorage.setItem('unik-labs-refresh-token-v1', payload.refreshToken);
+          return true;
+        } catch (_) { return false; }
+      }
+
+      // A last-resort safety net for when the session truly can't be
+      // refreshed (refresh token itself expired -- a real sign-out, not
+      // just a stale access token) and the customer does have to sign in
+      // again: save what they'd already typed so it comes back instead of
+      // making them fill the whole delivery form out a second time.
+      const DRAFT_KEY = 'unik-labs-checkout-draft-v1';
+      function saveDraftCustomer(data){
+        try {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            firstName:data.firstName, lastName:data.lastName, email:data.email, phone:data.phone,
+            streetAddress:data.streetAddress, suburb:data.suburb, townCity:data.townCity, province:data.province, postal:data.postal,
+            orderNotes:data.orderNotes,
+          }));
+        } catch (_) {}
+      }
+      function restoreDraftCustomer(){
+        let draft;
+        try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (_) { draft = null; }
+        if (!draft) return;
+        localStorage.removeItem(DRAFT_KEY);
+        Object.keys(draft).forEach(key => {
+          const el = document.getElementById(key === 'orderNotes' ? 'orderNotes' : key);
+          if (el && draft[key] && !el.value) el.value = draft[key];
+        });
+      }
+      restoreDraftCustomer();
+
       function currentDelivery(){ return deliveryOptions[selectedDeliveryIndex] || deliveryOptions[0] || { name:'Delivery', price:0 }; }
 
       function toggleAddressRequirement(){
@@ -208,10 +253,24 @@
         button.disabled = true;
         button.textContent = 'Checking your session…';
         try {
-          const sessionCheck = await fetch('/api/unik/auth/session', { method:'GET', credentials:'include', cache:'no-store' });
+          let sessionCheck = await fetch('/api/unik/auth/session', { method:'GET', credentials:'include', cache:'no-store' });
           if (sessionCheck.status === 401) {
-            window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/checkout.html');
-            return;
+            // The unik-customer-access cookie is only good for 55 minutes
+            // and this static page never loads the Supabase SDK to keep it
+            // refreshed on its own -- try to silently exchange the refresh
+            // token UnikAccountClient.tsx stashed at sign-in for a new one
+            // before giving up. This is what stops a session that expired
+            // while the customer was filling in the form from bouncing them
+            // back to a full sign-in and wiping everything they just typed.
+            const refreshed = await refreshUnikSession();
+            if (refreshed) {
+              sessionCheck = await fetch('/api/unik/auth/session', { method:'GET', credentials:'include', cache:'no-store' });
+            }
+            if (sessionCheck.status === 401) {
+              saveDraftCustomer(data);
+              window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/checkout.html');
+              return;
+            }
           }
           if (!sessionCheck.ok) throw new Error('Could not verify your session. Please try again.');
 
