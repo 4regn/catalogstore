@@ -22,7 +22,7 @@ type DashIconName =
   | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
   | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
   | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
-  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu" | "crown" | "affiliate" | "megaphone" | "lock" | "desktop" | "mobile-device";
+  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu" | "crown" | "affiliate" | "megaphone" | "lock" | "desktop" | "mobile-device" | "live";
 
 function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
@@ -62,6 +62,7 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
     case "crown": return <svg {...c}><path d="M3 15h14l1-8-4.5 3L10 4 6.5 10 2 7l1 8Z"/></svg>;
     case "affiliate": return <svg {...c}><circle cx="7" cy="7" r="3"/><circle cx="14" cy="13" r="3"/><path d="m8.8 8.8 4.4 2.4"/></svg>;
     case "megaphone": return <svg {...c}><path d="M3 8v4l5 1V7L3 8Z"/><path d="M8 7l8-3.5v13L8 13"/><path d="M5.5 13 6 17h2l-.3-3.5"/></svg>;
+    case "live": return <svg {...c}><circle cx="10" cy="10" r="2" fill="currentColor" stroke="none"/><path d="M6.5 6.5a5 5 0 0 0 0 7"/><path d="M13.5 6.5a5 5 0 0 1 0 7"/><path d="M4 4a9 9 0 0 0 0 12"/><path d="M16 4a9 9 0 0 1 0 12"/></svg>;
     case "lock": return <svg {...c}><rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M6.5 9V6a3.5 3.5 0 0 1 7 0v3"/></svg>;
     case "desktop": return <svg {...c}><rect x="2" y="3.5" width="16" height="10.5" rx="1.2"/><path d="M7 17h6"/><path d="M10 14v3"/></svg>;
     case "mobile-device": return <svg {...c}><rect x="6" y="2" width="8" height="16" rx="1.5"/><path d="M9 15.3h2"/></svg>;
@@ -156,6 +157,12 @@ interface Order {
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null;
 }
 
+interface LiveVisitor {
+  id: string; visitor_id: string; status: "browsing" | "active_cart" | "checkout"; path: string | null;
+  cart_item_count: number; cart_value: number; customer_name: string | null; customer_email: string | null;
+  first_seen_at: string; last_seen_at: string;
+}
+
 interface VelourService {
   id: string; category: string; name: string; price: number;
   media_url: string | null; media_type: string | null; sort_order: number;
@@ -188,6 +195,18 @@ function orderStatusColors(status: string): { bg: string; fg: string } {
   return { bg: "rgba(251,191,36,0.1)", fg: "#fbbf24" };
 }
 
+function liveVisitorMeta(status: string): { bg: string; fg: string; label: string } {
+  if (status === "checkout") return { bg: "rgba(34,197,94,0.15)", fg: "#22c55e", label: "At checkout" };
+  if (status === "active_cart") return { bg: "rgba(251,191,36,0.1)", fg: "#fbbf24", label: "Active cart" };
+  return { bg: "rgba(255,255,255,0.06)", fg: "var(--muted)", label: "Browsing" };
+}
+function timeAgo(iso: string): string {
+  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  return mins + (mins === 1 ? " min ago" : " mins ago");
+}
+
 const TEMPLATES = [
   { id: "soft-luxury", name: "Soft Luxury", desc: "Warm cream tones with elegant serif typography", colors: { bg: "#f6f3ef", card: "#ffffff", text: "#2a2a2e" } },
   { id: "glass-futuristic", name: "Glass Chrome", desc: "Dark futuristic theme with chrome metallic accents", colors: { bg: "#030305", card: "#0b0b0f", text: "#f0f0f0" } },
@@ -209,7 +228,7 @@ const templatesForSeller = (subdomain?: string | null) =>
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -247,6 +266,7 @@ export default function Dashboard() {
   const [inboxReplySending, setInboxReplySending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("overview");
+  const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -448,6 +468,23 @@ export default function Dashboard() {
     const { data } = await supabase.auth.getSession();
     return data?.session?.access_token || "";
   };
+
+  const fetchLiveVisitors = async () => {
+    const token = await getAccessToken();
+    if (!token) return;
+    try {
+      const res = await fetch("/api/dashboard/live-visitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.visitors) setLiveVisitors(data.visitors);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    fetchLiveVisitors();
+    const id = setInterval(fetchLiveVisitors, 10000);
+    return () => clearInterval(id);
+  }, [loading]);
 
   const fetchSubscribers = async () => {
     const token = await getAccessToken();
@@ -997,6 +1034,7 @@ export default function Dashboard() {
     {
       label: "Sell",
       items: [
+        { key: "live" as TabKey, name: "Live Visitors", icon: "live" as DashIconName, count: liveVisitors.length },
         { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName, count: visibleOrders.length },
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
         { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
@@ -2209,6 +2247,35 @@ export default function Dashboard() {
                 {hasMoreOrders && (
                   <button onClick={loadMoreOrders} disabled={loadingMoreOrders} style={{ marginTop: 12, padding: "12px 20px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: loadingMoreOrders ? "not-allowed" : "pointer", opacity: loadingMoreOrders ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em", alignSelf: "center" }}>{loadingMoreOrders ? "Loading…" : "Load more orders"}</button>
                 )}
+              </div>
+            )}
+          </div>)}
+
+          {tab === "live" && (<div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const }}>Live Visitors</h1>
+              {liveVisitors.length > 0 && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 4px rgba(34,197,94,0.18)" }} />}
+            </div>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Who's on your store right now -- browsing, has an active cart, or is at checkout. Refreshes every 10 seconds.</p>
+            {liveVisitors.length === 0 ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No one's on your store right now</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>As soon as someone visits, they'll show up here.</p></div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {liveVisitors.map((v) => {
+                  const meta = liveVisitorMeta(v.status);
+                  return (
+                    <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{v.customer_name || v.customer_email || "Anonymous visitor"}</div>
+                        <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}>
+                          <span>{v.path || "/"}</span><span>{timeAgo(v.last_seen_at)}</span>
+                        </div>
+                      </div>
+                      {v.cart_item_count > 0 && <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em" }}>R{Math.round(v.cart_value)} · {v.cart_item_count} item{v.cart_item_count === 1 ? "" : "s"}</div>}
+                      <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: meta.bg, color: meta.fg }}>{meta.label}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>)}

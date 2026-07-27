@@ -33,6 +33,12 @@ type Overview = {
   recentOrders: OrderRow[];
 };
 
+type LiveVisitor = {
+  id: string; visitor_id: string; status: "browsing" | "active_cart" | "checkout"; path: string | null;
+  cart_item_count: number; cart_value: number; customer_name: string | null; customer_email: string | null;
+  first_seen_at: string; last_seen_at: string;
+};
+
 type Panel = "overview" | "sales" | "growth" | "content" | "support" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
@@ -87,10 +93,23 @@ function money(n: number) {
   return "R" + Math.round(Number(n) || 0).toLocaleString("en-ZA");
 }
 
+function liveVisitorMeta(status: string): { bg: string; fg: string; label: string } {
+  if (status === "checkout") return { bg: "rgba(34,197,94,0.15)", fg: "#22c55e", label: "At checkout" };
+  if (status === "active_cart") return { bg: "rgba(251,191,36,0.1)", fg: "#eab308", label: "Active cart" };
+  return { bg: "rgba(255,255,255,0.06)", fg: "#999994", label: "Browsing" };
+}
+function timeAgo(iso: string): string {
+  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  return mins + (mins === 1 ? " min ago" : " mins ago");
+}
+
 export default function BrandManagerClient({ storeName }: { storeName: string }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [loadError, setLoadError] = useState("");
   const [panel, setPanel] = useState<Panel>("overview");
   const [toastText, setToastText] = useState("");
@@ -143,6 +162,21 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
     const token = data.session?.access_token;
     return fetch(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
   }, []);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let cancelled = false;
+    const fetchLiveVisitors = async () => {
+      try {
+        const res = await authedFetch("/api/unik/brand-manager/live-visitors");
+        const payload = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && payload.visitors) setLiveVisitors(payload.visitors);
+      } catch {}
+    };
+    fetchLiveVisitors();
+    const id = setInterval(fetchLiveVisitors, 10000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [signedIn, authedFetch]);
 
   if (!sessionReady) return <main className="bm-loading">Connecting your secure session…</main>;
   if (!signedIn) return <main className="bm-loading">Redirecting to sign in…</main>;
@@ -199,6 +233,29 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
               <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Sales today</span><MetricIcon path="M4 18V9M10 18V5M16 18v-7M22 18H2" /></div><div className="bm-metric-value">{money(overview.metrics.salesToday)}</div></article>
               <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Orders this month</span><MetricIcon path="M5 8h14l-1 12H6zM9 8a3 3 0 0 1 6 0" /></div><div className="bm-metric-value">{overview.metrics.ordersThisMonth}</div></article>
               <article className="bm-card bm-metric"><div className="bm-metric-head"><span className="bm-metric-label">Sales this month</span><MetricIcon path="M4 18V9M10 18V5M16 18v-7M22 18H2" /></div><div className="bm-metric-value">{money(overview.metrics.salesThisMonth)}</div></article>
+
+              <article className="bm-card bm-orders-card">
+                <div className="bm-section-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <h2 className="bm-section-title">Live visitors</h2>
+                  {liveVisitors.length > 0 && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 4px rgba(34,197,94,0.18)" }} />}
+                  <p className="bm-section-desc">Who's on the store right now -- refreshes every 10s</p>
+                </div>
+                {liveVisitors.length === 0 ? <p className="bm-empty">No one's on the store right now.</p> : (
+                  <div className="bm-table">
+                    <div className="bm-row bm-row-header"><div>Visitor</div><div>Cart</div><div>Status</div></div>
+                    {liveVisitors.map((v) => {
+                      const meta = liveVisitorMeta(v.status);
+                      return (
+                        <div className="bm-row" key={v.id}>
+                          <div>{v.customer_name || v.customer_email || "Anonymous"} <span style={{ color: "#66665f", fontSize: 11 }}>· {timeAgo(v.last_seen_at)}</span></div>
+                          <div>{v.cart_item_count > 0 ? `${money(v.cart_value)} · ${v.cart_item_count}` : "—"}</div>
+                          <div><span className="bm-status" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </article>
 
               <article className="bm-card bm-orders-card">
                 <div className="bm-section-head"><h2 className="bm-section-title">Recent orders</h2><p className="bm-section-desc">Latest AI Studio and custom-upload purchases</p></div>

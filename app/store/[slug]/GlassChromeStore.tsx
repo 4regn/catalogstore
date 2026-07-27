@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
+import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -109,6 +110,11 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+
+  useLiveVisitorPing(seller?.id, {
+    cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
+    cartValue: cart.reduce((sum, i) => sum + effectivePrice(i.product, i.selectedVariants) * i.qty, 0),
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

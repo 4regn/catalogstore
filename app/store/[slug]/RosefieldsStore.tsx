@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
+import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -164,6 +165,11 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
   /* cart */
   const [cart, setCart]       = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+
+  useLiveVisitorPing(seller?.id, {
+    cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
+    cartValue: cart.reduce((sum, i) => sum + i.product.price * i.qty, 0),
+  });
 
   /* checkout */
   const [checkoutOpen, setCheckoutOpen] = useState(false);

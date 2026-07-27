@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { usesCleanStorePaths } from "../../../../lib/store-url";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
+import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -66,6 +67,14 @@ export default function CheckoutPage() {
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
   const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
+
+  useLiveVisitorPing(seller?.id, {
+    cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
+    cartValue: cart.reduce((sum, i) => sum + i.price * i.qty, 0),
+    checkout: true,
+    customerName: [firstName, lastName].filter(Boolean).join(" "),
+    customerEmail: email,
+  });
 
   useEffect(() => { load(); }, [slug]);
 

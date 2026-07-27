@@ -891,6 +891,47 @@
     }));
   }
 
+  // ── Live visitor heartbeat ──
+  // Lets the seller dashboard and Brand Manager see who's on the UNIK
+  // storefront right now, and whether they're browsing, have an active
+  // cart, or are at checkout -- same backend as the React templates'
+  // useLiveVisitorPing (lib/use-live-visitor-ping.ts), reimplemented here in
+  // plain JS because this template runs inside an iframe as static HTML,
+  // outside that React tree.
+  const VISITOR_ID_KEY = 'cs-visitor-id';
+  function visitorId() {
+    try {
+      let id = localStorage.getItem(VISITOR_ID_KEY);
+      if (!id) {
+        id = 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem(VISITOR_ID_KEY, id);
+      }
+      return id;
+    } catch (_) {
+      return 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    }
+  }
+  function sendHeartbeat() {
+    try {
+      const items = cart();
+      const cartItemCount = items.reduce((sum, i) => sum + (Number(i.qty) || 1), 0);
+      const cartValue = items.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 1), 0);
+      const onCheckout = /checkout\.html/.test(location.pathname);
+      const status = onCheckout ? 'checkout' : cartItemCount > 0 ? 'active_cart' : 'browsing';
+      let customerName, customerEmail;
+      if (onCheckout) {
+        const fn = document.getElementById('firstName'), ln = document.getElementById('lastName'), em = document.getElementById('email');
+        const name = [fn && fn.value, ln && ln.value].filter(Boolean).join(' ');
+        if (name) customerName = name;
+        if (em && em.value) customerEmail = em.value;
+      }
+      fetch('/api/storefront/heartbeat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+        body: JSON.stringify({ slug: 'unik', visitorId: visitorId(), status, path: location.pathname, cartItemCount, cartValue, customerName, customerEmail }),
+      }).catch(function () {});
+    } catch (_) {}
+  }
+
   window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify, upgradeCustomUpload, attachCustomUploadRaw };
   window.UNIK_ACCOUNT = { get:currentAccount, signIn, signOut, orders:accountOrders, generations, saveGeneration };
   window.UNIK_THEME = { get:currentTheme, apply:applyTheme, toggle:toggleTheme };
@@ -900,4 +941,6 @@
   initSupportChat();
   updateCount();
   window.addEventListener('storage', updateCount);
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 20000);
 })();

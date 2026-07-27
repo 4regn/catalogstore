@@ -5,6 +5,7 @@ import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FONT_PAIRS } from "../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../lib/template-config";
+import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 
 // Mirror HeirloomStore's collectionSlug. Inlined (not imported) so this
 // bundle doesn't have to drag in the whole other storefront component just
@@ -217,6 +218,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+
+  useLiveVisitorPing(seller?.id, {
+    cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
+    cartValue: cart.reduce((sum, i) => sum + effectivePrice(i.product, i.selectedVariants) * i.qty, 0),
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(5);
