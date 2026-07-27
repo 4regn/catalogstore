@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikCustomer } from "../../../../../lib/unik-customer";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
@@ -149,7 +149,20 @@ export async function POST(req: NextRequest) {
   const productByName = new Map((products || []).map((p) => [p.name, p]));
 
   type LineItem = { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string | null; image: string | null };
-  type ItemResult = { ok: true; item: LineItem } | { ok: false; error: string; status: number };
+  // The multi-megabyte artwork/mockup uploads for a custom-upload item don't
+  // need to finish before Yoco redirect -- Yoco only needs a price and a
+  // display name, never the image. Splitting the fast (DB row + validation)
+  // part from the slow (Storage upload) part lets the slow part run via
+  // after() below, once the response (and the Yoco redirect) is already on
+  // its way back to the browser.
+  type DeferredUploadJob = {
+    designId: string;
+    frontPath: string; frontBase64: string; frontExt: string;
+    backPath: string | null; backBase64: string | null; backExt: string | null;
+    previewFrontDataUrl?: string; previewBackDataUrl?: string;
+    zone: string;
+  };
+  type ItemResult = { ok: true; item: LineItem; deferred?: DeferredUploadJob } | { ok: false; error: string; status: number };
 
   // Each cart item is independent of every other one (its own design
   // record, its own uploads), so processing them concurrently instead of
@@ -193,43 +206,15 @@ export async function POST(req: NextRequest) {
       const frontPath = `${user.id}/${designId}/front.${front.ext}`;
       const backPath = back ? `${user.id}/${designId}/back.${back.ext}` : null;
 
-      // Two distinct public images can exist per side: the garment+artwork
-      // composite the customer saw while positioning it ("mockup"), and --
-      // separately -- the raw uploaded artwork itself, which the account
-      // page shows as the "watermarked design" slot. The raw artwork stays
-      // in the private bucket (frontPath/backPath above); only the
-      // composited mockups get copied to public storage here.
-      async function uploadPreview(dataUrl: string | undefined, suffix: string): Promise<string | null> {
-        const data = decodeDataUrl(dataUrl);
-        if (!data) return null;
-        const path = `${seller.id}/unik-previews/${designId}-${suffix}.${data.ext}`;
-        const { error } = await admin.storage.from("store-assets").upload(path, Buffer.from(data.base64, "base64"), { contentType: `image/${data.ext}`, upsert: true });
-        if (error) { console.error(`UNIK checkout: ${suffix} preview upload failed:`, error); return null; }
-        return admin.storage.from("store-assets").getPublicUrl(path).data.publicUrl;
-      }
-
-      // These four uploads are all independent (none needs another's
-      // result), so running them in parallel instead of one-at-a-time cuts
-      // this from ~4 sequential round-trips to ~1 -- this was the main
-      // source of "Proceed to Checkout" taking the better part of a minute.
-      const [frontUploadResult, backUploadResult, mockupFrontUrl, mockupBackUrl] = await Promise.all([
-        admin.storage.from("unik-private-designs").upload(frontPath, Buffer.from(front.base64, "base64"), { contentType: `image/${front.ext}`, upsert: true }),
-        back ? admin.storage.from("unik-private-designs").upload(backPath!, Buffer.from(back.base64, "base64"), { contentType: `image/${back.ext}`, upsert: true }) : Promise.resolve(null),
-        uploadPreview(cu.previewFront || item.preview, "front"),
-        zone === "both" ? uploadPreview(cu.previewBack, "back") : Promise.resolve(null),
-      ]);
-      if (frontUploadResult?.error) console.error("UNIK checkout: front artwork upload failed:", frontUploadResult.error);
-      if (backUploadResult?.error) console.error("UNIK checkout: back artwork upload failed:", backUploadResult.error);
-
-      await admin.from("unik_designs").update({
-        private_artwork_path: frontPath,
-        options: { zone, back_artwork_path: backPath, mockup_back_url: mockupBackUrl },
-        mockup_url: mockupFrontUrl,
-      }).eq("id", designId);
-
       return {
         ok: true,
-        item: { productId: product.id, name: product.name, price: Number(product.price), qty, designId, garment, colour, size, style: null, image: mockupFrontUrl },
+        item: { productId: product.id, name: product.name, price: Number(product.price), qty, designId, garment, colour, size, style: null, image: null },
+        deferred: {
+          designId, frontPath, frontBase64: front.base64, frontExt: front.ext,
+          backPath, backBase64: back ? back.base64 : null, backExt: back ? back.ext : null,
+          previewFrontDataUrl: cu.previewFront || item.preview, previewBackDataUrl: cu.previewBack,
+          zone,
+        },
       };
     }
 
@@ -257,7 +242,9 @@ export async function POST(req: NextRequest) {
   mark("itemsProcessed");
   const firstError = results.find((r): r is Extract<ItemResult, { ok: false }> => !r.ok);
   if (firstError) return NextResponse.json({ error: firstError.error }, { status: firstError.status });
-  const lineItems: LineItem[] = results.map((r) => (r as Extract<ItemResult, { ok: true }>).item);
+  const okResults = results as Extract<ItemResult, { ok: true }>[];
+  const lineItems: LineItem[] = okResults.map((r) => r.item);
+  const deferredJobs: DeferredUploadJob[] = okResults.map((r) => r.deferred).filter((d): d is DeferredUploadJob => !!d);
 
   const subtotal = lineItems.reduce((sum, i) => sum + i.price * i.qty, 0);
   const total = subtotal + shippingCost;
@@ -304,6 +291,65 @@ export async function POST(req: NextRequest) {
     await admin.from("orders").update({ yoco_checkout_id: checkout.id }).eq("id", order.id);
     mark("orderYocoIdUpdate");
     console.log("UNIK checkout timing", { orderId: order.id, itemCount: items.length, timing });
+
+    if (deferredJobs.length) {
+      const orderId = order.id;
+      // Runs after the response above has already gone out to the browser
+      // (the customer is on their way to Yoco). Each job's artwork/mockup
+      // upload failing here degrades the same way it always did when this
+      // ran inline -- the design just keeps a null image -- it just can no
+      // longer block the redirect.
+      after(async () => {
+        const uploadResults = await Promise.all(deferredJobs.map(async (job) => {
+          try {
+            async function uploadPreview(dataUrl: string | undefined, suffix: string): Promise<string | null> {
+              const data = decodeDataUrl(dataUrl);
+              if (!data) return null;
+              const path = `${seller.id}/unik-previews/${job.designId}-${suffix}.${data.ext}`;
+              const { error } = await admin.storage.from("store-assets").upload(path, Buffer.from(data.base64, "base64"), { contentType: `image/${data.ext}`, upsert: true });
+              if (error) { console.error(`UNIK checkout (deferred): ${suffix} preview upload failed:`, error); return null; }
+              return admin.storage.from("store-assets").getPublicUrl(path).data.publicUrl;
+            }
+            const [frontUploadResult, backUploadResult, mockupFrontUrl, mockupBackUrl] = await Promise.all([
+              admin.storage.from("unik-private-designs").upload(job.frontPath, Buffer.from(job.frontBase64, "base64"), { contentType: `image/${job.frontExt}`, upsert: true }),
+              job.backPath ? admin.storage.from("unik-private-designs").upload(job.backPath, Buffer.from(job.backBase64!, "base64"), { contentType: `image/${job.backExt}`, upsert: true }) : Promise.resolve(null),
+              uploadPreview(job.previewFrontDataUrl, "front"),
+              job.zone === "both" ? uploadPreview(job.previewBackDataUrl, "back") : Promise.resolve(null),
+            ]);
+            if (frontUploadResult?.error) console.error("UNIK checkout (deferred): front artwork upload failed:", frontUploadResult.error);
+            if (backUploadResult?.error) console.error("UNIK checkout (deferred): back artwork upload failed:", backUploadResult.error);
+
+            await admin.from("unik_designs").update({
+              private_artwork_path: job.frontPath,
+              options: { zone: job.zone, back_artwork_path: job.backPath, mockup_back_url: mockupBackUrl },
+              mockup_url: mockupFrontUrl,
+            }).eq("id", job.designId);
+
+            return { designId: job.designId, mockupFrontUrl };
+          } catch (err) {
+            console.error("UNIK checkout (deferred upload) failed for design", job.designId, err);
+            return null;
+          }
+        }));
+
+        // A single read-modify-write of orders.items at the end, covering
+        // every design in this order at once -- patching it once per job
+        // instead would race (each read-modify-write could clobber another
+        // job's already-written image).
+        const resolved = uploadResults.filter((r): r is { designId: string; mockupFrontUrl: string | null } => !!r && !!r.mockupFrontUrl);
+        if (resolved.length) {
+          const { data: orderRow } = await admin.from("orders").select("items").eq("id", orderId).single();
+          if (orderRow?.items) {
+            const byDesign = new Map(resolved.map((r) => [r.designId, r.mockupFrontUrl]));
+            const patched = (orderRow.items as any[]).map((it) =>
+              byDesign.has(it?.customization?.designId) ? { ...it, image: byDesign.get(it.customization.designId) } : it
+            );
+            await admin.from("orders").update({ items: patched }).eq("id", orderId);
+          }
+        }
+      });
+    }
+
     return NextResponse.json({ ok: true, orderId: order.id, redirectUrl: checkout.redirectUrl });
   } catch (err: any) {
     mark("yocoCheckoutFailed");
