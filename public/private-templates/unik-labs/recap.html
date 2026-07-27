@@ -293,8 +293,12 @@ body{
 #btnExport:hover{background:#eee;}
 .stage-hint{max-width:340px;text-align:center;font-size:11px;line-height:1.55;color:rgba(255,255,255,.4);}
 
+.music-vol-row{display:flex;align-items:center;gap:10px;}
+.music-vol-row label{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.5);}
+.music-vol-row input[type="range"]{width:130px;accent-color:#fff;}
+
 /* Export mode: isolate the stage full-viewport for a clean screen recording */
-body.is-exporting .builder-head,body.is-exporting .builder-form,body.is-exporting .stage-hint{display:none!important;}
+body.is-exporting .builder-head,body.is-exporting .builder-form,body.is-exporting .stage-hint,body.is-exporting .music-vol-row{display:none!important;}
 body.is-exporting .builder{padding:0;max-width:none;}
 body.is-exporting .builder-grid{display:block;}
 body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24px;}
@@ -368,10 +372,15 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
 </div>
 </div>
 <audio id="recapAudio" preload="auto" src="assets/audio/ai-studio-recap.mp3"></audio>
+<audio id="bgMusic" preload="auto" src="assets/audio/bg-music-ai-studio.mp3"></audio>
 <div class="stage-controls" hidden="" id="stageControls">
 <button id="btnPlayPause" type="button">Pause</button>
 <button id="btnReplay" type="button">Replay</button>
 <button id="btnExport" type="button">Export video</button>
+</div>
+<div class="music-vol-row" hidden="" id="musicVolRow">
+<label for="bgVolume">Music</label>
+<input id="bgVolume" max="100" min="0" type="range" value="45"/>
 </div>
 <p class="stage-hint">Tap the left/right edge of the preview to step back or forward, like a Story. Space bar pauses on desktop. <strong>Export video</strong> works on laptop/desktop browsers only, opened directly in the browser (not inside a preview/embed) — phone browsers can't record a tab at all, so there you'll get instructions to use your phone's own screen recorder instead.</p>
 </div>
@@ -506,17 +515,33 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
   var tapPrev = document.getElementById('tapPrev');
   var tapNext = document.getElementById('tapNext');
   var recapAudio = document.getElementById('recapAudio');
+  var bgMusic = document.getElementById('bgMusic');
+  var musicVolRow = document.getElementById('musicVolRow');
+  var bgVolumeInput = document.getElementById('bgVolume');
+
+  // Background music is its own track, independently volume-controlled by
+  // the slider -- it was pre-trimmed to this exact video's length with a
+  // 4s fade-out baked in (see assets/audio/bg-music-ai-studio.mp3), so it
+  // simply stops with the video instead of looping or running over.
+  if (bgMusic && bgVolumeInput) {
+    bgMusic.volume = Number(bgVolumeInput.value) / 100;
+    bgVolumeInput.addEventListener('input', function () {
+      bgMusic.volume = Number(bgVolumeInput.value) / 100;
+    });
+  }
 
   // Narration starts from the top every time the replay does (Create recap
   // or Replay) and just pause()/resume()s in lockstep with the visual
   // playback -- it was recorded against this exact step timing (see
   // buildSteps() below), so no further per-phase cueing is needed.
+  // Background music restarts alongside it on the same cue.
   function restartAudio() {
-    if (!recapAudio) return;
-    try {
-      recapAudio.currentTime = 0;
-      recapAudio.play().catch(function () {});
-    } catch (e) {}
+    if (recapAudio) {
+      try { recapAudio.currentTime = 0; recapAudio.play().catch(function () {}); } catch (e) {}
+    }
+    if (bgMusic) {
+      try { bgMusic.currentTime = 0; bgMusic.play().catch(function () {}); } catch (e) {}
+    }
   }
 
   function buildSteps(data) {
@@ -889,6 +914,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     stage.classList.add('is-paused');
     btnPlayPause.textContent = 'Play';
     if (recapAudio) recapAudio.pause();
+    if (bgMusic) bgMusic.pause();
   }
 
   function resume(data) {
@@ -897,6 +923,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     stage.classList.remove('is-paused');
     btnPlayPause.textContent = 'Pause';
     if (recapAudio) recapAudio.play().catch(function () {});
+    if (bgMusic) bgMusic.play().catch(function () {});
     if (stepRemaining > 0) {
       stepStart = Date.now();
       currentStepMs = stepRemaining;
@@ -925,6 +952,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     stageEmpty.style.display = 'none';
     stage.classList.add('is-live');
     stageControls.hidden = false;
+    if (musicVolRow) musicVolRow.hidden = false;
     paused = false;
     btnPlayPause.textContent = 'Pause';
     buildStage(currentData);
