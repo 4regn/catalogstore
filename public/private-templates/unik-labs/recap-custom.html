@@ -285,6 +285,7 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
   </div>
   <div class="demo-stage" id="demoStage"></div>
 </div>
+<audio id="recapAudio" preload="auto" src="assets/audio/custom-upload-recap.mp3"></audio>
 <div class="stage-controls" hidden="" id="stageControls">
 <button id="btnPlayPause" type="button">Pause</button>
 <button id="btnReplay" type="button">Replay</button>
@@ -398,7 +399,20 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
   var btnPlayPause = document.getElementById('btnPlayPause');
   var btnReplay = document.getElementById('btnReplay');
   var btnExport = document.getElementById('btnExport');
+  var recapAudio = document.getElementById('recapAudio');
   var TOTAL_DOTS = 3;
+
+  // Narration starts from the top every time the replay does (Create recap
+  // or Replay) and just pause()/resume()s in lockstep with the visual
+  // playback -- it was recorded against this exact front-only step timing
+  // (see buildSteps() below), so no further per-phase cueing is needed.
+  function restartAudio() {
+    if (!recapAudio) return;
+    try {
+      recapAudio.currentTime = 0;
+      recapAudio.play().catch(function () {});
+    } catch (e) {}
+  }
   var EXPORT_FINAL_HOLD_MS = 4600;
 
   function buildSteps(data) {
@@ -737,12 +751,14 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
     clearTimeout(stepTimer);
     stepRemaining = currentStepMs - (Date.now() - stepStart);
     btnPlayPause.textContent = 'Play';
+    if (recapAudio) recapAudio.pause();
   }
 
   function resume(data) {
     if (!paused) return;
     paused = false;
     btnPlayPause.textContent = 'Pause';
+    if (recapAudio) recapAudio.play().catch(function () {});
     if (stepRemaining > 0) {
       stepStart = Date.now();
       currentStepMs = stepRemaining;
@@ -767,6 +783,7 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
     paused = false;
     btnPlayPause.textContent = 'Pause';
     goTo(0, currentData);
+    restartAudio();
   });
 
   btnPlayPause.addEventListener('click', function () {
@@ -777,6 +794,7 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
     paused = false;
     btnPlayPause.textContent = 'Pause';
     goTo(0, currentData);
+    restartAudio();
   });
 
   document.addEventListener('keydown', function (e) {
