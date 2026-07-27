@@ -162,14 +162,7 @@ export async function POST(req: NextRequest) {
 
       const designId = design.id;
       const frontPath = `${user.id}/${designId}/front.${front.ext}`;
-      const { error: frontUploadErr } = await admin.storage.from("unik-private-designs").upload(frontPath, Buffer.from(front.base64, "base64"), { contentType: `image/${front.ext}`, upsert: true });
-      if (frontUploadErr) console.error("UNIK checkout: front artwork upload failed:", frontUploadErr);
-      let backPath: string | null = null;
-      if (back) {
-        backPath = `${user.id}/${designId}/back.${back.ext}`;
-        const { error: backUploadErr } = await admin.storage.from("unik-private-designs").upload(backPath, Buffer.from(back.base64, "base64"), { contentType: `image/${back.ext}`, upsert: true });
-        if (backUploadErr) console.error("UNIK checkout: back artwork upload failed:", backUploadErr);
-      }
+      const backPath = back ? `${user.id}/${designId}/back.${back.ext}` : null;
 
       // Two distinct public images can exist per side: the garment+artwork
       // composite the customer saw while positioning it ("mockup"), and --
@@ -186,8 +179,18 @@ export async function POST(req: NextRequest) {
         return admin.storage.from("store-assets").getPublicUrl(path).data.publicUrl;
       }
 
-      const mockupFrontUrl = await uploadPreview(cu.previewFront || item.preview, "front");
-      const mockupBackUrl = zone === "both" ? await uploadPreview(cu.previewBack, "back") : null;
+      // These four uploads are all independent (none needs another's
+      // result), so running them in parallel instead of one-at-a-time cuts
+      // this from ~4 sequential round-trips to ~1 -- this was the main
+      // source of "Proceed to Checkout" taking the better part of a minute.
+      const [frontUploadResult, backUploadResult, mockupFrontUrl, mockupBackUrl] = await Promise.all([
+        admin.storage.from("unik-private-designs").upload(frontPath, Buffer.from(front.base64, "base64"), { contentType: `image/${front.ext}`, upsert: true }),
+        back ? admin.storage.from("unik-private-designs").upload(backPath!, Buffer.from(back.base64, "base64"), { contentType: `image/${back.ext}`, upsert: true }) : Promise.resolve(null),
+        uploadPreview(cu.previewFront || item.preview, "front"),
+        zone === "both" ? uploadPreview(cu.previewBack, "back") : Promise.resolve(null),
+      ]);
+      if (frontUploadResult?.error) console.error("UNIK checkout: front artwork upload failed:", frontUploadResult.error);
+      if (backUploadResult?.error) console.error("UNIK checkout: back artwork upload failed:", backUploadResult.error);
 
       await admin.from("unik_designs").update({
         private_artwork_path: frontPath,
