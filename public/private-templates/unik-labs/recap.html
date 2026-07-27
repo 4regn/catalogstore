@@ -367,6 +367,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
 <div class="story-panels" id="storyPanels"></div>
 </div>
 </div>
+<audio id="recapAudio" preload="auto" src="assets/audio/ai-studio-recap.mp3"></audio>
 <div class="stage-controls" hidden="" id="stageControls">
 <button id="btnPlayPause" type="button">Pause</button>
 <button id="btnReplay" type="button">Replay</button>
@@ -504,6 +505,19 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
   var btnExport = document.getElementById('btnExport');
   var tapPrev = document.getElementById('tapPrev');
   var tapNext = document.getElementById('tapNext');
+  var recapAudio = document.getElementById('recapAudio');
+
+  // Narration starts from the top every time the replay does (Create recap
+  // or Replay) and just pause()/resume()s in lockstep with the visual
+  // playback -- it was recorded against this exact step timing (see
+  // buildSteps() below), so no further per-phase cueing is needed.
+  function restartAudio() {
+    if (!recapAudio) return;
+    try {
+      recapAudio.currentTime = 0;
+      recapAudio.play().catch(function () {});
+    } catch (e) {}
+  }
 
   function buildSteps(data) {
     var uploadMs = data.photos.length * PHOTO_STAGGER_MS + 1100;
@@ -874,6 +888,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     stepRemaining = currentStepMs - (Date.now() - stepStart);
     stage.classList.add('is-paused');
     btnPlayPause.textContent = 'Play';
+    if (recapAudio) recapAudio.pause();
   }
 
   function resume(data) {
@@ -881,6 +896,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     paused = false;
     stage.classList.remove('is-paused');
     btnPlayPause.textContent = 'Pause';
+    if (recapAudio) recapAudio.play().catch(function () {});
     if (stepRemaining > 0) {
       stepStart = Date.now();
       currentStepMs = stepRemaining;
@@ -913,6 +929,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     btnPlayPause.textContent = 'Pause';
     buildStage(currentData);
     goTo(0, currentData);
+    restartAudio();
   });
 
   btnPlayPause.addEventListener('click', function () {
@@ -924,6 +941,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
     stage.classList.remove('is-paused');
     btnPlayPause.textContent = 'Pause';
     goTo(0, currentData);
+    restartAudio();
   });
   tapPrev.addEventListener('click', function () { if (currentData) goTo(index - 1, currentData); });
   tapNext.addEventListener('click', function () { if (currentData) goTo(index + 1, currentData); });
