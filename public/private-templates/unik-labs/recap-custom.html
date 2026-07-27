@@ -197,6 +197,24 @@ body{
 .journey-text{font-size:12px;color:#9b9d97;padding-top:1px;transition:color .3s;}
 .journey-row.done .journey-text{color:#f4f1e9;}
 
+/* Closing "Shop now" card -- same ending as the AI Studio recap builder */
+.cta-logo{height:30px;width:auto;filter:drop-shadow(0 3px 10px rgba(0,0,0,.68));margin-bottom:18px;animation:popIn .6s ease both;}
+.cta-headline{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:24px;line-height:1.08;letter-spacing:.3px;text-align:center;animation:popIn .6s ease .1s both;}
+.cta-sub{margin-top:10px;font-size:12px;color:#9b9d97;text-align:center;animation:popIn .6s ease .18s both;}
+.cta-btn{
+  margin-top:22px;background:#fff;color:#000;border-radius:100px;
+  padding:13px 26px;font-size:12.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  display:inline-flex;align-items:center;gap:7px;
+  animation:popIn .6s ease .26s both;
+}
+.cta-domain{
+  margin-top:16px;font-size:14px;letter-spacing:.09em;font-weight:800;text-transform:uppercase;
+  color:#ff2a3d;text-shadow:0 0 12px rgba(255,42,61,.9),0 0 30px rgba(255,42,61,.55),0 0 60px rgba(255,42,61,.3);
+  animation:popIn .6s ease .34s both, domainPulse 1.8s ease-in-out 1s infinite;
+}
+@keyframes popIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes domainPulse{0%,100%{text-shadow:0 0 12px rgba(255,42,61,.9),0 0 30px rgba(255,42,61,.55),0 0 60px rgba(255,42,61,.3)}50%{text-shadow:0 0 16px rgba(255,42,61,1),0 0 42px rgba(255,42,61,.75),0 0 80px rgba(255,42,61,.45)}}
+
 .stage-controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
 .stage-controls button{
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;
@@ -381,7 +399,7 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
   var btnReplay = document.getElementById('btnReplay');
   var btnExport = document.getElementById('btnExport');
   var TOTAL_DOTS = 3;
-  var EXPORT_JOURNEY_HOLD_MS = 4600;
+  var EXPORT_FINAL_HOLD_MS = 4600;
 
   function buildSteps(data) {
     return [
@@ -390,7 +408,8 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
       { key: 'upload', label: 'Step 3 of 3', dots: 3, hold: data.zone === 'both' ? 8200 : 3000 },
       { key: 'size', label: 'Step 3 of 3', dots: 3, hold: 2600 },
       { key: 'cart', label: 'Step 3 of 3', dots: 3, hold: 5600 },
-      { key: 'journey', label: 'Order placed', dots: 3, hold: null, hideDots: true }
+      { key: 'journey', label: 'Order placed', dots: 3, hold: 5200, hideDots: true },
+      { key: 'cta', label: 'Order placed', dots: 3, hold: null, hideDots: true }
     ];
   }
 
@@ -532,6 +551,16 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
           '<div class="journey-row" data-j="4"><span class="journey-check">&#10003;</span><span class="journey-text">Your order is prepared &amp; dispatched</span></div>' +
           '<div class="journey-row" data-j="5"><span class="journey-check">&#10003;</span><span class="journey-text">Delivered to your door</span></div>' +
         '</div>';
+    }
+
+    if (key === 'cta') {
+      return '<div style="text-align:center;">' +
+        '<img class="cta-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
+        '<div class="cta-headline">Shop now</div>' +
+        '<div class="cta-sub">Custom streetwear, made from your own photos.</div>' +
+        '<div class="cta-btn">Create yours &rarr;</div>' +
+        '<div class="cta-domain">uniklabs.co.za</div>' +
+      '</div>';
     }
 
     return '';
@@ -827,7 +856,7 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
       recorder.start();
       goTo(0, currentData);
 
-      var totalMs = currentSteps.reduce(function (sum, s) { return sum + (s.hold || EXPORT_JOURNEY_HOLD_MS); }, 0);
+      var totalMs = currentSteps.reduce(function (sum, s) { return sum + (s.hold || EXPORT_FINAL_HOLD_MS); }, 0);
       setTimeout(function () { if (recorder.state !== 'inactive') recorder.stop(); }, totalMs);
       var videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {

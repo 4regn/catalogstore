@@ -55,8 +55,8 @@ body{
 }
 .thumb-row{display:flex;gap:6px;flex-wrap:wrap;}
 .thumb-row:empty{display:none;}
-.thumb{width:44px;height:44px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.14);flex:none;}
-.thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.thumb{width:44px;height:44px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.14);flex:none;background:#161616;}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block;}
 
 .btn-create{
   margin-top:4px;
@@ -125,7 +125,7 @@ body{
 .panel-sub{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;}
 .upload-thumbs{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;max-width:290px;}
 .upload-thumbs img{
-  width:54px;height:54px;object-fit:cover;border-radius:12px;
+  width:54px;height:54px;object-fit:contain;border-radius:12px;background:#161616;
   border:1.5px solid rgba(255,255,255,.18);box-shadow:0 8px 20px rgba(0,0,0,.45);
   opacity:0;transform:translateY(16px) scale(.85);
   animation:thumbIn .5s cubic-bezier(.2,.9,.25,1) forwards;
@@ -143,7 +143,7 @@ body{
 .style-pick-card:nth-child(3){animation-delay:.18s;}
 .style-pick-card:nth-child(4){animation-delay:.25s;}
 .style-pick-frame{width:100%;aspect-ratio:4/5;border-radius:13px;overflow:hidden;border:1.5px solid rgba(255,255,255,.16);background:#111;transition:border-color .18s,box-shadow .18s;}
-.style-pick-frame img{width:100%;height:100%;object-fit:cover;display:block;}
+.style-pick-frame img{width:100%;height:100%;object-fit:contain;display:block;}
 .style-pick-label{margin-top:6px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.55);}
 .style-pick-card.is-selected .style-pick-frame{border-color:var(--accent,#007517);box-shadow:0 0 0 1px var(--accent,#007517),0 0 24px color-mix(in srgb, var(--accent,#007517) 60%, transparent);}
 .style-pick-card.is-selected .style-pick-label{color:#fff;}
@@ -192,11 +192,11 @@ body{
 /* Reveals */
 .reveal-frame{
   width:100%;max-width:250px;aspect-ratio:3/4;border-radius:16px;overflow:hidden;
-  position:relative;opacity:0;transform:scale(.85);
+  position:relative;opacity:0;transform:scale(.85);background:#111;
   animation:revealIn .7s cubic-bezier(.2,.9,.25,1) forwards;
   box-shadow:0 0 0 1px rgba(255,255,255,.14), 0 20px 60px color-mix(in srgb, var(--accent,#007517) 40%, transparent);
 }
-.reveal-frame img{width:100%;height:100%;object-fit:cover;display:block;}
+.reveal-frame img{width:100%;height:100%;object-fit:contain;display:block;}
 .reveal-frame::after{
   content:"";position:absolute;inset:0;
   background:radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent,#007517) 55%, transparent), transparent 70%);
@@ -225,7 +225,7 @@ body{
   border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.03);
   margin:14px 0 20px;opacity:0;animation:popIn .4s ease .1s forwards;
 }
-.checkout-summary img{width:44px;height:56px;object-fit:cover;border-radius:8px;flex:none;}
+.checkout-summary img{width:44px;height:56px;object-fit:contain;border-radius:8px;flex:none;background:#161616;}
 .checkout-summary-text{text-align:left;display:flex;flex-direction:column;gap:3px;min-width:0;}
 .checkout-summary-text strong{font-family:'Anton',sans-serif;font-weight:400;font-size:14px;text-transform:uppercase;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .checkout-summary-text span{font-size:10.5px;color:rgba(255,255,255,.5);}
@@ -641,7 +641,7 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
 
     if (key === 'mockup') {
       return '<span class="panel-eyebrow">On your garment</span>' +
-        '<div class="panel-title">' + (data.name || 'Your piece') + '</div>' +
+        '<div class="panel-title">How it looks</div>' +
         '<div class="panel-sub">&nbsp;</div>' +
         '<div class="reveal-frame"><img src="' + data.mockup + '" alt=""></div>';
     }
