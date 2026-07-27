@@ -84,6 +84,23 @@
 
   function clear() { write(CART_KEY, []); updateCount(); }
 
+  // Swaps a custom-upload cart item's raw image bytes for a designId
+  // reference once its background /api/unik/custom-upload/save call
+  // finishes -- called from upload.html (right after Add to Cart) and
+  // checkout.html (as a catch-all for any item that's still in the raw
+  // shape when the checkout page loads). A no-op if the item was removed,
+  // or already upgraded, before the upload finished.
+  function upgradeCustomUpload(id, designId) {
+    const items = cart();
+    const idx = items.findIndex((item) => item.id === id);
+    if (idx === -1) return;
+    const cu = items[idx].options && items[idx].options.customUpload;
+    if (!cu || cu.designId) return;
+    const upgraded = items.slice();
+    upgraded[idx] = { ...items[idx], options: { ...items[idx].options, customUpload: { garment: cu.garment, colour: cu.colour, size: cu.size, zone: cu.zone, designId } } };
+    write(CART_KEY, upgraded);
+  }
+
   function saveOrder(order) {
     const orders = read(ORDER_KEY, []);
     orders.unshift(order);
@@ -854,7 +871,7 @@
     }));
   }
 
-  window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify };
+  window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify, upgradeCustomUpload };
   window.UNIK_ACCOUNT = { get:currentAccount, signIn, signOut, orders:accountOrders, generations, saveGeneration };
   window.UNIK_THEME = { get:currentTheme, apply:applyTheme, toggle:toggleTheme };
   initNavigation();

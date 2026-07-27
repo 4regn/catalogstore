@@ -1090,37 +1090,27 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
     const previewFront=await captureCustomPreview('front');
     const previewBack=needBoth?await captureCustomPreview('back'):'';
 
-    // Upload the artwork right now, while the customer is still browsing --
-    // not at checkout. Carrying the raw image bytes all the way to checkout
-    // was what made "Pay with Yoco" slow to redirect, even after checkout's
-    // own uploads were parallelized and deferred: the bytes still had to
-    // leave the browser as part of that request. Custom Upload still
-    // doesn't require signing in to add to cart, so this design starts
-    // unclaimed -- checkout attaches it to the customer's account once
-    // they're actually signed in and paying. If this save call fails for
-    // any reason, fall back to the old behaviour of keeping the raw image
-    // in the cart item itself so Add to Cart still works.
-    let customUpload={
+    // Add to cart immediately -- don't make the customer wait on the
+    // artwork upload here. Uploading the raw image bytes over the network
+    // genuinely takes time (that doesn't go away by moving *when* it
+    // happens), so instead of blocking this click on it, the item goes
+    // into the cart right away using the raw image, and the upload runs
+    // in the background while the customer keeps browsing/fills in the
+    // checkout form -- the same way AI Studio's slow step (generation)
+    // already happens well before checkout, hidden behind other UI. If
+    // the upload finishes before they hit "Pay with Yoco",
+    // upgradeCustomUpload() swaps the cart item over to a designId
+    // reference so checkout carries no image bytes at all; if it hasn't,
+    // checkout's own slow-path fallback (upload deferred until after the
+    // Yoco redirect) still covers it.
+    const localId='unik-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    const customUpload={
       garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
       frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
       previewFront,previewBack:previewBack||undefined
     };
-    try{
-      const res=await fetch('/api/unik/custom-upload/save',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
-          frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
-          previewFront,previewBack:previewBack||undefined
-        })
-      });
-      const payload=await res.json().catch(()=>({}));
-      if(res.ok&&payload.designId){
-        customUpload={garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,designId:payload.designId};
-      }
-    }catch(_){/* keep the raw-image fallback already assembled above */}
-
     const added=UNIK_CART.add({
+      id:localId,
       source:'custom-upload',
       name:'UNIK Labs Custom Print',
       meta:(S.garment==='hoodie'?'Hoodie':'Tee')+' · '+S.colour+' · '+S.size+' · '+(S.zone==='both'?'Front + back':'Front print'),
@@ -1131,6 +1121,18 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
       options:{customUpload}
     });
     if(!added)return; // UNIK_CART already showed the error toast
+
+    fetch('/api/unik/custom-upload/save',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
+        frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
+        previewFront,previewBack:previewBack||undefined
+      })
+    }).then(res=>res.json()).then(payload=>{
+      if(payload&&payload.designId)UNIK_CART.upgradeCustomUpload(localId,payload.designId);
+    }).catch(()=>{/* checkout's slow-path fallback still covers this item */});
+
     document.getElementById('upAddedNote').style.display='block';
     document.getElementById('btnUpCheckoutNow').style.display='block';
     setUpCartQty(1);

@@ -283,8 +283,30 @@
         if (params.get('cancelled') === '1') showError('Payment was cancelled. Your cart is still saved below — you can try again whenever you\'re ready.');
         else if (params.get('failed') === '1') showError('Your payment did not go through. Your cart is still saved below — please try again.');
         loadDeliveryOptions();
+        precacheStaleCustomUploads();
       }
     })();
+
+    // Catch-all for a custom-upload cart item that's still carrying raw
+    // image bytes when the checkout page loads -- upload.html already
+    // kicks this off in the background at Add to Cart, but that request
+    // gets cancelled if the customer navigates here before it finishes.
+    // Running it again now gives the upload the time the customer spends
+    // filling in the delivery form to finish before they hit "Pay with
+    // Yoco" -- the same overlap AI Studio gets for free since its slow
+    // step (generation) already happened before checkout.
+    function precacheStaleCustomUploads(){
+      UNIK_CART.get().forEach(item => {
+        const cu = item.options && item.options.customUpload;
+        if (!cu || cu.designId || !cu.frontImage) return;
+        fetch('/api/unik/custom-upload/save', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cu)
+        }).then(res => res.json()).then(payload => {
+          if (payload && payload.designId) UNIK_CART.upgradeCustomUpload(item.id, payload.designId);
+        }).catch(() => {});
+      });
+    }
   </script>
 </body>
 </html>
