@@ -480,6 +480,18 @@ function garmentImage(key){
   return darkMode&&DARK_IMGS[key]?DARK_IMGS[key]:IMGS[key];
 }
 
+// Step 2's "Front Only" / "Front + Back" cards show a preview photo that's
+// deliberately a SEPARATE asset from the actual mockup/print-placement
+// image used on Step 3 and in the garment/colour pickers -- so replacing
+// this preview never touches print positioning or the real mockup source.
+// Tee-only for now; hoodie still falls back to the shared garmentImage().
+function zonePreviewImage(colour,garment){
+  if(garment==='tee'&&(colour==='black'||colour==='white')){
+    return 'assets/zone-preview/tee-'+colour+'-flat.jpg';
+  }
+  return null;
+}
+
 // Decode both complete image sets before enabling the mode control. Once the
 // control is available, every source swap is an in-memory operation with no
 // staggered loading or blank frame.
@@ -629,8 +641,9 @@ function updatePicker(){
 
 function updateZonePreviews(){
   const g=S.garment||'tee',c=S.colour||'black';
-  document.getElementById('zFImg').src=garmentImage('front_'+(c)+'_'+(g));
-  document.getElementById('zBImgF').src=garmentImage('front_'+(c)+'_'+(g));
+  const frontPreview=zonePreviewImage(c,g)||garmentImage('front_'+(c)+'_'+(g));
+  document.getElementById('zFImg').src=frontPreview;
+  document.getElementById('zBImgF').src=frontPreview;
   document.getElementById('zBImgB').src=garmentImage('back_'+(c)+'_'+(g));
   document.getElementById('zFPrice').innerHTML=priceMarkup(PRICES[g].front);
   document.getElementById('zBPrice').innerHTML=priceMarkup(PRICES[g].both);
