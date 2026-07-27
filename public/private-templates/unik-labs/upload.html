@@ -487,7 +487,8 @@ function garmentImage(key){
 // Tee-only for now; hoodie still falls back to the shared garmentImage().
 function zonePreviewImage(colour,garment){
   if(garment==='tee'&&(colour==='black'||colour==='white')){
-    return 'assets/zone-preview/tee-'+colour+'-flat.jpg';
+    const darkMode=document.documentElement.dataset.unikTheme==='dark';
+    return 'assets/zone-preview/'+(darkMode?'dark':'light')+'/tee-'+colour+'-flat.jpg';
   }
   return null;
 }
