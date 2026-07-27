@@ -145,9 +145,19 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 /* Draggable design layer */
 .design-layer{position:absolute;cursor:move;-webkit-tap-highlight-color:transparent;touch-action:none;}
 .design-layer img{width:100%;height:100%;display:block;pointer-events:none;user-select:none;}
-.dl-handle{position:absolute;bottom:-8px;right:-8px;width:18px;height:18px;background:var(--white);border:2px solid var(--black);border-radius:4px;cursor:nwse-resize;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.2);}
-.dl-handle::after{content:'';position:absolute;inset:2px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 7L7 1M4 7L7 4M7 7L7 7' stroke='%230A0A0A' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;}
-.dl-change{position:absolute;top:-26px;right:0;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;background:rgba(10,10,10,.7);color:#fff;border:none;cursor:pointer;font-family:'Montserrat',sans-serif;padding:3px 8px;border-radius:4px;backdrop-filter:blur(4px);}
+/* Bottom-right resize handle -- two open (unfilled) triangle corners along
+   the diagonal, one pointing into the top-left, one into the bottom-right,
+   reads as an expand/resize glyph instead of the old, easy-to-miss tick marks. */
+.dl-handle{position:absolute;bottom:-9px;right:-9px;width:20px;height:20px;background:var(--white);border:2px solid var(--black);border-radius:5px;cursor:nwse-resize;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.2);}
+.dl-handle::after{content:'';position:absolute;inset:2px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 1L6 1L1 6Z' fill='none' stroke='%230A0A0A' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M15 15L10 15L15 10Z' fill='none' stroke='%230A0A0A' stroke-width='1.3' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;}
+/* Corner controls: + (change/replace) top-left, - (remove) top-right,
+   crop bottom-left -- mirrors the resize handle's bottom-right position. */
+.dl-change,.dl-remove,.dl-crop{position:absolute;width:24px;height:24px;border-radius:50%;background:rgba(10,10,10,.75);color:#fff;border:none;cursor:pointer;font-family:'Montserrat',sans-serif;padding:0;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);box-shadow:0 2px 6px rgba(0,0,0,.25);}
+.dl-change,.dl-remove{font-size:17px;font-weight:300;line-height:1;}
+.dl-change{top:-11px;left:-11px;}
+.dl-remove{top:-11px;right:-11px;}
+.dl-crop{bottom:-11px;left:-11px;}
+.dl-crop svg{width:13px;height:13px;}
 
 /* Size section in step 3 */
 .size-section{margin-top:4px;}
@@ -220,6 +230,28 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .cal-handle{position:absolute;right:-9px;bottom:-9px;width:20px;height:20px;border:2px solid #fff;border-radius:5px;background:#ff4d4d;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:nwse-resize;touch-action:none;}
 .cal-note{text-align:center;color:var(--muted);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-top:14px;}
 @media(max-width:760px){.cal-grid{grid-template-columns:1fr}.cal-panel{position:static}.cal-visual{order:-1}.cal-tool{padding-top:28px}}
+
+/* Crop tool -- trims empty/transparent padding out of the uploaded artwork
+   itself (separate from positioning it within the print zone) so the design
+   can expand to fill more of the print area instead of the print zone
+   wrapping mostly-empty space. */
+.crop-modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;padding:20px;}
+.crop-modal.show{display:flex;}
+.crop-card{background:#161616;border-radius:16px;padding:22px;max-width:min(520px,94vw);width:100%;color:#fff;}
+.crop-title{font-weight:700;font-size:15px;margin:0 0 4px;}
+.crop-sub{font-size:12px;opacity:.65;margin:0 0 16px;line-height:1.5;}
+.crop-stage{position:relative;width:100%;max-height:56vh;overflow:hidden;background:repeating-conic-gradient(#2a2a2a 0% 25%,#1c1c1c 0% 50%) 50%/16px 16px;border-radius:8px;display:flex;align-items:center;justify-content:center;touch-action:none;}
+.crop-stage img{max-width:100%;max-height:56vh;display:block;user-select:none;pointer-events:none;}
+.crop-rect{position:absolute;border:2px solid #fff;box-shadow:0 0 0 2000px rgba(0,0,0,.55);cursor:move;touch-action:none;}
+.crop-handle{position:absolute;width:18px;height:18px;background:#fff;border:2px solid #0A0A0A;border-radius:4px;touch-action:none;}
+.crop-handle.tl{left:-9px;top:-9px;cursor:nwse-resize;}
+.crop-handle.tr{right:-9px;top:-9px;cursor:nesw-resize;}
+.crop-handle.bl{left:-9px;bottom:-9px;cursor:nesw-resize;}
+.crop-handle.br{right:-9px;bottom:-9px;cursor:nwse-resize;}
+.crop-actions{display:flex;gap:10px;margin-top:18px;}
+.crop-cancel,.crop-apply{flex:1;padding:13px;border-radius:8px;border:none;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:'Montserrat',sans-serif;}
+.crop-cancel{background:rgba(255,255,255,.1);color:#fff;}
+.crop-apply{background:#007517;color:#fff;}
 </style>
 </head>
 <body>
@@ -392,7 +424,11 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
               <div class="design-layer" id="designLayer" style="display:none">
                 <img id="designImg" src="" alt="" style="display:block;width:100%;height:100%;pointer-events:none;">
                 <div class="dl-handle" id="dlHandle"></div>
-                <button class="dl-change" id="dlChange">Change</button>
+                <button class="dl-change" id="dlChange" type="button" aria-label="Change upload">+</button>
+                <button class="dl-remove" id="dlRemove" type="button" aria-label="Remove upload">−</button>
+                <button class="dl-crop" id="dlCrop" type="button" aria-label="Crop image">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 1v9a2 2 0 0 0 2 2h9"/><path d="M12 15V6a2 2 0 0 0-2-2H1"/></svg>
+                </button>
               </div>
             </div>
           </div>
@@ -438,6 +474,26 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
   </div>
 
 </div><!-- /steps -->
+
+<div class="crop-modal" id="cropModal" role="dialog" aria-modal="true" aria-label="Crop your image">
+  <div class="crop-card">
+    <p class="crop-title">Crop your image</p>
+    <p class="crop-sub">Drag the corners to trim empty space so your design fills more of the print area.</p>
+    <div class="crop-stage" id="cropStage">
+      <img id="cropImg" src="" alt="">
+      <div class="crop-rect" id="cropRect">
+        <div class="crop-handle tl" data-h="tl"></div>
+        <div class="crop-handle tr" data-h="tr"></div>
+        <div class="crop-handle bl" data-h="bl"></div>
+        <div class="crop-handle br" data-h="br"></div>
+      </div>
+    </div>
+    <div class="crop-actions">
+      <button type="button" class="crop-cancel" id="cropCancel">Cancel</button>
+      <button type="button" class="crop-apply" id="cropApply">Apply crop</button>
+    </div>
+  </div>
+</div>
 
 <script src="store.js"></script>
 <script>
@@ -919,6 +975,96 @@ function renderDesign(){
   }
 }
 
+// ── Crop tool ── trims empty/transparent padding out of the uploaded
+// artwork itself, separate from (and prior to) positioning it within the
+// print zone -- lets a design with a lot of dead space around it expand to
+// actually fill more of the print area instead of the padding eating into
+// available print size.
+let cropView=null,cropDrag=null,cropNatural={w:0,h:0},cropRectPx={x:0,y:0,w:0,h:0};
+const CROP_MIN=40;
+
+function cropImgRect(){return document.getElementById('cropImg').getBoundingClientRect();}
+function cropStageRect(){return document.getElementById('cropStage').getBoundingClientRect();}
+
+function renderCropRect(){
+  const el=document.getElementById('cropRect');
+  const imgR=cropImgRect(),stageR=cropStageRect();
+  const offX=imgR.left-stageR.left,offY=imgR.top-stageR.top;
+  el.style.left=(offX+cropRectPx.x)+'px';
+  el.style.top=(offY+cropRectPx.y)+'px';
+  el.style.width=cropRectPx.w+'px';
+  el.style.height=cropRectPx.h+'px';
+}
+
+function openCropTool(view){
+  const url=UP[view]&&UP[view].url;
+  if(!url)return;
+  cropView=view;
+  const img=document.getElementById('cropImg');
+  img.onload=()=>{
+    cropNatural={w:img.naturalWidth,h:img.naturalHeight};
+    requestAnimationFrame(()=>{
+      const imgR=cropImgRect();
+      cropRectPx={x:0,y:0,w:imgR.width,h:imgR.height};
+      renderCropRect();
+    });
+  };
+  img.src=url;
+  document.getElementById('cropModal').classList.add('show');
+}
+
+function closeCropTool(){
+  document.getElementById('cropModal').classList.remove('show');
+  cropView=null;cropDrag=null;
+}
+
+document.getElementById('cropRect').addEventListener('pointerdown',e=>{
+  const handle=e.target.closest('.crop-handle');
+  cropDrag={mode:handle?('resize-'+handle.dataset.h):'move',mx:e.clientX,my:e.clientY,...cropRectPx};
+  e.preventDefault();e.stopPropagation();
+});
+window.addEventListener('pointermove',e=>{
+  if(!cropDrag)return;
+  const imgR=cropImgRect();
+  const dx=e.clientX-cropDrag.mx,dy=e.clientY-cropDrag.my;
+  let{x,y,w,h}=cropDrag;
+  if(cropDrag.mode==='move'){
+    x=Math.max(0,Math.min(imgR.width-w,x+dx));
+    y=Math.max(0,Math.min(imgR.height-h,y+dy));
+  }else{
+    let nx=x,ny=y,nw=w,nh=h;
+    if(cropDrag.mode==='resize-br'){nw=Math.max(CROP_MIN,Math.min(imgR.width-x,w+dx));nh=Math.max(CROP_MIN,Math.min(imgR.height-y,h+dy));}
+    else if(cropDrag.mode==='resize-tl'){nx=Math.max(0,Math.min(x+w-CROP_MIN,x+dx));ny=Math.max(0,Math.min(y+h-CROP_MIN,y+dy));nw=x+w-nx;nh=y+h-ny;}
+    else if(cropDrag.mode==='resize-tr'){ny=Math.max(0,Math.min(y+h-CROP_MIN,y+dy));nw=Math.max(CROP_MIN,Math.min(imgR.width-x,w+dx));nh=y+h-ny;}
+    else if(cropDrag.mode==='resize-bl'){nx=Math.max(0,Math.min(x+w-CROP_MIN,x+dx));nw=x+w-nx;nh=Math.max(CROP_MIN,Math.min(imgR.height-y,h+dy));}
+    x=nx;y=ny;w=nw;h=nh;
+  }
+  cropRectPx={x,y,w,h};
+  renderCropRect();
+});
+window.addEventListener('pointerup',()=>{cropDrag=null;});
+
+document.getElementById('cropCancel').addEventListener('click',closeCropTool);
+
+document.getElementById('cropApply').addEventListener('click',()=>{
+  const view=cropView;
+  if(!view)return;
+  const img=document.getElementById('cropImg');
+  const imgR=cropImgRect();
+  const scaleX=cropNatural.w/imgR.width,scaleY=cropNatural.h/imgR.height;
+  const sx=Math.max(0,Math.round(cropRectPx.x*scaleX)),sy=Math.max(0,Math.round(cropRectPx.y*scaleY));
+  const sw=Math.max(1,Math.round(cropRectPx.w*scaleX)),sh=Math.max(1,Math.round(cropRectPx.h*scaleY));
+  const isPng=/^data:image\/png/.test(UP[view].url);
+  const canvas=document.createElement('canvas');
+  canvas.width=sw;canvas.height=sh;
+  canvas.getContext('2d').drawImage(img,sx,sy,sw,sh,0,0,sw,sh);
+  UP[view].url=isPng?canvas.toDataURL('image/png'):canvas.toDataURL('image/jpeg',.92);
+  UP[view].w=0;UP[view].h=0; // reset so initDesignInZone recalculates against the cropped bounds
+  if(view===curView)initDesignInZone(view);
+  chkCheckout();
+  closeCropTool();
+});
+
 // ── Upload ──
 function openPicker(){
   if(CAL)return;
@@ -927,7 +1073,19 @@ function openPicker(){
 }
 
 document.getElementById('pzEmpty').addEventListener('click',openPicker);
-document.getElementById('dlChange').addEventListener('click',openPicker);
+document.getElementById('dlChange').addEventListener('click',e=>{e.stopPropagation();openPicker();});
+
+document.getElementById('dlRemove').addEventListener('click',e=>{
+  e.stopPropagation();
+  UP[curView]={url:null,x:0,y:0,w:0,h:0,ar:1};
+  renderDesign();
+  chkCheckout();
+});
+
+document.getElementById('dlCrop').addEventListener('click',e=>{
+  e.stopPropagation();
+  openCropTool(curView);
+});
 
 ['designInputF','designInputB'].forEach(id=>{
   document.getElementById(id).addEventListener('change',e=>{
@@ -948,14 +1106,15 @@ document.getElementById('dlChange').addEventListener('click',openPicker);
 });
 
 // ── Drag: move design ──
+function isDesignLayerCtrl(target){ return !!target.closest('.dl-handle,.dl-change,.dl-remove,.dl-crop'); }
 document.getElementById('designLayer').addEventListener('mousedown',e=>{
-  if(e.target===document.getElementById('dlHandle')||e.target===document.getElementById('dlChange'))return;
+  if(isDesignLayerCtrl(e.target))return;
   dragMode='move';
   dragStart={mx:e.clientX,my:e.clientY,...UP[curView]};
   e.preventDefault();
 });
 document.getElementById('designLayer').addEventListener('touchstart',e=>{
-  if(e.target===document.getElementById('dlHandle')||e.target===document.getElementById('dlChange'))return;
+  if(isDesignLayerCtrl(e.target))return;
   dragMode='move';
   dragStart={mx:e.touches[0].clientX,my:e.touches[0].clientY,...UP[curView]};
 },{passive:true});
