@@ -54,12 +54,21 @@ function decodeDataUrl(raw: unknown): { base64: string; ext: string } | null {
    needing its own separate sign-in gate the way AI Studio generation
    does (which needs one earlier, to enforce the daily generation limit). */
 export async function POST(req: NextRequest) {
+  // Timing breakdown for diagnosing slow checkouts -- logged as one line at
+  // the end (search Vercel logs for "UNIK checkout timing") rather than
+  // scattered per-stage lines, so the full picture reads in one place.
+  const t0 = Date.now();
+  const timing: Record<string, number> = {};
+  const mark = (label: string) => { timing[label] = Date.now() - t0; };
+
   const ip = getClientIP(req);
   if (!rateLimit("unik-checkout-create:" + ip, 10, 60).allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
+  mark("rateLimit");
 
   const auth = await requireUnikCustomer(req);
+  mark("auth");
   if ("response" in auth) return auth.response;
   const { user, seller } = auth;
 
@@ -93,6 +102,7 @@ export async function POST(req: NextRequest) {
   // checkout settings server-side -- the browser's deliveryMethod only
   // says which one the customer picked (by name), never what it costs.
   const { data: sellerConfigRow } = await admin.from("sellers").select("checkout_config").eq("id", seller.id).single();
+  mark("sellerConfig");
   const cc = (sellerConfigRow?.checkout_config || {}) as any;
 
   let fulfillmentMethod: "delivery" | "pickup" = "delivery";
@@ -123,8 +133,10 @@ export async function POST(req: NextRequest) {
     : { data: [], error: null };
   if (designsErr) console.error("UNIK checkout: unik_designs lookup failed:", designsErr);
 
+  mark("designsLookup");
   const designMap = new Map((designs || []).map((d) => [d.id, d]));
   const { data: products } = await admin.from("products").select("id, name, price, category").eq("seller_id", seller.id).eq("status", "published");
+  mark("productsLookup");
   const productByName = new Map((products || []).map((p) => [p.name, p]));
 
   type LineItem = { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string | null; image: string | null };
@@ -233,6 +245,7 @@ export async function POST(req: NextRequest) {
     };
   }));
 
+  mark("itemsProcessed");
   const firstError = results.find((r): r is Extract<ItemResult, { ok: false }> => !r.ok);
   if (firstError) return NextResponse.json({ error: firstError.error }, { status: firstError.status });
   const lineItems: LineItem[] = results.map((r) => (r as Extract<ItemResult, { ok: true }>).item);
@@ -255,12 +268,14 @@ export async function POST(req: NextRequest) {
     payment_status: "pending",
     status: "pending",
   }).select("id").single();
+  mark("orderInsert");
   if (insertErr || !order) {
     console.error("UNIK order insert failed:", insertErr);
     return NextResponse.json({ error: "Could not create your order" }, { status: 500 });
   }
 
   await admin.from("unik_designs").update({ status: "checkout_started" }).in("id", lineItems.map((i) => i.designId));
+  mark("designsStatusUpdate");
 
   const origin = safeOrigin(body?.returnOrigin);
   const yocoLineItems: YocoLineItem[] = lineItems.map((i) => ({ displayName: i.name, quantity: i.qty, pricingDetails: { price: Math.round(i.price * 100) } }));
@@ -275,10 +290,14 @@ export async function POST(req: NextRequest) {
       failureUrl: `${origin}${CHECKOUT_PATH}?failed=1&orderId=${order.id}`,
       lineItems: yocoLineItems,
     });
+    mark("yocoCheckoutCreate");
     await admin.from("orders").update({ yoco_checkout_id: checkout.id }).eq("id", order.id);
+    mark("orderYocoIdUpdate");
+    console.log("UNIK checkout timing", { orderId: order.id, itemCount: items.length, timing });
     return NextResponse.json({ ok: true, orderId: order.id, redirectUrl: checkout.redirectUrl });
   } catch (err: any) {
-    console.error("Yoco checkout creation failed:", err);
+    mark("yocoCheckoutFailed");
+    console.error("Yoco checkout creation failed:", err, { timing });
     return NextResponse.json({ error: "Could not start payment. Please try again." }, { status: 502 });
   }
 }
