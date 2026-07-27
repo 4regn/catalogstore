@@ -177,6 +177,11 @@
   .result-cta.result-cta-secondary{margin-top:8px;}
   .result-cta.done{background:var(--green);color:var(--white);border-color:var(--green);}
 
+  /* ── Size row (above Add to Cart, within the result phase) ── */
+  .size-row{display:flex;justify-content:center;gap:8px;margin-top:6px;}
+  .sz-btn{width:38px;height:38px;border-radius:9px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted);transition:border-color .25s,color .25s,background .25s;}
+  .sz-btn.sel{border-color:var(--white);color:var(--black);background:var(--white);box-shadow:0 0 0 1px #007517,0 0 10px 2px rgba(0,117,23,.5);}
+
   /* ── Animated cursor that "clicks" Add to Cart, then Proceed to Checkout ── */
   .ai-cursor{
     position:absolute;top:0;left:0;width:24px;height:24px;
@@ -329,6 +334,14 @@
           <div class="result-mockup"><img alt="" src="assets/how-to-demo/mockup-preview.jpg"></div>
         </div>
       </div>
+      <div class="result-col-label" style="margin-top:14px;">Size</div>
+      <div class="size-row">
+        <div class="sz-btn" id="szS">S</div>
+        <div class="sz-btn" id="szM">M</div>
+        <div class="sz-btn" id="szL">L</div>
+        <div class="sz-btn" id="szXL">XL</div>
+        <div class="sz-btn" id="szXXL">XXL</div>
+      </div>
       <div class="result-cta" id="atcBtn">ADD TO CART — R349</div>
       <div class="result-cta result-cta-secondary" id="checkoutBtn">PROCEED TO CHECKOUT</div>
       <div class="ai-cursor" id="aiCursor"><svg fill="none" viewbox="0 0 24 24"><path d="M3 2 L3 19 L7.5 15.2 L10.6 21.3 L14 19.6 L11 13.6 L17.2 13.6 Z" fill="#ffffff" stroke="#0a0a0a" stroke-linejoin="round" stroke-width="1.3"></path></svg></div>
@@ -368,7 +381,7 @@
     { key: 'style',      label: 'Step 4 of 6', dots: 4, hold: 3000, run: runStylePhase },
     { key: 'photos',     label: 'Step 5 of 6', dots: 5, hold: 3400, run: runPhotosPhase },
     { key: 'generating', label: 'Generating',  dots: 5, hold: 2200 },
-    { key: 'result',     label: 'Step 6 of 6', dots: 6, hold: 5600, run: runResultPhase },
+    { key: 'result',     label: 'Step 6 of 6', dots: 6, hold: 7000, run: runResultPhase },
     { key: 'journey',    label: 'Order placed', dots: 6, hold: 5200, run: runJourneyPhase, hideDots: true }
   ];
 
@@ -441,8 +454,10 @@
     var cursor = document.getElementById('aiCursor');
     var atc = document.getElementById('atcBtn');
     var checkout = document.getElementById('checkoutBtn');
+    var sizeM = document.getElementById('szM');
     atc.classList.remove('done');
     checkout.classList.remove('done');
+    document.querySelectorAll('.sz-btn').forEach(function (b) { b.classList.remove('sel'); });
     cursor.classList.remove('show', 'tap');
 
     function pointAt(el) {
@@ -453,17 +468,21 @@
       cursor.style.transform = 'translate(' + x + 'px,' + y + 'px)';
     }
 
-    // Park the cursor near the Add to Cart button before it fades in, so
-    // its entrance reads as "arriving" rather than teleporting.
-    pointAt(atc);
+    // Park the cursor near the size row before it fades in, so its entrance
+    // reads as "arriving" rather than teleporting -- then pick a size
+    // before moving on to Add to Cart and Checkout, same cursor throughout.
+    pointAt(sizeM);
     innerTimers.push(setTimeout(function () { cursor.classList.add('show'); }, 700));
-    innerTimers.push(setTimeout(function () { pointAt(atc); }, 900));
+    innerTimers.push(setTimeout(function () { pointAt(sizeM); }, 900));
     innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 1550));
-    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); atc.classList.add('done'); }, 1870));
-    innerTimers.push(setTimeout(function () { pointAt(checkout); }, 2450));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); sizeM.classList.add('sel'); }, 1870));
+    innerTimers.push(setTimeout(function () { pointAt(atc); }, 2450));
     innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 3100));
-    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); checkout.classList.add('done'); }, 3420));
-    innerTimers.push(setTimeout(function () { cursor.classList.remove('show'); }, 4200));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); atc.classList.add('done'); }, 3420));
+    innerTimers.push(setTimeout(function () { pointAt(checkout); }, 4000));
+    innerTimers.push(setTimeout(function () { cursor.classList.add('tap'); }, 4650));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('tap'); checkout.classList.add('done'); }, 4970));
+    innerTimers.push(setTimeout(function () { cursor.classList.remove('show'); }, 5700));
   }
 
   function runPhotosPhase() {
