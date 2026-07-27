@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0" name="viewport"/>
+<title>UNIK Labs — Custom Upload Recap Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&amp;family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter',sans-serif;
+  background:#0a0a0a;color:#fff;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+
+/* ── Builder shell (mirrors recap.html's chrome exactly) ── */
+.builder{max-width:1180px;margin:0 auto;padding:36px 20px 80px;}
+.builder-head{max-width:640px;margin:0 auto 34px;text-align:center;}
+.builder-logo{height:30px;width:auto;display:inline-block;margin-bottom:18px;filter:drop-shadow(0 3px 10px rgba(0,0,0,.68));}
+.builder-head h1{
+  font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;
+  font-size:clamp(24px,4.6vw,32px);letter-spacing:.4px;margin-bottom:10px;
+}
+.builder-head p{font-size:13.5px;line-height:1.6;color:rgba(255,255,255,.6);}
+
+.builder-grid{display:grid;grid-template-columns:360px 1fr;gap:36px;align-items:start;}
+@media (max-width:860px){.builder-grid{grid-template-columns:1fr;}}
+
+/* ── Form ── */
+.builder-form{
+  background:#111;border:1px solid rgba(255,255,255,.1);border-radius:16px;
+  padding:22px;display:flex;flex-direction:column;gap:16px;
+}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.field{display:flex;flex-direction:column;gap:7px;}
+.field>span{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);}
+.field input[type="text"],.field select{
+  background:#0d0f0e;border:1px solid rgba(255,255,255,.16);border-radius:9px;
+  color:#fff;font-family:'Inter',sans-serif;font-size:13.5px;padding:11px 13px;
+  outline:none;transition:border-color .15s;
+}
+.field input[type="text"]:focus,.field select:focus{border-color:rgba(255,255,255,.5);}
+.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%23999' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:32px;}
+.field input[type="file"]{
+  font-size:11.5px;color:rgba(255,255,255,.7);
+  border:1.5px dashed rgba(255,255,255,.22);border-radius:9px;padding:14px 12px;
+  background:#0d0f0e;cursor:pointer;
+}
+.field input[type="file"]::file-selector-button{
+  background:#fff;color:#000;border:none;border-radius:999px;
+  padding:6px 12px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  margin-right:10px;cursor:pointer;
+}
+.thumb-row{display:flex;gap:6px;flex-wrap:wrap;}
+.thumb-row:empty{display:none;}
+.thumb{width:44px;height:44px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.14);flex:none;}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+
+.btn-create{
+  margin-top:4px;
+  background:#fff;color:#000;border:none;border-radius:100px;
+  padding:14px 18px;font-family:'Inter',sans-serif;font-size:13.5px;font-weight:800;
+  letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
+  transition:opacity .2s,transform .2s;
+}
+.btn-create:disabled{opacity:.32;cursor:not-allowed;}
+.btn-create:not(:disabled):hover{transform:translateY(-1px);}
+
+.form-hint{font-size:11px;line-height:1.55;color:rgba(255,255,255,.4);}
+
+/* ── Stage column ── */
+.stage-col{display:flex;flex-direction:column;align-items:center;gap:16px;}
+.stage-wrap{
+  position:relative;width:100%;max-width:380px;aspect-ratio:9/16;
+  border-radius:22px;overflow:hidden;background:#000;
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 30px 80px rgba(0,0,0,.55);
+}
+.stage-empty{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:40px;font-size:12.5px;line-height:1.6;color:rgba(255,255,255,.4);
+}
+.stage{position:absolute;inset:0;display:none;}
+.stage.is-live{display:block;}
+
+/* Segmented story progress bar */
+.story-bars{position:absolute;top:14px;left:14px;right:14px;z-index:20;display:flex;gap:4px;}
+.seg{flex:1;height:2.5px;background:rgba(255,255,255,.28);border-radius:2px;overflow:hidden;}
+.seg-fill{display:block;height:100%;width:0%;background:#fff;border-radius:2px;}
+.seg-fill.is-done{width:100%;}
+.seg-fill.is-filling{animation-name:segFill;animation-timing-function:linear;animation-fill-mode:forwards;}
+.stage.is-paused .seg-fill.is-filling{animation-play-state:paused;}
+.stage.is-paused *{animation-play-state:paused !important;}
+@keyframes segFill{from{width:0%}to{width:100%}}
+
+/* Tap navigation zones (story-style) */
+.story-tap{position:absolute;top:0;bottom:0;width:32%;z-index:15;cursor:pointer;}
+.story-tap-prev{left:0;}
+.story-tap-next{right:0;}
+
+.story-brand{position:absolute;top:26px;left:18px;right:18px;z-index:18;display:flex;align-items:center;gap:8px;}
+.story-brand img{height:16px;width:auto;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));opacity:.95;}
+.story-brand span{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.75);}
+
+.story-panels{position:absolute;inset:0;}
+.panel{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:80px 26px 40px;text-align:center;opacity:0;pointer-events:none;
+  transition:opacity .25s ease;
+  background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.05),transparent 60%),#000;
+}
+.panel.is-active{opacity:1;pointer-events:auto;}
+
+.panel-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#007517);margin-bottom:14px;}
+.panel-title{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:20px;letter-spacing:.3px;margin-bottom:4px;}
+.panel-sub{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;}
+
+/* Intro */
+.panel-intro .intro-logo{height:34px;width:auto;filter:drop-shadow(0 3px 10px rgba(0,0,0,.68));margin-bottom:16px;animation:popIn .6s ease both;}
+.panel-intro h2{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:26px;line-height:1.08;letter-spacing:.3px;animation:popIn .6s ease .1s both;}
+.panel-intro p{margin-top:12px;font-size:12.5px;color:rgba(255,255,255,.55);animation:popIn .6s ease .2s both;}
+
+/* Garment/zone pick: a small grid with a fake cursor that moves over and
+   clicks the picked one, same interaction pattern as the AI Studio recap
+   builder's garment/style grid. */
+.style-pick-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;width:100%;max-width:230px;position:relative;}
+.style-pick-card{opacity:0;transform:scale(.9);animation:popIn .4s ease forwards;text-align:center;}
+.style-pick-card:nth-child(1){animation-delay:.04s;}
+.style-pick-card:nth-child(2){animation-delay:.11s;}
+.style-pick-card:nth-child(3){animation-delay:.18s;}
+.style-pick-card:nth-child(4){animation-delay:.25s;}
+.style-pick-card:nth-child(5){animation-delay:.32s;}
+.style-pick-card:nth-child(6){animation-delay:.39s;}
+.style-pick-frame{width:100%;aspect-ratio:4/5;border-radius:13px;overflow:hidden;border:1.5px solid rgba(255,255,255,.16);background:#111;transition:border-color .18s,box-shadow .18s;display:flex;align-items:center;justify-content:center;}
+.style-pick-frame img{width:100%;height:100%;object-fit:contain;display:block;}
+.style-pick-frame.is-text{padding:10px;flex-direction:column;gap:6px;}
+.style-pick-frame.is-text span:first-child{font-size:12.5px;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;}
+.style-pick-frame .zone-price{font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase;color:rgba(255,255,255,.7);}
+.style-pick-label{margin-top:6px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.55);}
+.style-pick-card.is-selected .style-pick-frame{border-color:var(--accent,#007517);box-shadow:0 0 0 1px var(--accent,#007517),0 0 24px color-mix(in srgb, var(--accent,#007517) 60%, transparent);}
+.style-pick-card.is-selected .style-pick-label{color:#fff;}
+
+.fake-cursor{position:absolute;left:0;top:0;width:26px;height:26px;pointer-events:none;z-index:30;opacity:0;}
+.fake-cursor svg{display:block;filter:drop-shadow(0 3px 6px rgba(0,0,0,.55));}
+.fake-cursor.is-clicking svg{animation:cursorClick .28s ease;}
+.cursor-ripple{position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:50%;border:2px solid var(--accent,#007517);opacity:0;}
+.fake-cursor.is-clicking .cursor-ripple{animation:cursorRipple .5s ease-out;}
+@keyframes cursorClick{0%{transform:scale(1)}40%{transform:scale(.78)}100%{transform:scale(1)}}
+@keyframes cursorRipple{0%{opacity:.9;transform:scale(.3)}100%{opacity:0;transform:scale(1.9)}}
+
+/* Reveals: flat garment with the customer's own artwork composited at the
+   real print-zone rect (see PRINT_ZONES), not a single flat mockup image --
+   this is the whole point of a Custom Upload demo vs. the AI Studio one. */
+.mockup-frame{
+  width:100%;max-width:210px;border-radius:16px;overflow:hidden;
+  position:relative;opacity:0;transform:scale(.85);
+  animation:revealIn .7s cubic-bezier(.2,.9,.25,1) forwards;
+  box-shadow:0 0 0 1px rgba(255,255,255,.14), 0 20px 60px color-mix(in srgb, var(--accent,#007517) 40%, transparent);
+  background:#111;
+}
+.mockup-frame img.garment-flat{width:100%;height:100%;object-fit:contain;display:block;}
+.mockup-frame .art-overlay{position:absolute;object-fit:contain;pointer-events:none;}
+.mockup-frame::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent,#007517) 55%, transparent), transparent 70%);
+  opacity:0;animation:glowBurst 1s ease .15s forwards;pointer-events:none;
+}
+.reveal-row{display:flex;gap:12px;justify-content:center;align-items:flex-start;}
+.reveal-row .mockup-frame{max-width:140px;}
+.reveal-col-label{font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:7px;}
+
+/* Size picker: same fake-cursor pattern as the AI Studio recap builder */
+.size-chip-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;position:relative;}
+.size-chip{
+  width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;font-family:'Anton',sans-serif;font-weight:400;font-size:14px;
+  color:rgba(255,255,255,.6);opacity:0;transform:scale(.85);animation:popIn .4s ease forwards;
+}
+.size-chip:nth-child(1){animation-delay:.05s;}
+.size-chip:nth-child(2){animation-delay:.12s;}
+.size-chip:nth-child(3){animation-delay:.19s;}
+.size-chip:nth-child(4){animation-delay:.26s;}
+.size-chip:nth-child(5){animation-delay:.33s;}
+.size-chip.is-selected{
+  color:#fff;border-color:var(--accent,#007517);background:color-mix(in srgb, var(--accent,#007517) 18%, transparent);
+  box-shadow:0 0 0 1px var(--accent,#007517),0 0 22px color-mix(in srgb, var(--accent,#007517) 55%, transparent);
+}
+
+/* Checkout: mirrors the real site's checkout button colour exactly (#007517) */
+.checkout-summary{
+  display:flex;align-items:center;gap:12px;width:100%;max-width:250px;padding:10px;
+  border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.03);
+  margin:14px 0 20px;opacity:0;animation:popIn .4s ease .1s forwards;
+}
+.checkout-summary img{width:44px;height:56px;object-fit:contain;background:#111;border-radius:8px;flex:none;}
+.checkout-summary-text{text-align:left;display:flex;flex-direction:column;gap:3px;min-width:0;}
+.checkout-summary-text strong{font-family:'Anton',sans-serif;font-weight:400;font-size:14px;text-transform:uppercase;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.checkout-summary-text span{font-size:10.5px;color:rgba(255,255,255,.5);}
+.checkout-btn{
+  position:relative;background:#007517;color:#fff;border-radius:100px;padding:13px 24px;
+  font-size:12.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  opacity:0;animation:popIn .4s ease .2s forwards;transition:transform .15s;
+}
+.checkout-btn.is-clicked{transform:scale(.94);box-shadow:0 0 0 5px rgba(0,117,23,.35);}
+.checkout-list{margin-top:20px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;}
+.fulfil-row.checkout-row{opacity:0;animation:none;transform:translateY(8px);transition:opacity .4s ease,transform .4s ease;color:#3ddc7a;}
+.fulfil-row.checkout-row.is-visible{opacity:1;transform:translateY(0);}
+.checkout-row .fulfil-check{background:#007517;box-shadow:0 0 12px rgba(0,117,23,.5);}
+
+/* Fulfilment -- fixed green status readout, same on both recap builders */
+.fulfil-list{display:flex;flex-direction:column;gap:14px;align-items:flex-start;width:100%;max-width:250px;}
+.panel-fulfilment .panel-eyebrow,.panel-fulfilment .panel-title{color:#22d46b;}
+.fulfil-row{
+  display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:#22d46b;text-align:left;
+  opacity:0;transform:translateY(8px);animation:popIn .5s ease forwards;
+}
+.fulfil-check{
+  width:21px;height:21px;border-radius:50%;background:#22d46b;color:#04160b;flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+  box-shadow:0 0 14px rgba(34,212,107,.55);
+}
+
+/* CTA */
+.panel-cta .intro-logo{height:30px;width:auto;filter:drop-shadow(0 3px 10px rgba(0,0,0,.68));margin-bottom:18px;animation:popIn .6s ease both;}
+.cta-headline{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:24px;line-height:1.08;letter-spacing:.3px;animation:popIn .6s ease .1s both;}
+.cta-sub{margin-top:10px;font-size:12px;color:rgba(255,255,255,.55);animation:popIn .6s ease .18s both;}
+.cta-btn{
+  margin-top:22px;background:#fff;color:#000;border-radius:100px;
+  padding:13px 26px;font-size:12.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  display:inline-flex;align-items:center;gap:7px;
+  animation:popIn .6s ease .26s both;
+}
+.cta-domain{
+  margin-top:16px;font-size:14px;letter-spacing:.09em;font-weight:800;text-transform:uppercase;
+  color:#ff2a3d;text-shadow:0 0 12px rgba(255,42,61,.9),0 0 30px rgba(255,42,61,.55),0 0 60px rgba(255,42,61,.3);
+  animation:popIn .6s ease .34s both, domainPulse 1.8s ease-in-out 1s infinite;
+}
+
+@keyframes popIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes revealIn{to{opacity:1;transform:scale(1)}}
+@keyframes glowBurst{0%{opacity:.9}100%{opacity:0}}
+@keyframes domainPulse{0%,100%{text-shadow:0 0 12px rgba(255,42,61,.9),0 0 30px rgba(255,42,61,.55),0 0 60px rgba(255,42,61,.3)}50%{text-shadow:0 0 16px rgba(255,42,61,1),0 0 42px rgba(255,42,61,.75),0 0 80px rgba(255,42,61,.45)}}
+
+.stage-controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.stage-controls button{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;
+  border-radius:100px;padding:9px 16px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
+  transition:background .2s;
+}
+.stage-controls button:hover{background:rgba(255,255,255,.16);}
+.stage-controls button:disabled{opacity:.4;cursor:wait;}
+#btnExport{background:#fff;color:#000;border-color:#fff;}
+#btnExport:hover{background:#eee;}
+.stage-hint{max-width:340px;text-align:center;font-size:11px;line-height:1.55;color:rgba(255,255,255,.4);}
+
+/* Export mode: isolate the stage full-viewport for a clean screen recording */
+body.is-exporting .builder-head,body.is-exporting .builder-form,body.is-exporting .stage-hint{display:none!important;}
+body.is-exporting .builder{padding:0;max-width:none;}
+body.is-exporting .builder-grid{display:block;}
+body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24px;}
+body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
+</style>
+</head>
+<body>
+<div class="builder">
+<header class="builder-head">
+<img alt="UNIK Labs" class="builder-logo" src="assets/unik-logo-v3-header.png"/>
+<h1>Custom Upload Recap Builder</h1>
+<p>Turn one finished Custom Upload order into a shareable 9:16 story — garment &amp; colour, front (and optional back) artwork placed on the real print zone, size, checkout and the order itself. Fill in the form, hit Create, then export a video or screen-record the preview for Reels, TikTok or Stories.</p>
+</header>
+
+<div class="builder-grid">
+<form class="builder-form" id="builderForm">
+<div class="field-row">
+<label class="field">
+<span>Garment</span>
+<select id="fGarment"><option value="tee">Tee</option><option value="hoodie">Hoodie</option></select>
+</label>
+<label class="field">
+<span>Colour</span>
+<select id="fColour"><option value="black">Black</option><option value="white">White</option><option value="beige">Beige</option></select>
+</label>
+</div>
+<div class="field">
+<span>Front artwork</span>
+<input accept="image/*" id="fFront" type="file"/>
+<div class="thumb-row" id="frontPreview"></div>
+</div>
+<div class="field">
+<span>Back artwork (optional)</span>
+<input accept="image/*" id="fBack" type="file"/>
+<div class="thumb-row" id="backPreview"></div>
+</div>
+<label class="field">
+<span>Size ordered</span>
+<select id="fSize"><option value="S">S</option><option value="M" selected="">M</option><option value="L">L</option><option value="XL">XL</option><option value="XXL">XXL</option></select>
+</label>
+<button class="btn-create" disabled="" id="btnCreate" type="button">Create recap</button>
+<p class="form-hint">Nothing here uploads anywhere — every image stays local in your browser tab and is only used to render the preview. Leave "Back artwork" empty for a front-only order — the story will skip the back reveal and price it as front-only automatically.</p>
+</form>
+
+<div class="stage-col">
+<div class="stage-wrap">
+<div class="stage-empty" id="stageEmpty">Fill in the form on the left, then hit <strong>Create recap</strong> to preview your story here.</div>
+<div class="stage" id="stage">
+<div class="story-bars" id="storyBars"></div>
+<div class="story-brand"><img alt="" src="assets/unik-logo-v3-header.png"/><span>UNIK Labs</span></div>
+<div class="story-tap story-tap-prev" id="tapPrev"></div>
+<div class="story-tap story-tap-next" id="tapNext"></div>
+<div class="story-panels" id="storyPanels"></div>
+</div>
+</div>
+<div class="stage-controls" hidden="" id="stageControls">
+<button id="btnPlayPause" type="button">Pause</button>
+<button id="btnReplay" type="button">Replay</button>
+<button id="btnExport" type="button">Export video</button>
+</div>
+<p class="stage-hint">Tap the left/right edge of the preview to step back or forward, like a Story. Space bar pauses on desktop. <strong>Export video</strong> works on laptop/desktop browsers only, opened directly in the browser (not inside a preview/embed) — phone browsers can't record a tab at all, so there you'll get instructions to use your phone's own screen recorder instead.</p>
+</div>
+</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var ACCENT = '#007517';
+  var GARMENTS = ['tee', 'hoodie'];
+  var COLOURS = ['black', 'white', 'beige'];
+  var GARMENT_LABEL = { tee: 'Tee', hoodie: 'Hoodie' };
+  var COLOUR_LABEL = { black: 'Black', white: 'White', beige: 'Beige' };
+  var SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL'];
+
+  // Real production print-zone calibration -- same numbers as
+  // CAL_DEFAULTS_BY_MODE in upload.html (the actual live tool), so the
+  // artwork lands exactly where it really would on the finished garment.
+  var PRINT_ZONES = {
+    hoodie: {
+      front: {
+        black: { wP: 0.3328, hP: 0.1955, cxP: 0.4957, tP: 0.3477 },
+        white: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3409 },
+        beige: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3193 }
+      },
+      back: {
+        black: { wP: 0.4283, hP: 0.2977, cxP: 0.5094, tP: 0.3818 },
+        white: { wP: 0.4029, hP: 0.3010, cxP: 0.5103, tP: 0.3820 },
+        beige: { wP: 0.4027, hP: 0.3011, cxP: 0.5085, tP: 0.3761 }
+      }
+    },
+    tee: {
+      front: {
+        black: { wP: 0.3754, hP: 0.5000, cxP: 0.5123, tP: 0.3200 },
+        white: { wP: 0.3754, hP: 0.5000, cxP: 0.5123, tP: 0.3200 },
+        beige: { wP: 0.3853, hP: 0.3520, cxP: 0.5044, tP: 0.4565 }
+      },
+      back: {
+        black: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.4150 },
+        white: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.4150 },
+        beige: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.4150 }
+      }
+    }
+  };
+  // Front for a black/white tee uses the newer square (1254x1254) flat-lay;
+  // every other garment/side/colour combo is the ~2:3 portrait photo.
+  // Matches upload.html's frontAspect() convention exactly.
+  function garmentAspect(garment, side, colour) {
+    if (garment === 'tee' && side === 'front' && (colour === 'black' || colour === 'white')) return '1 / 1';
+    return '2 / 3';
+  }
+  function flatGarmentPath(side, colour, garment) {
+    return 'assets/dark/' + side + '-' + colour + '-' + garment + '.jpg';
+  }
+  var FRONT_PRICE = { tee: 299, hoodie: 350 };
+  var BOTH_PRICE = { tee: 379, hoodie: 450 };
+
+  var garmentSelect = document.getElementById('fGarment');
+  var colourSelect = document.getElementById('fColour');
+  var sizeSelect = document.getElementById('fSize');
+  var frontInp = document.getElementById('fFront');
+  var backInp = document.getElementById('fBack');
+  var btnCreate = document.getElementById('btnCreate');
+
+  var picked = { front: null, back: null };
+
+  function previewInto(container, files) {
+    container.innerHTML = '';
+    files.forEach(function (file) {
+      var wrap = document.createElement('span');
+      wrap.className = 'thumb';
+      var img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      img.alt = '';
+      wrap.appendChild(img);
+      container.appendChild(wrap);
+    });
+  }
+
+  frontInp.addEventListener('change', function () {
+    picked.front = (frontInp.files || [])[0] || null;
+    previewInto(document.getElementById('frontPreview'), picked.front ? [picked.front] : []);
+    validate();
+  });
+  backInp.addEventListener('change', function () {
+    picked.back = (backInp.files || [])[0] || null;
+    previewInto(document.getElementById('backPreview'), picked.back ? [picked.back] : []);
+    validate();
+  });
+
+  function validate() {
+    btnCreate.disabled = !picked.front;
+  }
+
+  // ── Story engine (same engine as recap.html -- shared mechanics, this
+  // file only differs in its form fields and panel content) ──
+  var stageEmpty = document.getElementById('stageEmpty');
+  var stage = document.getElementById('stage');
+  var storyBars = document.getElementById('storyBars');
+  var storyPanels = document.getElementById('storyPanels');
+  var stageControls = document.getElementById('stageControls');
+  var btnPlayPause = document.getElementById('btnPlayPause');
+  var btnReplay = document.getElementById('btnReplay');
+  var btnExport = document.getElementById('btnExport');
+  var tapPrev = document.getElementById('tapPrev');
+  var tapNext = document.getElementById('tapNext');
+
+  function buildSteps(data) {
+    return [
+      { key: 'intro', ms: 2200 },
+      { key: 'garment', ms: 2400 },
+      { key: 'zone', ms: 2400 },
+      { key: 'upload', ms: data.zone === 'both' ? 4600 : 3400 },
+      { key: 'size', ms: 2400 },
+      { key: 'checkout', ms: 3200 },
+      { key: 'fulfilment', ms: 3800 },
+      { key: 'cta', ms: null }
+    ];
+  }
+
+  var currentSteps = [];
+  var panels = [];
+  var segFills = [];
+  var index = 0;
+  var paused = false;
+  var stepTimer = null;
+  var stepStart = 0;
+  var stepRemaining = 0;
+  var currentStepMs = 0;
+  var cursorTimerA = null;
+  var cursorTimerB = null;
+  var cursorTimerC = null;
+  var cursorTimerD = null;
+
+  function fakeCursorHtml() {
+    return '<div class="fake-cursor" id="fakeCursor"><svg viewbox="0 0 24 24" width="26" height="26"><path d="M4 2 L4 20 L9 15 L12.5 21.5 L15 20.2 L11.5 14 L18 14 Z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"></path></svg><span class="cursor-ripple"></span></div>';
+  }
+
+  // A garment flat photo with the customer's own artwork composited at the
+  // real print-zone rect. Container carries the flat image's own aspect
+  // ratio (see garmentAspect) so the calibration percentages, which are
+  // relative to the image's own pixel dimensions, land in the right place.
+  function mockupFrameHtml(side, colour, garment, artworkUrl) {
+    var zone = PRINT_ZONES[garment][side][colour];
+    var left = ((zone.cxP - zone.wP / 2) * 100).toFixed(2) + '%';
+    var top = (zone.tP * 100).toFixed(2) + '%';
+    var width = (zone.wP * 100).toFixed(2) + '%';
+    var height = (zone.hP * 100).toFixed(2) + '%';
+    return '<div class="mockup-frame" style="aspect-ratio:' + garmentAspect(garment, side, colour) + '">' +
+      '<img class="garment-flat" src="' + flatGarmentPath(side, colour, garment) + '" alt="">' +
+      (artworkUrl ? '<img class="art-overlay" src="' + artworkUrl + '" style="left:' + left + ';top:' + top + ';width:' + width + ';height:' + height + '" alt="">' : '') +
+    '</div>';
+  }
+
+  // Every panel's inner content is (re)built the instant it becomes active,
+  // not once up front -- see the identical comment in recap.html for why
+  // (pop-in/cursor animations need to start fresh each time a panel shows).
+  function panelHtml(key, data) {
+    if (key === 'intro') {
+      return '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
+        '<h2>Your artwork.<br>Your own garment.</h2>' +
+        '<p>Here’s how it came together —</p>';
+    }
+
+    if (key === 'garment') {
+      var combos = [];
+      GARMENTS.forEach(function (g) { COLOURS.forEach(function (c) { combos.push({ garment: g, colour: c }); }); });
+      var cardsHtml = combos.map(function (combo) {
+        var isPicked = combo.garment === data.garment && combo.colour === data.colour;
+        return '<div class="style-pick-card" data-picked="' + isPicked + '">' +
+          '<div class="style-pick-frame"><img src="' + flatGarmentPath('front', combo.colour, combo.garment) + '" alt=""></div>' +
+          '<div class="style-pick-label">' + GARMENT_LABEL[combo.garment] + ' — ' + COLOUR_LABEL[combo.colour] + '</div>' +
+        '</div>';
+      }).join('');
+      return '<span class="panel-eyebrow">Step 01 &mdash; Garment</span>' +
+        '<div class="style-pick-grid" id="stylePickGrid">' + cardsHtml + fakeCursorHtml() + '</div>';
+    }
+
+    if (key === 'zone') {
+      var frontPrice = FRONT_PRICE[data.garment];
+      var bothPrice = BOTH_PRICE[data.garment];
+      var cardsHtml =
+        '<div class="style-pick-card" data-picked="' + (data.zone === 'front') + '">' +
+          '<div class="style-pick-frame is-text"><span>Front Only</span><span class="zone-price">R' + frontPrice + '</span></div>' +
+          '<div class="style-pick-label">Front only</div>' +
+        '</div>' +
+        '<div class="style-pick-card" data-picked="' + (data.zone === 'both') + '">' +
+          '<div class="style-pick-frame is-text"><span>Front + Back</span><span class="zone-price">R' + bothPrice + '</span></div>' +
+          '<div class="style-pick-label">Front + back</div>' +
+        '</div>';
+      return '<span class="panel-eyebrow">Step 02 &mdash; Print zone</span>' +
+        '<div class="style-pick-grid" id="stylePickGrid" style="max-width:210px">' + cardsHtml + fakeCursorHtml() + '</div>';
+    }
+
+    if (key === 'upload') {
+      if (data.zone === 'both') {
+        return '<span class="panel-eyebrow">Step 03 &mdash; Your artwork</span>' +
+          '<div class="panel-title">Front + back</div>' +
+          '<div class="panel-sub">&nbsp;</div>' +
+          '<div class="reveal-row">' +
+            '<div><div class="reveal-col-label">Front</div>' + mockupFrameHtml('front', data.colour, data.garment, data.front) + '</div>' +
+            '<div><div class="reveal-col-label">Back</div>' + mockupFrameHtml('back', data.colour, data.garment, data.back) + '</div>' +
+          '</div>';
+      }
+      return '<span class="panel-eyebrow">Step 03 &mdash; Your artwork</span>' +
+        '<div class="panel-title">Front print</div>' +
+        '<div class="panel-sub">&nbsp;</div>' +
+        mockupFrameHtml('front', data.colour, data.garment, data.front);
+    }
+
+    if (key === 'size') {
+      var chipsHtml = SIZE_OPTIONS.map(function (sz) {
+        return '<div class="size-chip" data-picked="' + (sz === data.size) + '">' + sz + '</div>';
+      }).join('');
+      return '<span class="panel-eyebrow">Step 04 &mdash; Size</span>' +
+        '<div class="panel-title">Choose your size</div>' +
+        '<div class="panel-sub">&nbsp;</div>' +
+        '<div class="size-chip-row" id="stylePickGrid">' + chipsHtml + fakeCursorHtml() + '</div>';
+    }
+
+    if (key === 'checkout') {
+      var price = data.zone === 'both' ? BOTH_PRICE[data.garment] : FRONT_PRICE[data.garment];
+      var zoneLabel = data.zone === 'both' ? 'Front + back' : 'Front print';
+      var label = GARMENT_LABEL[data.garment] + ' — ' + COLOUR_LABEL[data.colour];
+      return '<span class="panel-eyebrow">Step 05 &mdash; Checkout</span>' +
+        '<div class="panel-title">Proceed to<br>checkout</div>' +
+        '<div class="checkout-summary">' +
+          '<img src="' + flatGarmentPath('front', data.colour, data.garment) + '" alt="">' +
+          '<div class="checkout-summary-text"><strong>' + label + '</strong><span>' + zoneLabel + ' &middot; Size ' + data.size + ' &middot; R' + price + '</span></div>' +
+        '</div>' +
+        '<div class="checkout-btn" id="checkoutBtn">Proceed to Checkout</div>' +
+        '<div class="checkout-list">' +
+          '<div class="fulfil-row checkout-row" id="ckRow1"><span class="fulfil-check">&#10003;</span>Delivery details added</div>' +
+          '<div class="fulfil-row checkout-row" id="ckRow2"><span class="fulfil-check">&#10003;</span>Proceed to pay</div>' +
+        '</div>' +
+        fakeCursorHtml();
+    }
+
+    if (key === 'fulfilment') {
+      return '<span class="panel-eyebrow">What happens next</span>' +
+        '<div class="panel-title">Your order is<br>prepared and shipped.</div>' +
+        '<div class="panel-sub">&nbsp;</div>' +
+        '<div class="fulfil-list">' +
+          '<div class="fulfil-row" style="animation-delay:.1s"><span class="fulfil-check">&#10003;</span>Artwork checked and prepped</div>' +
+          '<div class="fulfil-row" style="animation-delay:1.3s"><span class="fulfil-check">&#10003;</span>Printed and shipped</div>' +
+          '<div class="fulfil-row" style="animation-delay:2.5s"><span class="fulfil-check">&#10003;</span>Your order is delivered to your door</div>' +
+        '</div>';
+    }
+
+    if (key === 'cta') {
+      return '<img class="intro-logo" alt="UNIK Labs" src="assets/unik-logo-v3-header.png">' +
+        '<div class="cta-headline">Shop now</div>' +
+        '<div class="cta-sub">Upload your own artwork onto a premium garment.</div>' +
+        '<div class="cta-btn">Create yours &rarr;</div>' +
+        '<div class="cta-domain">uniklabs.co.za</div>';
+    }
+
+    return '';
+  }
+
+  // Animates a fake cursor from below the given grid/row over to whichever
+  // item is marked data-picked="true", then "clicks" it. Identical to
+  // recap.html's runPickCursor -- reused for the garment grid, the zone
+  // grid and the size row.
+  function runPickCursor(panelEl, itemSel, selectedClass) {
+    var cursor = panelEl.querySelector('#fakeCursor');
+    var pickedEl = panelEl.querySelector(itemSel);
+    var gridEl = panelEl.querySelector('#stylePickGrid');
+    if (!cursor || !pickedEl || !gridEl) return;
+    var gridRect = gridEl.getBoundingClientRect();
+    var itemRect = pickedEl.getBoundingClientRect();
+    var targetX = itemRect.left - gridRect.left + itemRect.width / 2 - 13;
+    var targetY = itemRect.top - gridRect.top + itemRect.height / 2 - 13;
+    var startX = gridRect.width / 2 - 13;
+    var startY = gridRect.height + 46;
+
+    cursor.style.transition = 'none';
+    cursor.style.opacity = '0';
+    cursor.style.transform = 'translate(' + startX + 'px,' + startY + 'px)';
+    void cursor.offsetWidth;
+    cursor.style.transition = 'opacity .3s ease';
+    cursor.style.opacity = '1';
+
+    cursorTimerA = setTimeout(function () {
+      cursor.style.transition = 'transform .68s cubic-bezier(.35,.1,.2,1)';
+      cursor.style.transform = 'translate(' + targetX + 'px,' + targetY + 'px)';
+    }, 480);
+    cursorTimerB = setTimeout(function () {
+      cursor.classList.add('is-clicking');
+      pickedEl.classList.add(selectedClass);
+    }, 480 + 680 + 40);
+  }
+
+  // Checkout has its own shape: cursor travels to a single green button,
+  // clicks it, then two confirmation rows reveal in sequence underneath.
+  // Identical to recap.html's runCheckoutSequence.
+  function runCheckoutSequence(panelEl) {
+    var cursor = panelEl.querySelector('#fakeCursor');
+    var btn = panelEl.querySelector('#checkoutBtn');
+    var row1 = panelEl.querySelector('#ckRow1');
+    var row2 = panelEl.querySelector('#ckRow2');
+    if (!cursor || !btn) return;
+    var panelRect = panelEl.getBoundingClientRect();
+    var btnRect = btn.getBoundingClientRect();
+    var targetX = btnRect.left - panelRect.left + btnRect.width / 2 - 13;
+    var targetY = btnRect.top - panelRect.top + btnRect.height / 2 - 13;
+    var startX = panelRect.width / 2 - 13;
+    var startY = btnRect.bottom - panelRect.top + 70;
+
+    cursor.style.transition = 'none';
+    cursor.style.opacity = '0';
+    cursor.style.transform = 'translate(' + startX + 'px,' + startY + 'px)';
+    void cursor.offsetWidth;
+    cursor.style.transition = 'opacity .3s ease';
+    cursor.style.opacity = '1';
+
+    cursorTimerA = setTimeout(function () {
+      cursor.style.transition = 'transform .6s cubic-bezier(.35,.1,.2,1)';
+      cursor.style.transform = 'translate(' + targetX + 'px,' + targetY + 'px)';
+    }, 400);
+    cursorTimerB = setTimeout(function () {
+      cursor.classList.add('is-clicking');
+      btn.classList.add('is-clicked');
+    }, 400 + 600 + 30);
+    cursorTimerC = setTimeout(function () {
+      if (row1) row1.classList.add('is-visible');
+    }, 400 + 600 + 30 + 250);
+    cursorTimerD = setTimeout(function () {
+      if (row2) row2.classList.add('is-visible');
+    }, 400 + 600 + 30 + 250 + 700);
+  }
+
+  function buildStage(data) {
+    storyBars.innerHTML = '';
+    storyPanels.innerHTML = '';
+    segFills = [];
+    panels = [];
+
+    currentSteps.forEach(function () {
+      var seg = document.createElement('div');
+      seg.className = 'seg';
+      var fill = document.createElement('div');
+      fill.className = 'seg-fill';
+      seg.appendChild(fill);
+      storyBars.appendChild(seg);
+      segFills.push(fill);
+    });
+
+    currentSteps.forEach(function (step) {
+      var panel = document.createElement('div');
+      panel.className = 'panel panel-' + step.key;
+      storyPanels.appendChild(panel);
+      panels.push(panel);
+    });
+
+    stage.style.setProperty('--accent', ACCENT);
+  }
+
+  function setSegState(i) {
+    segFills.forEach(function (fill, j) {
+      fill.classList.remove('is-done', 'is-filling');
+      fill.style.animationDuration = '';
+      if (j < i) {
+        fill.classList.add('is-done');
+      } else if (j > i) {
+        fill.style.width = '0%';
+      }
+    });
+  }
+
+  function activateSeg(i, ms) {
+    var fill = segFills[i];
+    if (!fill) return;
+    fill.style.width = '0%';
+    fill.classList.remove('is-filling');
+    void fill.offsetWidth;
+    if (ms) {
+      fill.style.animationDuration = ms + 'ms';
+      fill.classList.add('is-filling');
+    } else {
+      fill.classList.add('is-done');
+    }
+  }
+
+  function goTo(i, data) {
+    if (i < 0) i = 0;
+    if (i >= currentSteps.length) i = currentSteps.length - 1;
+    clearTimeout(stepTimer);
+    clearTimeout(cursorTimerA);
+    clearTimeout(cursorTimerB);
+    clearTimeout(cursorTimerC);
+    clearTimeout(cursorTimerD);
+    index = i;
+    var step = currentSteps[i];
+    var panelEl = panels[i];
+    panelEl.innerHTML = panelHtml(step.key, data);
+    panels.forEach(function (p, j) { p.classList.toggle('is-active', j === i); });
+    setSegState(i);
+    activateSeg(i, step.ms);
+
+    if (step.key === 'garment' || step.key === 'zone') runPickCursor(panelEl, '.style-pick-card[data-picked="true"]', 'is-selected');
+    if (step.key === 'size') runPickCursor(panelEl, '.size-chip[data-picked="true"]', 'is-selected');
+    if (step.key === 'checkout') runCheckoutSequence(panelEl);
+
+    if (step.ms) {
+      currentStepMs = step.ms;
+      stepStart = Date.now();
+      stepRemaining = step.ms;
+      stepTimer = setTimeout(function () { goTo(index + 1, data); }, step.ms);
+    }
+  }
+
+  function pause() {
+    if (paused || !stepTimer) return;
+    paused = true;
+    clearTimeout(stepTimer);
+    stepRemaining = currentStepMs - (Date.now() - stepStart);
+    stage.classList.add('is-paused');
+    btnPlayPause.textContent = 'Play';
+  }
+
+  function resume(data) {
+    if (!paused) return;
+    paused = false;
+    stage.classList.remove('is-paused');
+    btnPlayPause.textContent = 'Pause';
+    if (stepRemaining > 0) {
+      stepStart = Date.now();
+      currentStepMs = stepRemaining;
+      stepTimer = setTimeout(function () { goTo(index + 1, data); }, stepRemaining);
+    }
+  }
+
+  var currentData = null;
+
+  btnCreate.addEventListener('click', function () {
+    var zone = picked.back ? 'both' : 'front';
+    currentData = {
+      garment: garmentSelect.value,
+      colour: colourSelect.value,
+      size: sizeSelect.value,
+      zone: zone,
+      front: URL.createObjectURL(picked.front),
+      back: picked.back ? URL.createObjectURL(picked.back) : null
+    };
+    currentSteps = buildSteps(currentData);
+    stageEmpty.style.display = 'none';
+    stage.classList.add('is-live');
+    stageControls.hidden = false;
+    paused = false;
+    btnPlayPause.textContent = 'Pause';
+    buildStage(currentData);
+    goTo(0, currentData);
+  });
+
+  btnPlayPause.addEventListener('click', function () {
+    if (paused) resume(currentData); else pause();
+  });
+  btnReplay.addEventListener('click', function () {
+    if (!currentData) return;
+    paused = false;
+    stage.classList.remove('is-paused');
+    btnPlayPause.textContent = 'Pause';
+    goTo(0, currentData);
+  });
+  tapPrev.addEventListener('click', function () { if (currentData) goTo(index - 1, currentData); });
+  tapNext.addEventListener('click', function () { if (currentData) goTo(index + 1, currentData); });
+
+  document.addEventListener('keydown', function (e) {
+    if (!currentData) return;
+    if (e.code === 'Space') { e.preventDefault(); if (paused) resume(currentData); else pause(); }
+    if (e.code === 'ArrowRight') goTo(index + 1, currentData);
+    if (e.code === 'ArrowLeft') goTo(index - 1, currentData);
+  });
+
+  // ── Export to an actual video file (desktop only) -- identical to
+  // recap.html's export function; see its comments for the full rationale
+  // (tab-capture via getDisplayMedia, no canvas re-render, mobile/embedded
+  // fallbacks). ──
+  function isProbablyMobile() {
+    var ua = navigator.userAgent || '';
+    var iPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return /Android|iPhone|iPod|iPad|Mobile/i.test(ua) || iPadOS;
+  }
+
+  var EXPORT_CTA_HOLD_MS = 3000;
+
+  btnExport.addEventListener('click', function () {
+    if (!currentData) return;
+
+    if (isProbablyMobile() || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      alert('Phone browsers can\'t export video directly -- iOS and most Android browsers block in-page screen capture. Use your phone\'s own screen recorder instead: iOS -- Control Centre -> Screen Recording. Android -- Quick Settings -> Screen Record. Then hit Replay and record the preview above. Export video works directly on a laptop/desktop browser.');
+      return;
+    }
+
+    var displayMediaPromise;
+    try {
+      displayMediaPromise = navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false });
+    } catch (err) {
+      alert('This browser blocked screen recording outright: ' + (err && err.message ? err.message : 'unknown error') + '. If you\'re viewing this inside an embedded preview (like a Claude Artifact), open the page directly in your browser tab instead and try again.');
+      return;
+    }
+
+    displayMediaPromise.then(function (stream) {
+      var mimeType = ['video/mp4;codecs=h264', 'video/webm;codecs=vp9', 'video/webm']
+        .find(function (t) { return window.MediaRecorder && MediaRecorder.isTypeSupported(t); }) || '';
+      var recorder;
+      try {
+        recorder = new MediaRecorder(stream, mimeType ? { mimeType: mimeType } : undefined);
+      } catch (err) {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        alert('Could not start recording: ' + err.message);
+        return;
+      }
+
+      var chunks = [];
+      recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      recorder.onstop = function () {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        document.body.classList.remove('is-exporting');
+        btnExport.disabled = false;
+        btnExport.textContent = 'Export video';
+        if (!chunks.length) {
+          alert('The recording captured no frames, so there\'s nothing to download. This can happen if the shared tab wasn\'t this one -- try Export video again and pick "This tab" in the share dialog.');
+          return;
+        }
+        var blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+        var url = URL.createObjectURL(blob);
+        var ext = mimeType.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'unik-custom-upload-recap.' + ext;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      };
+
+      document.body.classList.add('is-exporting');
+      btnExport.disabled = true;
+      btnExport.textContent = 'Recording…';
+      paused = false;
+      stage.classList.remove('is-paused');
+      btnPlayPause.textContent = 'Pause';
+
+      recorder.start();
+      goTo(0, currentData);
+
+      var totalMs = currentSteps.reduce(function (sum, s) { return sum + (s.ms || EXPORT_CTA_HOLD_MS); }, 0);
+      setTimeout(function () { if (recorder.state !== 'inactive') recorder.stop(); }, totalMs);
+      var videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.addEventListener('ended', function () {
+          if (recorder.state !== 'inactive') recorder.stop();
+        });
+      }
+    }).catch(function (err) {
+      var name = err && err.name;
+      document.body.classList.remove('is-exporting');
+      btnExport.disabled = false;
+      btnExport.textContent = 'Export video';
+      if (name === 'NotAllowedError') {
+        alert('Screen recording was blocked or dismissed. If you tapped "Share" and it still didn\'t start, this page is likely running inside an embedded preview (such as a Claude Artifact) that blocks screen capture -- open recap-custom.html directly in your own browser tab, not inside a preview, and try again.');
+        return;
+      }
+      alert('Could not start screen recording: ' + (name || 'unknown error') + (err && err.message ? ' -- ' + err.message : '') + '. You can still screen-record the preview manually.');
+    });
+  });
+})();
+</script>
+</body>
+</html>

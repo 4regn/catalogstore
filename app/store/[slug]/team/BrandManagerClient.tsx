@@ -597,15 +597,37 @@ function GrowthPanel({ manager, authedFetch, onSaved, toast }: { manager: Manage
   );
 }
 
+const RECAP_TOOLS = {
+  ai: {
+    label: "AI Studio Demo",
+    src: "/private-templates/unik-labs/recap.html",
+    title: "AI Studio Recap Builder",
+    desc: "Turn a finished AI Studio generation into a shareable 9:16 story for Reels, TikTok or Stories -- garment, colour, the photos, the style, the name, the design reveal, the mockup and size, then export or screen-record it.",
+  },
+  custom: {
+    label: "Custom Upload Demo",
+    src: "/private-templates/unik-labs/recap-custom.html",
+    title: "Custom Upload Recap Builder",
+    desc: "Same idea for a Custom Upload order -- garment, colour, front (and optional back) artwork placed on the real print zone, size, then export or screen-record it. Leave Back artwork empty for a front-only order and it's excluded automatically, priced to match.",
+  },
+} as const;
+
 function ContentPanel() {
+  const [tool, setTool] = useState<keyof typeof RECAP_TOOLS>("ai");
+  const active = RECAP_TOOLS[tool];
   return (
     <section>
       <article className="bm-card" style={{ padding: 0, overflow: "hidden" }}>
         <div className="bm-section-head" style={{ padding: "20px 20px 0" }}>
           <h2 className="bm-section-title">Recap Builder</h2>
-          <p className="bm-section-desc">Turn a finished generation into a shareable 9:16 story for Reels, TikTok or Stories. Drop in the photos, the design and the mockup, then export or screen-record it.</p>
+          <p className="bm-section-desc">{active.desc}</p>
+          <div style={{ display: "flex", gap: 8, margin: "14px 0 4px" }}>
+            {(Object.keys(RECAP_TOOLS) as Array<keyof typeof RECAP_TOOLS>).map((key) => (
+              <button key={key} type="button" className="bm-status-btn" data-active={tool === key} onClick={() => setTool(key)}>{RECAP_TOOLS[key].label}</button>
+            ))}
+          </div>
         </div>
-        <iframe src="/private-templates/unik-labs/recap.html" title="Recap Builder" className="bm-content-frame" />
+        <iframe key={tool} src={active.src} title={active.title} className="bm-content-frame" />
       </article>
     </section>
   );
