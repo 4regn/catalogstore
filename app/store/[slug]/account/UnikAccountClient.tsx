@@ -44,6 +44,16 @@ const AI_GARMENT_INFO: Record<string, { label: string; price: number; compareAtP
   "tee-budget": { label: "Tee (Budget A4)", price: 250, compareAtPrice: 250 },
 };
 const garmentInfo = (garment: string | null) => AI_GARMENT_INFO[garment || "tee"] || AI_GARMENT_INFO.tee;
+// Mirrors PRICES in upload.html -- Custom Upload prices by zone (front-only
+// vs front+back), which is a different table from the AI Studio one above.
+const CUSTOM_PRICES: Record<string, Record<string, { sale: number; compareAtPrice: number }>> = {
+  hoodie: { front: { sale: 350, compareAtPrice: 450 }, both: { sale: 450, compareAtPrice: 550 } },
+  tee: { front: { sale: 299, compareAtPrice: 399 }, both: { sale: 379, compareAtPrice: 479 } },
+};
+const customGarmentInfo = (garment: string | null, zone: string) => {
+  const g = CUSTOM_PRICES[garment || "tee"] || CUSTOM_PRICES.tee;
+  return (zone === "both" ? g.both : g.front) || g.front;
+};
 
 export default function UnikAccountClient({ storeName, basePath }: { storeName: string; basePath: string }) {
   const [sessionReady, setSessionReady] = useState(false);
@@ -240,6 +250,33 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
     window.location.href = "/private-templates/unik-labs/checkout.html";
   }
 
+  // A custom-upload design saved to this account already has its real
+  // artwork uploaded to Storage (that happened at the original Add to
+  // Cart, or -- for an older order -- was backfilled by checkout) -- so
+  // reordering it only needs a designId reference, the same fast claim
+  // path checkout/create already uses for a freshly-added cart item.
+  function addCustomDesignToCart(design: AccountData["designs"][number]) {
+    const key = "unik-labs-cart-v1";
+    let items: Array<Record<string, unknown>> = [];
+    try { items = JSON.parse(localStorage.getItem(key) || "[]"); } catch { items = []; }
+    const zone = String((design.options as any)?.zone || "front");
+    const info = customGarmentInfo(design.garment, zone);
+    items.push({
+      id: `unik-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      qty: 1,
+      addedAt: new Date().toISOString(),
+      source: "custom-upload",
+      name: design.name || "UNIK Labs Custom Print",
+      meta: [garmentInfo(design.garment).label, design.colour, design.size, zone === "both" ? "Front + back" : "Front print"].filter(Boolean).join(" · "),
+      price: info.sale,
+      compareAtPrice: info.compareAtPrice,
+      preview: design.mockup_url,
+      options: { customUpload: { designId: design.id, garment: design.garment, colour: design.colour, size: design.size, zone } },
+    });
+    localStorage.setItem(key, JSON.stringify(items));
+    window.location.href = "/private-templates/unik-labs/checkout.html";
+  }
+
   const firstName = useMemo(() => (account?.profile.full_name || account?.profile.email || "Member").split(/[ @]/)[0], [account]);
 
   const Eye = ({ open }: { open: boolean }) => open ? (
@@ -414,7 +451,11 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
                 <p className="ua-kicker">{isCustom ? "Custom upload" : "Saved generation"}</p>
                 <h2>{selectedDesign.name || "UNIK AI Design"}</h2>
                 <p>{[garmentInfo(selectedDesign.garment).label, selectedDesign.colour, selectedDesign.size, selectedDesign.style?.replaceAll("_", " ")].filter(Boolean).join(" · ")}</p>
-                {!isCustom && <button className="ua-design-cart" type="button" onClick={() => addDesignToCart(selectedDesign)}>Add to cart · {money(garmentInfo(selectedDesign.garment).price)}</button>}
+                {isCustom ? (
+                  <button className="ua-design-cart" type="button" onClick={() => addCustomDesignToCart(selectedDesign)}>Add to cart · {money(customGarmentInfo(selectedDesign.garment, zone).sale)}</button>
+                ) : (
+                  <button className="ua-design-cart" type="button" onClick={() => addDesignToCart(selectedDesign)}>Add to cart · {money(garmentInfo(selectedDesign.garment).price)}</button>
+                )}
               </div>
             </section>
           </div>

@@ -7,6 +7,22 @@
 -- is set when the design is claimed at checkout.
 alter table public.unik_designs alter column auth_user_id drop not null;
 
-alter table public.unik_designs drop constraint if exists unik_designs_status_check;
+-- Find and drop whatever the existing status check constraint is actually
+-- named (rather than assuming Postgres's default auto-generated name),
+-- then replace it with one that also allows 'draft'.
+do $$
+declare
+  con record;
+begin
+  for con in
+    select conname from pg_constraint
+    where conrelid = 'public.unik_designs'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%status%'
+  loop
+    execute format('alter table public.unik_designs drop constraint %I', con.conname);
+  end loop;
+end $$;
+
 alter table public.unik_designs add constraint unik_designs_status_check
   check (status in ('draft', 'processing', 'generated', 'saved', 'in_cart', 'checkout_started', 'paid', 'failed', 'expired'));
