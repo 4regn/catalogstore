@@ -214,7 +214,10 @@
       function render(){
         const items = UNIK_CART.get();
         if(!items.length){
-          itemsEl.innerHTML = '<div class="cart-empty">Your cart is waiting for something UNIK.<br><a href="studio.html">Create with AI</a> · <a href="upload.html">Upload artwork</a></div>';
+          {
+            const navBase = window.UNIK_NAV ? window.UNIK_NAV.basePath() : '';
+            itemsEl.innerHTML = `<div class="cart-empty">Your cart is waiting for something UNIK.<br><a href="${navBase}/studio" target="_top">Create with AI</a> · <a href="${navBase}/upload" target="_top">Upload artwork</a></div>`;
+          }
           totalsEl.hidden = true;
           button.disabled = true;
           return;
@@ -268,7 +271,10 @@
             }
             if (sessionCheck.status === 401) {
               saveDraftCustomer(data);
-              window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/checkout.html');
+              {
+                const navBase = window.UNIK_NAV ? window.UNIK_NAV.basePath() : '';
+                window.top.location.href = navBase + '/account?next=' + encodeURIComponent(navBase + '/checkout');
+              }
               return;
             }
           }

@@ -1099,7 +1099,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
 fetch('/api/unik/auth/session', { method: 'GET', credentials: 'include', cache: 'no-store' })
   .then(res => {
     if (res.status === 401) {
-      window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/studio.html');
+      window.top.location.href = (window.UNIK_NAV ? window.UNIK_NAV.basePath() : '') + '/account?next=' + encodeURIComponent((window.UNIK_NAV ? window.UNIK_NAV.basePath() : '') + '/studio');
     }
   })
   .catch(() => {});
@@ -1906,7 +1906,7 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
       method:'GET', credentials:'include', cache:'no-store'
     });
     if (sessionCheck.status === 401) {
-      window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/studio.html');
+      window.top.location.href = (window.UNIK_NAV ? window.UNIK_NAV.basePath() : '') + '/account?next=' + encodeURIComponent((window.UNIK_NAV ? window.UNIK_NAV.basePath() : '') + '/studio');
       return;
     }
     if (!sessionCheck.ok) throw new Error('Could not verify your session. Please try again.');
@@ -1929,7 +1929,7 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
       ? await response.json()
       : { error: response.status === 413 ? 'Your photos are too large. Try fewer or smaller photos.' : 'The generation service returned an unexpected response.' };
     if (response.status === 401) {
-      window.top.location.href = '/account?next=' + encodeURIComponent('/private-templates/unik-labs/studio.html');
+      window.top.location.href = (window.UNIK_NAV ? window.UNIK_NAV.basePath() : '') + '/account?next=' + encodeURIComponent((window.UNIK_NAV ? window.UNIK_NAV.basePath() : '') + '/studio');
       return;
     }
     if (!response.ok) throw new Error(payload.error || 'Could not generate your design');
@@ -2099,7 +2099,7 @@ document.getElementById('btnAddToCart').addEventListener('click', () => {
   setCartQty(1);
 });
 
-document.getElementById('btnCheckoutNow').addEventListener('click', () => { location.href = 'checkout.html'; });
+document.getElementById('btnCheckoutNow').addEventListener('click', () => { window.top.location.href = (window.UNIK_NAV ? window.UNIK_NAV.basePath() : '') + '/checkout'; });
 
 document.getElementById('btnAgain').addEventListener('click', () => {
   document.getElementById('resultsScreen').classList.remove('visible');

@@ -1334,12 +1334,13 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
 });
 
 document.getElementById('btnUpCheckoutNow').addEventListener('click',async(e)=>{
-  if(!PENDING_CUSTOM_UPLOADS.size){location.href='checkout.html';return;}
+  const toCheckout=()=>{window.top.location.href=(window.UNIK_NAV?window.UNIK_NAV.basePath():'')+'/checkout';};
+  if(!PENDING_CUSTOM_UPLOADS.size){toCheckout();return;}
   const btn=e.currentTarget;
   btn.textContent='Finishing upload…';
   const timeout=new Promise(resolve=>setTimeout(resolve,15000));
   await Promise.race([Promise.all(PENDING_CUSTOM_UPLOADS.values()),timeout]);
-  location.href='checkout.html';
+  toCheckout();
 });
 
 // ── Init ──

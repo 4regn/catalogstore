@@ -513,15 +513,15 @@
       <div class="uf-inner">
         <div class="uf-grid">
           <div class="uf-brand">
-            <a class="uf-logo" href="index.html" aria-label="UNIK home"><img src="assets/unik-logo-v3-header.png" alt="UNIK — For you. And only you"></a>
+            <a class="uf-logo" href="${base}/" target="_top" aria-label="UNIK home"><img src="assets/unik-logo-v3-header.png" alt="UNIK — For you. And only you"></a>
             <p class="uf-desc">AI-powered apparel design, made uniquely yours. Create custom artwork, preview it on premium garments and bring your ideas to life.</p>
             <p class="uf-location">Built in Durban, South Africa.</p>
           </div>
           <nav class="uf-col" aria-label="Products">
             <h3>Products</h3>
             <ul>
-              <li><a href="studio.html">AI Design Studio</a></li>
-              <li><a href="upload.html">Custom Upload</a></li>
+              <li><a href="${base}/studio" target="_top">AI Design Studio</a></li>
+              <li><a href="${base}/upload" target="_top">Custom Upload</a></li>
               <li><span class="uf-soon">Plain Garments <em>Coming Soon</em></span></li>
             </ul>
           </nav>
@@ -752,6 +752,11 @@
     if (isHome) document.documentElement.dataset.unikPage = 'home';
     const account = currentAccount();
     const accountLabel = account?.name ? account.name.split(/\s+/)[0] : 'Account';
+    // Every link below has to escape this iframe (target="_top") and point
+    // at the real top-level route -- see UnikLabsIframePage.tsx -- so the
+    // browser's address bar actually reflects studio/upload/checkout instead
+    // of sitting frozen on whatever URL the visitor first landed on.
+    const base = unikBasePath();
     if (isHome) {
       const landingLogo = document.querySelector('.nav-logo');
       if (landingLogo) {
@@ -762,7 +767,7 @@
       const menu = document.createElement('div');
       menu.className = 'unik-home-menu';
       const bagIcon = '<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewBox="0 0 20 22" aria-hidden="true"><path d="M4 7h12l1 13H3L4 7z"></path><path d="M7 7V5a3 3 0 016 0v2"></path></svg>';
-      menu.innerHTML = '<button class="unik-home-close" aria-label="Close menu">&times;</button><div><a href="studio.html">Create with AI</a><a href="upload.html">Upload artwork</a><a href="/account" target="_top">'+accountLabel+'</a><a href="checkout.html" class="unik-drawer-cart">'+bagIcon+'<span>Cart</span><span data-unik-cart-count class="unik-cart-count" hidden>0</span></a><button class="unik-home-theme" data-unik-theme-toggle type="button">Theme</button></div>';
+      menu.innerHTML = '<button class="unik-home-close" aria-label="Close menu">&times;</button><div><a href="'+base+'/studio" target="_top">Create with AI</a><a href="'+base+'/upload" target="_top">Upload artwork</a><a href="'+base+'/account" target="_top">'+accountLabel+'</a><a href="'+base+'/checkout" target="_top" class="unik-drawer-cart">'+bagIcon+'<span>Cart</span><span data-unik-cart-count class="unik-cart-count" hidden>0</span></a><button class="unik-home-theme" data-unik-theme-toggle type="button">Theme</button></div>';
       document.body.appendChild(menu);
       const trigger = document.querySelector('.nav-icon-btn');
       if (trigger) trigger.addEventListener('click', () => menu.classList.add('open'));
@@ -774,13 +779,14 @@
         const actions = document.createElement('div');
         actions.className = 'unik-header-actions';
         const accountLink = document.createElement('a');
-        accountLink.href = '/account';
+        accountLink.href = base + '/account';
         accountLink.target = '_top';
         accountLink.className = 'unik-header-account';
         accountLink.setAttribute('aria-label', account ? `Open ${accountLabel}'s account` : 'Open account');
         accountLink.innerHTML = '<span class="unik-account-glyph" aria-hidden="true"></span>';
         const cartLink = document.createElement('a');
-        cartLink.href = 'checkout.html';
+        cartLink.href = base + '/checkout';
+        cartLink.target = '_top';
         cartLink.className = 'unik-header-cart';
         cartLink.setAttribute('aria-label','Open cart');
         const countBadge = document.createElement('span');
@@ -802,13 +808,13 @@
     nav.setAttribute('aria-label', 'UNIK Labs product navigation');
     nav.innerHTML = `
       <div class="unik-brand-group">
-        <a class="unik-site-brand" href="index.html" aria-label="UNIK home"><img class="unik-site-brand-logo" src="assets/unik-logo-v3-header.png" alt="UNIK — For you. And only you"></a>
+        <a class="unik-site-brand" href="${base}/" target="_top" aria-label="UNIK home"><img class="unik-site-brand-logo" src="assets/unik-logo-v3-header.png" alt="UNIK — For you. And only you"></a>
       </div>
       <div class="unik-site-links">
-        <a href="studio.html"${path === 'studio.html' ? ' class="active"' : ''}>AI Studio</a>
-        <a href="upload.html"${path === 'upload.html' ? ' class="active"' : ''}>Custom Upload</a>
-        <a href="/account" target="_top" class="unik-account-link">${accountLabel}</a>
-        <a href="checkout.html" class="unik-cart-link${path === 'checkout.html' ? ' active' : ''}">Cart <span data-unik-cart-count class="unik-cart-count" hidden>0</span></a>
+        <a href="${base}/studio" target="_top"${path === 'studio.html' ? ' class="active"' : ''}>AI Studio</a>
+        <a href="${base}/upload" target="_top"${path === 'upload.html' ? ' class="active"' : ''}>Custom Upload</a>
+        <a href="${base}/account" target="_top" class="unik-account-link">${accountLabel}</a>
+        <a href="${base}/checkout" target="_top" class="unik-cart-link${path === 'checkout.html' ? ' active' : ''}">Cart <span data-unik-cart-count class="unik-cart-count" hidden>0</span></a>
       </div>
       <button class="unik-theme-toggle unik-nav-theme" data-unik-theme-toggle type="button">Theme</button>`;
     document.body.insertBefore(nav, document.body.firstChild);
@@ -925,19 +931,50 @@
         if (name) customerName = name;
         if (em && em.value) customerEmail = em.value;
       }
+      // window.top.location, not this iframe's own location -- now that every
+      // "page" has a real top-level route, that's what shows a shopper's true
+      // visit trail (e.g. "/studio") in the live-visitor monitor instead of
+      // the iframe's internal file path. Same-origin, so no CORS restriction.
+      let topPath = location.pathname;
+      try { topPath = window.top.location.pathname; } catch (_) {}
       fetch('/api/storefront/heartbeat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
-        body: JSON.stringify({ slug: 'unik', visitorId: visitorId(), status, path: location.pathname, cartItemCount, cartValue, customerName, customerEmail }),
+        body: JSON.stringify({ slug: 'unik', visitorId: visitorId(), status, path: topPath, cartItemCount, cartValue, customerName, customerEmail }),
       }).catch(function () {});
     } catch (_) {}
+  }
+
+  // Any plain <a href="studio.html">-style link authored directly in a page's
+  // own static markup (not built by initNavigation/initFooter above, which
+  // already emit the right target=_top top-level hrefs themselves) -- e.g.
+  // index.html's hero/garment-tile buttons. Anchors carrying a query string
+  // (the calibration tool's "upload.html?calibrate=...") or the "cal-btn"
+  // class (its "Return to custom upload" exit link) are left alone on
+  // purpose -- they're an internal debug tool, not part of the customer
+  // journey. Content that's rendered later from a JS template (checkout.html's
+  // "cart is empty" links, account.html's empty-history links) builds its
+  // own top-level href at render time instead, since this runs once at init.
+  function patchTopLevelLinks() {
+    const base = unikBasePath();
+    const TOP_LEVEL = { 'index.html': base + '/', 'studio.html': base + '/studio', 'upload.html': base + '/upload', 'checkout.html': base + '/checkout', '/account': base + '/account' };
+    document.querySelectorAll('a[href]').forEach(function (a) {
+      if (a.classList.contains('cal-btn')) return;
+      const href = a.getAttribute('href');
+      if (Object.prototype.hasOwnProperty.call(TOP_LEVEL, href)) {
+        a.setAttribute('href', TOP_LEVEL[href]);
+        a.setAttribute('target', '_top');
+      }
+    });
   }
 
   window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify, upgradeCustomUpload, attachCustomUploadRaw };
   window.UNIK_ACCOUNT = { get:currentAccount, signIn, signOut, orders:accountOrders, generations, saveGeneration };
   window.UNIK_THEME = { get:currentTheme, apply:applyTheme, toggle:toggleTheme };
+  window.UNIK_NAV = { basePath: unikBasePath };
   initNavigation();
   initSizeGuide();
   initFooter();
+  patchTopLevelLinks();
   initSupportChat();
   updateCount();
   window.addEventListener('storage', updateCount);
