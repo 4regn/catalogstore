@@ -72,7 +72,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .gg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
 .gc{border:1.5px solid var(--border);border-radius:14px;cursor:pointer;transition:all .3s var(--spring);background:var(--bg);position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;}
 .gc:hover{border-color:#aaa;transform:translateY(-2px);box-shadow:0 8px 20px -8px rgba(10,10,10,.14);}
-.gc.sel{border-color:var(--black);border-width:2px;background:#fff;transform:translateY(-2px);box-shadow:0 0 0 1px rgba(255,255,255,.8),0 8px 24px -8px rgba(10,10,10,.22);}
+.gc.sel{border-color:var(--black);border-width:2px;background:#fff;transform:translateY(-2px);box-shadow:0 0 0 1px #007517,0 0 14px 3px rgba(0,117,23,.5),0 8px 24px -8px rgba(10,10,10,.22);}
 .gc.sel::after{content:'';position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--black) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5 L4.5 8.5 L11 1' stroke='white' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat;z-index:2;}
 .gc img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;}
 .gc-lbl{padding:9px 12px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;text-align:center;}
@@ -84,7 +84,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .cg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
 .cc{border:1.5px solid var(--border);border-radius:14px;cursor:pointer;overflow:hidden;transition:all .3s var(--spring);background:var(--bg);position:relative;-webkit-tap-highlight-color:transparent;}
 .cc:hover{border-color:#aaa;transform:translateY(-2px);}
-.cc.sel{border-color:var(--black);border-width:2px;transform:translateY(-2px);box-shadow:0 8px 24px -8px rgba(10,10,10,.22);}
+.cc.sel{border-color:var(--black);border-width:2px;transform:translateY(-2px);box-shadow:0 0 0 1px #007517,0 0 14px 3px rgba(0,117,23,.5),0 8px 24px -8px rgba(10,10,10,.22);}
 .cc.sel::after{content:'';position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--black) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5 L4.5 8.5 L11 1' stroke='white' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat;z-index:2;}
 .cc img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;}
 .cc-lbl{padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;text-align:center;background:#fff;}
@@ -93,7 +93,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .zone-cards{display:flex;flex-direction:column;gap:12px;}
 .zc{border:1.5px solid var(--border);border-radius:14px;cursor:pointer;transition:all .3s var(--spring);background:var(--bg);display:flex;align-items:center;gap:16px;padding:16px 18px;-webkit-tap-highlight-color:transparent;}
 .zc:hover{background:#fff;border-color:#aaa;transform:translateY(-1px);}
-.zc.sel{background:var(--black);border-color:var(--black);color:#fff;}
+.zc.sel{background:var(--black);border-color:var(--black);color:#fff;box-shadow:0 0 0 1px #007517,0 0 14px 3px rgba(0,117,23,.5);}
 
 /* Mini garment thumbnail */
 .mini-garment{width:56px;flex-shrink:0;perspective:300px;}
@@ -155,7 +155,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
 .size-seg{display:flex;background:var(--bg);border-radius:12px;padding:4px;gap:3px;border:1px solid var(--border);}
 .sz-btn{flex:1;padding:13px 4px;border:none;background:transparent;border-radius:10px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s var(--spring);color:var(--muted);-webkit-tap-highlight-color:transparent;}
 .sz-btn:hover{color:var(--black);}
-.sz-btn.sel{background:var(--chrome);color:#fff;box-shadow:0 .5px 0 rgba(255,255,255,.2) inset,0 4px 14px rgba(10,10,10,.28);}
+.sz-btn.sel{background:var(--chrome);color:#fff;box-shadow:0 .5px 0 rgba(255,255,255,.2) inset,0 4px 14px rgba(10,10,10,.28),0 0 0 1px #007517,0 0 14px 3px rgba(0,117,23,.5);}
 
 /* Checkout full-width */
 .checkout-wrap{padding:16px 22px 26px;}
