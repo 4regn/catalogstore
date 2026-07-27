@@ -50,14 +50,44 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
   const [signedIn, setSignedIn] = useState(false);
   const [account, setAccount] = useState<AccountData | null>(null);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [authView, setAuthView] = useState<"form" | "forgot" | "recovery">("form");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryConfirm, setRecoveryConfirm] = useState("");
+  const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
   const [selectedDesign, setSelectedDesign] = useState<AccountData["designs"][number] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [orderDetailError, setOrderDetailError] = useState("");
+
+  const passwordChecks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+  };
+  const allChecksPassed = Object.values(passwordChecks).every(Boolean);
+  const passwordsMatch = password === confirmPassword && confirmPassword !== "";
+
+  const recoveryChecks = {
+    length: recoveryPassword.length >= 8,
+    uppercase: /[A-Z]/.test(recoveryPassword),
+    lowercase: /[a-z]/.test(recoveryPassword),
+    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(recoveryPassword),
+  };
+  const recoveryChecksPassed = Object.values(recoveryChecks).every(Boolean);
+  const recoveryMatches = recoveryPassword === recoveryConfirm && recoveryConfirm !== "";
 
   const loadAccount = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -99,7 +129,16 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
 
   useEffect(() => {
     loadAccount().catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load your account"));
-    const { data } = supabase.auth.onAuthStateChange(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      // A reset-password email link lands back here with a recovery token;
+      // Supabase's client picks it up and fires this instead of a normal
+      // sign-in, so route to the "set a new password" view rather than
+      // straight into the dashboard.
+      if (event === "PASSWORD_RECOVERY") {
+        setAuthView("recovery");
+        setSessionReady(true);
+        return;
+      }
       window.setTimeout(() => loadAccount().catch(() => undefined), 0);
     });
     return () => data.subscription.unsubscribe();
@@ -113,25 +152,50 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
   }
 
   async function emailSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setError(""); setMessage("");
-    const values = new FormData(event.currentTarget);
-    const email = String(values.get("email") || "").trim().toLowerCase();
-    const password = String(values.get("password") || "");
-    const fullName = String(values.get("fullName") || "").trim();
+    event.preventDefault(); setError(""); setMessage("");
+    const trimmedEmail = email.trim().toLowerCase();
 
     if (mode === "signup") {
+      if (!allChecksPassed) { setError("Password does not meet all requirements."); return; }
+      if (!passwordsMatch) { setError("Passwords do not match."); return; }
+      setBusy(true);
       const { data, error: authError } = await supabase.auth.signUp({
-        email, password,
-        options: { data: { full_name: fullName }, emailRedirectTo: window.location.href.split("#")[0] },
+        email: trimmedEmail, password,
+        options: { data: { full_name: fullName.trim() }, emailRedirectTo: window.location.href.split("#")[0] },
       });
       if (authError) setError(authError.message);
       else if (!data.session) setMessage("Check your email to confirm your account, then return here to sign in.");
       else await loadAccount();
     } else {
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      setBusy(true);
+      const { error: authError } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
       if (authError) setError(authError.message);
       else await loadAccount();
     }
+    setBusy(false);
+  }
+
+  async function requestPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError("");
+    const trimmedEmail = resetEmail.trim().toLowerCase();
+    const redirectTo = window.location.href.split("#")[0].split("?")[0];
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo });
+    if (authError) setError(authError.message);
+    else setResetSent(true);
+    setBusy(false);
+  }
+
+  async function recoverySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError("");
+    if (!recoveryChecksPassed) { setError("Password does not meet all requirements."); return; }
+    if (!recoveryMatches) { setError("Passwords do not match."); return; }
+    setBusy(true);
+    const { error: authError } = await supabase.auth.updateUser({ password: recoveryPassword });
+    if (authError) { setError(authError.message); setBusy(false); return; }
+    setAuthView("form");
+    setMessage("Password updated — you're signed in.");
+    setRecoveryPassword(""); setRecoveryConfirm("");
+    await loadAccount();
     setBusy(false);
   }
 
@@ -151,6 +215,8 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
     await fetch("/api/unik/auth/session", { method: "DELETE", credentials: "include" });
     await supabase.auth.signOut();
     setAccount(null); setSignedIn(false); setBusy(false);
+    setEmail(""); setPassword(""); setConfirmPassword(""); setFullName("");
+    setAuthView("form"); setMode("signin");
   }
 
   function addDesignToCart(design: AccountData["designs"][number]) {
@@ -176,6 +242,12 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
 
   const firstName = useMemo(() => (account?.profile.full_name || account?.profile.email || "Member").split(/[ @]/)[0], [account]);
 
+  const Eye = ({ open }: { open: boolean }) => open ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  );
+
   return (
     <main className="ua-page">
       <header className="ua-nav">
@@ -183,7 +255,41 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
         <a href="/" className="ua-return">Return to studio</a>
       </header>
 
-      {!sessionReady ? <section className="ua-loading">Connecting your secure UNIK session…</section> : !signedIn ? (
+      {!sessionReady ? <section className="ua-loading">Connecting your secure UNIK session…</section> : authView === "recovery" ? (
+        <section className="ua-auth">
+          <div className="ua-intro">
+            <p className="ua-kicker">UNIK Labs membership</p>
+            <h1>Set a new<br />password.</h1>
+            <p>Pick something you&apos;ll remember. You&apos;ll be signed in straight after.</p>
+          </div>
+          <div className="ua-card">
+            <form onSubmit={recoverySubmit}>
+              <label>New password
+                <div className="ua-pass-wrap">
+                  <input type={showRecoveryPassword ? "text" : "password"} value={recoveryPassword} onChange={(e) => setRecoveryPassword(e.target.value)} autoComplete="new-password" autoFocus required />
+                  <button type="button" className="ua-eye" onClick={() => setShowRecoveryPassword((v) => !v)} aria-label={showRecoveryPassword ? "Hide password" : "Show password"}><Eye open={showRecoveryPassword} /></button>
+                </div>
+              </label>
+              {recoveryPassword && (
+                <ul className="ua-checks">
+                  <li className={recoveryChecks.length ? "ok" : ""}>{recoveryChecks.length ? "✓" : "○"} At least 8 characters</li>
+                  <li className={recoveryChecks.uppercase ? "ok" : ""}>{recoveryChecks.uppercase ? "✓" : "○"} One uppercase letter</li>
+                  <li className={recoveryChecks.lowercase ? "ok" : ""}>{recoveryChecks.lowercase ? "✓" : "○"} One lowercase letter</li>
+                  <li className={recoveryChecks.special ? "ok" : ""}>{recoveryChecks.special ? "✓" : "○"} One special character</li>
+                </ul>
+              )}
+              <label>Confirm new password
+                <div className="ua-pass-wrap">
+                  <input type={showRecoveryPassword ? "text" : "password"} value={recoveryConfirm} onChange={(e) => setRecoveryConfirm(e.target.value)} autoComplete="new-password" required />
+                </div>
+              </label>
+              {recoveryConfirm && !recoveryMatches && <p className="ua-error">Passwords do not match.</p>}
+              {error && <p className="ua-error">{error}</p>}
+              <button className="ua-primary" disabled={busy || !recoveryChecksPassed || !recoveryMatches}>{busy ? "Updating…" : "Update password"}</button>
+            </form>
+          </div>
+        </section>
+      ) : !signedIn ? (
         <section className="ua-auth">
           <div className="ua-intro">
             <p className="ua-kicker">UNIK Labs membership</p>
@@ -191,22 +297,65 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
             <p>Sign in to save AI generations, return to unfinished pieces and track every custom order.</p>
           </div>
           <div className="ua-card">
-            <button className="ua-google" type="button" onClick={googleSignIn} disabled={busy}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.63-2.43l-3.24-2.54c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.77-5.61-4.14H3.04v2.62A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.85A6 6 0 0 1 6.08 12c0-.64.11-1.27.31-1.85V7.53H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.47l3.35-2.62Z"/><path fill="#EA4335" d="M12 6.01c1.47 0 2.79.51 3.83 1.5l2.87-2.88A9.65 9.65 0 0 0 12 2a10 10 0 0 0-8.96 5.53l3.35 2.62C7.18 7.78 9.39 6.01 12 6.01Z"/></svg>
-              Continue with Google
-            </button>
-            <div className="ua-or"><span />or use email<span /></div>
-            <form onSubmit={emailSubmit}>
-              {mode === "signup" && <label>Full name<input name="fullName" autoComplete="name" required /></label>}
-              <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
-              <label>Password<input name="password" type="password" minLength={8} autoComplete={mode === "signup" ? "new-password" : "current-password"} required /></label>
-              {error && <p className="ua-error">{error}</p>}
-              {message && <p className="ua-message">{message}</p>}
-              <button className="ua-primary" disabled={busy}>{busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}</button>
-            </form>
-            <button className="ua-switch" type="button" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setMessage(""); }}>
-              {mode === "signin" ? "New to UNIK? Create an account" : "Already a member? Sign in"}
-            </button>
+            {authView === "forgot" ? (
+              resetSent ? (
+                <>
+                  <p className="ua-message">Check {resetEmail} for a link to reset your password.</p>
+                  <button className="ua-switch" type="button" onClick={() => { setAuthView("form"); setResetSent(false); setError(""); }}>Back to sign in</button>
+                </>
+              ) : (
+                <form onSubmit={requestPasswordReset}>
+                  <label>Email address<input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} autoComplete="email" required autoFocus /></label>
+                  {error && <p className="ua-error">{error}</p>}
+                  <button className="ua-primary" disabled={busy}>{busy ? "Sending…" : "Send reset link"}</button>
+                  <button className="ua-switch" type="button" onClick={() => { setAuthView("form"); setError(""); }}>Back to sign in</button>
+                </form>
+              )
+            ) : (
+              <>
+                <button className="ua-google" type="button" onClick={googleSignIn} disabled={busy}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.63-2.43l-3.24-2.54c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.77-5.61-4.14H3.04v2.62A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.85A6 6 0 0 1 6.08 12c0-.64.11-1.27.31-1.85V7.53H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.47l3.35-2.62Z"/><path fill="#EA4335" d="M12 6.01c1.47 0 2.79.51 3.83 1.5l2.87-2.88A9.65 9.65 0 0 0 12 2a10 10 0 0 0-8.96 5.53l3.35 2.62C7.18 7.78 9.39 6.01 12 6.01Z"/></svg>
+                  Continue with Google
+                </button>
+                <div className="ua-or"><span />or use email<span /></div>
+                <form onSubmit={emailSubmit}>
+                  {mode === "signup" && <label>Full name<input value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required /></label>}
+                  <label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></label>
+                  <label>Password
+                    <div className="ua-pass-wrap">
+                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} autoComplete={mode === "signup" ? "new-password" : "current-password"} required />
+                      <button type="button" className="ua-eye" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Hide password" : "Show password"}><Eye open={showPassword} /></button>
+                    </div>
+                  </label>
+                  {mode === "signup" && password && (
+                    <ul className="ua-checks">
+                      <li className={passwordChecks.length ? "ok" : ""}>{passwordChecks.length ? "✓" : "○"} At least 8 characters</li>
+                      <li className={passwordChecks.uppercase ? "ok" : ""}>{passwordChecks.uppercase ? "✓" : "○"} One uppercase letter</li>
+                      <li className={passwordChecks.lowercase ? "ok" : ""}>{passwordChecks.lowercase ? "✓" : "○"} One lowercase letter</li>
+                      <li className={passwordChecks.special ? "ok" : ""}>{passwordChecks.special ? "✓" : "○"} One special character</li>
+                    </ul>
+                  )}
+                  {mode === "signup" && (
+                    <label>Confirm password
+                      <div className="ua-pass-wrap">
+                        <input type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
+                        <button type="button" className="ua-eye" onClick={() => setShowConfirmPassword((v) => !v)} aria-label={showConfirmPassword ? "Hide password" : "Show password"}><Eye open={showConfirmPassword} /></button>
+                      </div>
+                      {confirmPassword && <span className={`ua-match ${passwordsMatch ? "ok" : "bad"}`}>{passwordsMatch ? "✓ Passwords match" : "✗ Passwords do not match"}</span>}
+                    </label>
+                  )}
+                  {mode === "signin" && (
+                    <button type="button" className="ua-forgot" onClick={() => { setAuthView("forgot"); setResetEmail(email); setError(""); setMessage(""); }}>Forgot your password?</button>
+                  )}
+                  {error && <p className="ua-error">{error}</p>}
+                  {message && <p className="ua-message">{message}</p>}
+                  <button className="ua-primary" disabled={busy || (mode === "signup" && (!allChecksPassed || !passwordsMatch))}>{busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}</button>
+                </form>
+                <button className="ua-switch" type="button" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setMessage(""); }}>
+                  {mode === "signin" ? "New to UNIK? Create an account" : "Already a member? Sign in"}
+                </button>
+              </>
+            )}
           </div>
         </section>
       ) : !account ? (
@@ -316,7 +465,11 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
       </div>}
       <UnikFooter basePath={basePath} />
       <style jsx global>{`
-        *{box-sizing:border-box}html,body{margin:0;background:#080909;color:#f4f1e9;font-family:Arial,sans-serif}.ua-page{min-height:100dvh;background:radial-gradient(circle at 15% 0%,#1a1d1b 0,transparent 34%),#080909}.ua-nav{height:78px;border-bottom:1px solid #292c29;display:flex;align-items:center;justify-content:space-between;padding:0 max(22px,calc((100vw - 1160px)/2))}.ua-logo{color:#fff;text-decoration:none;font-size:28px;letter-spacing:.28em;font-weight:300}.ua-logo span{display:block;font-size:5px;letter-spacing:.48em;margin-top:4px}.ua-return,.ua-signout{color:#d8d5cd;font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;background:none;border:0;cursor:pointer}.ua-auth,.ua-dashboard{width:min(1160px,calc(100% - 36px));margin:0 auto;padding:72px 0 100px}.ua-auth{display:grid;grid-template-columns:1.1fr .9fr;gap:70px;align-items:center}.ua-kicker{font-size:10px!important;letter-spacing:.24em;text-transform:uppercase;color:#969a93!important;margin:0 0 18px!important}.ua-intro h1,.ua-dashboard-head h1{font-family:Georgia,serif;font-weight:400;text-transform:uppercase;line-height:.86;margin:0;font-size:clamp(58px,9vw,112px)}.ua-intro>p:last-child{color:#a6a8a2;max-width:540px;line-height:1.7}.ua-card{background:#111311;border:1px solid #30332f;border-radius:24px;padding:30px}.ua-google,.ua-primary{width:100%;height:52px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer}.ua-google{background:#fff;color:#111;border:0;display:flex;align-items:center;justify-content:center;gap:12px}.ua-google svg{width:19px}.ua-or{display:flex;align-items:center;gap:12px;color:#777b74;font-size:9px;text-transform:uppercase;letter-spacing:.16em;margin:24px 0}.ua-or span{height:1px;background:#30332f;flex:1}.ua-card label{display:grid;gap:7px;font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#94978f;margin:14px 0}.ua-card input{height:48px;border:1px solid #363934;border-radius:12px;background:#090a09;color:#fff;padding:0 14px;font-size:14px;outline:none}.ua-card input:focus{border-color:#d9d7ce}.ua-primary{border:1px solid #007517;background:#007517;color:#fff;margin-top:10px}.ua-switch{width:100%;background:none;border:0;color:#b8bab4;font-size:10px;margin-top:20px;cursor:pointer}.ua-error,.ua-message{font-size:11px;line-height:1.5}.ua-error{color:#ff8d82}.ua-message{color:#8bd69a}.ua-loading{min-height:calc(100dvh - 78px);display:grid;place-content:center;text-align:center;color:#a6a8a2;letter-spacing:.08em}.ua-loading small{display:block;margin-top:12px;color:#ff8d82}.ua-dashboard-head{display:flex;align-items:end;justify-content:space-between;gap:24px}.ua-dashboard-head h1{font-size:clamp(52px,7vw,90px)}.ua-dashboard-head p{color:#989b94}.ua-signout{border:1px solid #41443f;border-radius:999px;padding:13px 18px}.ua-allowance{display:grid;grid-template-columns:1fr auto;gap:5px 20px;background:#101210;border:1px solid #2c2f2b;border-radius:18px;padding:20px;margin:42px 0 28px}.ua-allowance span,.ua-allowance small{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#969991}.ua-allowance strong{grid-row:span 2;font-size:16px;align-self:center}.ua-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}.ua-grid>section{min-width:0}.ua-section-head{display:flex;justify-content:space-between;align-items:center;margin:16px 2px}.ua-section-head h2{font-size:11px;text-transform:uppercase;letter-spacing:.18em;margin:0}.ua-section-head span{font-size:9px;color:#898c85;text-transform:uppercase;letter-spacing:.12em}.ua-list{display:grid;gap:10px}.ua-item{display:grid;grid-template-columns:74px 1fr;gap:15px;padding:12px;background:#111311;border:1px solid #2c2f2b;border-radius:16px;align-items:center}.ua-item img,.ua-thumb{width:74px;aspect-ratio:3/4;object-fit:cover;border-radius:10px;background:#1a1c1a}.ua-item strong{font-size:12px}.ua-item p,.ua-item small{color:#92958e;font-size:10px;line-height:1.5}.ua-item p{margin:6px 0}.ua-empty{border:1px dashed #343732;border-radius:16px;padding:34px;text-align:center;color:#8e918a;font-size:11px;line-height:1.7}.ua-empty a{color:#fff}.ua-google:disabled,.ua-primary:disabled{opacity:.55;cursor:wait}@media(max-width:800px){.ua-auth,.ua-grid{grid-template-columns:1fr}.ua-auth{gap:42px;padding-top:46px}.ua-dashboard-head{align-items:flex-start;flex-direction:column}.ua-logo{font-size:21px}.ua-return{font-size:8px}.ua-allowance{grid-template-columns:1fr}.ua-allowance strong{grid-row:auto}}
+        *{box-sizing:border-box}html,body{margin:0;background:#080909;color:#f4f1e9;font-family:Arial,sans-serif}.ua-page{min-height:100dvh;background:radial-gradient(circle at 15% 0%,#1a1d1b 0,transparent 34%),#080909}.ua-nav{height:78px;border-bottom:1px solid #292c29;display:flex;align-items:center;justify-content:space-between;padding:0 max(22px,calc((100vw - 1160px)/2))}.ua-logo{color:#fff;text-decoration:none;font-size:28px;letter-spacing:.28em;font-weight:300}.ua-logo span{display:block;font-size:5px;letter-spacing:.48em;margin-top:4px}.ua-return,.ua-signout{color:#d8d5cd;font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;background:none;border:0;cursor:pointer}.ua-auth,.ua-dashboard{width:min(1160px,calc(100% - 36px));margin:0 auto;padding:72px 0 100px}.ua-auth{display:grid;grid-template-columns:1.1fr .9fr;gap:70px;align-items:center}.ua-kicker{font-size:10px!important;letter-spacing:.24em;text-transform:uppercase;color:#969a93!important;margin:0 0 18px!important}.ua-intro h1,.ua-dashboard-head h1{font-family:Georgia,serif;font-weight:400;text-transform:uppercase;line-height:.86;margin:0;font-size:clamp(58px,9vw,112px)}.ua-intro>p:last-child{color:#a6a8a2;max-width:540px;line-height:1.7}.ua-card{background:#111311;border:1px solid #30332f;border-radius:24px;padding:30px}.ua-google,.ua-primary{width:100%;height:52px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer}.ua-google{background:#fff;color:#111;border:0;display:flex;align-items:center;justify-content:center;gap:12px}.ua-google svg{width:19px}.ua-or{display:flex;align-items:center;gap:12px;color:#777b74;font-size:9px;text-transform:uppercase;letter-spacing:.16em;margin:24px 0}.ua-or span{height:1px;background:#30332f;flex:1}.ua-card label{display:grid;gap:7px;font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#94978f;margin:14px 0}.ua-card input{width:100%;height:48px;border:1px solid #363934;border-radius:12px;background:#090a09;color:#fff;padding:0 14px;font-size:14px;outline:none}.ua-card input:focus{border-color:#d9d7ce}.ua-primary{border:1px solid #007517;background:#007517;color:#fff;margin-top:10px}.ua-switch{width:100%;background:none;border:0;color:#b8bab4;font-size:10px;margin-top:20px;cursor:pointer}.ua-error,.ua-message{font-size:11px;line-height:1.5}.ua-error{color:#ff8d82}.ua-message{color:#8bd69a}
+        .ua-pass-wrap{position:relative}.ua-pass-wrap input{padding-right:44px}.ua-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;padding:0;display:flex;color:#6d7069;cursor:pointer}.ua-eye:hover{color:#a6a8a2}
+        .ua-checks{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:4px}.ua-checks li{font-size:10px;letter-spacing:.04em;text-transform:none;color:#5c5f59}.ua-checks li.ok{color:#8bd69a}
+        .ua-match{font-size:10px;letter-spacing:.04em;text-transform:none;margin-top:2px}.ua-match.ok{color:#8bd69a}.ua-match.bad{color:#ff8d82}
+        .ua-forgot{background:none;border:0;padding:0;color:#8e918a;font-size:10px;letter-spacing:.04em;text-transform:none;cursor:pointer;text-align:right;width:100%;margin:-6px 0 4px}.ua-forgot:hover{color:#d8d5cd}.ua-loading{min-height:calc(100dvh - 78px);display:grid;place-content:center;text-align:center;color:#a6a8a2;letter-spacing:.08em}.ua-loading small{display:block;margin-top:12px;color:#ff8d82}.ua-dashboard-head{display:flex;align-items:end;justify-content:space-between;gap:24px}.ua-dashboard-head h1{font-size:clamp(52px,7vw,90px)}.ua-dashboard-head p{color:#989b94}.ua-signout{border:1px solid #41443f;border-radius:999px;padding:13px 18px}.ua-allowance{display:grid;grid-template-columns:1fr auto;gap:5px 20px;background:#101210;border:1px solid #2c2f2b;border-radius:18px;padding:20px;margin:42px 0 28px}.ua-allowance span,.ua-allowance small{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#969991}.ua-allowance strong{grid-row:span 2;font-size:16px;align-self:center}.ua-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}.ua-grid>section{min-width:0}.ua-section-head{display:flex;justify-content:space-between;align-items:center;margin:16px 2px}.ua-section-head h2{font-size:11px;text-transform:uppercase;letter-spacing:.18em;margin:0}.ua-section-head span{font-size:9px;color:#898c85;text-transform:uppercase;letter-spacing:.12em}.ua-list{display:grid;gap:10px}.ua-item{display:grid;grid-template-columns:74px 1fr;gap:15px;padding:12px;background:#111311;border:1px solid #2c2f2b;border-radius:16px;align-items:center}.ua-item img,.ua-thumb{width:74px;aspect-ratio:3/4;object-fit:cover;border-radius:10px;background:#1a1c1a}.ua-item strong{font-size:12px}.ua-item p,.ua-item small{color:#92958e;font-size:10px;line-height:1.5}.ua-item p{margin:6px 0}.ua-empty{border:1px dashed #343732;border-radius:16px;padding:34px;text-align:center;color:#8e918a;font-size:11px;line-height:1.7}.ua-empty a{color:#fff}.ua-google:disabled,.ua-primary:disabled{opacity:.55;cursor:wait}@media(max-width:800px){.ua-auth,.ua-grid{grid-template-columns:1fr}.ua-auth{gap:42px;padding-top:46px}.ua-dashboard-head{align-items:flex-start;flex-direction:column}.ua-logo{font-size:21px}.ua-return{font-size:8px}.ua-allowance{grid-template-columns:1fr}.ua-allowance strong{grid-row:auto}}
         .ua-logo{display:flex;align-items:center;text-decoration:none;line-height:0}
         .ua-logo img{display:block;width:124px;height:auto;object-fit:contain}
         @media(max-width:800px){.ua-logo img{width:110px}}
