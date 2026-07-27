@@ -444,6 +444,7 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
+  const [orderView, setOrderView] = useState<"active" | "stray">("active");
 
   const loadOrders = useCallback(async (targetPage: number) => {
     setLoading(true);
@@ -499,6 +500,13 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
     if (!window.confirm(`Mark ${money(amount)} of ${money(detail.total)} as refunded? This only updates the order's status for tracking -- you still need to process the actual refund through Yoco's merchant portal.`)) return;
     updateOrder({ paymentStatus: "refunded", refundAmount: amount });
   }
+
+  // Abandoned/failed checkouts never charged anyone -- they were sitting in
+  // the same "All orders" list as real sales, told apart only by a small
+  // badge that looked nearly identical to "pending". Split them out.
+  const strayOrders = orders.filter((o) => o.payment_status === "abandoned" || o.payment_status === "failed");
+  const activeOrders = orders.filter((o) => o.payment_status !== "abandoned" && o.payment_status !== "failed");
+  const visibleOrders = orderView === "active" ? activeOrders : strayOrders;
 
   if (selectedId) {
     return (
@@ -596,11 +604,18 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
         </div>
       </article>
       <article className="bm-card">
-        <div className="bm-section-head"><h2 className="bm-section-title">All orders</h2><p className="bm-section-desc">Click an order to view details, update its status, or cancel/refund it</p></div>
-        {orders.length === 0 && !loading ? <p className="bm-empty">No orders yet.</p> : (
-          <div className="bm-table">
+        <div className="bm-section-head"><h2 className="bm-section-title">Orders</h2><p className="bm-section-desc">Click an order to view details, update its status, or cancel/refund it</p></div>
+        <div style={{ display: "flex", gap: 8, margin: "14px 0 4px" }}>
+          <button type="button" className="bm-status-btn" data-active={orderView === "active"} onClick={() => setOrderView("active")}>Active ({activeOrders.length}{hasMore ? "+" : ""})</button>
+          <button type="button" className="bm-status-btn" data-active={orderView === "stray"} onClick={() => setOrderView("stray")}>Abandoned &amp; failed ({strayOrders.length})</button>
+        </div>
+        {orderView === "stray" && <p className="bm-section-desc" style={{ margin: "10px 0 0" }}>Checkout was started but no payment ever came through -- nothing was charged.</p>}
+        {visibleOrders.length === 0 && !loading ? (
+          <p className="bm-empty">{orderView === "active" ? "No orders yet." : "No abandoned or failed checkouts."}</p>
+        ) : (
+          <div className="bm-table" style={{ marginTop: 14 }}>
             <div className="bm-row bm-row-header"><div>Customer</div><div>Value</div><div>Status</div></div>
-            {orders.map((order) => (
+            {visibleOrders.map((order) => (
               <button key={order.id} type="button" className="bm-row bm-row-clickable" onClick={() => loadDetail(order.id)}>
                 <div>{order.customer_name || "Customer"}</div>
                 <div>{money(order.total)}</div>
@@ -609,7 +624,7 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
             ))}
           </div>
         )}
-        {hasMore && <button type="button" className="bm-secondary-btn" style={{ marginTop: 14 }} disabled={loading} onClick={() => loadOrders(page + 1)}>{loading ? "Loading…" : "Load more"}</button>}
+        {orderView === "active" && hasMore && <button type="button" className="bm-secondary-btn" style={{ marginTop: 14 }} disabled={loading} onClick={() => loadOrders(page + 1)}>{loading ? "Loading…" : "Load more"}</button>}
       </article>
     </section>
   );
