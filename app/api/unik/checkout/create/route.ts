@@ -53,15 +53,17 @@ function decodeDataUrl(raw: unknown): { base64: string; ext: string } | null {
 }
 
 /* Creates a real Catalogstore order for a UNIK cart and returns a Yoco
-   redirect URL. Cart items are either a pre-generated AI Studio design
-   (designId) or raw Custom Upload artwork+placement (customUpload) --
-   both go through this same route and the same price-resolution/order-
-   creation path. A custom-upload design record is created here, at
-   checkout time, rather than when the customer uploads/positions their
-   artwork -- that's what lets Custom Upload skip requiring an account
-   until checkout (this whole endpoint already requires one), instead of
-   needing its own separate sign-in gate the way AI Studio generation
-   does (which needs one earlier, to enforce the daily generation limit). */
+   redirect URL. Cart items are one of: a pre-generated AI Studio design
+   (designId), a Custom Upload design already saved via
+   /api/unik/custom-upload/save at "Add to Cart" time (customUpload.designId
+   -- the normal case), or, as a fallback, raw Custom Upload artwork+
+   placement (customUpload.frontImage/backImage) if that earlier save call
+   failed client-side. All three go through this same route and the same
+   price-resolution/order-creation path. Custom Upload still doesn't
+   require an account until checkout (this whole endpoint already requires
+   one) -- a design saved anonymously is claimed (auth_user_id attached)
+   once the customer signs in to pay, unlike AI Studio, which needs an
+   account earlier, to enforce the daily generation limit. */
 export async function POST(req: NextRequest) {
   // Timing breakdown for diagnosing slow checkouts -- logged as one line at
   // the end (search Vercel logs for "UNIK checkout timing") rather than
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
 
   const items: {
     designId?: string; qty?: number; preview?: string;
-    customUpload?: { garment?: string; colour?: string; size?: string; zone?: string; frontImage?: string; backImage?: string; previewFront?: string; previewBack?: string };
+    customUpload?: { garment?: string; colour?: string; size?: string; zone?: string; designId?: string; frontImage?: string; backImage?: string; previewFront?: string; previewBack?: string };
   }[] = Array.isArray(body?.items) ? body.items : [];
   const customer = body?.customer || {};
   const firstName = String(customer.firstName || "").trim().slice(0, 80);
@@ -136,9 +138,12 @@ export async function POST(req: NextRequest) {
     if (!item.designId && !item.customUpload) return NextResponse.json({ error: "One of the items in your cart is invalid" }, { status: 400 });
   }
 
-  const designIds = items.map((i) => i.designId).filter((id): id is string => typeof id === "string" && id.length > 0);
+  const designIds = [
+    ...items.map((i) => i.designId),
+    ...items.map((i) => i.customUpload?.designId),
+  ].filter((id): id is string => typeof id === "string" && id.length > 0);
   const { data: designs, error: designsErr } = designIds.length
-    ? await admin.from("unik_designs").select("id, seller_id, auth_user_id, source, status, garment, colour, size, style, name, preview_url, mockup_url").in("id", designIds)
+    ? await admin.from("unik_designs").select("id, seller_id, auth_user_id, source, status, garment, colour, size, style, name, preview_url, mockup_url, options").in("id", designIds)
     : { data: [], error: null };
   if (designsErr) console.error("UNIK checkout: unik_designs lookup failed:", designsErr);
 
@@ -173,6 +178,35 @@ export async function POST(req: NextRequest) {
   // reported, matching the previous sequential loop's behaviour exactly.
   const results: ItemResult[] = await Promise.all(items.map(async (item): Promise<ItemResult> => {
     const qty = Math.max(1, Math.min(10, Number(item.qty) || 1));
+
+    if (item.customUpload?.designId) {
+      // Fast path: the artwork was already uploaded to Storage when "Add to
+      // Cart" was clicked (see /api/unik/custom-upload/save), so this cart
+      // item carries a designId instead of raw image bytes -- checkout just
+      // claims that design and resolves pricing, the same near-zero-latency
+      // shape as an AI Studio item, no upload work of any kind.
+      const cu = item.customUpload;
+      const design = designMap.get(cu.designId);
+      if (!design) return { ok: false, error: "One of your custom uploads could not be found", status: 404 };
+      if (design.seller_id !== seller.id) return { ok: false, error: "One of your custom uploads is not accessible", status: 403 };
+      if (design.source !== "custom-upload") return { ok: false, error: "One of your custom uploads has an unrecognised source", status: 400 };
+      if (design.auth_user_id && design.auth_user_id !== user.id) return { ok: false, error: "One of your custom uploads is not accessible", status: 403 };
+
+      const garment = String(design.garment || "").toLowerCase();
+      const colour = String(design.colour || "").toLowerCase();
+      const size = String(design.size || cu.size || "").toUpperCase();
+      const zone = String((design.options as any)?.zone || cu.zone || "").toLowerCase();
+      if (!/^(XS|S|M|L|XL|XXL)$/.test(size)) return { ok: false, error: "One of your custom uploads is missing a size", status: 400 };
+
+      const productName = CUSTOM_PRODUCT_BY_GARMENT_ZONE[`${garment}_${zone}`];
+      const product = productName ? productByName.get(productName) : undefined;
+      if (!product) return { ok: false, error: "That product is not currently available", status: 400 };
+
+      return {
+        ok: true,
+        item: { productId: product.id, name: product.name, price: Number(product.price), qty, designId: design.id, garment, colour, size, style: null, image: design.mockup_url || null },
+      };
+    }
 
     if (item.customUpload) {
       const cu = item.customUpload;
@@ -270,7 +304,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not create your order" }, { status: 500 });
   }
 
-  await admin.from("unik_designs").update({ status: "checkout_started" }).in("id", lineItems.map((i) => i.designId));
+  // auth_user_id is set here (not just status) because a custom-upload
+  // design created via /api/unik/custom-upload/save starts out unclaimed
+  // (no account existed yet when the artwork was uploaded) -- this is where
+  // it gets attached to the customer who's actually paying. A no-op for
+  // AI Studio designs, which already belong to this same user.
+  await admin.from("unik_designs").update({ status: "checkout_started", auth_user_id: user.id }).in("id", lineItems.map((i) => i.designId));
   mark("designsStatusUpdate");
 
   const sellerDomain = seller.custom_domain_status === "verified" ? seller.custom_domain : null;

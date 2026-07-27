@@ -428,7 +428,7 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
           <button type="button" id="upQtyInc" aria-label="Increase quantity" style="width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:inherit;font-size:18px;font-weight:700;cursor:pointer">+</button>
         </div>
         <button class="btn-checkout" id="btnCheckout">
-          Add to Cart
+          <span id="btnCheckoutLabel">Add to Cart</span>
           <span class="co-sub" id="coSub">Select size to continue</span>
         </button>
         <p id="upAddedNote" style="display:none;text-align:center;font-size:12px;font-weight:600;color:#007517;margin:10px 0">✓ Added to your cart</p>
@@ -1079,39 +1079,64 @@ document.getElementById('upQtyInc').addEventListener('click',()=>setUpCartQty(up
 document.getElementById('upQtyDec').addEventListener('click',()=>setUpCartQty(upCartQty-1));
 
 document.getElementById('btnCheckout').addEventListener('click',async()=>{
-  // Add the configured garment to the shared UNIK Labs cart. The raw
-  // artwork (not just the flattened preview) travels with the cart item
-  // as a data URL -- there's no server-side design record yet, since
-  // Custom Upload doesn't require signing in until checkout, so nothing
-  // to reference by id. Checkout creates the real design record (and
-  // uploads the artwork to private storage) once the customer is
-  // actually signed in and paying.
   const needBoth=S.zone==='both';
   const ready=UP.front.url&&(needBoth?UP.back.url:true)&&S.size;
   if(!ready)return;
-  const pricing=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
-  const previewFront=await captureCustomPreview('front');
-  const previewBack=needBoth?await captureCustomPreview('back'):'';
-  const added=UNIK_CART.add({
-    source:'custom-upload',
-    name:'UNIK Labs Custom Print',
-    meta:(S.garment==='hoodie'?'Hoodie':'Tee')+' · '+S.colour+' · '+S.size+' · '+(S.zone==='both'?'Front + back':'Front print'),
-    price:pricing.sale,
-    compareAtPrice:pricing.original,
-    preview:previewFront,
-    qty:upCartQty,
-    options:{
-      customUpload:{
-        garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
-        frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
-        previewFront,previewBack:previewBack||undefined
+  const btn=document.getElementById('btnCheckout'),label=document.getElementById('btnCheckoutLabel');
+  if(btn.disabled)return;
+  btn.disabled=true;label.textContent='Adding…';
+  try{
+    const pricing=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
+    const previewFront=await captureCustomPreview('front');
+    const previewBack=needBoth?await captureCustomPreview('back'):'';
+
+    // Upload the artwork right now, while the customer is still browsing --
+    // not at checkout. Carrying the raw image bytes all the way to checkout
+    // was what made "Pay with Yoco" slow to redirect, even after checkout's
+    // own uploads were parallelized and deferred: the bytes still had to
+    // leave the browser as part of that request. Custom Upload still
+    // doesn't require signing in to add to cart, so this design starts
+    // unclaimed -- checkout attaches it to the customer's account once
+    // they're actually signed in and paying. If this save call fails for
+    // any reason, fall back to the old behaviour of keeping the raw image
+    // in the cart item itself so Add to Cart still works.
+    let customUpload={
+      garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
+      frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
+      previewFront,previewBack:previewBack||undefined
+    };
+    try{
+      const res=await fetch('/api/unik/custom-upload/save',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
+          frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
+          previewFront,previewBack:previewBack||undefined
+        })
+      });
+      const payload=await res.json().catch(()=>({}));
+      if(res.ok&&payload.designId){
+        customUpload={garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,designId:payload.designId};
       }
-    }
-  });
-  if(!added)return; // UNIK_CART already showed the error toast
-  document.getElementById('upAddedNote').style.display='block';
-  document.getElementById('btnUpCheckoutNow').style.display='block';
-  setUpCartQty(1);
+    }catch(_){/* keep the raw-image fallback already assembled above */}
+
+    const added=UNIK_CART.add({
+      source:'custom-upload',
+      name:'UNIK Labs Custom Print',
+      meta:(S.garment==='hoodie'?'Hoodie':'Tee')+' · '+S.colour+' · '+S.size+' · '+(S.zone==='both'?'Front + back':'Front print'),
+      price:pricing.sale,
+      compareAtPrice:pricing.original,
+      preview:previewFront,
+      qty:upCartQty,
+      options:{customUpload}
+    });
+    if(!added)return; // UNIK_CART already showed the error toast
+    document.getElementById('upAddedNote').style.display='block';
+    document.getElementById('btnUpCheckoutNow').style.display='block';
+    setUpCartQty(1);
+  }finally{
+    btn.disabled=false;label.textContent='Add to Cart';
+  }
 });
 
 document.getElementById('btnUpCheckoutNow').addEventListener('click',()=>{location.href='checkout.html';});
