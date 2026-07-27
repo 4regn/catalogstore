@@ -15,7 +15,17 @@
   }
 
   function write(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
+    // Returns false instead of throwing so callers (add(), in particular)
+    // can tell the customer their click didn't actually work -- large
+    // custom-upload artwork can exceed the localStorage quota, and an
+    // uncaught QuotaExceededError here used to make "Add to Cart" silently
+    // do nothing.
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   function cart() { return read(CART_KEY, []); }
@@ -52,7 +62,10 @@
       addedAt: new Date().toISOString(),
       ...item
     });
-    write(CART_KEY, items);
+    if (!write(CART_KEY, items)) {
+      notify('Could not add to cart -- try a smaller photo');
+      return false;
+    }
     updateCount();
     notify('Added to your UNIK Labs cart');
     return items;

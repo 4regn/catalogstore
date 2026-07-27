@@ -921,10 +921,12 @@ document.getElementById('dlChange').addEventListener('click',openPicker);
     const view=id==='designInputF'?'front':'back';
     const r=new FileReader();
     r.onload=ev=>{
-      UP[view].url=ev.target.result;
-      UP[view].w=0;UP[view].h=0; // reset so initDesignInZone recalculates
-      if(view===curView)initDesignInZone(view);
-      chkCheckout();
+      compressArtwork(ev.target.result,f.type==='image/png'?'image/png':'image/jpeg').then(url=>{
+        UP[view].url=url;
+        UP[view].w=0;UP[view].h=0; // reset so initDesignInZone recalculates
+        if(view===curView)initDesignInZone(view);
+        chkCheckout();
+      });
     };
     r.readAsDataURL(f);
     e.target.value='';
@@ -1015,6 +1017,27 @@ function previewImage(src){
   return new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=src;});
 }
 
+// Uploaded artwork travels in the cart as a raw data URL (see the comment
+// on btnCheckout below), and that cart lives in localStorage -- an
+// uncompressed phone photo is routinely 3-8MB, which blows the ~5-10MB
+// quota and made "Add to Cart" fail silently. Cap the long edge at 3000px
+// (still well past real print resolution) before it ever reaches the cart.
+// PNGs stay PNG so transparent artwork isn't flattened onto a white
+// background; everything else re-encodes as JPEG to actually shrink.
+function compressArtwork(dataUrl, mimeType){
+  const MAX_DIM=3000;
+  return previewImage(dataUrl).then(img=>{
+    const longest=Math.max(img.naturalWidth,img.naturalHeight);
+    if(longest<=MAX_DIM)return dataUrl;
+    const scale=MAX_DIM/longest;
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(img.naturalWidth*scale);
+    canvas.height=Math.round(img.naturalHeight*scale);
+    canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+    return mimeType==='image/png'?canvas.toDataURL('image/png'):canvas.toDataURL('image/jpeg',.9);
+  }).catch(()=>dataUrl);
+}
+
 async function captureCustomPreview(view){
   view = view==='back'?'back':'front';
   const u=UP[view];
@@ -1055,7 +1078,7 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
   const pricing=S.zone==='front'?PRICES[S.garment].front:PRICES[S.garment].both;
   const previewFront=await captureCustomPreview('front');
   const previewBack=needBoth?await captureCustomPreview('back'):'';
-  UNIK_CART.add({
+  const added=UNIK_CART.add({
     source:'custom-upload',
     name:'UNIK Labs Custom Print',
     meta:(S.garment==='hoodie'?'Hoodie':'Tee')+' · '+S.colour+' · '+S.size+' · '+(S.zone==='both'?'Front + back':'Front print'),
@@ -1071,6 +1094,7 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
       }
     }
   });
+  if(!added)return; // UNIK_CART already showed the error toast
   document.getElementById('upAddedNote').style.display='block';
   document.getElementById('btnUpCheckoutNow').style.display='block';
   setUpCartQty(1);

@@ -2083,7 +2083,7 @@ document.getElementById('qtyDec').addEventListener('click', () => setCartQty(car
 
 document.getElementById('btnAddToCart').addEventListener('click', () => {
   const pricing = currentPricing();
-  UNIK_CART.add({
+  const added = UNIK_CART.add({
     source:'ai-studio',
     name:'UNIK Labs AI Design',
     meta:`${garmentLabel()} · ${S.colour} · ${S.size} · ${S.style.replaceAll('_',' ')}`,
@@ -2093,6 +2093,7 @@ document.getElementById('btnAddToCart').addEventListener('click', () => {
     qty: cartQty,
     options:{ designId:currentGeneratedDesign && currentGeneratedDesign.id, garment:apiGarment(), colour:S.colour, size:S.size, style:S.style, name:S.name, tagline:S.tagline }
   });
+  if (!added) return; // UNIK_CART already showed the error toast
   document.getElementById('addedNote').style.display = 'block';
   document.getElementById('btnCheckoutNow').style.display = 'block';
   setCartQty(1);
