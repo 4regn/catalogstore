@@ -375,6 +375,7 @@ type OrderDetail = OrderRow & {
   shipping_option?: string;
   shipping_cost?: number;
   refund_amount?: number | null;
+  notes?: string | null;
 };
 
 function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metrics"]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
@@ -504,6 +505,13 @@ function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metric
                 ) : <div style={{ fontSize: 12, color: "#999994" }}>No address provided</div>}
               </article>
             </div>
+
+            {detail.notes && (
+              <article className="bm-card" style={{ marginBottom: 16 }}>
+                <div className="bm-section-title" style={{ marginBottom: 10 }}>Special instructions</div>
+                <div style={{ fontSize: 12, color: "#999994", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{detail.notes}</div>
+              </article>
+            )}
 
             <article className="bm-card">
               <div className="bm-section-title" style={{ marginBottom: 14 }}>Order items</div>

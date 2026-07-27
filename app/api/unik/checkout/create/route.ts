@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
   const firstName = String(customer.firstName || "").trim().slice(0, 80);
   const lastName = String(customer.lastName || "").trim().slice(0, 80);
   const email = String(customer.email || "").trim().slice(0, 160);
+  const phone = String(customer.phone || "").trim().slice(0, 30);
+  const notes = String(body?.notes || "").trim().slice(0, 500);
   const streetAddress = String(customer.streetAddress || "").trim().slice(0, 300);
   const suburb = String(customer.suburb || "").trim().slice(0, 120);
   const townCity = String(customer.townCity || "").trim().slice(0, 120);
@@ -106,6 +108,7 @@ export async function POST(req: NextRequest) {
   if (!items.length) return NextResponse.json({ error: "Your cart is empty" }, { status: 400 });
   if (!firstName || !lastName) return NextResponse.json({ error: "First and last name are required" }, { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "A valid email address is required" }, { status: 400 });
+  if (phone.replace(/[^0-9]/g, "").length < 9) return NextResponse.json({ error: "A valid phone number is required" }, { status: 400 });
 
   const admin = getAdmin();
 
@@ -287,7 +290,9 @@ export async function POST(req: NextRequest) {
     seller_id: seller.id,
     customer_name: `${firstName} ${lastName}`.trim(),
     customer_email: email,
+    customer_phone: phone,
     customer_auth_user_id: user.id,
+    notes: notes || null,
     items: lineItems.map((i) => ({ id: i.productId, name: i.name, price: i.price, qty: i.qty, image: i.image, customization: { designId: i.designId, garment: i.garment, colour: i.colour, size: i.size, style: i.style } })),
     total,
     fulfillment_method: fulfillmentMethod,

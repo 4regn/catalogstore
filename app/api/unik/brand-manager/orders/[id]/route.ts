@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
   const { data: order, error } = await getAdmin()
     .from("orders")
-    .select("id, order_number, customer_name, customer_email, customer_phone, items, total, status, payment_status, payment_method, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, refund_amount")
+    .select("id, order_number, customer_name, customer_email, customer_phone, items, total, status, payment_status, payment_method, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, refund_amount, notes")
     .eq("id", id)
     .eq("seller_id", seller.id)
     .maybeSingle();

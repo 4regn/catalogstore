@@ -153,7 +153,7 @@ interface Order {
   items: { name: string; qty: number; price: number; variant?: string; image?: string }[]; total: number;
   status: string; payment_status: string; created_at: string;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
-  fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string;
+  fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null;
 }
 
 interface VelourService {
@@ -168,7 +168,7 @@ interface VelourBooking {
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
 const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
-const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method";
+const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
 const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
 const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, amount, created_at";
@@ -2169,6 +2169,12 @@ export default function Dashboard() {
                     {selectedOrder.shipping_option && <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{selectedOrder.shipping_option} {selectedOrder.shipping_cost > 0 ? "- R" + selectedOrder.shipping_cost : ""}</div>}
                   </div>
                 </div>
+                {selectedOrder.notes && (
+                  <div style={{ padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16 }}>
+                    <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 12, color: N }}>Special instructions</h3>
+                    <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, whiteSpace: "pre-wrap" as const }}>{selectedOrder.notes}</div>
+                  </div>
+                )}
                 <div style={{ padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
                   <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16, color: N }}>Order Items</h3>
                   {(selectedOrder.items || []).map((item, i) => {

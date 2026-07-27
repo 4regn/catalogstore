@@ -57,6 +57,7 @@
             <div class="field"><label for="firstName">First name</label><input id="firstName" name="firstName" autocomplete="given-name" required></div>
             <div class="field"><label for="lastName">Last name</label><input id="lastName" name="lastName" autocomplete="family-name" required></div>
             <div class="field full"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+            <div class="field full"><label for="phone">Phone number</label><input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required></div>
             <div class="field full" id="streetAddressField"><label for="streetAddress">Street address</label><input id="streetAddress" name="streetAddress" autocomplete="street-address" required></div>
             <div class="field" id="suburbField"><label for="suburb">Suburb</label><input id="suburb" name="suburb" autocomplete="address-level3"></div>
             <div class="field" id="townCityField"><label for="townCity">Town / City</label><input id="townCity" name="townCity" autocomplete="address-level2" required></div>
@@ -69,6 +70,7 @@
               </select>
             </div>
             <div class="field" id="postalField"><label for="postal">Postal code</label><input id="postal" name="postal" autocomplete="postal-code" inputmode="numeric" required></div>
+            <div class="field full"><label for="orderNotes">Special instructions (optional)</label><textarea id="orderNotes" name="orderNotes" rows="3" placeholder="Gate code, landmark, preferred delivery time…" maxlength="500"></textarea></div>
           </div>
           <div class="field full" style="margin-top:4px">
             <label>Delivery method</label>
@@ -221,9 +223,10 @@
                 ? { customUpload: item.options.customUpload, qty: item.qty || 1, preview: item.preview }
                 : { designId: item.options.designId, qty: item.qty || 1 }),
               customer: {
-                firstName:data.firstName, lastName:data.lastName, email:data.email,
+                firstName:data.firstName, lastName:data.lastName, email:data.email, phone:data.phone,
                 streetAddress:data.streetAddress, suburb:data.suburb, townCity:data.townCity, province:data.province, postal:data.postal,
               },
+              notes: data.orderNotes,
               deliveryMethod: { name: delivery.name, isPickup: !!delivery.isPickup },
               returnOrigin: window.location.origin,
             }),
