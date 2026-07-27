@@ -1262,6 +1262,13 @@ function setUpCartQty(n){
 document.getElementById('upQtyInc').addEventListener('click',()=>setUpCartQty(upCartQty+1));
 document.getElementById('upQtyDec').addEventListener('click',()=>setUpCartQty(upCartQty-1));
 
+// Tracks each Add to Cart's background upload by localId so "Go to
+// Checkout" can wait for it to actually settle before navigating away --
+// the cart item itself never carries the raw image bytes (see below), so
+// if we left before this settles and the tab were closed, that artwork
+// would have nowhere to fall back to.
+const PENDING_CUSTOM_UPLOADS=new Map();
+
 document.getElementById('btnCheckout').addEventListener('click',async()=>{
   const needBoth=S.zone==='both';
   const ready=UP.front.url&&(needBoth?UP.back.url:true)&&S.size;
@@ -1274,25 +1281,21 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
     const previewFront=await captureCustomPreview('front');
     const previewBack=needBoth?await captureCustomPreview('back'):'';
 
-    // Add to cart immediately -- don't make the customer wait on the
-    // artwork upload here. Uploading the raw image bytes over the network
-    // genuinely takes time (that doesn't go away by moving *when* it
-    // happens), so instead of blocking this click on it, the item goes
-    // into the cart right away using the raw image, and the upload runs
-    // in the background while the customer keeps browsing/fills in the
-    // checkout form -- the same way AI Studio's slow step (generation)
-    // already happens well before checkout, hidden behind other UI. If
-    // the upload finishes before they hit "Pay with Yoco",
-    // upgradeCustomUpload() swaps the cart item over to a designId
-    // reference so checkout carries no image bytes at all; if it hasn't,
-    // checkout's own slow-path fallback (upload deferred until after the
-    // Yoco redirect) still covers it.
+    // The cart item itself only ever gets lightweight metadata plus the
+    // small compressed preview thumbnail -- never the full-resolution
+    // frontImage/backImage. Those used to get written into the cart (and
+    // therefore into localStorage) on every Add to Cart, which is exactly
+    // what brought back "could not add to cart -- try a smaller photo":
+    // a real, several-MB image blowing the quota immediately instead of
+    // only in the rare case the background upload below fails. The raw
+    // bytes now only ever exist in memory (rawFields) and in the request
+    // body of the save call, never persisted unless that call fails.
     const localId='unik-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    const customUpload={
-      garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
+    const rawFields={
       frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
       previewFront,previewBack:previewBack||undefined
     };
+    const customUpload={garment:S.garment,colour:S.colour,size:S.size,zone:S.zone};
     const added=UNIK_CART.add({
       id:localId,
       source:'custom-upload',
@@ -1306,16 +1309,21 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
     });
     if(!added)return; // UNIK_CART already showed the error toast
 
-    fetch('/api/unik/custom-upload/save',{
+    const uploadPromise=fetch('/api/unik/custom-upload/save',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,
-        frontImage:UP.front.url,backImage:needBoth?UP.back.url:undefined,
-        previewFront,previewBack:previewBack||undefined
-      })
+      body:JSON.stringify({garment:S.garment,colour:S.colour,size:S.size,zone:S.zone,...rawFields})
     }).then(res=>res.json()).then(payload=>{
-      if(payload&&payload.designId)UNIK_CART.upgradeCustomUpload(localId,payload.designId);
-    }).catch(()=>{/* checkout's slow-path fallback still covers this item */});
+      if(payload&&payload.designId){UNIK_CART.upgradeCustomUpload(localId,payload.designId);return;}
+      throw new Error('save did not return a designId');
+    }).catch(()=>{
+      // The background save genuinely failed (not just "still running") --
+      // only now attempt to persist the raw bytes, so checkout's own
+      // slow-path fallback still has something to work with.
+      if(!UNIK_CART.attachCustomUploadRaw(localId,rawFields)){
+        UNIK_CART.notify('Your photo for "'+customUpload.garment+'" didn\'t finish saving -- try adding it again with a smaller photo');
+      }
+    }).finally(()=>{PENDING_CUSTOM_UPLOADS.delete(localId);});
+    PENDING_CUSTOM_UPLOADS.set(localId,uploadPromise);
 
     document.getElementById('upAddedNote').style.display='block';
     document.getElementById('btnUpCheckoutNow').style.display='block';
@@ -1325,7 +1333,14 @@ document.getElementById('btnCheckout').addEventListener('click',async()=>{
   }
 });
 
-document.getElementById('btnUpCheckoutNow').addEventListener('click',()=>{location.href='checkout.html';});
+document.getElementById('btnUpCheckoutNow').addEventListener('click',async(e)=>{
+  if(!PENDING_CUSTOM_UPLOADS.size){location.href='checkout.html';return;}
+  const btn=e.currentTarget;
+  btn.textContent='Finishing upload…';
+  const timeout=new Promise(resolve=>setTimeout(resolve,15000));
+  await Promise.race([Promise.all(PENDING_CUSTOM_UPLOADS.values()),timeout]);
+  location.href='checkout.html';
+});
 
 // ── Init ──
 function initCalibrationMode(mode,side){

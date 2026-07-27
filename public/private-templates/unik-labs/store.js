@@ -101,6 +101,26 @@
     write(CART_KEY, upgraded);
   }
 
+  // Last-resort fallback for when a custom-upload item's background save
+  // call fails outright (not just "hasn't finished yet") -- writes the raw
+  // image bytes into the cart item so checkout's own slow-path can still
+  // pick it up. Only ever called after the network attempt has already
+  // failed, never as part of the normal Add to Cart write, which is what
+  // made "could not add to cart -- try a smaller photo" come back: every
+  // add was writing multi-MB raw images to localStorage up front again.
+  // Returns false (and lets the caller decide how to warn) if even this
+  // raw write blows the quota.
+  function attachCustomUploadRaw(id, rawFields) {
+    const items = cart();
+    const idx = items.findIndex((item) => item.id === id);
+    if (idx === -1) return true; // item was removed before the upload settled -- nothing to attach
+    const cu = items[idx].options && items[idx].options.customUpload;
+    if (!cu || cu.designId) return true;
+    const updated = items.slice();
+    updated[idx] = { ...items[idx], options: { ...items[idx].options, customUpload: { ...cu, ...rawFields } } };
+    return write(CART_KEY, updated);
+  }
+
   function saveOrder(order) {
     const orders = read(ORDER_KEY, []);
     orders.unshift(order);
@@ -871,7 +891,7 @@
     }));
   }
 
-  window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify, upgradeCustomUpload };
+  window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify, upgradeCustomUpload, attachCustomUploadRaw };
   window.UNIK_ACCOUNT = { get:currentAccount, signIn, signOut, orders:accountOrders, generations, saveGeneration };
   window.UNIK_THEME = { get:currentTheme, apply:applyTheme, toggle:toggleTheme };
   initNavigation();
