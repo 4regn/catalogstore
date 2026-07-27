@@ -127,9 +127,17 @@ export async function POST(req: NextRequest) {
   const { data: products } = await admin.from("products").select("id, name, price, category").eq("seller_id", seller.id).eq("status", "published");
   const productByName = new Map((products || []).map((p) => [p.name, p]));
 
-  const lineItems: { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string | null; image: string | null }[] = [];
+  type LineItem = { productId: string; name: string; price: number; qty: number; designId: string; garment: string; colour: string; size: string; style: string | null; image: string | null };
+  type ItemResult = { ok: true; item: LineItem } | { ok: false; error: string; status: number };
 
-  for (const item of items) {
+  // Each cart item is independent of every other one (its own design
+  // record, its own uploads), so processing them concurrently instead of
+  // one at a time matters just as much for a multi-item cart as
+  // parallelizing the uploads within a single item did above. Errors are
+  // collected rather than returned early so ordering stays deterministic --
+  // the FIRST invalid item (by original cart position) is still what gets
+  // reported, matching the previous sequential loop's behaviour exactly.
+  const results: ItemResult[] = await Promise.all(items.map(async (item): Promise<ItemResult> => {
     const qty = Math.max(1, Math.min(10, Number(item.qty) || 1));
 
     if (item.customUpload) {
@@ -139,17 +147,17 @@ export async function POST(req: NextRequest) {
       const size = String(cu.size || "").toUpperCase();
       const zone = String(cu.zone || "").toLowerCase();
       if (!GARMENTS.has(garment) || !COLOURS.has(colour) || !ZONES.has(zone)) {
-        return NextResponse.json({ error: "One of your custom uploads has invalid options" }, { status: 400 });
+        return { ok: false, error: "One of your custom uploads has invalid options", status: 400 };
       }
-      if (!/^(XS|S|M|L|XL|XXL)$/.test(size)) return NextResponse.json({ error: "One of your custom uploads is missing a size" }, { status: 400 });
+      if (!/^(XS|S|M|L|XL|XXL)$/.test(size)) return { ok: false, error: "One of your custom uploads is missing a size", status: 400 };
       const front = decodeDataUrl(cu.frontImage);
-      if (!front) return NextResponse.json({ error: "One of your custom uploads has an invalid or missing front image" }, { status: 400 });
+      if (!front) return { ok: false, error: "One of your custom uploads has an invalid or missing front image", status: 400 };
       const back = zone === "both" ? decodeDataUrl(cu.backImage) : null;
-      if (zone === "both" && !back) return NextResponse.json({ error: "One of your custom uploads is missing a back image" }, { status: 400 });
+      if (zone === "both" && !back) return { ok: false, error: "One of your custom uploads is missing a back image", status: 400 };
 
       const productName = CUSTOM_PRODUCT_BY_GARMENT_ZONE[`${garment}_${zone}`];
       const product = productName ? productByName.get(productName) : undefined;
-      if (!product) return NextResponse.json({ error: "That product is not currently available" }, { status: 400 });
+      if (!product) return { ok: false, error: "That product is not currently available", status: 400 };
 
       const { data: design, error: designInsertErr } = await admin.from("unik_designs").insert({
         seller_id: seller.id, auth_user_id: user.id, source: "custom-upload", status: "generated",
@@ -157,7 +165,7 @@ export async function POST(req: NextRequest) {
       }).select("id").single();
       if (designInsertErr || !design) {
         console.error("UNIK checkout: custom-upload design insert failed:", designInsertErr);
-        return NextResponse.json({ error: "Could not save your custom upload" }, { status: 500 });
+        return { ok: false, error: "Could not save your custom upload", status: 500 };
       }
 
       const designId = design.id;
@@ -198,35 +206,36 @@ export async function POST(req: NextRequest) {
         mockup_url: mockupFrontUrl,
       }).eq("id", designId);
 
-      lineItems.push({
-        productId: product.id, name: product.name, price: Number(product.price), qty,
-        designId, garment, colour, size, style: null,
-        image: mockupFrontUrl,
-      });
-      continue;
+      return {
+        ok: true,
+        item: { productId: product.id, name: product.name, price: Number(product.price), qty, designId, garment, colour, size, style: null, image: mockupFrontUrl },
+      };
     }
 
     const design = designMap.get(item.designId!);
-    if (!design) return NextResponse.json({ error: "One of your designs could not be found" }, { status: 404 });
-    if (design.seller_id !== seller.id || design.auth_user_id !== user.id) return NextResponse.json({ error: "One of your designs is not accessible" }, { status: 403 });
-    if (design.source !== "ai-studio") return NextResponse.json({ error: "One of your designs has an unrecognised source" }, { status: 400 });
+    if (!design) return { ok: false, error: "One of your designs could not be found", status: 404 };
+    if (design.seller_id !== seller.id || design.auth_user_id !== user.id) return { ok: false, error: "One of your designs is not accessible", status: 403 };
+    if (design.source !== "ai-studio") return { ok: false, error: "One of your designs has an unrecognised source", status: 400 };
     // A design can be ordered any number of times (e.g. buying the same
     // piece as a gift for someone else, or in a different quantity) --
     // status here is informational for the account page, not a one-time
     // gate. Only a design that never finished generating is unorderable.
     if (design.status === "processing" || design.status === "failed" || design.status === "expired") {
-      return NextResponse.json({ error: `That design is ${design.status} and can't be ordered` }, { status: 409 });
+      return { ok: false, error: `That design is ${design.status} and can't be ordered`, status: 409 };
     }
 
     const productName = PRODUCT_BY_GARMENT[design.garment];
     const product = productName ? productByName.get(productName) : undefined;
-    if (!product) return NextResponse.json({ error: "That product is not currently available" }, { status: 400 });
-    lineItems.push({
-      productId: product.id, name: product.name, price: Number(product.price), qty,
-      designId: design.id, garment: design.garment, colour: design.colour, size: design.size, style: design.style,
-      image: design.mockup_url || design.preview_url || null,
-    });
-  }
+    if (!product) return { ok: false, error: "That product is not currently available", status: 400 };
+    return {
+      ok: true,
+      item: { productId: product.id, name: product.name, price: Number(product.price), qty, designId: design.id, garment: design.garment, colour: design.colour, size: design.size, style: design.style, image: design.mockup_url || design.preview_url || null },
+    };
+  }));
+
+  const firstError = results.find((r): r is Extract<ItemResult, { ok: false }> => !r.ok);
+  if (firstError) return NextResponse.json({ error: firstError.error }, { status: firstError.status });
+  const lineItems: LineItem[] = results.map((r) => (r as Extract<ItemResult, { ok: true }>).item);
 
   const subtotal = lineItems.reduce((sum, i) => sum + i.price * i.qty, 0);
   const total = subtotal + shippingCost;

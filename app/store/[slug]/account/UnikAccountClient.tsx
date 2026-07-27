@@ -432,7 +432,11 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
               <p className="ua-kicker">Order {orderDetail.orderNumber || orderDetail.id.slice(0, 8).toUpperCase()}</p>
               <h2>{money(orderDetail.total)}</h2>
               <p className="ua-order-meta">{date(orderDetail.createdAt)} · {orderDetail.fulfillmentMethod === "pickup" ? "Studio pickup" : (orderDetail.shippingOption || "Delivery")}</p>
-              {orderDetail.paymentStatus !== "paid" ? (
+              {orderDetail.paymentStatus === "failed" ? (
+                <p className="ua-order-cancelled">This payment was declined. No charge was made — you can try again from your cart.</p>
+              ) : orderDetail.paymentStatus === "abandoned" ? (
+                <p className="ua-order-cancelled">Checkout wasn&apos;t completed for this order. No charge was made.</p>
+              ) : orderDetail.paymentStatus !== "paid" ? (
                 <p className="ua-order-pending">Payment {orderDetail.paymentStatus}. Tracking begins once payment is confirmed.</p>
               ) : orderDetail.status === "cancelled" ? (
                 <p className="ua-order-cancelled">This order was cancelled.</p>

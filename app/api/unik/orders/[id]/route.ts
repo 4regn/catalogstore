@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikCustomer } from "../../../../../lib/unik-customer";
 import { getYocoCheckout } from "../../../../../lib/yoco";
-import { markUnikOrderPaid } from "../../../../../lib/unik-orders";
+import { markUnikOrderPaid, markUnikOrderFailed, ORDER_ABANDON_MS } from "../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
+
+// Yoco's own checkout-session status, when it's not a live paymentId, tells
+// us the attempt is genuinely over (declined/cancelled/expired) rather than
+// still in progress -- catching that here means a failed card gets labelled
+// "failed" immediately, instead of sitting as "pending" for a full hour
+// until the abandonment sweep would relabel it "abandoned" instead.
+const YOCO_TERMINAL_FAILURE_STATUSES = new Set(["failed", "cancelled", "canceled", "expired", "declined"]);
 
 /* Polled by checkout.html after the Yoco redirect back. The webhook is the
    primary way an order gets marked paid, but webhook delivery can be slow,
@@ -44,7 +51,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       } else {
         console.error("UNIK order self-heal: amount mismatch", { orderId: order.id, expectedCents, got: checkout.amount });
       }
+    } else if (checkout?.status && YOCO_TERMINAL_FAILURE_STATUSES.has(checkout.status.toLowerCase()) && paymentStatus === "pending") {
+      const result = await markUnikOrderFailed(admin, order.id);
+      if (result === "failed") { paymentStatus = "failed"; status = "failed"; }
     }
+  }
+
+  // Fallback for orders with no yoco_checkout_id at all, or where Yoco's
+  // status didn't give us a clear terminal signal above: past
+  // ORDER_ABANDON_MS with no resolution, relabel as abandoned rather than
+  // leaving it "pending" indefinitely.
+  if (paymentStatus === "pending" && Date.now() - new Date(order.created_at).getTime() > ORDER_ABANDON_MS) {
+    const { data: swept } = await admin
+      .from("orders")
+      .update({ payment_status: "abandoned", status: "abandoned" })
+      .eq("id", order.id)
+      .eq("payment_status", "pending")
+      .select("id")
+      .maybeSingle();
+    if (swept) { paymentStatus = "abandoned"; status = "abandoned"; }
   }
 
   return NextResponse.json({

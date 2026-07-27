@@ -1,12 +1,26 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "./email";
 
+// How long a UNIK order can sit unpaid before we stop calling it "pending"
+// (implies "still in progress, fulfilment is coming") and start calling it
+// "abandoned" (customer left checkout, no payment ever came through). This
+// is purely a display/labelling threshold -- an order that pays after this
+// window still gets marked "paid" normally via the webhook or self-heal,
+// since both of those only ever check payment_status = "pending" and update
+// unconditionally on real confirmation, before this sweep gets a chance to
+// touch it.
+export const ORDER_ABANDON_MS = 60 * 60 * 1000; // 1 hour
+
 /* Idempotently marks a UNIK order paid + its linked designs paid, and
    emails both sides. Shared between the Yoco webhook (the primary path)
    and a self-heal check on the order-status endpoint (in case the
    webhook is slow or never arrives -- see getYocoCheckout in lib/yoco.ts).
-   The update is scoped to payment_status = "pending" so calling this
-   twice for the same order (webhook AND self-heal both firing) is safe. */
+   The update is scoped to payment_status IN (pending, abandoned, failed)
+   rather than just "pending" -- an order can get swept to "abandoned" by
+   ORDER_ABANDON_MS before a genuinely late webhook/self-heal confirmation
+   arrives, and a real payment confirmation must always be able to correct
+   that label, not silently no-op against it. Calling this twice for the
+   same order (webhook AND self-heal both firing) is still safe either way. */
 export async function markUnikOrderPaid(
   admin: SupabaseClient,
   order: { id: string; seller_id: string; total: number; items: any; customer_name: string; customer_email: string; payment_status: string },
@@ -19,7 +33,7 @@ export async function markUnikOrderPaid(
     .from("orders")
     .update({ payment_status: "paid", status: "confirmed", yoco_payment_id: paymentId, ...(eventId ? { yoco_event_id: eventId } : {}) })
     .eq("id", order.id)
-    .eq("payment_status", "pending")
+    .in("payment_status", ["pending", "abandoned", "failed"])
     .select("id")
     .maybeSingle();
   if (error) {
@@ -62,4 +76,49 @@ export async function markUnikOrderPaid(
   }
 
   return "paid";
+}
+
+/* Marks a UNIK order as a failed payment attempt (Yoco reported the
+   payment itself failed/declined -- not "customer never tried", see
+   sweepAbandonedUnikOrders for that case). Only ever moves an order OUT
+   of "pending" -- never touches an order that's already paid, already
+   failed, or already swept to abandoned, so a failure event that arrives
+   out of order after some other resolution can't clobber it. */
+export async function markUnikOrderFailed(
+  admin: SupabaseClient,
+  orderId: string
+): Promise<"failed" | "no_change"> {
+  const { data: updated, error } = await admin
+    .from("orders")
+    .update({ payment_status: "failed", status: "failed" })
+    .eq("id", orderId)
+    .eq("payment_status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error("markUnikOrderFailed: update failed", error);
+    return "no_change";
+  }
+  return updated ? "failed" : "no_change";
+}
+
+/* Orders that never received a payment confirmation (no webhook, no
+   self-heal match) sit at payment_status = "pending" forever otherwise --
+   indistinguishable from "still checking out right now" to the customer
+   and seller. Anything past ORDER_ABANDON_MS with no resolution gets
+   relabelled "abandoned". Scoped to this seller and to Yoco-paid orders
+   only (payment_method = "yoco") so it never touches PayFast marketplace
+   orders, which have their own ITN-driven lifecycle. Safe to call on
+   every account/order read -- it's a plain conditional UPDATE, a no-op
+   when nothing qualifies. */
+export async function sweepAbandonedUnikOrders(admin: SupabaseClient, sellerId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - ORDER_ABANDON_MS).toISOString();
+  const { error } = await admin
+    .from("orders")
+    .update({ payment_status: "abandoned", status: "abandoned" })
+    .eq("seller_id", sellerId)
+    .eq("payment_method", "yoco")
+    .eq("payment_status", "pending")
+    .lt("created_at", cutoff);
+  if (error) console.error("sweepAbandonedUnikOrders: update failed", error);
 }
