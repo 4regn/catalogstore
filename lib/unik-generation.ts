@@ -153,12 +153,17 @@ export async function callRailwayGeneration(input: UnikGenerationInput) {
 }
 
 function watermarkSvg(width: number, height: number) {
-  const tileW = Math.max(240, Math.round(width / 3));
-  const tileH = Math.max(150, Math.round(height / 5));
+  // Deliberately much more visible than a typical subtle preview watermark --
+  // this is the only design image a customer can download (the true
+  // print-ready file stays in the private bucket, see makeMockup/route.ts),
+  // so it has to actually deter someone from screenshotting or saving it and
+  // printing elsewhere, not just look tasteful.
+  const tileW = Math.max(220, Math.round(width / 2.4));
+  const tileH = Math.max(130, Math.round(height / 4));
   let marks = "";
   for (let y = -tileH; y < height + tileH; y += tileH) {
     for (let x = -tileW; x < width + tileW; x += tileW) {
-      marks += `<text x="${x}" y="${y}" transform="rotate(-24 ${x} ${y})" fill="white" fill-opacity=".2" stroke="black" stroke-opacity=".14" stroke-width="2" font-family="Arial, sans-serif" font-size="${Math.round(tileW / 7)}" font-weight="700" letter-spacing="5">UNIK LABS</text>`;
+      marks += `<text x="${x}" y="${y}" transform="rotate(-24 ${x} ${y})" fill="white" fill-opacity=".46" stroke="black" stroke-opacity=".34" stroke-width="2.5" font-family="Arial, sans-serif" font-size="${Math.round(tileW / 6)}" font-weight="800" letter-spacing="5">UNIK LABS</text>`;
     }
   }
   return Buffer.from(`<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`);

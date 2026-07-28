@@ -550,9 +550,10 @@ body {
 .artwork-emoji { font-size: 44px; display: block; margin-bottom: 10px; }
 .artwork-hint { font-size: 11px; letter-spacing: 1px; }
 
-.results-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 24px; }
+.results-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .btn-result { padding: 14px 10px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--white); font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .btn-result:hover { background: var(--black); color: var(--white); border-color: var(--black); }
+.watermark-note { font-size: 10.5px; line-height: 1.5; color: var(--muted); text-align: center; margin-bottom: 24px; }
 
 .results-mockup-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
 .results-mockup { width: 100%; border-radius: 14px; background: #e0deda; aspect-ratio: 3/4; display: flex; align-items: center; justify-content: center; margin-bottom: 22px; color: var(--muted); font-size: 12px; letter-spacing: 1px; }
@@ -1061,7 +1062,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     </div>
     <div class="results-actions">
       <button class="btn-result" id="btnDownload" type="button">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10V2M3 6l4-4 4 4"/><path d="M2 11h10"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2V10M3 6l4 4 4-4"/><path d="M2 11h10"/></svg>
         Download
       </button>
       <button class="btn-result" id="btnShare" type="button">
@@ -1069,6 +1070,7 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
         Share
       </button>
     </div>
+    <p class="watermark-note">The preview above is watermarked to protect your design. Your printed piece ships watermark-free.</p>
     <div class="results-mockup-label">Mockup Preview</div>
     <div class="results-mockup">See how it looks printed</div>
     <div class="qty-row">
@@ -2049,6 +2051,10 @@ async function downloadImage(url, filename) {
 }
 
 document.getElementById('btnDownload').addEventListener('click', async () => {
+  // Only the garment mockup is downloadable -- the flat design preview
+  // (design.previewUrl) is watermarked specifically because it must NOT be
+  // easy to lift and print elsewhere; the mockup is a photo of it on a
+  // garment, which doesn't hand someone a clean, isolated print file.
   const design = currentGeneratedDesign;
   if (!design) return;
   const button = document.getElementById('btnDownload');
@@ -2056,13 +2062,10 @@ document.getElementById('btnDownload').addEventListener('click', async () => {
   button.dataset.downloading = '1';
   const original = button.innerHTML;
   button.textContent = 'Downloading…';
-  const [designOk, mockupOk] = await Promise.all([
-    design.previewUrl ? downloadImage(design.previewUrl, 'unik-labs-design.jpg') : Promise.resolve(false),
-    design.mockupUrl ? downloadImage(design.mockupUrl, 'unik-labs-mockup.jpg') : Promise.resolve(false),
-  ]);
+  const mockupOk = design.mockupUrl ? await downloadImage(design.mockupUrl, 'unik-labs-mockup.jpg') : false;
   button.innerHTML = original;
   delete button.dataset.downloading;
-  UNIK_CART.notify(designOk || mockupOk ? 'Downloaded to your device' : 'Could not download — please try again');
+  UNIK_CART.notify(mockupOk ? 'Downloaded to your device' : 'Could not download — please try again');
 });
 
 document.getElementById('btnShare').addEventListener('click', async () => {
