@@ -4,10 +4,10 @@ import { requireUnikCustomer } from "../../../../lib/unik-customer";
 import { sweepAbandonedUnikOrders } from "../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
-// Temporary testing cap -- must match reserve_unik_generation()'s v_limit
-// in supabase/migrations/20260723_unik_generation_limit_testing.sql, and
+// Must match reserve_unik_generation()'s v_limit -- see
+// supabase/migrations/20260728_unik_generation_limit_reset.sql, and
 // app/api/unik/generations/route.ts's UNIK_DAILY_GENERATION_LIMIT.
-const UNIK_DAILY_GENERATION_LIMIT = 1000;
+const UNIK_DAILY_GENERATION_LIMIT = 3;
 
 export async function GET(req: NextRequest) {
   const auth = await requireUnikCustomer(req);

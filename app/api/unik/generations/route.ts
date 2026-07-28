@@ -10,10 +10,9 @@ export const maxDuration = 300;
 
 const PRIVATE_BUCKET = "unik-private-designs";
 const PREVIEW_BUCKET = "unik-design-previews";
-// Temporary testing cap -- must match reserve_unik_generation()'s v_limit
-// in supabase/migrations/20260723_unik_generation_limit_testing.sql.
-// Lower both back to 3 (the real product limit) once template testing is done.
-const UNIK_DAILY_GENERATION_LIMIT = 1000;
+// Must match reserve_unik_generation()'s v_limit -- see
+// supabase/migrations/20260728_unik_generation_limit_reset.sql.
+const UNIK_DAILY_GENERATION_LIMIT = 3;
 
 async function markFailed(attemptId: string, code: string) {
   await getAdmin().from("unik_generation_attempts").update({
