@@ -37,11 +37,8 @@ async function ensurePreviewBucket() {
 }
 
 export async function POST(req: NextRequest) {
-  // Disabled for template testing (was 8/60s per IP). Re-enable alongside
-  // UNIK_DAILY_GENERATION_LIMIT above once testing is done -- an unmetered
-  // generations endpoint should not stay exposed in production.
-  // const ipLimit = rateLimit(`unik-generation:${getClientIP(req)}`, 8, 60);
-  // if (!ipLimit.allowed) return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
+  const ipLimit = rateLimit(`unik-generation:${getClientIP(req)}`, 8, 60);
+  if (!ipLimit.allowed) return NextResponse.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
 
   const auth = await requireUnikCustomer(req);
   if ("response" in auth) return auth.response;
