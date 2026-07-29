@@ -1080,6 +1080,53 @@ body.is-exporting .stage-wrap{max-width:min(94vw,520px);}
       alert('Could not start screen recording: ' + (name || 'unknown error') + (err && err.message ? ' -- ' + err.message : '') + '. You can still screen-record the preview manually.');
     });
   });
+
+  // ── Studio import (partner dashboard "Send to Recap") ──
+  // Lets the Studio tab in the UNIK Partner dashboard hand this form a
+  // finished generation directly -- garment/colour/name/tagline/style/size
+  // plus the actual image bytes as data URLs -- instead of the partner
+  // re-picking every file by hand. Same-origin only.
+  function dataUrlToFile(dataUrl, filename) {
+    return fetch(dataUrl).then(function (res) { return res.blob(); }).then(function (blob) {
+      return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+    });
+  }
+  function importFromPayload(payload) {
+    if (payload.garment) garmentSelect.value = payload.garment;
+    if (payload.colour) colourSelect.value = payload.colour;
+    if (payload.styleId) styleSelect.value = payload.styleId;
+    syncFormForStyle();
+    nameInp.value = payload.name || '';
+    taglineInp.value = payload.tagline || '';
+    if (payload.size) sizeSelect.value = payload.size;
+    var tasks = [];
+    if (Array.isArray(payload.photos) && payload.photos.length) {
+      tasks.push(Promise.all(payload.photos.slice(0, 5).map(function (p, i) { return dataUrlToFile(p, 'photo-' + i + '.jpg'); })).then(function (files) {
+        picked.photos = files;
+        previewInto(document.getElementById('photosPreview'), picked.photos);
+      }));
+    }
+    if (payload.design) {
+      tasks.push(dataUrlToFile(payload.design, 'design.png').then(function (file) {
+        picked.design = file;
+        previewInto(document.getElementById('designPreview'), [file]);
+      }));
+    }
+    if (payload.mockup) {
+      tasks.push(dataUrlToFile(payload.mockup, 'mockup.jpg').then(function (file) {
+        picked.mockup = file;
+        previewInto(document.getElementById('mockupPreview'), [file]);
+      }));
+    }
+    Promise.all(tasks).then(validate);
+  }
+  window.addEventListener('message', function (event) {
+    if (event.origin !== window.location.origin) return;
+    var data = event.data;
+    if (!data || data.type !== 'unik-recap-import') return;
+    importFromPayload(data.payload || {});
+  });
+  if (window.parent !== window) window.parent.postMessage({ type: 'unik-recap-ready' }, window.location.origin);
 })();
 </script>
 </body>

@@ -24,7 +24,7 @@ type Partner = {
 };
 
 type DiscountCode = { code: string; type: string; value: number } | null;
-type Panel = "overview" | "recap" | "support" | "settings";
+type Panel = "overview" | "studio" | "recap" | "support" | "settings";
 
 const BANKS = ["Absa", "Capitec", "FNB", "Nedbank", "Standard Bank", "TymeBank"];
 const ACCOUNT_TYPES = ["Cheque / Current", "Savings", "Transmission"];
@@ -32,6 +32,7 @@ const REFERRAL_DOMAIN = "https://uniklabs.co.za";
 
 const NAV_ITEMS: { key: Panel; label: string; icon: string }[] = [
   { key: "overview", label: "Overview", icon: "M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z" },
+  { key: "studio", label: "Studio", icon: "M12 2l1.8 5.6L19.5 9l-5.7 1.4L12 16l-1.8-5.6L4.5 9l5.7-1.4Z M18 15l.9 2.8L21.7 18l-2.8.9L18 21.7l-.9-2.8L14.3 18l2.8-.9Z" },
   { key: "recap", label: "Recap", icon: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 9l5 3-5 3Z" },
   { key: "support", label: "Support", icon: "M4 5h16v11H8l-4 4Z" },
   { key: "settings", label: "Settings", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a8 8 0 0 0-1.8 1l-2.4-1-2 3.4L5.1 11a7 7 0 0 0 0 2L3 14.5l2 3.4 2.4-1a8 8 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.5a7 7 0 0 0 .1-1Z" },
@@ -63,7 +64,16 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   const [partner, setPartner] = useState<Partner | null>(null);
   const [discountCode, setDiscountCode] = useState<DiscountCode>(null);
   const [loadError, setLoadError] = useState("");
-  const [panel, setPanel] = useState<Panel>("overview");
+  // Yoco redirects back to this exact page with ?paid=1 (or cancelled/failed)
+  // after a partner-placed order -- land straight back on Studio (where the
+  // cart/checkout flow lives) instead of Overview so the confirmation is
+  // the first thing they see, not something they have to go find.
+  const [panel, setPanel] = useState<Panel>(() => {
+    if (typeof window === "undefined") return "overview";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("paid") === "1" || params.get("cancelled") === "1" || params.get("failed") === "1" ? "studio" : "overview";
+  });
+  const [recapImportId, setRecapImportId] = useState<string | null>(null);
   const [toastText, setToastText] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -211,7 +221,8 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         {panel === "overview" && (
           <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onDiscountCodeSynced={(code) => setDiscountCode((prev) => (prev ? { ...prev, code } : prev))} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} />
         )}
-        {panel === "recap" && <RecapPanel />}
+        {panel === "studio" && <StudioPanel authedFetch={authedFetch} toast={showToast} onSendToRecap={(id) => { setRecapImportId(id); setPanel("recap"); }} />}
+        {panel === "recap" && <RecapPanel authedFetch={authedFetch} importId={recapImportId} onImported={() => setRecapImportId(null)} />}
         {panel === "support" && <SupportChatPanel partner={partner} sellerId={sellerId} storeName={storeName} />}
         {panel === "settings" && (
           <SettingsPanel partner={partner} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} />
@@ -443,17 +454,520 @@ function OverviewPanel({ partner, firstName, discountCode, referralLink, authedF
   );
 }
 
-function RecapPanel() {
+const STUDIO_STYLE_META: { id: string; name: string }[] = [
+  { id: "TOUR_POSTER", name: "Tour Poster" },
+  { id: "BOOTLEG", name: "Bootleg" },
+  { id: "EDITORIAL", name: "Editorial" },
+  { id: "CHROME", name: "Chrome" },
+  { id: "GIANT_FACE", name: "Giant Face" },
+  { id: "BLING_ERA", name: "Bling Era" },
+  { id: "PAPER_CUT", name: "Paper Cut" },
+  { id: "VTG_BOOTLEG", name: "Vintage Bootleg" },
+  { id: "TOON_DRIP", name: "Toon Drip" },
+  { id: "CHROME_COLLAGE", name: "Chrome Collage" },
+  { id: "I_LOVE_MY", name: "I Love My..." },
+];
+const STUDIO_EXACT_PHOTO_COUNT: Record<string, number> = { GIANT_FACE: 1, TOON_DRIP: 1, CHROME_COLLAGE: 5, I_LOVE_MY: 5 };
+const STUDIO_PRICES: Record<string, number> = { tee: 349, hoodie: 399, "tee-budget": 250 };
+const STUDIO_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+const STUDIO_PRODUCT_NAME: Record<string, string> = { tee: "AI Tee", hoodie: "AI Hoodie", "tee-budget": "AI Tee — Budget (A4)" };
+
+type StudioDesign = { id: string; status: string; name: string; garment: string; colour: string; size: string; style: string; tagline: string; mockupUrl: string | null; createdAt: string };
+type CartLine = { designId: string; name: string; garment: string; colour: string; size: string; style: string; mockupUrl: string | null; price: number; qty: number };
+
+// Mirrors studio.html's compressGenerationPhoto exactly (same 900px cap,
+// same JPEG quality) -- the server-side size/format validation is tuned to
+// what that produces.
+function studioCompressPhoto(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("One of your photos could not be prepared"));
+      img.onload = () => {
+        const scale = Math.min(1, 900 / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Could not prepare photo")); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.76).split(",")[1]);
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* A cut-down AI Studio built into the partner dashboard: same generation
+   pipeline as the storefront's studio.html (same styles, same prompt
+   builder), but with no watermark, a 3/day limit scoped to the partner's
+   own account, and -- since this is for a partner's own resale, often to a
+   WhatsApp customer who already agreed to a design -- native add-to-cart
+   and checkout right here, paying with the partner's own card. */
+function StudioPanel({ authedFetch, toast, onSendToRecap }: {
+  authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSendToRecap: (designId: string) => void;
+}) {
+  const [designs, setDesigns] = useState<StudioDesign[]>([]);
+  const [loadingDesigns, setLoadingDesigns] = useState(true);
+  const [showForm, setShowForm] = useState(true);
+
+  const [garment, setGarment] = useState<"tee" | "hoodie">("tee");
+  const [budget, setBudget] = useState(false);
+  const [colour, setColour] = useState<"black" | "white">("black");
+  const [subject, setSubject] = useState<"artist" | "personal">("personal");
+  const [style, setStyle] = useState("TOUR_POSTER");
+  const [name, setName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [size, setSize] = useState("M");
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [deliveryOptions, setDeliveryOptions] = useState<{ name: string; price: number; isPickup?: boolean }[]>([{ name: "Nationwide Delivery", price: 79 }]);
+  const [deliveryIdx, setDeliveryIdx] = useState(0);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  const [checkoutNotice, setCheckoutNotice] = useState<{ kind: "checking" | "paid" | "pending" | "cancelled" | "failed"; orderNumber?: string; total?: number } | null>(null);
+
+  const isLoveMy = style === "I_LOVE_MY";
+  const effectiveGarment = garment === "tee" && budget ? "tee-budget" : garment;
+  const exactPhotoCount = STUDIO_EXACT_PHOTO_COUNT[style];
+  const price = STUDIO_PRICES[effectiveGarment];
+
+  const loadDesigns = useCallback(async () => {
+    setLoadingDesigns(true);
+    const res = await authedFetch("/api/unik/partners/studio/designs", { method: "GET" });
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) setDesigns(payload.designs || []);
+    setLoadingDesigns(false);
+  }, [authedFetch]);
+
+  useEffect(() => { loadDesigns(); }, [loadDesigns]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/seller-public?slug=unik", { cache: "no-store" });
+        if (!res.ok) return;
+        const seller = await res.json();
+        const cc = seller.checkout_config || {};
+        const opts: { name: string; price: number; isPickup?: boolean }[] = [];
+        if (cc.delivery_enabled !== false) {
+          if (Array.isArray(cc.shipping_options) && cc.shipping_options.length) {
+            cc.shipping_options.forEach((o: any) => opts.push({ name: o.name || "Delivery", price: Number(o.price) || 0 }));
+          } else {
+            opts.push({ name: "Nationwide Delivery", price: 79 });
+          }
+        }
+        if (cc.pickup_enabled) opts.push({ name: "Studio Pickup", price: 0, isPickup: true });
+        if (opts.length) setDeliveryOptions(opts);
+      } catch {}
+    })();
+  }, []);
+
+  // Yoco redirects back to this same page (see returnPath in submitCheckout)
+  // with ?paid=1&orderId=... -- poll for confirmation the same way
+  // checkout.html does for a storefront order.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("orderId");
+    if (params.get("paid") === "1" && orderId) {
+      setCheckoutNotice({ kind: "checking" });
+      let attempt = 0;
+      const poll = async () => {
+        try {
+          const res = await authedFetch(`/api/unik/partners/checkout/order?id=${encodeURIComponent(orderId)}`, { method: "GET" });
+          const payload = await res.json().catch(() => ({}));
+          if (res.ok && payload.paymentStatus === "paid") {
+            setCheckoutNotice({ kind: "paid", orderNumber: payload.orderNumber, total: payload.total });
+            loadDesigns();
+            return;
+          }
+        } catch {}
+        attempt += 1;
+        if (attempt < 8) setTimeout(poll, 2000);
+        else setCheckoutNotice({ kind: "pending" });
+      };
+      poll();
+    } else if (params.get("cancelled") === "1") {
+      setCheckoutNotice({ kind: "cancelled" });
+    } else if (params.get("failed") === "1") {
+      setCheckoutNotice({ kind: "failed" });
+    }
+    if (orderId) window.history.replaceState({}, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handlePhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []).slice(0, 5);
+    e.target.value = "";
+    setPhotos(files);
+  }
+
+  async function generate() {
+    setGenError("");
+    const requiredCount = exactPhotoCount;
+    if (requiredCount ? photos.length !== requiredCount : !photos.length) {
+      setGenError(requiredCount ? `This style needs exactly ${requiredCount} photo${requiredCount === 1 ? "" : "s"}` : "Add between one and five photos");
+      return;
+    }
+    const cleanedName = isLoveMy ? name.trim().replace(/\s+/g, " ").replace(/^i\s+love\s+my\s+/i, "").replace(/^my\s+/i, "").trim() : name.trim();
+    if (!cleanedName) { setGenError(isLoveMy ? "Tell us who it's for" : "Add a name for your design"); return; }
+    setGenerating(true);
+    try {
+      const compressed = await Promise.all(photos.map(studioCompressPhoto));
+      const res = await authedFetch("/api/unik/partners/studio/generate", {
+        method: "POST",
+        body: JSON.stringify({ garment: effectiveGarment, colour, subject, style, name: cleanedName, tagline: isLoveMy ? "" : tagline, size, photos: compressed }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) { setGenError(payload.error || "Generation failed"); setGenerating(false); return; }
+      setRemaining(typeof payload.remaining === "number" ? payload.remaining : null);
+      setName(""); setTagline(""); setPhotos([]);
+      toast("Design generated");
+      await loadDesigns();
+      setShowForm(false);
+    } catch {
+      setGenError("Network error — please try again");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function addToCart(d: StudioDesign) {
+    setCart((prev) => {
+      const existing = prev.find((l) => l.designId === d.id);
+      if (existing) return prev.map((l) => (l.designId === d.id ? { ...l, qty: Math.min(10, l.qty + 1) } : l));
+      return [...prev, { designId: d.id, name: STUDIO_PRODUCT_NAME[d.garment] || d.name, garment: d.garment, colour: d.colour, size: d.size, style: d.style, mockupUrl: d.mockupUrl, price: STUDIO_PRICES[d.garment] ?? 0, qty: 1 }];
+    });
+    toast("Added to cart");
+  }
+
+  function updateQty(designId: string, qty: number) {
+    setCart((prev) => (qty < 1 ? prev.filter((l) => l.designId !== designId) : prev.map((l) => (l.designId === designId ? { ...l, qty: Math.min(10, qty) } : l))));
+  }
+
+  async function download(id: string, type: "original" | "mockup") {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const res = await fetch(`/api/unik/partners/studio/download?id=${encodeURIComponent(id)}&type=${type}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { toast("Could not download"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = type === "original" ? `design-${id}.png` : `mockup-${id}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  const subtotal = cart.reduce((sum, l) => sum + l.price * l.qty, 0);
+  const delivery = deliveryOptions[deliveryIdx] || deliveryOptions[0] || { name: "Delivery", price: 0 };
+  const total = subtotal + (delivery.price || 0);
+
+  async function submitCheckout(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCheckoutError("");
+    setCheckoutBusy(true);
+    const values = new FormData(event.currentTarget);
+    try {
+      const res = await authedFetch("/api/unik/partners/checkout/create", {
+        method: "POST",
+        body: JSON.stringify({
+          items: cart.map((l) => ({ designId: l.designId, qty: l.qty })),
+          customer: {
+            firstName: values.get("firstName"), lastName: values.get("lastName"), email: values.get("email"), phone: values.get("phone"),
+            streetAddress: values.get("streetAddress"), suburb: values.get("suburb"), townCity: values.get("townCity"), province: values.get("province"), postal: values.get("postal"),
+          },
+          notes: values.get("notes"),
+          deliveryMethod: { name: delivery.name, isPickup: !!delivery.isPickup },
+          returnOrigin: window.location.origin,
+          returnPath: window.location.pathname,
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) { setCheckoutError(payload.error || "Could not start payment"); setCheckoutBusy(false); return; }
+      window.location.href = payload.redirectUrl;
+    } catch {
+      setCheckoutError("Network error — please try again");
+      setCheckoutBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <div className="pns-head">
+        <h1 className="pnd-h1">Studio</h1>
+        <span className="pns-limit">{remaining === null ? "3 generations / day" : `${remaining} of 3 left today`}</span>
+      </div>
+
+      {checkoutNotice && (
+        <div className={"pns-order-banner" + (checkoutNotice.kind === "cancelled" || checkoutNotice.kind === "failed" ? " pns-order-banner-error" : "")}>
+          {checkoutNotice.kind === "checking" && "Confirming your payment…"}
+          {checkoutNotice.kind === "paid" && `Order ${checkoutNotice.orderNumber || ""} confirmed — R${checkoutNotice.total} — your customer's order is on its way.`}
+          {checkoutNotice.kind === "pending" && "Your payment was received and is being confirmed — check back in a moment."}
+          {checkoutNotice.kind === "cancelled" && "Payment was cancelled. Your cart was cleared on reload — add the design again to retry."}
+          {checkoutNotice.kind === "failed" && "The payment didn't go through. Your cart was cleared on reload — add the design again to retry."}
+        </div>
+      )}
+
+      <div className="pnd-section">
+        <div className="pnd-section-head">
+          <h2>Create a design</h2>
+          <button type="button" className="pnd-edit-link" onClick={() => setShowForm((v) => !v)}>{showForm ? "Hide" : "New design"}</button>
+        </div>
+        {showForm && (
+          <div className="pns-form">
+            <div className="pns-form-row">
+              <label>Garment
+                <select value={garment} onChange={(e) => setGarment(e.target.value as "tee" | "hoodie")}>
+                  <option value="tee">Tee</option>
+                  <option value="hoodie">Hoodie</option>
+                </select>
+              </label>
+              <label>Colour
+                <select value={colour} onChange={(e) => setColour(e.target.value as "black" | "white")}>
+                  <option value="black">Black</option>
+                  <option value="white">White</option>
+                </select>
+              </label>
+            </div>
+            {garment === "tee" && (
+              <label className="pns-checkbox">
+                <input type="checkbox" checked={budget} onChange={(e) => setBudget(e.target.checked)} /> Budget print (A4, R250)
+              </label>
+            )}
+            <div className="pns-form-row">
+              <label>Portrait type
+                <select value={subject} onChange={(e) => setSubject(e.target.value as "artist" | "personal")}>
+                  <option value="personal">Personal portrait</option>
+                  <option value="artist">Artist</option>
+                </select>
+              </label>
+              <label>Style
+                <select value={style} onChange={(e) => setStyle(e.target.value)}>
+                  {STUDIO_STYLE_META.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </label>
+            </div>
+            <label>{isLoveMy ? "Who do you love?" : "Name on the design"}
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={isLoveMy ? "e.g. Girlfriend, My Dog" : "e.g. Londeka Mpanza"} maxLength={80} />
+            </label>
+            {!isLoveMy && (
+              <label>Tagline (optional)
+                <input value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={100} placeholder="e.g. EST. 2026" />
+              </label>
+            )}
+            <label>Size
+              <select value={size} onChange={(e) => setSize(e.target.value)}>
+                {STUDIO_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <label>{exactPhotoCount ? `Photos (exactly ${exactPhotoCount})` : "Photos (1–5)"}
+              <input type="file" accept="image/*" multiple onChange={handlePhotos} />
+            </label>
+            {photos.length > 0 && (
+              <div className="pns-photo-row">{photos.map((f, i) => <img key={i} src={URL.createObjectURL(f)} alt="" />)}</div>
+            )}
+            {genError && <p className="pnd-error">{genError}</p>}
+            <button type="button" className="pnd-save-btn" disabled={generating} onClick={generate}>
+              {generating ? "Generating…" : `Generate — R${price}`}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="pnd-section">
+        <h2>Your generations</h2>
+        {loadingDesigns ? (
+          <p style={{ color: "#66665f", fontSize: 12 }}>Loading…</p>
+        ) : designs.length === 0 ? (
+          <p style={{ color: "#66665f", fontSize: 12 }}>Nothing generated yet — create your first design above.</p>
+        ) : (
+          <div className="pns-gallery">
+            {designs.map((d) => (
+              <div key={d.id} className="pns-card">
+                {d.mockupUrl ? <img src={d.mockupUrl} alt={d.name} /> : <div className="pns-card-placeholder" />}
+                <div className="pns-card-body">
+                  <span className="pns-card-name">{d.name}</span>
+                  <span className="pns-card-meta">{d.garment} · {d.colour} · {d.size}</span>
+                  <div className="pns-card-actions">
+                    <button type="button" onClick={() => addToCart(d)}>Add to cart</button>
+                    <button type="button" onClick={() => onSendToRecap(d.id)}>Send to Recap</button>
+                    <button type="button" onClick={() => download(d.id, "original")}>Download design</button>
+                    <button type="button" onClick={() => download(d.id, "mockup")}>Download mockup</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {cart.length > 0 && (
+        <div className="pnd-section">
+          <div className="pnd-section-head">
+            <h2>Cart — sell this design directly</h2>
+            <span style={{ color: "#8f8f89", fontSize: 11 }}>Pay with your own card, ship to your customer</span>
+          </div>
+          {cart.map((l) => (
+            <div key={l.designId} className="pns-cart-line">
+              {l.mockupUrl ? <img src={l.mockupUrl} alt="" /> : <div className="pns-card-placeholder" style={{ width: 44, height: 44 }} />}
+              <div className="pns-cart-line-body">
+                <span>{l.name} — {l.garment} · {l.colour} · {l.size}</span>
+                <div className="pns-qty-row">
+                  <button type="button" onClick={() => updateQty(l.designId, l.qty - 1)}>−</button>
+                  <span>{l.qty}</span>
+                  <button type="button" onClick={() => updateQty(l.designId, l.qty + 1)}>+</button>
+                  <button type="button" className="pns-remove" onClick={() => updateQty(l.designId, 0)}>Remove</button>
+                </div>
+              </div>
+              <span className="pns-cart-line-price">R{(l.price * l.qty).toFixed(2)}</span>
+            </div>
+          ))}
+
+          {deliveryOptions.length > 1 && (
+            <label style={{ marginTop: 10 }}>Delivery
+              <select value={deliveryIdx} onChange={(e) => setDeliveryIdx(Number(e.target.value))}>
+                {deliveryOptions.map((o, i) => <option key={i} value={i}>{o.name} — {o.price > 0 ? `R${o.price}` : "Free"}</option>)}
+              </select>
+            </label>
+          )}
+
+          <div className="pns-cart-total"><span>Subtotal</span><strong>R{subtotal.toFixed(2)}</strong></div>
+          <div className="pns-cart-total"><span>{delivery.name}</span><strong>{delivery.price > 0 ? `R${delivery.price.toFixed(2)}` : "Free"}</strong></div>
+          <div className="pns-cart-total pns-cart-grand"><span>Total</span><strong>R{total.toFixed(2)}</strong></div>
+
+          {!checkoutOpen ? (
+            <button type="button" className="pnd-save-btn" onClick={() => setCheckoutOpen(true)}>Checkout for this customer</button>
+          ) : (
+            <form className="pns-checkout-form" onSubmit={submitCheckout}>
+              <p style={{ color: "#8f8f89", fontSize: 12, margin: "4px 0 8px" }}>Enter YOUR customer's details — the order ships to them, you pay with your own card.</p>
+              <div className="pns-form-row">
+                <label>First name<input name="firstName" required /></label>
+                <label>Last name<input name="lastName" required /></label>
+              </div>
+              <label>Email<input name="email" type="email" required /></label>
+              <label>Phone<input name="phone" type="tel" required /></label>
+              {!delivery.isPickup && (
+                <>
+                  <label>Street address<input name="streetAddress" required /></label>
+                  <div className="pns-form-row">
+                    <label>Suburb<input name="suburb" /></label>
+                    <label>Town / City<input name="townCity" required /></label>
+                  </div>
+                  <div className="pns-form-row">
+                    <label>Province
+                      <select name="province" required defaultValue="">
+                        <option value="" disabled>Select province</option>
+                        <option>Eastern Cape</option><option>Free State</option><option>Gauteng</option>
+                        <option>KwaZulu-Natal</option><option>Limpopo</option><option>Mpumalanga</option>
+                        <option>North West</option><option>Northern Cape</option><option>Western Cape</option>
+                      </select>
+                    </label>
+                    <label>Postal code<input name="postal" required /></label>
+                  </div>
+                </>
+              )}
+              <label>Notes (optional)<input name="notes" /></label>
+              {checkoutError && <p className="pnd-error">{checkoutError}</p>}
+              <button className="pnd-save-btn" disabled={checkoutBusy}>{checkoutBusy ? "Starting payment…" : `Pay R${total.toFixed(2)} with Yoco`}</button>
+            </form>
+          )}
+        </div>
+      )}
+
+      <style jsx>{`
+        .pns-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+        .pns-limit{font-size:11px;font-weight:700;color:#4ade80;background:rgba(0,117,23,.14);padding:5px 10px;border-radius:100px}
+        .pns-order-banner{padding:12px 16px;border-radius:12px;background:rgba(0,117,23,.14);border:1px solid rgba(0,117,23,.3);color:#4ade80;font-size:12.5px;margin-bottom:16px}
+        .pns-order-banner-error{background:rgba(139,42,32,.14);border-color:rgba(139,42,32,.4);color:#ff8b84}
+        .pns-form{display:grid;gap:12px;max-width:460px}
+        .pns-form label{display:grid;gap:6px;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8f8f89}
+        .pns-form input,.pns-form select{min-height:42px;padding:0 12px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#fff;font-size:13px}
+        .pns-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .pns-checkbox{display:flex;align-items:center;gap:8px;font-size:12px;color:#c0c0ba;text-transform:none;letter-spacing:normal;font-weight:600}
+        .pns-checkbox input{width:auto;min-height:0}
+        .pns-photo-row{display:flex;gap:8px;flex-wrap:wrap}
+        .pns-photo-row img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #27272a}
+        .pns-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+        .pns-card{border:1px solid #1c1c1e;border-radius:14px;overflow:hidden;background:#0e0e10}
+        .pns-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#151517}
+        .pns-card-placeholder{width:100%;aspect-ratio:3/4;background:#151517}
+        .pns-card-body{padding:10px 12px 12px}
+        .pns-card-name{display:block;font-size:12.5px;font-weight:700}
+        .pns-card-meta{display:block;font-size:10.5px;color:#8f8f89;text-transform:capitalize;margin:2px 0 8px}
+        .pns-card-actions{display:flex;flex-direction:column;gap:6px}
+        .pns-card-actions button{padding:7px 10px;border-radius:8px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:11px;font-weight:700;text-align:left}
+        .pns-card-actions button:hover{color:#fff;border-color:#3a3a3d}
+        .pns-cart-line{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1c1c1e}
+        .pns-cart-line img{width:44px;height:44px;object-fit:cover;border-radius:8px;flex:0 0 auto}
+        .pns-cart-line-body{flex:1;display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+        .pns-qty-row{display:flex;align-items:center;gap:8px}
+        .pns-qty-row button{width:22px;height:22px;border-radius:50%;border:1px solid #27272a;background:#111113;color:#fff;font-weight:900}
+        .pns-remove{border:0!important;background:none!important;color:#ff8b84;font-size:10.5px;font-weight:700;width:auto!important;height:auto!important}
+        .pns-cart-line-price{font-weight:700;font-size:12.5px;white-space:nowrap}
+        .pns-cart-total{display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0;color:#c0c0ba}
+        .pns-cart-grand{border-top:1px solid #1c1c1e;margin-top:4px;padding-top:10px;font-weight:800;color:#fff;font-size:14px}
+        .pns-checkout-form{display:grid;gap:12px;margin-top:14px}
+        .pns-checkout-form label{display:grid;gap:6px;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8f8f89}
+        .pns-checkout-form input,.pns-checkout-form select{min-height:42px;padding:0 12px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#fff;font-size:13px}
+        @media(max-width:700px){.pns-form-row{grid-template-columns:1fr}.pns-gallery{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
+      `}</style>
+    </section>
+  );
+}
+
+function RecapPanel({ authedFetch, importId, onImported }: {
+  authedFetch: (path: string, init?: RequestInit) => Promise<Response>; importId: string | null; onImported: () => void;
+}) {
   const [tab, setTab] = useState<"studio" | "custom">("studio");
+  const [importing, setImporting] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // recap.html pings {type:'unik-recap-ready'} once its own script has
+  // attached its message listener -- posting the import payload any
+  // earlier than that would silently be dropped.
+  useEffect(() => {
+    if (!importId || tab !== "studio") return;
+    const id = importId;
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      if (!event.data || event.data.type !== "unik-recap-ready") return;
+      (async () => {
+        setImporting(true);
+        try {
+          const res = await authedFetch(`/api/unik/partners/studio/recap-import?id=${encodeURIComponent(id)}`, { method: "GET" });
+          const payload = await res.json().catch(() => ({}));
+          if (res.ok) iframeRef.current?.contentWindow?.postMessage({ type: "unik-recap-import", payload }, window.location.origin);
+        } finally {
+          setImporting(false);
+          onImported();
+        }
+      })();
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [importId, tab, authedFetch, onImported]);
+
   return (
     <section>
       <h1 className="pnd-h1">Recap Builder</h1>
+      {importing && <p style={{ color: "#4ade80", fontSize: 12, margin: "-12px 0 12px" }}>Importing your generation…</p>}
       <div className="pnd-tabs">
         <button type="button" className={"pnd-tab" + (tab === "studio" ? " active" : "")} onClick={() => setTab("studio")}>AI Studio</button>
         <button type="button" className={"pnd-tab" + (tab === "custom" ? " active" : "")} onClick={() => setTab("custom")}>Custom Upload</button>
       </div>
       <div className="pnd-iframe-wrap">
-        <iframe src={tab === "studio" ? "/private-templates/unik-labs/recap.html" : "/private-templates/unik-labs/recap-custom.html"} title="Recap builder" />
+        <iframe ref={iframeRef} src={tab === "studio" ? "/private-templates/unik-labs/recap.html" : "/private-templates/unik-labs/recap-custom.html"} title="Recap builder" />
       </div>
     </section>
   );

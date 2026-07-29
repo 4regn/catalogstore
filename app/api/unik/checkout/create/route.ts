@@ -3,6 +3,7 @@ import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikCustomer } from "../../../../../lib/unik-customer";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 import { createYocoCheckout, type YocoLineItem } from "../../../../../lib/yoco";
+import { PRODUCT_BY_GARMENT } from "../../../../../lib/unik-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,6 @@ function safeOrigin(raw: unknown, sellerDomain: string | null): string {
   }
 }
 
-const PRODUCT_BY_GARMENT: Record<string, string> = { tee: "AI Tee", hoodie: "AI Hoodie", "tee-budget": "AI Tee — Budget (A4)" };
 const CUSTOM_PRODUCT_BY_GARMENT_ZONE: Record<string, string> = {
   tee_front: "Custom Tee — Front", tee_both: "Custom Tee — Front + Back",
   hoodie_front: "Custom Hoodie — Front", hoodie_both: "Custom Hoodie — Front + Back",
