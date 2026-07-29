@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 // start," with per-partner overrides available later via the same column.
 export const DEFAULT_PARTNER_COMMISSION_PERCENT = 10;
 // The value of the discount code auto-created for a partner on approval.
-const DEFAULT_PARTNER_DISCOUNT_VALUE = 50;
+// R25, not R50 -- at R50 off plus a commission, hoodie orders in particular
+// don't leave enough margin (see the margin discussion with the seller).
+const DEFAULT_PARTNER_DISCOUNT_VALUE = 25;
 
 export async function GET(req: NextRequest) {
   const auth = await requireUnikBrandManager(req);
