@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     partner: {
       fullName: partner.full_name,
       email: partner.email,
+      phone: partner.phone,
       avatarUrl: partner.avatar_url,
       status: partner.status,
       referralCode: partner.referral_code,

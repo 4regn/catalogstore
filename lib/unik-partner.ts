@@ -3,7 +3,7 @@ import { getAdmin } from "./supabase-admin";
 import { getUnikSeller } from "./unik-customer";
 
 const PARTNER_COLUMNS =
-  "id, seller_id, auth_user_id, full_name, email, avatar_url, status, referral_code, discount_code_id, commission_percent, payout_account_holder, payout_bank, payout_account_type, payout_branch_code, payout_account_last4, available_balance_cents, pending_balance_cents, total_earned_cents, total_paid_out_cents";
+  "id, seller_id, auth_user_id, full_name, email, phone, avatar_url, status, referral_code, discount_code_id, commission_percent, payout_account_holder, payout_bank, payout_account_type, payout_branch_code, payout_account_last4, available_balance_cents, pending_balance_cents, total_earned_cents, total_paid_out_cents";
 
 /* Mirrors requireUnikBrandManager's shape exactly, but authorizes against
    unik_partners instead. A Partner has their own auth.users row (created via

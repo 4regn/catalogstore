@@ -19,16 +19,24 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const fullName = String(body.fullName || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
+    const phone = String(body.phone || "").trim();
     const password = String(body.password || "");
+    const confirmPassword = String(body.confirmPassword || "");
 
-    if (!fullName || !email || !password) {
-      return NextResponse.json({ error: "Name, email and password are required" }, { status: 400 });
+    if (!fullName || !email || !phone || !password) {
+      return NextResponse.json({ error: "Name, email, phone and password are required" }, { status: 400 });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
     }
+    if (!/^(\+27|0)[6-8][0-9]{8}$/.test(phone)) {
+      return NextResponse.json({ error: "Enter a valid South African phone number" }, { status: 400 });
+    }
     if (password.length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+    }
+    if (password !== confirmPassword) {
+      return NextResponse.json({ error: "Passwords don't match" }, { status: 400 });
     }
 
     const seller = await getUnikSeller();
@@ -53,6 +61,7 @@ export async function POST(req: NextRequest) {
       auth_user_id: authData.user.id,
       full_name: fullName,
       email,
+      phone,
       status: "pending",
     });
     if (insertErr) {
