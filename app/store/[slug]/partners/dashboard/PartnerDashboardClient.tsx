@@ -209,7 +209,7 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
 
       <main className="pnd-main">
         {panel === "overview" && (
-          <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} />
+          <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onDiscountCodeSynced={(code) => setDiscountCode((prev) => (prev ? { ...prev, code } : prev))} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} />
         )}
         {panel === "recap" && <RecapPanel />}
         {panel === "support" && <SupportChatPanel partner={partner} sellerId={sellerId} storeName={storeName} />}
@@ -343,10 +343,10 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   );
 }
 
-function OverviewPanel({ partner, firstName, discountCode, referralLink, authedFetch, toast, onSaved, onPickPhoto, uploadingPhoto }: {
+function OverviewPanel({ partner, firstName, discountCode, referralLink, authedFetch, toast, onSaved, onDiscountCodeSynced, onPickPhoto, uploadingPhoto }: {
   partner: Partner; firstName: string; discountCode: DiscountCode; referralLink: string;
   authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSaved: (p: Partner) => void;
-  onPickPhoto: () => void; uploadingPhoto: boolean;
+  onDiscountCodeSynced: (code: string) => void; onPickPhoto: () => void; uploadingPhoto: boolean;
 }) {
   const [editingCode, setEditingCode] = useState(false);
   const [codeInput, setCodeInput] = useState(partner.referralCode || "");
@@ -365,6 +365,7 @@ function OverviewPanel({ partner, firstName, discountCode, referralLink, authedF
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) { setCodeError(payload.error || "Could not save referral code"); setSavingCode(false); return; }
     onSaved({ ...partner, referralCode: payload.referralCode });
+    if (payload.discountCode) onDiscountCodeSynced(payload.discountCode);
     toast("Referral code updated");
     setSavingCode(false);
     setEditingCode(false);

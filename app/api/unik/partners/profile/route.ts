@@ -33,6 +33,8 @@ export async function PATCH(req: NextRequest) {
 
   const admin = getAdmin();
 
+  let syncedDiscountCode: string | null = null;
+
   if (body.referralCode !== undefined) {
     const cleaned = cleanReferralCode(String(body.referralCode || ""));
     if (cleaned.length < 3) {
@@ -41,6 +43,28 @@ export async function PATCH(req: NextRequest) {
     if (cleaned !== partner.referral_code) {
       const { data: taken } = await admin.from("unik_partners").select("id").eq("referral_code", cleaned).neq("id", partner.id).maybeSingle();
       if (taken) return NextResponse.json({ error: "That referral code is already taken -- try another one" }, { status: 409 });
+
+      // The partner's discount code at checkout is meant to mirror their
+      // referral code (that's what they see on their own dashboard), so
+      // keep discount_codes.code in lockstep whenever they rename it.
+      if (partner.discount_code_id) {
+        const nextDiscountCode = cleaned.toUpperCase();
+        const { data: codeTaken } = await admin
+          .from("discount_codes")
+          .select("id")
+          .eq("seller_id", partner.seller_id)
+          .eq("code", nextDiscountCode)
+          .neq("id", partner.discount_code_id)
+          .maybeSingle();
+        if (codeTaken) return NextResponse.json({ error: "That code is already in use as a discount code -- try another one" }, { status: 409 });
+
+        const { error: discountUpdateErr } = await admin
+          .from("discount_codes")
+          .update({ code: nextDiscountCode })
+          .eq("id", partner.discount_code_id);
+        if (discountUpdateErr) return NextResponse.json({ error: discountUpdateErr.message }, { status: 500 });
+        syncedDiscountCode = nextDiscountCode;
+      }
     }
     update.referral_code = cleaned;
   }
@@ -48,5 +72,9 @@ export async function PATCH(req: NextRequest) {
   const { error } = await admin.from("unik_partners").update(update).eq("id", partner.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ success: true, referralCode: (update.referral_code as string) ?? partner.referral_code });
+  return NextResponse.json({
+    success: true,
+    referralCode: (update.referral_code as string) ?? partner.referral_code,
+    ...(syncedDiscountCode ? { discountCode: syncedDiscountCode } : {}),
+  });
 }

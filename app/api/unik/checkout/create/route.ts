@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
   const requestedDelivery = body?.deliveryMethod || {};
   const requestedIsPickup = !!requestedDelivery.isPickup;
   const requestedDeliveryName = String(requestedDelivery.name || "").trim().slice(0, 80);
+  const requestedDiscountCode = String(body?.discountCode || "").trim().toUpperCase();
 
   if (!items.length) return NextResponse.json({ error: "Your cart is empty" }, { status: 400 });
   if (!firstName || !lastName) return NextResponse.json({ error: "First and last name are required" }, { status: 400 });
@@ -284,7 +285,47 @@ export async function POST(req: NextRequest) {
   const deferredJobs: DeferredUploadJob[] = okResults.map((r) => r.deferred).filter((d): d is DeferredUploadJob => !!d);
 
   const subtotal = lineItems.reduce((sum, i) => sum + i.price * i.qty, 0);
-  const total = subtotal + shippingCost;
+
+  // Discount code: re-validated from scratch here (never trust the client's
+  // preview from /api/unik/checkout/discount) -- min_order, expiry and
+  // max_uses can all have changed since "Apply" was clicked. UNIK partner
+  // codes are always applies_to:'cart', so that's the only scope handled.
+  let discountAmount = 0;
+  let discountRow: { id: string; code: string; partner_id: string | null } | null = null;
+  if (requestedDiscountCode) {
+    const { data: dc } = await admin
+      .from("discount_codes")
+      .select("id, code, type, value, applies_to, active, expires_at, max_uses, used_count, min_order, partner_id")
+      .eq("seller_id", seller.id)
+      .eq("code", requestedDiscountCode)
+      .maybeSingle();
+    if (!dc || !dc.active) return NextResponse.json({ error: "Invalid discount code" }, { status: 400 });
+    if (dc.expires_at && new Date(dc.expires_at) < new Date()) return NextResponse.json({ error: "This code has expired" }, { status: 400 });
+    if (dc.max_uses && dc.used_count >= dc.max_uses) return NextResponse.json({ error: "This code has reached its usage limit" }, { status: 409 });
+    if (dc.min_order > 0 && subtotal < dc.min_order) return NextResponse.json({ error: `Minimum order of R${dc.min_order} required` }, { status: 400 });
+    if (dc.applies_to !== "cart") return NextResponse.json({ error: "This code can't be used here" }, { status: 400 });
+
+    discountAmount = dc.type === "percentage" ? subtotal * (dc.value / 100) : Math.min(dc.value, subtotal);
+
+    if (dc.max_uses) {
+      const { data: updated, error: upErr } = await admin
+        .from("discount_codes")
+        .update({ used_count: (dc.used_count || 0) + 1 })
+        .eq("id", dc.id)
+        .eq("used_count", dc.used_count || 0)
+        .lt("used_count", dc.max_uses)
+        .select("id");
+      if (upErr || !updated || updated.length === 0) {
+        return NextResponse.json({ error: "This code has reached its usage limit" }, { status: 409 });
+      }
+    } else {
+      await admin.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
+    }
+    discountRow = { id: dc.id, code: dc.code, partner_id: dc.partner_id };
+  }
+  mark("discountValidated");
+
+  const total = Math.max(0, subtotal - discountAmount + shippingCost);
 
   const { data: order, error: insertErr } = await admin.from("orders").insert({
     seller_id: seller.id,
@@ -295,6 +336,9 @@ export async function POST(req: NextRequest) {
     notes: notes || null,
     items: lineItems.map((i) => ({ id: i.productId, name: i.name, price: i.price, qty: i.qty, image: i.image, customization: { designId: i.designId, garment: i.garment, colour: i.colour, size: i.size, style: i.style } })),
     total,
+    discount_code: discountRow?.code || null,
+    discount_amount: discountAmount || 0,
+    partner_id: discountRow?.partner_id || null,
     fulfillment_method: fulfillmentMethod,
     shipping_option: shippingLabel,
     shipping_address: fulfillmentMethod === "delivery" ? { address: streetAddress, apartment: suburb || undefined, city: townCity, province, postal_code: postal } : null,
