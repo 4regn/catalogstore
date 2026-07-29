@@ -45,7 +45,7 @@ type SessionAnalytics = {
   topLocations: { country: string; region: string; city: string; count: number }[];
 };
 
-type Panel = "overview" | "sales" | "growth" | "content" | "support" | "academy" | "settings";
+type Panel = "overview" | "sales" | "growth" | "content" | "support" | "partners" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Brand Manager overview",
@@ -53,6 +53,7 @@ const PANEL_TITLES: Record<Panel, string> = {
   growth: "Growth Tools",
   content: "Recap Builder",
   support: "Live Support",
+  partners: "Partners",
   academy: "UNIK Academy",
   settings: "Settings",
 };
@@ -63,6 +64,7 @@ const MOBILE_NAV_LABELS: Record<Panel, string> = {
   growth: "Growth",
   content: "Recap",
   support: "Support",
+  partners: "Partners",
   academy: "Academy",
   settings: "Settings",
 };
@@ -73,6 +75,7 @@ const NAV_ICON_PATHS: Record<Panel, string> = {
   growth: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 12h8M12 8v8",
   content: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 9l5 3-5 3Z",
   support: "M4 5h16v11H8l-4 4Z",
+  partners: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM3 21c0-3.5 2.7-6 6-6s6 2.5 6 6M16 11a3.5 3.5 0 1 0 0-7M21 21c0-3-1.8-5.2-4.5-5.8",
   academy: "M5 4h14v16H5ZM8 8h8M8 12h6",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a8 8 0 0 0-1.8 1l-2.4-1-2 3.4L5.1 11a7 7 0 0 0 0 2L3 14.5l2 3.4 2.4-1a8 8 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.5a7 7 0 0 0 .1-1Z",
 };
@@ -338,6 +341,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         {panel === "growth" && <GrowthPanel manager={overview.manager} authedFetch={authedFetch} onSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
         {panel === "content" && <ContentPanel />}
         {panel === "support" && <SupportPanel authedFetch={authedFetch} />}
+        {panel === "partners" && <PartnersPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "academy" && <AcademyPanel />}
         {panel === "settings" && <SettingsPanel manager={overview.manager} authedFetch={authedFetch} onProfileSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
       </main>
@@ -835,6 +839,90 @@ function SupportPanel({ authedFetch }: { authedFetch: (path: string, init?: Requ
             )}
           </div>
         </div>
+      </article>
+    </section>
+  );
+}
+
+type PartnerRow = {
+  id: string;
+  full_name: string;
+  email: string;
+  status: "pending" | "active" | "suspended";
+  referral_code: string | null;
+  commission_percent: number | null;
+  available_balance_cents: number;
+  pending_balance_cents: number;
+  total_earned_cents: number;
+  created_at: string;
+};
+
+function PartnersPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [partners, setPartners] = useState<PartnerRow[] | null>(null);
+  const [defaultRate, setDefaultRate] = useState(10);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/unik/brand-manager/partners");
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setPartners(payload.partners || []);
+      setDefaultRate(payload.defaultCommissionPercent ?? 10);
+    }
+  }, [authedFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function review(partnerId: string, action: "approve" | "reject") {
+    setBusyId(partnerId);
+    const res = await authedFetch("/api/unik/brand-manager/partners", { method: "PATCH", body: JSON.stringify({ partnerId, action }) });
+    const payload = await res.json().catch(() => ({}));
+    setBusyId(null);
+    if (!res.ok) { toast(payload.error || "Could not update this application"); return; }
+    toast(action === "approve" ? "Partner approved" : "Application rejected");
+    load();
+  }
+
+  if (!partners) return <section className="bm-empty">Loading partners…</section>;
+
+  const pending = partners.filter((p) => p.status === "pending");
+  const active = partners.filter((p) => p.status === "active");
+
+  return (
+    <section>
+      <article className="bm-card bm-orders-card">
+        <div className="bm-section-head"><h2 className="bm-section-title">Pending applications</h2><p className="bm-section-desc">Approving generates their referral code and a real discount code, live immediately.</p></div>
+        {pending.length === 0 ? <p className="bm-empty">No pending applications.</p> : (
+          <div className="bm-table">
+            <div className="bm-row bm-row-header"><div>Name</div><div>Email</div><div>Actions</div></div>
+            {pending.map((p) => (
+              <div className="bm-row" key={p.id}>
+                <div>{p.full_name}</div>
+                <div>{p.email}</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" disabled={busyId === p.id} onClick={() => review(p.id, "approve")} style={{ padding: "6px 12px", borderRadius: 100, border: "1px solid #22c55e", background: "rgba(34,197,94,0.12)", color: "#22c55e", fontSize: 11, fontWeight: 700 }}>Approve</button>
+                  <button type="button" disabled={busyId === p.id} onClick={() => review(p.id, "reject")} style={{ padding: "6px 12px", borderRadius: 100, border: "1px solid #3a3a3d", background: "transparent", color: "#999994", fontSize: 11, fontWeight: 700 }}>Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+
+      <article className="bm-card bm-orders-card" style={{ marginTop: 16 }}>
+        <div className="bm-section-head"><h2 className="bm-section-title">Active partners</h2><p className="bm-section-desc">Default commission rate: {defaultRate}% (per-partner override coming later)</p></div>
+        {active.length === 0 ? <p className="bm-empty">No active partners yet.</p> : (
+          <div className="bm-table">
+            <div className="bm-row bm-row-header"><div>Name</div><div>Code</div><div>Earned</div></div>
+            {active.map((p) => (
+              <div className="bm-row" key={p.id}>
+                <div>{p.full_name}</div>
+                <div>{p.referral_code || "—"}</div>
+                <div>R{Math.round(p.total_earned_cents / 100).toLocaleString("en-ZA")}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </article>
     </section>
   );
