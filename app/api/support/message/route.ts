@@ -4,7 +4,10 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { sendEmail } from "../../../../lib/email";
 
-const VALID_CATEGORIES = ["general", "domain", "storefront"] as const;
+// "partner" is UNIK's Partner HQ live chat -- same storefrontSellerId
+// routing as "storefront", just filed separately so Brand Manager can tell
+// a partner support request apart from a regular customer one.
+const VALID_CATEGORIES = ["general", "domain", "storefront", "partner"] as const;
 
 /* Visitor (or logged-in seller) sends a chat message. Creates the
    conversation on first message. Anonymous visitors are identified by a
@@ -50,12 +53,12 @@ export async function POST(req: NextRequest) {
     }
     const cat = VALID_CATEGORIES.includes(category) ? category : "general";
 
-    // A customer messaging a seller's storefront widget (Velour's live
-    // chat) isn't authenticated as that seller -- storefrontSellerId just
-    // says which public seller's inbox this belongs in. It grants no
-    // privilege (the lookup below only confirms the id is a real seller),
-    // it just routes the conversation for display.
-    if (!sellerId && cat === "storefront" && typeof storefrontSellerId === "string") {
+    // A customer (or UNIK partner) messaging a seller's storefront widget
+    // isn't authenticated as that seller -- storefrontSellerId just says
+    // which public seller's inbox this belongs in. It grants no privilege
+    // (the lookup below only confirms the id is a real seller), it just
+    // routes the conversation for display.
+    if (!sellerId && (cat === "storefront" || cat === "partner") && typeof storefrontSellerId === "string") {
       const { data: sellerRow } = await getAdmin().from("sellers").select("id").eq("id", storefrontSellerId).maybeSingle();
       if (sellerRow) sellerId = sellerRow.id;
     }

@@ -456,6 +456,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-conversation-label strong{display:block;font-size:10px}
         .bm-conversation-label small{display:block;margin-top:4px;color:#999994;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .bm-unread-dot{position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:#f43d32}
+        .bm-partner-badge{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:100px;background:rgba(118,87,255,.16);color:#a996ff;font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;vertical-align:middle}
         .bm-chat{padding:14px;display:flex;flex-direction:column;min-height:305px;border:1px solid #27272a;border-radius:16px;background:#09090a}
         .bm-chat-thread{display:flex;flex-direction:column;gap:10px;flex:1;overflow-y:auto}
         .bm-message{max-width:78%;padding:10px 12px;border:1px solid #29292d;border-radius:14px;background:#17171a;font-size:12px;line-height:1.5}
@@ -766,7 +767,7 @@ function ContentPanel() {
     </section>
   );
 }
-type Conversation = { id: string; name: string | null; email: string | null; status: string; seller_unread: number; last_message_at: string; last_message_preview: string | null; created_at: string };
+type Conversation = { id: string; name: string | null; email: string | null; status: string; category: string; seller_unread: number; last_message_at: string; last_message_preview: string | null; created_at: string };
 type ChatMessage = { id: string; sender: string; body: string; created_at: string };
 
 function SupportPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
@@ -819,7 +820,7 @@ function SupportPanel({ authedFetch }: { authedFetch: (path: string, init?: Requ
           <div className="bm-support-list">
             {loading ? <p className="bm-empty">Loading…</p> : conversations.length === 0 ? <p className="bm-empty">No conversations yet.</p> : conversations.map((c) => (
               <button key={c.id} type="button" className={"bm-conversation-label" + (activeId === c.id ? " active" : "")} onClick={() => setActiveId(c.id)}>
-                <strong>{c.name || c.email || "Customer"}</strong>
+                <strong>{c.name || c.email || "Customer"}{c.category === "partner" && <span className="bm-partner-badge">Partner</span>}</strong>
                 <small>{c.last_message_preview || "No messages yet"}</small>
                 {c.seller_unread > 0 && <span className="bm-unread-dot" />}
               </button>

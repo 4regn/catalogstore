@@ -617,15 +617,56 @@
     return supportSellerId;
   }
 
+  // Office hours: Mon-Fri 9am-6pm, Sat 10am-3pm, closed Sunday. SAST is
+  // UTC+2 year-round (no DST). Mirrors lib/unik-business-hours.ts -- kept
+  // in sync by hand since this static file can't import that TS module.
+  const UNIK_CHAT_HOURS = { 0: null, 1: [9, 18], 2: [9, 18], 3: [9, 18], 4: [9, 18], 5: [9, 18], 6: [10, 15] };
+  const UNIK_CHAT_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function unikChatFormatHour(h) {
+    const period = h >= 12 ? 'pm' : 'am';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + period;
+  }
+  function unikChatBusinessHours() {
+    const sast = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const day = sast.getUTCDay();
+    const minutesNow = sast.getUTCHours() * 60 + sast.getUTCMinutes();
+    const todayRange = UNIK_CHAT_HOURS[day];
+    if (todayRange && minutesNow >= todayRange[0] * 60 && minutesNow < todayRange[1] * 60) {
+      return { online: true, nextOpenLabel: '' };
+    }
+    if (todayRange && minutesNow < todayRange[0] * 60) {
+      return { online: false, nextOpenLabel: 'today at ' + unikChatFormatHour(todayRange[0]) };
+    }
+    for (let i = 1; i <= 7; i++) {
+      const nextDay = (day + i) % 7;
+      const range = UNIK_CHAT_HOURS[nextDay];
+      if (range) {
+        const label = i === 1 ? 'tomorrow' : UNIK_CHAT_DAY_NAMES[nextDay];
+        return { online: false, nextOpenLabel: label + ' at ' + unikChatFormatHour(range[0]) };
+      }
+    }
+    return { online: false, nextOpenLabel: 'soon' };
+  }
+
   function initSupportChat() {
     const chatStyle = document.createElement('style');
     chatStyle.textContent = `
-      .unik-chat-toggle{position:fixed;right:18px;bottom:18px;z-index:2000;width:56px;height:56px;border-radius:50%;background:#050505;border:1px solid rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 14px 40px rgba(0,0,0,.4)}
+      .unik-chat-toggle{position:fixed;right:18px;bottom:18px;z-index:2000;width:56px;height:56px;border-radius:50%;background:#050505;border:1px solid rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 14px 40px rgba(0,0,0,.4);transition:box-shadow .3s ease,border-color .3s ease}
       .unik-chat-toggle svg{width:24px;height:24px}
+      .unik-chat-toggle.online{border-color:rgba(34,197,94,.55);box-shadow:0 14px 40px rgba(0,0,0,.4),0 0 0 3px rgba(34,197,94,.16),0 0 22px 4px rgba(34,197,94,.45);animation:unikChatPulse 2.6s ease-in-out infinite}
+      @keyframes unikChatPulse{0%,100%{box-shadow:0 14px 40px rgba(0,0,0,.4),0 0 0 3px rgba(34,197,94,.16),0 0 22px 4px rgba(34,197,94,.45)}50%{box-shadow:0 14px 40px rgba(0,0,0,.4),0 0 0 5px rgba(34,197,94,.1),0 0 30px 8px rgba(34,197,94,.6)}}
+      .unik-chat-status{position:fixed;right:14px;bottom:78px;z-index:2000;display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;background:rgba(5,5,5,.9);border:1px solid rgba(255,255,255,.12);font-size:10px;font-weight:700;letter-spacing:.02em;color:#8fe3ac;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .3s ease,transform .3s ease}
+      .unik-chat-status.show{opacity:1;transform:none}
+      .unik-chat-status span{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px 1px rgba(34,197,94,.8)}
       .unik-chat-panel{position:fixed;right:18px;bottom:86px;z-index:2000;width:min(340px,calc(100vw - 36px));height:min(460px,calc(100vh - 140px));background:#0d0d0f;border:1px solid #27272a;border-radius:20px;display:none;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.5);font-family:Arial,sans-serif}
       .unik-chat-panel.open{display:flex}
       .unik-chat-head{padding:14px 16px;border-bottom:1px solid #27272a;display:flex;align-items:center;justify-content:space-between}
-      .unik-chat-head strong{color:#fff;font-size:13px}
+      .unik-chat-head strong{color:#fff;font-size:13px;display:block}
+      .unik-chat-head-status{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#8fe3ac;margin-top:2px}
+      .unik-chat-head-status.offline{color:#9b9d97}
+      .unik-chat-head-status span{width:6px;height:6px;border-radius:50%;background:#22c55e}
+      .unik-chat-head-status.offline span{background:#5a5b57}
       .unik-chat-close{background:none;border:0;color:#999;font-size:20px;cursor:pointer;line-height:1}
       .unik-chat-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
       .unik-chat-msg{max-width:80%;padding:9px 12px;border-radius:14px;background:#17171a;color:#f4f1e9;font-size:12px;line-height:1.5;border:1px solid #26262a}
@@ -635,6 +676,9 @@
       .unik-chat-send{background:#f43d32;color:#fff;border:0;border-radius:10px;padding:0 14px;font-weight:800;cursor:pointer}
       .unik-chat-intro{padding:16px;display:flex;flex-direction:column;gap:10px}
       .unik-chat-intro p{margin:0;color:#c9c9c4;font-size:12px;line-height:1.5}
+      .unik-chat-offline-banner{background:rgba(255,255,255,.04);border:1px solid #27272a;border-radius:12px;padding:10px 12px;margin:0 0 2px}
+      .unik-chat-offline-banner p{margin:0;color:#c9c9c4;font-size:11.5px;line-height:1.5}
+      .unik-chat-offline-banner strong{display:block;color:#fff;font-size:12px;margin-bottom:3px}
       .unik-chat-intro input{background:#111113;border:1px solid #27272a;border-radius:10px;color:#fff;padding:10px 12px;font-size:12px;outline:none}
       .unik-chat-intro button{background:#f43d32;color:#fff;border:0;border-radius:10px;padding:11px;font-weight:800;font-size:12px;cursor:pointer}
     `;
@@ -646,26 +690,55 @@
     toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4z"/></svg>';
     document.body.appendChild(toggle);
 
+    const statusPill = document.createElement('div');
+    statusPill.className = 'unik-chat-status';
+    statusPill.innerHTML = '<span></span>We\'re online';
+    document.body.appendChild(statusPill);
+
+    let chatOnline = false;
+    function refreshChatStatus() {
+      const status = unikChatBusinessHours();
+      chatOnline = status.online;
+      toggle.classList.toggle('online', chatOnline);
+      statusPill.classList.toggle('show', chatOnline);
+      const headStatus = panel.querySelector('.unik-chat-head-status');
+      if (headStatus) {
+        headStatus.classList.toggle('offline', !chatOnline);
+        headStatus.innerHTML = '<span></span>' + (chatOnline ? "We're online" : "We're offline");
+      }
+      return status;
+    }
+
     const panel = document.createElement('div');
     panel.className = 'unik-chat-panel';
     panel.innerHTML = `
-      <div class="unik-chat-head"><strong>Chat with us</strong><button class="unik-chat-close" type="button" aria-label="Close chat">&times;</button></div>
+      <div class="unik-chat-head"><div><strong>Chat with us</strong><div class="unik-chat-head-status"><span></span>We're online</div></div><button class="unik-chat-close" type="button" aria-label="Close chat">&times;</button></div>
       <div class="unik-chat-scroll" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
     `;
     document.body.appendChild(panel);
     const scrollArea = panel.querySelector('.unik-chat-scroll');
+
+    refreshChatStatus();
+    setInterval(refreshChatStatus, 60000);
 
     function identity() {
       try { return JSON.parse(localStorage.getItem(SUPPORT_IDENTITY_KEY) || 'null'); } catch (e) { return null; }
     }
 
     function renderIntro() {
+      const status = refreshChatStatus();
+      const offlineBanner = status.online ? '' : `
+        <div class="unik-chat-offline-banner">
+          <strong>Sorry, we're offline right now</strong>
+          <p>We'll be available again ${status.nextOpenLabel}. Leave a message below and we'll get back to you as soon as we're available.</p>
+        </div>`;
       scrollArea.innerHTML = `
         <div class="unik-chat-intro">
+          ${offlineBanner}
           <p>Tell us a little about yourself so we can help you out.</p>
           <input type="text" id="unikChatName" placeholder="Your name" autocomplete="name">
           <input type="email" id="unikChatEmail" placeholder="Email address" autocomplete="email">
-          <button type="button" id="unikChatStart">Start chat</button>
+          <button type="button" id="unikChatStart">${status.online ? 'Start chat' : 'Leave a message'}</button>
         </div>`;
       scrollArea.querySelector('#unikChatStart').addEventListener('click', () => {
         const name = scrollArea.querySelector('#unikChatName').value.trim();

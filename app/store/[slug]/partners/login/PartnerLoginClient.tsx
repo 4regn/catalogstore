@@ -41,6 +41,7 @@ export default function PartnerLoginClient({ storeName }: { storeName: string })
   return (
     <main className="pnr-page">
       <div className="pnr-card">
+        <img className="pnr-logo" src="/private-templates/unik-labs/assets/unik-logo-v3-header.png" alt={storeName} />
         <p className="pnr-kicker">{storeName} Partner Program</p>
         <h1>Sign in</h1>
         <form onSubmit={submit}>
@@ -57,6 +58,7 @@ export default function PartnerLoginClient({ storeName }: { storeName: string })
         html,body{margin:0;background:#060606;color:#f7f7f4;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
         .pnr-page{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 92% 2%,rgba(244,61,50,.09),transparent 30%),#060606}
         .pnr-card{width:min(380px,100%);padding:30px 26px;border:1px solid #27272a;border-radius:22px;background:linear-gradient(145deg,rgba(18,18,20,.98),rgba(11,11,12,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
+        .pnr-logo{height:26px;width:auto;display:block;margin:0 0 16px}
         .pnr-kicker{color:#f43d32;font-size:10px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin:0 0 10px}
         .pnr-card h1{margin:0 0 22px;font-size:28px;letter-spacing:-.04em}
         .pnr-card form{display:grid;gap:14px}

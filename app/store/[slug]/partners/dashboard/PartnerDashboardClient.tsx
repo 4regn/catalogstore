@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../../lib/supabase";
+import { unikBusinessHoursStatus } from "../../../../../lib/unik-business-hours";
 
 type Partner = {
   fullName: string;
@@ -22,7 +23,7 @@ type Partner = {
 };
 
 type DiscountCode = { code: string; type: string; value: number } | null;
-type Panel = "overview" | "recap" | "settings";
+type Panel = "overview" | "recap" | "support" | "settings";
 
 const BANKS = ["Absa", "Capitec", "FNB", "Nedbank", "Standard Bank", "TymeBank"];
 const ACCOUNT_TYPES = ["Cheque / Current", "Savings", "Transmission"];
@@ -35,6 +36,7 @@ function money(cents: number) {
 export default function PartnerDashboardClient({ storeName }: { storeName: string }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [sellerId, setSellerId] = useState<string | null>(null);
   const [partner, setPartner] = useState<Partner | null>(null);
   const [discountCode, setDiscountCode] = useState<DiscountCode>(null);
   const [loadError, setLoadError] = useState("");
@@ -67,6 +69,7 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
       if (!res.ok) throw new Error(payload.error || "Could not load your dashboard");
       setPartner(payload.partner);
       setDiscountCode(payload.discountCode);
+      setSellerId(payload.sellerId);
     } catch (cause) {
       setLoadError(cause instanceof Error ? cause.message : "Could not load your dashboard");
     }
@@ -130,17 +133,21 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
     <div className="pnd-app">
       <aside className="pnd-sidebar">
         <div className="pnd-brand">
-          <div className="pnd-logo-mark"><b>UN<span>I</span>K</b></div>
+          <img className="pnd-logo-mark" src="/private-templates/unik-labs/assets/unik-logo-v3-header.png" alt="UNIK Labs" />
           <div><span className="pnd-brand-name">UNIK</span><span className="pnd-brand-sub">Partner Program</span></div>
         </div>
         <nav className="pnd-navigation" aria-label="Dashboard navigation">
           <button type="button" className={"pnd-nav-link" + (panel === "overview" ? " active" : "")} onClick={() => setPanel("overview")}>Overview</button>
           <button type="button" className={"pnd-nav-link" + (panel === "recap" ? " active" : "")} onClick={() => setPanel("recap")}>Recap Builder</button>
+          <button type="button" className={"pnd-nav-link" + (panel === "support" ? " active" : "")} onClick={() => setPanel("support")}>Support</button>
           <button type="button" className={"pnd-nav-link" + (panel === "settings" ? " active" : "")} onClick={() => setPanel("settings")}>Settings</button>
         </nav>
         <div className="pnd-sidebar-profile">
           <div className="pnd-tiny-label">Logged in as</div>
-          <div className="pnd-profile-name">{partner.fullName}</div>
+          <div className="pnd-profile-row">
+            <div className="pnd-avatar">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
+            <div className="pnd-profile-name">{partner.fullName}</div>
+          </div>
           <button type="button" className="pnd-signout" onClick={signOut}>Sign out</button>
         </div>
       </aside>
@@ -150,7 +157,10 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
           <OverviewPanel partner={partner} discountCode={discountCode} referralLink={referralLink} toast={showToast} />
         )}
         {panel === "recap" && <RecapPanel />}
-        {panel === "settings" && <SettingsPanel partner={partner} authedFetch={authedFetch} toast={showToast} />}
+        {panel === "support" && <SupportChatPanel partner={partner} sellerId={sellerId} storeName={storeName} />}
+        {panel === "settings" && (
+          <SettingsPanel partner={partner} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} />
+        )}
       </main>
 
       {toastText && <div className="pnd-toast show">{toastText}</div>}
@@ -165,16 +175,18 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-sidebar{border-right:1px solid #1c1c1e;padding:22px 16px;display:flex;flex-direction:column;gap:22px}
         @media (max-width:860px){.pnd-sidebar{border-right:0;border-bottom:1px solid #1c1c1e}}
         .pnd-brand{display:flex;align-items:center;gap:10px}
-        .pnd-logo-mark{width:34px;height:34px;border-radius:9px;background:#f43d32;display:grid;place-items:center;font-size:11px;font-weight:900}
-        .pnd-logo-mark span{color:#0b0b0c}
+        .pnd-logo-mark{height:26px;width:auto;display:block}
         .pnd-brand-name{display:block;font-weight:800;font-size:13px}
         .pnd-brand-sub{display:block;font-size:10px;color:#8f8f89}
         .pnd-navigation{display:flex;flex-direction:column;gap:4px}
         .pnd-nav-link{text-align:left;padding:10px 12px;border-radius:10px;background:transparent;border:0;color:#c0c0ba;font-size:13px;font-weight:600}
         .pnd-nav-link.active,.pnd-nav-link:hover{background:#141416;color:#fff}
         .pnd-sidebar-profile{margin-top:auto;padding-top:16px;border-top:1px solid #1c1c1e}
-        .pnd-tiny-label{font-size:9px;color:#66665f;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
-        .pnd-profile-name{font-size:13px;font-weight:700;margin-bottom:10px}
+        .pnd-tiny-label{font-size:9px;color:#66665f;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+        .pnd-profile-row{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+        .pnd-avatar{width:32px;height:32px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#f43d32,#7657ff);display:grid;place-items:center;flex:0 0 auto;font-weight:800;font-size:12px}
+        .pnd-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+        .pnd-profile-name{font-size:13px;font-weight:700}
         .pnd-signout{width:100%;padding:9px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:12px;font-weight:700}
         .pnd-signout:hover{color:#fff;border-color:#3a3a3d}
         .pnd-main{padding:28px 26px 60px;max-width:920px}
@@ -202,6 +214,26 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-error{color:#ff8b84;font-size:12px;margin:0}
         .pnd-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(8px);opacity:0;background:#fff;color:#000;padding:10px 18px;border-radius:100px;font-size:12px;font-weight:700;transition:all .2s;pointer-events:none}
         .pnd-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+        .pnd-avatar-row{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+        .pnd-avatar-lg{width:64px;height:64px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#f43d32,#7657ff);display:grid;place-items:center;flex:0 0 auto;font-weight:800;font-size:22px}
+        .pnd-avatar-lg img{width:100%;height:100%;object-fit:cover;display:block}
+        .pnd-avatar-btn{padding:9px 14px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:12px;font-weight:700}
+        .pnd-avatar-btn:hover{color:#fff;border-color:#3a3a3d}
+        .pnd-inline-form{display:flex;gap:8px;align-items:center;max-width:420px}
+        .pnd-inline-form input{flex:1;min-height:42px;padding:0 12px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#fff;font-size:13px}
+        .pnd-inline-form button{padding:0 16px;min-height:42px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#fff;font-weight:800;font-size:12px}
+        .pnd-chat-wrap{background:#0b0b0c;border:1px solid #1c1c1e;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;height:70vh;max-height:640px}
+        .pnd-chat-status-bar{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid #1c1c1e;font-size:12px;font-weight:700}
+        .pnd-chat-status-bar .dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px 1px rgba(34,197,94,.7)}
+        .pnd-chat-status-bar.offline .dot{background:#5a5b57;box-shadow:none}
+        .pnd-chat-status-bar.offline{color:#9b9d97}
+        .pnd-chat-offline-note{padding:12px 16px;background:rgba(255,255,255,.03);border-bottom:1px solid #1c1c1e;font-size:12px;color:#c0c0ba;line-height:1.55}
+        .pnd-chat-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:9px}
+        .pnd-chat-msg{max-width:75%;padding:9px 13px;border-radius:14px;background:#17171a;color:#f4f1e9;font-size:13px;line-height:1.5;border:1px solid #26262a}
+        .pnd-chat-msg.out{margin-left:auto;background:#f43d32;border-color:#f43d32;color:#fff}
+        .pnd-chat-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid #1c1c1e}
+        .pnd-chat-form input{flex:1;min-width:0;background:#111113;border:1px solid #27272a;border-radius:10px;color:#fff;padding:10px 12px;font-size:13px;outline:none}
+        .pnd-chat-send{background:#f43d32;color:#fff;border:0;border-radius:10px;padding:0 16px;font-weight:800}
       `}</style>
     </div>
   );
@@ -264,9 +296,163 @@ function RecapPanel() {
   );
 }
 
-function SettingsPanel({ partner, authedFetch, toast }: { partner: Partner; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+const PARTNER_CHAT_VISITOR_KEY = "unik-partner-support-visitor";
+const PARTNER_CHAT_CONV_KEY = "unik-partner-support-conversation";
+
+function partnerChatVisitorId() {
+  let id = null;
+  try { id = localStorage.getItem(PARTNER_CHAT_VISITOR_KEY); } catch {}
+  if (!id) {
+    id = "p-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    try { localStorage.setItem(PARTNER_CHAT_VISITOR_KEY, id); } catch {}
+  }
+  return id;
+}
+
+type ChatMessage = { id: string; sender: string; body: string; created_at: string };
+
+function SupportChatPanel({ partner, sellerId, storeName }: { partner: Partner; sellerId: string | null; storeName: string }) {
+  const [status, setStatus] = useState(() => unikBusinessHoursStatus());
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => setStatus(unikBusinessHoursStatus()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const poll = useCallback(async () => {
+    let conversationId: string | null = null;
+    try { conversationId = localStorage.getItem(PARTNER_CHAT_CONV_KEY); } catch {}
+    if (!conversationId) return;
+    try {
+      const res = await fetch(`/api/support/messages?conversationId=${encodeURIComponent(conversationId)}&visitorId=${encodeURIComponent(partnerChatVisitorId())}`);
+      const data = await res.json();
+      if (data.messages) setMessages(data.messages);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    poll();
+    const timer = setInterval(poll, 5000);
+    return () => clearInterval(timer);
+  }, [poll]);
+
+  async function send() {
+    const text = input.trim();
+    if (!text || !sellerId) return;
+    setSending(true);
+    setInput("");
+    let conversationId: string | null = null;
+    try { conversationId = localStorage.getItem(PARTNER_CHAT_CONV_KEY); } catch {}
+    try {
+      const res = await fetch("/api/support/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorId: partnerChatVisitorId(),
+          conversationId: conversationId || undefined,
+          message: text,
+          name: `Partner — ${partner.fullName}`,
+          email: partner.email,
+          category: "partner",
+          storefrontSellerId: sellerId,
+        }),
+      });
+      const data = await res.json();
+      if (data.conversationId) { try { localStorage.setItem(PARTNER_CHAT_CONV_KEY, data.conversationId); } catch {} }
+    } catch {}
+    await poll();
+    setSending(false);
+  }
+
+  return (
+    <section>
+      <h1 className="pnd-h1">Support</h1>
+      <p style={{ color: "#8f8f89", fontSize: 12, margin: "-14px 0 16px" }}>Message the {storeName} team directly — this goes to the same inbox Brand Manager checks for customer support.</p>
+      <div className="pnd-chat-wrap">
+        <div className={"pnd-chat-status-bar" + (status.online ? "" : " offline")}>
+          <span className="dot" />
+          {status.online ? "We're online" : `We're offline — back ${status.nextOpenLabel}`}
+        </div>
+        {!status.online && (
+          <div className="pnd-chat-offline-note">
+            Sorry, we're offline right now. Leave a message below and we'll get back to you as soon as we're available.
+          </div>
+        )}
+        <div className="pnd-chat-body">
+          {messages.length === 0 ? (
+            <p style={{ color: "#66665f", fontSize: 12 }}>No messages yet — say hello.</p>
+          ) : messages.map((m) => (
+            <div key={m.id} className={"pnd-chat-msg" + (m.sender !== "visitor" ? " out" : "")}>{m.body}</div>
+          ))}
+        </div>
+        <div className="pnd-chat-form">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={status.online ? "Write a message" : "Leave a message"}
+            onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+          />
+          <button type="button" className="pnd-chat-send" disabled={sending || !input.trim()} onClick={send}>Send</button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SettingsPanel({ partner, authedFetch, toast, onSaved }: { partner: Partner; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSaved: (p: Partner) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const [referralCode, setReferralCode] = useState(partner.referralCode || "");
+  const [savingCode, setSavingCode] = useState(false);
+  const [codeError, setCodeError] = useState("");
+
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setPhotoError("Photo must be under 5MB"); return; }
+    setUploadingPhoto(true);
+    setPhotoError("");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) { setPhotoError("Your session has expired -- please sign in again"); return; }
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `unik-partner/${userId}/photo-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
+      if (uploadErr) { setPhotoError("Could not upload photo"); return; }
+      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+      const avatarUrl = data.publicUrl;
+      const res = await authedFetch("/api/unik/partners/profile", { method: "PATCH", body: JSON.stringify({ avatarUrl }) });
+      if (!res.ok) { setPhotoError("Could not save photo"); return; }
+      onSaved({ ...partner, avatarUrl });
+      toast("Photo updated");
+    } catch {
+      setPhotoError("Network error -- please try again");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function saveReferralCode(event: FormEvent) {
+    event.preventDefault();
+    setSavingCode(true);
+    setCodeError("");
+    const res = await authedFetch("/api/unik/partners/profile", { method: "PATCH", body: JSON.stringify({ referralCode }) });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) { setCodeError(payload.error || "Could not save referral code"); setSavingCode(false); return; }
+    onSaved({ ...partner, referralCode: payload.referralCode });
+    toast("Referral code updated");
+    setSavingCode(false);
+  }
 
   async function saveBanking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -292,10 +478,30 @@ function SettingsPanel({ partner, authedFetch, toast }: { partner: Partner; auth
   return (
     <section>
       <h1 className="pnd-h1">Settings</h1>
+
       <div className="pnd-section">
         <h2>Profile</h2>
-        <p>{partner.fullName} · {partner.email}</p>
+        <div className="pnd-avatar-row">
+          <div className="pnd-avatar-lg">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
+          <div>
+            <button type="button" className="pnd-avatar-btn" disabled={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>{uploadingPhoto ? "Uploading…" : "Change photo"}</button>
+            <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={handlePhotoSelect} />
+          </div>
+        </div>
+        {photoError && <p className="pnd-error">{photoError}</p>}
+        <p style={{ marginTop: 8 }}>{partner.fullName} · {partner.email}</p>
       </div>
+
+      <div className="pnd-section">
+        <h2>Referral code</h2>
+        <p>Customise the code in your referral link — letters, numbers, - and _, at least 3 characters.</p>
+        <form className="pnd-inline-form" onSubmit={saveReferralCode}>
+          <input value={referralCode} onChange={(e) => setReferralCode(e.target.value)} placeholder="e.g. nik" />
+          <button type="submit" disabled={savingCode}>{savingCode ? "Saving…" : "Save"}</button>
+        </form>
+        {codeError && <p className="pnd-error" style={{ marginTop: 8 }}>{codeError}</p>}
+      </div>
+
       <div className="pnd-section">
         <h2>Banking details</h2>
         <p>Saved ahead of payout requests — that feature is coming in a follow-up update. Your details are stored ready to go.</p>

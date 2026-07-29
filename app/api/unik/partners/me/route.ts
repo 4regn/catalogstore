@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
+    sellerId: auth.seller.id,
     partner: {
       fullName: partner.full_name,
       email: partner.email,
