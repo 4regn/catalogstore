@@ -271,7 +271,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
                         const dayLabel = new Date(d.date + "T00:00:00Z").getUTCDate();
                         return (
                           <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                            <div style={{ width: "100%", height: Math.max(2, Math.round((d.sessions / max) * 64)), background: "#f43d32", borderRadius: 3 }} />
+                            <div style={{ width: "100%", height: Math.max(2, Math.round((d.sessions / max) * 64)), background: "#007517", borderRadius: 3 }} />
                             <span style={{ fontSize: 8, color: "#66665f" }}>{dayLabel}</span>
                           </div>
                         );
@@ -358,49 +358,49 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
       {toastText && <div className="bm-toast show">{toastText}</div>}
 
       <style jsx global>{`
-        html,body{margin:0;min-height:100vh;background:radial-gradient(circle at 92% 2%,rgba(244,61,50,.09),transparent 30%),#060606;color:#f7f7f4;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+        html,body{margin:0;min-height:100vh;background:radial-gradient(circle at 92% 2%,rgba(0,117,23,.09),transparent 30%),#060606;color:#f7f7f4;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
         *{box-sizing:border-box}
         button{font:inherit;cursor:pointer}
         .bm-loading{min-height:100dvh;display:grid;place-items:center;color:#999994;background:#060606}
         .bm-app{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100vh}
         .bm-sidebar{position:sticky;top:0;height:100vh;z-index:30;padding:22px 17px;display:flex;flex-direction:column;border-right:1px solid #27272a;background:rgba(7,7,8,.96)}
         .bm-brand{display:flex;align-items:center;gap:12px;padding:5px 8px 27px}
-        .bm-logo-mark{width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(244,61,50,.48);border-radius:14px;background:#0c0c0d;font-size:12px;font-weight:950;letter-spacing:-.04em}
-        .bm-logo-mark span{color:#f43d32}
+        .bm-logo-mark{width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(0,117,23,.48);border-radius:14px;background:#0c0c0d;font-size:12px;font-weight:950;letter-spacing:-.04em}
+        .bm-logo-mark span{color:#007517}
         .bm-brand-name{display:block;font-size:16px;font-weight:900;letter-spacing:.2em}
         .bm-brand-sub{display:block;margin-top:4px;color:#999994;font-size:9px;font-weight:750;letter-spacing:.13em;text-transform:uppercase}
         .bm-navigation{display:grid;gap:7px}
         .bm-nav-link{min-height:47px;padding:0 13px;display:flex;align-items:center;gap:12px;color:#969691;border:1px solid transparent;border-radius:14px;background:none;text-align:left;transition:.18s ease}
         .bm-nav-link svg{flex:0 0 auto}
         .bm-nav-link:hover{color:#fff;background:#131315}
-        .bm-nav-link.active{color:#fff;border-color:rgba(244,61,50,.28);background:linear-gradient(90deg,rgba(244,61,50,.13),rgba(255,255,255,.02))}
+        .bm-nav-link.active{color:#fff;border-color:rgba(0,117,23,.28);background:linear-gradient(90deg,rgba(0,117,23,.13),rgba(255,255,255,.02))}
         .bm-sidebar-profile{margin-top:auto;padding:16px;border:1px solid #27272a;border-radius:20px;background:linear-gradient(145deg,#111113,#09090a);box-shadow:0 18px 40px rgba(0,0,0,.3)}
         .bm-tiny-label{color:#999994;font-size:9px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}
         .bm-sidebar-profile-row{display:flex;align-items:center;gap:11px;margin-top:11px}
         .bm-avatar{overflow:hidden;border-radius:50%;background:#1b1b1d;border:1px solid #39393d;flex:0 0 auto;width:64px;height:64px;box-shadow:0 10px 26px rgba(0,0,0,.35)}
         .bm-avatar img{width:100%;height:100%;object-fit:cover;display:block}
-        .bm-avatar-fallback{width:100%;height:100%;display:grid;place-items:center;font-weight:900;font-size:1.4em;background:linear-gradient(145deg,rgba(244,61,50,.32),rgba(244,61,50,.08));color:#ff9d97}
+        .bm-avatar-fallback{width:100%;height:100%;display:grid;place-items:center;font-weight:900;font-size:1.4em;background:linear-gradient(145deg,rgba(0,117,23,.32),rgba(0,117,23,.08));color:#4ade80}
         .bm-profile-name{display:block;font-size:13px;font-weight:800}
         .bm-profile-role{display:block;margin-top:3px;color:#999994;font-size:10px}
         .bm-signout{width:100%;margin-top:12px;padding:10px;border:1px solid #27272a;border-radius:12px;background:#111113;color:#c0c0ba;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
-        .bm-signout:hover{background:rgba(244,61,50,.13);color:#fff}
+        .bm-signout:hover{background:rgba(0,117,23,.13);color:#fff}
         .bm-main{min-width:0;padding:28px 30px 58px}
         .bm-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
         .bm-signout-mobile{display:none;width:auto;margin-top:0;flex:0 0 auto}
         .bm-page-title{margin:0;font-size:clamp(29px,3vw,44px);line-height:1.03;letter-spacing:-.05em}
-        .bm-manager-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px 26px;border:1px solid #27272a;border-radius:25px;background:linear-gradient(120deg,rgba(244,61,50,.15),rgba(18,18,20,.96) 38%,rgba(10,10,11,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
-        .bm-avatar-banner{width:112px;height:112px;flex:0 0 auto;border-width:3px;border-color:rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.4),0 0 0 6px rgba(244,61,50,.08)}
+        .bm-manager-banner{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px 26px;border:1px solid #27272a;border-radius:25px;background:linear-gradient(120deg,rgba(0,117,23,.15),rgba(18,18,20,.96) 38%,rgba(10,10,11,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
+        .bm-avatar-banner{width:112px;height:112px;flex:0 0 auto;border-width:3px;border-color:rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.4),0 0 0 6px rgba(0,117,23,.08)}
         @media(max-width:560px){.bm-manager-banner{align-items:flex-start;gap:14px;padding:20px}.bm-avatar-banner{width:58px;height:58px;border-width:2px}}
-        .bm-manager-kicker{color:#ff8b84;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}
+        .bm-manager-kicker{color:#4ade80;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}
         .bm-manager-name{margin:8px 0 0;font-size:clamp(25px,3vw,39px);letter-spacing:-.045em}
         .bm-manager-sub{margin:7px 0 0;color:#c0c0ba;font-size:13px}
-        .bm-role-chip{display:inline-flex;margin-top:15px;padding:7px 11px;border-radius:999px;border:1px solid rgba(244,61,50,.27);background:rgba(244,61,50,.13);font-size:10px;font-weight:850;color:#ff918b}
+        .bm-role-chip{display:inline-flex;margin-top:15px;padding:7px 11px;border-radius:999px;border:1px solid rgba(0,117,23,.27);background:rgba(0,117,23,.13);font-size:10px;font-weight:850;color:#4ade80}
         .bm-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
         .bm-card{min-width:0;padding:20px;border:1px solid #27272a;border-radius:22px;background:linear-gradient(145deg,rgba(18,18,20,.98),rgba(11,11,12,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
         .bm-metric{grid-column:span 3;min-height:130px}
         .bm-metric-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
         .bm-metric-label{color:#c0c0ba;font-size:12px}
-        .bm-metric-icon{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border:1px solid #2d2d31;border-radius:11px;background:#18181b;color:#ff8b84}
+        .bm-metric-icon{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border:1px solid #2d2d31;border-radius:11px;background:#18181b;color:#4ade80}
         .bm-metric-value{margin-top:21px;font-size:30px;font-weight:850;letter-spacing:-.045em}
         .bm-orders-card{grid-column:span 12}
         .bm-section-head{margin-bottom:18px}
@@ -411,9 +411,9 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-row-header{padding-top:0;color:#999994;font-size:8px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
         .bm-row:not(.bm-row-header){border:1px solid #222225;background:#0b0b0c}
         .bm-row-clickable{width:100%;color:inherit;text-align:left;cursor:pointer;transition:border-color .15s}
-        .bm-row-clickable:hover{border-color:rgba(244,61,50,.3)}
+        .bm-row-clickable:hover{border-color:rgba(0,117,23,.3)}
         .bm-status-btn{padding:7px 14px;border-radius:100px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border:1px solid #27272a;background:#111113;color:#c0c0ba}
-        .bm-status-btn[data-active="true"]{border-color:rgba(244,61,50,.5);background:rgba(244,61,50,.13);color:#fff}
+        .bm-status-btn[data-active="true"]{border-color:rgba(0,117,23,.5);background:rgba(0,117,23,.13);color:#fff}
         .bm-status-btn:disabled{opacity:.6;cursor:wait}
         .bm-status{width:max-content;padding:6px 9px;border:1px solid rgba(114,227,157,.2);border-radius:999px;background:rgba(114,227,157,.11);color:#72e39d;font-size:8px;font-weight:900;text-transform:uppercase}
         .bm-status.pending{color:#edc96c;border-color:rgba(237,201,108,.2);background:rgba(237,201,108,.1)}
@@ -421,7 +421,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-toast{position:fixed;right:22px;bottom:22px;z-index:150;padding:12px 15px;border:1px solid #27272a;border-radius:13px;background:#171719;box-shadow:0 20px 55px rgba(0,0,0,.5);font-size:10px;font-weight:850}
         .bm-settings-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px}
         .bm-avatar-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 18px}
-        .bm-avatar-xl{width:160px;height:160px;margin-bottom:16px;border-width:3px;border-color:rgba(255,255,255,.14);box-shadow:0 20px 48px rgba(0,0,0,.42),0 0 0 7px rgba(244,61,50,.07)}
+        .bm-avatar-xl{width:160px;height:160px;margin-bottom:16px;border-width:3px;border-color:rgba(255,255,255,.14);box-shadow:0 20px 48px rgba(0,0,0,.42),0 0 0 7px rgba(0,117,23,.07)}
         .bm-avatar-xl .bm-avatar-fallback{font-size:2.4em}
         .bm-avatar-name{margin:0;font-size:19px;letter-spacing:-.01em}
         .bm-avatar-role{margin:4px 0 0;color:#999994;font-size:11px}
@@ -433,9 +433,9 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-field.full{grid-column:1/-1}
         .bm-field label{color:#c0c0ba;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
         .bm-input,.bm-select{width:100%;min-height:44px;padding:0 12px;color:#fff;border:1px solid #27272a;border-radius:12px;outline:none;background:#111113;font-size:14px}
-        .bm-input:focus,.bm-select:focus{border-color:rgba(244,61,50,.55);box-shadow:0 0 0 3px rgba(244,61,50,.08)}
+        .bm-input:focus,.bm-select:focus{border-color:rgba(0,117,23,.55);box-shadow:0 0 0 3px rgba(0,117,23,.08)}
         .bm-form-actions{display:flex;gap:9px;align-items:center;margin-top:16px}
-        .bm-primary-btn{padding:0 17px;min-height:44px;border-radius:13px;font-weight:800;border:1px solid #f43d32;color:#fff;background:#f43d32}
+        .bm-primary-btn{padding:0 17px;min-height:44px;border-radius:13px;font-weight:800;border:1px solid #007517;color:#fff;background:#007517}
         .bm-secondary-btn{padding:0 15px;min-height:44px;border-radius:13px;font-weight:800;border:1px solid #27272a;color:#fff;background:#111113}
         .bm-code-box{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 15px;border:1px dashed #3a3a3e;border-radius:16px;background:#09090a;margin-bottom:16px}
         .bm-code-value{font-size:17px;font-weight:950;letter-spacing:.11em}
@@ -447,20 +447,20 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-clean-list{display:grid;gap:9px;margin-top:14px}
         .bm-list-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 13px;border:1px solid #27272a;border-radius:14px;background:#0b0b0c}
         .bm-list-item strong{font-size:11px}
-        .bm-badge{padding:6px 9px;border-radius:999px;border:1px solid rgba(244,61,50,.25);background:rgba(244,61,50,.13);color:#ff8c85;font-size:8px;font-weight:900;text-transform:uppercase}
+        .bm-badge{padding:6px 9px;border-radius:999px;border:1px solid rgba(0,117,23,.25);background:rgba(0,117,23,.13);color:#4ade80;font-size:8px;font-weight:900;text-transform:uppercase}
         .bm-error{color:#ff8b84;font-size:12px;margin:0 0 12px}
         .bm-support-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:13px}
         .bm-support-list{display:grid;gap:8px;align-content:start}
         .bm-conversation-label{position:relative;padding:12px;border:1px solid #27272a;border-radius:14px;background:#0b0b0c;text-align:left;color:inherit}
-        .bm-conversation-label.active{border-color:rgba(244,61,50,.34);background:rgba(244,61,50,.13)}
+        .bm-conversation-label.active{border-color:rgba(0,117,23,.34);background:rgba(0,117,23,.13)}
         .bm-conversation-label strong{display:block;font-size:10px}
         .bm-conversation-label small{display:block;margin-top:4px;color:#999994;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .bm-unread-dot{position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:#f43d32}
+        .bm-unread-dot{position:absolute;top:10px;right:10px;width:7px;height:7px;border-radius:50%;background:#007517}
         .bm-partner-badge{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:100px;background:rgba(118,87,255,.16);color:#a996ff;font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;vertical-align:middle}
         .bm-chat{padding:14px;display:flex;flex-direction:column;min-height:305px;border:1px solid #27272a;border-radius:16px;background:#09090a}
         .bm-chat-thread{display:flex;flex-direction:column;gap:10px;flex:1;overflow-y:auto}
         .bm-message{max-width:78%;padding:10px 12px;border:1px solid #29292d;border-radius:14px;background:#17171a;font-size:12px;line-height:1.5}
-        .bm-message.out{margin-left:auto;border-color:rgba(244,61,50,.2);background:rgba(244,61,50,.13)}
+        .bm-message.out{margin-left:auto;border-color:rgba(0,117,23,.2);background:rgba(0,117,23,.13)}
         .bm-reply{display:flex;gap:8px;margin-top:12px}
         .bm-reply .bm-input{flex:1;min-width:0}
         @media(max-width:900px){.bm-support-layout{grid-template-columns:1fr}}
@@ -476,7 +476,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
           .bm-mobile-nav{position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:80;display:flex;justify-content:space-around;align-items:center;gap:2px;height:64px;padding:0 4px;border:1px solid #27272a;border-radius:20px;background:rgba(14,14,15,.96);backdrop-filter:blur(20px);box-shadow:0 18px 48px rgba(0,0,0,.48);overflow-x:auto}
           .bm-mobile-link{flex:1 0 auto;min-width:52px;padding:6px 4px;display:grid;place-items:center;gap:3px;border:0;background:none;color:#83837f;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
           .bm-mobile-link svg{width:18px;height:18px}
-          .bm-mobile-link.active{color:#ff8b84}
+          .bm-mobile-link.active{color:#4ade80}
         }
       `}</style>
     </div>

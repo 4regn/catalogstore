@@ -65,6 +65,8 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   const [loadError, setLoadError] = useState("");
   const [panel, setPanel] = useState<Panel>("overview");
   const [toastText, setToastText] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = useCallback((text: string) => {
     setToastText(text);
@@ -76,6 +78,35 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
     const token = data.session?.access_token;
     return fetch(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
   }, []);
+
+  // Shared by both the tappable avatar on Overview and the "Change photo"
+  // button in Settings, so there's one upload path instead of two.
+  const handlePhotoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showToast("Photo must be under 5MB"); return; }
+    setUploadingPhoto(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) { showToast("Your session has expired — please sign in again"); return; }
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `unik-partner/${userId}/photo-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
+      if (uploadErr) { showToast("Could not upload photo"); return; }
+      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+      const avatarUrl = data.publicUrl;
+      const res = await authedFetch("/api/unik/partners/profile", { method: "PATCH", body: JSON.stringify({ avatarUrl }) });
+      if (!res.ok) { showToast("Could not save photo"); return; }
+      setPartner((p) => (p ? { ...p, avatarUrl } : p));
+      showToast("Photo updated");
+    } catch {
+      showToast("Network error — please try again");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }, [authedFetch, showToast]);
 
   const load = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -178,12 +209,12 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
 
       <main className="pnd-main">
         {panel === "overview" && (
-          <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} />
+          <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} />
         )}
         {panel === "recap" && <RecapPanel />}
         {panel === "support" && <SupportChatPanel partner={partner} sellerId={sellerId} storeName={storeName} />}
         {panel === "settings" && (
-          <SettingsPanel partner={partner} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} />
+          <SettingsPanel partner={partner} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} />
         )}
       </main>
 
@@ -195,6 +226,8 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
           </button>
         ))}
       </nav>
+
+      <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={handlePhotoSelect} />
 
       {toastText && <div className="pnd-toast show">{toastText}</div>}
 
@@ -222,7 +255,10 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-mobile-link.active{color:#4ade80}
         .pnd-welcome{display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:16px;background:linear-gradient(160deg,rgba(0,117,23,.14),rgba(22,163,74,.05));border:1px solid #1c1c1e;margin-bottom:18px}
         .pnd-avatar-ring{padding:2.5px;border-radius:50%;background:linear-gradient(135deg,#007517,#16a34a);flex:0 0 auto}
-        .pnd-avatar{width:48px;height:48px;border-radius:50%;overflow:hidden;background:#0b0b0c;display:grid;place-items:center;font-weight:700;font-size:17px;color:#f7f7f4}
+        .pnd-avatar-tap{border:0;background:none;padding:2.5px;border-radius:50%}
+        .pnd-avatar-tap:disabled{opacity:.6;cursor:wait}
+        .pnd-avatar{position:relative;width:48px;height:48px;border-radius:50%;overflow:hidden;background:#0b0b0c;display:grid;place-items:center;font-weight:700;font-size:17px;color:#f7f7f4}
+        .pnd-avatar-edit{position:absolute;right:-2px;bottom:-2px;width:18px;height:18px;border-radius:50%;background:#007517;color:#fff;display:grid;place-items:center;border:2px solid #060606;font-size:10px}
         .pnd-avatar img{width:100%;height:100%;object-fit:cover;display:block}
         .pnd-welcome-text{display:flex;flex-direction:column;line-height:1.35}
         .pnd-greeting{font-size:11px;font-weight:700;letter-spacing:.04em;color:#4ade80}
@@ -264,8 +300,9 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
         @media (max-width:860px){.pnd-toast{bottom:86px}}
         .pnd-avatar-row{display:flex;align-items:center;gap:16px;margin-bottom:16px}
-        .pnd-avatar-lg{width:60px;height:60px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#007517,#16a34a);display:grid;place-items:center;flex:0 0 auto;font-weight:700;font-size:20px}
+        .pnd-avatar-lg{width:60px;height:60px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#007517,#16a34a);display:grid;place-items:center;flex:0 0 auto;font-weight:700;font-size:20px;color:#f7f7f4}
         .pnd-avatar-lg img{width:100%;height:100%;object-fit:cover;display:block}
+        .pnd-avatar-lg.pnd-avatar-tap{padding:0}
         .pnd-avatar-btn{padding:9px 14px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:12px;font-weight:700}
         .pnd-avatar-btn:hover{color:#fff;border-color:#3a3a3d}
         .pnd-inline-form{display:flex;gap:8px;align-items:center;max-width:420px}
@@ -306,9 +343,10 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   );
 }
 
-function OverviewPanel({ partner, firstName, discountCode, referralLink, authedFetch, toast, onSaved }: {
+function OverviewPanel({ partner, firstName, discountCode, referralLink, authedFetch, toast, onSaved, onPickPhoto, uploadingPhoto }: {
   partner: Partner; firstName: string; discountCode: DiscountCode; referralLink: string;
   authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSaved: (p: Partner) => void;
+  onPickPhoto: () => void; uploadingPhoto: boolean;
 }) {
   const [editingCode, setEditingCode] = useState(false);
   const [codeInput, setCodeInput] = useState(partner.referralCode || "");
@@ -335,9 +373,14 @@ function OverviewPanel({ partner, firstName, discountCode, referralLink, authedF
   return (
     <section>
       <div className="pnd-welcome">
-        <div className="pnd-avatar-ring">
-          <div className="pnd-avatar">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
-        </div>
+        <button type="button" className="pnd-avatar-ring pnd-avatar-tap" onClick={onPickPhoto} disabled={uploadingPhoto} aria-label="Change profile photo">
+          <div className="pnd-avatar">
+            {partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}
+            <div className="pnd-avatar-edit">{uploadingPhoto ? "…" : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+            )}</div>
+          </div>
+        </button>
         <div className="pnd-welcome-text">
           <span className="pnd-greeting">{greeting()}</span>
           <span className="pnd-profile-name">{firstName}</span>
@@ -521,41 +564,12 @@ function SupportChatPanel({ partner, sellerId, storeName }: { partner: Partner; 
   );
 }
 
-function SettingsPanel({ partner, authedFetch, toast, onSaved }: { partner: Partner; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSaved: (p: Partner) => void }) {
+function SettingsPanel({ partner, authedFetch, toast, onSaved, onPickPhoto, uploadingPhoto }: {
+  partner: Partner; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSaved: (p: Partner) => void;
+  onPickPhoto: () => void; uploadingPhoto: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [photoError, setPhotoError] = useState("");
-  const photoInputRef = useRef<HTMLInputElement>(null);
-
-  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setPhotoError("Photo must be under 5MB"); return; }
-    setUploadingPhoto(true);
-    setPhotoError("");
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
-      if (!userId) { setPhotoError("Your session has expired -- please sign in again"); return; }
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `unik-partner/${userId}/photo-${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
-      if (uploadErr) { setPhotoError("Could not upload photo"); return; }
-      const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-      const avatarUrl = data.publicUrl;
-      const res = await authedFetch("/api/unik/partners/profile", { method: "PATCH", body: JSON.stringify({ avatarUrl }) });
-      if (!res.ok) { setPhotoError("Could not save photo"); return; }
-      onSaved({ ...partner, avatarUrl });
-      toast("Photo updated");
-    } catch {
-      setPhotoError("Network error -- please try again");
-    } finally {
-      setUploadingPhoto(false);
-    }
-  }
 
   async function saveBanking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -585,13 +599,13 @@ function SettingsPanel({ partner, authedFetch, toast, onSaved }: { partner: Part
       <div className="pnd-section">
         <h2>Profile</h2>
         <div className="pnd-avatar-row">
-          <div className="pnd-avatar-lg">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
+          <button type="button" className="pnd-avatar-lg pnd-avatar-tap" onClick={onPickPhoto} disabled={uploadingPhoto} aria-label="Change profile photo">
+            {partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}
+          </button>
           <div>
-            <button type="button" className="pnd-avatar-btn" disabled={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>{uploadingPhoto ? "Uploading…" : "Change photo"}</button>
-            <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={handlePhotoSelect} />
+            <button type="button" className="pnd-avatar-btn" disabled={uploadingPhoto} onClick={onPickPhoto}>{uploadingPhoto ? "Uploading…" : "Change photo"}</button>
           </div>
         </div>
-        {photoError && <p className="pnd-error">{photoError}</p>}
         <p style={{ marginTop: 8 }}>{partner.fullName} · {partner.email}{partner.phone ? ` · ${partner.phone}` : ""}</p>
       </div>
 
