@@ -35,7 +35,7 @@ export default function PartnerLoginClient({ storeName }: { storeName: string })
       return;
     }
 
-    window.location.href = "../dashboard";
+    window.location.href = "dashboard";
   }
 
   return (
@@ -50,7 +50,7 @@ export default function PartnerLoginClient({ storeName }: { storeName: string })
           <button className="pnr-primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
         </form>
         <a className="pnr-forgot" href="/reset-password">Forgot your password?</a>
-        <a className="pnr-forgot" href="../apply">Not a partner yet? Apply here</a>
+        <a className="pnr-forgot" href="apply">Not a partner yet? Apply here</a>
       </div>
 
       <style jsx global>{`

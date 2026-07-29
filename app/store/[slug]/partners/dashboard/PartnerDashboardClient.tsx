@@ -82,13 +82,13 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   }, [load]);
 
   useEffect(() => {
-    if (sessionReady && !signedIn) window.location.href = "../login";
+    if (sessionReady && !signedIn) window.location.href = "login";
   }, [sessionReady, signedIn]);
 
   async function signOut() {
     await fetch("/api/unik/partners/session", { method: "DELETE" });
     await supabase.auth.signOut();
-    window.location.href = "../login";
+    window.location.href = "login";
   }
 
   if (!sessionReady) return <main className="pnd-loading">Connecting your secure session…</main>;

@@ -39,7 +39,7 @@ export default function PartnerApplyClient({ storeName }: { storeName: string })
           <>
             <h1>Application received</h1>
             <p className="pnr-sub">We'll review your application and email you once it's approved. You can sign in any time to check its status.</p>
-            <a className="pnr-primary pnr-link-btn" href="../login">Go to sign in</a>
+            <a className="pnr-primary pnr-link-btn" href="login">Go to sign in</a>
           </>
         ) : (
           <>
@@ -52,7 +52,7 @@ export default function PartnerApplyClient({ storeName }: { storeName: string })
               {error && <p className="pnr-error">{error}</p>}
               <button className="pnr-primary" disabled={busy}>{busy ? "Submitting…" : "Submit application"}</button>
             </form>
-            <a className="pnr-forgot" href="../login">Already applied? Sign in</a>
+            <a className="pnr-forgot" href="login">Already applied? Sign in</a>
           </>
         )}
       </div>
