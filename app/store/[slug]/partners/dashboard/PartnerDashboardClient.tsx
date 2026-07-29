@@ -161,18 +161,9 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
           <div><span className="pnd-brand-name">UNIK LABS</span><span className="pnd-brand-sub">Official Partner</span></div>
         </div>
 
-        <div className="pnd-profile-bar">
-          <div className="pnd-avatar-ring">
-            <div className="pnd-avatar">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
-          </div>
-          <div className="pnd-profile-text">
-            <span className="pnd-greeting">{greeting()}</span>
-            <span className="pnd-profile-name">{firstName}</span>
-          </div>
-          <button type="button" className="pnd-signout pnd-signout-inline" onClick={signOut} aria-label="Sign out">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="17" height="17"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
-          </button>
-        </div>
+        <button type="button" className="pnd-signout pnd-signout-inline" onClick={signOut} aria-label="Sign out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="17" height="17"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
+        </button>
 
         <nav className="pnd-navigation" aria-label="Dashboard navigation">
           {NAV_ITEMS.map((item) => (
@@ -187,7 +178,7 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
 
       <main className="pnd-main">
         {panel === "overview" && (
-          <OverviewPanel partner={partner} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} />
+          <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} />
         )}
         {panel === "recap" && <RecapPanel />}
         {panel === "support" && <SupportChatPanel partner={partner} sellerId={sellerId} storeName={storeName} />}
@@ -213,16 +204,7 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         button{font:inherit;cursor:pointer}
         .pnd-loading{min-height:100dvh;display:grid;place-items:center;background:#060606;color:#f7f7f4;font-size:13px}
         .pnd-app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
-        @media (max-width:860px){.pnd-app{grid-template-columns:1fr}}
         .pnd-sidebar{border-right:1px solid #1c1c1e;padding:20px 16px;display:flex;flex-direction:column;gap:18px}
-        @media (max-width:860px){
-          .pnd-sidebar{position:sticky;top:0;z-index:60;flex-direction:row;align-items:center;flex-wrap:wrap;gap:12px;border-right:0;border-bottom:1px solid #1c1c1e;background:rgba(6,6,6,.96);backdrop-filter:blur(16px);padding:12px 14px}
-          .pnd-brand{order:1}
-          .pnd-profile-bar{order:2;flex:1;background:none!important;border:0!important;padding:0!important}
-          .pnd-navigation{display:none}
-          .pnd-signout-desktop{display:none}
-          .pnd-main{padding-bottom:96px}
-        }
         .pnd-brand{display:flex;align-items:center;gap:9px}
         .pnd-logo-mark{height:24px;width:auto;display:block}
         .pnd-brand-name{display:block;font-weight:800;font-size:12px;letter-spacing:.02em}
@@ -231,26 +213,20 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-nav-link{display:flex;align-items:center;gap:10px;text-align:left;padding:10px 12px;border-radius:10px;background:transparent;border:0;color:#c0c0ba;font-size:13px;font-weight:600;transition:background .15s ease,color .15s ease}
         .pnd-nav-link.active{background:linear-gradient(135deg,rgba(0,117,23,.22),rgba(22,163,74,.1));color:#fff;box-shadow:inset 0 0 0 1px rgba(0,117,23,.3)}
         .pnd-nav-link:hover{background:#141416;color:#fff}
-        .pnd-profile-bar{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:18px 12px;border-radius:16px;background:linear-gradient(160deg,rgba(0,117,23,.14),rgba(22,163,74,.05));border:1px solid #1c1c1e}
-        @media (max-width:860px){.pnd-profile-bar{flex-direction:row;text-align:left;gap:10px}}
-        .pnd-avatar-ring{padding:2.5px;border-radius:50%;background:linear-gradient(135deg,#007517,#16a34a)}
-        .pnd-avatar{width:44px;height:44px;border-radius:50%;overflow:hidden;background:#0b0b0c;display:grid;place-items:center;font-weight:700;font-size:16px;color:#f7f7f4}
-        @media (max-width:860px){.pnd-avatar{width:38px;height:38px;font-size:14px}}
-        .pnd-avatar img{width:100%;height:100%;object-fit:cover;display:block}
-        .pnd-profile-text{display:flex;flex-direction:column;line-height:1.3}
-        .pnd-greeting{font-size:10.5px;font-weight:700;letter-spacing:.04em;color:#4ade80}
-        .pnd-profile-name{font-size:14.5px;font-weight:700}
         .pnd-signout{padding:9px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:12px;font-weight:700}
         .pnd-signout:hover{color:#fff;border-color:#3a3a3d}
         .pnd-signout-desktop{width:100%}
-        .pnd-signout-inline{display:none;width:36px;height:36px;flex:0 0 auto;place-items:center}
-        @media (max-width:860px){.pnd-signout-inline{display:grid;order:3}}
+        .pnd-signout-inline{display:none;width:36px;height:36px;flex:0 0 auto;margin-left:auto;place-items:center}
         .pnd-mobile-nav{display:none}
-        @media (max-width:860px){
-          .pnd-mobile-nav{position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:60;display:flex;justify-content:space-around;align-items:center;height:62px;padding:0 4px;border:1px solid #27272a;border-radius:20px;background:rgba(12,12,13,.96);backdrop-filter:blur(20px);box-shadow:0 18px 48px rgba(0,0,0,.5)}
-          .pnd-mobile-link{flex:1;height:100%;display:grid;place-items:center;gap:3px;border:0;background:none;color:#83837f;font-size:9.5px;font-weight:700;letter-spacing:.02em}
-          .pnd-mobile-link.active{color:#4ade80}
-        }
+        .pnd-mobile-link{flex:1;height:100%;display:grid;place-items:center;gap:3px;border:0;background:none;color:#83837f;font-size:9.5px;font-weight:700;letter-spacing:.02em}
+        .pnd-mobile-link.active{color:#4ade80}
+        .pnd-welcome{display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:16px;background:linear-gradient(160deg,rgba(0,117,23,.14),rgba(22,163,74,.05));border:1px solid #1c1c1e;margin-bottom:18px}
+        .pnd-avatar-ring{padding:2.5px;border-radius:50%;background:linear-gradient(135deg,#007517,#16a34a);flex:0 0 auto}
+        .pnd-avatar{width:48px;height:48px;border-radius:50%;overflow:hidden;background:#0b0b0c;display:grid;place-items:center;font-weight:700;font-size:17px;color:#f7f7f4}
+        .pnd-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+        .pnd-welcome-text{display:flex;flex-direction:column;line-height:1.35}
+        .pnd-greeting{font-size:11px;font-weight:700;letter-spacing:.04em;color:#4ade80}
+        .pnd-profile-name{font-size:18px;font-weight:700}
         .pnd-main{padding:24px 26px 60px;max-width:920px}
         .pnd-h1{font-size:22px;margin:0 0 20px;letter-spacing:-.02em;font-weight:700}
         .pnd-hero{margin-bottom:18px}
@@ -307,13 +283,31 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-chat-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid #1c1c1e}
         .pnd-chat-form input{flex:1;min-width:0;background:#111113;border:1px solid #27272a;border-radius:10px;color:#fff;padding:10px 12px;font-size:13px;outline:none}
         .pnd-chat-send{background:#007517;color:#fff;border:0;border-radius:10px;padding:0 16px;font-weight:700}
+
+        /* Mobile overrides -- kept as ONE block at the very end so every
+           override here reliably wins the cascade against the desktop-first
+           base rules above it (a rule placed *before* its base counterpart
+           loses on specificity ties, even inside @media -- that's what
+           silently broke the mobile nav the first time this was written). */
+        @media (max-width:860px){
+          .pnd-app{grid-template-columns:1fr}
+          .pnd-sidebar{position:sticky;top:0;z-index:60;flex-direction:row;align-items:center;justify-content:space-between;border-right:0;border-bottom:1px solid #1c1c1e;background:rgba(6,6,6,.96);backdrop-filter:blur(16px);padding:12px 14px;gap:12px}
+          .pnd-navigation{display:none}
+          .pnd-signout-desktop{display:none}
+          .pnd-signout-inline{display:grid}
+          .pnd-mobile-nav{position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:60;display:flex;justify-content:space-around;align-items:center;height:62px;padding:0 4px;border:1px solid #27272a;border-radius:20px;background:rgba(12,12,13,.96);backdrop-filter:blur(20px);box-shadow:0 18px 48px rgba(0,0,0,.5)}
+          .pnd-main{padding:20px 16px 96px}
+          .pnd-welcome{padding:14px 16px}
+          .pnd-avatar{width:42px;height:42px;font-size:15px}
+          .pnd-toast{bottom:86px}
+        }
       `}</style>
     </div>
   );
 }
 
-function OverviewPanel({ partner, discountCode, referralLink, authedFetch, toast, onSaved }: {
-  partner: Partner; discountCode: DiscountCode; referralLink: string;
+function OverviewPanel({ partner, firstName, discountCode, referralLink, authedFetch, toast, onSaved }: {
+  partner: Partner; firstName: string; discountCode: DiscountCode; referralLink: string;
   authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSaved: (p: Partner) => void;
 }) {
   const [editingCode, setEditingCode] = useState(false);
@@ -340,6 +334,16 @@ function OverviewPanel({ partner, discountCode, referralLink, authedFetch, toast
 
   return (
     <section>
+      <div className="pnd-welcome">
+        <div className="pnd-avatar-ring">
+          <div className="pnd-avatar">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
+        </div>
+        <div className="pnd-welcome-text">
+          <span className="pnd-greeting">{greeting()}</span>
+          <span className="pnd-profile-name">{firstName}</span>
+        </div>
+      </div>
+
       <div className="pnd-hero">
         <div className="pnd-hero-balance">
           <span className="pnd-hero-balance-label">Available balance</span>
