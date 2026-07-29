@@ -454,23 +454,35 @@ function OverviewPanel({ partner, firstName, discountCode, referralLink, authedF
   );
 }
 
-const STUDIO_STYLE_META: { id: string; name: string }[] = [
-  { id: "TOUR_POSTER", name: "Tour Poster" },
-  { id: "BOOTLEG", name: "Bootleg" },
-  { id: "EDITORIAL", name: "Editorial" },
-  { id: "CHROME", name: "Chrome" },
-  { id: "GIANT_FACE", name: "Giant Face" },
-  { id: "BLING_ERA", name: "Bling Era" },
-  { id: "PAPER_CUT", name: "Paper Cut" },
-  { id: "VTG_BOOTLEG", name: "Vintage Bootleg" },
-  { id: "TOON_DRIP", name: "Toon Drip" },
-  { id: "CHROME_COLLAGE", name: "Chrome Collage" },
-  { id: "I_LOVE_MY", name: "I Love My..." },
+const STUDIO_STYLE_META: { id: string; name: string; desc: string; badge?: string }[] = [
+  { id: "TOUR_POSTER", name: "Tour Poster", desc: "Vintage distressed energy", badge: "Most Popular" },
+  { id: "BOOTLEG", name: "Bootleg", desc: "90s rap aesthetic" },
+  { id: "EDITORIAL", name: "Editorial", desc: "Art zine collage" },
+  { id: "CHROME", name: "Chrome", desc: "Luxury metallic type" },
+  { id: "GIANT_FACE", name: "Giant Face", desc: "Face fills the garment" },
+  { id: "BLING_ERA", name: "Bling Era", desc: "3D type, airbrush glow" },
+  { id: "PAPER_CUT", name: "Paper Cut", desc: "Editorial collage portrait" },
+  { id: "VTG_BOOTLEG", name: "Vintage Bootleg", desc: "Collector concert poster" },
+  { id: "TOON_DRIP", name: "Toon Drip", desc: "Chibi anime portrait", badge: "New" },
+  { id: "CHROME_COLLAGE", name: "Chrome Collage", desc: "5-photo chrome bootleg", badge: "New" },
+  { id: "I_LOVE_MY", name: "I Love My...", desc: "5-photo heart collage", badge: "New" },
 ];
 const STUDIO_EXACT_PHOTO_COUNT: Record<string, number> = { GIANT_FACE: 1, TOON_DRIP: 1, CHROME_COLLAGE: 5, I_LOVE_MY: 5 };
 const STUDIO_PRICES: Record<string, number> = { tee: 349, hoodie: 399, "tee-budget": 250 };
 const STUDIO_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 const STUDIO_PRODUCT_NAME: Record<string, string> = { tee: "AI Tee", hoodie: "AI Hoodie", "tee-budget": "AI Tee — Budget (A4)" };
+
+// Real pre-rendered example shots (same asset set recap.html's own preview
+// uses) -- lets a partner actually see what a garment/colour/style
+// combination looks like before generating, instead of picking blind from
+// a dropdown of names.
+const DARK_STUDIO_ROOT = "/private-templates/unik-labs/assets/dark-studio/";
+function darkStudioAsset(garment: string, colour: string, key: string) {
+  return `${DARK_STUDIO_ROOT}${garment}-${colour}-${key}.jpg`;
+}
+function stylePreviewUrl(garment: string, colour: string, styleId: string) {
+  return darkStudioAsset(garment, colour, styleId.toLowerCase().replace(/_/g, "-"));
+}
 
 type StudioDesign = { id: string; status: string; name: string; garment: string; colour: string; size: string; style: string; tagline: string; mockupUrl: string | null; createdAt: string };
 type CartLine = { designId: string; name: string; garment: string; colour: string; size: string; style: string; mockupUrl: string | null; price: number; qty: number };
@@ -726,38 +738,61 @@ function StudioPanel({ authedFetch, toast, onSendToRecap }: {
         </div>
         {showForm && (
           <div className="pns-form">
-            <div className="pns-form-row">
-              <label>Garment
-                <select value={garment} onChange={(e) => setGarment(e.target.value as "tee" | "hoodie")}>
-                  <option value="tee">Tee</option>
-                  <option value="hoodie">Hoodie</option>
-                </select>
-              </label>
-              <label>Colour
-                <select value={colour} onChange={(e) => setColour(e.target.value as "black" | "white")}>
-                  <option value="black">Black</option>
-                  <option value="white">White</option>
-                </select>
-              </label>
+            <div className="pns-form-block">
+              <span className="pns-block-label">Garment</span>
+              <div className="pns-picker-grid">
+                {(["tee", "hoodie"] as const).map((g) => (
+                  <button key={g} type="button" className={"pns-picker-card" + (garment === g ? " sel" : "")} onClick={() => setGarment(g)}>
+                    <img src={darkStudioAsset(g, colour, "flat")} alt={g === "tee" ? "Tee" : "Hoodie"} loading="lazy" />
+                    <span className="pns-picker-label">
+                      <span>{g === "tee" ? "Tee" : "Hoodie"}</span>
+                      <span className="pns-picker-price">R{STUDIO_PRICES[g]}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
+
             {garment === "tee" && (
               <label className="pns-checkbox">
                 <input type="checkbox" checked={budget} onChange={(e) => setBudget(e.target.checked)} /> Budget print (A4, R250)
               </label>
             )}
-            <div className="pns-form-row">
-              <label>Portrait type
-                <select value={subject} onChange={(e) => setSubject(e.target.value as "artist" | "personal")}>
-                  <option value="personal">Personal portrait</option>
-                  <option value="artist">Artist</option>
-                </select>
-              </label>
-              <label>Style
-                <select value={style} onChange={(e) => setStyle(e.target.value)}>
-                  {STUDIO_STYLE_META.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </label>
+
+            <div className="pns-form-block">
+              <span className="pns-block-label">Colour</span>
+              <div className="pns-picker-grid">
+                {(["black", "white"] as const).map((c) => (
+                  <button key={c} type="button" className={"pns-picker-card" + (colour === c ? " sel" : "")} onClick={() => setColour(c)}>
+                    <img src={darkStudioAsset(garment, c, "model")} alt={c === "black" ? "Black" : "White"} loading="lazy" />
+                    <span className="pns-picker-label"><span>{c === "black" ? "Black" : "White"}</span></span>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <div className="pns-form-block">
+              <span className="pns-block-label">Portrait type</span>
+              <div className="pns-segmented">
+                <button type="button" className={"pns-seg-btn" + (subject === "personal" ? " sel" : "")} onClick={() => setSubject("personal")}>Personal portrait</button>
+                <button type="button" className={"pns-seg-btn" + (subject === "artist" ? " sel" : "")} onClick={() => setSubject("artist")}>Artist</button>
+              </div>
+            </div>
+
+            <div className="pns-form-block">
+              <span className="pns-block-label">Style — see how it'll actually look</span>
+              <div className="pns-style-grid">
+                {STUDIO_STYLE_META.map((s) => (
+                  <button key={s.id} type="button" className={"pns-style-card" + (style === s.id ? " sel" : "")} onClick={() => setStyle(s.id)}>
+                    {s.badge && <span className="pns-style-badge">{s.badge}</span>}
+                    <img src={stylePreviewUrl(garment, colour, s.id)} alt={s.name} loading="lazy" />
+                    <span className="pns-style-name">{s.name}</span>
+                    <span className="pns-style-desc">{s.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <label>{isLoveMy ? "Who do you love?" : "Name on the design"}
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder={isLoveMy ? "e.g. Girlfriend, My Dog" : "e.g. Londeka Mpanza"} maxLength={80} />
             </label>
@@ -890,12 +925,31 @@ function StudioPanel({ authedFetch, toast, onSendToRecap }: {
         .pns-limit{font-size:11px;font-weight:700;color:#4ade80;background:rgba(0,117,23,.14);padding:5px 10px;border-radius:100px}
         .pns-order-banner{padding:12px 16px;border-radius:12px;background:rgba(0,117,23,.14);border:1px solid rgba(0,117,23,.3);color:#4ade80;font-size:12.5px;margin-bottom:16px}
         .pns-order-banner-error{background:rgba(139,42,32,.14);border-color:rgba(139,42,32,.4);color:#ff8b84}
-        .pns-form{display:grid;gap:12px;max-width:460px}
+        .pns-form{display:grid;gap:16px;max-width:560px}
         .pns-form label{display:grid;gap:6px;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8f8f89}
         .pns-form input,.pns-form select{min-height:42px;padding:0 12px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#fff;font-size:13px}
         .pns-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .pns-form-block{display:grid;gap:0}
+        .pns-block-label{display:block;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8f8f89;margin-bottom:8px}
         .pns-checkbox{display:flex;align-items:center;gap:8px;font-size:12px;color:#c0c0ba;text-transform:none;letter-spacing:normal;font-weight:600}
         .pns-checkbox input{width:auto;min-height:0}
+        .pns-picker-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .pns-picker-card{padding:0;border:1px solid #27272a;border-radius:14px;overflow:hidden;background:#111113;cursor:pointer;text-align:left;display:block}
+        .pns-picker-card img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#17171a}
+        .pns-picker-card.sel{border-color:#007517;box-shadow:0 0 0 1px #007517,0 0 14px 2px rgba(0,117,23,.4)}
+        .pns-picker-label{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;font-size:12.5px;font-weight:700;color:#f7f7f4}
+        .pns-picker-price{font-size:11px;color:#4ade80;font-weight:700}
+        .pns-segmented{display:flex;border:1px solid #27272a;border-radius:10px;overflow:hidden}
+        .pns-seg-btn{flex:1;padding:11px 8px;background:#111113;color:#c0c0ba;font-size:12px;font-weight:700;border:0;border-right:1px solid #27272a}
+        .pns-seg-btn:last-child{border-right:0}
+        .pns-seg-btn.sel{background:#007517;color:#fff}
+        .pns-style-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+        .pns-style-card{position:relative;padding:0;border:1px solid #27272a;border-radius:14px;overflow:hidden;background:#111113;cursor:pointer;text-align:left;display:block}
+        .pns-style-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#17171a}
+        .pns-style-card.sel{border-color:#007517;box-shadow:0 0 0 1px #007517,0 0 14px 2px rgba(0,117,23,.4)}
+        .pns-style-name{display:block;padding:9px 10px 2px;font-size:11.5px;font-weight:800;letter-spacing:.01em;color:#f7f7f4}
+        .pns-style-desc{display:block;padding:0 10px 10px;font-size:10px;color:#8f8f89}
+        .pns-style-badge{position:absolute;top:8px;left:8px;background:#007517;color:#fff;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:100px;z-index:1}
         .pns-photo-row{display:flex;gap:8px;flex-wrap:wrap}
         .pns-photo-row img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #27272a}
         .pns-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
