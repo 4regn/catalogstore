@@ -14,6 +14,7 @@ export default function PartnerApplyClient({ storeName }: { storeName: string })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [reusedExistingAccount, setReusedExistingAccount] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -45,6 +46,7 @@ export default function PartnerApplyClient({ storeName }: { storeName: string })
       setBusy(false);
       return;
     }
+    setReusedExistingAccount(!!payload.reusedExistingAccount);
     setSubmitted(true);
     setBusy(false);
   }
@@ -57,7 +59,10 @@ export default function PartnerApplyClient({ storeName }: { storeName: string })
         {submitted ? (
           <>
             <h1>Application received</h1>
-            <p className="pnr-sub">We'll review your application and email you once it's approved. You can sign in any time to check its status.</p>
+            <p className="pnr-sub">
+              We'll review your application and email you once it's approved. You can sign in any time to check its status.
+              {reusedExistingAccount && " You already had an account with us, so sign in with your existing password — the one you just typed here wasn't set on that account."}
+            </p>
             <a className="pnr-primary pnr-link-btn" href="login">Go to sign in</a>
           </>
         ) : (

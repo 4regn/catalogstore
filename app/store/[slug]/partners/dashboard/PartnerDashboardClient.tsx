@@ -427,7 +427,7 @@ function OverviewPanel({ partner, firstName, discountCode, referralLink, authedF
           <h2>Your discount code</h2>
           <p>Customers who use this code at checkout get a discount, and you earn a commission on the sale.</p>
           {discountCode ? (
-            <span className="pnd-code-chip">{discountCode.code} — R{discountCode.value} off</span>
+            <span className="pnd-code-chip">{discountCode.code} — {discountCode.type === "percentage" ? `${discountCode.value}%` : `R${discountCode.value}`} off</span>
           ) : (
             <p>No discount code yet — get in touch if this seems wrong.</p>
           )}

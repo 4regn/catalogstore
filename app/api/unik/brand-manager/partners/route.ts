@@ -8,10 +8,13 @@ export const dynamic = "force-dynamic";
 // Deliberately a single constant for now -- see plan: "one global rate to
 // start," with per-partner overrides available later via the same column.
 export const DEFAULT_PARTNER_COMMISSION_PERCENT = 10;
-// The value of the discount code auto-created for a partner on approval.
-// R25, not R50 -- at R50 off plus a commission, hoodie orders in particular
-// don't leave enough margin (see the margin discussion with the seller).
-const DEFAULT_PARTNER_DISCOUNT_VALUE = 25;
+// The discount code auto-created for a partner on approval is percentage-
+// based (10% off), not a flat Rand amount -- simpler to reason about
+// (~R70 total cost on a tee at 10% off + 10% commission), scales sensibly
+// with basket size instead of being a fixed hit regardless of order value,
+// and is symmetric with the commission rate. Tune both together later.
+const DEFAULT_PARTNER_DISCOUNT_TYPE = "percentage";
+const DEFAULT_PARTNER_DISCOUNT_VALUE = 10;
 
 export async function GET(req: NextRequest) {
   const auth = await requireUnikBrandManager(req);
@@ -97,7 +100,7 @@ export async function PATCH(req: NextRequest) {
     .insert({
       seller_id: seller.id,
       code: discountCode,
-      type: "fixed",
+      type: DEFAULT_PARTNER_DISCOUNT_TYPE,
       value: DEFAULT_PARTNER_DISCOUNT_VALUE,
       applies_to: "cart",
       active: true,

@@ -46,30 +46,59 @@ export async function POST(req: NextRequest) {
     const { data: existing } = await admin.from("unik_partners").select("id").eq("seller_id", seller.id).eq("email", email).maybeSingle();
     if (existing) return NextResponse.json({ error: "An application with this email already exists" }, { status: 409 });
 
-    const { data: authData, error: authErr } = await admin.auth.admin.createUser({
+    let authUserId: string;
+    let reusedExistingAccount = false;
+    const { data: created, error: authErr } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: { full_name: fullName, role: "unik_partner" },
     });
-    if (authErr || !authData.user) {
-      return NextResponse.json({ error: authErr?.message || "Could not create your account" }, { status: 500 });
+    if (authErr || !created?.user) {
+      // A person can already have an auth.users row for a completely
+      // different reason -- they're a seller, a storefront customer, a
+      // Brand Manager, an affiliate. That's fine; a partner application is
+      // just another role linked to the same identity, not a fresh signup.
+      // Reuse the existing row instead of hard-failing (same fallback
+      // brand-manager/invite/route.ts uses), rather than forcing the
+      // person to apply with a second email address. Their real password
+      // stays whatever it already was -- the one just typed above isn't
+      // applied to that existing identity, only to genuinely new accounts.
+      const message = authErr?.message || "";
+      if (!/already.*(registered|exists)|already exists|email_exists/i.test(message)) {
+        return NextResponse.json({ error: message || "Could not create your account" }, { status: 500 });
+      }
+      let match: { id: string } | undefined;
+      for (let page = 1; page <= 20 && !match; page++) {
+        const { data: list, error: listErr } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+        if (listErr || !list?.users?.length) break;
+        match = list.users.find((u) => (u.email || "").toLowerCase() === email);
+        if (list.users.length < 1000) break;
+      }
+      if (!match) return NextResponse.json({ error: "Could not find or create that account" }, { status: 500 });
+      authUserId = match.id;
+      reusedExistingAccount = true;
+    } else {
+      authUserId = created.user.id;
     }
+
+    const { data: alreadyPartner } = await admin.from("unik_partners").select("id").eq("seller_id", seller.id).eq("auth_user_id", authUserId).maybeSingle();
+    if (alreadyPartner) return NextResponse.json({ error: "This account has already applied" }, { status: 409 });
 
     const { error: insertErr } = await admin.from("unik_partners").insert({
       seller_id: seller.id,
-      auth_user_id: authData.user.id,
+      auth_user_id: authUserId,
       full_name: fullName,
       email,
       phone,
       status: "pending",
     });
     if (insertErr) {
-      await admin.auth.admin.deleteUser(authData.user.id);
+      if (!reusedExistingAccount) await admin.auth.admin.deleteUser(authUserId);
       return NextResponse.json({ error: insertErr.message || "Could not submit your application" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, reusedExistingAccount });
   } catch (err) {
     console.error("Partner apply error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
