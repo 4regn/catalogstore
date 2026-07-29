@@ -136,20 +136,23 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
           <img className="pnd-logo-mark" src="/private-templates/unik-labs/assets/unik-logo-v3-header.png" alt="UNIK Labs" />
           <div><span className="pnd-brand-name">UNIK</span><span className="pnd-brand-sub">Partner Program</span></div>
         </div>
+
+        <div className="pnd-profile-card">
+          <div className="pnd-avatar-ring">
+            <div className="pnd-avatar">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
+          </div>
+          <div className="pnd-profile-name">{partner.fullName.split(" ")[0]}</div>
+          <span className="pnd-profile-role">Partner</span>
+        </div>
+
         <nav className="pnd-navigation" aria-label="Dashboard navigation">
           <button type="button" className={"pnd-nav-link" + (panel === "overview" ? " active" : "")} onClick={() => setPanel("overview")}>Overview</button>
           <button type="button" className={"pnd-nav-link" + (panel === "recap" ? " active" : "")} onClick={() => setPanel("recap")}>Recap Builder</button>
           <button type="button" className={"pnd-nav-link" + (panel === "support" ? " active" : "")} onClick={() => setPanel("support")}>Support</button>
           <button type="button" className={"pnd-nav-link" + (panel === "settings" ? " active" : "")} onClick={() => setPanel("settings")}>Settings</button>
         </nav>
-        <div className="pnd-sidebar-profile">
-          <div className="pnd-tiny-label">Logged in as</div>
-          <div className="pnd-profile-row">
-            <div className="pnd-avatar">{partner.avatarUrl ? <img src={partner.avatarUrl} alt="" /> : <span>{partner.fullName.charAt(0)}</span>}</div>
-            <div className="pnd-profile-name">{partner.fullName}</div>
-          </div>
-          <button type="button" className="pnd-signout" onClick={signOut}>Sign out</button>
-        </div>
+
+        <button type="button" className="pnd-signout" onClick={signOut}>Sign out</button>
       </aside>
 
       <main className="pnd-main">
@@ -178,20 +181,34 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-logo-mark{height:26px;width:auto;display:block}
         .pnd-brand-name{display:block;font-weight:800;font-size:13px}
         .pnd-brand-sub{display:block;font-size:10px;color:#8f8f89}
-        .pnd-navigation{display:flex;flex-direction:column;gap:4px}
-        .pnd-nav-link{text-align:left;padding:10px 12px;border-radius:10px;background:transparent;border:0;color:#c0c0ba;font-size:13px;font-weight:600}
-        .pnd-nav-link.active,.pnd-nav-link:hover{background:#141416;color:#fff}
-        .pnd-sidebar-profile{margin-top:auto;padding-top:16px;border-top:1px solid #1c1c1e}
-        .pnd-tiny-label{font-size:9px;color:#66665f;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
-        .pnd-profile-row{display:flex;align-items:center;gap:9px;margin-bottom:12px}
-        .pnd-avatar{width:32px;height:32px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#f43d32,#7657ff);display:grid;place-items:center;flex:0 0 auto;font-weight:800;font-size:12px}
+        .pnd-navigation{display:flex;flex-direction:column;gap:4px;flex:1}
+        .pnd-nav-link{text-align:left;padding:10px 12px;border-radius:10px;background:transparent;border:0;color:#c0c0ba;font-size:13px;font-weight:600;transition:background .15s ease,color .15s ease}
+        .pnd-nav-link.active{background:linear-gradient(135deg,rgba(244,61,50,.16),rgba(118,87,255,.1));color:#fff;box-shadow:inset 0 0 0 1px rgba(244,61,50,.2)}
+        .pnd-nav-link:hover{background:#141416;color:#fff}
+        .pnd-profile-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:20px 12px;border-radius:18px;background:linear-gradient(160deg,rgba(244,61,50,.1),rgba(118,87,255,.06));border:1px solid #1c1c1e}
+        .pnd-avatar-ring{padding:3px;border-radius:50%;background:linear-gradient(135deg,#f43d32,#7657ff);margin-bottom:10px}
+        .pnd-avatar{width:54px;height:54px;border-radius:50%;overflow:hidden;background:#0b0b0c;display:grid;place-items:center;font-weight:800;font-size:19px;color:#f7f7f4}
         .pnd-avatar img{width:100%;height:100%;object-fit:cover;display:block}
-        .pnd-profile-name{font-size:13px;font-weight:700}
+        .pnd-profile-name{font-size:14px;font-weight:800}
+        .pnd-profile-role{margin-top:3px;font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#ff9d97}
         .pnd-signout{width:100%;padding:9px;border-radius:10px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:12px;font-weight:700}
         .pnd-signout:hover{color:#fff;border-color:#3a3a3d}
         .pnd-main{padding:28px 26px 60px;max-width:920px}
         .pnd-h1{font-size:24px;margin:0 0 22px;letter-spacing:-.03em}
+        .pnd-hero{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:18px}
+        @media (max-width:700px){.pnd-hero{grid-template-columns:1fr}}
+        .pnd-hero-main{position:relative;overflow:hidden;border-radius:22px;padding:30px 28px;background:linear-gradient(135deg,#151515,#221a17 60%,#0b0b0c);border:1px solid #1c1c1e}
+        .pnd-hero-main::after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(244,61,50,.5),transparent 70%);right:-90px;top:-100px;pointer-events:none}
+        .pnd-hero-eyebrow{position:relative;z-index:1;display:block;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#ff9d97}
+        .pnd-hero-title{position:relative;z-index:1;margin:6px 0 8px;font-size:clamp(28px,4vw,40px);letter-spacing:-.04em;line-height:1}
+        .pnd-hero-sub{position:relative;z-index:1;margin:0;color:#a8a8a2;font-size:13px;line-height:1.6;max-width:360px}
+        .pnd-hero-balance{border-radius:22px;padding:26px;background:linear-gradient(150deg,#ff5d3f,#d8331f);color:#fff;display:flex;flex-direction:column;justify-content:center;box-shadow:0 20px 50px rgba(244,61,50,.22)}
+        .pnd-hero-balance-label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+        .pnd-hero-balance-value{font-size:34px;font-weight:900;letter-spacing:-.04em;margin:8px 0 4px}
+        .pnd-hero-balance-meta{font-size:12px;color:rgba(255,255,255,.8)}
         .pnd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+        .pnd-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+        @media (max-width:700px){.pnd-grid-2{grid-template-columns:1fr}}
         .pnd-card{background:#0b0b0c;border:1px solid #1c1c1e;border-radius:16px;padding:18px}
         .pnd-metric-label{font-size:10px;color:#8f8f89;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:8px}
         .pnd-metric-value{font-size:22px;font-weight:800}
@@ -239,37 +256,58 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   );
 }
 
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 function OverviewPanel({ partner, discountCode, referralLink, toast }: { partner: Partner; discountCode: DiscountCode; referralLink: string; toast: (text: string) => void }) {
   function copy(text: string, label: string) {
     navigator.clipboard.writeText(text).then(() => toast(`${label} copied`));
   }
+  const firstName = partner.fullName.split(" ")[0];
   return (
     <section>
-      <h1 className="pnd-h1">Overview</h1>
-      <div className="pnd-grid">
-        <div className="pnd-card"><span className="pnd-metric-label">Available balance</span><span className="pnd-metric-value">{money(partner.availableBalanceCents)}</span></div>
-        <div className="pnd-card"><span className="pnd-metric-label">Pending balance</span><span className="pnd-metric-value">{money(partner.pendingBalanceCents)}</span></div>
-        <div className="pnd-card"><span className="pnd-metric-label">Total earned</span><span className="pnd-metric-value">{money(partner.totalEarnedCents)}</span></div>
-        <div className="pnd-card"><span className="pnd-metric-label">Commission rate</span><span className="pnd-metric-value">{partner.commissionPercent ?? 10}%</span></div>
-      </div>
-
-      <div className="pnd-section">
-        <h2>Your referral link</h2>
-        <p>Share this link — anyone who buys after clicking it earns you a commission, even if they don't use your discount code.</p>
-        <div className="pnd-copy-row">
-          <input className="pnd-copy-input" readOnly value={referralLink} />
-          <button type="button" className="pnd-copy-btn" onClick={() => copy(referralLink, "Referral link")}>Copy</button>
+      <div className="pnd-hero">
+        <div className="pnd-hero-main">
+          <span className="pnd-hero-eyebrow">{greeting()}</span>
+          <h1 className="pnd-hero-title">{firstName}</h1>
+          <p className="pnd-hero-sub">Create. Share. Earn. Here's how your partner business is doing.</p>
+        </div>
+        <div className="pnd-hero-balance">
+          <span className="pnd-hero-balance-label">Available balance</span>
+          <div className="pnd-hero-balance-value">{money(partner.availableBalanceCents)}</div>
+          <span className="pnd-hero-balance-meta">{money(partner.pendingBalanceCents)} pending</span>
         </div>
       </div>
 
-      <div className="pnd-section">
-        <h2>Your discount code</h2>
-        <p>Customers who use this code at checkout get a discount, and you earn a commission on the sale.</p>
-        {discountCode ? (
-          <span className="pnd-code-chip">{discountCode.code} — R{discountCode.value} off</span>
-        ) : (
-          <p>No discount code yet — get in touch if this seems wrong.</p>
-        )}
+      <div className="pnd-grid">
+        <div className="pnd-card"><span className="pnd-metric-label">Total earned</span><span className="pnd-metric-value">{money(partner.totalEarnedCents)}</span></div>
+        <div className="pnd-card"><span className="pnd-metric-label">Commission rate</span><span className="pnd-metric-value">{partner.commissionPercent ?? 10}%</span></div>
+        <div className="pnd-card"><span className="pnd-metric-label">Total paid out</span><span className="pnd-metric-value">{money(partner.totalPaidOutCents)}</span></div>
+      </div>
+
+      <div className="pnd-grid-2">
+        <div className="pnd-section">
+          <h2>Your referral link</h2>
+          <p>Share this link — anyone who buys after clicking it earns you a commission, even if they don't use your discount code.</p>
+          <div className="pnd-copy-row">
+            <input className="pnd-copy-input" readOnly value={referralLink} />
+            <button type="button" className="pnd-copy-btn" onClick={() => copy(referralLink, "Referral link")}>Copy</button>
+          </div>
+        </div>
+
+        <div className="pnd-section">
+          <h2>Your discount code</h2>
+          <p>Customers who use this code at checkout get a discount, and you earn a commission on the sale.</p>
+          {discountCode ? (
+            <span className="pnd-code-chip">{discountCode.code} — R{discountCode.value} off</span>
+          ) : (
+            <p>No discount code yet — get in touch if this seems wrong.</p>
+          )}
+        </div>
       </div>
 
       <div className="pnd-section">
