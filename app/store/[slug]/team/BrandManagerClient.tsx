@@ -132,6 +132,17 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
     window.setTimeout(() => setToastText(""), 2200);
   }, []);
 
+  // recap.html has no bearer-token plumbing of its own -- it relies on the
+  // httpOnly unik-brand-manager-access cookie set at login. That cookie
+  // expires after 55min with nothing to renew it, while this dashboard's
+  // own Supabase session keeps refreshing itself indefinitely, so a
+  // manager active for over an hour would look signed-in here but get
+  // "Sign in required" from Recap Builder. Re-arm the cookie every time we
+  // see a (possibly refreshed) token, not just at login.
+  const syncRecapCookie = useCallback((token: string) => {
+    fetch("/api/unik/brand-manager/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken: token }) }).catch(() => {});
+  }, []);
+
   const load = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -141,6 +152,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
       return;
     }
     setSignedIn(true);
+    syncRecapCookie(token);
     try {
       const res = await fetch("/api/unik/brand-manager/overview", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       const payload = await res.json().catch(() => ({}));
@@ -150,15 +162,16 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
       setLoadError(cause instanceof Error ? cause.message : "Could not load your dashboard");
     }
     setSessionReady(true);
-  }, []);
+  }, [syncRecapCookie]);
 
   useEffect(() => {
     load();
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") { setSignedIn(false); setOverview(null); }
+      if (event === "TOKEN_REFRESHED" && session?.access_token) syncRecapCookie(session.access_token);
     });
     return () => data.subscription.unsubscribe();
-  }, [load]);
+  }, [load, syncRecapCookie]);
 
   useEffect(() => {
     if (sessionReady && !signedIn) window.location.href = "team/login";
