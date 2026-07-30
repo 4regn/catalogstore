@@ -57,6 +57,16 @@ export default function UnikLabsStore({ initialSeller }: UnikLabsStoreProps) {
         <p style={{ display: "inline", margin: "0 0 0 10px", fontSize: 11, color: "rgba(255,255,255,.65)" }}>
           {description}
         </p>
+        {/* Google's OAuth branding review explicitly requires a visible
+            homepage link to the privacy policy, matching the URL configured
+            on the consent screen -- the one in the iframe's own footer
+            doesn't count since it isn't part of this document. */}
+        <a href="/privacy" style={{ marginLeft: 14, fontSize: 11, color: "#fff", textDecoration: "underline" }}>
+          Privacy Policy
+        </a>
+        <a href="/terms" style={{ marginLeft: 10, fontSize: 11, color: "#fff", textDecoration: "underline" }}>
+          Terms of Service
+        </a>
       </div>
       <iframe
         src="/private-templates/unik-labs/index.html"
