@@ -278,6 +278,40 @@ body{
   .cta-row{grid-template-columns:1fr;}
 }
 
+/* ── Desktop hero ──
+   .wrap caps the whole page at 520px (a deliberate mobile-app-width
+   frame everywhere else), which left the hero looking like a phone
+   screenshot floating in a sea of black on a real desktop. .hero and
+   .trust-bar break out of that with the standard "full-bleed inside a
+   centred container" trick (100vw + negative margins) rather than
+   touching .wrap itself, which everything below the hero still relies
+   on -- this is scoped to the hero only, not a full page redesign. */
+@media (min-width:900px){
+  .hero,.trust-bar{
+    width:100vw;
+    margin-left:calc(50% - 50vw);
+    margin-right:calc(50% - 50vw);
+  }
+  .hero-img-wrap{aspect-ratio:auto;height:min(86vh,760px);}
+  .hero-img{object-position:center 22%;}
+  .hero-copy{
+    right:auto;
+    left:max(40px,calc((100vw - 1200px)/2 + 40px));
+    max-width:560px;
+    padding:0 0 76px;
+  }
+  .hero-title{font-size:clamp(44px,4.6vw,62px);}
+  .hero-sub{font-size:15.5px;max-width:460px;}
+  .cta-row{grid-template-columns:auto auto;justify-content:start;gap:14px;}
+  .btn-primary,.btn-secondary{padding:16px 30px;}
+  .trust-bar{
+    grid-template-columns:repeat(3,auto);
+    justify-content:start;
+    gap:56px;
+    padding:26px max(40px,calc((100vw - 1200px)/2 + 40px)) 40px;
+  }
+}
+
 /* ── Updated UNIK hero art direction ── */
 .nav{padding:22px 24px 0;}
 .nav-logo{

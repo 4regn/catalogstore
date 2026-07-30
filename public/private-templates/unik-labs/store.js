@@ -371,6 +371,19 @@
     .unik-header-cart .nav-bag{display:block}
     .unik-header-cart-count{position:absolute;top:-1px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#007517;color:#fff;border:1.5px solid rgba(8,9,9,.9);font:700 9px/13px 'Manrope',sans-serif;text-align:center;box-sizing:border-box}
     @media(max-width:420px){html[data-unik-page='home'] .nav{grid-template-columns:74px minmax(0,1fr) 74px;padding-left:16px!important;padding-right:16px!important}.unik-header-account,.unik-header-cart{width:33px;height:33px}.unik-header-actions{gap:3px}}
+    .unik-home-desktop-links{display:none}
+    /* Real inline desktop nav for the home page -- logo left, links
+       centre, account/cart right -- instead of the mobile hamburger/
+       centred-logo pattern staying the ONLY nav at any viewport width. */
+    @media(min-width:900px){
+      html[data-unik-page='home'] .nav{grid-template-columns:auto 1fr auto!important;padding:26px max(40px,calc((100vw - 1200px)/2 + 40px)) 0!important}
+      html[data-unik-page='home'] .nav-icon-btn{display:none!important}
+      html[data-unik-page='home'] .nav-logo{justify-self:start!important;max-width:170px!important;height:34px!important}
+      html[data-unik-page='home'] .unik-home-desktop-links{display:flex;justify-self:center;align-items:center;gap:32px}
+      html[data-unik-page='home'] .unik-home-desktop-links a{color:#fff;text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.82;transition:opacity .2s}
+      html[data-unik-page='home'] .unik-home-desktop-links a:hover{opacity:1}
+      html[data-unik-page='home'] .unik-header-actions{gap:10px}
+    }
     html[data-unik-theme='dark'] body{background:var(--unik-night)!important;color:#f4f1e9!important}
     html[data-unik-theme='dark'] .hdr,html[data-unik-theme='dark'] #pb,html[data-unik-theme='dark'] #progressBar,html[data-unik-theme='dark'] .wrap,html[data-unik-theme='dark'] #studioSteps{background:rgba(8,9,9,.96)!important;color:#f4f1e9!important;border-color:#2a2c2a!important}
     html[data-unik-theme='dark'] .sc,html[data-unik-theme='dark'] .sdb,html[data-unik-theme='dark'] .step-card,html[data-unik-theme='dark'] .step-done,html[data-unik-theme='dark'] .review-card,html[data-unik-theme='dark'] .trust-bar,html[data-unik-theme='dark'] .results-inner,html[data-unik-theme='dark'] .cal-panel,html[data-unik-theme='dark'] .panel{background:var(--unik-panel)!important;color:#f4f1e9!important;border-color:var(--unik-line-dark)!important}
@@ -847,6 +860,20 @@
       menu.querySelector('.unik-home-close').addEventListener('click', () => menu.classList.remove('open'));
       menu.addEventListener('click', (e) => { if (e.target === menu) menu.classList.remove('open'); });
       menu.querySelector('[data-unik-theme-toggle]').addEventListener('click', toggleTheme);
+      // The hamburger + full-screen drawer above is a deliberate mobile
+      // pattern -- on a real desktop viewport it read as an unfinished
+      // "mobile-only" nav (nothing to click but an icon and a logo), so a
+      // second, always-in-DOM link row is added here and hidden/shown
+      // purely by the min-width:900px media query below rather than by
+      // JS -- same links, same computed `base`, no duplicate routing logic.
+      const navEl = document.querySelector('.nav');
+      const navRight = document.querySelector('.nav-right');
+      if (navEl && navRight) {
+        const desktopLinks = document.createElement('div');
+        desktopLinks.className = 'unik-home-desktop-links';
+        desktopLinks.innerHTML = '<a href="'+base+'/studio" target="_top">AI Studio</a><a href="'+base+'/upload" target="_top">Custom Upload</a><a href="#templates">Styles</a>';
+        navEl.insertBefore(desktopLinks, navRight);
+      }
       const bag = document.querySelector('.nav-bag');
       if (bag && !bag.closest('a')) {
         const actions = document.createElement('div');
