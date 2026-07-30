@@ -228,8 +228,8 @@
               </div>
             </div>
             <div class="flip-face flip-back">
-              <img alt="" class="base" src="assets/dark/back-beige-hoodie.jpg">
-              <div class="pz-box" id="pzBack" style="width:40.29%;height:30.10%;left:30.89%;top:38.20%;">
+              <img alt="" class="base" src="assets/dark/back-beige-hoodie.png">
+              <div class="pz-box" id="pzBack" style="width:40%;height:30%;left:30.5%;top:39.5%;">
                 <div class="pz-plus">+</div>
                 <div class="pz-hint">Tap to upload</div>
                 <img alt="" class="pz-art" id="pzArtBack" src="assets/how-to-demo-custom/back-print.jpg">
@@ -383,7 +383,7 @@
     var flipMini = document.getElementById('flipMini');
     var showingFront = true;
     function tickFlipMini() {
-      flipMini.innerHTML = '<img alt="" class="on" src="assets/dark/' + (showingFront ? 'front' : 'back') + '-beige-hoodie.jpg">';
+      flipMini.innerHTML = '<img alt="" class="on" src="assets/dark/' + (showingFront ? 'front-beige-hoodie.jpg' : 'back-beige-hoodie.png') + '">';
       showingFront = !showingFront;
     }
     tickFlipMini();
