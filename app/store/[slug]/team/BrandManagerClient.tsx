@@ -45,11 +45,12 @@ type SessionAnalytics = {
   topLocations: { country: string; region: string; city: string; count: number }[];
 };
 
-type Panel = "overview" | "sales" | "growth" | "content" | "support" | "partners" | "academy" | "settings";
+type Panel = "overview" | "sales" | "customers" | "growth" | "content" | "support" | "partners" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Brand Manager overview",
   sales: "Sales",
+  customers: "Customers",
   growth: "Growth Tools",
   content: "Recap Builder",
   support: "Live Support",
@@ -61,6 +62,7 @@ const PANEL_TITLES: Record<Panel, string> = {
 const MOBILE_NAV_LABELS: Record<Panel, string> = {
   overview: "Home",
   sales: "Sales",
+  customers: "Customers",
   growth: "Growth",
   content: "Recap",
   support: "Support",
@@ -72,6 +74,7 @@ const MOBILE_NAV_LABELS: Record<Panel, string> = {
 const NAV_ICON_PATHS: Record<Panel, string> = {
   overview: "M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z",
   sales: "M3 6h18M6 3v6M18 3v6M5 11h14v9H5z",
+  customers: "M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM4 21c0-4 3.6-7 8-7s8 3 8 7",
   growth: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 12h8M12 8v8",
   content: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 9l5 3-5 3Z",
   support: "M4 5h16v11H8l-4 4Z",
@@ -338,6 +341,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         )}
 
         {panel === "sales" && <SalesPanel metrics={overview.metrics} authedFetch={authedFetch} toast={showToast} />}
+        {panel === "customers" && <CustomersPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "growth" && <GrowthPanel manager={overview.manager} authedFetch={authedFetch} onSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
         {panel === "content" && <ContentPanel />}
         {panel === "support" && <SupportPanel authedFetch={authedFetch} />}
@@ -418,6 +422,17 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-status{width:max-content;padding:6px 9px;border:1px solid rgba(114,227,157,.2);border-radius:999px;background:rgba(114,227,157,.11);color:#72e39d;font-size:8px;font-weight:900;text-transform:uppercase}
         .bm-status.pending{color:#edc96c;border-color:rgba(237,201,108,.2);background:rgba(237,201,108,.1)}
         .bm-empty{color:#999994;font-size:12px}
+        .bm-design-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-top:14px}
+        .bm-design-card{border:1px solid #222225;border-radius:14px;overflow:hidden;background:#0b0b0c}
+        .bm-design-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#151517}
+        .bm-design-placeholder{width:100%;aspect-ratio:3/4;background:#151517}
+        .bm-design-body{padding:10px 12px 12px}
+        .bm-design-name{display:block;font-size:12.5px;font-weight:700}
+        .bm-design-meta{display:block;font-size:10.5px;color:#999994;text-transform:capitalize;margin:2px 0 8px}
+        .bm-design-tag{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:100px;background:rgba(237,201,108,.13);color:#edc96c;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
+        .bm-design-actions{display:flex;flex-direction:column;gap:6px}
+        .bm-design-actions button{padding:7px 10px;border-radius:8px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:11px;font-weight:700;text-align:left;cursor:pointer}
+        .bm-design-actions button:hover{color:#fff;border-color:#3a3a3d}
         .bm-toast{position:fixed;right:22px;bottom:22px;z-index:150;padding:12px 15px;border:1px solid #27272a;border-radius:13px;background:#171719;box-shadow:0 20px 55px rgba(0,0,0,.5);font-size:10px;font-weight:850}
         .bm-settings-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px}
         .bm-avatar-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 18px}
@@ -497,6 +512,181 @@ type OrderDetail = OrderRow & {
   refund_amount?: number | null;
   notes?: string | null;
 };
+
+type CustomerRow = {
+  id: string; profileId: string | null; fullName: string | null; email: string | null; avatarUrl: string | null;
+  createdAt: string; orderCount: number; totalSpent: number; designCount: number; lastOrderAt: string | null;
+};
+type CustomerDesign = {
+  id: string; source: string; status: string; name: string | null; garment: string; colour: string; size: string; style: string | null;
+  tagline: string | null; zone: string | null; mockupUrl: string | null; mockupBackUrl: string | null;
+  hasOriginal: boolean; hasOriginalBack: boolean; savedAt: string | null; createdAt: string; unpurchased: boolean;
+};
+type CustomerDetail = {
+  customer: { id: string; profileId: string | null; fullName: string | null; email: string | null; phone: string | null; avatarUrl: string | null; createdAt: string | null };
+  summary: { orderCount: number; totalSpent: number; designCount: number; unpurchasedCount: number };
+  orders: OrderRow[];
+  designs: CustomerDesign[];
+};
+
+function DesignCard({ d, onDownload }: { d: CustomerDesign; onDownload: (designId: string, type: string) => void }) {
+  return (
+    <div className="bm-design-card">
+      {d.mockupUrl ? <img src={d.mockupUrl} alt="" /> : <div className="bm-design-placeholder" />}
+      <div className="bm-design-body">
+        <span className="bm-design-name">{d.name || "Untitled"}</span>
+        <span className="bm-design-meta">{d.source === "ai-studio" ? "AI Studio" : "Custom Upload"} · {d.garment} · {d.colour} · {d.size}{d.unpurchased && <span className="bm-design-tag">Unpurchased</span>}</span>
+        <div className="bm-design-actions">
+          {d.hasOriginal && <button type="button" onClick={() => onDownload(d.id, "original")}>Download design</button>}
+          {d.mockupUrl && <button type="button" onClick={() => onDownload(d.id, "mockup")}>Download mockup</button>}
+          {d.hasOriginalBack && <button type="button" onClick={() => onDownload(d.id, "original-back")}>Download back design</button>}
+          {d.mockupBackUrl && <button type="button" onClick={() => onDownload(d.id, "mockup-back")}>Download back mockup</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<CustomerDetail | null>(null);
+
+  const loadCustomers = useCallback(async (targetPage: number, q: string) => {
+    setLoading(true);
+    const res = await authedFetch(`/api/unik/brand-manager/customers?page=${targetPage}&q=${encodeURIComponent(q)}`);
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setCustomers((prev) => (targetPage === 0 ? payload.customers : [...prev, ...payload.customers]));
+      setHasMore(!!payload.hasMore);
+      setPage(targetPage);
+    }
+    setLoading(false);
+  }, [authedFetch]);
+
+  useEffect(() => { loadCustomers(0, ""); }, [loadCustomers]);
+
+  function runSearch(event: FormEvent) {
+    event.preventDefault();
+    loadCustomers(0, query);
+  }
+
+  const loadDetail = useCallback(async (id: string) => {
+    setSelectedId(id);
+    setDetail(null);
+    const res = await authedFetch(`/api/unik/brand-manager/customers/${id}`);
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) setDetail(payload);
+    else toast(payload.error || "Could not load customer");
+  }, [authedFetch, toast]);
+
+  const download = useCallback(async (designId: string, type: string) => {
+    if (!selectedId) return;
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const res = await fetch(`/api/unik/brand-manager/customers/download?customerId=${encodeURIComponent(selectedId)}&designId=${encodeURIComponent(designId)}&type=${type}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { toast("Could not download"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }, [selectedId, toast]);
+
+  if (selectedId) {
+    const unpurchased = detail?.designs.filter((d) => d.unpurchased) || [];
+    return (
+      <section>
+        <button type="button" className="bm-secondary-btn" style={{ marginBottom: 16 }} onClick={() => { setSelectedId(null); setDetail(null); }}>&larr; All customers</button>
+        {!detail ? <p className="bm-empty">Loading customer…</p> : (
+          <>
+            <article className="bm-card" style={{ marginBottom: 16 }}>
+              <div className="bm-section-head">
+                <h2 className="bm-section-title">{detail.customer.fullName || "Unnamed customer"}</h2>
+                <span className="bm-section-desc">{detail.customer.email || "No email on file"}{detail.customer.phone ? " · " + detail.customer.phone : ""}</span>
+              </div>
+              <div className="bm-summary-strip">
+                <div className="bm-summary-box"><span>Orders</span><strong>{detail.summary.orderCount}</strong></div>
+                <div className="bm-summary-box"><span>Total spent</span><strong>{money(detail.summary.totalSpent)}</strong></div>
+                <div className="bm-summary-box"><span>Designs</span><strong>{detail.summary.designCount}</strong></div>
+              </div>
+            </article>
+
+            <article className="bm-card" style={{ marginBottom: 16 }}>
+              <div className="bm-section-head"><h2 className="bm-section-title">Order history</h2></div>
+              {detail.orders.length === 0 ? <p className="bm-empty">No orders yet.</p> : (
+                <div className="bm-table" style={{ marginTop: 14 }}>
+                  <div className="bm-row bm-row-header"><div>Order</div><div>Value</div><div>Status</div></div>
+                  {detail.orders.map((o) => (
+                    <div key={o.id} className="bm-row">
+                      <div>#{o.order_number}<br /><span style={{ color: "#999994", fontSize: 10 }}>{new Date(o.created_at).toLocaleDateString()}</span></div>
+                      <div>{money(o.total)}</div>
+                      <div><span className={"bm-status" + (o.payment_status === "paid" ? "" : " pending")}>{o.payment_status === "paid" ? o.status.replace(/_/g, " ") : o.payment_status.replace(/_/g, " ")}</span></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <article className="bm-card" style={{ marginBottom: 16 }}>
+              <div className="bm-section-head"><h2 className="bm-section-title">Generation history</h2><p className="bm-section-desc">Every AI Studio and Custom Upload design this customer has made — tap to download the artwork or the garment mockup</p></div>
+              {detail.designs.length === 0 ? <p className="bm-empty">No designs yet.</p> : (
+                <div className="bm-design-grid">
+                  {detail.designs.map((d) => <DesignCard key={d.id} d={d} onDownload={download} />)}
+                </div>
+              )}
+            </article>
+
+            <article className="bm-card">
+              <div className="bm-section-head">
+                <h2 className="bm-section-title">Saved / unpurchased designs</h2>
+                <p className="bm-section-desc">Designs made or uploaded but never actually ordered. This isn't a live view of their cart — that only ever exists in their own browser and never reaches our servers — it's the closest signal we have.</p>
+              </div>
+              {unpurchased.length === 0 ? <p className="bm-empty">Nothing sitting unpurchased.</p> : (
+                <div className="bm-design-grid">
+                  {unpurchased.map((d) => <DesignCard key={d.id} d={d} onDownload={download} />)}
+                </div>
+              )}
+            </article>
+          </>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <article className="bm-card">
+        <div className="bm-section-head"><h2 className="bm-section-title">Customers</h2><p className="bm-section-desc">Click a customer to view their order history, saved designs, and download their artwork/mockups</p></div>
+        <form onSubmit={runSearch} style={{ display: "flex", gap: 8, margin: "14px 0" }}>
+          <input className="bm-input" placeholder="Search by name or email" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <button type="submit" className="bm-secondary-btn">Search</button>
+        </form>
+        {customers.length === 0 && !loading ? <p className="bm-empty">No customers yet.</p> : (
+          <div className="bm-table">
+            <div className="bm-row bm-row-header"><div>Customer</div><div>Orders</div><div>Total spent</div></div>
+            {customers.map((c) => (
+              <button key={c.id} type="button" className="bm-row bm-row-clickable" onClick={() => loadDetail(c.id)}>
+                <div>{c.fullName || "Unnamed"}<br /><span style={{ color: "#999994", fontSize: 10 }}>{c.email || "No email"}</span></div>
+                <div>{c.orderCount}</div>
+                <div>{money(c.totalSpent)}</div>
+              </button>
+            ))}
+          </div>
+        )}
+        {hasMore && <button type="button" className="bm-secondary-btn" style={{ marginTop: 14 }} disabled={loading} onClick={() => loadCustomers(page + 1, query)}>{loading ? "Loading…" : "Load more"}</button>}
+      </article>
+    </section>
+  );
+}
 
 function SalesPanel({ metrics, authedFetch, toast }: { metrics: Overview["metrics"]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [orders, setOrders] = useState<OrderRow[]>([]);
