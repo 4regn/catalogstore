@@ -775,17 +775,29 @@ function FollowUpsPanel({ authedFetch }: { authedFetch: (path: string, init?: Re
           <div className="bm-design-grid">
             {generated.map((g) => {
               const name = (g.fullName || "there").split(" ")[0];
-              const message = `Hi ${name}! It's UNIK Labs 👋 Noticed you created "${g.designName || "a design"}" but didn't finish checking out — want a hand completing your order?`;
+              // Mockup (garment photo), not the flat watermarked artwork --
+              // that's the shot that actually sells it. wa.me can't attach
+              // a real image file (no such param exists in WhatsApp's
+              // click-to-chat API), so the URL goes straight into the
+              // message text -- most WhatsApp clients auto-unfurl a direct
+              // image URL into a link-preview thumbnail in the chat. Not
+              // guaranteed on every device, which is what the Download
+              // button below is for.
+              const image = g.mockupUrl || g.previewUrl;
+              const message = `Hi ${name}! It's UNIK Labs 👋 Noticed you created "${g.designName || "a design"}" but didn't finish checking out — want a hand completing your order?${image ? `\n\n${image}` : ""}`;
               const href = waHref(g.phone, message);
               return (
                 <div key={g.authUserId} className="bm-card" style={{ padding: 12 }}>
-                  {g.previewUrl && <img src={g.previewUrl} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", borderRadius: 10, background: "#1a1c1a" }} />}
+                  {image && <img src={image} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", borderRadius: 10, background: "#1a1c1a" }} />}
                   <div style={{ marginTop: 10 }}>
                     <strong style={{ fontSize: 13 }}>{g.fullName || "Unnamed customer"}</strong>
                     <p style={{ margin: "4px 0", fontSize: 11, color: "#999994" }}>{g.designName || g.style || "Design"} · {timeAgoLong(g.generatedAt)}</p>
                   </div>
                   {href ? (
-                    <a className="bm-primary-btn" style={{ display: "block", textAlign: "center", textDecoration: "none" }} href={href} target="_blank" rel="noopener noreferrer">Message on WhatsApp</a>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <a className="bm-primary-btn" style={{ flex: 1, textAlign: "center", textDecoration: "none" }} href={href} target="_blank" rel="noopener noreferrer">Message on WhatsApp</a>
+                      {image && <a className="bm-secondary-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={image} download target="_blank" rel="noopener noreferrer" title="Download the mockup to attach it manually">Save photo</a>}
+                    </div>
                   ) : (
                     <p className="bm-empty" style={{ padding: 8 }}>No valid phone number</p>
                   )}
