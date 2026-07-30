@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../lib/store-template-access";
+import { canonicalStoreUrl } from "../../../lib/store-url";
 import StoreUnavailable from "./StoreUnavailable";
 
 export const revalidate = 60;
@@ -47,6 +48,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: seller.store_name,
     description,
+    alternates: { canonical: canonicalStoreUrl(slug) },
     openGraph: {
       type: "website",
       siteName: seller.store_name,
@@ -61,6 +63,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       images: image ? [image] : undefined,
     },
   };
+}
+
+// Store-wide identity schema (not product-specific -- that lives on the
+// product page itself). One of these per storefront, regardless of which
+// template renders the body, so it's built once here rather than per branch.
+function OrgJsonLd({ seller, slug }: { seller: { store_name: string; tagline: string | null; logo_url: string | null }; slug: string }) {
+  const json = {
+    "@context": "https://schema.org",
+    "@type": "OnlineStore",
+    name: seller.store_name,
+    description: seller.tagline || undefined,
+    url: canonicalStoreUrl(slug),
+    logo: seller.logo_url || undefined,
+  };
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(json) }} />;
 }
 
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -79,7 +96,12 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const tpl = resolveSellerTemplate(seller);
 
   if (tpl === UNIK_TEMPLATE_ID) {
-    return <UnikLabs initialSeller={seller} />;
+    return (
+      <>
+        <OrgJsonLd seller={seller} slug={slug} />
+        <UnikLabs initialSeller={seller} />
+      </>
+    );
   }
 
   if (tpl === "velour") {
@@ -99,12 +121,15 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     ]);
     const isSubdomain = await isStoreSubdomainRequest();
     return (
-      <Velour
-        initialSeller={seller}
-        initialServices={servicesRes.data ?? []}
-        initialBookings={bookingsRes.data ?? []}
-        isSubdomain={isSubdomain}
-      />
+      <>
+        <OrgJsonLd seller={seller} slug={slug} />
+        <Velour
+          initialSeller={seller}
+          initialServices={servicesRes.data ?? []}
+          initialBookings={bookingsRes.data ?? []}
+          isSubdomain={isSubdomain}
+        />
+      </>
     );
   }
 
@@ -130,9 +155,17 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const isSubdomain = await isStoreSubdomainRequest();
   const props = { initialSeller: seller, initialProducts, initialDiscountCodes, isSubdomain };
 
-  if (tpl === "crown") return <Crown {...props} />;
-  if (tpl === "glass-futuristic" || tpl === "glass-chrome") return <GlassChrome {...props} />;
-  if (tpl === "heirloom") return <Heirloom {...props} />;
-  if (tpl === "rosefields") return <Rosefields {...props} />;
-  return <SoftLuxury {...props} />;
+  const StoreComponent =
+    tpl === "crown" ? Crown :
+    (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome :
+    tpl === "heirloom" ? Heirloom :
+    tpl === "rosefields" ? Rosefields :
+    SoftLuxury;
+
+  return (
+    <>
+      <OrgJsonLd seller={seller} slug={slug} />
+      <StoreComponent {...props} />
+    </>
+  );
 }

@@ -1,7 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import dynamic from "next/dynamic";
+import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
+import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
@@ -21,6 +23,36 @@ const DISCOUNT_COLUMNS =
 
 const slugify = (s: string) =>
   s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string; collection: string }>;
+}): Promise<Metadata> {
+  const { slug, collection } = await params;
+
+  const { data: seller } = await supabaseAdmin
+    .from("sellers")
+    .select("store_name, collections")
+    .eq("subdomain", slug)
+    .maybeSingle();
+
+  if (!seller) return {};
+
+  const collections: string[] = Array.isArray(seller.collections) ? seller.collections : [];
+  const isAll = collection.toLowerCase() === "all";
+  const name = isAll ? "All Products" : (collections.find((c) => slugify(c) === collection.toLowerCase()) ?? collection);
+
+  const title = `${name} | ${seller.store_name}`;
+  const description = `Shop ${name} at ${seller.store_name}.`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: canonicalStoreUrl(slug, `/c/${collection}`) },
+    openGraph: { title, description },
+  };
+}
 
 export default async function CollectionPage({
   params,

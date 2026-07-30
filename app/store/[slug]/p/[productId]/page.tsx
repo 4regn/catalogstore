@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
+import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata } from "next";
 
@@ -45,6 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title,
     description,
+    alternates: { canonical: canonicalStoreUrl(slug, `/p/${productId}`) },
     openGraph: {
       title,
       description,
@@ -90,9 +92,37 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const isSubdomain = await isStoreSubdomainRequest();
   const props = { initialSeller: seller, initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
 
+  const activeProduct = initialProducts.find((p: { id: string }) => p.id === productId);
+  // Product schema, sourced from the same row already fetched for the page
+  // body -- gives Google a price/availability/image it can surface directly
+  // in search results instead of guessing from visible text.
+  const productJsonLd = activeProduct
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: activeProduct.name,
+        description: activeProduct.description || undefined,
+        image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
+        url: canonicalStoreUrl(slug, `/p/${productId}`),
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "ZAR",
+          price: activeProduct.price,
+          availability: activeProduct.in_stock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+          url: canonicalStoreUrl(slug, `/p/${productId}`),
+        },
+      }
+    : null;
+
   const tpl = seller.template;
-  if (tpl === "crown") return <Crown {...props} />;
-  if (tpl === "glass-futuristic" || tpl === "glass-chrome") return <GlassChrome {...props} />;
-  if (tpl === "heirloom") return <Heirloom {...props} />;
-  return <SoftLuxury {...props} />;
+  const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : SoftLuxury;
+
+  return (
+    <>
+      {productJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+      )}
+      <StoreComponent {...props} />
+    </>
+  );
 }
