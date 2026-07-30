@@ -18,12 +18,12 @@ const DEFAULT_DESCRIPTION =
  * template allowlist still run before anything is displayed.
  *
  * The real storefront markup lives in the static HTML loaded into the
- * iframe below, so this document -- the one Google's OAuth consent-screen
+ * iframe above, so this document -- the one Google's OAuth consent-screen
  * branding review actually visits -- previously rendered as an empty shell
- * with nothing but the iframe. A visually-hidden h1/p pair was tried first
- * and didn't clear review, which means the check looks at what's actually
- * rendered on screen, not just what's present in the DOM -- so this strip
- * is a real, visible line above the iframe rather than sr-only text.
+ * with nothing but the iframe. The footer strip below is real, visible
+ * content (name, description, privacy/terms links) rather than sr-only
+ * text, kept as a slim single line so it doesn't compress the storefront's
+ * own hero.
  */
 export default function UnikLabsStore({ initialSeller }: UnikLabsStoreProps) {
   const name = initialSeller.store_name || "UNIK Labs";
@@ -40,40 +40,39 @@ export default function UnikLabsStore({ initialSeller }: UnikLabsStoreProps) {
         flexDirection: "column",
       }}
     >
-      <div
-        style={{
-          flex: "0 0 auto",
-          padding: "10px 18px",
-          background: "#050505",
-          borderBottom: "1px solid rgba(255,255,255,.1)",
-          fontFamily: "Arial, sans-serif",
-          color: "#fff",
-          lineHeight: 1.4,
-        }}
-      >
-        <h1 style={{ display: "inline", margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
-          {name}
-        </h1>
-        <p style={{ display: "inline", margin: "0 0 0 10px", fontSize: 11, color: "rgba(255,255,255,.65)" }}>
-          {description}
-        </p>
-        {/* Google's OAuth branding review explicitly requires a visible
-            homepage link to the privacy policy, matching the URL configured
-            on the consent screen -- the one in the iframe's own footer
-            doesn't count since it isn't part of this document. */}
-        <a href="/privacy" style={{ marginLeft: 14, fontSize: 11, color: "#fff", textDecoration: "underline" }}>
-          Privacy Policy
-        </a>
-        <a href="/terms" style={{ marginLeft: 10, fontSize: 11, color: "#fff", textDecoration: "underline" }}>
-          Terms of Service
-        </a>
-      </div>
       <iframe
         src="/private-templates/unik-labs/index.html"
         title={`${name} storefront`}
         allow="clipboard-read; clipboard-write"
         style={{ width: "100%", flex: "1 1 auto", display: "block", border: 0, background: "#050505" }}
       />
+      <div
+        style={{
+          flex: "0 0 auto",
+          padding: "4px 14px",
+          background: "#050505",
+          borderTop: "1px solid rgba(255,255,255,.08)",
+          fontFamily: "Arial, sans-serif",
+          color: "rgba(255,255,255,.45)",
+          lineHeight: 1.5,
+          fontSize: 9,
+        }}
+      >
+        <h1 style={{ display: "inline", margin: 0, fontSize: 9, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "rgba(255,255,255,.7)" }}>
+          {name}
+        </h1>
+        <span style={{ marginLeft: 8 }}>{description}</span>
+        {/* Google's OAuth branding review explicitly requires a visible
+            homepage link to the privacy policy, matching the URL configured
+            on the consent screen -- the one in the iframe's own footer
+            doesn't count since it isn't part of this document. */}
+        <a href="/privacy" style={{ marginLeft: 10, color: "rgba(255,255,255,.7)" }}>
+          Privacy Policy
+        </a>
+        <a href="/terms" style={{ marginLeft: 8, color: "rgba(255,255,255,.7)" }}>
+          Terms of Service
+        </a>
+      </div>
     </main>
   );
 }
