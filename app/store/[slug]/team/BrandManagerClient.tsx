@@ -45,12 +45,13 @@ type SessionAnalytics = {
   topLocations: { country: string; region: string; city: string; count: number }[];
 };
 
-type Panel = "overview" | "sales" | "customers" | "growth" | "content" | "support" | "partners" | "academy" | "settings";
+type Panel = "overview" | "sales" | "customers" | "followups" | "growth" | "content" | "support" | "partners" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Brand Manager overview",
   sales: "Sales",
   customers: "Customers",
+  followups: "Follow-ups",
   growth: "Growth Tools",
   content: "Recap Builder",
   support: "Live Support",
@@ -63,6 +64,7 @@ const MOBILE_NAV_LABELS: Record<Panel, string> = {
   overview: "Home",
   sales: "Sales",
   customers: "Customers",
+  followups: "Follow-up",
   growth: "Growth",
   content: "Recap",
   support: "Support",
@@ -75,6 +77,7 @@ const NAV_ICON_PATHS: Record<Panel, string> = {
   overview: "M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z",
   sales: "M3 6h18M6 3v6M18 3v6M5 11h14v9H5z",
   customers: "M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM4 21c0-4 3.6-7 8-7s8 3 8 7",
+  followups: "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z",
   growth: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 12h8M12 8v8",
   content: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 9l5 3-5 3Z",
   support: "M4 5h16v11H8l-4 4Z",
@@ -355,6 +358,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
 
         {panel === "sales" && <SalesPanel metrics={overview.metrics} authedFetch={authedFetch} toast={showToast} />}
         {panel === "customers" && <CustomersPanel authedFetch={authedFetch} toast={showToast} />}
+        {panel === "followups" && <FollowUpsPanel authedFetch={authedFetch} />}
         {panel === "growth" && <GrowthPanel manager={overview.manager} authedFetch={authedFetch} onSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
         {panel === "content" && <ContentPanel />}
         {panel === "support" && <SupportPanel authedFetch={authedFetch} />}
@@ -696,6 +700,126 @@ function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, in
           </div>
         )}
         {hasMore && <button type="button" className="bm-secondary-btn" style={{ marginTop: 14 }} disabled={loading} onClick={() => loadCustomers(page + 1, query)}>{loading ? "Loading…" : "Load more"}</button>}
+      </article>
+    </section>
+  );
+}
+
+type GeneratedFollowUp = {
+  authUserId: string; fullName: string | null; email: string | null; phone: string;
+  designId: string; designName: string | null; style: string | null; previewUrl: string | null; mockupUrl: string | null; generatedAt: string;
+};
+type AbandonedFollowUp = {
+  orderId: string; orderNumber: string; customerName: string | null; customerPhone: string; total: number; createdAt: string;
+};
+
+/* Strip non-digits, convert a leading 0 to South Africa's 27 -- same
+   normalization SoftLuxuryStore.tsx uses for its own WhatsApp checkout
+   link, duplicated here rather than shared since it's a two-line rule and
+   the two call sites are otherwise unrelated. */
+function normalizeWaNumber(raw: string): string {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.startsWith("0") ? "27" + digits.slice(1) : digits;
+}
+
+function waHref(phone: string, message: string): string | null {
+  const normalized = normalizeWaNumber(phone);
+  return normalized ? `https://wa.me/${normalized}?text=${encodeURIComponent(message)}` : null;
+}
+
+function timeAgoLong(iso: string): string {
+  const hours = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 3_600_000));
+  if (hours < 24) return hours <= 1 ? "about an hour ago" : `${hours} hours ago`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
+function FollowUpsPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
+  const [generated, setGenerated] = useState<GeneratedFollowUp[]>([]);
+  const [abandoned, setAbandoned] = useState<AbandonedFollowUp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const res = await authedFetch("/api/unik/brand-manager/follow-ups");
+      const payload = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      if (res.ok) {
+        setGenerated(payload.generatedNotPurchased || []);
+        setAbandoned(payload.abandonedCheckouts || []);
+      } else {
+        setError(payload.error || "Could not load follow-ups");
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [authedFetch]);
+
+  if (loading) return <p className="bm-empty">Loading follow-ups…</p>;
+  if (error) return <p className="bm-empty">{error}</p>;
+
+  return (
+    <section>
+      <article className="bm-card" style={{ marginBottom: 16 }}>
+        <div className="bm-section-head">
+          <h2 className="bm-section-title">Generated, not purchased</h2>
+          <p className="bm-section-desc">Customers who created a design in AI Studio over two hours ago and never opened checkout — only shown here because they opted in to a WhatsApp follow-up when they signed up.</p>
+        </div>
+        {generated.length === 0 ? (
+          <p className="bm-empty">Nobody to follow up with right now.</p>
+        ) : (
+          <div className="bm-design-grid">
+            {generated.map((g) => {
+              const name = (g.fullName || "there").split(" ")[0];
+              const message = `Hi ${name}! It's UNIK Labs 👋 Noticed you created "${g.designName || "a design"}" but didn't finish checking out — want a hand completing your order?`;
+              const href = waHref(g.phone, message);
+              return (
+                <div key={g.authUserId} className="bm-card" style={{ padding: 12 }}>
+                  {g.previewUrl && <img src={g.previewUrl} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", borderRadius: 10, background: "#1a1c1a" }} />}
+                  <div style={{ marginTop: 10 }}>
+                    <strong style={{ fontSize: 13 }}>{g.fullName || "Unnamed customer"}</strong>
+                    <p style={{ margin: "4px 0", fontSize: 11, color: "#999994" }}>{g.designName || g.style || "Design"} · {timeAgoLong(g.generatedAt)}</p>
+                  </div>
+                  {href ? (
+                    <a className="bm-primary-btn" style={{ display: "block", textAlign: "center", textDecoration: "none" }} href={href} target="_blank" rel="noopener noreferrer">Message on WhatsApp</a>
+                  ) : (
+                    <p className="bm-empty" style={{ padding: 8 }}>No valid phone number</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </article>
+
+      <article className="bm-card">
+        <div className="bm-section-head">
+          <h2 className="bm-section-title">Abandoned checkout</h2>
+          <p className="bm-section-desc">Started checkout, gave a phone number for delivery, but the order never got paid.</p>
+        </div>
+        {abandoned.length === 0 ? (
+          <p className="bm-empty">No abandoned checkouts right now.</p>
+        ) : (
+          <div className="bm-table" style={{ marginTop: 14 }}>
+            <div className="bm-row bm-row-header"><div>Order</div><div>Value</div><div /></div>
+            {abandoned.map((o) => {
+              const name = (o.customerName || "there").split(" ")[0];
+              const message = `Hi ${name}! It's UNIK Labs — looks like order #${o.orderNumber} didn't go through. Want a hand finishing it up?`;
+              const href = waHref(o.customerPhone, message);
+              return (
+                <div key={o.orderId} className="bm-row">
+                  <div>#{o.orderNumber}<br /><span style={{ color: "#999994", fontSize: 10 }}>{o.customerName || "Unnamed"} · {timeAgoLong(o.createdAt)}</span></div>
+                  <div>{money(o.total)}</div>
+                  <div>{href ? <a className="bm-secondary-btn" style={{ textDecoration: "none", display: "inline-block" }} href={href} target="_blank" rel="noopener noreferrer">WhatsApp</a> : <span style={{ color: "#999994", fontSize: 11 }}>No phone</span>}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </article>
     </section>
   );

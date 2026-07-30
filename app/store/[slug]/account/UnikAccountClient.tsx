@@ -68,6 +68,8 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [whatsappConsent, setWhatsappConsent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
@@ -178,7 +180,10 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
       setBusy(true);
       const { data, error: authError } = await supabase.auth.signUp({
         email: trimmedEmail, password,
-        options: { data: { full_name: fullName.trim() }, emailRedirectTo: window.location.href.split("#")[0] },
+        options: {
+          data: { full_name: fullName.trim(), phone: phone.trim(), whatsapp_consent: whatsappConsent },
+          emailRedirectTo: window.location.href.split("#")[0],
+        },
       });
       if (authError) setError(authError.message);
       else if (!data.session) setMessage("Check your email to confirm your account, then return here to sign in.");
@@ -365,6 +370,23 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
                 <div className="ua-or"><span />or use email<span /></div>
                 <form onSubmit={emailSubmit}>
                   {mode === "signup" && <label>Full name<input value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required /></label>}
+                  {mode === "signup" && (
+                    <label>Phone number (optional)
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => { const v = e.target.value; setPhone(v); if (!v.trim()) setWhatsappConsent(false); }}
+                        autoComplete="tel"
+                        placeholder="e.g. 082 123 4567"
+                      />
+                    </label>
+                  )}
+                  {mode === "signup" && phone.trim() && (
+                    <label className="ua-consent">
+                      <input type="checkbox" checked={whatsappConsent} onChange={(e) => setWhatsappConsent(e.target.checked)} />
+                      <span>Message me on WhatsApp if I don&apos;t finish an order</span>
+                    </label>
+                  )}
                   <label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></label>
                   <label>Password
                     <div className="ua-pass-wrap">
@@ -520,6 +542,7 @@ export default function UnikAccountClient({ storeName, basePath }: { storeName: 
       <style jsx global>{`
         *{box-sizing:border-box}html,body{margin:0;background:#080909;color:#f4f1e9;font-family:Arial,sans-serif}.ua-page{min-height:100dvh;background:radial-gradient(circle at 15% 0%,#1a1d1b 0,transparent 34%),#080909}.ua-nav{height:78px;border-bottom:1px solid #292c29;display:flex;align-items:center;justify-content:space-between;padding:0 max(22px,calc((100vw - 1160px)/2))}.ua-logo{color:#fff;text-decoration:none;font-size:28px;letter-spacing:.28em;font-weight:300}.ua-logo span{display:block;font-size:5px;letter-spacing:.48em;margin-top:4px}.ua-return,.ua-signout{color:#d8d5cd;font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;background:none;border:0;cursor:pointer}.ua-auth,.ua-dashboard{width:min(1160px,calc(100% - 36px));margin:0 auto;padding:72px 0 100px}.ua-auth{display:grid;grid-template-columns:1.1fr .9fr;gap:70px;align-items:center}.ua-kicker{font-size:10px!important;letter-spacing:.24em;text-transform:uppercase;color:#969a93!important;margin:0 0 18px!important}.ua-intro h1,.ua-dashboard-head h1{font-family:Georgia,serif;font-weight:400;text-transform:uppercase;line-height:.86;margin:0;font-size:clamp(58px,9vw,112px)}.ua-intro>p:last-child{color:#a6a8a2;max-width:540px;line-height:1.7}.ua-card{background:#111311;border:1px solid #30332f;border-radius:24px;padding:30px}.ua-google,.ua-primary{width:100%;height:52px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer}.ua-google{background:#fff;color:#111;border:0;display:flex;align-items:center;justify-content:center;gap:12px}.ua-google svg{width:19px}.ua-or{display:flex;align-items:center;gap:12px;color:#777b74;font-size:9px;text-transform:uppercase;letter-spacing:.16em;margin:24px 0}.ua-or span{height:1px;background:#30332f;flex:1}.ua-card label{display:grid;gap:7px;font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#94978f;margin:14px 0}.ua-card input{width:100%;height:48px;border:1px solid #363934;border-radius:12px;background:#090a09;color:#fff;padding:0 14px;font-size:14px;outline:none}.ua-card input:focus{border-color:#d9d7ce}.ua-primary{border:1px solid #007517;background:#007517;color:#fff;margin-top:10px}.ua-switch{width:100%;background:none;border:0;color:#b8bab4;font-size:10px;margin-top:20px;cursor:pointer}.ua-error,.ua-message{font-size:11px;line-height:1.5}.ua-error{color:#ff8d82}.ua-message{color:#8bd69a}
         .ua-pass-wrap{position:relative}.ua-pass-wrap input{padding-right:44px}.ua-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;padding:0;display:flex;color:#6d7069;cursor:pointer}.ua-eye:hover{color:#a6a8a2}
+        .ua-consent{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;margin:-4px 0 14px!important}.ua-consent input{width:16px;height:16px;flex:none}.ua-consent span{font-size:11px;text-transform:none;letter-spacing:normal;color:#c3c5be}
         .ua-checks{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:4px}.ua-checks li{font-size:10px;letter-spacing:.04em;text-transform:none;color:#5c5f59}.ua-checks li.ok{color:#8bd69a}
         .ua-match{font-size:10px;letter-spacing:.04em;text-transform:none;margin-top:2px}.ua-match.ok{color:#8bd69a}.ua-match.bad{color:#ff8d82}
         .ua-forgot{background:none;border:0;padding:0;color:#8e918a;font-size:10px;letter-spacing:.04em;text-transform:none;cursor:pointer;text-align:right;width:100%;margin:-6px 0 4px}.ua-forgot:hover{color:#d8d5cd}.ua-loading{min-height:calc(100dvh - 78px);display:grid;place-content:center;text-align:center;color:#a6a8a2;letter-spacing:.08em}.ua-loading small{display:block;margin-top:12px;color:#ff8d82}.ua-dashboard-head{display:flex;align-items:end;justify-content:space-between;gap:24px}.ua-dashboard-head h1{font-size:clamp(52px,7vw,90px)}.ua-dashboard-head p{color:#989b94}.ua-signout{border:1px solid #41443f;border-radius:999px;padding:13px 18px}.ua-allowance{display:grid;grid-template-columns:1fr auto;gap:5px 20px;background:#101210;border:1px solid #2c2f2b;border-radius:18px;padding:20px;margin:42px 0 28px}.ua-allowance span,.ua-allowance small{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#969991}.ua-allowance strong{grid-row:span 2;font-size:16px;align-self:center}.ua-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}.ua-grid>section{min-width:0}.ua-section-head{display:flex;justify-content:space-between;align-items:center;margin:16px 2px}.ua-section-head h2{font-size:11px;text-transform:uppercase;letter-spacing:.18em;margin:0}.ua-section-head span{font-size:9px;color:#898c85;text-transform:uppercase;letter-spacing:.12em}.ua-list{display:grid;gap:10px}.ua-item{display:grid;grid-template-columns:74px 1fr;gap:15px;padding:12px;background:#111311;border:1px solid #2c2f2b;border-radius:16px;align-items:center}.ua-item img,.ua-thumb{width:74px;aspect-ratio:3/4;object-fit:cover;border-radius:10px;background:#1a1c1a}.ua-item strong{font-size:12px}.ua-item p,.ua-item small{color:#92958e;font-size:10px;line-height:1.5}.ua-item p{margin:6px 0}.ua-empty{border:1px dashed #343732;border-radius:16px;padding:34px;text-align:center;color:#8e918a;font-size:11px;line-height:1.7}.ua-empty a{color:#fff}.ua-google:disabled,.ua-primary:disabled{opacity:.55;cursor:wait}@media(max-width:800px){.ua-auth,.ua-grid{grid-template-columns:1fr}.ua-auth{gap:42px;padding-top:46px}.ua-dashboard-head{align-items:flex-start;flex-direction:column}.ua-logo{font-size:21px}.ua-return{font-size:8px}.ua-allowance{grid-template-columns:1fr}.ua-allowance strong{grid-row:auto}}

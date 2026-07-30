@@ -17,8 +17,24 @@ export async function GET(req: NextRequest) {
   const metadata = user.user_metadata || {};
   const fullName = String(metadata.full_name || metadata.name || "").trim() || null;
   const avatarUrl = String(metadata.avatar_url || metadata.picture || "").trim() || null;
+  // phone/whatsapp_consent come from signup metadata (set once, at signup,
+  // in UnikAccountClient.tsx) and never change afterward -- but this
+  // upsert runs on every account-page load, so whatsapp_consent_at has to
+  // be resolved against whatever's already stored rather than reset to
+  // "now" every time, or the consent date would silently drift forward on
+  // every visit.
+  const admin = getAdmin();
+  const phone = String(metadata.phone || "").trim() || null;
+  const whatsappConsent = Boolean(metadata.whatsapp_consent);
+  const { data: existingProfile } = await admin
+    .from("unik_customer_profiles")
+    .select("whatsapp_consent_at")
+    .eq("seller_id", seller.id)
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  const whatsappConsentAt = whatsappConsent ? existingProfile?.whatsapp_consent_at || new Date().toISOString() : null;
 
-  const { data: profile, error: profileError } = await getAdmin()
+  const { data: profile, error: profileError } = await admin
     .from("unik_customer_profiles")
     .upsert({
       seller_id: seller.id,
@@ -26,6 +42,9 @@ export async function GET(req: NextRequest) {
       email: user.email!.toLowerCase(),
       full_name: fullName,
       avatar_url: avatarUrl,
+      phone,
+      whatsapp_consent: whatsappConsent,
+      whatsapp_consent_at: whatsappConsentAt,
       updated_at: new Date().toISOString(),
     }, { onConflict: "seller_id,auth_user_id" })
     .select("id, email, full_name, avatar_url, created_at")
@@ -38,25 +57,25 @@ export async function GET(req: NextRequest) {
   // Relabel any order that's sat unpaid past ORDER_ABANDON_MS before
   // reading the order list below, so a cart the customer walked away from
   // shows as "abandoned" instead of an indefinite, misleading "pending".
-  await sweepAbandonedUnikOrders(getAdmin(), seller.id);
+  await sweepAbandonedUnikOrders(admin, seller.id);
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const [designsResult, ordersResult, usageResult] = await Promise.all([
-    getAdmin()
+    admin
       .from("unik_designs")
       .select("id, source, status, name, garment, colour, size, style, options, preview_url, mockup_url, private_artwork_path, saved_at, created_at")
       .eq("seller_id", seller.id)
       .eq("auth_user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(60),
-    getAdmin()
+    admin
       .from("orders")
       .select("id, order_number, items, total, status, payment_status, created_at")
       .eq("seller_id", seller.id)
       .eq("customer_auth_user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30),
-    getAdmin()
+    admin
       .from("unik_generation_attempts")
       .select("id", { count: "exact", head: true })
       .eq("seller_id", seller.id)
@@ -70,7 +89,6 @@ export async function GET(req: NextRequest) {
   // mockup composites) -- the account page needs short-lived signed URLs
   // to let the owning customer view their own "watermarked design" slot.
   const rawDesigns = designsResult.data || [];
-  const admin = getAdmin();
   const signedUrls = new Map<string, { front: string | null; back: string | null }>();
   await Promise.all(
     rawDesigns
