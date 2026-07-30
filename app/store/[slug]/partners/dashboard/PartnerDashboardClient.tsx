@@ -983,7 +983,7 @@ function StudioPanel({ authedFetch, toast, onSendToRecap }: {
 function RecapPanel({ authedFetch, importId, onImported }: {
   authedFetch: (path: string, init?: RequestInit) => Promise<Response>; importId: string | null; onImported: () => void;
 }) {
-  const [tab, setTab] = useState<"studio" | "custom">("studio");
+  const [tab, setTab] = useState<"studio" | "custom" | "ad">("studio");
   const [importing, setImporting] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -1019,9 +1019,10 @@ function RecapPanel({ authedFetch, importId, onImported }: {
       <div className="pnd-tabs">
         <button type="button" className={"pnd-tab" + (tab === "studio" ? " active" : "")} onClick={() => setTab("studio")}>AI Studio</button>
         <button type="button" className={"pnd-tab" + (tab === "custom" ? " active" : "")} onClick={() => setTab("custom")}>Custom Upload</button>
+        <button type="button" className={"pnd-tab" + (tab === "ad" ? " active" : "")} onClick={() => setTab("ad")}>Launch Ad</button>
       </div>
       <div className="pnd-iframe-wrap">
-        <iframe ref={iframeRef} src={tab === "studio" ? "/private-templates/unik-labs/recap.html" : "/private-templates/unik-labs/recap-custom.html"} title="Recap builder" />
+        <iframe ref={iframeRef} src={tab === "studio" ? "/private-templates/unik-labs/recap.html" : tab === "custom" ? "/private-templates/unik-labs/recap-custom.html" : "/private-templates/unik-labs/launch-ad.html"} title="Recap builder" />
       </div>
     </section>
   );

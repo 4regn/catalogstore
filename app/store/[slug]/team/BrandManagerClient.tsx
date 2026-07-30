@@ -935,6 +935,12 @@ const RECAP_TOOLS = {
     title: "Custom Upload Recap Builder",
     desc: "Same idea for a Custom Upload order -- garment, colour, front (and optional back) artwork placed on the real print zone, size, then export or screen-record it. Leave Back artwork empty for a front-only order and it's excluded automatically, priced to match.",
   },
+  ad: {
+    label: "Launch Ad",
+    src: "/private-templates/unik-labs/launch-ad.html",
+    title: "UNIK Labs Launch Ad",
+    desc: "A ready-made ~25s brand video with voiceover and music -- the styles, the photo-to-mockup transformation, cart to dispatch. Play it, or screen-record/export it to repost as a story or reel.",
+  },
 } as const;
 
 function ContentPanel() {
