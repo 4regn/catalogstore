@@ -36,8 +36,11 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
 .panel h2{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6)}
 .panel-hint{font-size:11.5px;line-height:1.6;color:rgba(255,255,255,.45)}
 .audio-drop{border:1.5px dashed rgba(255,255,255,.25);border-radius:12px;padding:16px;text-align:center;font-size:12px;color:rgba(255,255,255,.55)}
+.audio-drop code{font-size:10.5px;color:rgba(255,255,255,.8)}
 .audio-drop input{margin-top:10px;font-size:11px;color:rgba(255,255,255,.7)}
 .audio-loaded{font-size:11.5px;color:#4ade80}
+.music-vol-row{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:11px;color:rgba(255,255,255,.55)}
+.music-vol-row input{flex:1}
 
 .cue-list{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto;padding-right:4px}
 .cue-row{display:grid;grid-template-columns:22px 1fr 64px auto;gap:8px;align-items:center;padding:8px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid transparent}
@@ -65,7 +68,6 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
 .s2-row{display:flex;align-items:center;gap:14px;width:100%;justify-content:center}
 .s2-box{width:38%;aspect-ratio:3/4;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:#111;display:flex;align-items:center;justify-content:center;opacity:0;transform:translateY(14px)}
 .s2-box img{width:100%;height:100%;object-fit:cover;display:block}
-.s2-placeholder{width:44%;height:44%;color:rgba(255,255,255,.25)}
 .s2-arrow{font-size:22px;color:#4ade80;opacity:0}
 .scene-2.on .s2-box.s2-left{animation:s2in .6s ease-out .1s forwards}
 .scene-2.on .s2-arrow{animation:s2in .5s ease-out .55s forwards}
@@ -161,7 +163,7 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
 <div class="shell">
   <div class="head">
     <h1>Launch Ad — Motion Graphic</h1>
-    <p>Load your ElevenLabs voiceover, fine-tune each scene's cue point against the real audio, then hit Export video (desktop only) to render a real file with the narration baked in. Everything below is a placeholder you should swap for real photos/logo where noted in the panel on the right.</p>
+    <p>Your voiceover auto-loads below. Fine-tune each scene's cue point against the real audio, then hit Export video (desktop only) to render a real file with the narration and music baked in.</p>
   </div>
 
   <div class="stage-col">
@@ -175,11 +177,9 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
 
         <div class="scene scene-2" data-scene="1">
           <div class="s2-row">
-            <div class="s2-box s2-left">
-              <svg class="s2-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            </div>
+            <div class="s2-box s2-left"><img src="assets/launch-ad/papercut-before.jpg" alt=""/></div>
             <span class="s2-arrow">&#8594;</span>
-            <div class="s2-box s2-right"><img src="assets/dark-studio/tee-black-flat.jpg" alt=""/></div>
+            <div class="s2-box s2-right"><img src="assets/dark-studio/tee-black-paper-cut.jpg" alt=""/></div>
           </div>
           <p class="s2-caption">Your photo.<br/>Your garment.</p>
         </div>
@@ -250,9 +250,13 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     <div>
       <h2>1 — Voiceover</h2>
       <div class="audio-drop">
-        Drop your ElevenLabs export here (mp3/wav)
+        Loads <code>assets/launch-ad/launch-ad-vo.mp3</code> by default — or drop a different take here to override it (mp3/wav)
         <br/><input id="audioInput" type="file" accept="audio/*"/>
         <div class="audio-loaded" id="audioLoaded" hidden></div>
+      </div>
+      <div class="music-vol-row" id="musicVolRow">
+        <label for="bgVolume">Music</label>
+        <input id="bgVolume" max="100" min="0" type="range" value="45"/>
       </div>
     </div>
 
@@ -263,11 +267,11 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     </div>
 
     <div>
-      <h2>3 — Placeholders to swap</h2>
+      <h2>3 — Status</h2>
       <p class="panel-hint">
-        <strong>Logo</strong> (scenes 1 &amp; 8) — currently the old wordmark. Point <code>assets/unik-logo-v3-header.png</code> at the new file (or send it to me and I'll swap it sitewide in one shot — every UNIK page references that same filename).<br/><br/>
-        <strong>Scene 2's "your photo"</strong> is a generic silhouette icon on purpose — no real customer photo has consent to appear in a public ad. If you've got a photo you're happy to feature (yourself, a team member, or a consenting customer), send it and I'll drop it in.<br/><br/>
-        <strong>Scenes 3, 4, 7</strong> use real style-preview photography already live on the site (Bootleg, Chrome, Toon Drip, Tour Poster) — tell me if you'd rather feature different styles.
+        <strong>Logo</strong> (scenes 1 &amp; 8) — updated, live sitewide.<br/><br/>
+        <strong>Scene 2</strong> — real before/after: the actual photo behind the Paper Cut mockup, transforming into that mockup.<br/><br/>
+        <strong>Scenes 3, 4, 7</strong> still use real style-preview photography already live on the site (Bootleg, Chrome, Toon Drip, Tour Poster) — tell me if you'd rather feature different styles.
       </p>
     </div>
 
@@ -303,10 +307,31 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     }
   } catch (_) {}
 
+  var DEFAULT_VO_SRC = 'assets/launch-ad/launch-ad-vo.mp3';
+  var BG_MUSIC_SRC = 'assets/audio/bg-music-ai-studio.mp3'; // same track as the AI Studio recap builder
+  // The bg-music file was mastered with its own baked-in fade tuned to the
+  // AI Studio recap's ~34s runtime -- this ad's VO won't match that length,
+  // so it's looped and faded out in JS against this VO's actual duration
+  // instead of trusting the file's own ending to land in the right place.
+  var MUSIC_FADE_SEC = 2;
+
   var audio = new Audio();
   audio.preload = 'auto';
+  audio.src = DEFAULT_VO_SRC;
+
+  var bgMusic = new Audio();
+  bgMusic.preload = 'auto';
+  bgMusic.src = BG_MUSIC_SRC;
+  bgMusic.loop = true;
+
   var audioInput = document.getElementById('audioInput');
   var audioLoaded = document.getElementById('audioLoaded');
+  var bgVolumeInput = document.getElementById('bgVolume');
+  bgMusic.volume = Number(bgVolumeInput.value) / 100;
+  bgVolumeInput.addEventListener('input', function () {
+    bgMusic.volume = Number(bgVolumeInput.value) / 100;
+  });
+
   var stage = document.getElementById('stage');
   var sceneEls = Array.prototype.slice.call(stage.querySelectorAll('.scene'));
   var cueList = document.getElementById('cueList');
@@ -316,6 +341,22 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
   var btnExport = document.getElementById('btnExport');
   var scriptBlock = document.getElementById('scriptBlock');
   var currentIndex = -1;
+
+  function enableControls() {
+    btnPlayPause.disabled = false;
+    btnRestart.disabled = false;
+    btnExport.disabled = false;
+  }
+  // The default VO file may not exist yet (uploaded separately) -- only
+  // enable the controls once something actually loads, rather than the
+  // moment the tag is created, so a 404 fails quietly instead of leaving
+  // "Play" clickable against nothing.
+  audio.addEventListener('loadedmetadata', enableControls);
+  audio.addEventListener('error', function () {
+    audioLoaded.hidden = false;
+    audioLoaded.textContent = 'No voiceover loaded yet — drop one below.';
+    audioLoaded.style.color = 'rgba(255,255,255,.4)';
+  });
   var carouselTimer = null;
 
   scriptBlock.innerHTML = SCENES.map(function (s, i) { return '<div><strong>' + (i + 1) + '.</strong> ' + s.text + '</div>'; }).join('<br/>');
@@ -395,9 +436,18 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     activateScene(pickSceneForTime(audio.currentTime));
     var d = audio.duration || 0;
     timecode.textContent = fmtTime(audio.currentTime) + ' / ' + (d ? fmtTime(d) : '--:--');
+
+    // Fade the music out against THIS narration's actual remaining time,
+    // not the music file's own (differently-timed) baked-in ending.
+    if (d) {
+      var remaining = d - audio.currentTime;
+      var base = Number(bgVolumeInput.value) / 100;
+      bgMusic.volume = remaining <= MUSIC_FADE_SEC ? Math.max(0, base * (remaining / MUSIC_FADE_SEC)) : base;
+    }
   });
   audio.addEventListener('ended', function () {
     btnPlayPause.textContent = 'Play';
+    bgMusic.pause();
   });
 
   function fmtTime(sec) {
@@ -412,32 +462,53 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     if (!file) return;
     audio.src = URL.createObjectURL(file);
     audioLoaded.hidden = false;
+    audioLoaded.style.color = '';
     audioLoaded.textContent = 'Loaded: ' + file.name;
-    btnPlayPause.disabled = false;
-    btnRestart.disabled = false;
-    btnExport.disabled = false;
     activateScene(0);
     timecode.textContent = '0:00 / --:--';
   });
 
+  function playBoth() {
+    audio.play();
+    bgMusic.currentTime = bgMusic.currentTime || 0;
+    bgMusic.volume = Number(bgVolumeInput.value) / 100;
+    bgMusic.play().catch(function () {}); // music is a nice-to-have; never block playback on it
+    btnPlayPause.textContent = 'Pause';
+  }
   btnPlayPause.addEventListener('click', function () {
-    if (audio.paused) { audio.play(); btnPlayPause.textContent = 'Pause'; }
-    else { audio.pause(); btnPlayPause.textContent = 'Play'; }
+    if (audio.paused) { playBoth(); }
+    else { audio.pause(); bgMusic.pause(); btnPlayPause.textContent = 'Play'; }
   });
   btnRestart.addEventListener('click', function () {
     audio.currentTime = 0;
+    bgMusic.currentTime = 0;
     activateScene(0);
-    audio.play();
-    btnPlayPause.textContent = 'Pause';
+    playBoth();
   });
 
   // ── Export to an actual video file with narration baked in (desktop only) ──
-  // Same screen/tab-capture technique as recap.html (no backend renderer
-  // exists), but this also grabs the <audio> element's own output via
-  // captureStream() and mixes it into the recording directly -- no need to
-  // remember to tick "share tab audio" in the picker, and no separate mux
-  // step afterward. Falls back to a silent video + on-screen reminder if
-  // the browser doesn't support audio captureStream.
+  // Same screen/tab-capture technique as recap.html for the VIDEO half (no
+  // backend renderer exists, so this asks the browser to record this very
+  // tab). For AUDIO, rather than depend on someone remembering to tick
+  // "Share tab audio" in the OS picker (inconsistent across browsers, easy
+  // to miss), both <audio> elements are routed through a Web Audio graph
+  // into one real mixed track -- narration and music combined exactly as
+  // they're heard, muxed into the recording directly.
+  var audioCtx = null, mixDest = null;
+  function ensureMixGraph() {
+    if (audioCtx) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      mixDest = audioCtx.createMediaStreamDestination();
+      var voSource = audioCtx.createMediaElementSource(audio);
+      var musicSource = audioCtx.createMediaElementSource(bgMusic);
+      voSource.connect(mixDest); voSource.connect(audioCtx.destination);
+      musicSource.connect(mixDest); musicSource.connect(audioCtx.destination);
+    } catch (err) {
+      audioCtx = null; mixDest = null;
+    }
+  }
+
   function isProbablyMobile() {
     var ua = navigator.userAgent || '';
     var iPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
@@ -450,24 +521,20 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
       return;
     }
 
-    var audioStream = null;
-    try {
-      if (audio.captureStream) audioStream = audio.captureStream();
-      else if (audio.mozCaptureStream) audioStream = audio.mozCaptureStream();
-    } catch (_) {}
+    ensureMixGraph(); // must run inside this click handler -- a user gesture -- or the browser keeps the AudioContext suspended
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    var mixedAudioTrack = mixDest ? mixDest.stream.getAudioTracks() : [];
 
-    navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: !audioStream })
+    navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: !mixedAudioTrack.length })
       .then(function (displayStream) {
         var tracks = displayStream.getVideoTracks().slice();
-        if (audioStream && audioStream.getAudioTracks().length) {
-          tracks = tracks.concat(audioStream.getAudioTracks());
+        if (mixedAudioTrack.length) {
+          tracks = tracks.concat(mixedAudioTrack);
         } else {
           tracks = tracks.concat(displayStream.getAudioTracks());
+          alert('Heads up: this browser blocked the automatic audio mix. If a "Share tab audio" checkbox appeared in the share dialog, make sure it was ticked -- otherwise the exported file will be silent and you\'ll need to add audio afterward in a video editor.');
         }
         var combined = new MediaStream(tracks);
-        if (!audioStream) {
-          alert('Heads up: this browser can\'t auto-capture the narration. If a "Share tab audio" checkbox appeared in the share dialog, make sure it was ticked -- otherwise the exported file will be silent and you\'ll need to add audio afterward in a video editor.');
-        }
 
         var mimeType = ['video/mp4;codecs=h264', 'video/webm;codecs=vp9', 'video/webm']
           .find(function (t) { return window.MediaRecorder && MediaRecorder.isTypeSupported(t); }) || '';
@@ -505,15 +572,16 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
         btnExport.disabled = true;
         btnExport.textContent = 'Recording…';
         audio.currentTime = 0;
+        bgMusic.currentTime = 0;
         activateScene(0);
         recorder.start();
-        audio.play();
-        btnPlayPause.textContent = 'Pause';
+        playBoth();
 
         var stopped = false;
         function stopOnce() {
           if (stopped) return;
           stopped = true;
+          bgMusic.pause();
           if (recorder.state !== 'inactive') recorder.stop();
         }
         audio.addEventListener('ended', function onEnded() {
