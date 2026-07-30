@@ -276,6 +276,10 @@ body{font-family:'Montserrat',sans-serif;font-weight:300;background:var(--bg);co
         <label class="cal-label" for="calColour">Garment colour</label>
         <select class="cal-select" id="calColour"><option value="black">Black</option><option value="white">White</option><option id="calColourBeige" value="beige">Beige</option></select>
       </div>
+      <div class="cal-section" id="calThemeSection" style="display:none">
+        <label class="cal-label" for="calTheme">Theme (light/dark shoots are framed differently)</label>
+        <select class="cal-select" id="calTheme"><option value="dark">Dark</option><option value="light">Light</option></select>
+      </div>
       <div class="cal-section">
         <div class="cal-fields">
           <label><span class="cal-label">Width ratio</span><input class="cal-input cal-value" id="calWP" type="number" min="0.05" max="0.9" step="0.0001"></label>
@@ -591,10 +595,24 @@ const CAL_DEFAULTS_BY_MODE={
       white:{wP:0.3328,hP:0.2045,cxP:0.4957,tP:0.3409},
       beige:{wP:0.3328,hP:0.2045,cxP:0.4957,tP:0.3193}
     },
+    // Back is theme-split -- unlike every other calibrated zone here, the
+    // light and dark back-hoodie shoots are two independent photo sets with
+    // different framing/zoom, not just a colour-graded pair of the same
+    // shot, so one calibration can't cover both.
     back:{
-      black:{wP:0.4283,hP:0.2977,cxP:0.5094,tP:0.3818},
-      white:{wP:0.4029,hP:0.3010,cxP:0.5103,tP:0.3820},
-      beige:{wP:0.4027,hP:0.3011,cxP:0.5085,tP:0.3761}
+      dark:{
+        black:{wP:0.4283,hP:0.2977,cxP:0.5094,tP:0.3818},
+        white:{wP:0.4029,hP:0.3010,cxP:0.5103,tP:0.3820},
+        beige:{wP:0.4027,hP:0.3011,cxP:0.5085,tP:0.3761}
+      },
+      // Starting point only, copied from dark -- run
+      // calibrate-hoodie-back.html with the theme selector on Light and
+      // re-save real values here per colour before trusting these.
+      light:{
+        black:{wP:0.4283,hP:0.2977,cxP:0.5094,tP:0.3818},
+        white:{wP:0.4029,hP:0.3010,cxP:0.5103,tP:0.3820},
+        beige:{wP:0.4027,hP:0.3011,cxP:0.5085,tP:0.3761}
+      }
     }
   },
   // Full-size tee. Front differs by colour because black/white use the
@@ -628,10 +646,22 @@ const CAL_DEFAULTS_BY_MODE={
     }
   }
 };
-function calibrationKey(mode,side,colour){return 'unik-labs-'+(mode||'hoodie')+'-calibration-'+(side||'front')+'-v1-'+(colour||'black');}
-function defaultCalibration(mode,side,colour){
+function currentTheme(){return document.documentElement.dataset.unikTheme==='dark'?'dark':'light';}
+// theme only matters for hoodie back (see CAL_DEFAULTS_BY_MODE's comment
+// above) -- every other mode/side keeps its old, un-suffixed key so
+// previously-saved calibrations for those keep resolving the same way.
+function calibrationKey(mode,side,colour,theme){
+  const themeSuffix=(mode==='hoodie'&&side==='back')?'-'+(theme||currentTheme()):'';
+  return 'unik-labs-'+(mode||'hoodie')+'-calibration-'+(side||'front')+'-v1-'+(colour||'black')+themeSuffix;
+}
+function defaultCalibration(mode,side,colour,theme){
   const byMode=CAL_DEFAULTS_BY_MODE[mode]||CAL_DEFAULTS_BY_MODE.hoodie;
-  return (byMode[side]&&byMode[side][colour])||byMode.front.black;
+  const bySide=byMode[side]||byMode.front;
+  if(mode==='hoodie'&&side==='back'){
+    const byTheme=bySide[theme||currentTheme()]||bySide.dark;
+    return byTheme[colour]||byTheme.black;
+  }
+  return bySide[colour]||bySide.black;
 }
 let CAL=null;
 let CAL_SIDE=null;
@@ -878,10 +908,10 @@ function getZoneRect(){
   // saved value when the other side hasn't been touched this session.
   if(CAL){
     const side=curView==='back'?'back':'front';
-    let cfg=CAL_SIDE===side?CAL:defaultCalibration(CAL_MODE,side,S.colour);
+    let cfg=CAL_SIDE===side?CAL:defaultCalibration(CAL_MODE,side,S.colour,currentTheme());
     if(CAL_SIDE!==side){
       try{
-        const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,side,S.colour)));
+        const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,side,S.colour,currentTheme())));
         if(saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k]))))cfg=saved;
       }catch(_){}
     }
@@ -897,9 +927,9 @@ function getZoneRect(){
   // use the supplied measurements.
   if(S.garment==='hoodie'){
     const side=curView==='back'?'back':'front';
-    let cfg=defaultCalibration('hoodie',side,S.colour);
+    let cfg=defaultCalibration('hoodie',side,S.colour,currentTheme());
     try{
-      const saved=JSON.parse(localStorage.getItem(calibrationKey('hoodie',side,S.colour)));
+      const saved=JSON.parse(localStorage.getItem(calibrationKey('hoodie',side,S.colour,currentTheme())));
       if(saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k]))))cfg=saved;
     }catch(_){}
     const maxPW=Math.round(tW*Number(cfg.wP));
@@ -1358,12 +1388,22 @@ function initCalibrationMode(mode,side){
   if(beigeOpt)beigeOpt.style.display=CAL_MODE==='tee-budget'?'none':'';
   const snapBtn=document.getElementById('calSnapA4');
   if(snapBtn)snapBtn.style.display=CAL_MODE==='tee-budget'?'':'none';
+  // Theme selector only matters for hoodie back -- that's the only
+  // mode/side with independently-calibrated light/dark values (see
+  // CAL_DEFAULTS_BY_MODE). Reset the page to dark on entry so the tool
+  // always starts from a known state.
+  const themeSection=document.getElementById('calThemeSection');
+  const themeSelect=document.getElementById('calTheme');
+  const themeAware=CAL_MODE==='hoodie'&&CAL_SIDE==='back';
+  if(themeSection)themeSection.style.display=themeAware?'':'none';
+  document.documentElement.dataset.unikTheme='dark';
+  if(themeSelect)themeSelect.value='dark';
   try{
-    const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour)));
+    const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour,currentTheme())));
     CAL=saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k])))
       ?{wP:Number(saved.wP),hP:Number(saved.hP),cxP:Number(saved.cxP),tP:Number(saved.tP)}
-      :{...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};
-  }catch(_){CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};}
+      :{...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour,currentTheme())};
+  }catch(_){CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour,currentTheme())};}
 
   document.getElementById('calVisualHost').appendChild(document.getElementById('fuPerspective'));
   const card=document.getElementById('fuCard');
@@ -1393,7 +1433,8 @@ function initCalibrationMode(mode,side){
   }
   function outputText(){
     const garmentLabel=CAL_MODE==='tee-budget'?'Tee Budget (A4)':CAL_GARMENT==='tee'?'Tee':'Hoodie';
-    return '// '+garmentLabel+' '+CAL_SIDE.charAt(0).toUpperCase()+CAL_SIDE.slice(1)+' — '+S.colour.charAt(0).toUpperCase()+S.colour.slice(1)+'\nmaxPW = Math.round(tW * '+CAL.wP.toFixed(4)+');\nmaxPH = Math.round(tH * '+CAL.hP.toFixed(4)+');\npx = Math.round(tW * '+CAL.cxP.toFixed(4)+' - pw / 2);\npy = Math.round(tH * '+CAL.tP.toFixed(4)+');';
+    const themeLabel=themeAware?' ('+currentTheme()+')':'';
+    return '// '+garmentLabel+' '+CAL_SIDE.charAt(0).toUpperCase()+CAL_SIDE.slice(1)+' — '+S.colour.charAt(0).toUpperCase()+S.colour.slice(1)+themeLabel+'\nmaxPW = Math.round(tW * '+CAL.wP.toFixed(4)+');\nmaxPH = Math.round(tH * '+CAL.hP.toFixed(4)+');\npx = Math.round(tW * '+CAL.cxP.toFixed(4)+' - pw / 2);\npy = Math.round(tH * '+CAL.tP.toFixed(4)+');';
   }
   async function copyMeasurements(){
     const text=outputText();
@@ -1417,22 +1458,32 @@ function initCalibrationMode(mode,side){
     CAL[key]=key==='wP'||key==='hP'?clamp(value,.03,.95):clamp(value,0,1);
     renderCal();
   }));
-  document.getElementById('calColour').addEventListener('change',e=>{
-    S.colour=e.target.value;
+  function reloadCalFromStorage(){
     try{
-      const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour)));
+      const saved=JSON.parse(localStorage.getItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour,currentTheme())));
       CAL=saved&&['wP','hP','cxP','tP'].every(k=>Number.isFinite(Number(saved[k])))
         ?{wP:Number(saved.wP),hP:Number(saved.hP),cxP:Number(saved.cxP),tP:Number(saved.tP)}
-        :{...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};
-    }catch(_){CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};}
+        :{...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour,currentTheme())};
+    }catch(_){CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour,currentTheme())};}
+  }
+  document.getElementById('calColour').addEventListener('change',e=>{
+    S.colour=e.target.value;
+    reloadCalFromStorage();
     updateStageView();syncCalUI();
   });
+  if(themeSelect){
+    themeSelect.addEventListener('change',e=>{
+      document.documentElement.dataset.unikTheme=e.target.value==='dark'?'dark':'light';
+      reloadCalFromStorage();
+      updateStageView();syncCalUI();
+    });
+  }
   document.getElementById('calCopy').addEventListener('click',copyMeasurements);
   document.getElementById('calApply').addEventListener('click',()=>{
-    localStorage.setItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour),JSON.stringify(CAL));
-    UNIK_CART.notify(S.colour+' '+(CAL_MODE==='tee-budget'?'tee budget':CAL_GARMENT)+' '+CAL_SIDE+' zone applied');
+    localStorage.setItem(calibrationKey(CAL_MODE,CAL_SIDE,S.colour,currentTheme()),JSON.stringify(CAL));
+    UNIK_CART.notify(S.colour+' '+(CAL_MODE==='tee-budget'?'tee budget':CAL_GARMENT)+' '+CAL_SIDE+' zone applied'+(themeAware?' ('+currentTheme()+')':''));
   });
-  document.getElementById('calReset').addEventListener('click',()=>{CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour)};renderCal();UNIK_CART.notify(S.colour+' supplied values restored');});
+  document.getElementById('calReset').addEventListener('click',()=>{CAL={...defaultCalibration(CAL_MODE,CAL_SIDE,S.colour,currentTheme())};renderCal();UNIK_CART.notify(S.colour+' supplied values restored');});
   const snapBtnEl=document.getElementById('calSnapA4');
   if(snapBtnEl)snapBtnEl.addEventListener('click',snapToA4Portrait);
 
