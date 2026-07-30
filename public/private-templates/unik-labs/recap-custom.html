@@ -70,6 +70,20 @@ body{
 
 .form-hint{font-size:11px;line-height:1.55;color:rgba(255,255,255,.4);}
 
+.saved-recaps-field{border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:18px;}
+.saved-recaps-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:2px;}
+.saved-recap-card{position:relative;flex:0 0 auto;width:84px;border:1px solid rgba(255,255,255,.14);border-radius:10px;overflow:hidden;background:rgba(255,255,255,.03);}
+.saved-recap-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:rgba(255,255,255,.05);}
+.saved-recap-name{display:block;padding:5px 6px;font-size:9.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.saved-recap-load{position:absolute;inset:0;width:100%;height:calc(100% - 24px);background:none;border:0;cursor:pointer;}
+.saved-recap-del{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;cursor:pointer;}
+.saved-recap-del:hover{background:#c0392b;}
+.saved-recaps-empty{font-size:11px;color:rgba(255,255,255,.35);}
+
+.save-status{font-size:11px;color:rgba(255,255,255,.55);text-align:center;margin:-6px 0 0;}
+.save-status.err{color:#ff8b84;}
+.save-status.ok{color:#4ade80;}
+
 /* ── Stage column ── */
 .stage-col{display:flex;flex-direction:column;align-items:center;gap:16px;}
 .stage-empty{
@@ -248,6 +262,10 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
 
 <div class="builder-grid">
 <form class="builder-form" id="builderForm">
+<div class="field saved-recaps-field" id="savedRecapsField" hidden>
+<span>Saved recaps — load one instead of starting over</span>
+<div class="saved-recaps-row" id="savedRecapsRow"></div>
+</div>
 <div class="field-row">
 <label class="field">
 <span>Garment</span>
@@ -294,8 +312,10 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
 <div class="stage-controls" hidden="" id="stageControls">
 <button id="btnPlayPause" type="button">Pause</button>
 <button id="btnReplay" type="button">Replay</button>
+<button id="btnSaveRecap" type="button">Save recap</button>
 <button id="btnExport" type="button">Export video</button>
 </div>
+<p class="save-status" id="saveStatus" hidden></p>
 <div class="music-vol-row" hidden="" id="musicVolRow">
 <label for="bgVolume">Music</label>
 <input id="bgVolume" max="100" min="0" type="range" value="45"/>
@@ -922,6 +942,159 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
       alert('Could not start screen recording: ' + (name || 'unknown error') + (err && err.message ? ' -- ' + err.message : '') + '. You can still screen-record the preview manually.');
     });
   });
+
+  // ── Save & reload recaps ──
+  // Same-origin iframe (see lib/unik-recap-auth.ts), so fetches here
+  // automatically carry whichever session cookie the parent dashboard
+  // already set -- no token-passing needed.
+  function compressForSave(file, maxDim, quality) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read file')); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error('Could not prepare image')); };
+        img.onload = function () {
+          var scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = String(reader.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function dataUrlToFile(dataUrl, filename) {
+    return fetch(dataUrl).then(function (res) { return res.blob(); }).then(function (blob) {
+      return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+    });
+  }
+
+  function importFromPayload(payload) {
+    if (payload.garment) garmentSelect.value = payload.garment;
+    if (payload.colour) colourSelect.value = payload.colour;
+    if (payload.size) sizeSelect.value = payload.size;
+    var tasks = [];
+    if (payload.design) {
+      tasks.push(dataUrlToFile(payload.design, 'front.jpg').then(function (file) {
+        picked.front = file;
+        previewInto(document.getElementById('frontPreview'), [file]);
+      }));
+    }
+    if (payload.designBack) {
+      tasks.push(dataUrlToFile(payload.designBack, 'back.jpg').then(function (file) {
+        picked.back = file;
+        previewInto(document.getElementById('backPreview'), [file]);
+      }));
+    } else {
+      picked.back = null;
+      previewInto(document.getElementById('backPreview'), []);
+    }
+    Promise.all(tasks).then(validate).catch(function () {
+      setSaveStatus('Could not load one of the saved images -- try again.', 'err');
+    });
+  }
+
+  var savedRecapsField = document.getElementById('savedRecapsField');
+  var savedRecapsRow = document.getElementById('savedRecapsRow');
+  var btnSaveRecap = document.getElementById('btnSaveRecap');
+  var saveStatusEl = document.getElementById('saveStatus');
+
+  function setSaveStatus(text, cls) {
+    if (!text) { saveStatusEl.hidden = true; saveStatusEl.textContent = ''; return; }
+    saveStatusEl.hidden = false;
+    saveStatusEl.textContent = text;
+    saveStatusEl.className = 'save-status' + (cls ? ' ' + cls : '');
+  }
+
+  function recapLabel(r) {
+    return (r.garment === 'hoodie' ? 'Hoodie' : 'Tee') + ' — ' + (r.colour.charAt(0).toUpperCase() + r.colour.slice(1));
+  }
+
+  function renderSavedRecaps(list) {
+    savedRecapsField.hidden = false;
+    if (!list.length) {
+      savedRecapsRow.innerHTML = '<span class="saved-recaps-empty">Nothing saved yet — hit "Save recap" once you\'ve created one.</span>';
+      return;
+    }
+    savedRecapsRow.innerHTML = '';
+    list.forEach(function (r) {
+      var card = document.createElement('div');
+      card.className = 'saved-recap-card';
+      var img = document.createElement('img');
+      img.src = r.designUrl || '';
+      img.alt = recapLabel(r);
+      var loadBtn = document.createElement('button');
+      loadBtn.type = 'button';
+      loadBtn.className = 'saved-recap-load';
+      loadBtn.setAttribute('aria-label', 'Load ' + recapLabel(r));
+      loadBtn.addEventListener('click', function () { loadSavedRecap(r); });
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'saved-recap-del';
+      delBtn.textContent = '×';
+      delBtn.setAttribute('aria-label', 'Delete saved recap');
+      delBtn.addEventListener('click', function (e) { e.stopPropagation(); deleteSavedRecap(r.id); });
+      var name = document.createElement('span');
+      name.className = 'saved-recap-name';
+      name.textContent = recapLabel(r);
+      card.appendChild(img);
+      card.appendChild(loadBtn);
+      card.appendChild(delBtn);
+      card.appendChild(name);
+      savedRecapsRow.appendChild(card);
+    });
+  }
+
+  function loadSavedRecaps() {
+    fetch('/api/unik/recaps?flavor=custom-upload', { credentials: 'include' })
+      .then(function (res) { return res.ok ? res.json() : { recaps: [] }; })
+      .then(function (data) { renderSavedRecaps(data.recaps || []); })
+      .catch(function () {});
+  }
+
+  function loadSavedRecap(r) {
+    importFromPayload({ garment: r.garment, colour: r.colour, size: r.size, design: r.designUrl, designBack: r.designBackUrl });
+    setSaveStatus('Loaded ' + recapLabel(r) + ' — hit Create recap to preview it', 'ok');
+  }
+
+  function deleteSavedRecap(id) {
+    if (!window.confirm("Delete this saved recap? This can't be undone.")) return;
+    fetch('/api/unik/recaps/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'include' })
+      .then(function (res) { if (res.ok) loadSavedRecaps(); })
+      .catch(function () {});
+  }
+
+  async function saveCurrentRecap() {
+    if (!currentData) return;
+    btnSaveRecap.disabled = true;
+    setSaveStatus('Saving…');
+    try {
+      var design = await compressForSave(picked.front, 1400, .85);
+      var designBack = picked.back ? await compressForSave(picked.back, 1400, .85) : null;
+      var res = await fetch('/api/unik/recaps', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          flavor: 'custom-upload', garment: currentData.garment, colour: currentData.colour, size: currentData.size,
+          design: design, designBack: designBack
+        })
+      });
+      var payload = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(payload.error || 'Could not save recap');
+      setSaveStatus('Saved — reload it any time from "Saved recaps" above', 'ok');
+      loadSavedRecaps();
+    } catch (err) {
+      setSaveStatus(err.message || 'Could not save recap', 'err');
+    } finally {
+      btnSaveRecap.disabled = false;
+    }
+  }
+  btnSaveRecap.addEventListener('click', saveCurrentRecap);
+  loadSavedRecaps();
 })();
 </script>
 </body>
