@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "../../../../../lib/supabase";
 
 function EyeIcon({ off }: { off: boolean }) {
@@ -11,10 +11,49 @@ function EyeIcon({ off }: { off: boolean }) {
   );
 }
 
+// "Forgot your password?" used to link to a root-domain-only /reset-password
+// page that 404'd from here (this page is always store-scoped, e.g.
+// uniklabs.co.za/partners/login, and no equivalent route exists under
+// app/store/[slug]/). Handled in-page instead, same pattern as the working
+// UNIK customer account flow (UnikAccountClient.tsx): request a reset link,
+// Supabase redirects back here with a recovery session, onAuthStateChange
+// picks up PASSWORD_RECOVERY and swaps to the "set a new password" view.
 export default function PartnerLoginClient({ storeName }: { storeName: string }) {
+  const [view, setView] = useState<"form" | "forgot" | "recovery">("form");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryConfirm, setRecoveryConfirm] = useState("");
+  const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setView("recovery");
+        setError("");
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  async function finishLogin(accessToken: string) {
+    const res = await fetch("/api/unik/partners/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      await supabase.auth.signOut();
+      setError(payload.error || "This account doesn't have Partner access");
+      setBusy(false);
+      return;
+    }
+    window.location.href = "dashboard";
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,21 +69,32 @@ export default function PartnerLoginClient({ storeName }: { storeName: string })
       setBusy(false);
       return;
     }
+    await finishLogin(signInData.session.access_token);
+  }
 
-    const res = await fetch("/api/unik/partners/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: signInData.session.access_token }),
-    });
-    if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
-      await supabase.auth.signOut();
-      setError(payload.error || "This account doesn't have Partner access");
-      setBusy(false);
-      return;
-    }
+  async function requestPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const trimmedEmail = resetEmail.trim().toLowerCase();
+    const redirectTo = window.location.href.split("#")[0].split("?")[0];
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo });
+    if (authError) setError(authError.message);
+    else setResetSent(true);
+    setBusy(false);
+  }
 
-    window.location.href = "dashboard";
+  async function recoverySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (recoveryPassword.length < 8) { setError("Password must be at least 8 characters"); return; }
+    if (recoveryPassword !== recoveryConfirm) { setError("Passwords don't match"); return; }
+    setBusy(true);
+    const { error: authError } = await supabase.auth.updateUser({ password: recoveryPassword });
+    if (authError) { setError(authError.message); setBusy(false); return; }
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) { setError("Session expired — please sign in again."); setBusy(false); setView("form"); return; }
+    await finishLogin(sessionData.session.access_token);
   }
 
   return (
@@ -52,23 +102,62 @@ export default function PartnerLoginClient({ storeName }: { storeName: string })
       <div className="pnr-card">
         <img className="pnr-logo" src="/private-templates/unik-labs/assets/unik-logo-v3-header.png" alt={storeName} />
         <p className="pnr-kicker">{storeName} — Official Partner</p>
-        <h1>Sign in</h1>
-        <form onSubmit={submit}>
-          <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
-          <label>
-            Password
-            <div className="pnr-password-row">
-              <input name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required />
-              <button type="button" className="pnr-eye-btn" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((v) => !v)}>
-                <EyeIcon off={showPassword} />
-              </button>
-            </div>
-          </label>
-          {error && <p className="pnr-error">{error}</p>}
-          <button className="pnr-primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-        </form>
-        <a className="pnr-forgot" href="/reset-password">Forgot your password?</a>
-        <a className="pnr-forgot" href="apply">Not a partner yet? Apply here</a>
+        {view === "recovery" ? (
+          <>
+            <h1>Set a new password</h1>
+            <form onSubmit={recoverySubmit}>
+              <label>
+                New password
+                <div className="pnr-password-row">
+                  <input type={showRecoveryPassword ? "text" : "password"} value={recoveryPassword} onChange={(e) => setRecoveryPassword(e.target.value)} minLength={8} autoComplete="new-password" autoFocus required />
+                  <button type="button" className="pnr-eye-btn" aria-label={showRecoveryPassword ? "Hide password" : "Show password"} onClick={() => setShowRecoveryPassword((v) => !v)}>
+                    <EyeIcon off={showRecoveryPassword} />
+                  </button>
+                </div>
+              </label>
+              <label>Confirm new password<input type={showRecoveryPassword ? "text" : "password"} value={recoveryConfirm} onChange={(e) => setRecoveryConfirm(e.target.value)} minLength={8} autoComplete="new-password" required /></label>
+              {error && <p className="pnr-error">{error}</p>}
+              <button className="pnr-primary" disabled={busy}>{busy ? "Updating…" : "Update password"}</button>
+            </form>
+          </>
+        ) : view === "forgot" ? (
+          <>
+            <h1>Reset password</h1>
+            {resetSent ? (
+              <>
+                <p className="pnr-sub">Check {resetEmail} for a link to reset your password.</p>
+                <button type="button" className="pnr-primary pnr-link-btn" style={{ border: "1px solid #27272a", background: "transparent" }} onClick={() => { setView("form"); setResetSent(false); setError(""); }}>Back to sign in</button>
+              </>
+            ) : (
+              <form onSubmit={requestPasswordReset}>
+                <label>Email address<input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} autoComplete="email" required autoFocus /></label>
+                {error && <p className="pnr-error">{error}</p>}
+                <button className="pnr-primary" disabled={busy}>{busy ? "Sending…" : "Send reset link"}</button>
+                <a className="pnr-forgot" href="#" onClick={(e) => { e.preventDefault(); setView("form"); setError(""); }}>Back to sign in</a>
+              </form>
+            )}
+          </>
+        ) : (
+          <>
+            <h1>Sign in</h1>
+            <form onSubmit={submit}>
+              <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
+              <label>
+                Password
+                <div className="pnr-password-row">
+                  <input name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required />
+                  <button type="button" className="pnr-eye-btn" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((v) => !v)}>
+                    <EyeIcon off={showPassword} />
+                  </button>
+                </div>
+              </label>
+              {error && <p className="pnr-error">{error}</p>}
+              <button className="pnr-primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+            </form>
+            <a className="pnr-forgot" href="#" onClick={(e) => { e.preventDefault(); setView("forgot"); setError(""); }}>Forgot your password?</a>
+            <a className="pnr-forgot" href="apply">Not a partner yet? Apply here</a>
+          </>
+        )}
       </div>
 
       <style jsx global>{`

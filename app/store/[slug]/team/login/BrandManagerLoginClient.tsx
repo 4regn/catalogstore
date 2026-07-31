@@ -1,11 +1,47 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "../../../../../lib/supabase";
 
+// Same fix as PartnerLoginClient.tsx: "Forgot your password?" used to link
+// to a root-domain-only /reset-password page that 404'd from this
+// store-scoped page. Handled in-page instead (request link -> Supabase
+// redirects back here with a recovery session -> PASSWORD_RECOVERY ->
+// set new password), same pattern as UnikAccountClient.tsx.
 export default function BrandManagerLoginClient({ storeName }: { storeName: string }) {
+  const [view, setView] = useState<"form" | "forgot" | "recovery">("form");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryConfirm, setRecoveryConfirm] = useState("");
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setView("recovery");
+        setError("");
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  async function finishLogin(accessToken: string) {
+    const res = await fetch("/api/unik/brand-manager/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      await supabase.auth.signOut();
+      setError(payload.error || "This account doesn't have Brand Manager access");
+      setBusy(false);
+      return;
+    }
+    window.location.href = "../team";
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -21,35 +57,77 @@ export default function BrandManagerLoginClient({ storeName }: { storeName: stri
       setBusy(false);
       return;
     }
+    await finishLogin(signInData.session.access_token);
+  }
 
-    const res = await fetch("/api/unik/brand-manager/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: signInData.session.access_token }),
-    });
-    if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
-      await supabase.auth.signOut();
-      setError(payload.error || "This account doesn't have Brand Manager access");
-      setBusy(false);
-      return;
-    }
+  async function requestPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const trimmedEmail = resetEmail.trim().toLowerCase();
+    const redirectTo = window.location.href.split("#")[0].split("?")[0];
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo });
+    if (authError) setError(authError.message);
+    else setResetSent(true);
+    setBusy(false);
+  }
 
-    window.location.href = "../team";
+  async function recoverySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (recoveryPassword.length < 8) { setError("Password must be at least 8 characters"); return; }
+    if (recoveryPassword !== recoveryConfirm) { setError("Passwords don't match"); return; }
+    setBusy(true);
+    const { error: authError } = await supabase.auth.updateUser({ password: recoveryPassword });
+    if (authError) { setError(authError.message); setBusy(false); return; }
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) { setError("Session expired — please sign in again."); setBusy(false); setView("form"); return; }
+    await finishLogin(sessionData.session.access_token);
   }
 
   return (
     <main className="bml-page">
       <div className="bml-card">
         <p className="bml-kicker">{storeName} Brand Manager HQ</p>
-        <h1>Sign in</h1>
-        <form onSubmit={submit}>
-          <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
-          <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
-          {error && <p className="bml-error">{error}</p>}
-          <button className="bml-primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-        </form>
-        <a className="bml-forgot" href="/reset-password">Forgot your password?</a>
+        {view === "recovery" ? (
+          <>
+            <h1>Set a new password</h1>
+            <form onSubmit={recoverySubmit}>
+              <label>New password<input type="password" value={recoveryPassword} onChange={(e) => setRecoveryPassword(e.target.value)} minLength={8} autoComplete="new-password" autoFocus required /></label>
+              <label>Confirm new password<input type="password" value={recoveryConfirm} onChange={(e) => setRecoveryConfirm(e.target.value)} minLength={8} autoComplete="new-password" required /></label>
+              {error && <p className="bml-error">{error}</p>}
+              <button className="bml-primary" disabled={busy}>{busy ? "Updating…" : "Update password"}</button>
+            </form>
+          </>
+        ) : view === "forgot" ? (
+          <>
+            <h1>Reset password</h1>
+            {resetSent ? (
+              <>
+                <p className="bml-sub">Check {resetEmail} for a link to reset your password.</p>
+                <button type="button" className="bml-primary" style={{ border: "1px solid #27272a", background: "transparent" }} onClick={() => { setView("form"); setResetSent(false); setError(""); }}>Back to sign in</button>
+              </>
+            ) : (
+              <form onSubmit={requestPasswordReset}>
+                <label>Email address<input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} autoComplete="email" required autoFocus /></label>
+                {error && <p className="bml-error">{error}</p>}
+                <button className="bml-primary" disabled={busy}>{busy ? "Sending…" : "Send reset link"}</button>
+                <a className="bml-forgot" href="#" onClick={(e) => { e.preventDefault(); setView("form"); setError(""); }}>Back to sign in</a>
+              </form>
+            )}
+          </>
+        ) : (
+          <>
+            <h1>Sign in</h1>
+            <form onSubmit={submit}>
+              <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
+              <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
+              {error && <p className="bml-error">{error}</p>}
+              <button className="bml-primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+            </form>
+            <a className="bml-forgot" href="#" onClick={(e) => { e.preventDefault(); setView("forgot"); setError(""); }}>Forgot your password?</a>
+          </>
+        )}
       </div>
 
       <style jsx global>{`
@@ -58,6 +136,7 @@ export default function BrandManagerLoginClient({ storeName }: { storeName: stri
         .bml-card{width:min(380px,100%);padding:30px 26px;border:1px solid #27272a;border-radius:22px;background:linear-gradient(145deg,rgba(18,18,20,.98),rgba(11,11,12,.98));box-shadow:0 24px 70px rgba(0,0,0,.38)}
         .bml-kicker{color:#007517;font-size:10px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin:0 0 10px}
         .bml-card h1{margin:0 0 22px;font-size:28px;letter-spacing:-.04em}
+        .bml-sub{margin:0 0 20px;color:#c0c0ba;font-size:13px;line-height:1.55}
         .bml-card form{display:grid;gap:14px}
         .bml-card label{display:grid;gap:7px;color:#c0c0ba;font-size:9px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}
         .bml-card input{min-height:46px;padding:0 13px;color:#fff;border:1px solid #27272a;border-radius:12px;outline:none;background:#111113;font-size:14px}

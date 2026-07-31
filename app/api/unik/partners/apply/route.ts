@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { getUnikSeller } from "../../../../../lib/unik-customer";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
+import { canonicalStoreUrl } from "../../../../../lib/store-url";
 
 /* Public application flow for a UNIK Partner. Creates a real auth.users
    row (email+password, so they can sign in immediately) plus a
@@ -63,7 +64,12 @@ export async function POST(req: NextRequest) {
       // brand-manager/invite/route.ts uses), rather than forcing the
       // person to apply with a second email address. Their real password
       // stays whatever it already was -- the one just typed above isn't
-      // applied to that existing identity, only to genuinely new accounts.
+      // silently applied to that existing identity (this endpoint is public
+      // and unauthenticated, so trusting a typed password here would let
+      // anyone hijack an arbitrary email's account by "applying" with it).
+      // Instead, a real password-reset email goes out below, so they can
+      // set the password they just typed through Supabase's own
+      // ownership-verified flow.
       const message = authErr?.message || "";
       if (!/already.*(registered|exists)|already exists|email_exists/i.test(message)) {
         return NextResponse.json({ error: message || "Could not create your account" }, { status: 500 });
@@ -78,6 +84,9 @@ export async function POST(req: NextRequest) {
       if (!match) return NextResponse.json({ error: "Could not find or create that account" }, { status: 500 });
       authUserId = match.id;
       reusedExistingAccount = true;
+      // Best-effort -- a failure here shouldn't fail the whole application,
+      // the person can still request a reset themselves from the login page.
+      await admin.auth.resetPasswordForEmail(email, { redirectTo: canonicalStoreUrl(seller.subdomain, "/partners/login") }).catch(() => {});
     } else {
       authUserId = created.user.id;
     }

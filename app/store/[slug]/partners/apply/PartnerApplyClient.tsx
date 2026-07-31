@@ -61,7 +61,7 @@ export default function PartnerApplyClient({ storeName }: { storeName: string })
             <h1>Application received</h1>
             <p className="pnr-sub">
               We'll review your application and email you once it's approved. You can sign in any time to check its status.
-              {reusedExistingAccount && " You already had an account with us, so sign in with your existing password — the one you just typed here wasn't set on that account."}
+              {reusedExistingAccount && " You already had an account with us under this email, so the password you just typed wasn't the one we needed — we've sent a link to your email so you can set it as your login password."}
             </p>
             <a className="pnr-primary pnr-link-btn" href="login">Go to sign in</a>
           </>
