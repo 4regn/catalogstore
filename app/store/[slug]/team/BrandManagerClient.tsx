@@ -446,7 +446,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-empty{color:#999994;font-size:12px}
         .bm-design-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-top:14px}
         .bm-design-card{border:1px solid #222225;border-radius:14px;overflow:hidden;background:#0b0b0c}
-        .bm-design-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#151517}
+        .bm-design-card img{width:100%;object-fit:contain;display:block;background:#151517}
         .bm-design-placeholder{width:100%;aspect-ratio:3/4;background:#151517}
         .bm-design-body{padding:10px 12px 12px}
         .bm-design-name{display:block;font-size:12.5px;font-weight:700}
@@ -568,7 +568,7 @@ function DesignCard({ d, onDownload, onFetchRefPhotos }: {
 
   return (
     <div className="bm-design-card">
-      {d.mockupUrl ? <img src={d.mockupUrl} alt="" /> : <div className="bm-design-placeholder" />}
+      {d.mockupUrl ? <img src={d.mockupUrl} alt="" style={{ aspectRatio: d.garment === "hoodie" ? "2/3" : "1" }} /> : <div className="bm-design-placeholder" />}
       <div className="bm-design-body">
         <span className="bm-design-name">{d.name || "Untitled"}</span>
         <span className="bm-design-meta">{d.source === "ai-studio" ? "AI Studio" : "Custom Upload"} · {d.garment} · {d.colour} · {d.size}{d.unpurchased && <span className="bm-design-tag">Unpurchased</span>}</span>
@@ -1361,7 +1361,7 @@ function StudioPanel({ authedFetch, toast }: {
           <div className="bm-design-grid">
             {designs.map((d) => (
               <div key={d.id} className="bm-design-card">
-                {d.mockupUrl ? <img src={d.mockupUrl} alt={d.name} /> : <div className="bm-design-placeholder" />}
+                {d.mockupUrl ? <img src={d.mockupUrl} alt={d.name} style={{ aspectRatio: d.garment === "hoodie" ? "2/3" : "1" }} /> : <div className="bm-design-placeholder" />}
                 <div className="bm-design-body">
                   <span className="bm-design-name">{d.name}</span>
                   <span className="bm-design-meta">{d.garment} · {d.colour} · {d.size}</span>

@@ -843,7 +843,7 @@ function StudioPanel({ authedFetch, toast, onSendToRecap }: {
           <div className="pns-gallery">
             {designs.map((d) => (
               <div key={d.id} className="pns-card">
-                {d.mockupUrl ? <img src={d.mockupUrl} alt={d.name} /> : <div className="pns-card-placeholder" />}
+                {d.mockupUrl ? <img src={d.mockupUrl} alt={d.name} style={{ aspectRatio: d.garment === "hoodie" ? "2/3" : "1" }} /> : <div className="pns-card-placeholder" />}
                 <div className="pns-card-body">
                   <span className="pns-card-name">{d.name}</span>
                   <span className="pns-card-meta">{d.garment} · {d.colour} · {d.size}</span>
@@ -967,7 +967,7 @@ function StudioPanel({ authedFetch, toast, onSendToRecap }: {
         .pns-photo-row img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #27272a}
         .pns-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
         .pns-card{border:1px solid #1c1c1e;border-radius:14px;overflow:hidden;background:#0e0e10}
-        .pns-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#151517}
+        .pns-card img{width:100%;object-fit:contain;display:block;background:#151517}
         .pns-card-placeholder{width:100%;aspect-ratio:3/4;background:#151517}
         .pns-card-body{padding:10px 12px 12px}
         .pns-card-name{display:block;font-size:12.5px;font-weight:700}

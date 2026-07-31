@@ -2012,9 +2012,16 @@ function finishLoading(result) {
   const resultMockup = document.querySelector('.results-mockup');
   if (resultMockup && result.mockupUrl) {
     resultMockup.textContent = '';
+    // The mockup base photo isn't 3:4 like the fixed box below assumes --
+    // tee is square, hoodie is 2:3 (see TEE_RATIO/HOODIE_RATIO above) -- so
+    // background-size:cover here was cropping the sides off every tee
+    // mockup. Matching the box to the actual garment's ratio and using
+    // 'contain' shows the whole mockup instead of cropping it.
+    resultMockup.style.aspectRatio = S.garment === 'hoodie' ? HOODIE_RATIO : TEE_RATIO;
     resultMockup.style.backgroundImage = `url("${result.mockupUrl}")`;
-    resultMockup.style.backgroundSize = 'cover';
+    resultMockup.style.backgroundSize = 'contain';
     resultMockup.style.backgroundPosition = 'center';
+    resultMockup.style.backgroundRepeat = 'no-repeat';
   }
   setTimeout(() => {
     document.getElementById('loadingScreen').classList.remove('visible');
