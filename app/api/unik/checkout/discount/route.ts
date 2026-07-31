@@ -24,14 +24,39 @@ export async function POST(req: NextRequest) {
   if ("response" in auth) return auth.response;
   const { seller } = auth;
 
-  let body: { code?: string; subtotal?: number };
+  let body: { code?: string; ref?: string; subtotal?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
 
-  const code = String(body.code || "").trim().toUpperCase();
   const subtotal = Math.max(0, Number(body.subtotal) || 0);
-  if (!code) return NextResponse.json({ error: "Enter a discount code" }, { status: 400 });
+  let code = String(body.code || "").trim().toUpperCase();
+  const refCode = String(body.ref || "").trim().toLowerCase();
+  if (!code && !refCode) return NextResponse.json({ error: "Enter a discount code" }, { status: 400 });
 
   const admin = getAdmin();
+
+  // ref (a partner's referral_code, e.g. from ?pref= on the storefront --
+  // see capturePartnerRef() in store.js) isn't itself a discount code, it's
+  // the partner's identity: resolve it to the actual discount_codes row
+  // their referral link is meant to auto-apply. Not an error condition when
+  // this comes up empty (a stale/suspended partner's cookie shouldn't look
+  // like the shopper typed something wrong) -- checkout.html calls this
+  // with { silent: true } for the ref path specifically because of that.
+  if (!code && refCode) {
+    const { data: partner } = await admin
+      .from("unik_partners")
+      .select("discount_code_id")
+      .eq("seller_id", seller.id)
+      .eq("referral_code", refCode)
+      .eq("status", "active")
+      .maybeSingle();
+    const discountCodeId = partner?.discount_code_id;
+    const { data: dc } = discountCodeId
+      ? await admin.from("discount_codes").select("code").eq("id", discountCodeId).maybeSingle()
+      : { data: null };
+    if (!dc) return NextResponse.json({ error: "Invalid discount code" }, { status: 404 });
+    code = dc.code;
+  }
+
   const { data: row } = await admin
     .from("discount_codes")
     .select("code, type, value, applies_to, active, expires_at, max_uses, used_count, min_order")

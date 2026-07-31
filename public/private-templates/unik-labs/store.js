@@ -1067,16 +1067,48 @@
     });
   }
 
+  const PARTNER_REF_COOKIE = 'unik_partner_ref';
+
+  function getCookie(name) {
+    const match = document.cookie.split(';').map(function (c) { return c.trim(); }).find(function (c) { return c.indexOf(name + '=') === 0; });
+    return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+  }
+
+  // Same shape as the platform-wide affiliate cookie (AffiliateRefTracker.tsx):
+  // 30-day expiry, first-touch-wins, so a partner still gets credit even if
+  // the shopper browses for a while before checking out. Reads
+  // window.top.location rather than this iframe's own location -- a
+  // referral link (https://uniklabs.co.za/?pref=<code>) lands on the outer
+  // top-level page, and this file only runs inside the storefront iframe,
+  // which has no query string of its own. Same-origin, so no CORS issue
+  // (same precedent as sendHeartbeat's window.top.location.pathname above).
+  function capturePartnerRef() {
+    try {
+      if (getCookie(PARTNER_REF_COOKIE)) return; // first touch already won
+      let search = location.search;
+      try { search = window.top.location.search; } catch (_) {}
+      const ref = new URLSearchParams(search).get('pref');
+      if (!ref) return;
+      const clean = ref.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+      if (!clean) return;
+      const expires = new Date();
+      expires.setDate(expires.getDate() + 30);
+      document.cookie = PARTNER_REF_COOKIE + '=' + encodeURIComponent(clean) + '; expires=' + expires.toUTCString() + '; path=/; SameSite=Lax';
+    } catch (_) {}
+  }
+
   window.UNIK_CART = { add, remove, updateQty, clear, get: cart, updateCount, saveOrder, notify, upgradeCustomUpload, attachCustomUploadRaw };
   window.UNIK_ACCOUNT = { get:currentAccount, signIn, signOut, orders:accountOrders, generations, saveGeneration };
   window.UNIK_THEME = { get:currentTheme, apply:applyTheme, toggle:toggleTheme };
   window.UNIK_NAV = { basePath: unikBasePath };
+  window.UNIK_PARTNER = { getRefCode: function () { return getCookie(PARTNER_REF_COOKIE); } };
   initNavigation();
   initSizeGuide();
   initFooter();
   patchTopLevelLinks();
   initSupportChat();
   updateCount();
+  capturePartnerRef();
   window.addEventListener('storage', updateCount);
   sendHeartbeat();
   setInterval(sendHeartbeat, 20000);

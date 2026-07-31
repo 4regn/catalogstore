@@ -1531,12 +1531,21 @@ type PartnerRow = {
   email: string;
   status: "pending" | "active" | "suspended";
   referral_code: string | null;
+  discount_code: string | null;
   commission_percent: number | null;
   available_balance_cents: number;
   pending_balance_cents: number;
   total_earned_cents: number;
   created_at: string;
 };
+
+// Only one template exists today (the approval/welcome email, reusable as a
+// manual "resend" for anyone approved before it existed) -- kept as a list
+// rather than a single hardcoded option so a future template (e.g. a payout
+// reminder) is just another entry here and in the PATCH route's action enum.
+const PARTNER_EMAIL_TYPES: { value: "resend"; label: string; eligibleStatus: PartnerRow["status"] }[] = [
+  { value: "resend", label: "Welcome & discount code email", eligibleStatus: "active" },
+];
 
 function PartnersPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [partners, setPartners] = useState<PartnerRow[] | null>(null);
@@ -1560,8 +1569,9 @@ function PartnersPanel({ authedFetch, toast }: { authedFetch: (path: string, ini
     const payload = await res.json().catch(() => ({}));
     setBusyId(null);
     if (!res.ok) { toast(payload.error || "Could not update this application"); return; }
-    toast(action === "approve" ? "Partner approved" : action === "reject" ? "Application rejected" : "Welcome email sent");
+    toast(action === "approve" ? "Partner approved" : action === "reject" ? "Application rejected" : "Email sent");
     load();
+    return res.ok;
   }
 
   if (!partners) return <section className="bm-empty">Loading partners…</section>;
@@ -1590,6 +1600,8 @@ function PartnersPanel({ authedFetch, toast }: { authedFetch: (path: string, ini
         )}
       </article>
 
+      <SendPartnerEmailCard partners={partners} busyId={busyId} onSend={review} />
+
       <article className="bm-card bm-orders-card" style={{ marginTop: 16 }}>
         <div className="bm-section-head"><h2 className="bm-section-title">Active partners</h2><p className="bm-section-desc">Default commission rate: {defaultRate}% (per-partner override coming later)</p></div>
         {active.length === 0 ? <p className="bm-empty">No active partners yet.</p> : (
@@ -1600,17 +1612,73 @@ function PartnersPanel({ authedFetch, toast }: { authedFetch: (path: string, ini
                 <div>{p.full_name}</div>
                 <div>{p.referral_code || "—"}</div>
                 <div>R{Math.round(p.total_earned_cents / 100).toLocaleString("en-ZA")}</div>
-                <div>
-                  <button type="button" disabled={busyId === p.id} onClick={() => review(p.id, "resend")} style={{ padding: "6px 12px", borderRadius: 100, border: "1px solid #3a3a3d", background: "transparent", color: "#c0c0ba", fontSize: 10.5, fontWeight: 700 }}>
-                    {busyId === p.id ? "Sending…" : "Resend welcome email"}
-                  </button>
-                </div>
+                <div>—</div>
               </div>
             ))}
           </div>
         )}
       </article>
     </section>
+  );
+}
+
+// The dedicated "manually send an email" flow the brand manager asked for:
+// pick the email, pick the partner, and the partner's name/email/discount
+// code are pulled straight from their record (never re-typed), so the same
+// approve-path email logic (unik-partner-email.ts) always renders correctly
+// no matter who it's being resent to or why.
+function SendPartnerEmailCard({ partners, busyId, onSend }: { partners: PartnerRow[]; busyId: string | null; onSend: (partnerId: string, action: "resend") => Promise<boolean | undefined> }) {
+  const [emailType, setEmailType] = useState<(typeof PARTNER_EMAIL_TYPES)[number]["value"]>(PARTNER_EMAIL_TYPES[0].value);
+  const [partnerId, setPartnerId] = useState("");
+
+  const activeType = PARTNER_EMAIL_TYPES.find((t) => t.value === emailType)!;
+  const eligible = partners.filter((p) => p.status === activeType.eligibleStatus);
+  const selected = eligible.find((p) => p.id === partnerId) || null;
+
+  // Switching email type can make the currently-picked partner ineligible
+  // (e.g. not active) -- rather than silently keep a stale/invalid
+  // selection, drop it so the send button re-disables until re-picked.
+  useEffect(() => { if (partnerId && !eligible.some((p) => p.id === partnerId)) setPartnerId(""); }, [emailType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleSend() {
+    if (!selected) return;
+    const ok = await onSend(selected.id, emailType);
+    if (ok) setPartnerId("");
+  }
+
+  return (
+    <article className="bm-card bm-orders-card" style={{ marginTop: 16 }}>
+      <div className="bm-section-head"><h2 className="bm-section-title">Send a partner email</h2><p className="bm-section-desc">Pick the email and the partner — their name, email and discount code are filled in for you.</p></div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: selected ? 14 : 0 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#999994", flex: "1 1 220px" }}>
+          Email
+          <select className="bm-select" value={emailType} onChange={(e) => setEmailType(e.target.value as typeof emailType)}>
+            {PARTNER_EMAIL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#999994", flex: "1 1 240px" }}>
+          Partner
+          <select className="bm-select" value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
+            <option value="">{eligible.length ? "Select a partner…" : "No eligible partners"}</option>
+            {eligible.map((p) => <option key={p.id} value={p.id}>{p.full_name} — {p.email}</option>)}
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={!selected || busyId === selected?.id}
+          onClick={handleSend}
+          style={{ padding: "0 22px", height: 44, borderRadius: 12, border: "none", background: selected ? "#007517" : "#27272a", color: selected ? "#fff" : "#666", fontSize: 13, fontWeight: 700, cursor: selected ? "pointer" : "not-allowed" }}
+        >
+          {selected && busyId === selected.id ? "Sending…" : "Send email"}
+        </button>
+      </div>
+      {selected && (
+        <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", fontSize: 12.5, color: "#c0c0ba", display: "grid", gap: 4 }}>
+          <div><strong style={{ color: "#fff" }}>{selected.full_name}</strong> · {selected.email}</div>
+          <div>Discount code: <strong style={{ color: "#fff" }}>{selected.discount_code || "—"}</strong></div>
+        </div>
+      )}
+    </article>
   );
 }
 

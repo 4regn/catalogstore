@@ -29,7 +29,19 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ partners: data || [], defaultCommissionPercent: DEFAULT_PARTNER_COMMISSION_PERCENT });
+  // The manual "send a partner email" panel in Brand Manager needs the
+  // actual discount code text (not just the id) to show what's about to go
+  // out before the brand manager hits send -- one extra query here beats
+  // re-deriving it per-row client-side.
+  const discountIds = (data || []).map((p) => p.discount_code_id).filter((id): id is string => !!id);
+  const codeMap = new Map<string, string>();
+  if (discountIds.length) {
+    const { data: codes } = await getAdmin().from("discount_codes").select("id, code").in("id", discountIds);
+    for (const c of codes || []) codeMap.set(c.id, c.code);
+  }
+  const partners = (data || []).map((p) => ({ ...p, discount_code: p.discount_code_id ? codeMap.get(p.discount_code_id) || null : null }));
+
+  return NextResponse.json({ partners, defaultCommissionPercent: DEFAULT_PARTNER_COMMISSION_PERCENT });
 }
 
 function slugify(input: string) {

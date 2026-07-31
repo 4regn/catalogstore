@@ -290,38 +290,78 @@ export async function POST(req: NextRequest) {
   // preview from /api/unik/checkout/discount) -- min_order, expiry and
   // max_uses can all have changed since "Apply" was clicked. UNIK partner
   // codes are always applies_to:'cart', so that's the only scope handled.
+  //
+  // If nothing was typed, fall back to this seller's partner-referral
+  // cookie (see capturePartnerRef() in store.js / UNIK_PARTNER.getRefCode())
+  // -- the same belt-and-braces shape as the platform affiliate program:
+  // checkout.html already auto-applies this client-side for a visible
+  // "applied" state, but a shopper's request is re-derived here
+  // independently rather than trusted, in case that client-side apply
+  // never ran (JS error, stale cached page, cookies blocked in that one
+  // context, etc).
+  let effectiveCode = requestedDiscountCode;
+  const isExplicitCode = !!requestedDiscountCode;
+  if (!effectiveCode) {
+    const refCode = req.cookies.get("unik_partner_ref")?.value;
+    if (refCode) {
+      const { data: refPartner } = await admin
+        .from("unik_partners")
+        .select("discount_code_id")
+        .eq("seller_id", seller.id)
+        .eq("referral_code", refCode)
+        .eq("status", "active")
+        .maybeSingle();
+      if (refPartner?.discount_code_id) {
+        const { data: refDiscount } = await admin.from("discount_codes").select("code").eq("id", refPartner.discount_code_id).maybeSingle();
+        if (refDiscount?.code) effectiveCode = refDiscount.code;
+      }
+    }
+  }
+
   let discountAmount = 0;
   let discountRow: { id: string; code: string; partner_id: string | null } | null = null;
-  if (requestedDiscountCode) {
+  if (effectiveCode) {
     const { data: dc } = await admin
       .from("discount_codes")
       .select("id, code, type, value, applies_to, active, expires_at, max_uses, used_count, min_order, partner_id")
       .eq("seller_id", seller.id)
-      .eq("code", requestedDiscountCode)
+      .eq("code", effectiveCode)
       .maybeSingle();
-    if (!dc || !dc.active) return NextResponse.json({ error: "Invalid discount code" }, { status: 400 });
-    if (dc.expires_at && new Date(dc.expires_at) < new Date()) return NextResponse.json({ error: "This code has expired" }, { status: 400 });
-    if (dc.max_uses && dc.used_count >= dc.max_uses) return NextResponse.json({ error: "This code has reached its usage limit" }, { status: 409 });
-    if (dc.min_order > 0 && subtotal < dc.min_order) return NextResponse.json({ error: `Minimum order of R${dc.min_order} required` }, { status: 400 });
-    if (dc.applies_to !== "cart") return NextResponse.json({ error: "This code can't be used here" }, { status: 400 });
 
-    discountAmount = dc.type === "percentage" ? subtotal * (dc.value / 100) : Math.min(dc.value, subtotal);
+    // A manually typed code that fails validation is real, useful feedback
+    // (return the error, same status codes as before this fallback existed).
+    // A referral-cookie-derived one fails silently instead -- the shopper
+    // never asked for it, so a stale/suspended partner code shouldn't be
+    // able to block an otherwise normal checkout.
+    let invalid: { error: string; status: number } | null = null;
+    if (!dc || !dc.active) invalid = { error: "Invalid discount code", status: 400 };
+    else if (dc.expires_at && new Date(dc.expires_at) < new Date()) invalid = { error: "This code has expired", status: 400 };
+    else if (dc.max_uses && dc.used_count >= dc.max_uses) invalid = { error: "This code has reached its usage limit", status: 409 };
+    else if (dc.min_order > 0 && subtotal < dc.min_order) invalid = { error: `Minimum order of R${dc.min_order} required`, status: 400 };
+    else if (dc.applies_to !== "cart") invalid = { error: "This code can't be used here", status: 400 };
 
-    if (dc.max_uses) {
-      const { data: updated, error: upErr } = await admin
-        .from("discount_codes")
-        .update({ used_count: (dc.used_count || 0) + 1 })
-        .eq("id", dc.id)
-        .eq("used_count", dc.used_count || 0)
-        .lt("used_count", dc.max_uses)
-        .select("id");
-      if (upErr || !updated || updated.length === 0) {
-        return NextResponse.json({ error: "This code has reached its usage limit" }, { status: 409 });
+    if (invalid) {
+      if (isExplicitCode) return NextResponse.json({ error: invalid.error }, { status: invalid.status });
+    } else if (dc) {
+      let claimed = true;
+      if (dc.max_uses) {
+        const { data: updated, error: upErr } = await admin
+          .from("discount_codes")
+          .update({ used_count: (dc.used_count || 0) + 1 })
+          .eq("id", dc.id)
+          .eq("used_count", dc.used_count || 0)
+          .lt("used_count", dc.max_uses)
+          .select("id");
+        claimed = !upErr && !!updated && updated.length > 0;
+        if (!claimed && isExplicitCode) return NextResponse.json({ error: "This code has reached its usage limit" }, { status: 409 });
+      } else {
+        await admin.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
       }
-    } else {
-      await admin.from("discount_codes").update({ used_count: (dc.used_count || 0) + 1 }).eq("id", dc.id);
+      if (claimed) {
+        discountAmount = dc.type === "percentage" ? subtotal * (dc.value / 100) : Math.min(dc.value, subtotal);
+        discountRow = { id: dc.id, code: dc.code, partner_id: dc.partner_id };
+      }
     }
-    discountRow = { id: dc.id, code: dc.code, partner_id: dc.partner_id };
   }
   mark("discountValidated");
 

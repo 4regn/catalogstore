@@ -199,17 +199,22 @@
         render();
       }
 
-      async function applyDiscount(){
-        if (appliedDiscount) { removeDiscount(); return; }
-        const code = discountInput.value.trim();
-        if (!code) return;
+      // opts.code/opts.silent/opts.autoLabel exist so a partner referral
+      // code (see autoApplyPartnerDiscount below) can go through this exact
+      // same validated-preview path as a manually typed one, instead of a
+      // second parallel implementation that could drift from it.
+      async function applyDiscount(opts){
+        opts = opts || {};
+        if (appliedDiscount) { if (!opts.silent) removeDiscount(); return; }
+        const code = opts.ref ? '' : (opts.code || discountInput.value).trim();
+        if (!code && !opts.ref) return;
         const subtotal = UNIK_CART.get().reduce((sum,item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
         discountApplyBtn.disabled = true;
         discountApplyBtn.textContent = 'Checking…';
         try {
           const res = await fetch('/api/unik/checkout/discount', {
             method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ code, subtotal }),
+            body: JSON.stringify(opts.ref ? { ref: opts.ref, subtotal } : { code, subtotal }),
           });
           const payload = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(payload.error || 'Invalid discount code');
@@ -220,17 +225,34 @@
           discountApplyBtn.textContent = 'Remove';
           discountApplyBtn.disabled = false;
           const label = payload.type === 'percentage' ? `${payload.value}% off` : `R${payload.value} off`;
-          setDiscountMessage(`"${payload.code}" applied — ${label}`, true);
+          setDiscountMessage(opts.autoLabel ? `${opts.autoLabel} — ${label}` : `"${payload.code}" applied — ${label}`, true);
           render();
         } catch (error) {
           appliedDiscount = null;
           discountApplyBtn.textContent = 'Apply';
           discountApplyBtn.disabled = false;
-          setDiscountMessage(error.message || 'Invalid discount code', false);
+          // A referral code auto-applied from a partner link fails silently --
+          // the shopper never typed anything, so surfacing "Invalid discount
+          // code" here would read as our bug, not theirs.
+          if (!opts.silent) setDiscountMessage(error.message || 'Invalid discount code', false);
         }
       }
-      discountApplyBtn.addEventListener('click', applyDiscount);
+      discountApplyBtn.addEventListener('click', () => applyDiscount());
       discountInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyDiscount(); } });
+
+      // Mirrors the storefront-wide partner referral cookie (see
+      // capturePartnerRef() in store.js) into a real applied discount here,
+      // so a shopper who arrived via a partner's link sees the same "code
+      // applied" state as if they'd typed it -- checkout/create still
+      // independently re-resolves the same cookie server-side as a fallback
+      // (never trusts this client-side apply alone), matching the same
+      // belt-and-braces pattern the platform affiliate program uses.
+      function autoApplyPartnerDiscount(){
+        if (appliedDiscount) return;
+        const refCode = window.UNIK_PARTNER ? window.UNIK_PARTNER.getRefCode() : null;
+        if (!refCode) return;
+        applyDiscount({ ref: refCode, silent: true, autoLabel: 'Partner discount applied automatically' });
+      }
 
       function currentDelivery(){ return deliveryOptions[selectedDeliveryIndex] || deliveryOptions[0] || { name:'Delivery', price:0 }; }
 
@@ -443,6 +465,7 @@
         else if (params.get('failed') === '1') showError('Your payment did not go through. Your cart is still saved below — please try again.');
         loadDeliveryOptions();
         precacheStaleCustomUploads();
+        autoApplyPartnerDiscount();
       }
     })();
 
