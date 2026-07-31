@@ -373,7 +373,13 @@ body.is-exporting .stage-col{min-height:100vh;justify-content:center;padding:24p
     return 'width:' + width + ';height:' + height + ';left:' + left + ';top:' + top + ';';
   }
   function flatGarmentPath(side, colour, garment) {
-    return 'assets/dark/' + side + '-' + colour + '-' + garment + '.jpg';
+    // Every flat garment shot is a .jpg except hoodie BACK views, which are
+    // .png (see assets/dark/back-*-hoodie.png vs the .jpg front/tee shots --
+    // same split upload.html's DARK_IMGS map already accounts for). This
+    // was hardcoded to .jpg unconditionally, so a hoodie's back view 404'd
+    // silently and never rendered.
+    var ext = (side === 'back' && garment === 'hoodie') ? 'png' : 'jpg';
+    return 'assets/dark/' + side + '-' + colour + '-' + garment + '.' + ext;
   }
   var FRONT_PRICE = { tee: 299, hoodie: 350 };
   var FRONT_WAS = { tee: 399, hoodie: 450 };
