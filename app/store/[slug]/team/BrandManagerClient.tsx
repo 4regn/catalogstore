@@ -435,6 +435,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-row{display:grid;grid-template-columns:minmax(100px,1.2fr) minmax(90px,.9fr) minmax(90px,.9fr);gap:10px;align-items:center;padding:13px 14px;border-radius:14px;font-size:11px}
         .bm-row-header{padding-top:0;color:#999994;font-size:8px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
         .bm-row:not(.bm-row-header){border:1px solid #222225;background:#0b0b0c}
+        .bm-row-customers{grid-template-columns:minmax(100px,1.3fr) minmax(60px,.6fr) minmax(80px,.8fr) minmax(80px,.7fr)}
         .bm-row-clickable{width:100%;color:inherit;text-align:left;cursor:pointer;transition:border-color .15s}
         .bm-row-clickable:hover{border-color:rgba(0,117,23,.3)}
         .bm-status-btn{padding:7px 14px;border-radius:100px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border:1px solid #27272a;background:#111113;color:#c0c0ba}
@@ -452,6 +453,8 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-design-meta{display:block;font-size:10.5px;color:#999994;text-transform:capitalize;margin:2px 0 8px}
         .bm-design-tag{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:100px;background:rgba(237,201,108,.13);color:#edc96c;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
         .bm-design-actions{display:flex;flex-direction:column;gap:6px}
+        .bm-refphoto-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+        .bm-refphoto-row img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid #27272a}
         .bm-design-actions button{padding:7px 10px;border-radius:8px;border:1px solid #27272a;background:#111113;color:#c0c0ba;font-size:11px;font-weight:700;text-align:left;cursor:pointer}
         .bm-design-actions button:hover{color:#fff;border-color:#3a3a3d}
         .bm-toast{position:fixed;right:22px;bottom:22px;z-index:150;padding:12px 15px;border:1px solid #27272a;border-radius:13px;background:#171719;box-shadow:0 20px 55px rgba(0,0,0,.5);font-size:10px;font-weight:850}
@@ -541,7 +544,7 @@ type CustomerRow = {
 type CustomerDesign = {
   id: string; source: string; status: string; name: string | null; garment: string; colour: string; size: string; style: string | null;
   tagline: string | null; zone: string | null; mockupUrl: string | null; mockupBackUrl: string | null;
-  hasOriginal: boolean; hasOriginalBack: boolean; savedAt: string | null; createdAt: string; unpurchased: boolean;
+  hasOriginal: boolean; hasOriginalBack: boolean; hasRefPhotos: boolean; savedAt: string | null; createdAt: string; unpurchased: boolean;
 };
 type CustomerDetail = {
   customer: { id: string; profileId: string | null; fullName: string | null; email: string | null; phone: string | null; avatarUrl: string | null; createdAt: string | null };
@@ -550,7 +553,19 @@ type CustomerDetail = {
   designs: CustomerDesign[];
 };
 
-function DesignCard({ d, onDownload }: { d: CustomerDesign; onDownload: (designId: string, type: string) => void }) {
+function DesignCard({ d, onDownload, onFetchRefPhotos }: {
+  d: CustomerDesign; onDownload: (designId: string, type: string) => void; onFetchRefPhotos: (designId: string) => Promise<string[]>;
+}) {
+  const [refPhotos, setRefPhotos] = useState<string[] | null>(null);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+
+  async function toggleRefPhotos() {
+    if (refPhotos) { setRefPhotos(null); return; }
+    setLoadingPhotos(true);
+    setRefPhotos(await onFetchRefPhotos(d.id));
+    setLoadingPhotos(false);
+  }
+
   return (
     <div className="bm-design-card">
       {d.mockupUrl ? <img src={d.mockupUrl} alt="" /> : <div className="bm-design-placeholder" />}
@@ -562,7 +577,19 @@ function DesignCard({ d, onDownload }: { d: CustomerDesign; onDownload: (designI
           {d.mockupUrl && <button type="button" onClick={() => onDownload(d.id, "mockup")}>Download mockup</button>}
           {d.hasOriginalBack && <button type="button" onClick={() => onDownload(d.id, "original-back")}>Download back design</button>}
           {d.mockupBackUrl && <button type="button" onClick={() => onDownload(d.id, "mockup-back")}>Download back mockup</button>}
+          {d.hasRefPhotos && (
+            <button type="button" onClick={toggleRefPhotos} disabled={loadingPhotos}>
+              {loadingPhotos ? "Loading…" : refPhotos ? "Hide reference photos" : "View reference photos"}
+            </button>
+          )}
         </div>
+        {refPhotos && (
+          refPhotos.length ? (
+            <div className="bm-refphoto-row">{refPhotos.map((src, i) => <img key={i} src={src} alt="Uploaded reference" />)}</div>
+          ) : (
+            <p className="bm-empty" style={{ marginTop: 8 }}>Reference photos are no longer available (kept for 30 days).</p>
+          )
+        )}
       </div>
     </div>
   );
@@ -622,6 +649,13 @@ function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, in
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }, [selectedId, toast]);
 
+  const fetchRefPhotos = useCallback(async (designId: string) => {
+    const res = await authedFetch(`/api/unik/brand-manager/customers/ref-photos?id=${encodeURIComponent(designId)}`);
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(payload.error || "Could not load reference photos"); return []; }
+    return (payload.photos || []) as string[];
+  }, [authedFetch, toast]);
+
   if (selectedId) {
     const unpurchased = detail?.designs.filter((d) => d.unpurchased) || [];
     return (
@@ -661,7 +695,7 @@ function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, in
               <div className="bm-section-head"><h2 className="bm-section-title">Generation history</h2><p className="bm-section-desc">Every AI Studio and Custom Upload design this customer has made — tap to download the artwork or the garment mockup</p></div>
               {detail.designs.length === 0 ? <p className="bm-empty">No designs yet.</p> : (
                 <div className="bm-design-grid">
-                  {detail.designs.map((d) => <DesignCard key={d.id} d={d} onDownload={download} />)}
+                  {detail.designs.map((d) => <DesignCard key={d.id} d={d} onDownload={download} onFetchRefPhotos={fetchRefPhotos} />)}
                 </div>
               )}
             </article>
@@ -673,7 +707,7 @@ function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, in
               </div>
               {unpurchased.length === 0 ? <p className="bm-empty">Nothing sitting unpurchased.</p> : (
                 <div className="bm-design-grid">
-                  {unpurchased.map((d) => <DesignCard key={d.id} d={d} onDownload={download} />)}
+                  {unpurchased.map((d) => <DesignCard key={d.id} d={d} onDownload={download} onFetchRefPhotos={fetchRefPhotos} />)}
                 </div>
               )}
             </article>
@@ -693,12 +727,13 @@ function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, in
         </form>
         {customers.length === 0 && !loading ? <p className="bm-empty">No customers yet.</p> : (
           <div className="bm-table">
-            <div className="bm-row bm-row-header"><div>Customer</div><div>Orders</div><div>Total spent</div></div>
+            <div className="bm-row bm-row-header bm-row-customers"><div>Customer</div><div>Orders</div><div>Total spent</div><div>Generations</div></div>
             {customers.map((c) => (
-              <button key={c.id} type="button" className="bm-row bm-row-clickable" onClick={() => loadDetail(c.id)}>
+              <button key={c.id} type="button" className="bm-row bm-row-clickable bm-row-customers" onClick={() => loadDetail(c.id)}>
                 <div>{c.fullName || "Unnamed"}<br /><span style={{ color: "#999994", fontSize: 10 }}>{c.email || "No email"}</span></div>
                 <div>{c.orderCount}</div>
                 <div>{money(c.totalSpent)}</div>
+                <div>{c.designCount}</div>
               </button>
             ))}
           </div>

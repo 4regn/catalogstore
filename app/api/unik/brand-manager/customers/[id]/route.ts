@@ -64,6 +64,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     mockupBackUrl: d.options?.mockup_back_url || null,
     hasOriginal: !!d.private_artwork_path,
     hasOriginalBack: !!d.options?.back_artwork_path,
+    // Reference photos are only kept for 30 days (see
+    // app/api/cron/purge-generation-photos) -- this just tells the UI
+    // whether to show a "View reference photos" action at all; the actual
+    // photos are fetched on demand via the ref-photos endpoint, not
+    // embedded in this list response.
+    hasRefPhotos: !!(Array.isArray(d.options?.refPhotos) && d.options.refPhotos.length),
     savedAt: d.saved_at,
     createdAt: d.created_at,
     unpurchased: !orderedDesignIds.has(d.id) && d.status !== "paid" && d.status !== "checkout_started",

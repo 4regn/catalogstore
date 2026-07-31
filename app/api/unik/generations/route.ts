@@ -104,7 +104,12 @@ export async function POST(req: NextRequest) {
       colour: input.colour,
       size: input.size,
       style: input.style,
-      options: { tagline: input.tagline, subject: input.subject, photoCount: input.photos.length, previewPath, mockupPath, provider: "railway-gemini" },
+      // refPhotos (the compressed reference selfies, as data URLs) are kept
+      // for 30 days purely so a reported generation can be compared against
+      // what was actually uploaded -- see app/api/cron/purge-generation-photos,
+      // which strips this field on a rolling basis. Same field/shape the
+      // partner Studio route already stores indefinitely for "Send to Recap".
+      options: { tagline: input.tagline, subject: input.subject, photoCount: input.photos.length, previewPath, mockupPath, provider: "railway-gemini", refPhotos: input.photos.map((p) => `data:image/jpeg;base64,${p}`) },
       preview_url: previewUrl,
       mockup_url: mockupUrl,
       private_artwork_path: privatePath,
