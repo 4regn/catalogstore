@@ -480,7 +480,7 @@ const STUDIO_STYLE_META: { id: string; name: string; desc: string; badge?: strin
   { id: "CHROME_COLLAGE", name: "Chrome Collage", desc: "5-photo chrome bootleg", badge: "New" },
   { id: "I_LOVE_MY", name: "I Love My...", desc: "5-photo heart collage", badge: "New" },
 ];
-const STUDIO_EXACT_PHOTO_COUNT: Record<string, number> = { GIANT_FACE: 1, TOON_DRIP: 1, CHROME_COLLAGE: 5, I_LOVE_MY: 5 };
+const STUDIO_EXACT_PHOTO_COUNT: Record<string, number> = { GIANT_FACE: 1, TOON_DRIP: 1, PAPER_CUT: 1, CHROME_COLLAGE: 5, I_LOVE_MY: 5 };
 const STUDIO_PRICES: Record<string, number> = { tee: 349, hoodie: 399, "tee-budget": 250 };
 const STUDIO_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 const STUDIO_PRODUCT_NAME: Record<string, string> = { tee: "AI Tee", hoodie: "AI Hoodie", "tee-budget": "AI Tee — Budget (A4)" };

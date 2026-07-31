@@ -1123,7 +1123,7 @@ const STUDIO_STYLE_META: { id: string; name: string; desc: string; badge?: strin
   { id: "CHROME_COLLAGE", name: "Chrome Collage", desc: "5-photo chrome bootleg", badge: "New" },
   { id: "I_LOVE_MY", name: "I Love My...", desc: "5-photo heart collage", badge: "New" },
 ];
-const STUDIO_EXACT_PHOTO_COUNT: Record<string, number> = { GIANT_FACE: 1, TOON_DRIP: 1, CHROME_COLLAGE: 5, I_LOVE_MY: 5 };
+const STUDIO_EXACT_PHOTO_COUNT: Record<string, number> = { GIANT_FACE: 1, TOON_DRIP: 1, PAPER_CUT: 1, CHROME_COLLAGE: 5, I_LOVE_MY: 5 };
 const STUDIO_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 
 // Same pre-rendered example shots the storefront's studio.html and the
