@@ -1082,7 +1082,7 @@ const STUDIO_STYLE_META: { id: string; name: string; desc: string; badge?: strin
   { id: "CHROME", name: "Chrome", desc: "Luxury metallic type" },
   { id: "GIANT_FACE", name: "Giant Face", desc: "Face fills the garment" },
   { id: "BLING_ERA", name: "Bling Era", desc: "3D type, airbrush glow" },
-  { id: "PAPER_CUT", name: "Paper Cut", desc: "Editorial collage portrait" },
+  { id: "PAPER_CUT", name: "Paper Cut", desc: "Hand-drawn annotated portrait" },
   { id: "VTG_BOOTLEG", name: "Vintage Bootleg", desc: "Collector concert poster" },
   { id: "TOON_DRIP", name: "Toon Drip", desc: "Chibi anime portrait", badge: "New" },
   { id: "CHROME_COLLAGE", name: "Chrome Collage", desc: "5-photo chrome bootleg", badge: "New" },
