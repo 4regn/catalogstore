@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0" name="viewport"/>
+<title>UNIK Labs — Partner Recruitment Ad (Draft: Claude)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-smoothing:antialiased;min-height:100vh}
+.shell{max-width:1180px;margin:0 auto;padding:28px 20px 90px;display:grid;grid-template-columns:1fr 380px;gap:28px;align-items:start}
+@media(max-width:960px){.shell{grid-template-columns:1fr}}
+
+.head{grid-column:1/-1;margin-bottom:4px}
+.head h1{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;font-size:clamp(22px,4vw,30px);letter-spacing:.3px}
+.head p{color:rgba(255,255,255,.55);font-size:12.5px;margin-top:6px;max-width:640px;line-height:1.6}
+
+/* ── Stage ── */
+.stage-col{display:flex;flex-direction:column;align-items:center;gap:14px}
+.stage-wrap{width:100%;max-width:380px;aspect-ratio:9/16;position:relative;border-radius:22px;overflow:hidden;background:#000;box-shadow:0 30px 80px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.08)}
+.stage{position:absolute;inset:0}
+.scene{position:absolute;inset:0;opacity:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:9%;text-align:center;background:#0a0a0a;transition:opacity .35s ease}
+.scene.on{opacity:1;pointer-events:auto;z-index:2}
+
+.stage-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.stage-controls button{padding:10px 16px;border-radius:100px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;font-size:11.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;cursor:pointer;transition:background .2s}
+.stage-controls button:hover{background:rgba(255,255,255,.14)}
+.stage-controls button:disabled{opacity:.4;cursor:wait}
+#btnExport{background:#fff;color:#000;border-color:#fff}
+#btnExport:hover{background:#eee}
+.timecode{font-size:11px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+
+/* ── Side panel ── */
+.panel{background:#111;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.panel h2{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+.cue-head-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cue-reset{background:none;border:0;color:#4ade80;font-size:10.5px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.cue-reset:hover{color:#7fe8a4}
+.panel-hint{font-size:11.5px;line-height:1.6;color:rgba(255,255,255,.45)}
+.audio-drop{border:1.5px dashed rgba(255,255,255,.25);border-radius:12px;padding:16px;text-align:center;font-size:12px;color:rgba(255,255,255,.55)}
+.audio-drop code{font-size:10.5px;color:rgba(255,255,255,.8)}
+.audio-drop input{margin-top:10px;font-size:11px;color:rgba(255,255,255,.7)}
+.audio-loaded{font-size:11.5px;color:#4ade80}
+.music-vol-row{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:11px;color:rgba(255,255,255,.55)}
+.music-vol-row input{flex:1}
+
+.cue-list{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto;padding-right:4px}
+.cue-row{display:grid;grid-template-columns:22px 1fr 64px auto;gap:8px;align-items:center;padding:8px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid transparent}
+.cue-row.active{border-color:rgba(0,117,23,.5);background:rgba(0,117,23,.12)}
+.cue-num{font-size:10px;font-weight:800;color:rgba(255,255,255,.35)}
+.cue-label{font-size:11px;line-height:1.4;color:rgba(255,255,255,.85)}
+.cue-time{width:64px;background:#0d0f0e;border:1px solid rgba(255,255,255,.16);border-radius:7px;color:#fff;font-size:11px;padding:5px 6px;text-align:center}
+.cue-set{padding:5px 8px;border-radius:7px;border:1px solid rgba(0,117,23,.5);background:rgba(0,117,23,.15);color:#4ade80;font-size:9.5px;font-weight:800;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+.cue-set:hover{background:rgba(0,117,23,.3)}
+
+.script-block{background:#0d0f0e;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,.6);max-height:220px;overflow-y:auto}
+.script-block strong{color:#fff}
+
+/* Shared fade-up used across several scenes below */
+@keyframes riseIn{to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{to{opacity:1;transform:scale(1)}}
+
+/* ══════════════ SCENE 1 — Hook: "earn money from photos & ideas" ══════════════ */
+.scene-1{background:radial-gradient(circle at 50% 28%,rgba(0,117,23,.22),transparent 60%),#050505;gap:20px}
+.s1-phone{width:56%;max-width:200px;aspect-ratio:9/18;border-radius:24px;border:2px solid rgba(255,255,255,.14);background:linear-gradient(160deg,#131313,#080808);position:relative;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55)}
+.s1-phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:30%;height:5px;border-radius:4px;background:rgba(255,255,255,.14)}
+.s1-toast{position:absolute;left:7%;right:7%;top:26%;padding:12px 13px;border-radius:14px;background:#111;border:1px solid rgba(74,222,128,.4);text-align:left;opacity:0;transform:translateY(-16px) scale(.94)}
+.scene-1.on .s1-toast{animation:s1toast .5s cubic-bezier(.3,1.3,.5,1) .25s forwards}
+@keyframes s1toast{to{opacity:1;transform:translateY(0) scale(1)}}
+.s1-toast-row{display:flex;align-items:center;gap:8px}
+.s1-toast-dot{width:22px;height:22px;border-radius:50%;background:#4ade80;color:#052e12;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex:none}
+.s1-toast-title{display:block;font-size:9.5px;font-weight:800;color:#4ade80;text-transform:uppercase;letter-spacing:.05em}
+.s1-toast-body{display:block;font-size:10.5px;color:rgba(255,255,255,.8);margin-top:1px}
+.s1-thumb{position:absolute;left:7%;bottom:6%;width:38%;aspect-ratio:3/4;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.16);opacity:0;transform:translateY(10px)}
+.scene-1.on .s1-thumb{animation:riseIn .5s ease-out .9s forwards}
+.s1-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.s1-headline{font-family:'Anton',sans-serif;font-size:clamp(19px,4.9vw,24px);letter-spacing:.01em;text-transform:uppercase;line-height:1.16;opacity:0;transform:translateY(10px)}
+.scene-1.on .s1-headline{animation:riseIn .55s ease-out 1.3s forwards}
+
+/* ══════════════ SCENE 2 — Brand reveal ══════════════ */
+.scene-2{background:radial-gradient(circle at 50% 45%,rgba(0,117,23,.3),transparent 60%),#050505;gap:18px}
+.s2-logo{width:44%;max-width:180px;opacity:0;transform:scale(.7)}
+.scene-2.on .s2-logo{animation:s2logoin 1s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes s2logoin{0%{opacity:0;transform:scale(.7)}60%{opacity:1;transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+.s2-glow{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,rgba(74,222,128,.18),transparent 55%);opacity:0}
+.scene-2.on .s2-glow{animation:s2glow 2.2s ease-in-out infinite}
+@keyframes s2glow{0%,100%{opacity:.3}50%{opacity:.7}}
+.s2-headline{font-family:'Anton',sans-serif;font-size:clamp(20px,5.2vw,26px);letter-spacing:.01em;text-transform:uppercase;line-height:1.15;opacity:0;transform:translateY(10px)}
+.scene-2.on .s2-headline{animation:riseIn .55s ease-out .55s forwards}
+
+/* ══════════════ SCENE 3 — Referral link + discount code, share fan-out ══════════════ */
+.scene-3{gap:16px}
+.s3-lede{font-size:11.5px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.12em}
+.s3-card{width:82%;max-width:250px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:#111;padding:16px;display:flex;flex-direction:column;gap:10px;opacity:0;transform:translateY(12px)}
+.scene-3.on .s3-card{animation:riseIn .5s ease-out .2s forwards}
+.s3-chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-radius:10px;background:#0a0a0a;border:1px solid rgba(255,255,255,.1)}
+.s3-chip span{font-size:11px;color:rgba(255,255,255,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s3-chip b{font-family:'Anton',sans-serif;font-size:11px;letter-spacing:.03em;color:#4ade80;flex:none}
+.s3-chip.s3-code b{color:#fff;background:#007517;padding:3px 8px;border-radius:100px;font-size:10px}
+.s3-icons{display:flex;gap:14px;justify-content:center;opacity:0}
+.scene-3.on .s3-icons{animation:riseIn .5s ease-out .75s forwards}
+.s3-icon{width:38px;height:38px;border-radius:50%;background:#111;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6)}
+.scene-3.on .s3-icon:nth-child(1){animation:popIn .35s cubic-bezier(.3,1.5,.5,1) .95s forwards}
+.scene-3.on .s3-icon:nth-child(2){animation:popIn .35s cubic-bezier(.3,1.5,.5,1) 1.08s forwards}
+.scene-3.on .s3-icon:nth-child(3){animation:popIn .35s cubic-bezier(.3,1.5,.5,1) 1.21s forwards}
+.scene-3.on .s3-icon:nth-child(4){animation:popIn .35s cubic-bezier(.3,1.5,.5,1) 1.34s forwards}
+.s3-icon svg{width:17px;height:17px;stroke:#4ade80;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.s3-caption{font-size:12px;color:rgba(255,255,255,.55);line-height:1.5;opacity:0}
+.scene-3.on .s3-caption{animation:riseIn .5s ease-out 1.5s forwards}
+
+/* ══════════════ SCENE 4 — Order confirmed, you earn ══════════════ */
+.scene-4{gap:18px}
+.s4-ping{width:56px;height:56px;border-radius:50%;background:#111;border:1.5px solid rgba(74,222,128,.4);display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6)}
+.scene-4.on .s4-ping{animation:popIn .4s cubic-bezier(.3,1.5,.5,1) .1s forwards}
+.s4-ping svg{width:26px;height:26px;stroke:#4ade80;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.s4-toast{padding:9px 16px;border-radius:100px;background:rgba(0,117,23,.16);border:1px solid rgba(0,117,23,.5);font-family:'Anton',sans-serif;font-size:14px;letter-spacing:.03em;color:#4ade80;opacity:0;transform:translateY(-8px)}
+.scene-4.on .s4-toast{animation:riseIn .4s ease-out .6s forwards}
+.s4-count{font-family:'Anton',sans-serif;font-size:clamp(38px,9vw,54px);color:#fff;letter-spacing:.01em;opacity:0}
+.scene-4.on .s4-count{animation:riseIn .5s ease-out 1.05s forwards}
+.s4-count span{display:block;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-top:4px}
+
+/* ══════════════ SCENE 5 — No stock, no printing, no deliveries ══════════════ */
+.scene-5{gap:16px}
+.s5-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:260px}
+.s5-item{width:56px;height:56px;border-radius:14px;background:#111;border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;position:relative;opacity:0;transform:scale(.7)}
+.s5-item svg{width:24px;height:24px;stroke:rgba(255,255,255,.55);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.s5-item::after{content:'';position:absolute;inset:0;margin:auto;width:0;height:2px;background:#ff6a5c;border-radius:2px;transform:rotate(-42deg)}
+.scene-5.on .s5-item:nth-child(1){animation:popIn .3s cubic-bezier(.3,1.5,.5,1) .1s forwards}
+.scene-5.on .s5-item:nth-child(1)::after{animation:s5slash .22s ease-out .38s forwards}
+.scene-5.on .s5-item:nth-child(2){animation:popIn .3s cubic-bezier(.3,1.5,.5,1) .62s forwards}
+.scene-5.on .s5-item:nth-child(2)::after{animation:s5slash .22s ease-out .9s forwards}
+.scene-5.on .s5-item:nth-child(3){animation:popIn .3s cubic-bezier(.3,1.5,.5,1) 1.14s forwards}
+.scene-5.on .s5-item:nth-child(3)::after{animation:s5slash .22s ease-out 1.42s forwards}
+.scene-5.on .s5-item:nth-child(4){animation:popIn .3s cubic-bezier(.3,1.5,.5,1) 1.66s forwards}
+.scene-5.on .s5-item:nth-child(4)::after{animation:s5slash .22s ease-out 1.94s forwards}
+@keyframes s5slash{to{width:70%}}
+.s5-caption{font-family:'Anton',sans-serif;font-size:clamp(17px,4.4vw,21px);letter-spacing:.02em;text-transform:uppercase;line-height:1.2;opacity:0}
+.scene-5.on .s5-caption{animation:riseIn .5s ease-out 2.25s forwards}
+
+/* ══════════════ SCENE 6 — Photo → Design → Garment (reused technique) ══════════════ */
+.scene-6{gap:20px}
+.s6-frame{position:relative;width:60%;max-width:220px;aspect-ratio:3/4;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:#111}
+.s6-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0}
+.s6-tag{position:absolute;left:0;right:0;bottom:0;padding:9px 10px;background:linear-gradient(0deg,rgba(0,0,0,.88),transparent);font-family:'Anton',sans-serif;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;opacity:0;text-align:center}
+@keyframes s6photo{0%{opacity:0}5%{opacity:1}40%{opacity:1}55%{opacity:0}100%{opacity:0}}
+@keyframes s6design{0%{opacity:0}45%{opacity:0}55%{opacity:1}80%{opacity:1}95%{opacity:0}100%{opacity:0}}
+@keyframes s6mockup{0%{opacity:0}85%{opacity:0}100%{opacity:1}}
+.scene-6.on .s6-photo,.scene-6.on .s6-tag-photo{animation:s6photo 4.2s ease-in-out .1s forwards}
+.scene-6.on .s6-design,.scene-6.on .s6-tag-design{animation:s6design 4.2s ease-in-out .1s forwards}
+.scene-6.on .s6-mockup,.scene-6.on .s6-tag-mockup{animation:s6mockup 4.2s ease-in-out .1s forwards}
+.s6-caption{font-family:'Anton',sans-serif;font-size:clamp(16px,4vw,20px);letter-spacing:.02em;text-transform:uppercase;line-height:1.2;opacity:0}
+.scene-6.on .s6-caption{animation:riseIn .6s ease-out .3s forwards}
+
+/* ══════════════ SCENE 7 — Who it's for (rapid role montage) ══════════════ */
+.scene-7{gap:10px}
+.s7-lede{font-size:11.5px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.12em;opacity:0}
+.scene-7.on .s7-lede{animation:riseIn .4s ease-out 0s forwards}
+.s7-role{font-family:'Anton',sans-serif;font-size:clamp(30px,8vw,44px);letter-spacing:.01em;text-transform:uppercase;color:#4ade80;opacity:0;transform:scale(.85)}
+.s7-role.show{animation:s7pop .5s cubic-bezier(.3,1.4,.5,1) forwards}
+@keyframes s7pop{0%{opacity:0;transform:scale(.85)}55%{opacity:1;transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+.s7-tail{font-size:12.5px;color:rgba(255,255,255,.55);line-height:1.5;opacity:0;max-width:260px}
+.scene-7.on .s7-tail{animation:riseIn .5s ease-out 6.6s forwards}
+
+/* ══════════════ SCENE 8 — CTA: Apply today ══════════════ */
+.scene-8{gap:18px;background:radial-gradient(circle at 50% 30%,rgba(0,117,23,.26),transparent 60%),#050505}
+.s8-logo{width:38%;max-width:145px;opacity:0;transform:translateY(10px)}
+.scene-8.on .s8-logo{animation:riseIn .5s ease-out .1s forwards}
+.s8-pill{padding:13px 28px;border-radius:100px;background:#007517;font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;text-transform:uppercase;opacity:0;transform:scale(.9)}
+.scene-8.on .s8-pill{animation:s8pill .45s cubic-bezier(.3,1.4,.5,1) .55s forwards}
+@keyframes s8pill{to{opacity:1;transform:scale(1)}}
+.s8-sub{font-size:11.5px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.1em;opacity:0}
+.scene-8.on .s8-sub{animation:riseIn .5s ease-out .95s forwards}
+
+/* ══════════════ SCENE 9 — Sign-off: Create. Share. Earn. ══════════════ */
+.scene-9{gap:10px;background:radial-gradient(circle at 50% 40%,rgba(0,117,23,.24),transparent 60%),#050505}
+.s9-word{font-family:'Anton',sans-serif;font-size:clamp(30px,8vw,46px);letter-spacing:.02em;text-transform:uppercase;opacity:0;transform:scale(.8)}
+.scene-9.on .s9-word-1{animation:popIn .4s cubic-bezier(.3,1.5,.5,1) .1s forwards}
+.scene-9.on .s9-word-2{animation:popIn .4s cubic-bezier(.3,1.5,.5,1) .55s forwards}
+.scene-9.on .s9-word-3{animation:popIn .4s cubic-bezier(.3,1.5,.5,1) 1s forwards}
+.s9-logo{width:32%;max-width:120px;margin-top:14px;opacity:0;transform:translateY(10px)}
+.scene-9.on .s9-logo{animation:riseIn .5s ease-out 1.5s forwards}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="head">
+    <h1>Partner Recruitment Ad — Motion Graphic (Draft: Claude)</h1>
+    <p>Your voiceover auto-loads below (drop the real take once it exists — this works fine without it too, just set cues by ear or by number). Fine-tune each scene's cue point, then hit Export video (desktop only) to render a real file with narration and music baked in.</p>
+  </div>
+
+  <div class="stage-col">
+    <div class="stage-wrap" id="stageWrap">
+      <div class="stage" id="stage">
+
+        <div class="scene scene-1" data-scene="0">
+          <div class="s1-phone">
+            <div class="s1-phone-notch"></div>
+            <div class="s1-toast">
+              <div class="s1-toast-row">
+                <div class="s1-toast-dot">&#10003;</div>
+                <div><span class="s1-toast-title">New order</span><span class="s1-toast-body">You just earned R150</span></div>
+              </div>
+            </div>
+            <div class="s1-thumb"><img src="assets/dark-studio/tee-black-tour-poster.jpg" alt=""/></div>
+          </div>
+          <p class="s1-headline">What if you could earn money helping people turn photos into clothing?</p>
+        </div>
+
+        <div class="scene scene-2" data-scene="1">
+          <div class="s2-glow"></div>
+          <img class="s2-logo" src="assets/unik-logo-v3-header.png" alt="UNIK Labs"/>
+          <p class="s2-headline">Is looking for<br/>creative partners.</p>
+        </div>
+
+        <div class="scene scene-3" data-scene="2">
+          <div class="s3-lede">Your own link &amp; code</div>
+          <div class="s3-card">
+            <div class="s3-chip s3-link"><span>uniklabs.co.za/join/you</span><b>&#8594;</b></div>
+            <div class="s3-chip s3-code"><span>Discount code</span><b>YOU10</b></div>
+          </div>
+          <div class="s3-icons">
+            <div class="s3-icon"><svg viewBox="0 0 24 24"><path d="M20 4 3 11l6 2 2 6 4-5 5-10Z"/></svg></div>
+            <div class="s3-icon"><svg viewBox="0 0 24 24"><rect height="18" rx="5" width="18" x="3" y="3"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6"/></svg></div>
+            <div class="s3-icon"><svg viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6ZM2 9h4v12H2zM4 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg></div>
+            <div class="s3-icon"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 4-4M16 8V3a4 4 0 0 0 4 4M16 8a4 4 0 0 0 4 4v5a4 4 0 0 1-4 4 4 4 0 0 1-4-4v-6"/></svg></div>
+          </div>
+          <p class="s3-caption">Share it with your audience,<br/>customers, friends, community.</p>
+        </div>
+
+        <div class="scene scene-4" data-scene="3">
+          <div class="s4-ping"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div class="s4-toast">Order placed</div>
+          <div class="s4-count">R150<span>You earned</span></div>
+        </div>
+
+        <div class="scene scene-5" data-scene="4">
+          <div class="s5-row">
+            <div class="s5-item"><svg viewBox="0 0 24 24"><path d="M3 21h18M4 21V11l4 3v-3l4 3v-3l4 3v-3l4 3v10H4ZM7 21v-3M11 21v-3M15 21v-3"/></svg></div>
+            <div class="s5-item"><svg viewBox="0 0 24 24"><path d="M3 7h18M5 7v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7M8 7V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3"/></svg></div>
+            <div class="s5-item"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-2M6 14h12v7H6z"/></svg></div>
+            <div class="s5-item"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-4v-6H8v6H4a1 1 0 0 1-1-1v-9Z"/></svg></div>
+          </div>
+          <p class="s5-caption">UNIK handles<br/>the entire production process.</p>
+        </div>
+
+        <div class="scene scene-6" data-scene="5">
+          <div class="s6-frame">
+            <img class="s6-img s6-photo" src="assets/launch-ad/papercut-before.jpg" alt=""/>
+            <img class="s6-img s6-design" src="assets/launch-ad/papercut-design.png" alt="" onerror="this.style.display='none'"/>
+            <img class="s6-img s6-mockup" src="assets/dark-studio/tee-black-paper-cut.jpg" alt=""/>
+            <div class="s6-tag s6-tag-photo">Upload a photo</div>
+            <div class="s6-tag s6-tag-design">Generate a design</div>
+            <div class="s6-tag s6-tag-mockup">Order it, real quick</div>
+          </div>
+          <p class="s6-caption">Content &amp; tools to show<br/>exactly how it works.</p>
+        </div>
+
+        <div class="scene scene-7" data-scene="6">
+          <div class="s7-lede">Whether you're a</div>
+          <div class="s7-role s7-role-1" data-t="0">Creator.</div>
+          <div class="s7-role s7-role-2" data-t="1.6">Designer.</div>
+          <div class="s7-role s7-role-3" data-t="3.2">Photographer.</div>
+          <div class="s7-role s7-role-4" data-t="4.8">Student.</div>
+          <div class="s7-role s7-role-5" data-t="6.4">Entrepreneur.</div>
+          <p class="s7-tail">Or anyone with an active community — this is your chance to earn.</p>
+        </div>
+
+        <div class="scene scene-8" data-scene="7">
+          <img class="s8-logo" src="assets/unik-logo-v3-header.png" alt="UNIK Labs"/>
+          <div class="s8-pill">Apply Today</div>
+          <div class="s8-sub">Become a UNIK Partner</div>
+        </div>
+
+        <div class="scene scene-9" data-scene="8">
+          <div class="s9-word s9-word-1">Create.</div>
+          <div class="s9-word s9-word-2">Share.</div>
+          <div class="s9-word s9-word-3">Earn.</div>
+          <img class="s9-logo" src="assets/unik-logo-v3-header.png" alt="UNIK Labs"/>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="stage-controls">
+      <button id="btnPlayPause" type="button" disabled>Play</button>
+      <button id="btnRestart" type="button" disabled>Restart</button>
+      <button id="btnExport" type="button" disabled>Export video</button>
+    </div>
+    <div class="timecode" id="timecode">Load audio to begin</div>
+  </div>
+
+  <div class="panel">
+    <div>
+      <h2>1 — Voiceover</h2>
+      <div class="audio-drop">
+        Loads <code>assets/partner-ad/partner-ad-vo.mp3</code> by default (doesn't exist yet — drop a take below once recorded, or just preview scenes by ear/number without it)
+        <br/><input id="audioInput" type="file" accept="audio/*"/>
+        <div class="audio-loaded" id="audioLoaded" hidden></div>
+      </div>
+      <div class="music-vol-row" id="musicVolRow">
+        <label for="bgVolume">Music</label>
+        <input id="bgVolume" max="100" min="0" type="range" value="40"/>
+      </div>
+    </div>
+
+    <div>
+      <div class="cue-head-row"><h2>2 — Scene cues</h2><button type="button" class="cue-reset" id="btnResetCues">Reset to defaults</button></div>
+      <p class="panel-hint">Word-count-weighted starting guesses (~150wpm) against a real ~63s VO estimate — not measured against actual audio yet. Play the real take once it exists, and right as each new line starts, tap that scene's <strong>Set</strong> button. Cues save automatically in this browser.</p>
+      <div class="cue-list" id="cueList"></div>
+    </div>
+
+    <div>
+      <h2>3 — Status</h2>
+      <p class="panel-hint">
+        <strong>Scene 6</strong> reuses launch-ad.html's exact photo&#8594;design&#8594;mockup crossfade technique — placed here specifically because this is the VO line that's literally about that flow, not the opening hook.<br/><br/>
+        <strong>Scene 7</strong> is a rapid role montage — 5 labels in ~8s, JS-driven (see script below), not per-label CSS delays, since the list is easy to edit this way.<br/><br/>
+        No VO recording exists yet — every cue below is a word-count estimate. Re-set them once a real take is dropped in.
+      </p>
+    </div>
+
+    <div>
+      <h2>Script reference</h2>
+      <div class="script-block" id="scriptBlock"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // Word-count-weighted rough defaults at ~150wpm against a ~63s VO
+  // estimate -- no real recording exists yet, so this is a starting
+  // point only, same caveat as launch-ad.html had before its VO existed.
+  // Replace the moment you "Set" cues against a real take.
+  var SCENES = [
+    { text: 'What if you could earn money by helping people turn their photos and ideas into custom clothing?', cue: 0 },
+    { text: 'UNIK Labs is looking for creative partners.', cue: 6.8 },
+    { text: 'As a UNIK Partner, you receive your own referral link and discount code to share with your audience, customers, friends, or community.', cue: 9.6 },
+    { text: 'When someone uses your link or code to place an order, you earn money from the sale.', cue: 18.8 },
+    { text: 'You do not need to manufacture clothing, hold stock, manage printing, or handle deliveries. UNIK takes care of the entire production process.', cue: 25.6 },
+    { text: 'You will also receive content and tools to help you demonstrate how the UNIK Studio works, from uploading photos and generating a personalised design to ordering the finished product.', cue: 34.4 },
+    { text: 'Whether you are a content creator, designer, photographer, student, entrepreneur, or someone with an active community, this is your opportunity to earn while helping people create clothing that is personal to them.', cue: 45.6 },
+    { text: 'Apply today and become a UNIK Partner.', cue: 58.8 },
+    { text: 'Create. Share. Earn.', cue: 61.6 }
+  ];
+  var DEFAULT_CUES = SCENES.map(function (s) { return s.cue; });
+  var STORAGE_KEY = 'unik-partner-ad-claude-cues-v1';
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (Array.isArray(saved) && saved.length === SCENES.length) {
+      saved.forEach(function (c, i) { if (Number.isFinite(c)) SCENES[i].cue = c; });
+    }
+  } catch (_) {}
+
+  var DEFAULT_VO_SRC = 'assets/partner-ad/partner-ad-vo.mp3';
+  var BG_MUSIC_SRC = 'assets/audio/bg-music-ai-studio.mp3';
+  var MUSIC_FADE_SEC = 2;
+
+  var audio = new Audio();
+  audio.preload = 'auto';
+  audio.src = DEFAULT_VO_SRC;
+
+  var bgMusic = new Audio();
+  bgMusic.preload = 'auto';
+  bgMusic.src = BG_MUSIC_SRC;
+  bgMusic.loop = true;
+
+  var audioInput = document.getElementById('audioInput');
+  var audioLoaded = document.getElementById('audioLoaded');
+  var bgVolumeInput = document.getElementById('bgVolume');
+  bgMusic.volume = Number(bgVolumeInput.value) / 100;
+  bgVolumeInput.addEventListener('input', function () {
+    bgMusic.volume = Number(bgVolumeInput.value) / 100;
+  });
+
+  var stage = document.getElementById('stage');
+  var sceneEls = Array.prototype.slice.call(stage.querySelectorAll('.scene'));
+  var cueList = document.getElementById('cueList');
+  var timecode = document.getElementById('timecode');
+  var btnPlayPause = document.getElementById('btnPlayPause');
+  var btnRestart = document.getElementById('btnRestart');
+  var btnExport = document.getElementById('btnExport');
+  var scriptBlock = document.getElementById('scriptBlock');
+  var currentIndex = -1;
+
+  function enableControls() {
+    btnPlayPause.disabled = false;
+    btnRestart.disabled = false;
+    btnExport.disabled = false;
+  }
+  audio.addEventListener('loadedmetadata', enableControls);
+  audio.addEventListener('error', function () {
+    audioLoaded.hidden = false;
+    audioLoaded.textContent = 'No voiceover loaded yet — drop one below.';
+    audioLoaded.style.color = 'rgba(255,255,255,.4)';
+  });
+
+  scriptBlock.innerHTML = SCENES.map(function (s, i) { return '<div><strong>' + (i + 1) + '.</strong> ' + s.text + '</div>'; }).join('<br/>');
+
+  function saveCues() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(SCENES.map(function (s) { return s.cue; }))); } catch (_) {}
+  }
+
+  function renderCueList() {
+    cueList.innerHTML = '';
+    SCENES.forEach(function (s, i) {
+      var row = document.createElement('div');
+      row.className = 'cue-row';
+      row.id = 'cueRow' + i;
+
+      var num = document.createElement('div');
+      num.className = 'cue-num';
+      num.textContent = i + 1;
+
+      var label = document.createElement('div');
+      label.className = 'cue-label';
+      label.textContent = s.text.length > 46 ? s.text.slice(0, 46) + '…' : s.text;
+
+      var time = document.createElement('input');
+      time.type = 'number';
+      time.step = '0.1';
+      time.min = '0';
+      time.className = 'cue-time';
+      time.value = s.cue.toFixed(1);
+      time.addEventListener('change', function () {
+        var v = Number(time.value);
+        if (Number.isFinite(v) && v >= 0) { SCENES[i].cue = v; saveCues(); }
+      });
+
+      var setBtn = document.createElement('button');
+      setBtn.type = 'button';
+      setBtn.className = 'cue-set';
+      setBtn.textContent = 'Set';
+      setBtn.addEventListener('click', function () {
+        SCENES[i].cue = Math.round(audio.currentTime * 10) / 10;
+        time.value = SCENES[i].cue.toFixed(1);
+        saveCues();
+      });
+
+      row.appendChild(num); row.appendChild(label); row.appendChild(time); row.appendChild(setBtn);
+      cueList.appendChild(row);
+    });
+  }
+  renderCueList();
+
+  document.getElementById('btnResetCues').addEventListener('click', function () {
+    SCENES.forEach(function (s, i) { s.cue = DEFAULT_CUES[i]; });
+    saveCues();
+    renderCueList();
+  });
+
+  // ── Scene 7's role montage: swaps which .s7-role has the "show" class
+  // as a plain interval while scene 7 is active, driven off each role's
+  // own data-t offset (seconds since the scene started) rather than a
+  // long chain of individually-timed CSS animation-delays -- easier to
+  // add/remove/reorder roles later without touching CSS.
+  var roleEls = Array.prototype.slice.call(stage.querySelectorAll('.s7-role'));
+  var roleTimer = null;
+  function runRoleMontage() {
+    var start = performance.now();
+    roleEls.forEach(function (el) { el.classList.remove('show'); });
+    clearInterval(roleTimer);
+    var shownIndex = -1;
+    roleTimer = setInterval(function () {
+      var elapsed = (performance.now() - start) / 1000;
+      // Pick the LATEST role whose cue has passed and show only that one --
+      // this is a one-at-a-time montage, not an accumulating list.
+      var target = -1;
+      roleEls.forEach(function (el, i) {
+        var t = Number(el.getAttribute('data-t'));
+        if (elapsed >= t) target = i;
+      });
+      if (target !== shownIndex && target !== -1) {
+        roleEls.forEach(function (el, i) { el.classList.toggle('show', i === target); });
+        shownIndex = target;
+      }
+    }, 80);
+  }
+
+  function activateScene(index) {
+    if (index === currentIndex) return;
+    currentIndex = index;
+    sceneEls.forEach(function (el, i) {
+      el.classList.toggle('on', i === index);
+    });
+    document.querySelectorAll('.cue-row').forEach(function (row, i) { row.classList.toggle('active', i === index); });
+
+    clearInterval(roleTimer);
+    if (index === 6) runRoleMontage();
+  }
+
+  function pickSceneForTime(t) {
+    var chosen = 0;
+    for (var i = 0; i < SCENES.length; i++) { if (t >= SCENES[i].cue) chosen = i; }
+    return chosen;
+  }
+
+  audio.addEventListener('timeupdate', function () {
+    activateScene(pickSceneForTime(audio.currentTime));
+    var d = audio.duration || 0;
+    timecode.textContent = fmtTime(audio.currentTime) + ' / ' + (d ? fmtTime(d) : '--:--');
+
+    if (d) {
+      var remaining = d - audio.currentTime;
+      var base = Number(bgVolumeInput.value) / 100;
+      bgMusic.volume = remaining <= MUSIC_FADE_SEC ? Math.max(0, base * (remaining / MUSIC_FADE_SEC)) : base;
+    }
+  });
+  audio.addEventListener('ended', function () {
+    btnPlayPause.textContent = 'Play';
+    bgMusic.pause();
+  });
+
+  function fmtTime(sec) {
+    sec = Math.max(0, sec);
+    var m = Math.floor(sec / 60);
+    var s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  audioInput.addEventListener('change', function () {
+    var file = audioInput.files && audioInput.files[0];
+    if (!file) return;
+    audio.src = URL.createObjectURL(file);
+    audioLoaded.hidden = false;
+    audioLoaded.style.color = '';
+    audioLoaded.textContent = 'Loaded: ' + file.name;
+    activateScene(0);
+    timecode.textContent = '0:00 / --:--';
+  });
+
+  function playBoth() {
+    audio.play();
+    bgMusic.currentTime = bgMusic.currentTime || 0;
+    bgMusic.volume = Number(bgVolumeInput.value) / 100;
+    bgMusic.play().catch(function () {});
+    btnPlayPause.textContent = 'Pause';
+  }
+  btnPlayPause.addEventListener('click', function () {
+    if (audio.paused) { playBoth(); }
+    else { audio.pause(); bgMusic.pause(); btnPlayPause.textContent = 'Play'; }
+  });
+  btnRestart.addEventListener('click', function () {
+    audio.currentTime = 0;
+    bgMusic.currentTime = 0;
+    activateScene(0);
+    playBoth();
+  });
+
+  // ── Export to an actual video file with narration baked in (desktop only) ──
+  // Identical technique to launch-ad.html: screen/tab capture for video,
+  // both <audio> elements routed through a Web Audio graph into one real
+  // mixed track for audio (rather than relying on someone remembering to
+  // tick "Share tab audio").
+  var audioCtx = null, mixDest = null;
+  function ensureMixGraph() {
+    if (audioCtx) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      mixDest = audioCtx.createMediaStreamDestination();
+      var voSource = audioCtx.createMediaElementSource(audio);
+      var musicSource = audioCtx.createMediaElementSource(bgMusic);
+      voSource.connect(mixDest); voSource.connect(audioCtx.destination);
+      musicSource.connect(mixDest); musicSource.connect(audioCtx.destination);
+    } catch (err) {
+      audioCtx = null; mixDest = null;
+    }
+  }
+
+  function isProbablyMobile() {
+    var ua = navigator.userAgent || '';
+    var iPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return /Android|iPhone|iPod|iPad|Mobile/i.test(ua) || iPadOS;
+  }
+
+  btnExport.addEventListener('click', function () {
+    if (isProbablyMobile() || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      alert('Phone browsers can\'t export video directly. Use your phone\'s own screen recorder instead (iOS: Control Centre -> Screen Recording. Android: Quick Settings -> Screen Record), play the audio through the same device, and record the preview above. Export video works on a laptop/desktop browser.');
+      return;
+    }
+
+    ensureMixGraph();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    var mixedAudioTrack = mixDest ? mixDest.stream.getAudioTracks() : [];
+
+    navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: !mixedAudioTrack.length })
+      .then(function (displayStream) {
+        var tracks = displayStream.getVideoTracks().slice();
+        if (mixedAudioTrack.length) {
+          tracks = tracks.concat(mixedAudioTrack);
+        } else {
+          tracks = tracks.concat(displayStream.getAudioTracks());
+          alert('Heads up: this browser blocked the automatic audio mix. If a "Share tab audio" checkbox appeared in the share dialog, make sure it was ticked -- otherwise the exported file will be silent and you\'ll need to add audio afterward in a video editor.');
+        }
+        var combined = new MediaStream(tracks);
+
+        var mimeType = ['video/mp4;codecs=h264', 'video/webm;codecs=vp9', 'video/webm']
+          .find(function (t) { return window.MediaRecorder && MediaRecorder.isTypeSupported(t); }) || '';
+        var recorder;
+        try {
+          recorder = new MediaRecorder(combined, mimeType ? { mimeType: mimeType } : undefined);
+        } catch (err) {
+          displayStream.getTracks().forEach(function (t) { t.stop(); });
+          alert('Could not start recording: ' + err.message);
+          return;
+        }
+
+        var chunks = [];
+        recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = function () {
+          displayStream.getTracks().forEach(function (t) { t.stop(); });
+          btnExport.disabled = false;
+          btnExport.textContent = 'Export video';
+          if (!chunks.length) {
+            alert('The recording captured no frames. Try again and pick "This tab" in the share dialog.');
+            return;
+          }
+          var blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+          var url = URL.createObjectURL(blob);
+          var ext = mimeType.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'unik-partner-ad-claude.' + ext;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        };
+
+        btnExport.disabled = true;
+        btnExport.textContent = 'Recording…';
+        audio.currentTime = 0;
+        bgMusic.currentTime = 0;
+        activateScene(0);
+        recorder.start();
+        playBoth();
+
+        var stopped = false;
+        function stopOnce() {
+          if (stopped) return;
+          stopped = true;
+          bgMusic.pause();
+          if (recorder.state !== 'inactive') recorder.stop();
+        }
+        audio.addEventListener('ended', function onEnded() {
+          audio.removeEventListener('ended', onEnded);
+          setTimeout(stopOnce, 400);
+        });
+        displayStream.getVideoTracks()[0].addEventListener('ended', stopOnce);
+      })
+      .catch(function (err) {
+        alert('Screen recording was blocked or cancelled: ' + (err && err.message ? err.message : 'unknown error') + '. If you\'re viewing this inside an embedded preview, open the page directly in your own browser tab and try again.');
+      });
+  });
+})();
+</script>
+</body>
+</html>
