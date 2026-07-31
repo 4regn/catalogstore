@@ -64,6 +64,7 @@ export default async function PrivacyPage({ params }: { params: Promise<{ slug: 
       <p>When you use the AI Design Studio, your uploaded images are securely processed to generate the design you request.</p>
       <p>Your uploads are used only for providing the requested service.</p>
       <p>UNIK Labs does not use your uploaded images or generated designs to train artificial intelligence models.</p>
+      <p>To help us review generation quality and investigate reported issues, your uploaded images may be retained for up to 30 days after your design is generated. After this period, they are automatically deleted.</p>
 
       <h2>4. Cookies</h2>
       <p>UNIK Labs uses cookies and similar technologies to:</p>
