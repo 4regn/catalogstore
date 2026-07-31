@@ -543,6 +543,18 @@ const DARK_IMGS = {
   back_beige_tee:'assets/dark/back-beige-tee.jpg'
 };
 
+// On-model calibration only -- real photos of someone wearing the garment,
+// used solely by the tee-model/hoodie-model calibration modes below so a
+// human can drag the print zone into position against the actual photo
+// instead of the flat/ghost-mannequin shot. Front only, black/white only --
+// no back or beige shots exist yet.
+const MODEL_IMGS = {
+  front_black_tee:'assets/model/front-black-tee.jpg',
+  front_white_tee:'assets/model/front-white-tee.jpg',
+  front_black_hoodie:'assets/model/front-black-hoodie.jpg',
+  front_white_hoodie:'assets/model/front-white-hoodie.jpg'
+};
+
 function garmentImage(key){
   const darkMode=document.documentElement.dataset.unikTheme==='dark';
   return darkMode&&DARK_IMGS[key]?DARK_IMGS[key]:IMGS[key];
@@ -565,7 +577,7 @@ function zonePreviewImage(colour,garment){
 // control is available, every source swap is an in-memory operation with no
 // staggered loading or blank frame.
 const GARMENT_IMAGE_CACHE=[];
-const GARMENT_IMAGES_READY=Promise.all([...new Set([...Object.values(IMGS),...Object.values(DARK_IMGS)])].map(src=>new Promise(resolve=>{
+const GARMENT_IMAGES_READY=Promise.all([...new Set([...Object.values(IMGS),...Object.values(DARK_IMGS),...Object.values(MODEL_IMGS)])].map(src=>new Promise(resolve=>{
   const image=new Image();GARMENT_IMAGE_CACHE.push(image);
   image.onload=()=>{const decoded=image.decode?image.decode():Promise.resolve();Promise.resolve(decoded).catch(()=>{}).finally(resolve);};
   image.onerror=resolve;image.src=src;
@@ -643,6 +655,21 @@ const CAL_DEFAULTS_BY_MODE={
       black:{wP:0.2600,hP:0.3400,cxP:0.5044,tP:0.4200},
       white:{wP:0.2600,hP:0.3400,cxP:0.5044,tP:0.4200},
       beige:{wP:0.2600,hP:0.3400,cxP:0.5044,tP:0.4200}
+    }
+  },
+  // On-model calibration (MODEL_IMGS above) -- real photoshoot, not a flat
+  // product shot, so these are rough starting points only, not a formula
+  // like the flat tee/hoodie zones. Front only, no beige shot exists.
+  'tee-model':{
+    front:{
+      black:{wP:0.3400,hP:0.3000,cxP:0.5000,tP:0.4100},
+      white:{wP:0.3400,hP:0.3000,cxP:0.5000,tP:0.4100}
+    }
+  },
+  'hoodie-model':{
+    front:{
+      black:{wP:0.3200,hP:0.2200,cxP:0.5000,tP:0.4850},
+      white:{wP:0.3200,hP:0.2100,cxP:0.5000,tP:0.4650}
     }
   }
 };
@@ -879,7 +906,7 @@ function updateStageView(){
   // The outer card supplies the flip animation. Counter-rotate the interactive
   // stage on the back so the garment, upload prompt and controls stay readable.
   stage.style.transform=CAL?'rotateY(0deg)':(v==='back'?'rotateY(180deg)':'rotateY(0deg)');
-  img.src=garmentImage(v+'_'+c+'_'+g);
+  img.src=(CAL_MODE==='tee-model'||CAL_MODE==='hoodie-model')?MODEL_IMGS[v+'_'+c+'_'+g]:garmentImage(v+'_'+c+'_'+g);
 
   // Light/dark border
   const isLight=(c==='white');
@@ -1375,17 +1402,18 @@ document.getElementById('btnUpCheckoutNow').addEventListener('click',async(e)=>{
 
 // ── Init ──
 function initCalibrationMode(mode,side){
-  CAL_MODE=['hoodie','tee','tee-budget'].includes(mode)?mode:'hoodie';
-  CAL_GARMENT=CAL_MODE==='hoodie'?'hoodie':'tee';
+  CAL_MODE=['hoodie','tee','tee-budget','tee-model','hoodie-model'].includes(mode)?mode:'hoodie';
+  CAL_GARMENT=CAL_MODE.startsWith('hoodie')?'hoodie':'tee';
+  const isModelMode=CAL_MODE==='tee-model'||CAL_MODE==='hoodie-model';
   CAL_SIDE=side==='back'?'back':'front';
   document.body.classList.add('calibration-mode');
   S.garment=CAL_GARMENT;S.colour='black';S.zone=CAL_SIDE==='back'?'both':'front';
   curView=CAL_SIDE;fuRot=0;
-  const garmentLabel=CAL_MODE==='tee-budget'?'TEE BUDGET (A4)':CAL_GARMENT==='tee'?'TEE':'HOODIE';
+  const garmentLabel=CAL_MODE==='tee-budget'?'TEE BUDGET (A4)':isModelMode?(CAL_GARMENT==='tee'?'TEE (ON MODEL)':'HOODIE (ON MODEL)'):CAL_GARMENT==='tee'?'TEE':'HOODIE';
   document.querySelector('.cal-title').innerHTML=garmentLabel+' '+CAL_SIDE.toUpperCase()+'<br>ZONE CALIBRATOR';
   document.querySelector('.cal-sub').textContent='Drag the red '+CAL_SIDE+' zone into position and resize it from the bottom-right handle. The normalized measurements stay accurate at every screen size.'+(CAL_MODE==='tee-budget'?' Use "Snap to A4 portrait" to lock the box to an A4 print ratio, then drag it into position.':'');
   const beigeOpt=document.getElementById('calColourBeige');
-  if(beigeOpt)beigeOpt.style.display=CAL_MODE==='tee-budget'?'none':'';
+  if(beigeOpt)beigeOpt.style.display=(CAL_MODE==='tee-budget'||isModelMode)?'none':'';
   const snapBtn=document.getElementById('calSnapA4');
   if(snapBtn)snapBtn.style.display=CAL_MODE==='tee-budget'?'':'none';
   // Theme selector only matters for hoodie back -- that's the only
@@ -1436,7 +1464,7 @@ function initCalibrationMode(mode,side){
     renderCal();
   }
   function outputText(){
-    const garmentLabel=CAL_MODE==='tee-budget'?'Tee Budget (A4)':CAL_GARMENT==='tee'?'Tee':'Hoodie';
+    const garmentLabel=CAL_MODE==='tee-budget'?'Tee Budget (A4)':(CAL_MODE==='tee-model'||CAL_MODE==='hoodie-model')?(CAL_GARMENT==='tee'?'Tee (on model)':'Hoodie (on model)'):CAL_GARMENT==='tee'?'Tee':'Hoodie';
     const themeLabel=themeAware?' ('+currentTheme()+')':'';
     return '// '+garmentLabel+' '+CAL_SIDE.charAt(0).toUpperCase()+CAL_SIDE.slice(1)+' — '+S.colour.charAt(0).toUpperCase()+S.colour.slice(1)+themeLabel+'\nmaxPW = Math.round(tW * '+CAL.wP.toFixed(4)+');\nmaxPH = Math.round(tH * '+CAL.hP.toFixed(4)+');\npx = Math.round(tW * '+CAL.cxP.toFixed(4)+' - pw / 2);\npy = Math.round(tH * '+CAL.tP.toFixed(4)+');';
   }
@@ -1531,6 +1559,8 @@ const calibrationMode=new URLSearchParams(location.search).get('calibrate');
 if(calibrationMode==='hoodie-front'||calibrationMode==='hoodie-back')initCalibrationMode('hoodie',calibrationMode==='hoodie-back'?'back':'front');
 else if(calibrationMode==='tee-front'||calibrationMode==='tee-back')initCalibrationMode('tee',calibrationMode==='tee-back'?'back':'front');
 else if(calibrationMode==='tee-budget-front')initCalibrationMode('tee-budget','front');
+else if(calibrationMode==='tee-model-front')initCalibrationMode('tee-model','front');
+else if(calibrationMode==='hoodie-model-front')initCalibrationMode('hoodie-model','front');
 else{buildPB();updatePB(1);updatePicker();}
 
 window.addEventListener('unik:themechange',()=>{
