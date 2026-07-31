@@ -51,11 +51,11 @@ export async function sendPartnerApprovalEmail(params: {
         <table style="width:100%;border-collapse:collapse;margin:0 0 24px">
           <tr>
             <td style="width:28px;vertical-align:top;padding:8px 0"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:#007517;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:22px">1</span></td>
-            <td style="padding:8px 0 8px 10px;font-size:13.5px;color:#333;line-height:1.5">Upload a profile picture — a small thing, but seeing your own face on your dashboard makes it feel like yours.</td>
+            <td style="padding:8px 0 8px 10px;font-size:13.5px;color:#333;line-height:1.5">Upload a profile picture</td>
           </tr>
           <tr>
             <td style="width:28px;vertical-align:top;padding:8px 0"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:#007517;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:22px">2</span></td>
-            <td style="padding:8px 0 8px 10px;font-size:13.5px;color:#333;line-height:1.5">Add your banking details — this is where your payouts get sent.</td>
+            <td style="padding:8px 0 8px 10px;font-size:13.5px;color:#333;line-height:1.5">Add your banking details — this is the account that will receive payouts.</td>
           </tr>
         </table>
         <a href="${canonicalStoreUrl(seller.subdomain, "/partners/login")}" style="display:inline-block;padding:13px 26px;background:#007517;color:#fff;text-decoration:none;border-radius:100px;font-weight:700;font-size:13.5px">Log in to your dashboard</a>

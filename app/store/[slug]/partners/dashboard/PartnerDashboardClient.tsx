@@ -414,7 +414,7 @@ function ProfileNudge({ partner, onGoToSettings }: { partner: Partner; onGoToSet
       </div>
       <div className="pnd-nudge-row">
         <span className={"pnd-nudge-check" + (hasBanking ? " done" : "")}>{hasBanking ? "✓" : ""}</span>
-        <span className={hasBanking ? "pnd-nudge-done-text" : ""}>Add your banking details</span>
+        <span className={hasBanking ? "pnd-nudge-done-text" : ""}>Add your banking details — the account that will receive payouts</span>
       </div>
     </div>
   );
