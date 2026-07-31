@@ -557,6 +557,7 @@ body {
 
 .results-mockup-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
 .results-mockup { width: 100%; border-radius: 14px; background: #e0deda; aspect-ratio: 3/4; display: flex; align-items: center; justify-content: center; margin-bottom: 22px; color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+.results-model-mockup { width: 100%; border-radius: 14px; background: #e0deda; aspect-ratio: 2/3; display: flex; align-items: center; justify-content: center; margin-bottom: 22px; color: var(--muted); font-size: 12px; letter-spacing: 1px; }
 
 .btn-atc { width: 100%; padding: 20px; background: #007517; color: #fff; border: none; border-radius: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 4px; cursor: pointer; margin-bottom: 10px; transition: opacity 0.2s; }
 .btn-atc:hover { opacity: 0.88; }
@@ -1073,6 +1074,8 @@ html[data-unik-theme='dark'] .trust-icon-wrap {
     <p class="watermark-note">The preview above is watermarked to protect your design. Your printed piece ships watermark-free.</p>
     <div class="results-mockup-label">Mockup Preview</div>
     <div class="results-mockup">See how it looks printed</div>
+    <div class="results-mockup-label">On a Model</div>
+    <div class="results-model-mockup">See how it looks worn</div>
     <div class="qty-row">
       <button type="button" id="qtyDec" aria-label="Decrease quantity">−</button>
       <span id="qtyValue">1</span>
@@ -2022,6 +2025,22 @@ function finishLoading(result) {
     resultMockup.style.backgroundSize = 'contain';
     resultMockup.style.backgroundPosition = 'center';
     resultMockup.style.backgroundRepeat = 'no-repeat';
+  }
+  const resultModelMockup = document.querySelector('.results-model-mockup');
+  if (resultModelMockup) {
+    if (result.modelMockupUrl) {
+      resultModelMockup.textContent = '';
+      resultModelMockup.style.backgroundImage = `url("${result.modelMockupUrl}")`;
+      resultModelMockup.style.backgroundSize = 'contain';
+      resultModelMockup.style.backgroundPosition = 'center';
+      resultModelMockup.style.backgroundRepeat = 'no-repeat';
+    } else {
+      // Older designs (generated before the on-model mockup existed) won't
+      // have this field -- hide the whole block rather than show an empty
+      // placeholder box.
+      resultModelMockup.previousElementSibling.style.display = 'none';
+      resultModelMockup.style.display = 'none';
+    }
   }
   setTimeout(() => {
     document.getElementById('loadingScreen').classList.remove('visible');

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { getClientIP, rateLimit } from "../../../../lib/rate-limit";
 import { requireUnikCustomer } from "../../../../lib/unik-customer";
-import { callRailwayGeneration, makeMockup, makeWatermarkedPreview, newDesignId, parseGenerationInput } from "../../../../lib/unik-generation";
+import { callRailwayGeneration, makeMockup, makeModelMockup, makeWatermarkedPreview, newDesignId, parseGenerationInput } from "../../../../lib/unik-generation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -71,9 +71,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const cleanArtwork = await callRailwayGeneration(input);
-    const [watermarkedPreview, mockup] = await Promise.all([
+    const [watermarkedPreview, mockup, modelMockup] = await Promise.all([
       makeWatermarkedPreview(cleanArtwork),
       makeMockup(cleanArtwork, input),
+      makeModelMockup(cleanArtwork, input),
     ]);
 
     await ensurePreviewBucket();
@@ -81,17 +82,20 @@ export async function POST(req: NextRequest) {
     const privatePath = `${user.id}/${designId}/artwork.png`;
     const previewPath = `${seller.id}/${user.id}/${designId}/artwork-watermarked.jpg`;
     const mockupPath = `${seller.id}/${user.id}/${designId}/mockup.jpg`;
+    const modelMockupPath = `${seller.id}/${user.id}/${designId}/mockup-model.jpg`;
 
-    const [cleanUpload, previewUpload, mockupUpload] = await Promise.all([
+    const [cleanUpload, previewUpload, mockupUpload, modelMockupUpload] = await Promise.all([
       admin.storage.from(PRIVATE_BUCKET).upload(privatePath, cleanArtwork, { contentType: "image/png", upsert: false, cacheControl: "31536000" }),
       admin.storage.from(PREVIEW_BUCKET).upload(previewPath, watermarkedPreview, { contentType: "image/jpeg", upsert: false, cacheControl: "31536000" }),
       admin.storage.from(PREVIEW_BUCKET).upload(mockupPath, mockup, { contentType: "image/jpeg", upsert: false, cacheControl: "31536000" }),
+      admin.storage.from(PREVIEW_BUCKET).upload(modelMockupPath, modelMockup, { contentType: "image/jpeg", upsert: false, cacheControl: "31536000" }),
     ]);
-    const uploadError = cleanUpload.error || previewUpload.error || mockupUpload.error;
+    const uploadError = cleanUpload.error || previewUpload.error || mockupUpload.error || modelMockupUpload.error;
     if (uploadError) throw new Error(`Could not store generated artwork: ${uploadError.message}`);
 
     const previewUrl = admin.storage.from(PREVIEW_BUCKET).getPublicUrl(previewPath).data.publicUrl;
     const mockupUrl = admin.storage.from(PREVIEW_BUCKET).getPublicUrl(mockupPath).data.publicUrl;
+    const modelMockupUrl = admin.storage.from(PREVIEW_BUCKET).getPublicUrl(modelMockupPath).data.publicUrl;
     const { data: design, error: designError } = await admin.from("unik_designs").insert({
       id: designId,
       seller_id: seller.id,
@@ -109,7 +113,7 @@ export async function POST(req: NextRequest) {
       // what was actually uploaded -- see app/api/cron/purge-generation-photos,
       // which strips this field on a rolling basis. Same field/shape the
       // partner Studio route already stores indefinitely for "Send to Recap".
-      options: { tagline: input.tagline, subject: input.subject, photoCount: input.photos.length, previewPath, mockupPath, provider: "railway-gemini", refPhotos: input.photos.map((p) => `data:image/jpeg;base64,${p}`) },
+      options: { tagline: input.tagline, subject: input.subject, photoCount: input.photos.length, previewPath, mockupPath, modelMockupPath, modelMockupUrl, provider: "railway-gemini", refPhotos: input.photos.map((p) => `data:image/jpeg;base64,${p}`) },
       preview_url: previewUrl,
       mockup_url: mockupUrl,
       private_artwork_path: privatePath,
@@ -124,7 +128,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       attempt: { id: attemptId, status: "succeeded" },
-      design: { id: design.id, status: design.status, previewUrl: design.preview_url, mockupUrl: design.mockup_url, createdAt: design.created_at },
+      design: { id: design.id, status: design.status, previewUrl: design.preview_url, mockupUrl: design.mockup_url, modelMockupUrl, createdAt: design.created_at },
       limit: UNIK_DAILY_GENERATION_LIMIT,
       used: Number(reservation.used_count || 0) + 1,
       remaining: Number(reservation.remaining_count || 0),

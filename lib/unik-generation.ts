@@ -185,31 +185,58 @@ export async function makeWatermarkedPreview(clean: Buffer) {
   return image.composite([{ input: watermarkSvg(width, height), blend: "over" }]).jpeg({ quality: 88, mozjpeg: true }).toBuffer();
 }
 
-export async function makeMockup(clean: Buffer, input: UnikGenerationInput) {
-  const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "dark", `front-${input.colour}-${garmentAssetName(input.garment)}.jpg`);
+type PrintZone = { width: number; height: number; centreX: number; top: number };
+
+async function compositeOntoGarment(basePath: string, zone: PrintZone, clean: Buffer, blend: "screen" | "multiply") {
   const base = sharp(basePath).rotate();
   const metadata = await base.metadata();
   const width = metadata.width || 828;
   const height = metadata.height || 1242;
-  // Calibrated via calibrate-tee-budget-front.html.
-  const zone = input.garment === "tee-budget"
-    ? { width: 0.2585, height: 0.3415, centreX: 0.5031, top: 0.3369 }
-    : input.garment === "tee"
-      ? { width: 0.3754, height: 0.5000, centreX: 0.5123, top: 0.3200 }
-      : input.colour === "black"
-        ? { width: 0.3328, height: 0.1955, centreX: 0.4957, top: 0.3477 }
-        : { width: 0.3328, height: 0.2045, centreX: 0.4957, top: 0.3409 };
   const zoneWidth = Math.round(width * zone.width);
   const zoneHeight = Math.round(height * zone.height);
   const artwork = await sharp(clean).rotate().resize({ width: zoneWidth, height: zoneHeight, fit: "inside", withoutEnlargement: false }).png().toBuffer();
   const artMeta = await sharp(artwork).metadata();
   const left = Math.round(width * zone.centreX - (artMeta.width || zoneWidth) / 2);
   const top = Math.round(height * zone.top);
-  const blend = input.colour === "black" ? "screen" : "multiply";
   return base
     .composite([{ input: artwork, left, top, blend }])
     .jpeg({ quality: 95, chromaSubsampling: "4:4:4", mozjpeg: true })
     .toBuffer();
+}
+
+export async function makeMockup(clean: Buffer, input: UnikGenerationInput) {
+  const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "dark", `front-${input.colour}-${garmentAssetName(input.garment)}.jpg`);
+  // Calibrated via calibrate-tee-budget-front.html.
+  const zone: PrintZone = input.garment === "tee-budget"
+    ? { width: 0.2585, height: 0.3415, centreX: 0.5031, top: 0.3369 }
+    : input.garment === "tee"
+      ? { width: 0.3754, height: 0.5000, centreX: 0.5123, top: 0.3200 }
+      : input.colour === "black"
+        ? { width: 0.3328, height: 0.1955, centreX: 0.4957, top: 0.3477 }
+        : { width: 0.3328, height: 0.2045, centreX: 0.4957, top: 0.3409 };
+  const blend = input.colour === "black" ? "screen" : "multiply";
+  return compositeOntoGarment(basePath, zone, clean, blend);
+}
+
+// On-model mockup: same idea as makeMockup() but composited onto a real
+// person wearing the garment (assets/model/front-{colour}-{garment}.jpg)
+// instead of the flat/ghost-mannequin shot, so a customer can see how the
+// design actually looks worn. Zones calibrated by eye against each of the
+// four supplied photos (they're a real photoshoot, not a flat product
+// shot, so each has its own framing -- unlike makeMockup()'s zones there's
+// no single calibration tool for this yet, just per-image visual fitting).
+export async function makeModelMockup(clean: Buffer, input: UnikGenerationInput) {
+  const garment = garmentAssetName(input.garment);
+  const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "model", `front-${input.colour}-${garment}.jpg`);
+  const zone: PrintZone = garment === "tee"
+    ? (input.garment === "tee-budget"
+      ? { width: 0.2340, height: 0.2050, centreX: 0.5000, top: 0.4270 }
+      : { width: 0.3400, height: 0.3000, centreX: 0.5000, top: 0.4100 })
+    : input.colour === "black"
+      ? { width: 0.3200, height: 0.2200, centreX: 0.5000, top: 0.4850 }
+      : { width: 0.3200, height: 0.2100, centreX: 0.5000, top: 0.4650 };
+  const blend = input.colour === "black" ? "screen" : "multiply";
+  return compositeOntoGarment(basePath, zone, clean, blend);
 }
 
 export function newDesignId() {
