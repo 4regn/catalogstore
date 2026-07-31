@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../lib/unik-brand-manager";
+import { sendEmail } from "../../../../../lib/email";
+import { canonicalStoreUrl } from "../../../../../lib/store-url";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +81,7 @@ export async function PATCH(req: NextRequest) {
   const admin = getAdmin();
   const { data: partner, error: fetchErr } = await admin
     .from("unik_partners")
-    .select("id, full_name, status")
+    .select("id, full_name, email, status")
     .eq("id", partnerId)
     .eq("seller_id", seller.id)
     .maybeSingle();
@@ -89,6 +91,19 @@ export async function PATCH(req: NextRequest) {
   if (action === "reject") {
     const { error } = await admin.from("unik_partners").update({ status: "suspended", updated_at: new Date().toISOString() }).eq("id", partnerId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // Awaited (sendEmail never throws -- it catches and logs internally)
+    // rather than fire-and-forget: a serverless function can freeze before
+    // an un-awaited promise resolves once the response is sent, which would
+    // silently drop the email. Same reasoning for the approval email below.
+    await sendEmail({
+      to: partner.email,
+      subject: `Update on your ${seller.store_name} Partner application`,
+      html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
+        ${seller.logo_url ? `<img src="${seller.logo_url}" alt="" style="height:40px;margin-bottom:16px" />` : `<h2 style="margin:0 0 12px">${seller.store_name}</h2>`}
+        <p style="margin:0 0 12px">Hi ${partner.full_name.split(" ")[0]}, thanks for your interest in becoming a ${seller.store_name} Partner.</p>
+        <p style="margin:0">We won't be moving forward with your application at this time. You're welcome to apply again in future.</p>
+      </div>`,
+    });
     return NextResponse.json({ success: true, status: "suspended" });
   }
 
@@ -115,6 +130,22 @@ export async function PATCH(req: NextRequest) {
     .update({ status: "active", referral_code: referralCode, discount_code_id: discountRow.id, updated_at: new Date().toISOString() })
     .eq("id", partnerId);
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+
+  // The partner already has full login credentials from application time
+  // (they set a password on /partners/apply, see that route), so this just
+  // needs to tell them they're in and where to go -- no password-recovery
+  // link needed, unlike the Brand Manager invite email this is otherwise
+  // modelled on. Awaited for the same reason as the rejection email above.
+  await sendEmail({
+    to: partner.email,
+    subject: `You're in! Welcome as a ${seller.store_name} Partner`,
+    html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
+      ${seller.logo_url ? `<img src="${seller.logo_url}" alt="" style="height:40px;margin-bottom:16px" />` : `<h2 style="margin:0 0 12px">${seller.store_name}</h2>`}
+      <p style="margin:0 0 12px">Hi ${partner.full_name.split(" ")[0]}, your application to become a ${seller.store_name} Partner has been approved.</p>
+      <p style="margin:0 0 20px">Your referral link and discount code (<strong>${discountCode}</strong>) are ready in your dashboard.</p>
+      <a href="${canonicalStoreUrl(seller.subdomain, "/partners/login")}" style="display:inline-block;padding:12px 24px;background:#007517;color:#fff;text-decoration:none;border-radius:100px;font-weight:700">Log in to your dashboard</a>
+    </div>`,
+  });
 
   return NextResponse.json({ success: true, status: "active", referralCode, discountCode });
 }

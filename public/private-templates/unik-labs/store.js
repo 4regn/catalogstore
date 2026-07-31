@@ -853,7 +853,7 @@
       const menu = document.createElement('div');
       menu.className = 'unik-home-menu';
       const bagIcon = '<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewBox="0 0 20 22" aria-hidden="true"><path d="M4 7h12l1 13H3L4 7z"></path><path d="M7 7V5a3 3 0 016 0v2"></path></svg>';
-      menu.innerHTML = '<button class="unik-home-close" aria-label="Close menu">&times;</button><div><a href="'+base+'/studio" target="_top">Create with AI</a><a href="'+base+'/upload" target="_top">Upload artwork</a><a href="'+base+'/account" target="_top">'+accountLabel+'</a><a href="'+base+'/checkout" target="_top" class="unik-drawer-cart">'+bagIcon+'<span>Cart</span><span data-unik-cart-count class="unik-cart-count" hidden>0</span></a><button class="unik-home-theme" data-unik-theme-toggle type="button">Theme</button></div>';
+      menu.innerHTML = '<button class="unik-home-close" aria-label="Close menu">&times;</button><div><a href="'+base+'/studio" target="_top">Create with AI</a><a href="'+base+'/upload" target="_top">Upload artwork</a><a href="'+base+'/account" target="_top">'+accountLabel+'</a><a href="'+base+'/partners/login" target="_top">Partner Login</a><a href="'+base+'/checkout" target="_top" class="unik-drawer-cart">'+bagIcon+'<span>Cart</span><span data-unik-cart-count class="unik-cart-count" hidden>0</span></a><button class="unik-home-theme" data-unik-theme-toggle type="button">Theme</button></div>';
       document.body.appendChild(menu);
       const trigger = document.querySelector('.nav-icon-btn');
       if (trigger) trigger.addEventListener('click', () => menu.classList.add('open'));
@@ -871,7 +871,7 @@
       if (navEl && navRight) {
         const desktopLinks = document.createElement('div');
         desktopLinks.className = 'unik-home-desktop-links';
-        desktopLinks.innerHTML = '<a href="'+base+'/studio" target="_top">AI Studio</a><a href="'+base+'/upload" target="_top">Custom Upload</a><a href="#templates">Styles</a>';
+        desktopLinks.innerHTML = '<a href="'+base+'/studio" target="_top">AI Studio</a><a href="'+base+'/upload" target="_top">Custom Upload</a><a href="#templates">Styles</a><a href="'+base+'/partners/login" target="_top">Partner Login</a>';
         navEl.insertBefore(desktopLinks, navRight);
       }
       const bag = document.querySelector('.nav-bag');
