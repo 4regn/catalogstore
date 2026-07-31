@@ -45,7 +45,7 @@ type SessionAnalytics = {
   topLocations: { country: string; region: string; city: string; count: number }[];
 };
 
-type Panel = "overview" | "sales" | "customers" | "followups" | "growth" | "content" | "support" | "partners" | "academy" | "settings";
+type Panel = "overview" | "sales" | "customers" | "followups" | "growth" | "studio" | "content" | "support" | "partners" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Brand Manager overview",
@@ -53,6 +53,7 @@ const PANEL_TITLES: Record<Panel, string> = {
   customers: "Customers",
   followups: "Follow-ups",
   growth: "Growth Tools",
+  studio: "Studio",
   content: "Recap Builder",
   support: "Live Support",
   partners: "Partners",
@@ -66,6 +67,7 @@ const MOBILE_NAV_LABELS: Record<Panel, string> = {
   customers: "Customers",
   followups: "Follow-up",
   growth: "Growth",
+  studio: "Studio",
   content: "Recap",
   support: "Support",
   partners: "Partners",
@@ -79,6 +81,7 @@ const NAV_ICON_PATHS: Record<Panel, string> = {
   customers: "M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM4 21c0-4 3.6-7 8-7s8 3 8 7",
   followups: "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z",
   growth: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 12h8M12 8v8",
+  studio: "M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3ZM19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14Z",
   content: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 9l5 3-5 3Z",
   support: "M4 5h16v11H8l-4 4Z",
   partners: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM3 21c0-3.5 2.7-6 6-6s6 2.5 6 6M16 11a3.5 3.5 0 1 0 0-7M21 21c0-3-1.8-5.2-4.5-5.8",
@@ -360,6 +363,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         {panel === "customers" && <CustomersPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "followups" && <FollowUpsPanel authedFetch={authedFetch} />}
         {panel === "growth" && <GrowthPanel manager={overview.manager} authedFetch={authedFetch} onSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
+        {panel === "studio" && <StudioPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "content" && <ContentPanel />}
         {panel === "support" && <SupportPanel authedFetch={authedFetch} />}
         {panel === "partners" && <PartnersPanel authedFetch={authedFetch} toast={showToast} />}
@@ -1067,6 +1071,301 @@ function GrowthPanel({ manager, authedFetch, onSaved, toast }: { manager: Manage
           <div className="bm-field full bm-form-actions"><button className="bm-primary-btn" disabled={busy}>{busy ? "Saving…" : "Save campaign code"}</button></div>
         </form>
       </article>
+    </section>
+  );
+}
+
+const STUDIO_STYLE_META: { id: string; name: string; desc: string; badge?: string }[] = [
+  { id: "TOUR_POSTER", name: "Tour Poster", desc: "Vintage distressed energy", badge: "Most Popular" },
+  { id: "BOOTLEG", name: "Bootleg", desc: "90s rap aesthetic" },
+  { id: "EDITORIAL", name: "Editorial", desc: "Art zine collage" },
+  { id: "CHROME", name: "Chrome", desc: "Luxury metallic type" },
+  { id: "GIANT_FACE", name: "Giant Face", desc: "Face fills the garment" },
+  { id: "BLING_ERA", name: "Bling Era", desc: "3D type, airbrush glow" },
+  { id: "PAPER_CUT", name: "Paper Cut", desc: "Editorial collage portrait" },
+  { id: "VTG_BOOTLEG", name: "Vintage Bootleg", desc: "Collector concert poster" },
+  { id: "TOON_DRIP", name: "Toon Drip", desc: "Chibi anime portrait", badge: "New" },
+  { id: "CHROME_COLLAGE", name: "Chrome Collage", desc: "5-photo chrome bootleg", badge: "New" },
+  { id: "I_LOVE_MY", name: "I Love My...", desc: "5-photo heart collage", badge: "New" },
+];
+const STUDIO_EXACT_PHOTO_COUNT: Record<string, number> = { GIANT_FACE: 1, TOON_DRIP: 1, CHROME_COLLAGE: 5, I_LOVE_MY: 5 };
+const STUDIO_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+
+// Same pre-rendered example shots the storefront's studio.html and the
+// partner dashboard's Studio tab use, so a brand manager can see what a
+// garment/colour/style combination actually looks like before generating.
+const DARK_STUDIO_ROOT = "/private-templates/unik-labs/assets/dark-studio/";
+function darkStudioAsset(garment: string, colour: string, key: string) {
+  return `${DARK_STUDIO_ROOT}${garment}-${colour}-${key}.jpg`;
+}
+function stylePreviewUrl(garment: string, colour: string, styleId: string) {
+  return darkStudioAsset(garment, colour, styleId.toLowerCase().replace(/_/g, "-"));
+}
+
+type StudioDesign = { id: string; status: string; name: string; garment: string; colour: string; size: string; style: string; tagline: string; mockupUrl: string | null; createdAt: string };
+
+// Mirrors studio.html's compressGenerationPhoto exactly (same 900px cap,
+// same JPEG quality) -- the server-side size/format validation is tuned to
+// what that produces.
+function studioCompressPhoto(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("One of your photos could not be prepared"));
+      img.onload = () => {
+        const scale = Math.min(1, 900 / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Could not prepare photo")); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.76).split(",")[1]);
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* A cut-down AI Studio built into the Brand Manager dashboard, ported from
+   the partner dashboard's Studio tab (app/store/[slug]/partners/dashboard/
+   PartnerDashboardClient.tsx): same generation pipeline, same no-watermark
+   reasoning, same 3/day limit scoped to this manager's own account. Unlike
+   the partner version, there's no cart/checkout here -- a brand manager is
+   generating for their own brand's use (gifting, seeding creators, etc.),
+   not reselling to a WhatsApp customer, so this is generate-and-save only. */
+function StudioPanel({ authedFetch, toast }: {
+  authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void;
+}) {
+  const [designs, setDesigns] = useState<StudioDesign[]>([]);
+  const [loadingDesigns, setLoadingDesigns] = useState(true);
+  const [showForm, setShowForm] = useState(true);
+
+  const [garment, setGarment] = useState<"tee" | "hoodie">("tee");
+  const [budget, setBudget] = useState(false);
+  const [colour, setColour] = useState<"black" | "white">("black");
+  const [subject, setSubject] = useState<"artist" | "personal">("personal");
+  const [style, setStyle] = useState("TOUR_POSTER");
+  const [name, setName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [size, setSize] = useState("M");
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  const isLoveMy = style === "I_LOVE_MY";
+  const effectiveGarment = garment === "tee" && budget ? "tee-budget" : garment;
+  const exactPhotoCount = STUDIO_EXACT_PHOTO_COUNT[style];
+
+  const loadDesigns = useCallback(async () => {
+    setLoadingDesigns(true);
+    const res = await authedFetch("/api/unik/brand-manager/studio/designs", { method: "GET" });
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok) setDesigns(payload.designs || []);
+    setLoadingDesigns(false);
+  }, [authedFetch]);
+
+  useEffect(() => { loadDesigns(); }, [loadDesigns]);
+
+  function handlePhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []).slice(0, 5);
+    e.target.value = "";
+    setPhotos(files);
+  }
+
+  async function generate() {
+    setGenError("");
+    const requiredCount = exactPhotoCount;
+    if (requiredCount ? photos.length !== requiredCount : !photos.length) {
+      setGenError(requiredCount ? `This style needs exactly ${requiredCount} photo${requiredCount === 1 ? "" : "s"}` : "Add between one and five photos");
+      return;
+    }
+    const cleanedName = isLoveMy ? name.trim().replace(/\s+/g, " ").replace(/^i\s+love\s+my\s+/i, "").replace(/^my\s+/i, "").trim() : name.trim();
+    if (!cleanedName) { setGenError(isLoveMy ? "Tell us who it's for" : "Add a name for your design"); return; }
+    setGenerating(true);
+    try {
+      const compressed = await Promise.all(photos.map(studioCompressPhoto));
+      const res = await authedFetch("/api/unik/brand-manager/studio/generate", {
+        method: "POST",
+        body: JSON.stringify({ garment: effectiveGarment, colour, subject, style, name: cleanedName, tagline: isLoveMy ? "" : tagline, size, photos: compressed }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) { setGenError(payload.error || "Generation failed"); setGenerating(false); return; }
+      setRemaining(typeof payload.remaining === "number" ? payload.remaining : null);
+      setName(""); setTagline(""); setPhotos([]);
+      toast("Design generated");
+      await loadDesigns();
+      setShowForm(false);
+    } catch {
+      setGenError("Network error — please try again");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function download(id: string, type: "original" | "mockup") {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const res = await fetch(`/api/unik/brand-manager/studio/download?id=${encodeURIComponent(id)}&type=${type}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { toast("Could not download"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = type === "original" ? `design-${id}.png` : `mockup-${id}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  return (
+    <section>
+      <article className="bm-card">
+        <div className="bm-section-head">
+          <h2 className="bm-section-title">Create a design</h2>
+          <p className="bm-section-desc">{remaining === null ? "3 generations / day" : `${remaining} of 3 left today`} — generate and save, no watermark.</p>
+          <button type="button" className="bm-status-btn" data-active={showForm} onClick={() => setShowForm((v) => !v)} style={{ marginTop: 10 }}>{showForm ? "Hide" : "New design"}</button>
+        </div>
+        {showForm && (
+          <div className="bms-form">
+            <div className="bms-form-block">
+              <span className="bms-block-label">Garment</span>
+              <div className="bms-picker-grid">
+                {(["tee", "hoodie"] as const).map((g) => (
+                  <button key={g} type="button" className={"bms-picker-card" + (garment === g ? " sel" : "")} onClick={() => setGarment(g)}>
+                    <img src={darkStudioAsset(g, colour, "flat")} alt={g === "tee" ? "Tee" : "Hoodie"} loading="lazy" />
+                    <span className="bms-picker-label">{g === "tee" ? "Tee" : "Hoodie"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {garment === "tee" && (
+              <label className="bms-checkbox">
+                <input type="checkbox" checked={budget} onChange={(e) => setBudget(e.target.checked)} /> Budget print (A4)
+              </label>
+            )}
+
+            <div className="bms-form-block">
+              <span className="bms-block-label">Colour</span>
+              <div className="bms-picker-grid">
+                {(["black", "white"] as const).map((c) => (
+                  <button key={c} type="button" className={"bms-picker-card" + (colour === c ? " sel" : "")} onClick={() => setColour(c)}>
+                    <img src={darkStudioAsset(garment, c, "model")} alt={c === "black" ? "Black" : "White"} loading="lazy" />
+                    <span className="bms-picker-label">{c === "black" ? "Black" : "White"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bms-form-block">
+              <span className="bms-block-label">Portrait type</span>
+              <div className="bms-segmented">
+                <button type="button" className={"bms-seg-btn" + (subject === "personal" ? " sel" : "")} onClick={() => setSubject("personal")}>Personal portrait</button>
+                <button type="button" className={"bms-seg-btn" + (subject === "artist" ? " sel" : "")} onClick={() => setSubject("artist")}>Artist</button>
+              </div>
+            </div>
+
+            <div className="bms-form-block">
+              <span className="bms-block-label">Style — see how it will actually look</span>
+              <div className="bms-style-grid">
+                {STUDIO_STYLE_META.map((s) => (
+                  <button key={s.id} type="button" className={"bms-style-card" + (style === s.id ? " sel" : "")} onClick={() => setStyle(s.id)}>
+                    {s.badge && <span className="bms-style-badge">{s.badge}</span>}
+                    <img src={stylePreviewUrl(garment, colour, s.id)} alt={s.name} loading="lazy" />
+                    <span className="bms-style-name">{s.name}</span>
+                    <span className="bms-style-desc">{s.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bm-field full">
+              <label>{isLoveMy ? "Who do you love?" : "Name on the design"}</label>
+              <input className="bm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder={isLoveMy ? "e.g. Girlfriend, My Dog" : "e.g. Londeka Mpanza"} maxLength={80} />
+            </div>
+            {!isLoveMy && (
+              <div className="bm-field full">
+                <label>Tagline (optional)</label>
+                <input className="bm-input" value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={100} placeholder="e.g. EST. 2026" />
+              </div>
+            )}
+            <div className="bm-field full">
+              <label>Size</label>
+              <select className="bm-select" value={size} onChange={(e) => setSize(e.target.value)}>
+                {STUDIO_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="bm-field full">
+              <label>{exactPhotoCount ? `Photos (exactly ${exactPhotoCount})` : "Photos (1–5)"}</label>
+              <input className="bm-input" type="file" accept="image/*" multiple onChange={handlePhotos} />
+            </div>
+            {photos.length > 0 && (
+              <div className="bms-photo-row">{photos.map((f, i) => <img key={i} src={URL.createObjectURL(f)} alt="" />)}</div>
+            )}
+            {genError && <p className="bm-error">{genError}</p>}
+            <button type="button" className="bm-primary-btn" disabled={generating} onClick={generate}>
+              {generating ? "Generating…" : "Generate"}
+            </button>
+          </div>
+        )}
+      </article>
+
+      <article className="bm-card">
+        <div className="bm-section-head"><h2 className="bm-section-title">Your generations</h2></div>
+        {loadingDesigns ? (
+          <p className="bm-empty">Loading…</p>
+        ) : designs.length === 0 ? (
+          <p className="bm-empty">Nothing generated yet — create your first design above.</p>
+        ) : (
+          <div className="bm-design-grid">
+            {designs.map((d) => (
+              <div key={d.id} className="bm-design-card">
+                {d.mockupUrl ? <img src={d.mockupUrl} alt={d.name} /> : <div className="bm-design-placeholder" />}
+                <div className="bm-design-body">
+                  <span className="bm-design-name">{d.name}</span>
+                  <span className="bm-design-meta">{d.garment} · {d.colour} · {d.size}</span>
+                  <div className="bm-design-actions">
+                    <button type="button" onClick={() => download(d.id, "original")}>Download design</button>
+                    <button type="button" onClick={() => download(d.id, "mockup")}>Download mockup</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+
+      <style jsx>{`
+        .bms-form{display:grid;gap:16px;max-width:560px}
+        .bms-form-block{display:grid;gap:0}
+        .bms-block-label{display:block;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8f8f89;margin-bottom:8px}
+        .bms-checkbox{display:flex;align-items:center;gap:8px;font-size:12px;color:#c0c0ba;font-weight:600}
+        .bms-checkbox input{width:auto}
+        .bms-picker-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .bms-picker-card{padding:0;border:1px solid #27272a;border-radius:14px;overflow:hidden;background:#111113;cursor:pointer;text-align:left;display:block}
+        .bms-picker-card img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#17171a}
+        .bms-picker-card.sel{border-color:#007517;box-shadow:0 0 0 1px #007517,0 0 14px 2px rgba(0,117,23,.4)}
+        .bms-picker-label{display:block;padding:9px 12px;font-size:12.5px;font-weight:700;color:#f7f7f4}
+        .bms-segmented{display:flex;border:1px solid #27272a;border-radius:10px;overflow:hidden}
+        .bms-seg-btn{flex:1;padding:11px 8px;background:#111113;color:#c0c0ba;font-size:12px;font-weight:700;border:0;border-right:1px solid #27272a}
+        .bms-seg-btn:last-child{border-right:0}
+        .bms-seg-btn.sel{background:#007517;color:#fff}
+        .bms-style-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+        .bms-style-card{position:relative;padding:0;border:1px solid #27272a;border-radius:14px;overflow:hidden;background:#111113;cursor:pointer;text-align:left;display:block}
+        .bms-style-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#17171a}
+        .bms-style-card.sel{border-color:#007517;box-shadow:0 0 0 1px #007517,0 0 14px 2px rgba(0,117,23,.4)}
+        .bms-style-name{display:block;padding:9px 10px 2px;font-size:11.5px;font-weight:800;letter-spacing:.01em;color:#f7f7f4}
+        .bms-style-desc{display:block;padding:0 10px 10px;font-size:10px;color:#8f8f89}
+        .bms-style-badge{position:absolute;top:8px;left:8px;background:#007517;color:#fff;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:100px;z-index:1}
+        .bms-photo-row{display:flex;gap:8px;flex-wrap:wrap}
+        .bms-photo-row img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #27272a}
+      `}</style>
     </section>
   );
 }
