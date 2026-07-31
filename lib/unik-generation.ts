@@ -100,7 +100,14 @@ export function buildUnikPrompt(input: UnikGenerationInput) {
   const name = input.style === "I_LOVE_MY" ? cleanSubjectLabel(input.name).toUpperCase() : input.name.toUpperCase();
   const tagline = input.tagline.trim().toUpperCase();
   const count = input.photos.length;
-  const background = input.colour === "black" ? "pure black #0A0A0A" : "pure white #FFFFFF";
+  // Must be exactly #000000/#FFFFFF, not just "near" black/white -- makeMockup()
+  // composites the artwork onto the tee photo with blend:"screen" on black and
+  // "multiply" on white specifically so a flat background merges invisibly into
+  // the photographed fabric, and that's only a true no-op at the pure value.
+  // Anything off that (e.g. #0A0A0A) screen/multiply-blends into a visible
+  // lightened/darkened rectangle exactly where the artwork sits, regardless of
+  // what's drawn inside it -- the "visible box" this fixes.
+  const background = input.colour === "black" ? "pure black #000000" : "pure white #FFFFFF";
   const signatureColor = input.colour === "black" ? "white" : "black";
   const subjectRule = input.subject === "artist" ? "Treat the subject as an artist, but do not invent instruments, stages, locations or biography." : "This is a personal portrait. Do not add performance, concert, microphone or stage references.";
   const photoRules = `PHOTO RULES:\n- ${count} reference photo(s) attached. Use EACH exactly once, except stylistic close crops may come from the same visible portrait.\n- Use ONLY the people in the uploaded photos. Never substitute another face.\n- Preserve identity, facial features, skin tone and expression.\n- Do not infer private details or location.\n- ${subjectRule}\n`;
