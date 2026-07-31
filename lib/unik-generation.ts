@@ -221,20 +221,34 @@ export async function makeMockup(clean: Buffer, input: UnikGenerationInput) {
 // On-model mockup: same idea as makeMockup() but composited onto a real
 // person wearing the garment (assets/model/front-{colour}-{garment}.jpg)
 // instead of the flat/ghost-mannequin shot, so a customer can see how the
-// design actually looks worn. Zones calibrated by eye against each of the
-// four supplied photos (they're a real photoshoot, not a flat product
-// shot, so each has its own framing -- unlike makeMockup()'s zones there's
-// no single calibration tool for this yet, just per-image visual fitting).
+// design actually looks worn. Calibrated via the tee-model/hoodie-model
+// modes added to upload.html's zone calibrator (see calibrate-tee-model-
+// front.html / calibrate-hoodie-model-front.html).
+const MODEL_ZONES: Record<"tee" | "hoodie", Record<"black" | "white", PrintZone>> = {
+  tee: {
+    black: { width: 0.3646, height: 0.3579, centreX: 0.5100, top: 0.4462 },
+    white: { width: 0.3831, height: 0.3682, centreX: 0.5115, top: 0.4421 },
+  },
+  hoodie: {
+    black: { width: 0.3338, height: 0.2119, centreX: 0.4946, top: 0.4227 },
+    white: { width: 0.3200, height: 0.2103, centreX: 0.4954, top: 0.4267 },
+  },
+};
+
+// tee-budget has no on-model calibration of its own -- it reuses the tee
+// photo with the same proportional scale-down the flat tee-budget zone
+// uses relative to the flat tee zone (~69% width, ~68% height), same
+// starting-point-only caveat as that one.
+function modelZoneFor(garment: "tee" | "hoodie", colour: "black" | "white", isTeeBudget: boolean): PrintZone {
+  const base = MODEL_ZONES[garment][colour];
+  if (!isTeeBudget) return base;
+  return { width: base.width * 0.6885, height: base.height * 0.683, centreX: base.centreX, top: base.top + 0.0169 };
+}
+
 export async function makeModelMockup(clean: Buffer, input: UnikGenerationInput) {
   const garment = garmentAssetName(input.garment);
   const basePath = path.join(process.cwd(), "public", "private-templates", "unik-labs", "assets", "model", `front-${input.colour}-${garment}.jpg`);
-  const zone: PrintZone = garment === "tee"
-    ? (input.garment === "tee-budget"
-      ? { width: 0.2340, height: 0.2050, centreX: 0.5000, top: 0.4270 }
-      : { width: 0.3400, height: 0.3000, centreX: 0.5000, top: 0.4100 })
-    : input.colour === "black"
-      ? { width: 0.3200, height: 0.2200, centreX: 0.5000, top: 0.4850 }
-      : { width: 0.3200, height: 0.2100, centreX: 0.5000, top: 0.4650 };
+  const zone = modelZoneFor(garment, input.colour, input.garment === "tee-budget");
   const blend = input.colour === "black" ? "screen" : "multiply";
   return compositeOntoGarment(basePath, zone, clean, blend);
 }
