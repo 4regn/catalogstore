@@ -108,16 +108,32 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
 .s3-caption{font-size:12px;color:rgba(255,255,255,.55);line-height:1.5;opacity:0}
 .scene-3.on .s3-caption{animation:riseIn .5s ease-out 1.5s forwards}
 
-/* ══════════════ SCENE 4 — Order confirmed, you earn ══════════════ */
-.scene-4{gap:18px}
-.s4-ping{width:56px;height:56px;border-radius:50%;background:#111;border:1.5px solid rgba(74,222,128,.4);display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6)}
-.scene-4.on .s4-ping{animation:popIn .4s cubic-bezier(.3,1.5,.5,1) .1s forwards}
-.s4-ping svg{width:26px;height:26px;stroke:#4ade80;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.s4-toast{padding:9px 16px;border-radius:100px;background:rgba(0,117,23,.16);border:1px solid rgba(0,117,23,.5);font-family:'Anton',sans-serif;font-size:14px;letter-spacing:.03em;color:#4ade80;opacity:0;transform:translateY(-8px)}
-.scene-4.on .s4-toast{animation:riseIn .4s ease-out .6s forwards}
-.s4-count{font-family:'Anton',sans-serif;font-size:clamp(38px,9vw,54px);color:#fff;letter-spacing:.01em;opacity:0}
-.scene-4.on .s4-count{animation:riseIn .5s ease-out 1.05s forwards}
-.s4-count span{display:block;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-top:4px}
+/* ══════════════ SCENE 4 — Real earnings, a real partner's dashboard ══════════════ */
+/* Styled to match the actual Partner Dashboard UI (PartnerDashboardClient.tsx's
+   OverviewPanel: pnd-hero-balance / pnd-grid cards) rather than an invented
+   look -- a specific named example ("Thabiso") reads as far more real and
+   persuasive than an abstract "+R150" toast. */
+.scene-4{gap:16px}
+.s4-dash{width:84%;max-width:250px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:#111;padding:16px;display:flex;flex-direction:column;gap:12px;opacity:0;transform:translateY(14px)}
+.scene-4.on .s4-dash{animation:riseIn .5s ease-out .15s forwards}
+.s4-dash-head{display:flex;align-items:center;gap:10px;text-align:left}
+.s4-dash-avatar{width:30px;height:30px;border-radius:50%;background:#007517;color:#fff;font-family:'Anton',sans-serif;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none}
+.s4-dash-name{display:block;font-size:12px;font-weight:700}
+.s4-dash-role{display:block;font-size:9.5px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+.s4-dash-hero{background:#0a0a0a;border-radius:12px;padding:14px;text-align:left;opacity:0}
+.scene-4.on .s4-dash-hero{animation:riseIn .4s ease-out .5s forwards}
+.s4-dash-label{display:block;font-size:9.5px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em}
+.s4-dash-balance{font-family:'Anton',sans-serif;font-size:clamp(26px,7vw,32px);color:#4ade80;letter-spacing:.01em;margin:4px 0 2px}
+.s4-dash-meta{font-size:10.5px;color:rgba(255,255,255,.45)}
+.s4-dash-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.s4-dash-stat{background:#0a0a0a;border-radius:10px;padding:9px 8px;text-align:left;opacity:0;transform:translateY(8px)}
+.s4-dash-stat span{display:block;font-size:8.5px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.05em}
+.s4-dash-stat b{display:block;font-size:12px;font-weight:800;margin-top:2px}
+.scene-4.on .s4-dash-stat:nth-child(1){animation:riseIn .35s ease-out .95s forwards}
+.scene-4.on .s4-dash-stat:nth-child(2){animation:riseIn .35s ease-out 1.08s forwards}
+.scene-4.on .s4-dash-stat:nth-child(3){animation:riseIn .35s ease-out 1.21s forwards}
+.s4-caption{font-size:12px;color:rgba(255,255,255,.55);line-height:1.5;opacity:0}
+.scene-4.on .s4-caption{animation:riseIn .5s ease-out 1.5s forwards}
 
 /* ══════════════ SCENE 5 — No stock, no printing, no deliveries ══════════════ */
 .scene-5{gap:16px}
@@ -228,9 +244,23 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
         </div>
 
         <div class="scene scene-4" data-scene="3">
-          <div class="s4-ping"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
-          <div class="s4-toast">Order placed</div>
-          <div class="s4-count">R150<span>You earned</span></div>
+          <div class="s4-dash">
+            <div class="s4-dash-head">
+              <div class="s4-dash-avatar">T</div>
+              <div><span class="s4-dash-name">Thabiso's Dashboard</span><span class="s4-dash-role">UNIK Partner</span></div>
+            </div>
+            <div class="s4-dash-hero">
+              <span class="s4-dash-label">Available balance</span>
+              <div class="s4-dash-balance">R2,450</div>
+              <span class="s4-dash-meta">R380 pending</span>
+            </div>
+            <div class="s4-dash-grid">
+              <div class="s4-dash-stat"><span>Total earned</span><b>R6,120</b></div>
+              <div class="s4-dash-stat"><span>Referrals</span><b>23</b></div>
+              <div class="s4-dash-stat"><span>Rate</span><b>12%</b></div>
+            </div>
+          </div>
+          <p class="s4-caption">When someone uses your link,<br/>you earn money from the sale.</p>
         </div>
 
         <div class="scene scene-5" data-scene="4">
