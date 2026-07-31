@@ -436,6 +436,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         .bm-row-header{padding-top:0;color:#999994;font-size:8px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
         .bm-row:not(.bm-row-header){border:1px solid #222225;background:#0b0b0c}
         .bm-row-customers{grid-template-columns:minmax(100px,1.3fr) minmax(60px,.6fr) minmax(80px,.8fr) minmax(80px,.7fr)}
+        .bm-row-partners{grid-template-columns:minmax(90px,1fr) minmax(70px,.8fr) minmax(70px,.7fr) minmax(140px,1.1fr)}
         .bm-row-clickable{width:100%;color:inherit;text-align:left;cursor:pointer;transition:border-color .15s}
         .bm-row-clickable:hover{border-color:rgba(0,117,23,.3)}
         .bm-status-btn{padding:7px 14px;border-radius:100px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border:1px solid #27272a;background:#111113;color:#c0c0ba}
@@ -1553,13 +1554,13 @@ function PartnersPanel({ authedFetch, toast }: { authedFetch: (path: string, ini
 
   useEffect(() => { load(); }, [load]);
 
-  async function review(partnerId: string, action: "approve" | "reject") {
+  async function review(partnerId: string, action: "approve" | "reject" | "resend") {
     setBusyId(partnerId);
     const res = await authedFetch("/api/unik/brand-manager/partners", { method: "PATCH", body: JSON.stringify({ partnerId, action }) });
     const payload = await res.json().catch(() => ({}));
     setBusyId(null);
     if (!res.ok) { toast(payload.error || "Could not update this application"); return; }
-    toast(action === "approve" ? "Partner approved" : "Application rejected");
+    toast(action === "approve" ? "Partner approved" : action === "reject" ? "Application rejected" : "Welcome email sent");
     load();
   }
 
@@ -1593,12 +1594,17 @@ function PartnersPanel({ authedFetch, toast }: { authedFetch: (path: string, ini
         <div className="bm-section-head"><h2 className="bm-section-title">Active partners</h2><p className="bm-section-desc">Default commission rate: {defaultRate}% (per-partner override coming later)</p></div>
         {active.length === 0 ? <p className="bm-empty">No active partners yet.</p> : (
           <div className="bm-table">
-            <div className="bm-row bm-row-header"><div>Name</div><div>Code</div><div>Earned</div></div>
+            <div className="bm-row bm-row-header bm-row-partners"><div>Name</div><div>Code</div><div>Earned</div><div>Actions</div></div>
             {active.map((p) => (
-              <div className="bm-row" key={p.id}>
+              <div className="bm-row bm-row-partners" key={p.id}>
                 <div>{p.full_name}</div>
                 <div>{p.referral_code || "—"}</div>
                 <div>R{Math.round(p.total_earned_cents / 100).toLocaleString("en-ZA")}</div>
+                <div>
+                  <button type="button" disabled={busyId === p.id} onClick={() => review(p.id, "resend")} style={{ padding: "6px 12px", borderRadius: 100, border: "1px solid #3a3a3d", background: "transparent", color: "#c0c0ba", fontSize: 10.5, fontWeight: 700 }}>
+                    {busyId === p.id ? "Sending…" : "Resend welcome email"}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

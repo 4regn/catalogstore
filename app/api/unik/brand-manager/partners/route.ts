@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../lib/unik-brand-manager";
-import { sendEmail } from "../../../../../lib/email";
-import { canonicalStoreUrl } from "../../../../../lib/store-url";
+import { sendPartnerApprovalEmail, sendPartnerRejectionEmail } from "../../../../../lib/unik-partner-email";
 
 export const dynamic = "force-dynamic";
 
@@ -59,33 +58,53 @@ async function uniqueDiscountCode(sellerId: string, base: string) {
   return base.toUpperCase() + Date.now().toString(36).toUpperCase();
 }
 
-/* Approve or reject a pending partner application.
+/* Approve, reject, or re-notify a partner application.
    Approve: generates a referral code, creates a real discount_codes row
    linked back to this partner (so it works at checkout like any other
-   code, see discount_codes.partner_id), and flips status to 'active'.
+   code, see discount_codes.partner_id), flips status to 'active', and
+   emails them.
    Reject: flips status to 'suspended' -- the account still exists (so the
    person can see their application was declined if they sign in) but has
-   no working referral code or discount code. */
+   no working referral code or discount code.
+   Resend: re-sends the exact same approval email to an already-active
+   partner, using their existing referral/discount code -- for anyone
+   approved before this notification existed (see the pending->active
+   migration this shipped alongside) and never found out. */
 export async function PATCH(req: NextRequest) {
   const auth = await requireUnikBrandManager(req);
   if ("response" in auth) return auth.response;
   const { seller } = auth;
 
-  let body: { partnerId?: string; action?: "approve" | "reject" };
+  let body: { partnerId?: string; action?: "approve" | "reject" | "resend" };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
   const { partnerId, action } = body;
-  if (!partnerId || (action !== "approve" && action !== "reject")) {
+  if (!partnerId || (action !== "approve" && action !== "reject" && action !== "resend")) {
     return NextResponse.json({ error: "Missing partnerId or action" }, { status: 400 });
   }
 
   const admin = getAdmin();
   const { data: partner, error: fetchErr } = await admin
     .from("unik_partners")
-    .select("id, full_name, email, status")
+    .select("id, full_name, email, status, referral_code, commission_percent, discount_code_id")
     .eq("id", partnerId)
     .eq("seller_id", seller.id)
     .maybeSingle();
   if (fetchErr || !partner) return NextResponse.json({ error: "Partner not found" }, { status: 404 });
+
+  if (action === "resend") {
+    if (partner.status !== "active") return NextResponse.json({ error: "This partner isn't active yet" }, { status: 409 });
+    if (!partner.discount_code_id) return NextResponse.json({ error: "No discount code on file for this partner" }, { status: 409 });
+    const { data: discountRow } = await admin.from("discount_codes").select("code").eq("id", partner.discount_code_id).maybeSingle();
+    if (!discountRow) return NextResponse.json({ error: "Could not find this partner's discount code" }, { status: 500 });
+    await sendPartnerApprovalEmail({
+      seller,
+      partner: { full_name: partner.full_name, email: partner.email },
+      discountCode: discountRow.code,
+      commissionPercent: partner.commission_percent ?? DEFAULT_PARTNER_COMMISSION_PERCENT,
+    });
+    return NextResponse.json({ success: true, status: "active" });
+  }
+
   if (partner.status !== "pending") return NextResponse.json({ error: "This application has already been reviewed" }, { status: 409 });
 
   if (action === "reject") {
@@ -95,15 +114,7 @@ export async function PATCH(req: NextRequest) {
     // rather than fire-and-forget: a serverless function can freeze before
     // an un-awaited promise resolves once the response is sent, which would
     // silently drop the email. Same reasoning for the approval email below.
-    await sendEmail({
-      to: partner.email,
-      subject: `Update on your ${seller.store_name} Partner application`,
-      html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
-        ${seller.logo_url ? `<img src="${seller.logo_url}" alt="" style="height:40px;margin-bottom:16px" />` : `<h2 style="margin:0 0 12px">${seller.store_name}</h2>`}
-        <p style="margin:0 0 12px">Hi ${partner.full_name.split(" ")[0]}, thanks for your interest in becoming a ${seller.store_name} Partner.</p>
-        <p style="margin:0">We won't be moving forward with your application at this time. You're welcome to apply again in future.</p>
-      </div>`,
-    });
+    await sendPartnerRejectionEmail({ seller, partner: { full_name: partner.full_name, email: partner.email } });
     return NextResponse.json({ success: true, status: "suspended" });
   }
 
@@ -136,15 +147,11 @@ export async function PATCH(req: NextRequest) {
   // needs to tell them they're in and where to go -- no password-recovery
   // link needed, unlike the Brand Manager invite email this is otherwise
   // modelled on. Awaited for the same reason as the rejection email above.
-  await sendEmail({
-    to: partner.email,
-    subject: `You're in! Welcome as a ${seller.store_name} Partner`,
-    html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
-      ${seller.logo_url ? `<img src="${seller.logo_url}" alt="" style="height:40px;margin-bottom:16px" />` : `<h2 style="margin:0 0 12px">${seller.store_name}</h2>`}
-      <p style="margin:0 0 12px">Hi ${partner.full_name.split(" ")[0]}, your application to become a ${seller.store_name} Partner has been approved.</p>
-      <p style="margin:0 0 20px">Your referral link and discount code (<strong>${discountCode}</strong>) are ready in your dashboard.</p>
-      <a href="${canonicalStoreUrl(seller.subdomain, "/partners/login")}" style="display:inline-block;padding:12px 24px;background:#007517;color:#fff;text-decoration:none;border-radius:100px;font-weight:700">Log in to your dashboard</a>
-    </div>`,
+  await sendPartnerApprovalEmail({
+    seller,
+    partner: { full_name: partner.full_name, email: partner.email },
+    discountCode,
+    commissionPercent: partner.commission_percent ?? DEFAULT_PARTNER_COMMISSION_PERCENT,
   });
 
   return NextResponse.json({ success: true, status: "active", referralCode, discountCode });

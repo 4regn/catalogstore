@@ -71,7 +71,13 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   const [panel, setPanel] = useState<Panel>(() => {
     if (typeof window === "undefined") return "overview";
     const params = new URLSearchParams(window.location.search);
-    return params.get("paid") === "1" || params.get("cancelled") === "1" || params.get("failed") === "1" ? "studio" : "overview";
+    if (params.get("paid") === "1" || params.get("cancelled") === "1" || params.get("failed") === "1") return "studio";
+    // Lets the approval email link straight to Settings (?tab=settings)
+    // instead of dropping a freshly-approved partner on Overview and
+    // hoping they find the profile-picture/banking-details fields
+    // themselves.
+    if (params.get("tab") === "settings") return "settings";
+    return "overview";
   });
   const [recapImportId, setRecapImportId] = useState<string | null>(null);
   const [toastText, setToastText] = useState("");
@@ -232,7 +238,7 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
 
       <main className="pnd-main">
         {panel === "overview" && (
-          <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onDiscountCodeSynced={(code) => setDiscountCode((prev) => (prev ? { ...prev, code } : prev))} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} />
+          <OverviewPanel partner={partner} firstName={firstName} discountCode={discountCode} referralLink={referralLink} authedFetch={authedFetch} toast={showToast} onSaved={(p) => setPartner(p)} onDiscountCodeSynced={(code) => setDiscountCode((prev) => (prev ? { ...prev, code } : prev))} onPickPhoto={() => photoInputRef.current?.click()} uploadingPhoto={uploadingPhoto} onGoToSettings={() => setPanel("settings")} />
         )}
         {panel === "studio" && <StudioPanel authedFetch={authedFetch} toast={showToast} onSendToRecap={(id) => { setRecapImportId(id); setPanel("recap"); }} />}
         {panel === "recap" && <RecapPanel authedFetch={authedFetch} importId={recapImportId} onImported={() => setRecapImportId(null)} />}
@@ -289,6 +295,15 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
         .pnd-profile-name{font-size:18px;font-weight:700}
         .pnd-main{padding:24px 26px 60px;max-width:920px}
         .pnd-h1{font-size:22px;margin:0 0 20px;letter-spacing:-.02em;font-weight:700}
+        .pnd-nudge{padding:14px 16px;border-radius:14px;background:rgba(0,117,23,.1);border:1px solid rgba(0,117,23,.3);margin-bottom:18px}
+        .pnd-nudge-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+        .pnd-nudge-head>span{font-size:12.5px;font-weight:700;color:#fff}
+        .pnd-nudge-head button{background:none;border:0;color:#4ade80;font-size:11.5px;font-weight:700;cursor:pointer;padding:0}
+        .pnd-nudge-head button:hover{color:#7fe8a4}
+        .pnd-nudge-row{display:flex;align-items:center;gap:9px;font-size:12px;color:rgba(255,255,255,.75);padding:3px 0}
+        .pnd-nudge-check{width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);flex:none;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ade80}
+        .pnd-nudge-check.done{border-color:#4ade80;background:rgba(74,222,128,.15)}
+        .pnd-nudge-done-text{color:rgba(255,255,255,.4);text-decoration:line-through}
         .pnd-hero{margin-bottom:18px}
         .pnd-hero-balance{border-radius:20px;padding:24px 26px;background:linear-gradient(150deg,#16a34a,#007517);color:#fff;box-shadow:0 20px 46px rgba(0,117,23,.24)}
         .pnd-hero-balance-label{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.8)}
@@ -367,10 +382,48 @@ export default function PartnerDashboardClient({ storeName }: { storeName: strin
   );
 }
 
-function OverviewPanel({ partner, firstName, discountCode, referralLink, authedFetch, toast, onSaved, onDiscountCodeSynced, onPickPhoto, uploadingPhoto }: {
+// True once a partner has both a profile picture and complete payout
+// details on file -- the two things the approval email nudges them to do.
+// Checked against the actual persisted fields (not a separate "onboarding
+// complete" flag) so the nudge just naturally disappears the moment
+// they've genuinely finished, from whichever field they fill in last.
+function isProfileComplete(partner: Partner): boolean {
+  return !!(
+    partner.avatarUrl &&
+    partner.payoutAccountHolder &&
+    partner.payoutBank &&
+    partner.payoutAccountType &&
+    partner.payoutBranchCode &&
+    partner.payoutAccountLast4
+  );
+}
+
+function ProfileNudge({ partner, onGoToSettings }: { partner: Partner; onGoToSettings: () => void }) {
+  if (isProfileComplete(partner)) return null;
+  const hasPhoto = !!partner.avatarUrl;
+  const hasBanking = !!(partner.payoutAccountHolder && partner.payoutBank && partner.payoutAccountType && partner.payoutBranchCode && partner.payoutAccountLast4);
+  return (
+    <div className="pnd-nudge">
+      <div className="pnd-nudge-head">
+        <span>Finish setting up your profile</span>
+        <button type="button" onClick={onGoToSettings}>Go to Settings &#8594;</button>
+      </div>
+      <div className="pnd-nudge-row">
+        <span className={"pnd-nudge-check" + (hasPhoto ? " done" : "")}>{hasPhoto ? "✓" : ""}</span>
+        <span className={hasPhoto ? "pnd-nudge-done-text" : ""}>Upload a profile picture</span>
+      </div>
+      <div className="pnd-nudge-row">
+        <span className={"pnd-nudge-check" + (hasBanking ? " done" : "")}>{hasBanking ? "✓" : ""}</span>
+        <span className={hasBanking ? "pnd-nudge-done-text" : ""}>Add your banking details</span>
+      </div>
+    </div>
+  );
+}
+
+function OverviewPanel({ partner, firstName, discountCode, referralLink, authedFetch, toast, onSaved, onDiscountCodeSynced, onPickPhoto, uploadingPhoto, onGoToSettings }: {
   partner: Partner; firstName: string; discountCode: DiscountCode; referralLink: string;
   authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onSaved: (p: Partner) => void;
-  onDiscountCodeSynced: (code: string) => void; onPickPhoto: () => void; uploadingPhoto: boolean;
+  onDiscountCodeSynced: (code: string) => void; onPickPhoto: () => void; uploadingPhoto: boolean; onGoToSettings: () => void;
 }) {
   const [editingCode, setEditingCode] = useState(false);
   const [codeInput, setCodeInput] = useState(partner.referralCode || "");
@@ -411,6 +464,8 @@ function OverviewPanel({ partner, firstName, discountCode, referralLink, authedF
           <span className="pnd-profile-name">{firstName}</span>
         </div>
       </div>
+
+      <ProfileNudge partner={partner} onGoToSettings={onGoToSettings} />
 
       <div className="pnd-hero">
         <div className="pnd-hero-balance">
