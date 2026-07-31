@@ -389,10 +389,14 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     btnRestart.disabled = false;
     btnExport.disabled = false;
   }
-  audio.addEventListener('loadedmetadata', enableControls);
+  // Controls work with or without a real VO file -- no need to wait for
+  // one to load. If it never loads (no take recorded yet), playback falls
+  // back to a silent, plain-JS clock instead of audio.timeupdate; see
+  // hasRealAudio()/playSilent() below.
+  enableControls();
   audio.addEventListener('error', function () {
     audioLoaded.hidden = false;
-    audioLoaded.textContent = 'No voiceover loaded yet — drop one below.';
+    audioLoaded.textContent = 'No voiceover loaded yet — previewing scene timing without audio. Drop a take below once recorded.';
     audioLoaded.style.color = 'rgba(255,255,255,.4)';
   });
 
@@ -496,7 +500,22 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     return chosen;
   }
 
+  function fmtTime(sec) {
+    sec = Math.max(0, sec);
+    var m = Math.floor(sec / 60);
+    var s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // True once a real VO file has actually decoded successfully. Checked at
+  // play/restart/export time rather than cached in a flag, so it stays
+  // correct the moment a real take is dropped in via the file input.
+  function hasRealAudio() {
+    return isFinite(audio.duration) && audio.duration > 0 && !audio.error;
+  }
+
   audio.addEventListener('timeupdate', function () {
+    if (!hasRealAudio()) return; // silent mode drives scenes itself, see below
     activateScene(pickSceneForTime(audio.currentTime));
     var d = audio.duration || 0;
     timecode.textContent = fmtTime(audio.currentTime) + ' / ' + (d ? fmtTime(d) : '--:--');
@@ -511,13 +530,6 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     btnPlayPause.textContent = 'Play';
     bgMusic.pause();
   });
-
-  function fmtTime(sec) {
-    sec = Math.max(0, sec);
-    var m = Math.floor(sec / 60);
-    var s = Math.floor(sec % 60);
-    return m + ':' + (s < 10 ? '0' : '') + s;
-  }
 
   audioInput.addEventListener('change', function () {
     var file = audioInput.files && audioInput.files[0];
@@ -537,15 +549,69 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
     bgMusic.play().catch(function () {});
     btnPlayPause.textContent = 'Pause';
   }
+
+  // ── Silent-mode playback: no VO file exists (or none has been dropped
+  // in yet), so scenes are driven by a plain requestAnimationFrame clock
+  // against the same SCENES[].cue timings instead of audio.timeupdate.
+  // Background music still plays underneath -- it doesn't depend on the
+  // VO existing. Delta-accumulated (not wall-clock-since-start) so
+  // pause/resume doesn't jump.
+  var SILENT_DURATION = SCENES[SCENES.length - 1].cue + 3; // hold the last scene ~3s before stopping
+  var silentElapsed = 0;
+  var silentLastTs = 0;
+  var silentRAF = null;
+  var silentRunning = false;
+
+  function silentTick(ts) {
+    if (!silentLastTs) silentLastTs = ts;
+    silentElapsed += (ts - silentLastTs) / 1000;
+    silentLastTs = ts;
+    activateScene(pickSceneForTime(silentElapsed));
+    timecode.textContent = fmtTime(silentElapsed) + ' / ' + fmtTime(SILENT_DURATION) + ' (preview, no audio)';
+    if (silentElapsed >= SILENT_DURATION) { stopSilent(); return; }
+    silentRAF = requestAnimationFrame(silentTick);
+  }
+  function playSilent() {
+    silentRunning = true;
+    silentLastTs = 0; // reset delta baseline so the first frame after (re)starting doesn't jump
+    bgMusic.currentTime = bgMusic.currentTime || 0;
+    bgMusic.volume = Number(bgVolumeInput.value) / 100;
+    bgMusic.play().catch(function () {});
+    btnPlayPause.textContent = 'Pause';
+    cancelAnimationFrame(silentRAF);
+    silentRAF = requestAnimationFrame(silentTick);
+  }
+  function stopSilent() {
+    silentRunning = false;
+    cancelAnimationFrame(silentRAF);
+    silentRAF = null;
+    bgMusic.pause();
+    btnPlayPause.textContent = 'Play';
+  }
+  function restartSilent() {
+    stopSilent();
+    silentElapsed = 0;
+    activateScene(0);
+    timecode.textContent = '0:00 / ' + fmtTime(SILENT_DURATION) + ' (preview, no audio)';
+  }
+
   btnPlayPause.addEventListener('click', function () {
-    if (audio.paused) { playBoth(); }
-    else { audio.pause(); bgMusic.pause(); btnPlayPause.textContent = 'Play'; }
+    if (hasRealAudio()) {
+      if (audio.paused) { playBoth(); } else { audio.pause(); bgMusic.pause(); btnPlayPause.textContent = 'Play'; }
+      return;
+    }
+    if (silentRunning) { stopSilent(); } else { playSilent(); }
   });
   btnRestart.addEventListener('click', function () {
-    audio.currentTime = 0;
-    bgMusic.currentTime = 0;
-    activateScene(0);
-    playBoth();
+    if (hasRealAudio()) {
+      audio.currentTime = 0;
+      bgMusic.currentTime = 0;
+      activateScene(0);
+      playBoth();
+      return;
+    }
+    restartSilent();
+    playSilent();
   });
 
   // ── Export to an actual video file with narration baked in (desktop only) ──
@@ -630,23 +696,36 @@ body{font-family:'Inter',sans-serif;background:#050505;color:#fff;-webkit-font-s
 
         btnExport.disabled = true;
         btnExport.textContent = 'Recording…';
-        audio.currentTime = 0;
-        bgMusic.currentTime = 0;
         activateScene(0);
         recorder.start();
-        playBoth();
 
         var stopped = false;
         function stopOnce() {
           if (stopped) return;
           stopped = true;
           bgMusic.pause();
+          stopSilent();
           if (recorder.state !== 'inactive') recorder.stop();
         }
-        audio.addEventListener('ended', function onEnded() {
-          audio.removeEventListener('ended', onEnded);
-          setTimeout(stopOnce, 400);
-        });
+
+        // No VO loaded -- audio.addEventListener('ended', ...) would never
+        // fire (the source never plays), leaving the recording running
+        // until someone manually stops the screen share. Stop it on a
+        // fixed timer instead, matching the same silent-mode duration
+        // playback uses.
+        if (hasRealAudio()) {
+          audio.currentTime = 0;
+          bgMusic.currentTime = 0;
+          playBoth();
+          audio.addEventListener('ended', function onEnded() {
+            audio.removeEventListener('ended', onEnded);
+            setTimeout(stopOnce, 400);
+          });
+        } else {
+          silentElapsed = 0;
+          playSilent();
+          setTimeout(stopOnce, (SILENT_DURATION + 0.4) * 1000);
+        }
         displayStream.getVideoTracks()[0].addEventListener('ended', stopOnce);
       })
       .catch(function (err) {
