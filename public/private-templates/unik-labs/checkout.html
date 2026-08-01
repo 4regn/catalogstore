@@ -35,6 +35,18 @@
     html[data-unik-theme='dark'] .delivery-opt{color:#f4f1e9!important;border-color:#3b3d39!important}
     html[data-unik-theme='dark'] .delivery-opt-estimate{color:#979992!important}
   </style>
+  <style>
+    .payment-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:5px 0 14px}
+    .pay-option{display:grid;gap:5px;min-height:80px;padding:14px;border:1px solid #d1cec5;border-radius:13px;background:#faf9f6;color:#111;text-align:left;cursor:pointer}
+    .pay-option strong{font-size:11px;letter-spacing:.09em;text-transform:uppercase}
+    .pay-option span{color:#70736c;font-size:10px;line-height:1.45}
+    .pay-option.active{border-color:#007517;background:#f1f8f2;box-shadow:0 0 0 1px #007517}
+    .payment-note{font-size:11px;line-height:1.55;color:var(--muted);background:#f6f4ef;border-radius:10px;padding:12px;margin:4px 0 16px}
+    html[data-unik-theme='dark'] .pay-option{background:#151715;color:#f4f1e9;border-color:#3b3d39}
+    html[data-unik-theme='dark'] .pay-option span{color:#a4a79f}
+    html[data-unik-theme='dark'] .pay-option.active{background:#102516;border-color:#4eaf62;box-shadow:0 0 0 1px #4eaf62}
+    @media(max-width:480px){.payment-choice{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
   <main class="checkout-shell" id="checkoutMain">
@@ -57,6 +69,7 @@
             <div class="field"><label for="firstName">First name</label><input id="firstName" name="firstName" autocomplete="given-name" required></div>
             <div class="field"><label for="lastName">Last name</label><input id="lastName" name="lastName" autocomplete="family-name" required></div>
             <div class="field full"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+            <div class="field full"><label for="phone">Phone number</label><input id="phone" name="phone" type="tel" autocomplete="tel" required></div>
             <div class="field full" id="streetAddressField"><label for="streetAddress">Street address</label><input id="streetAddress" name="streetAddress" autocomplete="street-address" required></div>
             <div class="field" id="suburbField"><label for="suburb">Suburb</label><input id="suburb" name="suburb" autocomplete="address-level3"></div>
             <div class="field" id="townCityField"><label for="townCity">Town / City</label><input id="townCity" name="townCity" autocomplete="address-level2" required></div>
@@ -74,8 +87,13 @@
             <label>Delivery method</label>
             <div id="deliveryMethods"><div style="font-size:12px;color:var(--muted)">Loading delivery options…</div></div>
           </div>
+          <div class="payment-choice" aria-label="Choose payment method">
+            <button class="pay-option active" type="button" data-payment="yoco"><strong>Card / Yoco</strong><span>Pay the full amount securely now.</span></button>
+            <button class="pay-option" type="button" data-payment="kopa"><strong>Kopa Payments</strong><span>Use an approved limit or choose Laybuy.</span></button>
+          </div>
+          <div class="payment-note"><strong>Secure payment:</strong> complete your card payment on Yoco's encrypted checkout. UNIK Labs never sees or stores your card details.</div>
           <div id="checkoutError" class="demo-note" style="display:none;color:#8b2a20"></div>
-          <button class="place-order" id="placeOrder" type="submit">Pay with Yoco</button>
+          <button class="place-order" id="placeOrder" type="submit">Pay securely with Yoco</button>
         </form>
       </section>
     </div>
@@ -97,6 +115,9 @@
       const button = document.getElementById('placeOrder');
       const errorEl = document.getElementById('checkoutError');
       const deliveryMethodsEl = document.getElementById('deliveryMethods');
+      const paymentNote = document.querySelector('.payment-note');
+      const paymentOptions = Array.from(document.querySelectorAll('[data-payment]'));
+      let paymentMethod = 'yoco';
       const money = n => 'R' + Number(n || 0).toFixed(2);
       const safe = value => String(value || '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
       const account = UNIK_ACCOUNT.get();
@@ -109,6 +130,17 @@
 
       function showError(message){ errorEl.textContent = message; errorEl.style.display = 'block'; }
       function clearError(){ errorEl.style.display = 'none'; errorEl.textContent = ''; }
+      function setPaymentMethod(method){
+        paymentMethod = method;
+        paymentOptions.forEach(option => option.classList.toggle('active', option.dataset.payment === method));
+        if(method === 'kopa'){
+          paymentNote.innerHTML = '<strong>Kopa Payments:</strong> continue to your Kopa dashboard to use an approved limit, apply, or choose Laybuy. Your order moves into production once the selected payment route is confirmed.';
+          button.textContent = 'Continue with Kopa';
+        } else {
+          paymentNote.innerHTML = '<strong>Secure payment:</strong> complete your card payment on Yoco\'s encrypted checkout. UNIK Labs never sees or stores your card details.';
+          button.textContent = 'Pay securely with Yoco';
+        }
+      }
 
       function currentDelivery(){ return deliveryOptions[selectedDeliveryIndex] || deliveryOptions[0] || { name:'Delivery', price:0 }; }
 
@@ -181,6 +213,7 @@
         document.getElementById('grandTotal').textContent = money(subtotal + (delivery.price || 0));
         totalsEl.hidden = false;
         button.disabled = false;
+        button.textContent = paymentMethod === 'kopa' ? 'Continue with Kopa' : 'Pay securely with Yoco';
         document.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { UNIK_CART.remove(el.dataset.remove); render(); }));
         document.querySelectorAll('[data-qty-inc]').forEach(el => el.addEventListener('click', () => {
           const current = UNIK_CART.get().find(i => i.id === el.dataset.qtyInc);
@@ -213,6 +246,22 @@
           }
           if (!sessionCheck.ok) throw new Error('Could not verify your session. Please try again.');
 
+          if (paymentMethod === 'kopa') {
+            const subtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+            sessionStorage.setItem('unik-kopa-checkout-draft-v1', JSON.stringify({
+              items,
+              customer: { firstName:data.firstName, lastName:data.lastName, email:data.email, phone:data.phone },
+              address: { address:data.streetAddress, suburb:data.suburb, city:data.townCity, province:data.province, postal_code:data.postal },
+              deliveryMethod: { name:delivery.name, isPickup:!!delivery.isPickup, price:Number(delivery.price)||0 },
+              subtotal,
+              delivery:Number(delivery.price)||0,
+              total:subtotal + (Number(delivery.price)||0),
+              createdAt:new Date().toISOString()
+            }));
+            window.top.location.href = '/private-templates/unik-labs/kopa.html?view=checkout';
+            return;
+          }
+
           button.textContent = 'Starting secure payment…';
           const response = await fetch('/api/unik/checkout/create', {
             method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
@@ -221,7 +270,7 @@
                 ? { customUpload: item.options.customUpload, qty: item.qty || 1, preview: item.preview }
                 : { designId: item.options.designId, qty: item.qty || 1 }),
               customer: {
-                firstName:data.firstName, lastName:data.lastName, email:data.email,
+                firstName:data.firstName, lastName:data.lastName, email:data.email, phone:data.phone,
                 streetAddress:data.streetAddress, suburb:data.suburb, townCity:data.townCity, province:data.province, postal:data.postal,
               },
               deliveryMethod: { name: delivery.name, isPickup: !!delivery.isPickup },
@@ -235,9 +284,10 @@
         } catch (error) {
           showError(error.message || 'Could not start payment. Please try again.');
           button.disabled = false;
-          button.textContent = 'Pay with Yoco';
+          button.textContent = paymentMethod === 'kopa' ? 'Continue with Kopa' : 'Pay securely with Yoco';
         }
       });
+      paymentOptions.forEach(option => option.addEventListener('click', () => setPaymentMethod(option.dataset.payment)));
 
       function showPaymentResult(state, info){
         document.getElementById('checkoutMain').style.display = 'none';
