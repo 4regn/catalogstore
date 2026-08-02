@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, InputHTMLAttributes, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 
 // Same in-page forgot/recovery pattern already fixed on the Partner and
@@ -8,6 +8,29 @@ import { supabase } from "../../../lib/supabase";
 // redirects back here with a recovery session -> PASSWORD_RECOVERY ->
 // set new password), rather than linking off to a page that may not
 // exist for this route tree.
+// Lets an admin confirm what they actually typed before submitting --
+// wraps a password <input> with a show/hide toggle, same treatment as
+// every SETLA customer-facing password field (public/setla/setla.css's
+// .password-wrap/.password-toggle).
+function PasswordField({ label, ...inputProps }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <label>
+      {label}
+      <div className="sal-password-wrap">
+        <input {...inputProps} type={visible ? "text" : "password"} />
+        <button type="button" className="sal-password-toggle" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible((v) => !v)}>
+          {visible ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.24 4.24M9.9 4.24A10.4 10.4 0 0 1 12 4c6.5 0 10 7 10 7a13.3 13.3 0 0 1-2.7 3.9M6.6 6.6A13.4 13.4 0 0 0 2 11s3.5 7 10 7c1.3 0 2.5-.2 3.6-.6" /></svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+          )}
+        </button>
+      </div>
+    </label>
+  );
+}
+
 export default function SetlaAdminLoginClient() {
   const [view, setView] = useState<"form" | "forgot" | "recovery">("form");
   const [busy, setBusy] = useState(false);
@@ -93,8 +116,8 @@ export default function SetlaAdminLoginClient() {
           <>
             <h1>Set a new password</h1>
             <form onSubmit={recoverySubmit}>
-              <label>New password<input type="password" value={recoveryPassword} onChange={(e) => setRecoveryPassword(e.target.value)} minLength={8} autoComplete="new-password" autoFocus required /></label>
-              <label>Confirm new password<input type="password" value={recoveryConfirm} onChange={(e) => setRecoveryConfirm(e.target.value)} minLength={8} autoComplete="new-password" required /></label>
+              <PasswordField label="New password" value={recoveryPassword} onChange={(e) => setRecoveryPassword(e.target.value)} minLength={8} autoComplete="new-password" autoFocus required />
+              <PasswordField label="Confirm new password" value={recoveryConfirm} onChange={(e) => setRecoveryConfirm(e.target.value)} minLength={8} autoComplete="new-password" required />
               {error && <p className="sal-error">{error}</p>}
               <button className="sal-primary" disabled={busy}>{busy ? "Updating…" : "Update password"}</button>
             </form>
@@ -121,7 +144,7 @@ export default function SetlaAdminLoginClient() {
             <h1>Admin sign in</h1>
             <form onSubmit={submit}>
               <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
-              <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
+              <PasswordField label="Password" name="password" autoComplete="current-password" required />
               {error && <p className="sal-error">{error}</p>}
               <button className="sal-primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
             </form>
@@ -140,6 +163,11 @@ export default function SetlaAdminLoginClient() {
         .sal-card label{display:grid;gap:7px;color:#9ba29b;font-size:9px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}
         .sal-card input{min-height:46px;padding:0 13px;color:#fff;border:1px solid #2a2f2a;border-radius:12px;outline:none;background:#0d100d;font-size:14px;width:100%}
         .sal-card input:focus{border-color:rgba(0,117,23,.6);box-shadow:0 0 0 3px rgba(0,117,23,.12)}
+        .sal-password-wrap{position:relative}
+        .sal-password-wrap input{padding-right:42px}
+        .sal-password-toggle{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;background:transparent;color:#8b938b;cursor:pointer;display:grid;place-items:center;border-radius:8px}
+        .sal-password-toggle:hover{color:#fff;background:#181c18}
+        .sal-password-toggle svg{width:17px;height:17px}
         .sal-sub{margin:0 0 20px;color:#9ba29b;font-size:13px;line-height:1.55}
         .sal-error{margin:0;color:#ff8b84;font-size:12px;line-height:1.5}
         .sal-primary{margin-top:4px;min-height:46px;border:1px solid #007517;border-radius:13px;background:#007517;color:#fff;font-weight:800;cursor:pointer;box-shadow:0 12px 30px rgba(0,117,23,.22)}

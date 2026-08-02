@@ -61,6 +61,19 @@
     return await dashRes.json().catch(()=>null);
   }
   function requireAccount(next=location.pathname.split('/').pop()+location.search){if(currentAccount())return true;location.href=`login.html?next=${encodeURIComponent(next)}`;return false}
+  // Show/hide toggle for every password field -- lets a customer confirm
+  // what they actually typed before submitting, especially on mobile
+  // keyboards. data-toggle-password points at the input's id.
+  document.querySelectorAll('[data-toggle-password]').forEach(btn=>{
+    const input=document.getElementById(btn.dataset.togglePassword);
+    if(!input)return;
+    btn.addEventListener('click',()=>{
+      const nowVisible=input.type==='password';
+      input.type=nowVisible?'text':'password';
+      btn.classList.toggle('is-visible',nowVisible);
+      btn.setAttribute('aria-label',nowVisible?'Hide password':'Show password');
+    });
+  });
   document.querySelectorAll('[data-copy-next]').forEach(link=>{const next=safeNext();if(next)link.href=`${link.getAttribute('href')}?next=${encodeURIComponent(next)}`});
   const authError=document.getElementById('authError');
   const showAuthError=message=>{if(!authError)return;authError.textContent=message;authError.classList.add('show')};

@@ -55,7 +55,12 @@ export async function POST(req: NextRequest) {
   const { customer } = auth;
 
   const ip = getClientIP(req);
-  if (!rateLimit("setla-apply:" + ip, 3, 3600).allowed || !rateLimit("setla-apply:" + customer.id, 3, 3600).allowed) {
+  // IP-scoped limit is generous on purpose -- it's a spam/abuse backstop,
+  // not the real fraud check (that's the SA ID Luhn + duplicate-ID-number
+  // check below). A tight per-IP cap also wrongly punishes anyone behind
+  // a shared/NAT'd connection (an office, a family, mobile carrier-grade
+  // NAT) where several different real customers share one address.
+  if (!rateLimit("setla-apply:" + ip, 15, 3600).allowed || !rateLimit("setla-apply:" + customer.id, 5, 3600).allowed) {
     return NextResponse.json({ error: "Too many applications submitted. Please try again later." }, { status: 429 });
   }
 
