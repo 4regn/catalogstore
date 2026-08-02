@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { OverviewPanel as SetlaOverviewPanel, ApplicationsPanel as SetlaApplicationsPanel, BankAccountsPanel as SetlaBankAccountsPanel, CustomersPanel as SetlaCustomersPanel, AdminsPanel as SetlaAdminsPanel } from "../../../setla-admin/SetlaReviewPanels";
 
 type Manager = {
   fullName: string;
@@ -45,7 +46,7 @@ type SessionAnalytics = {
   topLocations: { country: string; region: string; city: string; count: number }[];
 };
 
-type Panel = "overview" | "sales" | "customers" | "followups" | "growth" | "studio" | "content" | "support" | "partners" | "academy" | "settings";
+type Panel = "overview" | "sales" | "customers" | "followups" | "growth" | "studio" | "content" | "support" | "partners" | "setla" | "academy" | "settings";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Brand Manager overview",
@@ -57,6 +58,7 @@ const PANEL_TITLES: Record<Panel, string> = {
   content: "Recap Builder",
   support: "Live Support",
   partners: "Partners",
+  setla: "SETLA Payments",
   academy: "UNIK Academy",
   settings: "Settings",
 };
@@ -71,6 +73,7 @@ const MOBILE_NAV_LABELS: Record<Panel, string> = {
   content: "Recap",
   support: "Support",
   partners: "Partners",
+  setla: "SETLA",
   academy: "Academy",
   settings: "Settings",
 };
@@ -85,6 +88,7 @@ const NAV_ICON_PATHS: Record<Panel, string> = {
   content: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM10 9l5 3-5 3Z",
   support: "M4 5h16v11H8l-4 4Z",
   partners: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM3 21c0-3.5 2.7-6 6-6s6 2.5 6 6M16 11a3.5 3.5 0 1 0 0-7M21 21c0-3-1.8-5.2-4.5-5.8",
+  setla: "M3 5h18v14H3ZM3 10h18M7 15h4",
   academy: "M5 4h14v16H5ZM8 8h8M8 12h6",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a8 8 0 0 0-1.8 1l-2.4-1-2 3.4L5.1 11a7 7 0 0 0 0 2L3 14.5l2 3.4 2.4-1a8 8 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.5a7 7 0 0 0 .1-1Z",
 };
@@ -367,6 +371,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
         {panel === "content" && <ContentPanel />}
         {panel === "support" && <SupportPanel authedFetch={authedFetch} />}
         {panel === "partners" && <PartnersPanel authedFetch={authedFetch} toast={showToast} />}
+        {panel === "setla" && <SetlaPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "academy" && <AcademyPanel />}
         {panel === "settings" && <SettingsPanel manager={overview.manager} authedFetch={authedFetch} onProfileSaved={(m) => setOverview({ ...overview, manager: m })} toast={showToast} />}
       </main>
@@ -1679,6 +1684,96 @@ function SendPartnerEmailCard({ partners, busyId, onSend }: { partners: PartnerR
         </div>
       )}
     </article>
+  );
+}
+
+type SetlaSubPanel = "overview" | "applications" | "bank-accounts" | "customers" | "admins";
+
+const SETLA_SUB_PANEL_LABELS: Record<SetlaSubPanel, string> = {
+  overview: "Overview",
+  applications: "Applications",
+  "bank-accounts": "Bank accounts",
+  customers: "Customers",
+  admins: "Admins",
+};
+
+// Reuses the exact same review UI as the standalone /setla-admin dashboard
+// (app/setla-admin/SetlaReviewPanels.tsx) -- this Brand Manager login is
+// accepted by every /api/setla/admin/* route as an equivalent, always-
+// super_admin identity (see lib/setla-admin.ts), so no separate SETLA
+// account is needed for the one person running both today. The standalone
+// /setla-admin dashboard still exists too, for a future dedicated reviewer
+// who isn't also a Brand Manager.
+function SetlaPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [sub, setSub] = useState<SetlaSubPanel>("overview");
+
+  return (
+    <section>
+      <div className="bm-section-head" style={{ marginBottom: 16 }}>
+        <p className="bm-section-desc">SETLA Payments application review, bank verification and admin management -- the same tools as the standalone SETLA admin dashboard.</p>
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+        {(Object.keys(SETLA_SUB_PANEL_LABELS) as SetlaSubPanel[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setSub(key)}
+            style={{
+              padding: "8px 14px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer",
+              border: sub === key ? "1px solid #007517" : "1px solid #27272a",
+              background: sub === key ? "#123418" : "transparent",
+              color: "#fff",
+            }}
+          >
+            {SETLA_SUB_PANEL_LABELS[key]}
+          </button>
+        ))}
+      </div>
+      {sub === "overview" && <SetlaOverviewPanel authedFetch={authedFetch} />}
+      {sub === "applications" && <SetlaApplicationsPanel authedFetch={authedFetch} toast={toast} />}
+      {sub === "bank-accounts" && <SetlaBankAccountsPanel authedFetch={authedFetch} toast={toast} />}
+      {sub === "customers" && <SetlaCustomersPanel authedFetch={authedFetch} />}
+      {sub === "admins" && <SetlaAdminsPanel authedFetch={authedFetch} toast={toast} role="super_admin" />}
+
+      <style jsx global>{`
+        .sad-card{padding:20px;border:1px solid #27272a;border-radius:20px;background:linear-gradient(145deg,rgba(18,18,20,.98),rgba(11,11,12,.98));margin-bottom:16px}
+        .sad-empty{color:#999994;font-size:12.5px}
+        .sad-grid-4{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:22px}
+        .sad-stat strong{display:block;font-size:30px;letter-spacing:-.03em;color:#fff}
+        .sad-stat small{color:#999994;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em}
+        .sad-table{display:grid;gap:8px}
+        .sad-row{display:grid;gap:10px;padding:13px 14px;border-radius:13px;background:rgba(255,255,255,.02);font-size:12.5px;align-items:center;cursor:pointer;color:#fff}
+        .sad-row:hover{background:rgba(255,255,255,.05)}
+        .sad-row-header{cursor:default;color:#999994;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;background:transparent}
+        .sad-row-header:hover{background:transparent}
+        .sad-badge{display:inline-block;padding:4px 9px;border-radius:999px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+        .sad-badge.pending{background:rgba(234,179,8,.14);color:#facc15}
+        .sad-badge.approved,.sad-badge.verified{background:rgba(0,117,23,.16);color:#4ade80}
+        .sad-badge.declined,.sad-badge.rejected{background:rgba(239,68,68,.14);color:#ff8b84}
+        .sad-badge.manual_review{background:rgba(96,165,250,.14);color:#60a5fa}
+        .sad-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+        .sad-tab{padding:8px 14px;border-radius:999px;border:1px solid #27272a;background:transparent;color:#999994;font-size:11px;font-weight:700;cursor:pointer}
+        .sad-tab.active{background:#123418;border-color:#123418;color:#fff}
+        .sad-btn{padding:9px 16px;border-radius:11px;border:1px solid #007517;background:#007517;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}
+        .sad-btn:disabled{opacity:.5;cursor:wait}
+        .sad-btn-outline{padding:9px 16px;border-radius:11px;border:1px solid #27272a;background:transparent;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}
+        .sad-btn-danger{padding:9px 16px;border-radius:11px;border:1px solid rgba(239,68,68,.4);background:transparent;color:#ff8b84;font-size:11.5px;font-weight:800;cursor:pointer}
+        .sad-detail-back{background:none;border:0;color:#999994;font-size:11.5px;cursor:pointer;margin-bottom:16px;padding:0}
+        .sad-detail-back:hover{color:#fff}
+        .sad-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+        .sad-field{font-size:12px;color:#fff}
+        .sad-field small{display:block;color:#999994;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+        .sad-docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:14px}
+        .sad-doc-card{border:1px solid #27272a;border-radius:14px;overflow:hidden;background:#111113}
+        .sad-doc-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#111}
+        .sad-doc-card .sad-doc-meta{padding:10px 12px;color:#fff}
+        .sad-doc-card .sad-doc-meta strong{display:block;font-size:11px;text-transform:capitalize}
+        .sad-input,.sad-select,.sad-textarea{width:100%;min-height:42px;padding:0 12px;color:#fff;border:1px solid #27272a;border-radius:11px;outline:none;background:#111113;font-size:13px}
+        .sad-textarea{min-height:80px;padding:10px 12px}
+        .sad-form-row{display:grid;gap:8px;margin-bottom:12px}
+        .sad-form-row label{font-size:10px;color:#999994;text-transform:uppercase;letter-spacing:.06em}
+      `}</style>
+    </section>
   );
 }
 
