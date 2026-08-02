@@ -150,6 +150,40 @@
   const captureConfirmText=document.getElementById('captureConfirmText');
   const TARGET_RATIO=3/4; // width/height -- matches .camera's aspect-ratio in setla.css
   let stream=null,captured=false,capturedBlob=null,previewUrl=null;
+  let applyInflight=null; // {applicationId,bucket,uploads} from /api/setla/apply/start, kept only in memory so a mid-page retry (transient upload failure) resumes instead of re-submitting the whole form -- a real page reload starts clean, which is fine since the file inputs are empty again anyway (browsers never restore those)
+  let sbClientPromise=null;
+  // Lazily loads a plain Supabase client (anon key only, no session needed)
+  // for uploadToSignedUrl -- only apply.html loads the CDN SDK this needs.
+  function getSbClient(){
+    if(!sbClientPromise)sbClientPromise=fetch('/api/setla/config').then(r=>r.json()).then(cfg=>{
+      if(!cfg.supabaseUrl||!cfg.supabaseAnonKey)throw new Error('Missing SETLA config');
+      return supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
+    });
+    return sbClientPromise;
+  }
+  // Uploads go straight from this browser to Supabase Storage, never through
+  // our own API -- Vercel Functions cap request bodies at 4.5MB, and real
+  // phone photos/PDFs for 5 documents routinely blow past that combined,
+  // which is what was making submission hang and then silently fail.
+  // Returns {type: errorMessage} for whatever failed -- /api/setla/apply/
+  // finish is still the real source of truth (it re-checks Storage
+  // directly), so a retry that re-hits an already-consumed upload token
+  // for a file that actually succeeded the first time just fails
+  // harmlessly here and finish won't report it missing.
+  async function uploadDocuments(uploads,fileMap,bucket){
+    const sb=await getSbClient();
+    const errors={};
+    await Promise.all(Object.entries(fileMap).map(async([type,file])=>{
+      const target=uploads[type];
+      if(!file||!target)return;
+      try{
+        const{error}=await sb.storage.from(bucket).uploadToSignedUrl(target.path,target.token,file,{contentType:file.type||'application/octet-stream'});
+        if(error)errors[type]=error.message;
+      }catch(err){errors[type]=err instanceof Error?err.message:'Upload failed'}
+    }));
+    return errors;
+  }
+  const DOCUMENT_LABELS={id_document:'ID document',live_selfie:'live selfie',proof_of_address:'proof of address',proof_of_banking:'proof of banking',bank_statement:'bank statement'};
 
   function stopStream(){stream?.getTracks().forEach(track=>track.stop());stream=null}
 
@@ -231,14 +265,34 @@
     event.preventDefault();
     if(!captured||!capturedBlob){setlaToast('Complete the live identity check before submitting.');return}
     const submitBtn=form.querySelector('button[type="submit"]');
-    const data=new FormData(form);
-    // The server only ever looks for a field literally named "selfie".
-    data.set('selfie',capturedBlob,'live-selfie.jpg');
     if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting…'}
     try{
-      const res=await fetch('/api/setla/apply',{method:'POST',credentials:'include',body:data});
-      const payload=await res.json().catch(()=>({}));
-      if(!res.ok){setlaToast(payload.error||'Could not submit your application');return}
+      if(!applyInflight){
+        const data=new FormData(form);
+        const fields={};
+        ['firstName','lastName','email','phone','idNumber','address','city','province','postal','income','expenses','bank','accountHolder','accountNumber','accountType'].forEach(name=>{fields[name]=data.get(name)});
+        const startRes=await fetch('/api/setla/apply/start',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});
+        const startPayload=await startRes.json().catch(()=>({}));
+        if(!startRes.ok){setlaToast(startPayload.error||'Could not submit your application');return}
+        applyInflight={applicationId:startPayload.applicationId,bucket:startPayload.bucket,uploads:startPayload.uploads};
+      }
+      if(submitBtn)submitBtn.textContent='Uploading documents…';
+      const fileMap={
+        id_document:form.elements.idDocument?.files?.[0],
+        proof_of_address:form.elements.addressProof?.files?.[0],
+        proof_of_banking:form.elements.bankProof?.files?.[0],
+        bank_statement:form.elements.statement?.files?.[0],
+        live_selfie:capturedBlob,
+      };
+      const uploadErrors=await uploadDocuments(applyInflight.uploads,fileMap,applyInflight.bucket);
+      const finishRes=await fetch('/api/setla/apply/finish',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({applicationId:applyInflight.applicationId})});
+      const finishPayload=await finishRes.json().catch(()=>({}));
+      if(!finishRes.ok){
+        const missing=(finishPayload.missing||[]).map(type=>uploadErrors[type]?`${DOCUMENT_LABELS[type]||type} (${uploadErrors[type]})`:DOCUMENT_LABELS[type]||type);
+        setlaToast(missing.length?`Couldn't upload: ${missing.join(', ')}. Please try again.`:(finishPayload.error||'Some documents could not be uploaded. Please try again.'));
+        return;
+      }
+      applyInflight=null;
       stream?.getTracks().forEach(track=>track.stop());
       location.href='dashboard.html?submitted=1';
     }catch(_){

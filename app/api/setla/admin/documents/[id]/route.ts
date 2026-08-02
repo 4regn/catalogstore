@@ -29,8 +29,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const fileRes = await fetch(signed.signedUrl);
   if (!fileRes.ok) return NextResponse.json({ error: "Could not load this document" }, { status: 502 });
   const bytes = await fileRes.arrayBuffer();
-  const ext = doc.storage_path.split(".").pop() || "bin";
-  const contentType = fileRes.headers.get("content-type") || (ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg");
+  const contentType = fileRes.headers.get("content-type") || "application/octet-stream";
+  // storage_path may or may not carry a file extension (newer uploads go
+  // straight from the browser to Storage and are saved extension-less --
+  // see app/api/setla/apply/start), so the filename extension is derived
+  // from the real content-type instead of parsed off the path.
+  const ext = contentType === "application/pdf" ? "pdf" : contentType === "image/png" ? "png" : "jpg";
 
   return new NextResponse(bytes, {
     headers: {
