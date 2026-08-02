@@ -128,28 +128,98 @@
   document.querySelectorAll('.choice input').forEach(input=>input.addEventListener('change',()=>document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',Boolean(choice.querySelector('input')?.checked)))));
   const form=document.getElementById('applicationForm');
   const video=document.getElementById('identityVideo');
+  const preview=document.getElementById('identityPreview');
   const frame=document.getElementById('cameraFrame');
   const status=document.getElementById('verificationStatus');
   const start=document.getElementById('startIdentityCamera');
   const capture=document.getElementById('captureIdentity');
+  const retake=document.getElementById('retakeIdentity');
   const canvas=document.getElementById('identityCanvas');
   const fallback=document.getElementById('selfieFallback');
-  let stream=null,captured=false,capturedBlob=null;
+  const TARGET_RATIO=3/4; // width/height -- matches .camera's aspect-ratio in setla.css
+  let stream=null,captured=false,capturedBlob=null,previewUrl=null;
+
+  function stopStream(){stream?.getTracks().forEach(track=>track.stop());stream=null}
+
+  // idle: nothing captured yet, camera off. streaming: live camera showing,
+  // ready to capture. captured: a real preview of what was actually saved,
+  // so the customer can see it (and retake it) before it's ever uploaded --
+  // previously there was no way to see the captured shot at all.
+  function setCameraState(next){
+    if(next==='idle'){
+      video.hidden=false;preview.hidden=true;frame.classList.remove('ready','captured');
+      start.hidden=false;capture.hidden=false;capture.disabled=true;retake.hidden=true;
+      status.textContent='Not started';
+    }else if(next==='streaming'){
+      video.hidden=false;preview.hidden=true;frame.classList.add('ready');frame.classList.remove('captured');
+      start.hidden=true;capture.hidden=false;capture.disabled=false;retake.hidden=true;
+      status.textContent='Camera ready';
+    }else if(next==='captured'){
+      video.hidden=true;preview.hidden=false;frame.classList.add('ready','captured');
+      start.hidden=true;capture.hidden=true;retake.hidden=false;
+      status.textContent='Selfie captured';
+    }
+  }
+
   async function startCamera(){
-    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});video.srcObject=stream;await video.play();frame.classList.add('ready');capture.disabled=false;status.textContent='Camera ready'}
-    catch(error){status.textContent='Upload selfie';setlaToast('Camera access was unavailable. Please upload a recent selfie instead.')}
+    try{
+      // Ask for a portrait-oriented stream to match the 3:4 frame -- most
+      // cameras (especially laptops) can't truly deliver this, but this at
+      // least gets the closest match the hardware supports; captureSelfie()
+      // below does the real work of cropping to exactly 3:4 regardless of
+      // what the camera actually hands back.
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:720},height:{ideal:960},aspectRatio:{ideal:TARGET_RATIO}},audio:false});
+      video.srcObject=stream;await video.play();
+      setCameraState('streaming');
+    }catch(error){
+      status.textContent='Upload selfie';
+      setlaToast('Camera access was unavailable. Please upload a recent selfie instead.');
+    }
   }
+
   function captureSelfie(){
-    canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);
-    // Actually read the frame into a real uploadable file -- previously this
-    // canvas was drawn to and never read from again, so a "captured" selfie
-    // never actually left the browser. toBlob is the real capture step.
-    canvas.toBlob(blob=>{capturedBlob=blob},'image/jpeg',0.92);
-    captured=true;status.textContent='Selfie captured';frame.classList.add('captured');stream?.getTracks().forEach(track=>track.stop());capture.disabled=true;start.textContent='Retake selfie';
+    const vw=video.videoWidth,vh=video.videoHeight;
+    // Center-crop whatever the camera actually delivered down to exactly
+    // 3:4, matching what object-fit:cover already shows the customer in
+    // the preview box -- without this, a landscape camera's raw frame
+    // (e.g. 4:3 or 16:9) would be saved uncropped, showing more (or less)
+    // than what was actually framed on screen.
+    let sx,sy,sw,sh;
+    if(vw/vh>TARGET_RATIO){sh=vh;sw=vh*TARGET_RATIO;sx=(vw-sw)/2;sy=0}
+    else{sw=vw;sh=vw/TARGET_RATIO;sx=0;sy=(vh-sh)/2}
+    canvas.width=720;canvas.height=960;
+    // Note: drawImage() reads the video's real decoded frame, not its
+    // on-screen CSS appearance -- the live preview is mirrored with
+    // transform:scaleX(-1) purely so framing yourself feels like a mirror,
+    // but that CSS transform has no effect here, so the saved photo is
+    // already the correct, non-mirrored orientation without any extra flip.
+    canvas.getContext('2d').drawImage(video,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+    canvas.toBlob(blob=>{
+      capturedBlob=blob;
+      if(previewUrl)URL.revokeObjectURL(previewUrl);
+      previewUrl=URL.createObjectURL(blob);
+      preview.src=previewUrl;
+    },'image/jpeg',0.92);
+    captured=true;
+    stopStream();
+    setCameraState('captured');
   }
-  start?.addEventListener('click',()=>{captured=false;capturedBlob=null;frame?.classList.remove('captured');startCamera()});
+
+  start?.addEventListener('click',startCamera);
   capture?.addEventListener('click',captureSelfie);
-  fallback?.addEventListener('change',()=>{if(fallback.files.length){captured=true;capturedBlob=null;status.textContent='Selfie selected'}});
+  retake?.addEventListener('click',()=>{captured=false;capturedBlob=null;setCameraState('idle');startCamera()});
+  fallback?.addEventListener('change',()=>{
+    if(fallback.files.length){
+      captured=true;capturedBlob=null;
+      status.textContent='Selfie selected';
+      stopStream();
+      if(previewUrl)URL.revokeObjectURL(previewUrl);
+      previewUrl=URL.createObjectURL(fallback.files[0]);
+      preview.src=previewUrl;
+      setCameraState('captured');
+    }
+  });
+  setCameraState('idle');
   const applicationAccount=currentAccount();
   if(form&&applicationAccount){const parts={firstName:applicationAccount.firstName,lastName:applicationAccount.lastName,email:applicationAccount.email,phone:applicationAccount.phone};Object.entries(parts).forEach(([name,value])=>{const input=form.elements[name];if(input&&value)input.value=value})}
   form?.addEventListener('submit',async event=>{
@@ -192,7 +262,11 @@
     const firstName=account.firstName||account.name?.split(' ')[0]||'there',fullName=account.name||[account.firstName,account.lastName].filter(Boolean).join(' ')||'Customer';
     document.getElementById('welcomeName').textContent=`Welcome, ${firstName}.`;document.getElementById('welcomeEmail').textContent=account.email||'';
     document.getElementById('accountStatus').innerHTML=`<span></span>${approved?'Active account':pending?'Application in review':'Application required'}`;
-    document.getElementById('availableLimit').textContent=money(available);document.getElementById('limitProgress').style.width=`${approvedLimit?Math.max(0,Math.min(100,(approvedLimit-available)/approvedLimit*100)):0}%`;
+    // Bar represents spending POWER remaining, not amount used -- starts
+    // full (100% = full approved limit still available) and depletes
+    // toward 0 as the customer spends, like a fuel/battery gauge, matching
+    // the "Available spending limit" label above it.
+    document.getElementById('availableLimit').textContent=money(available);document.getElementById('limitProgress').style.width=`${approvedLimit?Math.max(0,Math.min(100,available/approvedLimit*100)):0}%`;
     document.getElementById('limitCaption').textContent=approved?`${money(approvedLimit-available)} used of your ${money(approvedLimit)} approved limit`:pending?'Your personal limit will appear after review.':'Complete your application to discover your personal limit.';
     document.getElementById('accountState').innerHTML=approved?'':`<section class="card account-state-card"><div><div class="card-kicker">${pending?'Application received':'Next step'}</div><h2>${pending?'We are reviewing your application.':'Complete your SETLA application.'}</h2><p>${pending?'We will email you when a decision and personal limit are ready. SETLA Laybuy remains available at checkout.':'Submit your identity, affordability and banking information to be considered for Pay Later.'}</p></div><a class="button ${pending?'outline':'primary'}" href="${pending?'#support':'apply.html'}" ${pending?'data-view="support"':''}>${pending?'Speak to support':'Start application'}</a></section>`;
     const next=(latest?.schedule||[])[0];document.getElementById('nextPaymentCard').innerHTML=next?`<div class="card-kicker">Coming up</div><h2>Next payment</h2><div class="due-amount">${money(next.amount)}</div><p>${escapeHTML(next.date)} · Order ${escapeHTML(latest.id)}</p><button class="button primary" data-view="${latest.methodCode==='laybuy'?'laybuy':'plans'}">Manage payment plan</button>`:`<div class="card-kicker">Coming up</div><h2>No payment due</h2><p>Your next confirmed payment will appear here.</p>`;
@@ -280,19 +354,74 @@
     setlaToast('All notifications marked as read.');
   });
 
-  document.getElementById('chatForm')?.addEventListener('submit',event=>{
-    event.preventDefault();
-    const input=document.getElementById('chatInput');
-    const message=input?.value.trim();
-    if(!message)return;
-    const bubble=document.createElement('div');
-    bubble.className='message customer';
-    bubble.innerHTML=`${message.replace(/[&<>]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[char]))}<small>Now</small>`;
-    document.getElementById('chatMessages')?.appendChild(bubble);
-    input.value='';
-    bubble.scrollIntoView({behavior:'smooth',block:'nearest'});
-    setTimeout(()=>setlaToast('Message sent to SETLA Support.'),150);
-  });
+  // Real support chat -- reuses the exact same support_conversations/
+  // support_messages system the UNIK storefront's own chat widget uses
+  // (store.js's initSupportChat -- see supportSeller()/supportVisitorId()
+  // there for the identical pattern), just filed under category:'setla'
+  // so it lands in Brand Manager's inbox alongside storefront/partner
+  // chats instead of a fourth, separate, never-actually-reachable system.
+  (function initSetlaChat(){
+    const chatForm=document.getElementById('chatForm');
+    const chatInput=document.getElementById('chatInput');
+    const chatMessages=document.getElementById('chatMessages');
+    if(!chatForm||!chatMessages)return;
+    const VISITOR_KEY='setla-support-visitor-v1';
+    const CONVERSATION_KEY='setla-support-conversation-v1';
+    let sellerId=null,pollTimer=null;
+
+    function visitorId(){
+      let id=null;
+      try{id=localStorage.getItem(VISITOR_KEY)}catch(_){}
+      if(!id){id='v-'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);try{localStorage.setItem(VISITOR_KEY,id)}catch(_){}}
+      return id;
+    }
+    async function resolveSeller(){
+      if(sellerId)return sellerId;
+      try{const res=await fetch('/api/seller-public?slug=unik');const data=await res.json();sellerId=data.id||null}catch(_){}
+      return sellerId;
+    }
+    function paint(messages){
+      if(!messages.length)return; // keep the static greeting until a real reply/message exists
+      chatMessages.innerHTML=messages.map(m=>`<div class="message ${m.sender==='visitor'?'customer':'agent'}">${escapeHTML(m.body)}</div>`).join('');
+      chatMessages.scrollTop=chatMessages.scrollHeight;
+    }
+    async function poll(){
+      let conversationId=null;
+      try{conversationId=localStorage.getItem(CONVERSATION_KEY)}catch(_){}
+      if(!conversationId)return;
+      try{
+        const res=await fetch(`/api/support/messages?conversationId=${encodeURIComponent(conversationId)}&visitorId=${encodeURIComponent(visitorId())}`);
+        const data=await res.json();
+        if(data.messages)paint(data.messages);
+      }catch(_){}
+    }
+
+    chatForm.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const message=chatInput?.value.trim();
+      if(!message)return;
+      chatInput.value='';
+      const account=currentAccount();
+      let conversationId=null;
+      try{conversationId=localStorage.getItem(CONVERSATION_KEY)}catch(_){}
+      try{
+        const seller=await resolveSeller();
+        const res=await fetch('/api/support/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          visitorId:visitorId(),conversationId:conversationId||undefined,message,
+          name:account?.name,email:account?.email,category:'setla',storefrontSellerId:seller,
+        })});
+        const data=await res.json();
+        if(data.conversationId){try{localStorage.setItem(CONVERSATION_KEY,data.conversationId)}catch(_){}}
+      }catch(_){
+        setlaToast('Could not send your message. Please try again.');
+      }
+      poll();
+    });
+
+    poll();
+    clearInterval(pollTimer);
+    pollTimer=setInterval(poll,5000);
+  })();
 
   document.getElementById('editProfile')?.addEventListener('click',()=>setlaToast('Profile editing will open after secure identity confirmation.'));
 

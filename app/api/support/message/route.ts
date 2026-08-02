@@ -6,8 +6,9 @@ import { sendEmail } from "../../../../lib/email";
 
 // "partner" is UNIK's Partner HQ live chat -- same storefrontSellerId
 // routing as "storefront", just filed separately so Brand Manager can tell
-// a partner support request apart from a regular customer one.
-const VALID_CATEGORIES = ["general", "domain", "storefront", "partner"] as const;
+// a partner support request apart from a regular customer one. "setla" is
+// the same pattern again for SETLA Payments customers (public/setla/*.html).
+const VALID_CATEGORIES = ["general", "domain", "storefront", "partner", "setla"] as const;
 
 /* Visitor (or logged-in seller) sends a chat message. Creates the
    conversation on first message. Anonymous visitors are identified by a
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     // which public seller's inbox this belongs in. It grants no privilege
     // (the lookup below only confirms the id is a real seller), it just
     // routes the conversation for display.
-    if (!sellerId && (cat === "storefront" || cat === "partner") && typeof storefrontSellerId === "string") {
+    if (!sellerId && (cat === "storefront" || cat === "partner" || cat === "setla") && typeof storefrontSellerId === "string") {
       const { data: sellerRow } = await getAdmin().from("sellers").select("id").eq("id", storefrontSellerId).maybeSingle();
       if (sellerRow) sellerId = sellerRow.id;
     }

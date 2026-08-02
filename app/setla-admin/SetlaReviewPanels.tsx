@@ -11,7 +11,7 @@ export const money = (value: number) => `R${Number(value || 0).toLocaleString("e
 export const dateShort = (value: string | null) => (value ? new Date(value).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 export function OverviewPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
-  const [data, setData] = useState<{ pendingApplications: number; pendingBankReviews: number; pendingAppeals: number; overdueInstalments: number; openSupportConversations: number } | null>(null);
+  const [data, setData] = useState<{ pendingApplications: number; pendingBankReviews: number; pendingAppeals: number; overdueInstalments: number; openSupportConversations: number; totalSignups: number; applicationsSubmitted: number } | null>(null);
 
   useEffect(() => {
     authedFetch("/api/setla/admin/overview").then((res) => res.json()).then(setData).catch(() => {});
@@ -19,12 +19,27 @@ export function OverviewPanel({ authedFetch }: { authedFetch: (path: string, ini
 
   if (!data) return <p className="sad-empty">Loading…</p>;
 
+  const conversionPct = data.totalSignups ? Math.round((data.applicationsSubmitted / data.totalSignups) * 100) : 0;
+  const notApplied = Math.max(0, data.totalSignups - data.applicationsSubmitted);
+
   return (
-    <div className="sad-grid-4">
-      <div className="sad-card sad-stat"><strong>{data.pendingApplications}</strong><small>Pending applications</small></div>
-      <div className="sad-card sad-stat"><strong>{data.pendingBankReviews}</strong><small>Bank reviews</small></div>
-      <div className="sad-card sad-stat"><strong>{data.pendingAppeals}</strong><small>Open appeals</small></div>
-      <div className="sad-card sad-stat"><strong>{data.overdueInstalments}</strong><small>Overdue instalments</small></div>
+    <div>
+      <div className="sad-card">
+        <strong style={{ fontSize: 13, display: "block", marginBottom: 12 }}>Signup → application funnel</strong>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 12 }}>
+          <div><strong style={{ display: "block", fontSize: 26 }}>{data.totalSignups}</strong><small style={{ color: "#9ba29b", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".06em" }}>Signed up</small></div>
+          <div><strong style={{ display: "block", fontSize: 26 }}>{data.applicationsSubmitted}</strong><small style={{ color: "#9ba29b", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".06em" }}>Submitted an application</small></div>
+          <div><strong style={{ display: "block", fontSize: 26, color: notApplied ? "#facc15" : undefined }}>{notApplied}</strong><small style={{ color: "#9ba29b", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".06em" }}>Signed up, never applied</small></div>
+        </div>
+        <div style={{ height: 6, borderRadius: 999, background: "#1c1f1c", overflow: "hidden" }}><div style={{ height: "100%", width: `${conversionPct}%`, background: "linear-gradient(90deg,#007517,#4ade80)" }} /></div>
+        <p className="sad-empty" style={{ marginTop: 8, marginBottom: 0 }}>{conversionPct}% of signups have submitted an application. Everyone who hasn't yet still shows up in Customers, tagged "not applied".</p>
+      </div>
+      <div className="sad-grid-4">
+        <div className="sad-card sad-stat"><strong>{data.pendingApplications}</strong><small>Pending applications</small></div>
+        <div className="sad-card sad-stat"><strong>{data.pendingBankReviews}</strong><small>Bank reviews</small></div>
+        <div className="sad-card sad-stat"><strong>{data.pendingAppeals}</strong><small>Open appeals</small></div>
+        <div className="sad-card sad-stat"><strong>{data.overdueInstalments}</strong><small>Overdue instalments</small></div>
+      </div>
     </div>
   );
 }
