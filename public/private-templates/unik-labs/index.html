@@ -622,6 +622,18 @@ body{
   .unik-card-frame{height:70px;}
 }
 
+ .kopa-entry{background:#f1efe8;color:#090a09;padding:64px 24px 70px;border-top:1px solid rgba(255,255,255,.12)}
+.kopa-entry-inner{width:min(760px,100%);margin:0 auto}
+.kopa-entry-kicker{margin:0 0 14px;color:#007517;font-size:10px;font-weight:800;letter-spacing:.22em;text-transform:uppercase}
+.kopa-entry h2{max-width:650px;margin:0;font-size:clamp(42px,8vw,80px);line-height:.88;letter-spacing:-.055em;text-transform:uppercase}
+.kopa-entry-copy{max-width:590px;margin:24px 0 30px;color:#585b55;font-size:14px;line-height:1.7}
+.kopa-entry-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+.kopa-entry-card{padding:18px;border:1px solid #d5d2c9;border-radius:16px;background:rgba(255,255,255,.55)}
+.kopa-entry-card strong{display:block;margin-bottom:7px;font-size:12px;letter-spacing:.11em;text-transform:uppercase}
+.kopa-entry-card span{display:block;color:#686b65;font-size:11px;line-height:1.55}
+ .kopa-entry-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 24px;border-radius:999px;background:#007517;color:#fff;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+ @media(max-width:560px){.kopa-entry{padding:52px 20px 58px}.kopa-entry-options{grid-template-columns:1fr}.kopa-entry-cta{width:100%}}
+
 </style>
 </head>
 <body>
@@ -699,6 +711,18 @@ body{
 </div>
 </div>
 </div>
+<section class="kopa-entry" aria-labelledby="kopa-entry-title">
+  <div class="kopa-entry-inner">
+    <p class="kopa-entry-kicker">Kopa Payments by UNIK Labs</p>
+    <h2 id="kopa-entry-title">Create now. Pay your way.</h2>
+    <p class="kopa-entry-copy">Choose a flexible way to pay for something personal. Apply to discover your individual Kopa spending limit, or use Kopa Laybuy and complete your payments before production begins.</p>
+    <div class="kopa-entry-options">
+      <div class="kopa-entry-card"><strong>Kopa Limit</strong><span>Apply for a personally reviewed spending limit and manage repayments from one clear dashboard.</span></div>
+      <div class="kopa-entry-card"><strong>Kopa Laybuy</strong><span>Reserve your order, pay in manageable instalments, and move it into production once fully paid.</span></div>
+    </div>
+    <a class="kopa-entry-cta" href="kopa.html">Explore Kopa Payments</a>
+  </div>
+</section>
 </div>
 <!-- Template showcase: previews are wired up by the script below, which
      picks each image's dark- or light-mode file based on the customer's

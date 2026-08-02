@@ -130,7 +130,7 @@ export default function SignUp() {
         ? { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
             subscription_status: "free", subscription_plan: "free", trial_ends_at: null, template: "soft-luxury" }
         : { id: authData.user.id, email, store_name: name, whatsapp_number: normalizedWhatsapp, subdomain,
-            subscription_status: "pending", subscription_plan: "starter", trial_ends_at: null };
+            subscription_status: "pending", subscription_plan: "starter", trial_ends_at: null, template: "soft-luxury" };
       const { error: profileError } = await supabase.from("sellers").insert(sellerRow);
       if (profileError) {
         /* The seller insert failed (race condition on subdomain, RLS, etc).
