@@ -20,6 +20,28 @@ const COLOURS = new Set(["black", "white", "beige"]);
 const ZONES = new Set(["front", "both"]);
 const MAX_IMAGE_BASE64_LEN = 6_000_000; // ~4.5MB decoded, generous for a phone photo
 
+// UNIK customer signup allows both password signup and Google OAuth on the
+// same /account page with no server-side email de-duplication (unlike
+// SETLA's own signup, which explicitly reuses an existing auth.users row
+// by email) -- Supabase can mint two different auth.users rows for the
+// same real person's email depending on which method they used that
+// particular time. When a design's auth_user_id doesn't match the
+// checking-out customer, this checks whether they're actually the same
+// verified email before rejecting a legitimate sale outright.
+async function sameEmailDifferentAccount(admin: ReturnType<typeof getAdmin>, designOwnerId: string, currentUserId: string): Promise<boolean> {
+  try {
+    const [{ data: ownerData }, { data: currentData }] = await Promise.all([
+      admin.auth.admin.getUserById(designOwnerId),
+      admin.auth.admin.getUserById(currentUserId),
+    ]);
+    const ownerEmail = ownerData?.user?.email?.toLowerCase();
+    const currentEmail = currentData?.user?.email?.toLowerCase();
+    return !!ownerEmail && !!currentEmail && ownerEmail === currentEmail;
+  } catch {
+    return false;
+  }
+}
+
 function decodeDataUrl(raw: unknown): { base64: string; ext: string } | null {
   if (typeof raw !== "string" || !raw) return null;
   const match = raw.match(/^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=\r\n]+)$/);
@@ -78,8 +100,14 @@ export async function resolveUnikCart(params: {
   postal: string;
   discountCode: string; // explicit, customer-typed code -- an invalid one is a real error
   referralCode?: string | null; // cookie-derived fallback -- an invalid one fails silently
+  // Default true (direct merchant checkout: the payer should be the same
+  // account that generated/owns the design). SETLA passes false -- it's a
+  // third-party payment method layered on the storefront cart (like
+  // PayFlex on Temu), and has no reason to require its own login to match
+  // whichever UNIK account generated the design in the first place.
+  strictDesignOwnership?: boolean;
 }): Promise<CartResolveResult> {
-  const { admin, sellerId, userId, items, requestedIsPickup, requestedDeliveryName, streetAddress, townCity, province, postal } = params;
+  const { admin, sellerId, userId, items, requestedIsPickup, requestedDeliveryName, streetAddress, townCity, province, postal, strictDesignOwnership = true } = params;
 
   if (!items.length) return { ok: false, error: "Your cart is empty", status: 400 };
 
@@ -147,7 +175,10 @@ export async function resolveUnikCart(params: {
       if (!design) return { ok: false, error: "One of your custom uploads could not be found", status: 404 };
       if (design.seller_id !== sellerId) return { ok: false, error: "One of your custom uploads is not accessible", status: 403 };
       if (design.source !== "custom-upload") return { ok: false, error: "One of your custom uploads has an unrecognised source", status: 400 };
-      if (design.auth_user_id && design.auth_user_id !== userId) return { ok: false, error: "One of your custom uploads is not accessible", status: 403 };
+      if (design.auth_user_id && design.auth_user_id !== userId) {
+        const allowed = !strictDesignOwnership || await sameEmailDifferentAccount(admin, design.auth_user_id, userId);
+        if (!allowed) return { ok: false, error: "One of your custom uploads is not accessible", status: 403 };
+      }
 
       const garment = String(design.garment || "").toLowerCase();
       const colour = String(design.colour || "").toLowerCase();
@@ -212,7 +243,10 @@ export async function resolveUnikCart(params: {
     const design = designMap.get(item.designId!);
     if (!design) return { ok: false, error: "One of your designs could not be found", status: 404 };
     if (design.seller_id !== sellerId) return { ok: false, error: "One of your designs belongs to a different store", status: 403 };
-    if (design.auth_user_id !== userId) return { ok: false, error: "One of your designs was created under a different account -- sign in with the account that created it to check out with it", status: 403 };
+    if (design.auth_user_id !== userId) {
+      const allowed = !strictDesignOwnership || await sameEmailDifferentAccount(admin, design.auth_user_id, userId);
+      if (!allowed) return { ok: false, error: "One of your designs was created under a different account -- sign in with the account that created it to check out with it", status: 403 };
+    }
     if (design.source !== "ai-studio") return { ok: false, error: "One of your designs has an unrecognised source", status: 400 };
     // A design can be ordered any number of times (e.g. buying the same
     // piece as a gift for someone else, or in a different quantity) --

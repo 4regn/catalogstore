@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
     admin, sellerId: seller.id, userId: user.id, items,
     requestedIsPickup, requestedDeliveryName, streetAddress, townCity, province, postal,
     discountCode: requestedDiscountCode, referralCode: null,
+    // SETLA is a separate login from the UNIK storefront account that may
+    // have generated the design -- see resolveUnikCart's own comment.
+    strictDesignOwnership: false,
   });
   if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   const { lineItems, deferredJobs, subtotal, discountAmount, discountRow, total, shippingCost, shippingLabel, fulfillmentMethod } = resolved;
