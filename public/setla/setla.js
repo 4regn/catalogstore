@@ -10,6 +10,17 @@
   const money=value=>`R${Number(value||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
+  // Fire-and-forget page-view beacon -- every SETLA static page loads this
+  // script, so this single line covers analytics for the whole site with
+  // no per-page wiring. Anonymous per-browser id, no auth required (most
+  // visitors haven't signed up yet). See app/api/setla/admin/analytics.
+  (function trackPageView(){
+    let visitorId=null;
+    try{visitorId=localStorage.getItem('setla-analytics-visitor-v1')}catch(_){}
+    if(!visitorId){visitorId='v-'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);try{localStorage.setItem('setla-analytics-visitor-v1',visitorId)}catch(_){}}
+    fetch('/api/setla/analytics/pageview',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({path:location.pathname.split('/').pop()||'index.html',visitorId,referrer:document.referrer||''})}).catch(()=>{});
+  })();
+
   function storeRefreshToken(token,persist){
     try{
       if(persist){localStorage.setItem(REFRESH_KEY,token);sessionStorage.removeItem(REFRESH_KEY)}
@@ -269,6 +280,10 @@
     document.getElementById('view-notifications').innerHTML=`<div class="view-head"><div><div class="eyebrow">Updates</div><h1>Notifications.</h1><p>Account, payment and order updates from SETLA and UNIK Labs.</p></div></div>${pending?'<article class="card notification unread"><div><strong>Application received</strong><p>Your SETLA application is being reviewed. We will email you when a decision is ready.</p></div></article>':latest?`<article class="card notification unread"><div><strong>Order connected</strong><p>Order ${escapeHTML(latest.id)} is now available in your SETLA dashboard.</p></div></article>`:'<section class="card empty-state"><h2>No notifications</h2><p>Your account updates will appear here.</p></section>'}`;
     const initials=fullName.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();document.getElementById('profileInitials').textContent=initials||'—';document.getElementById('profileName').textContent=fullName;document.getElementById('profileContact').textContent=[account.email,account.phone].filter(Boolean).join(' · ');document.getElementById('profileLimit').textContent=money(approvedLimit);document.getElementById('profileMemberSince').textContent=new Date(account.createdAt||Date.now()).toLocaleDateString('en-ZA',{month:'long',year:'numeric'});document.getElementById('profilePaymentStatus').textContent=orders.length?'Plan active':'No active plan';document.getElementById('detailName').textContent=fullName;document.getElementById('detailEmail').textContent=account.email||'—';document.getElementById('detailPhone').textContent=account.phone||'—';document.getElementById('detailAddress').textContent=account.address||'Not supplied';document.getElementById('profileBadge').textContent=approved?'Verified customer':pending?'Verification in review':'Application required';document.getElementById('identityStatus').textContent=approved?'Identity verified':pending?'Verification in review':'Verification required';
     const bank=account.application?.bank,last4=account.application?.accountLast4;document.getElementById('bankType').textContent=bank?`${bank} · Verification ${approved?'approved':'pending'}`:'No verified bank account';document.getElementById('bankAccount').textContent=bank&&last4?`${fullName} · •••• ${last4}`:'Add your banking details during your application.';document.getElementById('bankStatus').textContent=bank?(approved?'Approved':'Under review'):'Not verified';
+    // Only a declined applicant has anything to appeal -- showing this to
+    // everyone else was both confusing and misleading for an approved or
+    // still-pending customer.
+    const appealPanel=document.getElementById('appeal');if(appealPanel)appealPanel.hidden=status!=='declined';
   }
   if(protectedPage==='dashboard'&&profile)renderDashboard(profile);
   if(new URLSearchParams(location.search).has('submitted'))setTimeout(()=>setlaToast('Application received. We will email you when your review is complete.'),300);
@@ -288,7 +303,6 @@
     setlaToast('Your appeal has been sent to the SETLA review team.');
   });
   document.getElementById('bankUpdate')?.addEventListener('click',event=>{event.preventDefault();setlaToast('Bank-detail changes open a new secure verification review.')});
-  document.getElementById('appeal')?.addEventListener('click',event=>{event.preventDefault();setlaToast('Appeals become available after an application decision.')});
   document.getElementById('continueSETLA')?.addEventListener('click',()=>{const choice=document.querySelector('input[name="plan"]:checked')?.value;if(choice==='limit'&&!profile){location.href='apply.html';return}setlaToast(choice==='laybuy'?'Laybuy selected. Your payment schedule is the next step.':'Your approved SETLA limit will be verified securely.')});
 
   const dashboardViews=[...document.querySelectorAll('.dashboard-view')];

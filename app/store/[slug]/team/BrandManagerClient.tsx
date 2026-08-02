@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
-import { OverviewPanel as SetlaOverviewPanel, ApplicationsPanel as SetlaApplicationsPanel, BankAccountsPanel as SetlaBankAccountsPanel, CustomersPanel as SetlaCustomersPanel, AdminsPanel as SetlaAdminsPanel } from "../../../setla-admin/SetlaReviewPanels";
+import { OverviewPanel as SetlaOverviewPanel, ApplicationsPanel as SetlaApplicationsPanel, BankAccountsPanel as SetlaBankAccountsPanel, CustomersPanel as SetlaCustomersPanel, AdminsPanel as SetlaAdminsPanel, AnalyticsPanel as SetlaAnalyticsPanel } from "../../../setla-admin/SetlaReviewPanels";
 
 type Manager = {
   fullName: string;
@@ -1725,13 +1725,14 @@ function SendPartnerEmailCard({ partners, busyId, onSend }: { partners: PartnerR
   );
 }
 
-type SetlaSubPanel = "overview" | "applications" | "bank-accounts" | "customers" | "admins";
+type SetlaSubPanel = "overview" | "applications" | "bank-accounts" | "customers" | "analytics" | "admins";
 
 const SETLA_SUB_PANEL_LABELS: Record<SetlaSubPanel, string> = {
   overview: "Overview",
   applications: "Applications",
   "bank-accounts": "Bank accounts",
   customers: "Customers",
+  analytics: "Analytics",
   admins: "Admins",
 };
 
@@ -1771,6 +1772,7 @@ function SetlaPanel({ authedFetch, toast }: { authedFetch: (path: string, init?:
       {sub === "applications" && <SetlaApplicationsPanel authedFetch={authedFetch} toast={toast} />}
       {sub === "bank-accounts" && <SetlaBankAccountsPanel authedFetch={authedFetch} toast={toast} />}
       {sub === "customers" && <SetlaCustomersPanel authedFetch={authedFetch} toast={toast} />}
+      {sub === "analytics" && <SetlaAnalyticsPanel authedFetch={authedFetch} />}
       {sub === "admins" && <SetlaAdminsPanel authedFetch={authedFetch} toast={toast} role="super_admin" />}
 
       <style jsx global>{`

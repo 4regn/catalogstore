@@ -46,6 +46,79 @@ export function OverviewPanel({ authedFetch }: { authedFetch: (path: string, ini
 
 // ---------------------------------------------------------------------------
 
+type AnalyticsData = {
+  days: number; totalViews: number; uniqueVisitors: number; viewsToday: number;
+  topPages: Array<{ path: string; count: number }>;
+  daily: Array<{ date: string; count: number }>;
+  truncated: boolean;
+};
+
+const PAGE_LABELS: Record<string, string> = {
+  "index.html": "Landing page", "": "Landing page", "signup.html": "Sign up", "login.html": "Log in",
+  "apply.html": "Apply", "dashboard.html": "Dashboard", "checkout.html": "Checkout",
+  "order-confirmed.html": "Order confirmed", "faq.html": "FAQs", "forgot-password.html": "Forgot password",
+  "reset-password.html": "Reset password",
+};
+
+export function AnalyticsPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState<AnalyticsData | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    authedFetch(`/api/setla/admin/analytics?days=${days}`).then((res) => res.json()).then(setData).catch(() => {});
+  }, [authedFetch, days]);
+
+  if (!data) return <p className="sad-empty">Loading…</p>;
+  const max = Math.max(1, ...data.daily.map((d) => d.count));
+  const maxPage = Math.max(1, ...data.topPages.map((p) => p.count));
+  const showEveryNth = Math.ceil(data.daily.length / 12);
+
+  return (
+    <div>
+      <div className="sad-tabs">
+        {[7, 30, 90].map((d) => (
+          <button key={d} type="button" className={"sad-tab" + (days === d ? " active" : "")} onClick={() => setDays(d)}>Last {d} days</button>
+        ))}
+      </div>
+      <div className="sad-grid-4">
+        <div className="sad-card sad-stat"><strong>{data.totalViews}</strong><small>Page views</small></div>
+        <div className="sad-card sad-stat"><strong>{data.uniqueVisitors}</strong><small>Unique visitors</small></div>
+        <div className="sad-card sad-stat"><strong>{data.viewsToday}</strong><small>Views today</small></div>
+      </div>
+      <div className="sad-card">
+        <strong style={{ fontSize: 13, display: "block", marginBottom: 14 }}>Daily views</strong>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 110 }}>
+          {data.daily.map((d) => (
+            <div key={d.date} title={`${d.date}: ${d.count} view${d.count === 1 ? "" : "s"}`} style={{ flex: 1, minWidth: 2, height: `${Math.max(2, (d.count / max) * 100)}%`, borderRadius: 3, background: "linear-gradient(180deg,#4ade80,#007517)" }} />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 3, marginTop: 6 }}>
+          {data.daily.map((d, i) => (
+            <div key={d.date} style={{ flex: 1, minWidth: 2, textAlign: "center", fontSize: 8.5, color: "#7f877f" }}>{i % showEveryNth === 0 ? d.date.slice(5) : ""}</div>
+          ))}
+        </div>
+      </div>
+      <div className="sad-card">
+        <strong style={{ fontSize: 13, display: "block", marginBottom: 14 }}>Top pages</strong>
+        {data.topPages.length === 0 ? <p className="sad-empty" style={{ marginBottom: 0 }}>No page views recorded yet.</p> : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {data.topPages.map((p) => (
+              <div key={p.path}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 5 }}><span>{PAGE_LABELS[p.path] || p.path}</span><span style={{ color: "#9ba29b" }}>{p.count}</span></div>
+                <div style={{ height: 6, borderRadius: 999, background: "#1c1f1c", overflow: "hidden" }}><div style={{ height: "100%", width: `${(p.count / maxPage) * 100}%`, background: "linear-gradient(90deg,#007517,#4ade80)" }} /></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {data.truncated && <p className="sad-empty" style={{ marginTop: 12, marginBottom: 0 }}>Showing the most recent 20,000 views in this window -- totals above may undercount very high-traffic periods.</p>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 type ApplicationRow = {
   id: string; monthly_income: number; monthly_expenses: number; status: string; submitted_at: string;
   setla_customers: { id: string; first_name: string; last_name: string; email: string; phone: string; id_number: string | null } | null;

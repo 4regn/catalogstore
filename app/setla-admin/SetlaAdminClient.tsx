@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { OverviewPanel, ApplicationsPanel, BankAccountsPanel, CustomersPanel, AdminsPanel } from "./SetlaReviewPanels";
+import { OverviewPanel, ApplicationsPanel, BankAccountsPanel, CustomersPanel, AdminsPanel, AnalyticsPanel } from "./SetlaReviewPanels";
 
-type Panel = "overview" | "applications" | "bank-accounts" | "customers" | "admins";
+type Panel = "overview" | "applications" | "bank-accounts" | "customers" | "analytics" | "admins";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Overview",
   applications: "Applications",
   "bank-accounts": "Bank accounts",
   customers: "Customers",
+  analytics: "Analytics",
   admins: "Admins",
 };
 
@@ -97,6 +98,7 @@ export default function SetlaAdminClient() {
         {panel === "applications" && <ApplicationsPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "bank-accounts" && <BankAccountsPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "customers" && <CustomersPanel authedFetch={authedFetch} toast={showToast} />}
+        {panel === "analytics" && <AnalyticsPanel authedFetch={authedFetch} />}
         {panel === "admins" && adminProfile && <AdminsPanel authedFetch={authedFetch} toast={showToast} role={adminProfile.role} />}
       </main>
       {toastText && <div className="sad-toast">{toastText}</div>}
