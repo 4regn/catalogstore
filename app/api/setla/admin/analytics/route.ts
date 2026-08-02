@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const admin = getAdmin();
   const { data: rows, error } = await admin
     .from("setla_page_views")
-    .select("path, visitor_id, created_at")
+    .select("path, visitor_id, host, created_at")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(ROW_CAP);
@@ -33,6 +33,13 @@ export async function GET(req: NextRequest) {
   const byPage = new Map<string, number>();
   for (const v of views) byPage.set(v.path, (byPage.get(v.path) || 0) + 1);
   const topPages = [...byPage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([path, count]) => ({ path, count }));
+
+  // Which domain views actually came from -- e.g. telling setla.4regn.com
+  // (the standalone demand-validation landing page) apart from these same
+  // static pages being reached via uniklabs.co.za/setla/*.
+  const byHost = new Map<string, number>();
+  for (const v of views) byHost.set(v.host || "(unknown)", (byHost.get(v.host || "(unknown)") || 0) + 1);
+  const topHosts = [...byHost.entries()].sort((a, b) => b[1] - a[1]).map(([host, count]) => ({ host, count }));
 
   const byDay = new Map<string, number>();
   for (let i = days - 1; i >= 0; i--) {
@@ -54,6 +61,7 @@ export async function GET(req: NextRequest) {
     uniqueVisitors,
     viewsToday,
     topPages,
+    topHosts,
     daily,
     truncated: views.length >= ROW_CAP,
   });

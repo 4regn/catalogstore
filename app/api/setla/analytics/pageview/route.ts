@@ -19,8 +19,13 @@ export async function POST(req: NextRequest) {
   const referrer = String(body.referrer || "").trim().slice(0, 300) || null;
   if (!path || !visitorId) return NextResponse.json({ ok: false }, { status: 400 });
 
+  // From the request itself (the Host header), not client-supplied --
+  // this is what tells the 4regn demand-validation landing page's traffic
+  // apart from every other way these same static pages get reached.
+  const host = (req.headers.get("host") || "").split(":")[0].toLowerCase() || null;
+
   const admin = getAdmin();
-  await admin.from("setla_page_views").insert({ path, visitor_id: visitorId, referrer });
+  await admin.from("setla_page_views").insert({ path, visitor_id: visitorId, referrer, host });
 
   return NextResponse.json({ ok: true });
 }

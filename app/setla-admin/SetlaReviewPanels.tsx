@@ -49,6 +49,7 @@ export function OverviewPanel({ authedFetch }: { authedFetch: (path: string, ini
 type AnalyticsData = {
   days: number; totalViews: number; uniqueVisitors: number; viewsToday: number;
   topPages: Array<{ path: string; count: number }>;
+  topHosts: Array<{ host: string; count: number }>;
   daily: Array<{ date: string; count: number }>;
   truncated: boolean;
 };
@@ -113,6 +114,20 @@ export function AnalyticsPanel({ authedFetch }: { authedFetch: (path: string, in
         )}
         {data.truncated && <p className="sad-empty" style={{ marginTop: 12, marginBottom: 0 }}>Showing the most recent 20,000 views in this window -- totals above may undercount very high-traffic periods.</p>}
       </div>
+      {data.topHosts.length > 1 && (
+        <div className="sad-card">
+          <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Traffic by domain</strong>
+          <p className="sad-empty" style={{ marginBottom: 14 }}>These are the same SETLA pages, reachable from more than one domain -- useful for telling how much traffic the setla.4regn.com landing page is driving on its own.</p>
+          <div style={{ display: "grid", gap: 10 }}>
+            {data.topHosts.map((h) => (
+              <div key={h.host}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 5 }}><span>{h.host}</span><span style={{ color: "#9ba29b" }}>{h.count}</span></div>
+                <div style={{ height: 6, borderRadius: 999, background: "#1c1f1c", overflow: "hidden" }}><div style={{ height: "100%", width: `${(h.count / data.topHosts[0].count) * 100}%`, background: "linear-gradient(90deg,#007517,#4ade80)" }} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
