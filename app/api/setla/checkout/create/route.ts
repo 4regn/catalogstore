@@ -219,6 +219,6 @@ export async function POST(req: NextRequest) {
     if (planType === "pay_later") {
       await admin.from("setla_customers").update({ available_limit: Number(customer.available_limit) }).eq("id", customer.id).eq("available_limit", Number(customer.available_limit) - financedAmount);
     }
-    return NextResponse.json({ error: "Could not start payment. Please try again." }, { status: 502 });
+    return NextResponse.json({ error: `Could not start payment (${err instanceof Error ? err.message : "unknown error"})` }, { status: 502 });
   }
 }

@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
   mark("orderInsert");
   if (insertErr || !order) {
     console.error("UNIK order insert failed:", insertErr);
-    return NextResponse.json({ error: "Could not create your order" }, { status: 500 });
+    return NextResponse.json({ error: `Could not create your order (${insertErr?.message || "unknown error"})` }, { status: 500 });
   }
 
   // auth_user_id is set here (not just status) because a custom-upload
@@ -191,6 +191,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     mark("yocoCheckoutFailed");
     console.error("Yoco checkout creation failed:", err, { timing });
-    return NextResponse.json({ error: "Could not start payment. Please try again." }, { status: 502 });
+    return NextResponse.json({ error: `Could not start payment (${err?.message || "unknown error"})` }, { status: 502 });
   }
 }
