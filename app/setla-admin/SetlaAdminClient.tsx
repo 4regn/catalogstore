@@ -96,7 +96,7 @@ export default function SetlaAdminClient() {
         {panel === "overview" && <OverviewPanel authedFetch={authedFetch} />}
         {panel === "applications" && <ApplicationsPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "bank-accounts" && <BankAccountsPanel authedFetch={authedFetch} toast={showToast} />}
-        {panel === "customers" && <CustomersPanel authedFetch={authedFetch} />}
+        {panel === "customers" && <CustomersPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "admins" && adminProfile && <AdminsPanel authedFetch={authedFetch} toast={showToast} role={adminProfile.role} />}
       </main>
       {toastText && <div className="sad-toast">{toastText}</div>}

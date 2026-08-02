@@ -1770,7 +1770,7 @@ function SetlaPanel({ authedFetch, toast }: { authedFetch: (path: string, init?:
       {sub === "overview" && <SetlaOverviewPanel authedFetch={authedFetch} />}
       {sub === "applications" && <SetlaApplicationsPanel authedFetch={authedFetch} toast={toast} />}
       {sub === "bank-accounts" && <SetlaBankAccountsPanel authedFetch={authedFetch} toast={toast} />}
-      {sub === "customers" && <SetlaCustomersPanel authedFetch={authedFetch} />}
+      {sub === "customers" && <SetlaCustomersPanel authedFetch={authedFetch} toast={toast} />}
       {sub === "admins" && <SetlaAdminsPanel authedFetch={authedFetch} toast={toast} role="super_admin" />}
 
       <style jsx global>{`

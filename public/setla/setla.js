@@ -209,7 +209,11 @@
   start?.addEventListener('click',startCamera);
   capture?.addEventListener('click',captureSelfie);
   retake?.addEventListener('click',()=>{captured=false;capturedBlob=null;setCameraState('idle');startCamera()});
-  setCameraState('idle');
+  // Camera elements only exist on apply.html -- calling this unconditionally
+  // on every page (dashboard, checkout, login...) threw on the first line
+  // of setCameraState (video.hidden=... on a null video), which silently
+  // killed the rest of this script before renderDashboard()/nav wiring ran.
+  if(form)setCameraState('idle');
   const applicationAccount=currentAccount();
   if(form&&applicationAccount){const parts={firstName:applicationAccount.firstName,lastName:applicationAccount.lastName,email:applicationAccount.email,phone:applicationAccount.phone};Object.entries(parts).forEach(([name,value])=>{const input=form.elements[name];if(input&&value)input.value=value})}
   form?.addEventListener('submit',async event=>{

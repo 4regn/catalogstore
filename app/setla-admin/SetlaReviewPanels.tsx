@@ -266,7 +266,7 @@ export function BankAccountsPanel({ authedFetch, toast }: { authedFetch: (path: 
 
 type CustomerRow = { id: string; first_name: string; last_name: string; email: string; application_status: string; approved_limit: number; created_at: string };
 
-export function CustomersPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
+export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<CustomerRow[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -279,7 +279,7 @@ export function CustomersPanel({ authedFetch }: { authedFetch: (path: string, in
 
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
 
-  if (selectedId) return <CustomerDetail id={selectedId} authedFetch={authedFetch} onBack={() => setSelectedId(null)} />;
+  if (selectedId) return <CustomerDetail id={selectedId} authedFetch={authedFetch} toast={toast} onBack={() => setSelectedId(null)} />;
 
   return (
     <section>
@@ -301,9 +301,35 @@ export function CustomersPanel({ authedFetch }: { authedFetch: (path: string, in
   );
 }
 
-function CustomerDetail({ id, authedFetch, onBack }: { id: string; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; onBack: () => void }) {
+function CustomerDetail({ id, authedFetch, toast, onBack }: { id: string; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onBack: () => void }) {
   const [data, setData] = useState<any>(null);
-  useEffect(() => { authedFetch(`/api/setla/admin/customers/${id}`).then((res) => res.json()).then(setData).catch(() => {}); }, [id, authedFetch]);
+  const [newLimit, setNewLimit] = useState("");
+  const [limitReason, setLimitReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await authedFetch(`/api/setla/admin/customers/${id}`);
+    const payload = await res.json().catch(() => null);
+    setData(res.ok ? payload : null);
+  }, [id, authedFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function adjustLimit() {
+    if (!newLimit || Number(newLimit) <= 0) { toast("Enter a valid limit"); return; }
+    setBusy(true);
+    const res = await authedFetch(`/api/setla/admin/customers/${id}/adjust-limit`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newLimit: Number(newLimit), reason: limitReason }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { toast(payload.error || "Could not adjust this limit"); return; }
+    toast("Limit updated");
+    setNewLimit(""); setLimitReason("");
+    load();
+  }
+
   if (!data) return <p className="sad-empty">Loading…</p>;
   const { customer, applications, bankAccounts } = data;
   return (
@@ -321,6 +347,15 @@ function CustomerDetail({ id, authedFetch, onBack }: { id: string; authedFetch: 
           <div className="sad-field"><small>Available limit</small>{money(customer.available_limit)}</div>
         </div>
       </div>
+      {customer.application_status === "approved" && (
+        <div className="sad-card">
+          <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Adjust spending limit</strong>
+          <p className="sad-empty" style={{ marginBottom: 12 }}>Reward good repayment behaviour with a higher limit, or correct it if needed. Their available balance shifts by the same amount so any existing spend still counts.</p>
+          <div className="sad-form-row"><label>New approved limit (R)</label><input className="sad-input" type="number" min="0" value={newLimit} onChange={(e) => setNewLimit(e.target.value)} placeholder={String(customer.approved_limit)} /></div>
+          <div className="sad-form-row"><label>Note (optional, included in the customer's email)</label><textarea className="sad-textarea" value={limitReason} onChange={(e) => setLimitReason(e.target.value)} /></div>
+          <button type="button" className="sad-btn" disabled={busy} onClick={adjustLimit}>{busy ? "Saving…" : "Update limit"}</button>
+        </div>
+      )}
       <div className="sad-card">
         <strong style={{ fontSize: 13, display: "block", marginBottom: 10 }}>Applications</strong>
         {applications.length === 0 ? <p className="sad-empty">No applications yet.</p> : applications.map((a: any) => (
