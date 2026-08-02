@@ -135,7 +135,8 @@
   const capture=document.getElementById('captureIdentity');
   const retake=document.getElementById('retakeIdentity');
   const canvas=document.getElementById('identityCanvas');
-  const fallback=document.getElementById('selfieFallback');
+  const captureTick=document.getElementById('captureTick');
+  const captureConfirmText=document.getElementById('captureConfirmText');
   const TARGET_RATIO=3/4; // width/height -- matches .camera's aspect-ratio in setla.css
   let stream=null,captured=false,capturedBlob=null,previewUrl=null;
 
@@ -147,15 +148,15 @@
   // previously there was no way to see the captured shot at all.
   function setCameraState(next){
     if(next==='idle'){
-      video.hidden=false;preview.hidden=true;frame.classList.remove('ready','captured');
+      video.hidden=false;preview.hidden=true;captureTick.hidden=true;captureConfirmText.hidden=true;frame.classList.remove('ready','captured');
       start.hidden=false;capture.hidden=false;capture.disabled=true;retake.hidden=true;
       status.textContent='Not started';
     }else if(next==='streaming'){
-      video.hidden=false;preview.hidden=true;frame.classList.add('ready');frame.classList.remove('captured');
+      video.hidden=false;preview.hidden=true;captureTick.hidden=true;captureConfirmText.hidden=true;frame.classList.add('ready');frame.classList.remove('captured');
       start.hidden=true;capture.hidden=false;capture.disabled=false;retake.hidden=true;
       status.textContent='Camera ready';
     }else if(next==='captured'){
-      video.hidden=true;preview.hidden=false;frame.classList.add('ready','captured');
+      video.hidden=true;preview.hidden=false;captureTick.hidden=false;captureConfirmText.hidden=false;frame.classList.add('ready','captured');
       start.hidden=true;capture.hidden=true;retake.hidden=false;
       status.textContent='Selfie captured';
     }
@@ -172,8 +173,8 @@
       video.srcObject=stream;await video.play();
       setCameraState('streaming');
     }catch(error){
-      status.textContent='Upload selfie';
-      setlaToast('Camera access was unavailable. Please upload a recent selfie instead.');
+      status.textContent='Camera required';
+      setlaToast('Camera access is required to complete your application. Please allow camera access and try again.');
     }
   }
 
@@ -208,31 +209,16 @@
   start?.addEventListener('click',startCamera);
   capture?.addEventListener('click',captureSelfie);
   retake?.addEventListener('click',()=>{captured=false;capturedBlob=null;setCameraState('idle');startCamera()});
-  fallback?.addEventListener('change',()=>{
-    if(fallback.files.length){
-      captured=true;capturedBlob=null;
-      status.textContent='Selfie selected';
-      stopStream();
-      if(previewUrl)URL.revokeObjectURL(previewUrl);
-      previewUrl=URL.createObjectURL(fallback.files[0]);
-      preview.src=previewUrl;
-      setCameraState('captured');
-    }
-  });
   setCameraState('idle');
   const applicationAccount=currentAccount();
   if(form&&applicationAccount){const parts={firstName:applicationAccount.firstName,lastName:applicationAccount.lastName,email:applicationAccount.email,phone:applicationAccount.phone};Object.entries(parts).forEach(([name,value])=>{const input=form.elements[name];if(input&&value)input.value=value})}
   form?.addEventListener('submit',async event=>{
     event.preventDefault();
-    if(!captured){setlaToast('Complete the live identity check or upload a recent selfie.');return}
+    if(!captured||!capturedBlob){setlaToast('Complete the live identity check before submitting.');return}
     const submitBtn=form.querySelector('button[type="submit"]');
     const data=new FormData(form);
-    // The selfie is either the live-captured canvas blob, or whatever was
-    // chosen in the fallback file input -- the server only ever looks for
-    // a field literally named "selfie", so both paths normalise to that.
-    if(capturedBlob){data.set('selfie',capturedBlob,'live-selfie.jpg')}
-    else if(fallback?.files?.[0]){data.set('selfie',fallback.files[0])}
-    else{setlaToast('Complete the live identity check or upload a recent selfie.');return}
+    // The server only ever looks for a field literally named "selfie".
+    data.set('selfie',capturedBlob,'live-selfie.jpg');
     if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting…'}
     try{
       const res=await fetch('/api/setla/apply',{method:'POST',credentials:'include',body:data});
