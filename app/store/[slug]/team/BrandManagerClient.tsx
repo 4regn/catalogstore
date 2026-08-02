@@ -93,6 +93,15 @@ const NAV_ICON_PATHS: Record<Panel, string> = {
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a8 8 0 0 0-1.8 1l-2.4-1-2 3.4L5.1 11a7 7 0 0 0 0 2L3 14.5l2 3.4 2.4-1a8 8 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.5a7 7 0 0 0 .1-1Z",
 };
 
+// The mobile bottom bar only has room for a handful of icons before they
+// either get squeezed unreadably small or scroll off-screen where nobody
+// thinks to swipe for them (a real dashboard tab going "missing" on mobile
+// once the panel count passed what fits on one screen). Show the everyday
+// tabs directly; everything else lives behind "More", a plain list that
+// can never be scrolled past.
+const MOBILE_PRIMARY_PANELS: Panel[] = ["overview", "sales", "customers", "support"];
+const MOBILE_MORE_PANELS: Panel[] = (Object.keys(PANEL_TITLES) as Panel[]).filter((p) => !MOBILE_PRIMARY_PANELS.includes(p));
+
 function NavIcon({ panel }: { panel: Panel }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="19" height="19" aria-hidden="true">
@@ -136,6 +145,7 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
   const [loadError, setLoadError] = useState("");
   const [panel, setPanel] = useState<Panel>("overview");
   const [toastText, setToastText] = useState("");
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   const showToast = useCallback((text: string) => {
     setToastText(text);
@@ -377,13 +387,33 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
       </main>
 
       <nav className="bm-mobile-nav" aria-label="Mobile navigation">
-        {(Object.keys(PANEL_TITLES) as Panel[]).map((key) => (
+        {MOBILE_PRIMARY_PANELS.map((key) => (
           <button key={key} type="button" className={"bm-mobile-link" + (panel === key ? " active" : "")} onClick={() => setPanel(key)}>
             <NavIcon panel={key} />
             <span>{MOBILE_NAV_LABELS[key]}</span>
           </button>
         ))}
+        <button type="button" className={"bm-mobile-link" + (MOBILE_MORE_PANELS.includes(panel) ? " active" : "")} onClick={() => setMobileMoreOpen(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="19" height="19" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+          <span>More</span>
+        </button>
       </nav>
+
+      {mobileMoreOpen && (
+        <div className="bm-more-overlay" role="dialog" aria-label="More sections" onClick={() => setMobileMoreOpen(false)}>
+          <div className="bm-more-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="bm-more-head"><strong>More</strong><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Close">×</button></div>
+            <div className="bm-more-grid">
+              {MOBILE_MORE_PANELS.map((key) => (
+                <button key={key} type="button" className={"bm-more-link" + (panel === key ? " active" : "")} onClick={() => { setPanel(key); setMobileMoreOpen(false); }}>
+                  <NavIcon panel={key} />
+                  <span>{PANEL_TITLES[key]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {toastText && <div className="bm-toast show">{toastText}</div>}
 
@@ -518,11 +548,19 @@ export default function BrandManagerClient({ storeName }: { storeName: string })
           .bm-signout-mobile{display:block}
           .bm-metric{grid-column:span 6}
           .bm-form-grid{grid-template-columns:1fr}
-          .bm-mobile-nav{position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:80;display:flex;justify-content:space-around;align-items:center;gap:2px;height:64px;padding:0 4px;border:1px solid #27272a;border-radius:20px;background:rgba(14,14,15,.96);backdrop-filter:blur(20px);box-shadow:0 18px 48px rgba(0,0,0,.48);overflow-x:auto}
+          .bm-mobile-nav{position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:80;display:flex;justify-content:flex-start;align-items:center;gap:2px;height:64px;padding:0 4px;border:1px solid #27272a;border-radius:20px;background:rgba(14,14,15,.96);backdrop-filter:blur(20px);box-shadow:0 18px 48px rgba(0,0,0,.48);overflow-x:auto;-webkit-overflow-scrolling:touch}
           .bm-mobile-link{flex:1 0 auto;min-width:52px;padding:6px 4px;display:grid;place-items:center;gap:3px;border:0;background:none;color:#83837f;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
           .bm-mobile-link svg{width:18px;height:18px}
           .bm-mobile-link.active{color:#4ade80}
         }
+        .bm-more-overlay{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:flex;align-items:flex-end}
+        .bm-more-sheet{width:100%;max-height:70dvh;overflow-y:auto;background:#0e0e0f;border:1px solid #27272a;border-bottom:0;border-radius:22px 22px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+        .bm-more-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+        .bm-more-head strong{font-size:14px}
+        .bm-more-head button{background:none;border:0;color:#999994;font-size:22px;line-height:1;cursor:pointer;padding:4px 8px}
+        .bm-more-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+        .bm-more-link{display:grid;place-items:center;gap:7px;padding:14px 6px;border:1px solid #27272a;border-radius:16px;background:#111113;color:#c0c0ba;font-size:10px;font-weight:700;text-align:center;cursor:pointer}
+        .bm-more-link.active{border-color:#007517;color:#4ade80;background:rgba(0,117,23,.1)}
       `}</style>
     </div>
   );
