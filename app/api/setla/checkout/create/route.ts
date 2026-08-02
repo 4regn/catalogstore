@@ -83,15 +83,25 @@ export async function POST(req: NextRequest) {
   if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   const { lineItems, deferredJobs, subtotal, discountAmount, discountRow, total, shippingCost, shippingLabel, fulfillmentMethod } = resolved;
 
-  // Eligibility -- Pay Later needs an approved application with enough
-  // available limit; Laybuy needs neither (no credit is being extended).
+  // Eligibility -- Pay Later needs an approved application with an actual
+  // limit to draw on; Laybuy needs neither (no credit is being extended).
+  // An order above the customer's available limit is still allowed: only
+  // the amount up to their limit is financed (split across the usual
+  // instalments), and whatever's above that is charged upfront alongside
+  // instalment #1, on top of it -- e.g. a R700 order against a R300 limit
+  // finances R300 (R100 x 3) and charges R400 (the excess) + R100 (the
+  // first instalment) = R500 upfront, then R100 at day 14 and day 28.
+  let financedAmount = total;
+  let excessUpfront = 0;
   if (planType === "pay_later") {
     if (customer.application_status !== "approved") {
       return NextResponse.json({ error: "You need an approved SETLA Pay Later application to use this option" }, { status: 403 });
     }
-    if (Number(customer.available_limit) < total) {
-      return NextResponse.json({ error: "This order is above your available SETLA limit" }, { status: 403 });
+    if (Number(customer.available_limit) <= 0) {
+      return NextResponse.json({ error: "You don't have any available SETLA limit right now" }, { status: 403 });
     }
+    financedAmount = Math.min(total, Number(customer.available_limit));
+    excessUpfront = Math.round((total - financedAmount) * 100) / 100;
   }
 
   const { data: order, error: orderErr } = await admin.from("orders").insert({
@@ -116,7 +126,7 @@ export async function POST(req: NextRequest) {
   }).select("id, order_number").single();
   if (orderErr || !order) {
     console.error("SETLA checkout: order insert failed:", orderErr);
-    return NextResponse.json({ error: "Could not create your order" }, { status: 500 });
+    return NextResponse.json({ error: `Could not create your order (order: ${orderErr?.message || "unknown error"})` }, { status: 500 });
   }
 
   await admin.from("unik_designs").update({ status: "checkout_started", auth_user_id: user.id }).in("id", lineItems.map((i) => i.designId));
@@ -133,21 +143,25 @@ export async function POST(req: NextRequest) {
   }).select("id").single();
   if (setlaOrderErr || !setlaOrder) {
     console.error("SETLA checkout: setla_orders insert failed:", setlaOrderErr);
-    return NextResponse.json({ error: "Could not create your order" }, { status: 500 });
+    return NextResponse.json({ error: `Could not create your order (setla_orders: ${setlaOrderErr?.message || "unknown error"})` }, { status: 500 });
   }
 
+  // principal_amount is the actual credit extended (financedAmount), not
+  // the whole order -- the upfront excess above the customer's limit is a
+  // straight cash payment, never financed, so it isn't part of the "loan".
   const { data: plan, error: planErr } = await admin.from("setla_payment_plans").insert({
     customer_id: customer.id,
     order_id: setlaOrder.id,
     plan_type: planType,
-    principal_amount: total,
+    principal_amount: financedAmount,
   }).select("id").single();
   if (planErr || !plan) {
     console.error("SETLA checkout: setla_payment_plans insert failed:", planErr);
-    return NextResponse.json({ error: "Could not create your payment plan" }, { status: 500 });
+    return NextResponse.json({ error: `Could not create your payment plan (${planErr?.message || "unknown error"})` }, { status: 500 });
   }
 
-  const schedule = buildInstalmentSchedule(total, planType as SetlaPlanType);
+  const schedule = buildInstalmentSchedule(financedAmount, planType as SetlaPlanType);
+  if (excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
   const { data: instalments, error: instalErr } = await admin
     .from("setla_instalments")
     .insert(schedule.map((row) => ({ plan_id: plan.id, sequence_number: row.sequenceNumber, amount: row.amount, due_at: row.dueAt.toISOString() })))
@@ -155,21 +169,22 @@ export async function POST(req: NextRequest) {
     .order("sequence_number", { ascending: true });
   if (instalErr || !instalments || !instalments.length) {
     console.error("SETLA checkout: setla_instalments insert failed:", instalErr);
-    return NextResponse.json({ error: "Could not create your payment schedule" }, { status: 500 });
+    return NextResponse.json({ error: `Could not create your payment schedule (${instalErr?.message || "unknown error"})` }, { status: 500 });
   }
   const firstInstalment = instalments[0];
 
   if (planType === "pay_later") {
     // Optimistic-lock claim -- same shape as the discount code's used_count
-    // claim in lib/unik-cart-resolve.ts. Loses the race only if the
-    // customer's available_limit changed concurrently (e.g. an admin
-    // adjustment landed at the exact same moment).
+    // claim in lib/unik-cart-resolve.ts. Only the financed portion is
+    // claimed against the limit, not the whole order. Loses the race only
+    // if the customer's available_limit changed concurrently (e.g. an
+    // admin adjustment landed at the exact same moment).
     const { data: claimed, error: claimErr } = await admin
       .from("setla_customers")
-      .update({ available_limit: Number(customer.available_limit) - total })
+      .update({ available_limit: Number(customer.available_limit) - financedAmount })
       .eq("id", customer.id)
       .eq("available_limit", customer.available_limit)
-      .gte("available_limit", total)
+      .gte("available_limit", financedAmount)
       .select("id");
     if (claimErr || !claimed || !claimed.length) {
       return NextResponse.json({ error: "Your available limit has changed. Please refresh and try again." }, { status: 409 });
@@ -184,7 +199,7 @@ export async function POST(req: NextRequest) {
       successUrl: `${origin}${CONFIRM_PATH}?paid=1&orderId=${order.id}`,
       cancelUrl: `${origin}${CONFIRM_PATH}?cancelled=1&orderId=${order.id}`,
       failureUrl: `${origin}${CONFIRM_PATH}?failed=1&orderId=${order.id}`,
-      lineItems: [{ displayName: `SETLA instalment 1 of ${instalments.length} — Order ${order.order_number}`, quantity: 1, pricingDetails: { price: Math.round(firstInstalment.amount * 100) } }],
+      lineItems: [{ displayName: excessUpfront > 0 ? `SETLA order balance + instalment 1 of ${instalments.length} — Order ${order.order_number}` : `SETLA instalment 1 of ${instalments.length} — Order ${order.order_number}`, quantity: 1, pricingDetails: { price: Math.round(firstInstalment.amount * 100) } }],
     });
     await admin.from("setla_instalments").update({ yoco_checkout_id: checkout.id }).eq("id", firstInstalment.id);
 
@@ -202,7 +217,7 @@ export async function POST(req: NextRequest) {
     // rather than leaving them unable to spend it on an order that never
     // actually got a payment attempt started.
     if (planType === "pay_later") {
-      await admin.from("setla_customers").update({ available_limit: Number(customer.available_limit) }).eq("id", customer.id).eq("available_limit", Number(customer.available_limit) - total);
+      await admin.from("setla_customers").update({ available_limit: Number(customer.available_limit) }).eq("id", customer.id).eq("available_limit", Number(customer.available_limit) - financedAmount);
     }
     return NextResponse.json({ error: "Could not start payment. Please try again." }, { status: 502 });
   }
