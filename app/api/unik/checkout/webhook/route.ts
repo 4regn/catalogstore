@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { verifyYocoWebhookSignature } from "../../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../../lib/unik-orders";
+import { markSetlaInstalmentPaid, markSetlaInstalmentFailed } from "../../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,15 @@ export async function POST(req: NextRequest) {
   // webhook convention.
   if (event?.type === "payment.failed") {
     const failedPayload = event.payload || {};
+    // A SETLA instalment checkout is a separate one-off Yoco checkout from
+    // an order's own -- checked first so a failed instalment payment never
+    // falls through to the order-lookup logic below.
+    const failedInstalmentId: string | undefined = failedPayload.metadata?.instalmentId;
+    if (failedInstalmentId) {
+      await markSetlaInstalmentFailed(getAdmin(), failedInstalmentId);
+      return NextResponse.json({ status: "ok" });
+    }
+
     const orderId: string | undefined = failedPayload.metadata?.orderId;
     const checkoutId: string | undefined = failedPayload.metadata?.checkoutId;
     if (!orderId && !checkoutId) {
@@ -61,6 +71,27 @@ export async function POST(req: NextRequest) {
   }
 
   const payload = event.payload || {};
+
+  // A SETLA instalment payment (including the very first one, paid at
+  // SETLA checkout) is its own one-off Yoco checkout, distinct from a
+  // whole-order checkout -- branching on it here, before the order lookup
+  // even begins, means that lookup is never reached for an instalment
+  // event and the existing order path below is provably untouched by this.
+  const instalmentId: string | undefined = payload.metadata?.instalmentId;
+  if (instalmentId) {
+    const instalmentPaymentId: string | undefined = payload.id;
+    if (!instalmentPaymentId) {
+      console.error("SETLA Yoco webhook: instalment payment.succeeded missing payment id", { instalmentId });
+      return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
+    }
+    const result = await markSetlaInstalmentPaid(getAdmin(), { instalmentId, paymentId: instalmentPaymentId, eventId: event.id || null });
+    if (!result.ok) {
+      console.error("SETLA Yoco webhook: markSetlaInstalmentPaid failed", { instalmentId, error: result.error });
+      return NextResponse.json({ status: "error" }, { status: 500 });
+    }
+    return NextResponse.json({ status: "ok" });
+  }
+
   // Yoco auto-adds `checkoutId` to payload.metadata, but it's undocumented
   // whether custom metadata we set at checkout creation (`orderId`) survives
   // alongside it on this event -- try our own id first since we're certain

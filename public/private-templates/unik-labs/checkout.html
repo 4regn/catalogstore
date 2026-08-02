@@ -98,6 +98,7 @@
           </div>
           <div id="checkoutError" class="demo-note" style="display:none;color:#8b2a20"></div>
           <button class="place-order" id="placeOrder" type="submit">Pay with Yoco</button>
+          <button class="place-order place-order-setla" id="paySetla" type="button" style="margin-top:8px;background:#fff;color:#080808;border:2px solid #080808">Pay with SETLA</button>
         </form>
       </section>
     </div>
@@ -421,6 +422,51 @@
           button.disabled = false;
           button.textContent = 'Pay with Yoco';
         }
+      });
+
+      // SETLA has its own account system (a different login/cookie entirely
+      // from unik-customer-access, see setla-customer-access) and its own
+      // page for choosing Pay Later vs Laybuy and reviewing the payment
+      // schedule -- so this button just hands off the already-filled-in
+      // cart/delivery/customer details and navigates there, rather than
+      // duplicating that whole flow inline. /setla/checkout.html's own
+      // account guard (requireAccount() in setla.js) takes care of sending
+      // the customer to sign in first if they're not a SETLA customer yet,
+      // and round-trips back here afterward -- this handoff just needs to
+      // survive that detour, which localStorage does.
+      const setlaButton = document.getElementById('paySetla');
+      setlaButton && setlaButton.addEventListener('click', () => {
+        clearError();
+        const items = UNIK_CART.get();
+        if (!items.length) { showError('Your cart is empty.'); return; }
+        if (items.some(item => !(item.options && (item.options.designId || item.options.customUpload)))) {
+          showError("One of the items in your cart is missing its design — please remove it and add it again.");
+          return;
+        }
+        if (!form.reportValidity()) return;
+        const data = Object.fromEntries(new FormData(form));
+        const delivery = currentDelivery();
+        try {
+          localStorage.setItem('unik-setla-handoff-v1', JSON.stringify({
+            ts: Date.now(),
+            items,
+            customer: {
+              firstName:data.firstName, lastName:data.lastName, email:data.email, phone:data.phone,
+              streetAddress:data.streetAddress, suburb:data.suburb, townCity:data.townCity, province:data.province, postal:data.postal,
+            },
+            notes: data.orderNotes,
+            deliveryMethod: { name: delivery.name, isPickup: !!delivery.isPickup, price: Number(delivery.price) || 0 },
+            discountCode: appliedDiscount ? appliedDiscount.code : undefined,
+            returnOrigin: window.location.origin,
+          }));
+        } catch (_) {
+          showError('Could not start SETLA checkout. Please try again.');
+          return;
+        }
+        // This page is rendered inside an iframe (see UnikLabsIframePage.tsx)
+        // -- window.top is required, same as the account/Yoco redirects
+        // above, or this navigates the iframe instead of the actual tab.
+        window.top.location.href = '/setla/checkout.html';
       });
 
       function showPaymentResult(state, info){

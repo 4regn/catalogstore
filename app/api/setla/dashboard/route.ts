@@ -1,23 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { requireSetlaCustomer } from "../../../../lib/setla-customer";
+import { formatInstalmentDueDate } from "../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
 /* Feeds dashboard.html's renderDashboard() -- shaped to match what that
    function (still, deliberately, from the original static prototype)
    already expects: firstName/lastName/name/email/applicationStatus/
-   approvedLimit/availableLimit/createdAt/application.{bank,accountLast4}.
-   orders stays [] until Phase 2 (real checkout/order creation) -- every
-   render branch downstream already treats an empty orders list as a
-   normal, valid state (this is what a genuinely new customer looks like
-   today too), so nothing needs to change there for this to be "real". */
+   approvedLimit/availableLimit/createdAt/application.{bank,accountLast4},
+   orders:[{id,methodCode,method,total,items,schedule,createdAt}]. */
 export async function GET(req: NextRequest) {
   const auth = await requireSetlaCustomer(req);
   if ("response" in auth) return auth.response;
   const { customer } = auth;
 
   const admin = getAdmin();
+
+  const { data: setlaOrders } = await admin
+    .from("setla_orders")
+    .select("id, unik_order_id, payment_method, total, created_at, setla_payment_plans(id, plan_type)")
+    .eq("customer_id", customer.id)
+    .order("created_at", { ascending: false });
+
+  let orders: any[] = [];
+  if (setlaOrders && setlaOrders.length) {
+    const unikOrderIds = setlaOrders.map((o) => o.unik_order_id);
+    const planIds = setlaOrders.map((o) => (Array.isArray(o.setla_payment_plans) ? o.setla_payment_plans[0]?.id : (o.setla_payment_plans as any)?.id)).filter(Boolean);
+    const [{ data: unikOrders }, { data: instalments }] = await Promise.all([
+      admin.from("orders").select("id, order_number, items").in("id", unikOrderIds),
+      planIds.length ? admin.from("setla_instalments").select("id, plan_id, sequence_number, amount, due_at, status").in("plan_id", planIds).order("sequence_number", { ascending: true }) : Promise.resolve({ data: [] }),
+    ]);
+    const unikOrderById = new Map((unikOrders || []).map((o) => [o.id, o]));
+    const instalmentsByPlan = new Map<string, typeof instalments>();
+    for (const row of instalments || []) {
+      const list = instalmentsByPlan.get(row.plan_id) || [];
+      list.push(row);
+      instalmentsByPlan.set(row.plan_id, list);
+    }
+
+    orders = setlaOrders.map((row) => {
+      const plan = Array.isArray(row.setla_payment_plans) ? row.setla_payment_plans[0] : row.setla_payment_plans;
+      const unikOrder = unikOrderById.get(row.unik_order_id);
+      const planInstalments = (plan ? instalmentsByPlan.get(plan.id) : null) || [];
+      const nextUnpaidIndex = planInstalments.findIndex((i: any) => i.status !== "paid" && i.status !== "waived");
+      return {
+        id: unikOrder?.order_number || row.id,
+        methodCode: row.payment_method === "laybuy" ? "laybuy" : "pay_later",
+        method: row.payment_method === "laybuy" ? "SETLA Laybuy" : "SETLA Pay Later",
+        total: Number(row.total),
+        items: unikOrder?.items || [],
+        schedule: planInstalments.map((i: any, index: number) => ({
+          instalmentId: i.id,
+          amount: Number(i.amount),
+          date: formatInstalmentDueDate(i.due_at),
+          status: i.status,
+          isNext: index === nextUnpaidIndex,
+        })),
+        createdAt: row.created_at,
+      };
+    });
+  }
 
   const [{ data: latestApplication }, { data: latestBank }, { data: notifications }] = await Promise.all([
     admin
@@ -70,9 +113,6 @@ export async function GET(req: NextRequest) {
         }
       : null,
     notifications: notifications || [],
-    // Real orders/payment plans/instalments arrive in Phase 2 -- an
-    // approved customer with no orders yet is indistinguishable from
-    // "Phase 2 isn't built yet", which is exactly the point.
-    orders: [],
+    orders,
   });
 }

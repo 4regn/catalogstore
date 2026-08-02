@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 // customer-facing order tracker (UnikAccountClient.tsx's TRACK_STEPS) --
 // keeping the same vocabulary everywhere an order's status is shown.
 const UNIK_ORDER_STATUSES = ["pending", "fulfilled", "awaiting_pickup", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
-const PAYMENT_STATUSES = ["awaiting_payment", "pending", "paid", "failed", "abandoned", "refunded"];
+// "partial" covers a SETLA order where the first instalment has cleared
+// but the plan isn't fully paid yet -- see lib/setla-instalments.ts.
+const PAYMENT_STATUSES = ["awaiting_payment", "pending", "paid", "partial", "failed", "abandoned", "refunded"];
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const auth = await requireUnikBrandManager(req);
@@ -47,6 +49,17 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const update: Record<string, string | number | null> = {};
   if (body.status !== undefined) {
     if (!UNIK_ORDER_STATUSES.includes(body.status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    // A SETLA order stays locked for production until its payment plan
+    // says otherwise (Laybuy: fully paid; Pay Later: first instalment
+    // cleared -- see lib/setla-instalments.ts) -- a Brand Manager can't
+    // mark it fulfilled/shipped ahead of that, no matter what status is
+    // requested here.
+    if (body.status !== "pending") {
+      const { data: setlaOrder } = await getAdmin().from("setla_orders").select("production_locked").eq("unik_order_id", id).maybeSingle();
+      if (setlaOrder?.production_locked) {
+        return NextResponse.json({ error: "This order is a SETLA plan that hasn't cleared production lock yet" }, { status: 409 });
+      }
+    }
     update.status = body.status;
   }
   if (body.paymentStatus !== undefined) {

@@ -317,7 +317,31 @@
   const profile=currentAccount();
   const emptyView=(eyebrow,title,copy)=>`<div class="view-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${copy}</p></div></div><section class="card empty-state"><h2>Nothing here yet</h2><p>Your own SETLA activity will appear here automatically.</p></section>`;
   const orderStatus=order=>order.methodCode==='laybuy'?'Paying':'Confirmed';
-  const scheduleCard=order=>`<article class="card plan-card"><div class="plan-top"><div><small>UNIK Labs · ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(order.items?.[0]||{}))}</h2></div><span class="status-badge ${order.methodCode==='laybuy'?'pending':'good'}">${orderStatus(order)}</span></div><div class="plan-numbers"><div><small>Order total</small><strong>${money(order.total)}</strong></div><div><small>Payment route</small><strong>${escapeHTML(order.method)}</strong></div><div><small>Status</small><strong>${order.methodCode==='laybuy'?'Production locked':'First payment due'}</strong></div></div><div class="instalments">${(order.schedule||[]).map((row,index)=>`<div class="${index===0?'next':''}"><i>${index+1}</i><span><strong>${index===0?'Due now':'Scheduled'}</strong><small>${escapeHTML(row.date)}</small></span><b>${money(row.amount)}</b></div>`).join('')}</div></article>`;
+  // Which instalment is "next" is driven by real per-instalment status
+  // (schedule[].isNext, computed server-side in /api/setla/dashboard) --
+  // not array position 0, since instalment #1 is normally already paid at
+  // checkout by the time a customer looks at their dashboard.
+  function scheduleCard(order){
+    const nextRow=(order.schedule||[]).find(row=>row.isNext);
+    return `<article class="card plan-card"><div class="plan-top"><div><small>UNIK Labs · ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(order.items?.[0]||{}))}</h2></div><span class="status-badge ${order.methodCode==='laybuy'?'pending':'good'}">${orderStatus(order)}</span></div><div class="plan-numbers"><div><small>Order total</small><strong>${money(order.total)}</strong></div><div><small>Payment route</small><strong>${escapeHTML(order.method)}</strong></div><div><small>Status</small><strong>${order.methodCode==='laybuy'?'Production locked':'First payment due'}</strong></div></div><div class="instalments">${(order.schedule||[]).map((row,index)=>`<div class="${row.isNext?'next':''}${row.status==='paid'?' paid':''}"><i>${row.status==='paid'?'✓':index+1}</i><span><strong>${row.status==='paid'?'Paid':row.isNext?'Due now':row.status==='overdue'?'Overdue':'Scheduled'}</strong><small>${escapeHTML(row.date)}</small></span><b>${money(row.amount)}</b></div>`).join('')}</div>${nextRow?`<button class="button primary pay-instalment" data-instalment-id="${escapeHTML(nextRow.instalmentId)}" type="button">Pay ${money(nextRow.amount)} now</button>`:''}</article>`;
+  }
+  // Delegated so it works regardless of when a plan card gets injected by
+  // renderDashboard() below.
+  document.addEventListener('click',async event=>{
+    const btn=event.target.closest?.('.pay-instalment');
+    if(!btn)return;
+    const instalmentId=btn.dataset.instalmentId;
+    if(!instalmentId)return;
+    btn.disabled=true;btn.textContent='Starting secure payment…';
+    try{
+      const res=await fetch(`/api/setla/instalments/${encodeURIComponent(instalmentId)}/pay`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnOrigin:location.origin})});
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok){setlaToast(payload.error||'Could not start payment. Please try again.');btn.disabled=false;btn.textContent='Pay now';return}
+      location.href=payload.redirectUrl;
+    }catch(_){
+      setlaToast('Something went wrong. Please try again.');btn.disabled=false;btn.textContent='Pay now';
+    }
+  });
   function renderDashboard(account){
     const status=account.applicationStatus||account.status||'not_applied',approved=status==='approved',pending=status==='pending';
     const approvedLimit=approved?Number(account.approvedLimit||0):0,available=approved?Number(account.availableLimit??approvedLimit):0;
@@ -499,7 +523,19 @@
   function splitAmount(total,count){const cents=Math.round(Number(total)*100),base=Math.floor(cents/count),parts=Array(count).fill(base);for(let index=0;index<cents-base*count;index++)parts[index]++;return parts.map(value=>value/100)}
   function dateAfter(days){const date=new Date();date.setDate(date.getDate()+days);return date.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}
   function selectedPlan(){return document.querySelector('input[name="plan"]:checked')?.value||'limit'}
-  function checkoutDraft(){try{return JSON.parse(sessionStorage.getItem(KEYS.draft)||'null')}catch{return null}}
+  // Real handoff written by the "Pay with SETLA" button on the actual UNIK
+  // storefront checkout (public/private-templates/unik-labs/checkout.html)
+  // -- same origin (SETLA's static pages bypass the platform's subdomain
+  // rewrite, same as that checkout page does), so a plain localStorage
+  // write/read works across the navigation. A stale abandoned handoff
+  // (older than a day) is treated as if there's no order at all.
+  function checkoutDraft(){
+    try{
+      const raw=JSON.parse(localStorage.getItem('unik-setla-handoff-v1')||'null');
+      if(!raw||!raw.ts||Date.now()-raw.ts>24*60*60*1000)return null;
+      return raw;
+    }catch{return null}
+  }
   function renderSchedule(total,plan){
     const schedule=document.getElementById('paymentSchedule');if(!schedule)return [];
     const count=plan==='laybuy'?4:3,interval=plan==='laybuy'?7:14,parts=splitAmount(total,count);
@@ -514,10 +550,17 @@
   function initCheckout(){
     const draft=checkoutDraft(),account=currentAccount(),container=document.getElementById('checkoutItems');if(!container)return;
     if(!draft?.items?.length){document.querySelector('.checkout-layout').innerHTML='<section class="card empty-state"><div class="eligibility-icon"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8Z"/></svg></div><h2>No UNIK order found.</h2><p>Return to UNIK Labs, add your personalised garment to cart and choose SETLA at checkout.</p><a class="button primary" href="/private-templates/unik-labs/checkout.html">Return to UNIK checkout</a></section>';return}
-    const total=Number(draft.total||0),subtotal=Number(draft.subtotal||0),delivery=Number(draft.delivery||0);
+    // The handoff only carries raw cart items + form fields (no
+    // precomputed totals) -- this is purely a display estimate; the real
+    // total is always recomputed server-side from scratch at submit time
+    // (lib/unik-cart-resolve.ts), same trust model as the UNIK checkout
+    // this order came from.
+    const subtotal=draft.items.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||1),0);
+    const delivery=Number(draft.deliveryMethod?.price||0);
+    const total=subtotal+delivery;
     container.innerHTML=draft.items.map(item=>{const image=itemImage(item);return `<article class="checkout-item">${image?`<img src="${escapeHTML(image)}" alt="${escapeHTML(itemTitle(item))}">`:'<div class="item-placeholder"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div>'}<span><strong>${escapeHTML(itemTitle(item))}</strong><small>Quantity ${Number(item.qty||1)}${item?.options?.size?` · ${escapeHTML(item.options.size)}`:''}</small></span><b>${money(Number(item.price||0)*Number(item.qty||1))}</b></article>`}).join('');
     document.getElementById('summarySubtotal').textContent=money(subtotal);document.getElementById('summaryDelivery').textContent=money(delivery);document.getElementById('orderTotal').textContent=money(total);
-    const address=draft.address||{},method=draft.deliveryMethod||{};document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?'Collection details will be confirmed by UNIK Labs.':escapeHTML([address.address,address.suburb,address.city,address.province,address.postal_code].filter(Boolean).join(', '))}`;
+    const customerInfo=draft.customer||{},method=draft.deliveryMethod||{};document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?'Collection details will be confirmed by UNIK Labs.':escapeHTML([customerInfo.streetAddress,customerInfo.suburb,customerInfo.townCity,customerInfo.province,customerInfo.postal].filter(Boolean).join(', '))}`;
     const payLater=document.getElementById('payLaterChoice'),title=document.getElementById('eligibilityTitle'),copy=document.getElementById('eligibilityCopy'),hint=document.getElementById('limitHint'),action=document.getElementById('eligibilityAction'),card=document.getElementById('eligibilityCard');
     const status=account.applicationStatus||'not_applied',available=Number(account.availableLimit||0);let allowed=status==='approved'&&available>=total;
     if(status==='approved'){title.textContent=allowed?'Pay Later is available for this order.':'This order is above your available limit.';copy.textContent=`Available now: ${money(available)} · Order total: ${money(total)}`;hint.textContent=`${money(available)} available`;action.href='dashboard.html';action.textContent='View limit';if(!allowed)card.classList.add('needs-action')}
@@ -527,18 +570,53 @@
     const requested=new URLSearchParams(location.search).get('plan');if(requested==='laybuy')document.querySelector('input[value="laybuy"]').click();
     renderSchedule(total,selectedPlan());
     document.querySelectorAll('input[name="plan"]').forEach(input=>input.addEventListener('change',()=>renderSchedule(total,input.value)));
-    document.getElementById('confirmSETLA').addEventListener('click',()=>{
-      const error=document.getElementById('checkoutError');error.classList.remove('show');const plan=selectedPlan();if(!document.getElementById('checkoutTerms').checked){error.textContent='Review the schedule and accept the SETLA terms before continuing.';error.classList.add('show');return}if(plan==='limit'&&!allowed){error.textContent='Pay Later is not available for this order. Select SETLA Laybuy to continue.';error.classList.add('show');return}
-      const scheduleRows=renderSchedule(total,plan),orders=read(KEYS.orders,[])||[],id=`SL-${String(Date.now()).slice(-6)}`;const order={id,accountId:account.id,method:plan==='laybuy'?'SETLA Laybuy':'SETLA Pay Later',methodCode:plan,total,items:draft.items,customer:draft.customer,address:draft.address,deliveryMethod:draft.deliveryMethod,schedule:scheduleRows,status:plan==='laybuy'?'production_locked':'confirmed',paymentStatus:'first_payment_due',createdAt:new Date().toISOString()};orders.unshift(order);write(KEYS.orders,orders);sessionStorage.removeItem(KEYS.draft);localStorage.removeItem('unik-labs-cart-v1');location.href=`order-confirmed.html?id=${encodeURIComponent(id)}`;
+    document.getElementById('confirmSETLA').addEventListener('click',async()=>{
+      const btn=document.getElementById('confirmSETLA');
+      const error=document.getElementById('checkoutError');error.classList.remove('show');
+      const rawPlan=selectedPlan(),plan=rawPlan==='laybuy'?'laybuy':'pay_later';
+      if(!document.getElementById('checkoutTerms').checked){error.textContent='Review the schedule and accept the SETLA terms before continuing.';error.classList.add('show');return}
+      if(plan==='pay_later'&&!allowed){error.textContent='Pay Later is not available for this order. Select SETLA Laybuy to continue.';error.classList.add('show');return}
+      btn.disabled=true;btn.textContent='Starting secure payment…';
+      try{
+        const res=await fetch('/api/setla/checkout/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          plan,
+          items:draft.items.map(item=>item.options?.customUpload?{customUpload:item.options.customUpload,qty:item.qty||1,preview:item.preview}:{designId:item.options?.designId,qty:item.qty||1}),
+          customer:draft.customer,
+          notes:draft.notes,
+          deliveryMethod:draft.deliveryMethod,
+          discountCode:draft.discountCode,
+          returnOrigin:location.origin,
+        })});
+        const payload=await res.json().catch(()=>({}));
+        if(!res.ok){error.textContent=payload.error||'Could not start payment. Please try again.';error.classList.add('show');btn.disabled=false;btn.textContent='Confirm SETLA plan';return}
+        localStorage.removeItem('unik-setla-handoff-v1');localStorage.removeItem('unik-labs-cart-v1');
+        location.href=payload.redirectUrl;
+      }catch(_){
+        error.textContent='Something went wrong. Please try again.';error.classList.add('show');btn.disabled=false;btn.textContent='Confirm SETLA plan';
+      }
     });
   }
   if(protectedPage==='checkout')initCheckout();
   if(protectedPage==='confirmed'){
-    const id=new URLSearchParams(location.search).get('id'),order=(read(KEYS.orders,[])||[]).find(item=>item.id===id);if(!order){location.href='dashboard.html';return}
-    document.getElementById('confirmationId').textContent=order.id;document.getElementById('confirmationMethod').textContent=order.method;document.getElementById('confirmationTotal').textContent=money(order.total);
-    document.getElementById('confirmationTitle').textContent=order.methodCode==='laybuy'?'Your Laybuy order is reserved.':'Your Pay Later plan is ready.';
-    document.getElementById('confirmationCopy').textContent=order.methodCode==='laybuy'?'Complete the payment schedule from your dashboard. Production unlocks automatically when the balance is fully paid.':'Your order, payment schedule and UNIK Labs production journey are now connected to your SETLA dashboard.';
-    document.getElementById('confirmationNext').innerHTML=`<strong>Next step</strong><br>${order.methodCode==='laybuy'?'Pay the first Laybuy instalment to begin your payment journey.':'Complete the first scheduled payment to release your order into the UNIK Labs production queue.'}`;
-    document.getElementById('confirmationDashboard').href=`dashboard.html#${order.methodCode==='laybuy'?'laybuy':'plans'}`;
+    (async()=>{
+      const params=new URLSearchParams(location.search),orderId=params.get('orderId');
+      if(params.has('cancelled')||params.has('failed')){
+        document.getElementById('confirmationTitle').textContent=params.has('cancelled')?'Payment cancelled.':'Payment could not be completed.';
+        document.getElementById('confirmationCopy').textContent='Your order was created but the first payment did not go through. You can retry it from your dashboard.';
+        document.getElementById('confirmationNext').innerHTML='<strong>Next step</strong><br>Open your dashboard to retry the payment.';
+        document.getElementById('confirmationDashboard').href='dashboard.html#plans';
+        return;
+      }
+      if(!orderId){location.href='dashboard.html';return}
+      const res=await fetch(`/api/setla/orders/${encodeURIComponent(orderId)}`,{credentials:'include',cache:'no-store'}).catch(()=>null);
+      const payload=res&&res.ok?await res.json().catch(()=>null):null;
+      const order=payload?.order;
+      if(!order){location.href='dashboard.html';return}
+      document.getElementById('confirmationId').textContent=order.id;document.getElementById('confirmationMethod').textContent=order.method;document.getElementById('confirmationTotal').textContent=money(order.total);
+      document.getElementById('confirmationTitle').textContent=order.methodCode==='laybuy'?'Your Laybuy order is reserved.':'Your Pay Later plan is ready.';
+      document.getElementById('confirmationCopy').textContent=order.methodCode==='laybuy'?'Complete the payment schedule from your dashboard. Production unlocks automatically when the balance is fully paid.':'Your order, payment schedule and UNIK Labs production journey are now connected to your SETLA dashboard.';
+      document.getElementById('confirmationNext').innerHTML=`<strong>Next step</strong><br>${order.methodCode==='laybuy'?'Pay the next Laybuy instalment to keep your payment journey moving.':'Your order is already in the UNIK Labs production queue -- manage the rest of your schedule from your dashboard.'}`;
+      document.getElementById('confirmationDashboard').href=`dashboard.html#${order.methodCode==='laybuy'?'laybuy':'plans'}`;
+    })();
   }
 })();
