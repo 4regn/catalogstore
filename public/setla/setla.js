@@ -1,37 +1,125 @@
-(function(){
-  const KEYS={accounts:'setla-accounts-v1',session:'setla-session-v1',profile:'setla-customer-v1',orders:'setla-orders-v1',draft:'unik-setla-checkout-draft-v1'};
+(async function(){
+  // KEYS.orders/draft stay localStorage-backed for now -- checkout/order
+  // creation is still Phase 2 (real order + instalment plan creation is
+  // its own separate build). Everything auth-related below is real.
+  const KEYS={orders:'setla-orders-v1',draft:'unik-setla-checkout-draft-v1'};
+  const REFRESH_KEY='setla-labs-refresh-token-v1';
   const read=(key,fallback=null)=>{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}};
   const write=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
   const safeNext=()=>{const value=new URLSearchParams(location.search).get('next')||'';return /^[a-z0-9-]+\.html(?:[?#].*)?$/i.test(value)?value:''};
   const money=value=>`R${Number(value||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  async function passwordHash(email,password){
-    const input=new TextEncoder().encode(`${String(email).trim().toLowerCase()}:${password}`);
-    if(window.crypto?.subtle){const digest=await window.crypto.subtle.digest('SHA-256',input);return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('')}
-    return btoa(unescape(encodeURIComponent(`${email}:${password}`)));
+
+  function storeRefreshToken(token,persist){
+    try{
+      if(persist){localStorage.setItem(REFRESH_KEY,token);sessionStorage.removeItem(REFRESH_KEY)}
+      else{sessionStorage.setItem(REFRESH_KEY,token);localStorage.removeItem(REFRESH_KEY)}
+    }catch(_){}
   }
-  function session(){const current=read(KEYS.session);if(!current||Date.now()>Number(current.expiresAt||0)){localStorage.removeItem(KEYS.session);return null}return current}
-  function currentAccount(){const active=session();if(!active)return null;return (read(KEYS.accounts,[])||[]).find(account=>account.id===active.accountId)||null}
-  function saveAccount(next){const accounts=read(KEYS.accounts,[])||[];const index=accounts.findIndex(account=>account.id===next.id);if(index>=0)accounts[index]=next;else accounts.push(next);write(KEYS.accounts,accounts);return next}
-  function beginSession(account,remember=false){write(KEYS.session,{accountId:account.id,createdAt:Date.now(),expiresAt:Date.now()+(remember?30:1)*24*60*60*1000})}
+  function getRefreshToken(){try{return localStorage.getItem(REFRESH_KEY)||sessionStorage.getItem(REFRESH_KEY)}catch(_){return null}}
+  function clearRefreshToken(){try{localStorage.removeItem(REFRESH_KEY);sessionStorage.removeItem(REFRESH_KEY)}catch(_){}}
+
+  // Real session resolution against the httpOnly setla-customer-access
+  // cookie, same shape as UnikAccountClient.tsx/checkout.html's own
+  // refresh dance: if the ~55min cookie has expired, trade the refresh
+  // token stashed at sign-in for a fresh one before giving up. Resolved
+  // ONCE at load and cached in `resolvedAccount` so every later
+  // currentAccount() call in this file (there are many, further down)
+  // can stay a plain synchronous read instead of needing to be rewritten
+  // async throughout.
+  let resolvedAccount=null;
+  function currentAccount(){return resolvedAccount}
+  async function resolveSession(){
+    let res=await fetch('/api/setla/auth/session',{credentials:'include',cache:'no-store'}).catch(()=>null);
+    if(!res||res.status===401){
+      const refreshToken=getRefreshToken();
+      if(refreshToken){
+        const refreshRes=await fetch('/api/setla/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refreshToken})}).catch(()=>null);
+        if(refreshRes&&refreshRes.ok){
+          const payload=await refreshRes.json().catch(()=>({}));
+          if(payload.refreshToken)storeRefreshToken(payload.refreshToken,!!localStorage.getItem(REFRESH_KEY));
+          res=await fetch('/api/setla/auth/session',{credentials:'include',cache:'no-store'}).catch(()=>null);
+        }else{
+          clearRefreshToken();
+        }
+      }
+    }
+    if(!res||!res.ok)return null;
+    const dashRes=await fetch('/api/setla/dashboard',{credentials:'include',cache:'no-store'}).catch(()=>null);
+    if(!dashRes||!dashRes.ok)return null;
+    return await dashRes.json().catch(()=>null);
+  }
   function requireAccount(next=location.pathname.split('/').pop()+location.search){if(currentAccount())return true;location.href=`login.html?next=${encodeURIComponent(next)}`;return false}
   document.querySelectorAll('[data-copy-next]').forEach(link=>{const next=safeNext();if(next)link.href=`${link.getAttribute('href')}?next=${encodeURIComponent(next)}`});
   const authError=document.getElementById('authError');
   const showAuthError=message=>{if(!authError)return;authError.textContent=message;authError.classList.add('show')};
+
   document.getElementById('signupForm')?.addEventListener('submit',async event=>{
-    event.preventDefault();authError?.classList.remove('show');const data=new FormData(event.currentTarget);const email=String(data.get('email')).trim().toLowerCase();
-    if(data.get('password')!==data.get('confirmPassword')){showAuthError('Your passwords do not match.');return}
-    if((read(KEYS.accounts,[])||[]).some(account=>account.email===email)){showAuthError('An account already exists for this email. Log in instead.');return}
-    const account=saveAccount({id:`ST-${Date.now().toString(36).toUpperCase()}`,firstName:String(data.get('firstName')).trim(),lastName:String(data.get('lastName')).trim(),name:`${data.get('firstName')} ${data.get('lastName')}`.trim(),email,phone:String(data.get('phone')).trim(),passwordHash:await passwordHash(email,data.get('password')),applicationStatus:'not_applied',approvedLimit:0,availableLimit:0,createdAt:new Date().toISOString()});
-    beginSession(account,true);location.href=safeNext()||'apply.html';
+    event.preventDefault();authError?.classList.remove('show');
+    const data=new FormData(event.currentTarget);
+    const submitBtn=event.currentTarget.querySelector('.auth-submit');
+    if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Creating account…'}
+    try{
+      const res=await fetch('/api/setla/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({
+        firstName:data.get('firstName'),lastName:data.get('lastName'),email:data.get('email'),phone:data.get('phone'),
+        password:data.get('password'),confirmPassword:data.get('confirmPassword'),
+      })});
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok){showAuthError(payload.error||'Could not create your account');return}
+      if(payload.reusedExistingAccount){
+        event.currentTarget.innerHTML=`<div class="confirmation-mark small-mark"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="eyebrow">Almost there</div><h1>Check your email.</h1><p>${escapeHTML(payload.message||"You already had an account under this email -- we've sent a link to set your SETLA password.")}</p><a class="button primary auth-submit" href="login.html">Return to login</a>`;
+        return;
+      }
+      if(payload.refreshToken)storeRefreshToken(payload.refreshToken,true);
+      location.href=safeNext()||'apply.html';
+    }catch(_){
+      showAuthError('Something went wrong. Please try again.');
+    }finally{
+      if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Create SETLA account'}
+    }
   });
+
   document.getElementById('loginForm')?.addEventListener('submit',async event=>{
-    event.preventDefault();authError?.classList.remove('show');const data=new FormData(event.currentTarget);const email=String(data.get('email')).trim().toLowerCase();const account=(read(KEYS.accounts,[])||[]).find(item=>item.email===email);
-    if(!account||account.passwordHash!==await passwordHash(email,data.get('password'))){showAuthError('The email or password is incorrect. Please try again.');return}
-    beginSession(account,!!data.get('remember'));location.href=safeNext()||'dashboard.html';
+    event.preventDefault();authError?.classList.remove('show');
+    const data=new FormData(event.currentTarget);
+    const submitBtn=event.currentTarget.querySelector('.auth-submit');
+    if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Signing in…'}
+    try{
+      const res=await fetch('/api/setla/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({
+        email:data.get('email'),password:data.get('password'),
+      })});
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok){showAuthError(payload.error||'Could not sign in');return}
+      if(payload.refreshToken)storeRefreshToken(payload.refreshToken,!!data.get('remember'));
+      location.href=safeNext()||'dashboard.html';
+    }catch(_){
+      showAuthError('Something went wrong. Please try again.');
+    }finally{
+      if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Log in securely'}
+    }
   });
-  document.getElementById('forgotForm')?.addEventListener('submit',event=>{event.preventDefault();event.currentTarget.innerHTML='<div class="confirmation-mark small-mark"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="eyebrow">Request received</div><h1>Check your email.</h1><p>If that address is linked to a SETLA account, secure recovery instructions will be sent. For this local preview, no email is sent.</p><a class="button primary auth-submit" href="login.html">Return to login</a>'});
-  document.getElementById('logoutButton')?.addEventListener('click',()=>{localStorage.removeItem(KEYS.session);location.href='login.html'});
+
+  document.getElementById('forgotForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();authError?.classList.remove('show');
+    const data=new FormData(event.currentTarget);
+    const email=String(data.get('email')||'').trim();
+    const submitBtn=event.currentTarget.querySelector('.auth-submit');
+    if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Sending…'}
+    try{
+      await fetch('/api/setla/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}).catch(()=>{});
+    }finally{
+      event.currentTarget.innerHTML=`<div class="confirmation-mark small-mark"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="eyebrow">Request received</div><h1>Check your email.</h1><p>If ${escapeHTML(email)} is linked to a SETLA account, recovery instructions are on their way.</p><a class="button primary auth-submit" href="login.html">Return to login</a>`;
+    }
+  });
+
+  document.getElementById('logoutButton')?.addEventListener('click',async()=>{
+    await fetch('/api/setla/auth/session',{method:'DELETE',credentials:'include'}).catch(()=>{});
+    clearRefreshToken();
+    location.href='login.html';
+  });
+
+  resolvedAccount=await resolveSession();
+
   const protectedPage=document.body.dataset.page;
   if(['dashboard','checkout','confirmed'].includes(protectedPage)&&!currentAccount()){requireAccount();return}
   if(document.getElementById('applicationForm')&&!currentAccount()){requireAccount('apply.html');return}
@@ -46,26 +134,60 @@
   const capture=document.getElementById('captureIdentity');
   const canvas=document.getElementById('identityCanvas');
   const fallback=document.getElementById('selfieFallback');
-  let stream=null,captured=false;
+  let stream=null,captured=false,capturedBlob=null;
   async function startCamera(){
     try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});video.srcObject=stream;await video.play();frame.classList.add('ready');capture.disabled=false;status.textContent='Camera ready'}
     catch(error){status.textContent='Upload selfie';setlaToast('Camera access was unavailable. Please upload a recent selfie instead.')}
   }
-  function captureSelfie(){canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);captured=true;status.textContent='Selfie captured';frame.classList.add('captured');stream?.getTracks().forEach(track=>track.stop());capture.disabled=true;start.textContent='Retake selfie'}
-  start?.addEventListener('click',()=>{captured=false;frame?.classList.remove('captured');startCamera()});
+  function captureSelfie(){
+    canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);
+    // Actually read the frame into a real uploadable file -- previously this
+    // canvas was drawn to and never read from again, so a "captured" selfie
+    // never actually left the browser. toBlob is the real capture step.
+    canvas.toBlob(blob=>{capturedBlob=blob},'image/jpeg',0.92);
+    captured=true;status.textContent='Selfie captured';frame.classList.add('captured');stream?.getTracks().forEach(track=>track.stop());capture.disabled=true;start.textContent='Retake selfie';
+  }
+  start?.addEventListener('click',()=>{captured=false;capturedBlob=null;frame?.classList.remove('captured');startCamera()});
   capture?.addEventListener('click',captureSelfie);
-  fallback?.addEventListener('change',()=>{if(fallback.files.length){captured=true;status.textContent='Selfie selected'}});
+  fallback?.addEventListener('change',()=>{if(fallback.files.length){captured=true;capturedBlob=null;status.textContent='Selfie selected'}});
   const applicationAccount=currentAccount();
   if(form&&applicationAccount){const parts={firstName:applicationAccount.firstName,lastName:applicationAccount.lastName,email:applicationAccount.email,phone:applicationAccount.phone};Object.entries(parts).forEach(([name,value])=>{const input=form.elements[name];if(input&&value)input.value=value})}
-  form?.addEventListener('submit',event=>{event.preventDefault();if(!captured){setlaToast('Complete the live identity check or upload a recent selfie.');return}const data=new FormData(form);const account=currentAccount();if(!account)return;const updated=saveAccount({...account,firstName:String(data.get('firstName')).trim(),lastName:String(data.get('lastName')).trim(),name:`${data.get('firstName')} ${data.get('lastName')}`.trim(),email:String(data.get('email')).trim().toLowerCase(),phone:String(data.get('phone')).trim(),applicationStatus:'pending',application:{submittedAt:new Date().toISOString(),city:data.get('city'),province:data.get('province'),income:Number(data.get('income')||0),expenses:Number(data.get('expenses')||0),bank:data.get('bank'),accountLast4:String(data.get('accountNumber')||'').slice(-4)}});write(KEYS.profile,{name:updated.name,email:updated.email,status:'pending',appliedAt:updated.application.submittedAt});stream?.getTracks().forEach(track=>track.stop());location.href='dashboard.html?submitted=1'});
-  const profile=currentAccount()||read(KEYS.profile);
+  form?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!captured){setlaToast('Complete the live identity check or upload a recent selfie.');return}
+    const submitBtn=form.querySelector('button[type="submit"]');
+    const data=new FormData(form);
+    // The selfie is either the live-captured canvas blob, or whatever was
+    // chosen in the fallback file input -- the server only ever looks for
+    // a field literally named "selfie", so both paths normalise to that.
+    if(capturedBlob){data.set('selfie',capturedBlob,'live-selfie.jpg')}
+    else if(fallback?.files?.[0]){data.set('selfie',fallback.files[0])}
+    else{setlaToast('Complete the live identity check or upload a recent selfie.');return}
+    if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting…'}
+    try{
+      const res=await fetch('/api/setla/apply',{method:'POST',credentials:'include',body:data});
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok){setlaToast(payload.error||'Could not submit your application');return}
+      stream?.getTracks().forEach(track=>track.stop());
+      location.href='dashboard.html?submitted=1';
+    }catch(_){
+      setlaToast('Something went wrong. Please try again.');
+    }finally{
+      if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Submit for review'}
+    }
+  });
+  const profile=currentAccount();
   const emptyView=(eyebrow,title,copy)=>`<div class="view-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${copy}</p></div></div><section class="card empty-state"><h2>Nothing here yet</h2><p>Your own SETLA activity will appear here automatically.</p></section>`;
   const orderStatus=order=>order.methodCode==='laybuy'?'Paying':'Confirmed';
   const scheduleCard=order=>`<article class="card plan-card"><div class="plan-top"><div><small>UNIK Labs · ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(order.items?.[0]||{}))}</h2></div><span class="status-badge ${order.methodCode==='laybuy'?'pending':'good'}">${orderStatus(order)}</span></div><div class="plan-numbers"><div><small>Order total</small><strong>${money(order.total)}</strong></div><div><small>Payment route</small><strong>${escapeHTML(order.method)}</strong></div><div><small>Status</small><strong>${order.methodCode==='laybuy'?'Production locked':'First payment due'}</strong></div></div><div class="instalments">${(order.schedule||[]).map((row,index)=>`<div class="${index===0?'next':''}"><i>${index+1}</i><span><strong>${index===0?'Due now':'Scheduled'}</strong><small>${escapeHTML(row.date)}</small></span><b>${money(row.amount)}</b></div>`).join('')}</div></article>`;
   function renderDashboard(account){
     const status=account.applicationStatus||account.status||'not_applied',approved=status==='approved',pending=status==='pending';
     const approvedLimit=approved?Number(account.approvedLimit||0):0,available=approved?Number(account.availableLimit??approvedLimit):0;
-    const orders=(read(KEYS.orders,[])||[]).filter(order=>order.accountId===account.id).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    // account.orders comes straight from /api/setla/dashboard, already
+    // scoped to this customer -- real orders/instalments are Phase 2, so
+    // this is always [] for now, which every branch below already
+    // handles gracefully via emptyView()/the `latest` undefined checks.
+    const orders=(account.orders||[]).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
     const payLater=orders.filter(order=>order.methodCode!=='laybuy'),laybuy=orders.filter(order=>order.methodCode==='laybuy'),latest=orders[0];
     const firstName=account.firstName||account.name?.split(' ')[0]||'there',fullName=account.name||[account.firstName,account.lastName].filter(Boolean).join(' ')||'Customer';
     document.getElementById('welcomeName').textContent=`Welcome, ${firstName}.`;document.getElementById('welcomeEmail').textContent=account.email||'';
