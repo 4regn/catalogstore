@@ -89,7 +89,7 @@
           </div>
           <div class="payment-choice" aria-label="Choose payment method">
             <button class="pay-option active" type="button" data-payment="yoco"><strong>Card / Yoco</strong><span>Pay the full amount securely now.</span></button>
-            <button class="pay-option" type="button" data-payment="kopa"><strong>Kopa Payments</strong><span>Use an approved limit or choose Laybuy.</span></button>
+            <button class="pay-option" type="button" data-payment="setla"><strong>Setla Payments</strong><span>Use an approved limit or choose Laybuy.</span></button>
           </div>
           <div class="payment-note"><strong>Secure payment:</strong> complete your card payment on Yoco's encrypted checkout. UNIK Labs never sees or stores your card details.</div>
           <div id="checkoutError" class="demo-note" style="display:none;color:#8b2a20"></div>
@@ -133,9 +133,9 @@
       function setPaymentMethod(method){
         paymentMethod = method;
         paymentOptions.forEach(option => option.classList.toggle('active', option.dataset.payment === method));
-        if(method === 'kopa'){
-          paymentNote.innerHTML = '<strong>Kopa Payments:</strong> continue to your Kopa dashboard to use an approved limit, apply, or choose Laybuy. Your order moves into production once the selected payment route is confirmed.';
-          button.textContent = 'Continue with Kopa';
+        if(method === 'setla'){
+          paymentNote.innerHTML = '<strong>Setla Payments:</strong> continue to your Setla dashboard to use an approved limit, apply, or choose Laybuy. Your order moves into production once the selected payment route is confirmed.';
+          button.textContent = 'Continue with Setla';
         } else {
           paymentNote.innerHTML = '<strong>Secure payment:</strong> complete your card payment on Yoco\'s encrypted checkout. UNIK Labs never sees or stores your card details.';
           button.textContent = 'Pay securely with Yoco';
@@ -213,7 +213,7 @@
         document.getElementById('grandTotal').textContent = money(subtotal + (delivery.price || 0));
         totalsEl.hidden = false;
         button.disabled = false;
-        button.textContent = paymentMethod === 'kopa' ? 'Continue with Kopa' : 'Pay securely with Yoco';
+        button.textContent = paymentMethod === 'setla' ? 'Continue with Setla' : 'Pay securely with Yoco';
         document.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { UNIK_CART.remove(el.dataset.remove); render(); }));
         document.querySelectorAll('[data-qty-inc]').forEach(el => el.addEventListener('click', () => {
           const current = UNIK_CART.get().find(i => i.id === el.dataset.qtyInc);
@@ -246,9 +246,9 @@
           }
           if (!sessionCheck.ok) throw new Error('Could not verify your session. Please try again.');
 
-          if (paymentMethod === 'kopa') {
+          if (paymentMethod === 'setla') {
             const subtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
-            sessionStorage.setItem('unik-kopa-checkout-draft-v1', JSON.stringify({
+            sessionStorage.setItem('unik-setla-checkout-draft-v1', JSON.stringify({
               items,
               customer: { firstName:data.firstName, lastName:data.lastName, email:data.email, phone:data.phone },
               address: { address:data.streetAddress, suburb:data.suburb, city:data.townCity, province:data.province, postal_code:data.postal },
@@ -258,7 +258,7 @@
               total:subtotal + (Number(delivery.price)||0),
               createdAt:new Date().toISOString()
             }));
-            window.top.location.href = '/private-templates/unik-labs/kopa.html?view=checkout';
+            window.top.location.href = '/setla/checkout.html';
             return;
           }
 
@@ -284,7 +284,7 @@
         } catch (error) {
           showError(error.message || 'Could not start payment. Please try again.');
           button.disabled = false;
-          button.textContent = paymentMethod === 'kopa' ? 'Continue with Kopa' : 'Pay securely with Yoco';
+          button.textContent = paymentMethod === 'setla' ? 'Continue with Setla' : 'Pay securely with Yoco';
         }
       });
       paymentOptions.forEach(option => option.addEventListener('click', () => setPaymentMethod(option.dataset.payment)));
