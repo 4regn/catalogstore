@@ -447,9 +447,15 @@
         const data = Object.fromEntries(new FormData(form));
         const delivery = currentDelivery();
         try {
+          // Cart items aren't duplicated into this handoff -- a raw
+          // (not-yet-saved) custom upload can carry a multi-megabyte
+          // base64 image directly on the item, and copying that into a
+          // second localStorage key was blowing past the browser's
+          // storage quota (setItem throws QuotaExceededError). SETLA's
+          // checkout.html is same-origin and reads the cart (CART_KEY,
+          // 'unik-labs-cart-v1') straight from localStorage itself.
           localStorage.setItem('unik-setla-handoff-v1', JSON.stringify({
             ts: Date.now(),
-            items,
             customer: {
               firstName:data.firstName, lastName:data.lastName, email:data.email, phone:data.phone,
               streetAddress:data.streetAddress, suburb:data.suburb, townCity:data.townCity, province:data.province, postal:data.postal,

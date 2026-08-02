@@ -536,6 +536,13 @@
       return raw;
     }catch{return null}
   }
+  // Cart items are deliberately NOT part of the handoff above (a
+  // not-yet-saved custom upload can carry a multi-megabyte base64 image
+  // directly on the item, and duplicating the whole cart into a second
+  // localStorage key was blowing past the browser's storage quota) --
+  // read straight from the same cart key store.js itself writes to
+  // (CART_KEY = 'unik-labs-cart-v1'), same origin, no duplication needed.
+  function unikCartItems(){try{return JSON.parse(localStorage.getItem('unik-labs-cart-v1')||'[]')}catch{return []}}
   function renderSchedule(total,plan){
     const schedule=document.getElementById('paymentSchedule');if(!schedule)return [];
     const count=plan==='laybuy'?4:3,interval=plan==='laybuy'?7:14,parts=splitAmount(total,count);
@@ -549,16 +556,17 @@
   function itemImage(item){const value=item?.preview||item?.image||item?.options?.preview;return typeof value==='string'&&value?value:''}
   function initCheckout(){
     const draft=checkoutDraft(),account=currentAccount(),container=document.getElementById('checkoutItems');if(!container)return;
-    if(!draft?.items?.length){document.querySelector('.checkout-layout').innerHTML='<section class="card empty-state"><div class="eligibility-icon"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8Z"/></svg></div><h2>No UNIK order found.</h2><p>Return to UNIK Labs, add your personalised garment to cart and choose SETLA at checkout.</p><a class="button primary" href="/private-templates/unik-labs/checkout.html">Return to UNIK checkout</a></section>';return}
-    // The handoff only carries raw cart items + form fields (no
-    // precomputed totals) -- this is purely a display estimate; the real
-    // total is always recomputed server-side from scratch at submit time
+    const cartItems=unikCartItems();
+    if(!draft||!cartItems.length){document.querySelector('.checkout-layout').innerHTML='<section class="card empty-state"><div class="eligibility-icon"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8Z"/></svg></div><h2>No UNIK order found.</h2><p>Return to UNIK Labs, add your personalised garment to cart and choose SETLA at checkout.</p><a class="button primary" href="/private-templates/unik-labs/checkout.html">Return to UNIK checkout</a></section>';return}
+    // The handoff only carries form fields (no cart items, no precomputed
+    // totals) -- this is purely a display estimate; the real total is
+    // always recomputed server-side from scratch at submit time
     // (lib/unik-cart-resolve.ts), same trust model as the UNIK checkout
     // this order came from.
-    const subtotal=draft.items.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||1),0);
+    const subtotal=cartItems.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||1),0);
     const delivery=Number(draft.deliveryMethod?.price||0);
     const total=subtotal+delivery;
-    container.innerHTML=draft.items.map(item=>{const image=itemImage(item);return `<article class="checkout-item">${image?`<img src="${escapeHTML(image)}" alt="${escapeHTML(itemTitle(item))}">`:'<div class="item-placeholder"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div>'}<span><strong>${escapeHTML(itemTitle(item))}</strong><small>Quantity ${Number(item.qty||1)}${item?.options?.size?` · ${escapeHTML(item.options.size)}`:''}</small></span><b>${money(Number(item.price||0)*Number(item.qty||1))}</b></article>`}).join('');
+    container.innerHTML=cartItems.map(item=>{const image=itemImage(item);return `<article class="checkout-item">${image?`<img src="${escapeHTML(image)}" alt="${escapeHTML(itemTitle(item))}">`:'<div class="item-placeholder"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div>'}<span><strong>${escapeHTML(itemTitle(item))}</strong><small>Quantity ${Number(item.qty||1)}${item?.options?.size?` · ${escapeHTML(item.options.size)}`:''}</small></span><b>${money(Number(item.price||0)*Number(item.qty||1))}</b></article>`}).join('');
     document.getElementById('summarySubtotal').textContent=money(subtotal);document.getElementById('summaryDelivery').textContent=money(delivery);document.getElementById('orderTotal').textContent=money(total);
     const customerInfo=draft.customer||{},method=draft.deliveryMethod||{};document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?'Collection details will be confirmed by UNIK Labs.':escapeHTML([customerInfo.streetAddress,customerInfo.suburb,customerInfo.townCity,customerInfo.province,customerInfo.postal].filter(Boolean).join(', '))}`;
     const payLater=document.getElementById('payLaterChoice'),title=document.getElementById('eligibilityTitle'),copy=document.getElementById('eligibilityCopy'),hint=document.getElementById('limitHint'),action=document.getElementById('eligibilityAction'),card=document.getElementById('eligibilityCard');
@@ -580,7 +588,7 @@
       try{
         const res=await fetch('/api/setla/checkout/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
           plan,
-          items:draft.items.map(item=>item.options?.customUpload?{customUpload:item.options.customUpload,qty:item.qty||1,preview:item.preview}:{designId:item.options?.designId,qty:item.qty||1}),
+          items:cartItems.map(item=>item.options?.customUpload?{customUpload:item.options.customUpload,qty:item.qty||1,preview:item.preview}:{designId:item.options?.designId,qty:item.qty||1}),
           customer:draft.customer,
           notes:draft.notes,
           deliveryMethod:draft.deliveryMethod,
