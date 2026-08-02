@@ -211,7 +211,8 @@ export async function resolveUnikCart(params: {
 
     const design = designMap.get(item.designId!);
     if (!design) return { ok: false, error: "One of your designs could not be found", status: 404 };
-    if (design.seller_id !== sellerId || design.auth_user_id !== userId) return { ok: false, error: "One of your designs is not accessible", status: 403 };
+    if (design.seller_id !== sellerId) return { ok: false, error: "One of your designs belongs to a different store", status: 403 };
+    if (design.auth_user_id !== userId) return { ok: false, error: "One of your designs was created under a different account -- sign in with the account that created it to check out with it", status: 403 };
     if (design.source !== "ai-studio") return { ok: false, error: "One of your designs has an unrecognised source", status: 400 };
     // A design can be ordered any number of times (e.g. buying the same
     // piece as a gift for someone else, or in a different quantity) --
