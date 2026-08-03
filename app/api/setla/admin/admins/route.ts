@@ -6,6 +6,9 @@ import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
+// Fixed, not derived from req.url -- see apply/finish/route.ts for why.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+
 export async function GET(req: NextRequest) {
   const auth = await requireSetlaAdmin(req);
   if ("response" in auth) return auth.response;
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest) {
   const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
     type: "recovery",
     email,
-    options: { redirectTo: `${new URL(req.url).origin}/setla-admin/login` },
+    options: { redirectTo: `${APP_ORIGIN}/setla-admin/login` },
   });
   if (linkErr || !link?.properties?.action_link) {
     console.error("SETLA admin invite: generateLink failed", { email, linkErr });

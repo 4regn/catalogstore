@@ -5,6 +5,9 @@ import { sendEmail } from "../../../../../../../lib/email";
 
 export const dynamic = "force-dynamic";
 
+// Fixed, not derived from req.url -- see apply/finish/route.ts for why.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+
 const DECISIONS = new Set(["approved", "declined", "manual_review"]);
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     to: customer.email,
     from: "SETLA Payments <orders@catalogstore.co.za>",
     subject: title,
-    html: `<p>Hi ${customer.first_name},</p><p>${body_}</p>${decision === "declined" ? `<p>You can submit an appeal from your <a href="${new URL(req.url).origin}/setla/dashboard.html">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>` : ""}`,
+    html: `<p>Hi ${customer.first_name},</p><p>${body_}</p>${decision === "declined" ? `<p>You can submit an appeal from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>` : ""}`,
   });
 
   await admin.from("admin_audit_log").insert({

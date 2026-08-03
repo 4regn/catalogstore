@@ -5,6 +5,13 @@ import { sendEmail } from "../../../../../lib/email";
 
 export const dynamic = "force-dynamic";
 
+// Not req.url's origin -- that's whatever domain the request happened to
+// arrive on (setla.4regn.com, uniklabs.co.za, ...), which doesn't match
+// the Resend-verified sending domain and gets these emails flagged as
+// spam-risk ("link URLs match sending domain"). This is the fixed origin
+// every SETLA email link should use instead.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+
 const BUCKET = "setla-private-documents";
 const DOCUMENT_TYPES = ["id_document", "live_selfie", "proof_of_address", "proof_of_banking", "bank_statement"] as const;
 
@@ -76,14 +83,14 @@ export async function POST(req: NextRequest) {
       to: customer.email,
       from: "SETLA Payments <orders@catalogstore.co.za>",
       subject: "We've received your SETLA application",
-      html: `<p>Hi ${customer.first_name},</p><p>Thanks for applying to SETLA Payments. We're reviewing your identity, affordability and banking details now and will email you as soon as a decision is ready.</p><p>You can check your application status any time from your <a href="${new URL(req.url).origin}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
+      html: `<p>Hi ${customer.first_name},</p><p>Thanks for applying to SETLA Payments. We're reviewing your identity, affordability and banking details now and will email you as soon as a decision is ready.</p><p>You can check your application status any time from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
     });
     const notifyEmail = process.env.SETLA_ADMIN_NOTIFY_EMAIL;
     if (notifyEmail) {
       await sendEmail({
         to: notifyEmail,
         subject: `New SETLA application: ${customer.first_name} ${customer.last_name}`,
-        html: `<p>A new SETLA application is ready for review.</p><p>${customer.first_name} ${customer.last_name} · ${customer.email} · ${customer.phone}</p><p><a href="${new URL(req.url).origin}/setla-admin#applications">Open the review queue</a></p>`,
+        html: `<p>A new SETLA application is ready for review.</p><p>${customer.first_name} ${customer.last_name} · ${customer.email} · ${customer.phone}</p><p><a href="${APP_ORIGIN}/setla-admin#applications">Open the review queue</a></p>`,
       });
     }
   }
