@@ -157,6 +157,27 @@
 
   resolvedAccount=await resolveSession();
 
+  // "Live now" presence for the admin Analytics panel -- separate from the
+  // one-shot pageview beacon above (that's a historical log; this is a
+  // recurring heartbeat so the admin side can tell who's on the site right
+  // now, not just who has ever visited). Placed after resolveSession() so
+  // even the very first heartbeat already knows whether this is a signed-in
+  // customer, not just anonymous until the next tick. Paused while the tab
+  // isn't visible so someone leaving a background tab open for hours
+  // doesn't read as "online" the whole time.
+  (function trackPresence(){
+    let visitorId=null;
+    try{visitorId=localStorage.getItem('setla-analytics-visitor-v1')}catch(_){}
+    if(!visitorId)return;
+    function beat(){
+      if(document.visibilityState!=='visible')return;
+      fetch('/api/setla/analytics/heartbeat',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({visitorId,path:location.pathname.split('/').pop()||'index.html',customerId:resolvedAccount?.id||null})}).catch(()=>{});
+    }
+    beat();
+    setInterval(beat,20000);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')beat()});
+  })();
+
   const protectedPage=document.body.dataset.page;
   if(['dashboard','checkout','confirmed'].includes(protectedPage)&&!currentAccount()){requireAccount();return}
   if(document.getElementById('applicationForm')&&!currentAccount()){requireAccount('apply.html');return}

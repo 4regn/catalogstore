@@ -65,6 +65,63 @@ const PAGE_LABELS: Record<string, string> = {
   "reset-password.html": "Reset password",
 };
 
+type LiveVisitor = { visitorId: string; path: string | null; host: string | null; firstSeen: string; lastSeen: string; customer: { name: string; email: string } | null };
+
+function onlineFor(firstSeen: string): string {
+  const secs = Math.max(0, Math.floor((Date.now() - new Date(firstSeen).getTime()) / 1000));
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+// Polls independently of the days/data state above -- "who's here right
+// now" isn't part of the historical window a user picks, so it shouldn't
+// wait on (or get wiped by) that fetch succeeding or failing.
+function LiveNowCard({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
+  const [live, setLive] = useState<LiveVisitor[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      authedFetch("/api/setla/admin/analytics/live")
+        .then((res) => res.json())
+        .then((payload) => { if (!cancelled) setLive(payload.live || []); })
+        .catch(() => {});
+    load();
+    const interval = setInterval(load, 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [authedFetch]);
+
+  const online = live && live.length > 0;
+
+  return (
+    <div className="sad-card" style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: online ? "#4ade80" : "#4a524a", boxShadow: online ? "0 0 8px #4ade80" : "none" }} />
+        <strong style={{ fontSize: 13 }}>Live now{live ? ` (${live.length})` : ""}</strong>
+      </div>
+      <p className="sad-empty" style={{ marginBottom: 14 }}>Anyone with a SETLA page open right now, refreshed every 10 seconds -- their name if they're signed in, otherwise just an anonymous visitor code.</p>
+      {!live ? <p className="sad-empty" style={{ marginBottom: 0 }}>Loading…</p> : live.length === 0 ? <p className="sad-empty" style={{ marginBottom: 0 }}>Nobody on the site right now.</p> : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {live.map((v) => (
+            <div key={v.visitorId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: "#0a0c0a", fontSize: 12.5 }}>
+              <div>
+                <strong>{v.customer ? v.customer.name : "Anonymous visitor"}</strong>
+                <div style={{ color: "#9ba29b", fontSize: 11, marginTop: 2 }}>{v.customer ? v.customer.email : v.visitorId.slice(0, 10)} · {v.host || "—"}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div>{PAGE_LABELS[v.path || ""] || v.path || "—"}</div>
+                <div style={{ color: "#9ba29b", fontSize: 11, marginTop: 2 }}>online {onlineFor(v.firstSeen)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AnalyticsPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -85,14 +142,15 @@ export function AnalyticsPanel({ authedFetch }: { authedFetch: (path: string, in
       .catch(() => setLoadError("Could not load analytics"));
   }, [authedFetch, days]);
 
-  if (loadError) return <p className="sad-empty">{loadError}</p>;
-  if (!data) return <p className="sad-empty">Loading…</p>;
+  if (loadError) return <div><LiveNowCard authedFetch={authedFetch} /><p className="sad-empty">{loadError}</p></div>;
+  if (!data) return <div><LiveNowCard authedFetch={authedFetch} /><p className="sad-empty">Loading…</p></div>;
   const max = Math.max(1, ...data.daily.map((d) => d.count));
   const maxPage = Math.max(1, ...data.topPages.map((p) => p.count));
   const showEveryNth = Math.ceil(data.daily.length / 12);
 
   return (
     <div>
+      <LiveNowCard authedFetch={authedFetch} />
       <div className="sad-tabs">
         {[7, 30, 90].map((d) => (
           <button key={d} type="button" className={"sad-tab" + (days === d ? " active" : "")} onClick={() => setDays(d)}>Last {d} days</button>
