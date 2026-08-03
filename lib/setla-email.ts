@@ -59,13 +59,33 @@ export async function sendSetlaEmail(opts: {
   const ctaLabel = opts.ctaLabel || "View my dashboard";
   const ctaUrl = opts.ctaUrl || `${SETLA_APP_ORIGIN}/setla/dashboard.html`;
 
-  const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:linear-gradient(145deg,#121612,#0a0c0a);border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#f5f7f4">
-<tr><td style="padding:32px 36px 26px;text-align:center;border-bottom:1px solid #1c1f1c">
+  // A bare <table> fragment (no <head>) gives clients nothing to signal
+  // "this email already has its own dark design, don't auto dark-mode
+  // it" -- Apple Mail/Gmail's automatic color inversion was flipping the
+  // card background toward white while the white/transparent logo PNGs
+  // (correct on the real dark background) stayed white, making them
+  // disappear into it. The color-scheme meta tags below opt out of that
+  // inversion; bgcolor attributes are belt-and-suspenders for clients
+  // (Outlook desktop especially) that only partially honor CSS background.
+  const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<title>${opts.subject}</title>
+</head>
+<body style="margin:0;padding:32px 16px;background:#050505" bgcolor="#050505">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050505" bgcolor="#050505">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:linear-gradient(145deg,#121612,#0a0c0a);border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#f5f7f4" bgcolor="#0e120e">
+<tr><td style="padding:32px 36px 26px;text-align:center;border-bottom:1px solid #1c1f1c" bgcolor="#0e120e">
 <img src="cid:setla-logo" alt="SETLA Payments" height="32" style="display:inline-block;vertical-align:middle;border:0">
 <span style="display:inline-block;width:1px;height:20px;background:#2a2f2a;margin:0 14px;vertical-align:middle;font-size:0;line-height:0">&nbsp;</span>
 <img src="cid:unik-logo" alt="Powered by UNIK Labs" height="24" style="display:inline-block;vertical-align:middle;border:0">
 </td></tr>
-<tr><td style="padding:38px 36px 6px">
+<tr><td style="padding:38px 36px 6px" bgcolor="#0e120e">
 <div style="color:#4ade80;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">${opts.kicker}</div>
 <h1 style="font:600 25px/1.28 'Manrope',Arial,sans-serif;letter-spacing:-.02em;margin:0 0 18px;color:#fff">${opts.headline}</h1>
 <p style="font-size:14.5px;line-height:1.75;color:#c7cbc7;margin:0 0 8px 0">Hi ${opts.firstName},</p>
@@ -73,10 +93,14 @@ export async function sendSetlaEmail(opts: {
 ${opts.extraHtml || ""}
 <a href="${ctaUrl}" style="display:inline-block;background:#007517;color:#ffffff;text-decoration:none;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:15px 28px;border-radius:999px;margin-top:4px">${ctaLabel}</a>
 </td></tr>
-<tr><td style="padding:26px 36px 32px;border-top:1px solid #1c1f1c">
+<tr><td style="padding:26px 36px 32px;border-top:1px solid #1c1f1c" bgcolor="#0e120e">
 <p style="font-size:11px;color:#7f877f;line-height:1.7;margin:0">SETLA Payments is powered by UNIK Labs. Questions? Reply to this email or reach us at <a href="mailto:support@uniklabs.co.za" style="color:#85d897;text-decoration:none">support@uniklabs.co.za</a>.</p>
 </td></tr>
-</table>`;
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 
   let attachments: Array<{ filename: string; content: string; content_id: string }> = [];
   try {
@@ -106,5 +130,77 @@ export function signupNudgeEmailContent(firstName: string) {
     extraHtml: `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
     ctaLabel: "Complete my application",
     ctaUrl: `${SETLA_APP_ORIGIN}/setla/apply.html`,
+  };
+}
+
+const money = (value: number) => `R${Number(value || 0).toFixed(2)}`;
+
+// One content-builder per email type, shared between wherever it fires
+// automatically (apply/finish, the decision route, adjust-limit) and the
+// manual send-email tool in Brand Manager -- same reasoning as
+// signupNudgeEmailContent above: one copy, not two that can drift.
+export function applicationReceivedEmailContent(firstName: string) {
+  return {
+    firstName,
+    subject: "We've received your SETLA application",
+    kicker: "Application received",
+    headline: "We're reviewing your application.",
+    bodyHtml: "Thanks for applying to SETLA Payments. We're reviewing your identity, affordability and banking details now and will email you as soon as a decision is ready.",
+  };
+}
+
+export function underReviewEmailContent(firstName: string) {
+  return {
+    firstName,
+    subject: "Your SETLA application is being reviewed",
+    kicker: "Status update",
+    headline: "Your application is being reviewed.",
+    bodyHtml: "Your application is currently being reviewed. You'll hear back from us with a decision within 2-5 working days &mdash; no need to do anything further in the meantime.",
+  };
+}
+
+export function approvedEmailContent(firstName: string, approvedLimit: number) {
+  return {
+    firstName,
+    subject: "Application approved",
+    kicker: "You're approved",
+    headline: "Your SETLA spending limit is ready.",
+    bodyHtml: `You're approved for a SETLA spending limit of <strong style="color:#fff">${money(approvedLimit)}</strong>.`,
+    extraHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 26px 0;background:linear-gradient(145deg,#0e130f,#173a1c);border-radius:16px"><tr><td style="padding:20px 22px"><div style="color:#94a298;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Your spending limit</div><div style="font:500 38px/1 'Manrope',Arial,sans-serif;letter-spacing:-.03em;color:#fff">${money(approvedLimit)}</div></td></tr></table>`,
+  };
+}
+
+export function declinedEmailContent(firstName: string, reason: string | null) {
+  return {
+    firstName,
+    subject: "Application declined",
+    kicker: "Application update",
+    headline: "Your application wasn't approved this time.",
+    bodyHtml: reason || "Your application wasn't approved this time. You're welcome to appeal or re-apply after 30 days.",
+    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">You can submit an appeal from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html" style="color:#85d897">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>`,
+    ctaLabel: "Go to my dashboard",
+  };
+}
+
+export function manualReviewEmailContent(firstName: string) {
+  return {
+    firstName,
+    subject: "Application under further review",
+    kicker: "Status update",
+    headline: "Your application needs a closer look.",
+    bodyHtml: "Your application needs a closer look &mdash; we'll be in touch shortly.",
+  };
+}
+
+export function limitAdjustedEmailContent(firstName: string, newLimit: number, increased: boolean, reason: string | null) {
+  return {
+    firstName,
+    subject: increased ? "Your SETLA limit has increased" : "Your SETLA limit has changed",
+    kicker: increased ? "Good news" : "Account update",
+    headline: increased ? "Your SETLA limit has increased." : "Your SETLA limit has changed.",
+    bodyHtml: increased
+      ? `Good news &mdash; based on your account, your SETLA spending limit is now <strong style="color:#fff">${money(newLimit)}</strong>.`
+      : `Your SETLA spending limit has been updated to <strong style="color:#fff">${money(newLimit)}</strong>.`,
+    extraHtml: reason ? `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">${reason}</p>` : undefined,
   };
 }

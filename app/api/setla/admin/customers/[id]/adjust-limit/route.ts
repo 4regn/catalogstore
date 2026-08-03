@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
-import { sendEmail } from "../../../../../../../lib/email";
-import { SETLA_EMAIL_FROM, SETLA_RESEND_API_KEY } from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, limitAdjustedEmailContent } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -56,13 +55,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     : `Your SETLA spending limit has been updated to R${newLimit.toFixed(2)}.`;
   await admin.from("setla_notifications").insert({ customer_id: id, notification_type: "limit_adjusted", title, body: notifyBody });
 
-  await sendEmail({
-    to: customer.email,
-    from: SETLA_EMAIL_FROM,
-    apiKey: SETLA_RESEND_API_KEY,
-    subject: title,
-    html: `<p>Hi ${customer.first_name},</p><p>${notifyBody}</p>${reason ? `<p>${reason}</p>` : ""}`,
-  });
+  await sendSetlaEmail({ to: customer.email, ...limitAdjustedEmailContent(customer.first_name, newLimit, increased, reason) });
 
   await admin.from("admin_audit_log").insert({
     admin_email: auth.admin.email,
