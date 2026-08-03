@@ -19,6 +19,28 @@ export const SETLA_RESEND_API_KEY = process.env.SETLA_RESEND_API_KEY;
 // nothing about what actually loads.
 export const SETLA_APP_ORIGIN = "https://uniklabs.co.za";
 
+// Logos as CID attachments instead of remotely-hosted <img src="https://...">
+// -- most mail clients block remote images by default for a sender with no
+// track record yet, so a remote logo may never actually load on open. An
+// embedded attachment referenced as cid:xxx displays immediately, nothing
+// to fetch. Fetched from the live site rather than read off disk (simpler
+// than reasoning about which files a Vercel function bundle includes) and
+// cached in-module so a warm serverless instance only fetches once, not on
+// every send.
+let logoAttachmentsCache: Array<{ filename: string; content: string; content_id: string }> | null = null;
+async function logoAttachments() {
+  if (logoAttachmentsCache) return logoAttachmentsCache;
+  const [setlaLogo, unikLogo] = await Promise.all([
+    fetch(`${SETLA_APP_ORIGIN}/setla/assets/setla-payments-logo.png`).then((r) => r.arrayBuffer()),
+    fetch(`${SETLA_APP_ORIGIN}/setla/assets/unik-labs-logo.png`).then((r) => r.arrayBuffer()),
+  ]);
+  logoAttachmentsCache = [
+    { filename: "setla-payments-logo.png", content: Buffer.from(setlaLogo).toString("base64"), content_id: "setla-logo" },
+    { filename: "unik-labs-logo.png", content: Buffer.from(unikLogo).toString("base64"), content_id: "unik-logo" },
+  ];
+  return logoAttachmentsCache;
+}
+
 // Shared branded shell for every SETLA transactional/marketing email --
 // logo header, dark/green card matching the product itself, one CTA
 // button, footer.
@@ -38,45 +60,59 @@ export async function sendSetlaEmail(opts: {
 
   // A bare <table> fragment (no <head>) gives clients nothing to signal
   // "this email already has its own dark design, don't auto dark-mode
-  // it" -- Apple Mail's automatic color inversion was flipping the card
-  // background toward white while the white/transparent logo PNGs
-  // (correct on the real dark background) stayed white, so they
-  // disappeared into it. The color-scheme meta tags below fixed that in
-  // Apple Mail, but Gmail's mobile app applies its own more aggressive
-  // "smart" dark mode that doesn't fully respect them either -- it forced
-  // the card back to a white/black-text render regardless. A raster logo
-  // can't survive that (its pixel colors are fixed, no CSS can repaint an
-  // image), so the header is a text wordmark instead: whichever way any
-  // client flips the color scheme, styled text stays legible, an image
-  // with white artwork on a now-white background does not.
+  // it" -- Apple Mail's automatic color inversion, and then Gmail's
+  // mobile app on top of that, kept flipping the card background toward
+  // white while the white/transparent logo PNGs (correct on the real
+  // dark background) stayed white, disappearing into it. Root cause
+  // turned out to be `content="dark light"` -- declaring support for
+  // BOTH schemes, which was untrue (there's only one hardcoded dark
+  // palette here, no light variant), and some clients read that
+  // ambiguity as license to generate their own light version rather than
+  // trust the author's colors. Declaring "dark" only is the honest
+  // signal: this content has no light mode, don't try to make one.
+  // Backed up with a <style> block using !important on named classes --
+  // some clients weight a stylesheet block differently than inline
+  // style="" when deciding whether to override colors, so this is a
+  // second, independently-styled layer saying the same thing as the
+  // inline styles and bgcolor attributes throughout, not a replacement
+  // for them. With the background actually staying black, the real logo
+  // images are back (they're the point of a "branded" email) instead of
+  // the plain-text fallback tried in between.
   const html = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
 <title>${opts.subject}</title>
+<style>
+  .setla-bg,.setla-bg td{background-color:#000000!important}
+  .setla-fg{color:#ffffff!important}
+  .setla-green{color:#4ade80!important}
+</style>
 </head>
 <body style="margin:0;padding:32px 16px;background:#000000" bgcolor="#000000">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000000" bgcolor="#000000">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="setla-bg" style="background:#000000" bgcolor="#000000">
 <tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#000000;border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#ffffff" bgcolor="#000000">
-<tr><td style="padding:28px 36px 24px;text-align:center;border-bottom:1px solid #1c1f1c" bgcolor="#000000">
-<span style="font:700 19px 'Manrope',Arial,sans-serif;letter-spacing:-.01em;color:#4ade80">SETLA</span><span style="font:700 19px 'Manrope',Arial,sans-serif;letter-spacing:-.01em;color:#ffffff"> Payments</span>
-<span style="display:inline-block;width:1px;height:16px;background:#2a2f2a;margin:0 14px;vertical-align:middle;font-size:0;line-height:0">&nbsp;</span>
-<span style="font-size:11px;color:#9ba29b;letter-spacing:.02em">Powered by UNIK Labs</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="setla-bg" style="max-width:520px;background:#000000;border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#ffffff" bgcolor="#000000">
+<tr><td class="setla-bg" style="padding:28px 36px 24px;text-align:center;border-bottom:1px solid #1c1f1c" bgcolor="#000000">
+<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto"><tr>
+<td style="padding-right:14px"><img src="cid:setla-logo" alt="SETLA Payments" height="30" style="display:block;border:0"></td>
+<td width="1" style="width:1px;background-color:#2a2f2a;font-size:0;line-height:1px" bgcolor="#2a2f2a">&nbsp;</td>
+<td style="padding-left:14px"><img src="cid:unik-logo" alt="Powered by UNIK Labs" height="22" style="display:block;border:0"></td>
+</tr></table>
 </td></tr>
-<tr><td style="padding:38px 36px 6px" bgcolor="#000000">
-<div style="color:#4ade80;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">${opts.kicker}</div>
-<h1 style="font:600 25px/1.28 'Manrope',Arial,sans-serif;letter-spacing:-.02em;margin:0 0 18px;color:#ffffff">${opts.headline}</h1>
-<p style="font-size:14.5px;line-height:1.75;color:#ffffff;margin:0 0 8px 0">Hi ${opts.firstName},</p>
-<p style="font-size:14.5px;line-height:1.75;color:#ffffff;margin:0 0 24px 0">${opts.bodyHtml}</p>
+<tr><td class="setla-bg" style="padding:38px 36px 6px" bgcolor="#000000">
+<div class="setla-green" style="color:#4ade80;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">${opts.kicker}</div>
+<h1 class="setla-fg" style="font:600 25px/1.28 'Manrope',Arial,sans-serif;letter-spacing:-.02em;margin:0 0 18px;color:#ffffff">${opts.headline}</h1>
+<p class="setla-fg" style="font-size:14.5px;line-height:1.75;color:#ffffff;margin:0 0 8px 0">Hi ${opts.firstName},</p>
+<p class="setla-fg" style="font-size:14.5px;line-height:1.75;color:#ffffff;margin:0 0 24px 0">${opts.bodyHtml}</p>
 ${opts.extraHtml || ""}
 <a href="${ctaUrl}" style="display:inline-block;background:#007517;color:#ffffff;text-decoration:none;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:15px 28px;border-radius:999px;margin-top:4px">${ctaLabel}</a>
 </td></tr>
-<tr><td style="padding:26px 36px 32px;border-top:1px solid #1c1f1c" bgcolor="#000000">
-<p style="font-size:11px;color:#ffffff;line-height:1.7;margin:0">SETLA Payments is powered by UNIK Labs. Questions? Reply to this email or reach us at <a href="mailto:setla@uniklabs.co.za" style="color:#4ade80;text-decoration:none">setla@uniklabs.co.za</a>.</p>
+<tr><td class="setla-bg" style="padding:26px 36px 32px;border-top:1px solid #1c1f1c" bgcolor="#000000">
+<p class="setla-fg" style="font-size:11px;color:#ffffff;line-height:1.7;margin:0">SETLA Payments is powered by UNIK Labs. Questions? Reply to this email or reach us at <a href="mailto:setla@uniklabs.co.za" style="color:#4ade80;text-decoration:none">setla@uniklabs.co.za</a>.</p>
 </td></tr>
 </table>
 </td></tr>
@@ -84,7 +120,14 @@ ${opts.extraHtml || ""}
 </body>
 </html>`;
 
-  await sendEmail({ to: opts.to, from: SETLA_EMAIL_FROM, subject: opts.subject, html, apiKey: SETLA_RESEND_API_KEY });
+  let attachments: Array<{ filename: string; content: string; content_id: string }> = [];
+  try {
+    attachments = await logoAttachments();
+  } catch (err) {
+    console.error("sendSetlaEmail: could not fetch logo attachments, sending without them", err);
+  }
+
+  await sendEmail({ to: opts.to, from: SETLA_EMAIL_FROM, subject: opts.subject, html, apiKey: SETLA_RESEND_API_KEY, attachments });
 }
 
 // The ceiling advertised in the signup-nudge email -- an aspirational
@@ -101,8 +144,8 @@ export function signupNudgeEmailContent(firstName: string) {
     subject: "Application Almost Done!",
     kicker: "Your spending power. Buy now. Pay later.",
     headline: "Complete your application and find out how much you qualify for.",
-    bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong style="color:#ffffff">R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
-    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
+    bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong class="setla-fg" style="color:#ffffff">R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
+    extraHtml: `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
     ctaLabel: "Complete my application",
     ctaUrl: `${SETLA_APP_ORIGIN}/setla/apply.html`,
   };
@@ -140,8 +183,8 @@ export function approvedEmailContent(firstName: string, approvedLimit: number) {
     subject: "Application approved",
     kicker: "You're approved",
     headline: "Your SETLA spending limit is ready.",
-    bodyHtml: `You're approved for a SETLA spending limit of <strong style="color:#ffffff">${money(approvedLimit)}</strong>.`,
-    extraHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 26px 0;background:#000000;border:1px solid #007517;border-radius:16px"><tr><td style="padding:20px 22px"><div style="color:#4ade80;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Your spending limit</div><div style="font:500 38px/1 'Manrope',Arial,sans-serif;letter-spacing:-.03em;color:#ffffff">${money(approvedLimit)}</div></td></tr></table>`,
+    bodyHtml: `You're approved for a SETLA spending limit of <strong class="setla-fg" style="color:#ffffff">${money(approvedLimit)}</strong>.`,
+    extraHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="setla-bg" style="margin:0 0 26px 0;background:#000000;border:1px solid #007517;border-radius:16px"><tr><td class="setla-bg" style="padding:20px 22px" bgcolor="#000000"><div class="setla-green" style="color:#4ade80;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Your spending limit</div><div class="setla-fg" style="font:500 38px/1 'Manrope',Arial,sans-serif;letter-spacing:-.03em;color:#ffffff">${money(approvedLimit)}</div></td></tr></table>`,
   };
 }
 
@@ -152,7 +195,7 @@ export function declinedEmailContent(firstName: string, reason: string | null) {
     kicker: "Application update",
     headline: "Your application wasn't approved this time.",
     bodyHtml: reason || "Your application wasn't approved this time. You're welcome to appeal or re-apply after 30 days.",
-    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">You can submit an appeal from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html" style="color:#4ade80">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>`,
+    extraHtml: `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">You can submit an appeal from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html" class="setla-green" style="color:#4ade80">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>`,
     ctaLabel: "Go to my dashboard",
   };
 }
@@ -174,9 +217,9 @@ export function limitAdjustedEmailContent(firstName: string, newLimit: number, i
     kicker: increased ? "Good news" : "Account update",
     headline: increased ? "Your SETLA limit has increased." : "Your SETLA limit has changed.",
     bodyHtml: increased
-      ? `Good news &mdash; based on your account, your SETLA spending limit is now <strong style="color:#ffffff">${money(newLimit)}</strong>.`
-      : `Your SETLA spending limit has been updated to <strong style="color:#ffffff">${money(newLimit)}</strong>.`,
-    extraHtml: reason ? `<p style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">${reason}</p>` : undefined,
+      ? `Good news &mdash; based on your account, your SETLA spending limit is now <strong class="setla-fg" style="color:#ffffff">${money(newLimit)}</strong>.`
+      : `Your SETLA spending limit has been updated to <strong class="setla-fg" style="color:#ffffff">${money(newLimit)}</strong>.`,
+    extraHtml: reason ? `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">${reason}</p>` : undefined,
   };
 }
 
