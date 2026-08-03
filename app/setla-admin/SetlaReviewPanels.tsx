@@ -486,6 +486,7 @@ const SETLA_EMAIL_TYPES: { value: string; label: string; eligibleStatus: string 
 function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: CustomerRow[]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [emailType, setEmailType] = useState(SETLA_EMAIL_TYPES[0].value);
   const [customerId, setCustomerId] = useState("");
+  const [overrideEmail, setOverrideEmail] = useState("");
   const [busy, setBusy] = useState(false);
 
   const activeType = SETLA_EMAIL_TYPES.find((t) => t.value === emailType)!;
@@ -500,19 +501,22 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   async function handleSend() {
     if (!selected) return;
     setBusy(true);
-    const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-email`, { method: "POST", body: JSON.stringify({ emailType }) });
+    const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-email`, {
+      method: "POST",
+      body: JSON.stringify({ emailType, overrideEmail: overrideEmail.trim() || undefined }),
+    });
     const payload = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { toast(payload.error || "Could not send this email"); return; }
-    toast("Email sent");
+    toast(overrideEmail.trim() ? `Sent to ${overrideEmail.trim()}` : "Email sent");
     setCustomerId("");
   }
 
   return (
     <div className="sad-card" style={{ marginBottom: 16 }}>
       <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Send a customer email</strong>
-      <p className="sad-empty" style={{ marginBottom: 14 }}>Pick the email and the customer -- their name and email are filled in for you, and the picker only shows customers this email actually applies to.</p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+      <p className="sad-empty" style={{ marginBottom: 14 }}>Pick the email and the customer -- their name and email are filled in for you, and the picker only shows customers this email actually applies to. Use the address field below to redirect delivery elsewhere (e.g. your own inbox, for testing) without changing what the email actually says.</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 12 }}>
         <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 240px" }}>
           Email
           <select className="sad-select" value={emailType} onChange={(e) => setEmailType(e.target.value)}>
@@ -525,6 +529,12 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
             <option value="">{eligible.length ? "Select a customer…" : "No eligible customers"}</option>
             {eligible.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name} — {c.email}</option>)}
           </select>
+        </label>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 320px" }}>
+          Send to a different address (optional -- e.g. for testing)
+          <input className="sad-input" type="email" placeholder={selected ? selected.email : "Leave blank to use the customer's own email"} value={overrideEmail} onChange={(e) => setOverrideEmail(e.target.value)} />
         </label>
         <button type="button" className="sad-btn" disabled={!selected || busy} onClick={handleSend}>{busy ? "Sending…" : "Send email"}</button>
       </div>

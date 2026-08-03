@@ -64,6 +64,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const brandedType = BRANDED_EMAIL_TYPES[emailType];
   if (!plainType && !brandedType) return NextResponse.json({ error: "Invalid email type" }, { status: 400 });
 
+  // Redirects delivery only -- content/personalisation still comes from
+  // the real customer below, and the eligibility check still applies to
+  // their real application status. Lets an admin see exactly what a
+  // customer's email looks like without needing access to their inbox
+  // (testing the new sender domain, spot-checking copy, etc).
+  const overrideEmailRaw = String(body.overrideEmail || "").trim();
+  if (overrideEmailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overrideEmailRaw)) {
+    return NextResponse.json({ error: "That doesn't look like a valid email address" }, { status: 400 });
+  }
+
   const admin = getAdmin();
   const { data: customer } = await admin
     .from("setla_customers")
@@ -80,17 +90,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     );
   }
 
+  const deliverTo = overrideEmailRaw || customer.email;
+
   if (brandedType) {
     const content = signupNudgeEmailContent(customer.first_name);
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: content.subject, body: content.headline });
-    await sendSetlaEmail({ to: customer.email, ...content });
+    await sendSetlaEmail({ ...content, to: deliverTo });
     await admin.from("setla_customers").update({ signup_nudge_sent_at: new Date().toISOString() }).eq("id", customer.id);
   } else {
     const type = plainType!;
     const message = type.body(customer);
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: type.subject, body: message });
     await sendEmail({
-      to: customer.email,
+      to: deliverTo,
       from: SETLA_EMAIL_FROM,
       apiKey: SETLA_RESEND_API_KEY,
       subject: type.subject,
@@ -102,7 +114,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     admin_email: auth.admin.email,
     action: "setla_manual_email",
     target_seller_id: null,
-    details: { customerId: id, emailType },
+    details: { customerId: id, emailType, deliveredTo: overrideEmailRaw ? deliverTo : undefined },
   });
 
   return NextResponse.json({ success: true });
