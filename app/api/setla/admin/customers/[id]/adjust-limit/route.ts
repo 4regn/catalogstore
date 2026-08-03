@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
 import { sendEmail } from "../../../../../../../lib/email";
+import { SETLA_EMAIL_FROM, SETLA_RESEND_API_KEY } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   await sendEmail({
     to: customer.email,
-    from: "SETLA Payments <orders@catalogstore.co.za>",
+    from: SETLA_EMAIL_FROM,
+    apiKey: SETLA_RESEND_API_KEY,
     subject: title,
     html: `<p>Hi ${customer.first_name},</p><p>${notifyBody}</p>${reason ? `<p>${reason}</p>` : ""}`,
   });

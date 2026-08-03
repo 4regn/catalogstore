@@ -1,9 +1,23 @@
 import { sendEmail } from "./email";
 
-// Fixed, not derived from a request -- see apply/finish/route.ts for why
-// (a Resend-verified sending domain must match the links inside the email,
-// or it gets flagged as spam-risk).
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+// SETLA sends from its own address on its own separate Resend account
+// (setla@uniklabs.co.za is verified there, not on the shared account that
+// orders@catalogstore.co.za uses for every other seller's order emails) --
+// so every SETLA email needs both this "from" and SETLA_RESEND_API_KEY,
+// never the platform-wide defaults. Exported so the handful of SETLA
+// routes that still build their own plain-text email (rather than going
+// through sendSetlaEmail below) stay in sync with this one, instead of
+// each hardcoding the same string separately.
+export const SETLA_EMAIL_FROM = "SETLA Payments <setla@uniklabs.co.za>";
+export const SETLA_RESEND_API_KEY = process.env.SETLA_RESEND_API_KEY;
+
+// Links inside a SETLA email must resolve on the same domain it's sent
+// from, same reasoning as APP_ORIGIN above -- uniklabs.co.za now that the
+// sender is setla@uniklabs.co.za, not catalogstore.co.za. Every /setla/*
+// page is a static file, byte-identical no matter which domain serves it
+// (see middleware.ts), so pointing here instead of APP_ORIGIN changes
+// nothing about what actually loads.
+export const SETLA_APP_ORIGIN = "https://uniklabs.co.za";
 
 // Shared branded shell for every SETLA transactional/marketing email --
 // logo header, dark/green card matching the product itself, one CTA
@@ -22,13 +36,13 @@ export async function sendSetlaEmail(opts: {
   ctaUrl?: string;
 }) {
   const ctaLabel = opts.ctaLabel || "View my dashboard";
-  const ctaUrl = opts.ctaUrl || `${APP_ORIGIN}/setla/dashboard.html`;
+  const ctaUrl = opts.ctaUrl || `${SETLA_APP_ORIGIN}/setla/dashboard.html`;
 
   const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:linear-gradient(145deg,#121612,#0a0c0a);border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#f5f7f4">
 <tr><td style="padding:32px 36px 26px;text-align:center;border-bottom:1px solid #1c1f1c">
-<img src="${APP_ORIGIN}/setla/assets/setla-payments-logo.png" alt="SETLA Payments" height="32" style="display:inline-block;vertical-align:middle;border:0">
+<img src="${SETLA_APP_ORIGIN}/setla/assets/setla-payments-logo.png" alt="SETLA Payments" height="32" style="display:inline-block;vertical-align:middle;border:0">
 <span style="display:inline-block;width:1px;height:20px;background:#2a2f2a;margin:0 14px;vertical-align:middle;font-size:0;line-height:0">&nbsp;</span>
-<img src="${APP_ORIGIN}/setla/assets/unik-labs-logo.png" alt="Powered by UNIK Labs" height="24" style="display:inline-block;vertical-align:middle;border:0">
+<img src="${SETLA_APP_ORIGIN}/setla/assets/unik-labs-logo.png" alt="Powered by UNIK Labs" height="24" style="display:inline-block;vertical-align:middle;border:0">
 </td></tr>
 <tr><td style="padding:38px 36px 6px">
 <div style="color:#4ade80;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">${opts.kicker}</div>
@@ -43,7 +57,7 @@ ${opts.extraHtml || ""}
 </td></tr>
 </table>`;
 
-  await sendEmail({ to: opts.to, from: "SETLA Payments <orders@catalogstore.co.za>", subject: opts.subject, html });
+  await sendEmail({ to: opts.to, from: SETLA_EMAIL_FROM, subject: opts.subject, html, apiKey: SETLA_RESEND_API_KEY });
 }
 
 // The ceiling advertised in the signup-nudge email -- an aspirational
@@ -63,6 +77,6 @@ export function signupNudgeEmailContent(firstName: string) {
     bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong style="color:#fff">R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
     extraHtml: `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
     ctaLabel: "Complete my application",
-    ctaUrl: `${APP_ORIGIN}/setla/apply.html`,
+    ctaUrl: `${SETLA_APP_ORIGIN}/setla/apply.html`,
   };
 }

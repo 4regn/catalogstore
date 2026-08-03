@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
 import { sendEmail } from "../../../../../../../lib/email";
+import { SETLA_EMAIL_FROM, SETLA_RESEND_API_KEY, SETLA_APP_ORIGIN } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
-
-// Fixed, not derived from req.url -- see apply/finish/route.ts for why.
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
 
 const DECISIONS = new Set(["approved", "declined", "manual_review"]);
 
@@ -75,9 +73,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   await sendEmail({
     to: customer.email,
-    from: "SETLA Payments <orders@catalogstore.co.za>",
+    from: SETLA_EMAIL_FROM,
+    apiKey: SETLA_RESEND_API_KEY,
     subject: title,
-    html: `<p>Hi ${customer.first_name},</p><p>${body_}</p>${decision === "declined" ? `<p>You can submit an appeal from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>` : ""}`,
+    html: `<p>Hi ${customer.first_name},</p><p>${body_}</p>${decision === "declined" ? `<p>You can submit an appeal from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>` : ""}`,
   });
 
   await admin.from("admin_audit_log").insert({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireSetlaCustomer } from "../../../../../lib/setla-customer";
 import { sendEmail } from "../../../../../lib/email";
+import { SETLA_EMAIL_FROM, SETLA_RESEND_API_KEY, SETLA_APP_ORIGIN } from "../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -81,10 +82,16 @@ export async function POST(req: NextRequest) {
     });
     await sendEmail({
       to: customer.email,
-      from: "SETLA Payments <orders@catalogstore.co.za>",
+      from: SETLA_EMAIL_FROM,
+      apiKey: SETLA_RESEND_API_KEY,
       subject: "We've received your SETLA application",
-      html: `<p>Hi ${customer.first_name},</p><p>Thanks for applying to SETLA Payments. We're reviewing your identity, affordability and banking details now and will email you as soon as a decision is ready.</p><p>You can check your application status any time from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
+      html: `<p>Hi ${customer.first_name},</p><p>Thanks for applying to SETLA Payments. We're reviewing your identity, affordability and banking details now and will email you as soon as a decision is ready.</p><p>You can check your application status any time from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
     });
+    // Internal notification to the business, not the customer -- stays on
+    // the platform's own default sender/origin (not SETLA_APP_ORIGIN),
+    // since /setla-admin is a real Next.js app route that only resolves on
+    // catalogstore.co.za, not a static /setla/*.html file reachable from
+    // any domain.
     const notifyEmail = process.env.SETLA_ADMIN_NOTIFY_EMAIL;
     if (notifyEmail) {
       await sendEmail({

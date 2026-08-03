@@ -2,12 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
 import { sendEmail } from "../../../../../../../lib/email";
-import { sendSetlaEmail, signupNudgeEmailContent } from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, signupNudgeEmailContent, SETLA_EMAIL_FROM, SETLA_RESEND_API_KEY, SETLA_APP_ORIGIN } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
-
-// Fixed, not derived from req.url -- see apply/finish/route.ts for why.
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
 
 // Manual "pick the customer, pick the email" tool for the admin panel --
 // mirrors the partner resend flow in Brand Manager. One eligible
@@ -94,9 +91,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: type.subject, body: message });
     await sendEmail({
       to: customer.email,
-      from: "SETLA Payments <orders@catalogstore.co.za>",
+      from: SETLA_EMAIL_FROM,
+      apiKey: SETLA_RESEND_API_KEY,
       subject: type.subject,
-      html: `<p>Hi ${customer.first_name},</p><p>${message}</p><p>You can check your application status any time from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
+      html: `<p>Hi ${customer.first_name},</p><p>${message}</p><p>You can check your application status any time from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
     });
   }
 
