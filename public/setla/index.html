@@ -3,42 +3,155 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SETLA Payments</title>
-  <meta name="description" content="Apply for a personal SETLA spending limit or use SETLA Laybuy for eligible 4REGN and UNIK Labs orders.">
+  <meta name="theme-color" content="#050505">
+  <title>SETLA — Flexible payments for 4REGN + UNIK Labs</title>
+  <meta name="description" content="Create your SETLA account, complete your application when you're ready, and discover your personal spending limit for eligible 4REGN and UNIK Labs orders.">
   <link rel="stylesheet" href="setla.css">
 </head>
-<body>
+<body class="landing-conv">
   <header class="shell nav">
-    <a class="brand" href="index.html"><img class="setla" src="assets/setla-payments-logo.png" alt="SETLA Payments"><span class="divider"></span><img class="unik" src="assets/unik-labs-logo.png" alt="Powered by UNIK Labs"></a>
+    <a class="brand" href="index.html"><img class="setla" src="assets/setla-payments-logo.png" alt="SETLA"><span class="divider"></span><img class="unik" src="assets/unik-labs-logo.png" alt="Powered by UNIK Labs"></a>
     <nav class="nav-links"><a href="#how">How it works</a><a href="faq.html">FAQs</a><a href="login.html">Log in</a><a class="nav-cta" href="signup.html">Sign up</a></nav>
   </header>
   <main>
     <section class="landing-hero">
-      <img src="assets/setla-hero.jpg" alt="4REGN customers wearing personalised clothing">
-      <div class="landing-hero-content">
+      <img src="assets/setla-hero.jpg" alt="4REGN customers wearing 4REGN clothing">
+      <div class="landing-hero-content shell">
         <div class="eyebrow">Flexible payments with SETLA</div>
-        <h1>Buy now.<br>Pay later.</h1>
+        <h1 class="hero-motion-title"><span class="motion-word w1">Buy</span> <span class="motion-word w2">now.</span><br><span class="motion-word w3">Pay</span> <span class="motion-word w4">later.</span></h1>
         <p class="lead">SETLA Payments gives eligible 4REGN and UNIK Labs customers flexible ways to pay. Apply once, receive a personal spending limit, and manage every payment and order from one place.</p>
         <div class="actions"><a class="button primary" href="signup.html?next=apply.html">Apply &amp; discover your limit</a><a class="button outline" href="login.html">I already have an account</a></div>
-        <div class="partner-line"><span>SETLA Payments</span><i></i><span>Available at 4REGN + UNIK Labs</span><i></i><span>Built for our community</span></div>
+        <div class="partner-line"><span>SETLA Payments</span><i></i><span>Available at 4REGN + UNIK Labs</span></div>
       </div>
+      
     </section>
-    <section class="shell section">
+
+    <section class="shell section" id="options">
       <div class="eyebrow">Choose what works for you</div><h2>Two ways to pay.</h2>
       <div class="grid-2">
         <article class="card"><div class="icon"><svg fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg></div><h3>SETLA Pay Later</h3><p>Apply for a personal spending limit. If approved, use it towards eligible orders and manage repayments from your SETLA dashboard.</p><a class="text-button" href="signup.html?next=apply.html">Discover your limit &rarr;</a></article>
         <article class="card"><div class="icon"><svg fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M4 7h16M6 3v4m12-4v4M5 7v13h14V7"/></svg></div><h3>SETLA Laybuy</h3><p>Reserve your order and pay the balance in manageable instalments. Production begins once the balance is complete.</p><a class="text-button" href="checkout.html?plan=laybuy">Explore Laybuy &rarr;</a></article>
       </div>
     </section>
+
+    <section class="shell conv-section" id="payment-examples">
+      <div class="conv-section-head">
+        <div><div class="eyebrow">See it before you commit</div><h2>What could a SETLA payment look like?</h2></div>
+        <p>Use the arrows to preview premium 4REGN product examples. The selected product, repayment calculator and example limit update together so customers can understand the offer at a glance.</p>
+      </div>
+
+      <div class="demo-account-strip">
+        <div>
+          <span class="demo-account-kicker">Example SETLA account</span>
+          <strong>R5 000 spending limit</strong>
+        </div>
+        <div class="demo-account-balance">
+          <span>Available before purchase</span>
+          <b>R5 000</b>
+        </div>
+      </div>
+
+      <div class="product-demo">
+        <div class="product-demo-head">
+          <div>
+            <span class="product-demo-kicker">Choose a product</span>
+            <h3>Preview one premium example at a time.</h3>
+          </div>
+
+        </div>
+
+        <div class="payment-example-grid premium-example-grid">
+          <div class="selected-product-panel premium-product-viewer product-demo-sync">
+            <div class="premium-product-stage" id="productStage" tabindex="0" aria-label="Swipe or use arrows to change product">
+              <div class="premium-product-frame" aria-live="polite">
+                <img class="premium-product-slide is-active" data-product-index="0" src="assets/products/product-1.webp" alt="Kelvin Momo Oversized Tee">
+<img class="premium-product-slide" data-product-index="1" src="assets/products/product-2.webp" alt="Nike Air Force 1 '07 LV8 USA Men's Shoes White">
+<img class="premium-product-slide" data-product-index="2" src="assets/products/product-3.webp" alt="Embroidery Patch Oversized Hoodie">
+<img class="premium-product-slide" data-product-index="3" src="assets/products/product-4.webp" alt="Men's Vintage-Inspired Slip-On Loafers">
+<img class="premium-product-slide" data-product-index="4" src="assets/products/product-5.webp" alt="4REGN BUTTERFLY EFFECT OVERSIZED TEE">
+              </div>
+
+            </div>
+              <div class="product-carousel-controls image-bottom-controls" aria-label="Product carousel controls">
+                <button type="button" id="productPrev" class="premium-arrow" aria-label="Previous product">&#8249;</button>
+                <button type="button" id="productNext" class="premium-arrow" aria-label="Next product">&#8250;</button>
+              </div>
+            <div class="premium-product-meta">
+              <span class="product-demo-kicker">Selected example</span>
+              <h3 id="selectedProductName">Kelvin Momo Oversized Tee</h3>
+              <div class="selected-product-price" id="selectedProductPrice">R350</div>
+              <div class="premium-mini-line"><span>4REGN payment example</span><strong id="productCountLabel">01 / 05</strong></div>
+              <div class="viewer-limit-row">
+                <div class="viewer-limit-pill"><span>Example SETLA limit</span><b>R5 000</b></div>
+                <div class="viewer-limit-pill"><span>Used by this order</span><b id="selectedUsedAmount">R350</b></div>
+                <div class="viewer-limit-pill accent"><span>Available after purchase</span><strong id="selectedLimitLeft">R4 650</strong></div>
+              </div>
+              <div class="viewer-dots" id="viewerDots" aria-label="Product example selector"></div>
+            </div>
+          </div>
+
+          <div class="schedule-panel product-demo-sync">
+            <div class="plan-tabs" role="tablist" aria-label="Example payment plans">
+              <button class="plan-tab is-active" type="button" data-plan="four" role="tab" aria-selected="true">Pay in 4</button>
+              <button class="plan-tab" type="button" data-plan="half" role="tab" aria-selected="false">Pay half / half</button>
+            </div>
+
+            <div class="plan-summary">
+              <span id="planSummaryLabel">4 instalments</span>
+              <strong id="planSummaryAmount">R87.50 today, then every 14 days</strong>
+            </div>
+
+            <div class="schedule-overview">
+              <div><span>Product</span><strong id="scheduleProductName">Kelvin Momo Oversized Tee</strong></div>
+              <div><span>Product price</span><strong id="scheduleProductPrice">R350</strong></div>
+            </div>
+
+            <div class="calendar-schedule" id="fourPlanSchedule">
+              <div class="calendar-row is-today"><span class="calendar-number">01</span><div><small>Today</small><strong id="fourDate1">3 Aug 2026</strong></div><b id="fourPay1">R87.50</b></div>
+              <div class="calendar-row"><span class="calendar-number">02</span><div><small>14 days later</small><strong id="fourDate2">17 Aug 2026</strong></div><b id="fourPay2">R87.50</b></div>
+              <div class="calendar-row"><span class="calendar-number">03</span><div><small>28 days later</small><strong id="fourDate3">31 Aug 2026</strong></div><b id="fourPay3">R87.50</b></div>
+              <div class="calendar-row"><span class="calendar-number">04</span><div><small>42 days later</small><strong id="fourDate4">14 Sep 2026</strong></div><b id="fourPay4">R87.50</b></div>
+            </div>
+
+            <div class="calendar-schedule" id="halfPlanSchedule" hidden>
+              <div class="calendar-row is-today"><span class="calendar-number">01</span><div><small>Today</small><strong id="halfDate1">3 Aug 2026</strong></div><b id="halfPay1">R175</b></div>
+              <div class="calendar-row"><span class="calendar-number">02</span><div><small>30 days later / next payday</small><strong id="halfDate2">2 Sep 2026</strong></div><b id="halfPay2">R175</b></div>
+            </div>
+
+            <p class="calc-note">Example only. Actual eligibility, approved limit, repayment dates and terms are personal to the customer and are shown before confirming a SETLA order.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell conv-section" style="padding-top:18px">
+      <div class="account-showcase">
+        <div class="account-copy">
+          <div><div class="eyebrow">Your SETLA account</div><h2>See your spending power at a glance.</h2></div>
+          <p>Your personal limit, amount used, next payment and active orders live in one place. Complete your application to discover your own decision.</p>
+        </div>
+        <div class="account-device">
+          <div class="account-phone">
+            <div class="account-phone-head"><img src="assets/setla-payments-logo.png" alt="SETLA"><div class="account-avatar">S</div></div>
+            <div class="account-balance"><small>Available to spend</small><strong>R3 500</strong><div class="account-meter"><i style="width:87.5%"></i></div><div class="account-meta"><span>Approved limit R4 000</span><span>R500 used</span></div></div>
+            <div class="account-mini"><div><span>Active order</span><b>1</b></div><div><span>Next payment</span><b>R125</b></div></div>
+            <div class="account-next"><div><span>4REGN active order · R500 used</span><b>Next R125 · <span id="dashboardNextDate">17 Aug</span></b></div><strong>→</strong></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="shell section" id="how">
       <div class="eyebrow">Responsible by design</div><h2>A clearer application journey.</h2>
       <div class="grid-4">
-        <div class="step"><b>01</b><h3>Apply securely</h3><p>Submit your contact, identity, affordability and banking details.</p></div>
-        <div class="step"><b>02</b><h3>Verify your identity</h3><p>Complete a live selfie check so your face can be compared with your ID.</p></div>
+        <div class="step"><b>01</b><h3>Create your account</h3><p>Start with your contact details and enter your SETLA dashboard. You can continue the application when you're ready.</p></div>
+        <div class="step"><b>02</b><h3>Complete &amp; verify</h3><p>Add the identity, affordability and banking information needed for review, including a live selfie where required.</p></div>
         <div class="step"><b>03</b><h3>Get reviewed</h3><p>We assess affordability and verify that identity and banking information match.</p></div>
-        <div class="step"><b>04</b><h3>Track everything</h3><p>See your decision, payments, due dates, orders and support in one account.</p></div>
+        <div class="step"><b>04</b><h3>Track everything</h3><p>See your decision, spending limit, payments, due dates, orders and support in one account.</p></div>
       </div>
+      <div class="resume-note"><strong>You don't have to finish everything in one sitting.</strong> Create your account first, then return to complete your application when you have your ID and supporting information nearby.</div>
     </section>
+
     <section class="shell section">
       <div class="eyebrow">What we review</div><h2>Personal, responsible decisions.</h2>
       <div class="grid-3">
@@ -47,8 +160,162 @@
         <article class="card"><h3>Your options</h3><p>If Pay Later is not available, you can appeal, use SETLA Laybuy, or submit a new application after three months.</p></article>
       </div>
     </section>
+
+    <section class="shell final-cta">
+      <div><div class="eyebrow">Ready when you are</div><h2>Start with an account. Finish the application when it suits you.</h2><p>Your progress is saved, so you can come back when you have your ID and supporting information nearby.</p></div>
+      <a class="button primary" href="signup.html?next=apply.html">Create my SETLA account &rarr;</a>
+    </section>
   </main>
-  <footer class="shell footer"><span>&copy; SETLA Payments &middot; Powered by UNIK Labs</span><span><a href="faq.html">FAQs</a> &middot; <a href="terms.html">Terms</a> &middot; <a href="privacy.html">Privacy</a> &middot; <a href="mailto:support@uniklabs.co.za">Live support</a> &middot; Clear terms before commitment</span></footer>
-  <div class="toast"></div><script src="setla.js"></script>
+
+  <footer class="shell footer">
+    <div class="footer-brand-strip">
+      <div class="footer-brand-kicker">SETLA across our ecosystem</div>
+      <div class="footer-brand-row">
+        <div class="footer-brand-logo setla"><img src="assets/footer-setla-logo.png" alt="SETLA Payments"></div>
+        <div class="footer-brand-logo regn"><img src="assets/footer-4regn-logo.png" alt="4REGN"></div>
+        <div class="footer-brand-logo unik"><img src="assets/footer-unik-logo.png" alt="UNIK Labs"></div>
+        <div class="footer-brand-logo yoco"><img src="assets/footer-yoco-logo.png" alt="Yoco"></div>
+      </div>
+    </div>
+    <div class="footer-meta">
+      <span>&copy; SETLA Payments &middot; Powered by UNIK Labs</span>
+      <span><a href="faq.html">FAQs</a> &middot; <a href="terms.html">Terms</a> &middot; <a href="privacy.html">Privacy</a> &middot; <a href="mailto:support@uniklabs.co.za">Live support</a> &middot; Clear terms before commitment</span>
+    </div>
+  </footer>
+  <div class="mobile-apply-bar"><a class="button primary" href="signup.html?next=apply.html">Discover my SETLA limit &rarr;</a></div>
+  <div class="toast"></div>
+  <script>
+    (function(){
+      var LIMIT = 5000;
+      var products = [
+        {name:"Kelvin Momo Oversized Tee",price:350},
+        {name:"Nike Air Force 1 '07 LV8 'USA' Men's Shoes White",price:2599},
+        {name:"Embroidery Patch Oversized Hoodie",price:599},
+        {name:"Men'S Vintage-Inspired Slip-On Loafers",price:1199},
+        {name:"4REGN BUTTERFLY EFFECT OVERSIZED TEE",price:350}
+      ];
+      var activeIndex = 0;
+      var activePlan = 'four';
+      var slides = document.querySelectorAll('.premium-product-slide');
+      var syncNodes = document.querySelectorAll('.product-demo-sync');
+      var tabs = document.querySelectorAll('.plan-tab');
+      var fourSchedule = document.getElementById('fourPlanSchedule');
+      var halfSchedule = document.getElementById('halfPlanSchedule');
+      var dotsWrap = document.getElementById('viewerDots');
+      var stage = document.getElementById('productStage');
+      var prev = document.getElementById('productPrev');
+      var next = document.getElementById('productNext');
+      var touchStartX = 0;
+      var touchStartY = 0;
+      var changing = false;
+
+      function money(value){
+        var n = Number(value) || 0;
+        var hasCents = Math.round(n * 100) % 100 !== 0;
+        try {
+          return 'R' + n.toLocaleString('en-ZA',{minimumFractionDigits:hasCents?2:0,maximumFractionDigits:2}).replace(/,/g,' ');
+        } catch(e) {
+          return 'R' + n.toFixed(hasCents?2:0);
+        }
+      }
+      function addDays(date,days){var d=new Date(date.getTime());d.setDate(d.getDate()+days);return d;}
+      function dateText(date){try{return date.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'});}catch(e){return date.toDateString();}}
+      function shortDate(date){try{return date.toLocaleDateString('en-ZA',{day:'numeric',month:'short'});}catch(e){return date.toDateString().slice(4,10);}}
+      var today = new Date(); today.setHours(12,0,0,0);
+
+      function splitExact(total,count){
+        var cents=Math.round(total*100),base=Math.floor(cents/count),remainder=cents-(base*count),out=[],i;
+        for(i=0;i<count;i++){out.push((base+(i===count-1?remainder:0))/100);}
+        return out;
+      }
+      function setText(id,text){var el=document.getElementById(id);if(el){el.textContent=text;}}
+      function setDates(){
+        var gaps=[0,14,28,42],i;
+        for(i=0;i<gaps.length;i++){setText('fourDate'+(i+1),dateText(addDays(today,gaps[i])));}
+        setText('halfDate1',dateText(today));
+        setText('halfDate2',dateText(addDays(today,30)));
+        setText('dashboardNextDate',shortDate(addDays(today,14)));
+      }
+      function markSwapping(on){var i;for(i=0;i<syncNodes.length;i++){if(on){syncNodes[i].classList.add('is-swapping');}else{syncNodes[i].classList.remove('is-swapping');}}}
+      function renderDots(){
+        var i,btn;
+        if(!dotsWrap){return;}
+        dotsWrap.innerHTML='';
+        for(i=0;i<products.length;i++){
+          btn=document.createElement('button');
+          btn.type='button'; btn.className='viewer-dot'+(i===activeIndex?' is-active':'');
+          btn.setAttribute('aria-label','Show product '+(i+1)); btn.setAttribute('data-index',String(i));
+          btn.onclick=function(){setProduct(parseInt(this.getAttribute('data-index'),10));};
+          dotsWrap.appendChild(btn);
+        }
+      }
+      function updatePlan(item){
+        var four=splitExact(item.price,4),halves=splitExact(item.price,2),i;
+        for(i=0;i<four.length;i++){setText('fourPay'+(i+1),money(four[i]));}
+        for(i=0;i<halves.length;i++){setText('halfPay'+(i+1),money(halves[i]));}
+        if(activePlan==='four'){
+          if(fourSchedule){fourSchedule.hidden=false;}
+          if(halfSchedule){halfSchedule.hidden=true;}
+          setText('planSummaryLabel','4 instalments');
+          setText('planSummaryAmount',money(four[0])+' today, then every 14 days');
+        }else{
+          if(fourSchedule){fourSchedule.hidden=true;}
+          if(halfSchedule){halfSchedule.hidden=false;}
+          setText('planSummaryLabel','2 instalments');
+          setText('planSummaryAmount',money(halves[0])+' today + '+money(halves[1])+' in 30 days');
+        }
+      }
+      function render(){
+        var item=products[activeIndex],i;
+        if(!item){return;}
+        for(i=0;i<slides.length;i++){
+          if(i===activeIndex){slides[i].classList.add('is-active');slides[i].setAttribute('aria-hidden','false');}
+          else{slides[i].classList.remove('is-active');slides[i].setAttribute('aria-hidden','true');}
+        }
+        setText('selectedProductName',item.name);
+        setText('selectedProductPrice',money(item.price));
+        setText('selectedUsedAmount',money(item.price));
+        setText('selectedLimitLeft',money(Math.max(0,LIMIT-item.price)));
+        setText('productCountLabel',(activeIndex+1<10?'0':'')+(activeIndex+1)+' / '+(products.length<10?'0':'')+products.length);
+        setText('scheduleProductName',item.name);
+        setText('scheduleProductPrice',money(item.price));
+        updatePlan(item);
+        renderDots();
+      }
+      function setProduct(index){
+        if(changing){return;}
+        changing=true;
+        activeIndex=(index+products.length)%products.length;
+        markSwapping(true);
+        window.setTimeout(function(){render();markSwapping(false);changing=false;},120);
+      }
+      function bindTap(el,fn){
+        if(!el){return;}
+        el.onclick=function(e){if(e){e.preventDefault();}fn();return false;};
+      }
+      bindTap(prev,function(){setProduct(activeIndex-1);});
+      bindTap(next,function(){setProduct(activeIndex+1);});
+
+      var i;
+      for(i=0;i<tabs.length;i++){
+        tabs[i].onclick=function(e){
+          var j,on;if(e){e.preventDefault();}
+          activePlan=this.getAttribute('data-plan')||'four';
+          for(j=0;j<tabs.length;j++){on=tabs[j]===this;if(on){tabs[j].classList.add('is-active');}else{tabs[j].classList.remove('is-active');}tabs[j].setAttribute('aria-selected',on?'true':'false');}
+          markSwapping(true);window.setTimeout(function(){render();markSwapping(false);},100);return false;
+        };
+      }
+
+      if(stage){
+        stage.onkeydown=function(e){e=e||window.event;if(e.key==='ArrowLeft'||e.keyCode===37){if(e.preventDefault)e.preventDefault();setProduct(activeIndex-1);}if(e.key==='ArrowRight'||e.keyCode===39){if(e.preventDefault)e.preventDefault();setProduct(activeIndex+1);}};
+        stage.addEventListener('touchstart',function(e){if(!e.touches||!e.touches.length)return;touchStartX=e.touches[0].clientX;touchStartY=e.touches[0].clientY;},{passive:true});
+        stage.addEventListener('touchend',function(e){if(!e.changedTouches||!e.changedTouches.length)return;var dx=e.changedTouches[0].clientX-touchStartX,dy=e.changedTouches[0].clientY-touchStartY;if(Math.abs(dx)<45||Math.abs(dx)<Math.abs(dy)){return;}setProduct(dx>0?activeIndex-1:activeIndex+1);},{passive:true});
+      }
+
+      setDates();
+      render();
+    })();
+  </script>
+  <script src="setla.js"></script>
 </body>
 </html>
