@@ -386,6 +386,66 @@ export function BankAccountsPanel({ authedFetch, toast }: { authedFetch: (path: 
 
 type CustomerRow = { id: string; first_name: string; last_name: string; email: string; application_status: string; approved_limit: number; created_at: string };
 
+// Mirrors the eligibleStatus pattern from the Brand Manager's partner email
+// card -- each email only makes sense for customers currently sitting in
+// that application_status, so the picker only offers customers it could
+// actually be sent to.
+const SETLA_EMAIL_TYPES: { value: string; label: string; eligibleStatus: string }[] = [
+  { value: "received", label: "Application received (resend)", eligibleStatus: "pending" },
+  { value: "under_review", label: "Under review update (2-5 working days)", eligibleStatus: "pending" },
+  { value: "approved", label: "Approved -- spending limit", eligibleStatus: "approved" },
+  { value: "declined", label: "Declined", eligibleStatus: "declined" },
+];
+
+function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: CustomerRow[]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [emailType, setEmailType] = useState(SETLA_EMAIL_TYPES[0].value);
+  const [customerId, setCustomerId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const activeType = SETLA_EMAIL_TYPES.find((t) => t.value === emailType)!;
+  const eligible = customers.filter((c) => c.application_status === activeType.eligibleStatus);
+  const selected = eligible.find((c) => c.id === customerId) || null;
+
+  // Switching email type can make the currently-picked customer ineligible
+  // (e.g. not approved) -- drop a stale selection rather than silently
+  // leaving it picked with a now-invalid email type.
+  useEffect(() => { if (customerId && !eligible.some((c) => c.id === customerId)) setCustomerId(""); }, [emailType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleSend() {
+    if (!selected) return;
+    setBusy(true);
+    const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-email`, { method: "POST", body: JSON.stringify({ emailType }) });
+    const payload = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { toast(payload.error || "Could not send this email"); return; }
+    toast("Email sent");
+    setCustomerId("");
+  }
+
+  return (
+    <div className="sad-card" style={{ marginBottom: 16 }}>
+      <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Send a customer email</strong>
+      <p className="sad-empty" style={{ marginBottom: 14 }}>Pick the email and the customer -- their name and email are filled in for you, and the picker only shows customers this email actually applies to.</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 240px" }}>
+          Email
+          <select className="sad-select" value={emailType} onChange={(e) => setEmailType(e.target.value)}>
+            {SETLA_EMAIL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 240px" }}>
+          Customer
+          <select className="sad-select" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+            <option value="">{eligible.length ? "Select a customer…" : "No eligible customers"}</option>
+            {eligible.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name} — {c.email}</option>)}
+          </select>
+        </label>
+        <button type="button" className="sad-btn" disabled={!selected || busy} onClick={handleSend}>{busy ? "Sending…" : "Send email"}</button>
+      </div>
+    </div>
+  );
+}
+
 export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<CustomerRow[] | null>(null);
@@ -403,6 +463,7 @@ export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: str
 
   return (
     <section>
+      {rows && rows.length > 0 && <SendCustomerEmailCard customers={rows} authedFetch={authedFetch} toast={toast} />}
       <input className="sad-input" placeholder="Search by name, email or ID number…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 16, maxWidth: 360 }} />
       {!rows ? <p className="sad-empty">Loading…</p> : rows.length === 0 ? <p className="sad-empty">No customers found.</p> : (
         <div className="sad-table">
