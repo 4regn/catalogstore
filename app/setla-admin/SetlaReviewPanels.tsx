@@ -476,6 +476,7 @@ type CustomerRow = { id: string; first_name: string; last_name: string; email: s
 // that application_status, so the picker only offers customers it could
 // actually be sent to.
 const SETLA_EMAIL_TYPES: { value: string; label: string; eligibleStatus: string }[] = [
+  { value: "signup_nudge", label: "Signup nudge -- complete your application", eligibleStatus: "not_applied" },
   { value: "received", label: "Application received (resend)", eligibleStatus: "pending" },
   { value: "under_review", label: "Under review update (2-5 working days)", eligibleStatus: "pending" },
   { value: "approved", label: "Approved -- spending limit", eligibleStatus: "approved" },

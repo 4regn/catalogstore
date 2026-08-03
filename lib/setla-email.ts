@@ -45,3 +45,24 @@ ${opts.extraHtml || ""}
 
   await sendEmail({ to: opts.to, from: "SETLA Payments <orders@catalogstore.co.za>", subject: opts.subject, html });
 }
+
+// The ceiling advertised in the signup-nudge email -- an aspirational
+// "up to" figure, not a promise. One constant to change if the real
+// policy ceiling differs.
+export const SETLA_NUDGE_MAX_LIMIT = 5000;
+
+// Shared content for the "you signed up but haven't applied" nudge -- used
+// by both the daily cron (app/api/cron/setla-signup-nudge) and the manual
+// send-email tool in Brand Manager, so the two can never drift apart.
+export function signupNudgeEmailContent(firstName: string) {
+  return {
+    firstName,
+    subject: "Application Almost Done!",
+    kicker: "Your spending power. Buy now. Pay later.",
+    headline: "Complete your application and find out how much you qualify for.",
+    bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong style="color:#fff">R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
+    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
+    ctaLabel: "Complete my application",
+    ctaUrl: `${APP_ORIGIN}/setla/apply.html`,
+  };
+}

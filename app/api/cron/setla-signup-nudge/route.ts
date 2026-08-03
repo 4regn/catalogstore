@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
-import { sendSetlaEmail } from "../../../../lib/setla-email";
+import { sendSetlaEmail, signupNudgeEmailContent } from "../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
-
-// The headline figure advertised in the nudge email -- an aspirational
-// ceiling, not a promise, so the copy is explicit that it's "up to" and
-// depends on the application. One constant to change if the real policy
-// ceiling changes.
-const MAX_LIMIT = 5000;
 
 // Daily Vercel cron: anyone who signed up but hasn't finished their
 // application within a day tends to just forget -- this is the one
@@ -40,17 +34,7 @@ export async function GET(req: NextRequest) {
 
   let sent = 0;
   for (const customer of customers || []) {
-    await sendSetlaEmail({
-      to: customer.email,
-      firstName: customer.first_name,
-      subject: `Unlock up to R${MAX_LIMIT.toLocaleString("en-ZA")} with SETLA`,
-      kicker: "Your spending power",
-      headline: "Find out how much you qualify for.",
-      bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong style="color:#fff">R${MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
-      extraHtml: `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
-      ctaLabel: "Complete my application",
-      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za"}/setla/apply.html`,
-    });
+    await sendSetlaEmail({ to: customer.email, ...signupNudgeEmailContent(customer.first_name) });
     await admin.from("setla_customers").update({ signup_nudge_sent_at: new Date().toISOString() }).eq("id", customer.id);
     sent++;
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
 import { sendEmail } from "../../../../../../../lib/email";
+import { sendSetlaEmail, signupNudgeEmailContent } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,16 @@ const EMAIL_TYPES: Record<
   },
 };
 
+// Uses the branded shell (lib/setla-email.ts) instead of the plain-text
+// one above -- same signup-nudge content the daily cron sends, exposed
+// here so an admin can nudge any specific not-yet-applied customer on
+// demand instead of waiting for the ~20h cron window. Sending it here also
+// stamps signup_nudge_sent_at, so the cron won't also send its own copy
+// later.
+const BRANDED_EMAIL_TYPES: Record<string, { eligibleStatus: string }> = {
+  signup_nudge: { eligibleStatus: "not_applied" },
+};
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireSetlaAdmin(req);
   if ("response" in auth) return auth.response;
@@ -52,8 +63,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const body = await req.json().catch(() => ({}));
   const emailType = String(body.emailType || "");
-  const type = EMAIL_TYPES[emailType];
-  if (!type) return NextResponse.json({ error: "Invalid email type" }, { status: 400 });
+  const plainType = EMAIL_TYPES[emailType];
+  const brandedType = BRANDED_EMAIL_TYPES[emailType];
+  if (!plainType && !brandedType) return NextResponse.json({ error: "Invalid email type" }, { status: 400 });
 
   const admin = getAdmin();
   const { data: customer } = await admin
@@ -62,22 +74,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .eq("id", id)
     .maybeSingle();
   if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-  if (customer.application_status !== type.eligibleStatus) {
+
+  const eligibleStatus = (plainType || brandedType)!.eligibleStatus;
+  if (customer.application_status !== eligibleStatus) {
     return NextResponse.json(
-      { error: `This customer's application isn't ${type.eligibleStatus.replace("_", " ")} -- this email wouldn't make sense to send right now` },
+      { error: `This customer's application isn't ${eligibleStatus.replace("_", " ")} -- this email wouldn't make sense to send right now` },
       { status: 409 }
     );
   }
 
-  const message = type.body(customer);
-  await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: type.subject, body: message });
-
-  await sendEmail({
-    to: customer.email,
-    from: "SETLA Payments <orders@catalogstore.co.za>",
-    subject: type.subject,
-    html: `<p>Hi ${customer.first_name},</p><p>${message}</p><p>You can check your application status any time from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
-  });
+  if (brandedType) {
+    const content = signupNudgeEmailContent(customer.first_name);
+    await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: content.subject, body: content.headline });
+    await sendSetlaEmail({ to: customer.email, ...content });
+    await admin.from("setla_customers").update({ signup_nudge_sent_at: new Date().toISOString() }).eq("id", customer.id);
+  } else {
+    const type = plainType!;
+    const message = type.body(customer);
+    await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: type.subject, body: message });
+    await sendEmail({
+      to: customer.email,
+      from: "SETLA Payments <orders@catalogstore.co.za>",
+      subject: type.subject,
+      html: `<p>Hi ${customer.first_name},</p><p>${message}</p><p>You can check your application status any time from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
+    });
+  }
 
   await admin.from("admin_audit_log").insert({
     admin_email: auth.admin.email,
