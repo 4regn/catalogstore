@@ -67,12 +67,24 @@ const PAGE_LABELS: Record<string, string> = {
 export function AnalyticsPanel({ authedFetch }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response> }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     setData(null);
-    authedFetch(`/api/setla/admin/analytics?days=${days}`).then((res) => res.json()).then(setData).catch(() => {});
+    setLoadError(null);
+    authedFetch(`/api/setla/admin/analytics?days=${days}`)
+      .then(async (res) => {
+        const payload = await res.json().catch(() => ({}));
+        // A non-2xx response has no daily/topPages/etc -- rendering it as
+        // if it were real data crashed this whole panel (and took the
+        // surrounding page down with it, since nothing here caught it).
+        if (!res.ok) { setLoadError(payload.error || "Could not load analytics"); return; }
+        setData(payload);
+      })
+      .catch(() => setLoadError("Could not load analytics"));
   }, [authedFetch, days]);
 
+  if (loadError) return <p className="sad-empty">{loadError}</p>;
   if (!data) return <p className="sad-empty">Loading…</p>;
   const max = Math.max(1, ...data.daily.map((d) => d.count));
   const maxPage = Math.max(1, ...data.topPages.map((p) => p.count));
