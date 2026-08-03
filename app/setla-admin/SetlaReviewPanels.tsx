@@ -50,6 +50,7 @@ type AnalyticsData = {
   days: number; totalViews: number; uniqueVisitors: number; viewsToday: number;
   topPages: Array<{ path: string; count: number }>;
   topHosts: Array<{ host: string; count: number }>;
+  topSources: Array<{ source: string; count: number }>;
   recentEvents: Array<{ path: string; host: string | null; visitorId: string; createdAt: string }>;
   daily: Array<{ date: string; count: number }>;
   truncated: boolean;
@@ -143,6 +144,20 @@ export function AnalyticsPanel({ authedFetch }: { authedFetch: (path: string, in
           </div>
         </div>
       )}
+      <div className="sad-card">
+        <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Traffic sources</strong>
+        <p className="sad-empty" style={{ marginBottom: 14 }}>Unique visitors per channel. Tagged links (e.g. ending ?utm_source=whatsapp) are exact; everything else is guessed from the browser referrer, which under-counts WhatsApp specifically since its in-app browser usually hides it -- see "Direct / no referrer" for that overflow.</p>
+        {data.topSources.length === 0 ? <p className="sad-empty" style={{ marginBottom: 0 }}>No page views recorded yet.</p> : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {data.topSources.map((s) => (
+              <div key={s.source}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 5 }}><span>{s.source}</span><span style={{ color: "#9ba29b" }}>{s.count}</span></div>
+                <div style={{ height: 6, borderRadius: 999, background: "#1c1f1c", overflow: "hidden" }}><div style={{ height: "100%", width: `${(s.count / data.topSources[0].count) * 100}%`, background: "linear-gradient(90deg,#007517,#4ade80)" }} /></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="sad-card">
         <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Recent activity</strong>
         <p className="sad-empty" style={{ marginBottom: 14 }}>Every visit, most recent first, with the exact time (SAST) and a short visitor code -- repeats of the same code back-to-back are usually one person (e.g. you) browsing multiple pages, not separate visitors.</p>

@@ -5,6 +5,9 @@ import { sendEmail } from "../../../../../../../lib/email";
 
 export const dynamic = "force-dynamic";
 
+// Fixed, not derived from req.url -- see apply/finish/route.ts for why.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+
 // Manual "pick the customer, pick the email" tool for the admin panel --
 // mirrors the partner resend flow in Brand Manager. One eligible
 // application_status per email type keeps this honest about who a given
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     to: customer.email,
     from: "SETLA Payments <orders@catalogstore.co.za>",
     subject: type.subject,
-    html: `<p>Hi ${customer.first_name},</p><p>${message}</p><p>You can check your application status any time from your <a href="${new URL(req.url).origin}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
+    html: `<p>Hi ${customer.first_name},</p><p>${message}</p><p>You can check your application status any time from your <a href="${APP_ORIGIN}/setla/dashboard.html">SETLA dashboard</a>.</p>`,
   });
 
   await admin.from("admin_audit_log").insert({

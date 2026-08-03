@@ -4,6 +4,9 @@ import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
+// Fixed, not derived from req.url -- see apply/finish/route.ts for why.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+
 const COOKIE = "setla-customer-access";
 
 function setSessionCookie(response: NextResponse, accessToken: string, maxAgeSeconds: number) {
@@ -90,7 +93,7 @@ export async function POST(req: NextRequest) {
       if (!match) return NextResponse.json({ error: "Could not find or create that account" }, { status: 500 });
       authUserId = match.id;
       reusedExistingAccount = true;
-      await admin.auth.resetPasswordForEmail(email, { redirectTo: `${new URL(req.url).origin}/setla/reset-password.html` }).catch(() => {});
+      await admin.auth.resetPasswordForEmail(email, { redirectTo: `${APP_ORIGIN}/setla/reset-password.html` }).catch(() => {});
     } else {
       authUserId = created.user.id;
     }
