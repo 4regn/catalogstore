@@ -19,29 +19,6 @@ export const SETLA_RESEND_API_KEY = process.env.SETLA_RESEND_API_KEY;
 // nothing about what actually loads.
 export const SETLA_APP_ORIGIN = "https://uniklabs.co.za";
 
-// Logos as CID attachments instead of remotely-hosted <img src="https://...">
-// -- most mail clients block remote images by default for a sender with no
-// track record yet (Apple Mail showed just the alt text in a placeholder
-// box until "Load External Images" was tapped), so the logo never actually
-// rendered on open. An embedded attachment referenced as cid:xxx displays
-// immediately, nothing to fetch. Fetched from the live site rather than
-// read off disk (simpler than reasoning about which files a Vercel
-// function bundle includes) and cached in-module so a warm serverless
-// instance only fetches once, not on every send.
-let logoAttachmentsCache: Array<{ filename: string; content: string; content_id: string }> | null = null;
-async function logoAttachments() {
-  if (logoAttachmentsCache) return logoAttachmentsCache;
-  const [setlaLogo, unikLogo] = await Promise.all([
-    fetch(`${SETLA_APP_ORIGIN}/setla/assets/setla-payments-logo.png`).then((r) => r.arrayBuffer()),
-    fetch(`${SETLA_APP_ORIGIN}/setla/assets/unik-labs-logo.png`).then((r) => r.arrayBuffer()),
-  ]);
-  logoAttachmentsCache = [
-    { filename: "setla-payments-logo.png", content: Buffer.from(setlaLogo).toString("base64"), content_id: "setla-logo" },
-    { filename: "unik-labs-logo.png", content: Buffer.from(unikLogo).toString("base64"), content_id: "unik-logo" },
-  ];
-  return logoAttachmentsCache;
-}
-
 // Shared branded shell for every SETLA transactional/marketing email --
 // logo header, dark/green card matching the product itself, one CTA
 // button, footer.
@@ -61,12 +38,17 @@ export async function sendSetlaEmail(opts: {
 
   // A bare <table> fragment (no <head>) gives clients nothing to signal
   // "this email already has its own dark design, don't auto dark-mode
-  // it" -- Apple Mail/Gmail's automatic color inversion was flipping the
-  // card background toward white while the white/transparent logo PNGs
-  // (correct on the real dark background) stayed white, making them
-  // disappear into it. The color-scheme meta tags below opt out of that
-  // inversion; bgcolor attributes are belt-and-suspenders for clients
-  // (Outlook desktop especially) that only partially honor CSS background.
+  // it" -- Apple Mail's automatic color inversion was flipping the card
+  // background toward white while the white/transparent logo PNGs
+  // (correct on the real dark background) stayed white, so they
+  // disappeared into it. The color-scheme meta tags below fixed that in
+  // Apple Mail, but Gmail's mobile app applies its own more aggressive
+  // "smart" dark mode that doesn't fully respect them either -- it forced
+  // the card back to a white/black-text render regardless. A raster logo
+  // can't survive that (its pixel colors are fixed, no CSS can repaint an
+  // image), so the header is a text wordmark instead: whichever way any
+  // client flips the color scheme, styled text stays legible, an image
+  // with white artwork on a now-white background does not.
   const html = `<!doctype html>
 <html>
 <head>
@@ -80,10 +62,10 @@ export async function sendSetlaEmail(opts: {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000000" bgcolor="#000000">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#000000;border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#ffffff" bgcolor="#000000">
-<tr><td style="padding:32px 36px 26px;text-align:center;border-bottom:1px solid #1c1f1c" bgcolor="#000000">
-<img src="cid:setla-logo" alt="SETLA Payments" height="32" style="display:inline-block;vertical-align:middle;border:0">
-<span style="display:inline-block;width:1px;height:20px;background:#2a2f2a;margin:0 14px;vertical-align:middle;font-size:0;line-height:0">&nbsp;</span>
-<img src="cid:unik-logo" alt="Powered by UNIK Labs" height="24" style="display:inline-block;vertical-align:middle;border:0">
+<tr><td style="padding:28px 36px 24px;text-align:center;border-bottom:1px solid #1c1f1c" bgcolor="#000000">
+<span style="font:700 19px 'Manrope',Arial,sans-serif;letter-spacing:-.01em;color:#4ade80">SETLA</span><span style="font:700 19px 'Manrope',Arial,sans-serif;letter-spacing:-.01em;color:#ffffff"> Payments</span>
+<span style="display:inline-block;width:1px;height:16px;background:#2a2f2a;margin:0 14px;vertical-align:middle;font-size:0;line-height:0">&nbsp;</span>
+<span style="font-size:11px;color:#9ba29b;letter-spacing:.02em">Powered by UNIK Labs</span>
 </td></tr>
 <tr><td style="padding:38px 36px 6px" bgcolor="#000000">
 <div style="color:#4ade80;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">${opts.kicker}</div>
@@ -102,14 +84,7 @@ ${opts.extraHtml || ""}
 </body>
 </html>`;
 
-  let attachments: Array<{ filename: string; content: string; content_id: string }> = [];
-  try {
-    attachments = await logoAttachments();
-  } catch (err) {
-    console.error("sendSetlaEmail: could not fetch logo attachments, sending without them", err);
-  }
-
-  await sendEmail({ to: opts.to, from: SETLA_EMAIL_FROM, subject: opts.subject, html, apiKey: SETLA_RESEND_API_KEY, attachments });
+  await sendEmail({ to: opts.to, from: SETLA_EMAIL_FROM, subject: opts.subject, html, apiKey: SETLA_RESEND_API_KEY });
 }
 
 // The ceiling advertised in the signup-nudge email -- an aspirational
