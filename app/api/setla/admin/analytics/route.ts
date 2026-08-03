@@ -30,6 +30,16 @@ export async function GET(req: NextRequest) {
   const views = rows || [];
   const uniqueVisitors = new Set(views.map((v) => v.visitor_id)).size;
 
+  // Individual events, most recent first -- lets an admin tell their own
+  // testing apart from real visitors by exact time and by which visitor_id
+  // repeats across entries (their browser vs. someone else's).
+  const recentEvents = views.slice(0, 150).map((v) => ({
+    path: v.path,
+    host: v.host,
+    visitorId: v.visitor_id,
+    createdAt: v.created_at,
+  }));
+
   const byPage = new Map<string, number>();
   for (const v of views) byPage.set(v.path, (byPage.get(v.path) || 0) + 1);
   const topPages = [...byPage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([path, count]) => ({ path, count }));
@@ -62,6 +72,7 @@ export async function GET(req: NextRequest) {
     viewsToday,
     topPages,
     topHosts,
+    recentEvents,
     daily,
     truncated: views.length >= ROW_CAP,
   });

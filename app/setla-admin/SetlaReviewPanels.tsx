@@ -50,9 +50,12 @@ type AnalyticsData = {
   days: number; totalViews: number; uniqueVisitors: number; viewsToday: number;
   topPages: Array<{ path: string; count: number }>;
   topHosts: Array<{ host: string; count: number }>;
+  recentEvents: Array<{ path: string; host: string | null; visitorId: string; createdAt: string }>;
   daily: Array<{ date: string; count: number }>;
   truncated: boolean;
 };
+
+const eventTime = (value: string) => new Date(value).toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 const PAGE_LABELS: Record<string, string> = {
   "index.html": "Landing page", "": "Landing page", "signup.html": "Sign up", "login.html": "Log in",
@@ -128,6 +131,35 @@ export function AnalyticsPanel({ authedFetch }: { authedFetch: (path: string, in
           </div>
         </div>
       )}
+      <div className="sad-card">
+        <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Recent activity</strong>
+        <p className="sad-empty" style={{ marginBottom: 14 }}>Every visit, most recent first, with the exact time (SAST) and a short visitor code -- repeats of the same code back-to-back are usually one person (e.g. you) browsing multiple pages, not separate visitors.</p>
+        {data.recentEvents.length === 0 ? <p className="sad-empty" style={{ marginBottom: 0 }}>No page views recorded yet.</p> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ textAlign: "left", color: "#9ba29b" }}>
+                  <th style={{ padding: "4px 10px 8px 0", fontWeight: 500 }}>Time (SAST)</th>
+                  <th style={{ padding: "4px 10px 8px 0", fontWeight: 500 }}>Page</th>
+                  <th style={{ padding: "4px 10px 8px 0", fontWeight: 500 }}>Domain</th>
+                  <th style={{ padding: "4px 0 8px 0", fontWeight: 500 }}>Visitor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentEvents.map((e, i) => (
+                  <tr key={i} style={{ borderTop: "1px solid #1c1f1c" }}>
+                    <td style={{ padding: "6px 10px 6px 0", whiteSpace: "nowrap" }}>{eventTime(e.createdAt)}</td>
+                    <td style={{ padding: "6px 10px 6px 0" }}>{PAGE_LABELS[e.path] || e.path}</td>
+                    <td style={{ padding: "6px 10px 6px 0", color: "#9ba29b" }}>{e.host || "—"}</td>
+                    <td style={{ padding: "6px 0", fontFamily: "monospace", color: "#9ba29b" }}>{e.visitorId.slice(0, 8)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="sad-empty" style={{ marginTop: 12, marginBottom: 0 }}>Showing the most recent {data.recentEvents.length} events in this window.</p>
+      </div>
     </div>
   );
 }
