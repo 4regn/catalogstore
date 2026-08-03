@@ -19,11 +19,32 @@ export const SETLA_RESEND_API_KEY = process.env.SETLA_RESEND_API_KEY;
 // nothing about what actually loads.
 export const SETLA_APP_ORIGIN = "https://uniklabs.co.za";
 
+// Logos as CID attachments instead of remotely-hosted <img src="https://...">
+// -- most mail clients block remote images by default for a sender with no
+// track record yet (Apple Mail showed just the alt text in a placeholder
+// box until "Load External Images" was tapped), so the logo never actually
+// rendered on open. An embedded attachment referenced as cid:xxx displays
+// immediately, nothing to fetch. Fetched from the live site rather than
+// read off disk (simpler than reasoning about which files a Vercel
+// function bundle includes) and cached in-module so a warm serverless
+// instance only fetches once, not on every send.
+let logoAttachmentsCache: Array<{ filename: string; content: string; content_id: string }> | null = null;
+async function logoAttachments() {
+  if (logoAttachmentsCache) return logoAttachmentsCache;
+  const [setlaLogo, unikLogo] = await Promise.all([
+    fetch(`${SETLA_APP_ORIGIN}/setla/assets/setla-payments-logo.png`).then((r) => r.arrayBuffer()),
+    fetch(`${SETLA_APP_ORIGIN}/setla/assets/unik-labs-logo.png`).then((r) => r.arrayBuffer()),
+  ]);
+  logoAttachmentsCache = [
+    { filename: "setla-payments-logo.png", content: Buffer.from(setlaLogo).toString("base64"), content_id: "setla-logo" },
+    { filename: "unik-labs-logo.png", content: Buffer.from(unikLogo).toString("base64"), content_id: "unik-logo" },
+  ];
+  return logoAttachmentsCache;
+}
+
 // Shared branded shell for every SETLA transactional/marketing email --
 // logo header, dark/green card matching the product itself, one CTA
-// button, footer. Logos are referenced by hosted URL (not inlined as
-// base64) since that's what actually renders reliably across email
-// clients at a reasonable message size.
+// button, footer.
 export async function sendSetlaEmail(opts: {
   to: string;
   firstName: string;
@@ -40,9 +61,9 @@ export async function sendSetlaEmail(opts: {
 
   const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:linear-gradient(145deg,#121612,#0a0c0a);border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#f5f7f4">
 <tr><td style="padding:32px 36px 26px;text-align:center;border-bottom:1px solid #1c1f1c">
-<img src="${SETLA_APP_ORIGIN}/setla/assets/setla-payments-logo.png" alt="SETLA Payments" height="32" style="display:inline-block;vertical-align:middle;border:0">
+<img src="cid:setla-logo" alt="SETLA Payments" height="32" style="display:inline-block;vertical-align:middle;border:0">
 <span style="display:inline-block;width:1px;height:20px;background:#2a2f2a;margin:0 14px;vertical-align:middle;font-size:0;line-height:0">&nbsp;</span>
-<img src="${SETLA_APP_ORIGIN}/setla/assets/unik-labs-logo.png" alt="Powered by UNIK Labs" height="24" style="display:inline-block;vertical-align:middle;border:0">
+<img src="cid:unik-logo" alt="Powered by UNIK Labs" height="24" style="display:inline-block;vertical-align:middle;border:0">
 </td></tr>
 <tr><td style="padding:38px 36px 6px">
 <div style="color:#4ade80;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">${opts.kicker}</div>
@@ -57,7 +78,14 @@ ${opts.extraHtml || ""}
 </td></tr>
 </table>`;
 
-  await sendEmail({ to: opts.to, from: SETLA_EMAIL_FROM, subject: opts.subject, html, apiKey: SETLA_RESEND_API_KEY });
+  let attachments: Array<{ filename: string; content: string; content_id: string }> = [];
+  try {
+    attachments = await logoAttachments();
+  } catch (err) {
+    console.error("sendSetlaEmail: could not fetch logo attachments, sending without them", err);
+  }
+
+  await sendEmail({ to: opts.to, from: SETLA_EMAIL_FROM, subject: opts.subject, html, apiKey: SETLA_RESEND_API_KEY, attachments });
 }
 
 // The ceiling advertised in the signup-nudge email -- an aspirational

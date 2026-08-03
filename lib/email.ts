@@ -11,7 +11,26 @@
 // own separate free Resend account) needs its own key here -- passing one
 // doesn't touch the default RESEND_API_KEY/orders@catalogstore.co.za path
 // every other caller still uses.
-export async function sendEmail({ to, from, subject, html, apiKey }: { to: string; from?: string; subject: string; html: string; apiKey?: string }): Promise<void> {
+export async function sendEmail({
+  to,
+  from,
+  subject,
+  html,
+  apiKey,
+  attachments,
+}: {
+  to: string;
+  from?: string;
+  subject: string;
+  html: string;
+  apiKey?: string;
+  // Inline images (e.g. a logo referenced as <img src="cid:setla-logo">
+  // in html) -- content is base64. Most mail clients block remotely
+  // hosted images by default until the user opts in, especially for a
+  // sender with no track record yet; embedding avoids that entirely
+  // since nothing needs to be fetched to display them.
+  attachments?: Array<{ filename: string; content: string; content_id?: string }>;
+}): Promise<void> {
   const resendKey = apiKey || process.env.RESEND_API_KEY;
   if (!to) return;
   if (!resendKey) {
@@ -27,6 +46,7 @@ export async function sendEmail({ to, from, subject, html, apiKey }: { to: strin
         to: [to],
         subject,
         html,
+        ...(attachments?.length ? { attachments } : {}),
       }),
     });
     if (!res.ok) {
