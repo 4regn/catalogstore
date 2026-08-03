@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   const path = String(body.path || "").trim().slice(0, 120);
   const visitorId = String(body.visitorId || "").trim().slice(0, 80);
   const referrer = String(body.referrer || "").trim().slice(0, 300) || null;
+  const source = String(body.source || "").trim().slice(0, 40) || null;
   if (!path || !visitorId) return NextResponse.json({ ok: false }, { status: 400 });
 
   // From the request itself (the Host header), not client-supplied --
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   const host = (req.headers.get("host") || "").split(":")[0].toLowerCase() || null;
 
   const admin = getAdmin();
-  await admin.from("setla_page_views").insert({ path, visitor_id: visitorId, referrer, host });
+  await admin.from("setla_page_views").insert({ path, visitor_id: visitorId, referrer, host, source });
 
   return NextResponse.json({ ok: true });
 }
