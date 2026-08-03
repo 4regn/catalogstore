@@ -76,25 +76,25 @@ export async function sendSetlaEmail(opts: {
 <meta name="supported-color-schemes" content="dark light">
 <title>${opts.subject}</title>
 </head>
-<body style="margin:0;padding:32px 16px;background:#050505" bgcolor="#050505">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050505" bgcolor="#050505">
+<body style="margin:0;padding:32px 16px;background:#000000" bgcolor="#000000">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000000" bgcolor="#000000">
 <tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:linear-gradient(145deg,#121612,#0a0c0a);border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#f5f7f4" bgcolor="#0e120e">
-<tr><td style="padding:32px 36px 26px;text-align:center;border-bottom:1px solid #1c1f1c" bgcolor="#0e120e">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#000000;border:1px solid #2a2f2a;border-radius:20px;overflow:hidden;font-family:'DM Sans',Arial,sans-serif;color:#ffffff" bgcolor="#000000">
+<tr><td style="padding:32px 36px 26px;text-align:center;border-bottom:1px solid #1c1f1c" bgcolor="#000000">
 <img src="cid:setla-logo" alt="SETLA Payments" height="32" style="display:inline-block;vertical-align:middle;border:0">
 <span style="display:inline-block;width:1px;height:20px;background:#2a2f2a;margin:0 14px;vertical-align:middle;font-size:0;line-height:0">&nbsp;</span>
 <img src="cid:unik-logo" alt="Powered by UNIK Labs" height="24" style="display:inline-block;vertical-align:middle;border:0">
 </td></tr>
-<tr><td style="padding:38px 36px 6px" bgcolor="#0e120e">
+<tr><td style="padding:38px 36px 6px" bgcolor="#000000">
 <div style="color:#4ade80;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px">${opts.kicker}</div>
-<h1 style="font:600 25px/1.28 'Manrope',Arial,sans-serif;letter-spacing:-.02em;margin:0 0 18px;color:#fff">${opts.headline}</h1>
-<p style="font-size:14.5px;line-height:1.75;color:#c7cbc7;margin:0 0 8px 0">Hi ${opts.firstName},</p>
-<p style="font-size:14.5px;line-height:1.75;color:#c7cbc7;margin:0 0 24px 0">${opts.bodyHtml}</p>
+<h1 style="font:600 25px/1.28 'Manrope',Arial,sans-serif;letter-spacing:-.02em;margin:0 0 18px;color:#ffffff">${opts.headline}</h1>
+<p style="font-size:14.5px;line-height:1.75;color:#ffffff;margin:0 0 8px 0">Hi ${opts.firstName},</p>
+<p style="font-size:14.5px;line-height:1.75;color:#ffffff;margin:0 0 24px 0">${opts.bodyHtml}</p>
 ${opts.extraHtml || ""}
 <a href="${ctaUrl}" style="display:inline-block;background:#007517;color:#ffffff;text-decoration:none;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:15px 28px;border-radius:999px;margin-top:4px">${ctaLabel}</a>
 </td></tr>
-<tr><td style="padding:26px 36px 32px;border-top:1px solid #1c1f1c" bgcolor="#0e120e">
-<p style="font-size:11px;color:#7f877f;line-height:1.7;margin:0">SETLA Payments is powered by UNIK Labs. Questions? Reply to this email or reach us at <a href="mailto:support@uniklabs.co.za" style="color:#85d897;text-decoration:none">support@uniklabs.co.za</a>.</p>
+<tr><td style="padding:26px 36px 32px;border-top:1px solid #1c1f1c" bgcolor="#000000">
+<p style="font-size:11px;color:#ffffff;line-height:1.7;margin:0">SETLA Payments is powered by UNIK Labs. Questions? Reply to this email or reach us at <a href="mailto:setla@uniklabs.co.za" style="color:#4ade80;text-decoration:none">setla@uniklabs.co.za</a>.</p>
 </td></tr>
 </table>
 </td></tr>
@@ -126,8 +126,8 @@ export function signupNudgeEmailContent(firstName: string) {
     subject: "Application Almost Done!",
     kicker: "Your spending power. Buy now. Pay later.",
     headline: "Complete your application and find out how much you qualify for.",
-    bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong style="color:#fff">R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
-    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
+    bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong style="color:#ffffff">R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
+    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
     ctaLabel: "Complete my application",
     ctaUrl: `${SETLA_APP_ORIGIN}/setla/apply.html`,
   };
@@ -165,8 +165,8 @@ export function approvedEmailContent(firstName: string, approvedLimit: number) {
     subject: "Application approved",
     kicker: "You're approved",
     headline: "Your SETLA spending limit is ready.",
-    bodyHtml: `You're approved for a SETLA spending limit of <strong style="color:#fff">${money(approvedLimit)}</strong>.`,
-    extraHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 26px 0;background:linear-gradient(145deg,#0e130f,#173a1c);border-radius:16px"><tr><td style="padding:20px 22px"><div style="color:#94a298;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Your spending limit</div><div style="font:500 38px/1 'Manrope',Arial,sans-serif;letter-spacing:-.03em;color:#fff">${money(approvedLimit)}</div></td></tr></table>`,
+    bodyHtml: `You're approved for a SETLA spending limit of <strong style="color:#ffffff">${money(approvedLimit)}</strong>.`,
+    extraHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 26px 0;background:#000000;border:1px solid #007517;border-radius:16px"><tr><td style="padding:20px 22px"><div style="color:#4ade80;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Your spending limit</div><div style="font:500 38px/1 'Manrope',Arial,sans-serif;letter-spacing:-.03em;color:#ffffff">${money(approvedLimit)}</div></td></tr></table>`,
   };
 }
 
@@ -177,7 +177,7 @@ export function declinedEmailContent(firstName: string, reason: string | null) {
     kicker: "Application update",
     headline: "Your application wasn't approved this time.",
     bodyHtml: reason || "Your application wasn't approved this time. You're welcome to appeal or re-apply after 30 days.",
-    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">You can submit an appeal from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html" style="color:#85d897">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>`,
+    extraHtml: `<p style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">You can submit an appeal from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html" style="color:#4ade80">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>`,
     ctaLabel: "Go to my dashboard",
   };
 }
@@ -199,9 +199,9 @@ export function limitAdjustedEmailContent(firstName: string, newLimit: number, i
     kicker: increased ? "Good news" : "Account update",
     headline: increased ? "Your SETLA limit has increased." : "Your SETLA limit has changed.",
     bodyHtml: increased
-      ? `Good news &mdash; based on your account, your SETLA spending limit is now <strong style="color:#fff">${money(newLimit)}</strong>.`
-      : `Your SETLA spending limit has been updated to <strong style="color:#fff">${money(newLimit)}</strong>.`,
-    extraHtml: reason ? `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">${reason}</p>` : undefined,
+      ? `Good news &mdash; based on your account, your SETLA spending limit is now <strong style="color:#ffffff">${money(newLimit)}</strong>.`
+      : `Your SETLA spending limit has been updated to <strong style="color:#ffffff">${money(newLimit)}</strong>.`,
+    extraHtml: reason ? `<p style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">${reason}</p>` : undefined,
   };
 }
 
