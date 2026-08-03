@@ -552,6 +552,220 @@
     pollTimer=setInterval(poll,5000);
   })();
 
+  // Floating chat bubble for the landing page -- same idea as store.js's
+  // initSupportChat() on uniklabs.co.za (bubble launcher -> expandable
+  // panel, business-hours online indicator, name/email intro for a first-
+  // time visitor), recolored to SETLA's own green rather than reusing
+  // UNIK's red, matching the precedent already set by .message.customer
+  // above. Shares the exact same visitor/conversation localStorage keys as
+  // initSetlaChat() so a conversation started here continues seamlessly if
+  // the same browser later opens the dashboard's own "Live support" tab --
+  // one thread, not two. Only the landing page gets the floating bubble;
+  // dashboard.html already has the full-page version and doesn't need both.
+  (function initSetlaFloatingChat(){
+    if(document.getElementById('chatForm'))return;
+    if((location.pathname.split('/').pop()||'index.html')!=='index.html')return;
+
+    const VISITOR_KEY='setla-support-visitor-v1';
+    const CONVERSATION_KEY='setla-support-conversation-v1';
+    const IDENTITY_KEY='setla-support-identity-v1';
+    let sellerId=null,pollTimer=null;
+
+    function visitorId(){
+      let id=null;
+      try{id=localStorage.getItem(VISITOR_KEY)}catch(_){}
+      if(!id){id='v-'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);try{localStorage.setItem(VISITOR_KEY,id)}catch(_){}}
+      return id;
+    }
+    async function resolveSeller(){
+      if(sellerId)return sellerId;
+      try{const res=await fetch('/api/seller-public?slug=unik');const data=await res.json();sellerId=data.id||null}catch(_){}
+      return sellerId;
+    }
+    function identity(){
+      const account=currentAccount();
+      if(account)return{name:account.name,email:account.email};
+      try{return JSON.parse(localStorage.getItem(IDENTITY_KEY)||'null')}catch(_){return null}
+    }
+
+    // Mon-Fri 9am-6pm, Sat 10am-3pm, closed Sunday, SAST (UTC+2, no DST) --
+    // mirrors store.js's unikChatBusinessHours()/lib/unik-business-hours.ts;
+    // same support team behind both, so kept in sync by hand on purpose.
+    const HOURS={0:null,1:[9,18],2:[9,18],3:[9,18],4:[9,18],5:[9,18],6:[10,15]};
+    const DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const formatHour=h=>{const period=h>=12?'pm':'am';const h12=h%12===0?12:h%12;return h12+period};
+    function businessHours(){
+      const sast=new Date(Date.now()+2*60*60*1000);
+      const day=sast.getUTCDay();
+      const minutesNow=sast.getUTCHours()*60+sast.getUTCMinutes();
+      const todayRange=HOURS[day];
+      if(todayRange&&minutesNow>=todayRange[0]*60&&minutesNow<todayRange[1]*60)return{online:true,nextOpenLabel:''};
+      if(todayRange&&minutesNow<todayRange[0]*60)return{online:false,nextOpenLabel:'today at '+formatHour(todayRange[0])};
+      for(let i=1;i<=7;i++){
+        const nextDay=(day+i)%7,range=HOURS[nextDay];
+        if(range){const label=i===1?'tomorrow':DAY_NAMES[nextDay];return{online:false,nextOpenLabel:label+' at '+formatHour(range[0])}}
+      }
+      return{online:false,nextOpenLabel:'soon'};
+    }
+
+    const style=document.createElement('style');
+    style.textContent=`
+      .setla-chat-toggle{position:fixed;right:18px;bottom:18px;z-index:2000;width:56px;height:56px;border-radius:50%;background:#050505;border:1px solid rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 14px 40px rgba(0,0,0,.4);transition:box-shadow .3s ease,border-color .3s ease}
+      .setla-chat-toggle svg{width:24px;height:24px}
+      .setla-chat-toggle.online{border-color:rgba(74,222,128,.55);box-shadow:0 14px 40px rgba(0,0,0,.4),0 0 0 3px rgba(0,117,23,.2),0 0 22px 4px rgba(74,222,128,.4);animation:setlaChatPulse 2.6s ease-in-out infinite}
+      @keyframes setlaChatPulse{0%,100%{box-shadow:0 14px 40px rgba(0,0,0,.4),0 0 0 3px rgba(0,117,23,.2),0 0 22px 4px rgba(74,222,128,.4)}50%{box-shadow:0 14px 40px rgba(0,0,0,.4),0 0 0 5px rgba(0,117,23,.14),0 0 30px 8px rgba(74,222,128,.55)}}
+      .setla-chat-status{position:fixed;right:14px;bottom:78px;z-index:2000;display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;background:rgba(5,5,5,.9);border:1px solid rgba(255,255,255,.12);font-size:10px;font-weight:700;letter-spacing:.02em;color:#8fe3ac;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .3s ease,transform .3s ease}
+      .setla-chat-status.show{opacity:1;transform:none}
+      .setla-chat-status span{width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px 1px rgba(74,222,128,.8)}
+      .setla-chat-panel{position:fixed;right:18px;bottom:86px;z-index:2000;width:min(340px,calc(100vw - 36px));height:min(460px,calc(100vh - 140px));background:#0d100d;border:1px solid #2a2f2a;border-radius:20px;display:none;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.5);font-family:'DM Sans',Arial,sans-serif}
+      .setla-chat-panel.open{display:flex}
+      .setla-chat-head{padding:14px 16px;border-bottom:1px solid #1c1f1c;display:flex;align-items:center;justify-content:space-between}
+      .setla-chat-head strong{color:#fff;font-size:13px;display:block}
+      .setla-chat-head-status{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#8fe3ac;margin-top:2px}
+      .setla-chat-head-status.offline{color:#9ba29b}
+      .setla-chat-head-status span{width:6px;height:6px;border-radius:50%;background:#4ade80}
+      .setla-chat-head-status.offline span{background:#5a5f5a}
+      .setla-chat-close{background:none;border:0;color:#9ba29b;font-size:20px;cursor:pointer;line-height:1}
+      .setla-chat-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+      .setla-chat-msg{max-width:80%;padding:9px 12px;border-radius:14px;background:#171b17;color:#f5f7f4;font-size:12px;line-height:1.5;border:1px solid #26292a}
+      .setla-chat-msg.out{margin-left:auto;background:#155522;border-color:#155522;color:#fff}
+      .setla-chat-form{padding:12px;border-top:1px solid #1c1f1c;display:flex;gap:8px}
+      .setla-chat-form input{flex:1;min-width:0;background:#080a08;border:1px solid #363c36;border-radius:10px;color:#fff;padding:10px 12px;font-size:12px;outline:none}
+      .setla-chat-send{background:#007517;color:#fff;border:0;border-radius:10px;padding:0 14px;font-weight:800;cursor:pointer}
+      .setla-chat-intro{padding:16px;display:flex;flex-direction:column;gap:10px}
+      .setla-chat-intro p{margin:0;color:#c7cbc7;font-size:12px;line-height:1.5}
+      .setla-chat-offline-banner{background:rgba(255,255,255,.04);border:1px solid #1c1f1c;border-radius:12px;padding:10px 12px;margin:0 0 2px}
+      .setla-chat-offline-banner p{margin:0;color:#c7cbc7;font-size:11.5px;line-height:1.5}
+      .setla-chat-offline-banner strong{display:block;color:#fff;font-size:12px;margin-bottom:3px}
+      .setla-chat-intro input{background:#080a08;border:1px solid #363c36;border-radius:10px;color:#fff;padding:10px 12px;font-size:12px;outline:none}
+      .setla-chat-intro button{background:#007517;color:#fff;border:0;border-radius:10px;padding:11px;font-weight:800;font-size:12px;cursor:pointer}
+      @media(max-width:590px){.setla-chat-toggle{right:14px;bottom:14px}.setla-chat-panel{right:10px;bottom:80px}}
+    `;
+    document.head.appendChild(style);
+
+    const toggle=document.createElement('button');
+    toggle.className='setla-chat-toggle';
+    toggle.setAttribute('aria-label','Open live chat');
+    toggle.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4z"/></svg>';
+    document.body.appendChild(toggle);
+
+    const statusPill=document.createElement('div');
+    statusPill.className='setla-chat-status';
+    statusPill.innerHTML='<span></span>We\'re online';
+    document.body.appendChild(statusPill);
+
+    let chatOnline=false;
+    function refreshStatus(){
+      const status=businessHours();
+      chatOnline=status.online;
+      toggle.classList.toggle('online',chatOnline);
+      statusPill.classList.toggle('show',chatOnline);
+      const headStatus=panel.querySelector('.setla-chat-head-status');
+      if(headStatus){
+        headStatus.classList.toggle('offline',!chatOnline);
+        headStatus.innerHTML='<span></span>'+(chatOnline?"We're online":"We're offline");
+      }
+      return status;
+    }
+
+    const panel=document.createElement('div');
+    panel.className='setla-chat-panel';
+    panel.innerHTML=`
+      <div class="setla-chat-head"><div><strong>Chat with us</strong><div class="setla-chat-head-status"><span></span>We're online</div></div><button class="setla-chat-close" type="button" aria-label="Close chat">&times;</button></div>
+      <div class="setla-chat-scroll" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
+    `;
+    document.body.appendChild(panel);
+    const scrollArea=panel.querySelector('.setla-chat-scroll');
+
+    refreshStatus();
+    setInterval(refreshStatus,60000);
+
+    function renderIntro(){
+      const status=refreshStatus();
+      const offlineBanner=status.online?'':`
+        <div class="setla-chat-offline-banner">
+          <strong>Sorry, we're offline right now</strong>
+          <p>We'll be available again ${status.nextOpenLabel}. Leave a message below and we'll get back to you as soon as we're available.</p>
+        </div>`;
+      scrollArea.innerHTML=`
+        <div class="setla-chat-intro">
+          ${offlineBanner}
+          <p>Tell us a little about yourself so we can help you out.</p>
+          <input type="text" id="setlaChatName" placeholder="Your name" autocomplete="name">
+          <input type="email" id="setlaChatEmail" placeholder="Email address" autocomplete="email">
+          <button type="button" id="setlaChatStart">${status.online?'Start chat':'Leave a message'}</button>
+        </div>`;
+      scrollArea.querySelector('#setlaChatStart').addEventListener('click',()=>{
+        const name=scrollArea.querySelector('#setlaChatName').value.trim();
+        const email=scrollArea.querySelector('#setlaChatEmail').value.trim();
+        if(!name||!email)return;
+        try{localStorage.setItem(IDENTITY_KEY,JSON.stringify({name,email}))}catch(_){}
+        renderThread();
+      });
+    }
+
+    function renderThread(){
+      scrollArea.innerHTML=`
+        <div class="setla-chat-body" id="setlaChatBody"></div>
+        <form class="setla-chat-form" id="setlaChatForm">
+          <input type="text" id="setlaChatInput" placeholder="Write a message" autocomplete="off">
+          <button class="setla-chat-send" type="submit">Send</button>
+        </form>`;
+      const body=scrollArea.querySelector('#setlaChatBody');
+      const form=scrollArea.querySelector('#setlaChatForm');
+      const input=scrollArea.querySelector('#setlaChatInput');
+
+      function paint(messages){
+        body.innerHTML=messages.map(m=>`<div class="setla-chat-msg${m.sender==='visitor'?'':' out'}">${escapeHTML(m.body)}</div>`).join('');
+        body.scrollTop=body.scrollHeight;
+      }
+
+      async function poll(){
+        let conversationId=null;
+        try{conversationId=localStorage.getItem(CONVERSATION_KEY)}catch(_){}
+        if(!conversationId)return;
+        try{
+          const res=await fetch(`/api/support/messages?conversationId=${encodeURIComponent(conversationId)}&visitorId=${encodeURIComponent(visitorId())}`);
+          const data=await res.json();
+          if(data.messages)paint(data.messages);
+        }catch(_){}
+      }
+
+      form.addEventListener('submit',async event=>{
+        event.preventDefault();
+        const text=input.value.trim();
+        if(!text)return;
+        input.value='';
+        const id=identity()||{};
+        let conversationId=null;
+        try{conversationId=localStorage.getItem(CONVERSATION_KEY)}catch(_){}
+        try{
+          const seller=await resolveSeller();
+          const res=await fetch('/api/support/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+            visitorId:visitorId(),conversationId:conversationId||undefined,message:text,
+            name:id.name,email:id.email,category:'setla',storefrontSellerId:seller,
+          })});
+          const data=await res.json();
+          if(data.conversationId){try{localStorage.setItem(CONVERSATION_KEY,data.conversationId)}catch(_){}}
+        }catch(_){}
+        poll();
+      });
+
+      poll();
+      clearInterval(pollTimer);
+      pollTimer=setInterval(poll,5000);
+    }
+
+    toggle.addEventListener('click',()=>{
+      panel.classList.add('open');
+      if(identity())renderThread();else renderIntro();
+    });
+    panel.querySelector('.setla-chat-close').addEventListener('click',()=>{
+      panel.classList.remove('open');
+      clearInterval(pollTimer);
+    });
+  })();
+
   document.getElementById('editProfile')?.addEventListener('click',()=>setlaToast('Profile editing will open after secure identity confirmation.'));
 
   function splitAmount(total,count){const cents=Math.round(Number(total)*100),base=Math.floor(cents/count),parts=Array(count).fill(base);for(let index=0;index<cents-base*count;index++)parts[index]++;return parts.map(value=>value/100)}
