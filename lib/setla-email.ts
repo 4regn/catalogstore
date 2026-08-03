@@ -204,3 +204,24 @@ export function limitAdjustedEmailContent(firstName: string, newLimit: number, i
     extraHtml: reason ? `<p style="font-size:13px;line-height:1.7;color:#9ba29b;margin:0 0 24px 0">${reason}</p>` : undefined,
   };
 }
+
+// A placeholder used only by the no-customer test-send path (see
+// app/api/setla/admin/send-test-email) -- "approved" needs a limit amount
+// to render its highlighted card, and there's no real customer record to
+// pull one from when testing in the abstract.
+export const SETLA_SAMPLE_LIMIT = 2000;
+
+export type SetlaEmailContent = Omit<Parameters<typeof sendSetlaEmail>[0], "to">;
+
+// One entry per manually-sendable email type, shared by both the
+// per-customer send-email route (real customer, real eligibility check)
+// and the standalone test-send route (typed name/email, no customer
+// record, no eligibility check) -- so neither one can define its own
+// slightly-different copy of this list.
+export const SETLA_EMAIL_TYPES: Record<string, { eligibleStatus: string; content: (firstName: string, approvedLimit?: number) => SetlaEmailContent }> = {
+  signup_nudge: { eligibleStatus: "not_applied", content: (firstName) => signupNudgeEmailContent(firstName) },
+  received: { eligibleStatus: "pending", content: (firstName) => applicationReceivedEmailContent(firstName) },
+  under_review: { eligibleStatus: "pending", content: (firstName) => underReviewEmailContent(firstName) },
+  approved: { eligibleStatus: "approved", content: (firstName, approvedLimit) => approvedEmailContent(firstName, approvedLimit ?? SETLA_SAMPLE_LIMIT) },
+  declined: { eligibleStatus: "declined", content: (firstName) => declinedEmailContent(firstName, null) },
+};

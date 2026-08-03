@@ -487,11 +487,14 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   const [emailType, setEmailType] = useState(SETLA_EMAIL_TYPES[0].value);
   const [customerId, setCustomerId] = useState("");
   const [overrideEmail, setOverrideEmail] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [testName, setTestName] = useState("");
   const [busy, setBusy] = useState(false);
 
   const activeType = SETLA_EMAIL_TYPES.find((t) => t.value === emailType)!;
   const eligible = customers.filter((c) => c.application_status === activeType.eligibleStatus);
   const selected = eligible.find((c) => c.id === customerId) || null;
+  const testReady = !selected && !!testEmail.trim() && !!testName.trim();
 
   // Switching email type can make the currently-picked customer ineligible
   // (e.g. not approved) -- drop a stale selection rather than silently
@@ -499,23 +502,36 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   useEffect(() => { if (customerId && !eligible.some((c) => c.id === customerId)) setCustomerId(""); }, [emailType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSend() {
-    if (!selected) return;
     setBusy(true);
-    const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-email`, {
-      method: "POST",
-      body: JSON.stringify({ emailType, overrideEmail: overrideEmail.trim() || undefined }),
-    });
-    const payload = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) { toast(payload.error || "Could not send this email"); return; }
-    toast(overrideEmail.trim() ? `Sent to ${overrideEmail.trim()}` : "Email sent");
-    setCustomerId("");
+    if (selected) {
+      const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-email`, {
+        method: "POST",
+        body: JSON.stringify({ emailType, overrideEmail: overrideEmail.trim() || undefined }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) { toast(payload.error || "Could not send this email"); return; }
+      toast(overrideEmail.trim() ? `Sent to ${overrideEmail.trim()}` : "Email sent");
+      setCustomerId("");
+    } else if (testReady) {
+      const res = await authedFetch(`/api/setla/admin/send-test-email`, {
+        method: "POST",
+        body: JSON.stringify({ emailType, to: testEmail.trim(), firstName: testName.trim() }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) { toast(payload.error || "Could not send this email"); return; }
+      toast(`Test sent to ${testEmail.trim()}`);
+      setTestEmail(""); setTestName("");
+    } else {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="sad-card" style={{ marginBottom: 16 }}>
       <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Send a customer email</strong>
-      <p className="sad-empty" style={{ marginBottom: 14 }}>Pick the email and the customer -- their name and email are filled in for you, and the picker only shows customers this email actually applies to. Use the address field below to redirect delivery elsewhere (e.g. your own inbox, for testing) without changing what the email actually says.</p>
+      <p className="sad-empty" style={{ marginBottom: 14 }}>Pick the email and a real customer -- their name and email are filled in for you, and the picker only shows customers this email actually applies to. No suitable customer yet? Use the test fields below instead -- no customer required, any address, any name.</p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 12 }}>
         <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 240px" }}>
           Email
@@ -525,19 +541,36 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
         </label>
         <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 240px" }}>
           Customer
-          <select className="sad-select" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+          <select className="sad-select" value={customerId} onChange={(e) => { setCustomerId(e.target.value); if (e.target.value) { setTestEmail(""); setTestName(""); } }}>
             <option value="">{eligible.length ? "Select a customer…" : "No eligible customers"}</option>
             {eligible.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name} — {c.email}</option>)}
           </select>
         </label>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-        <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 320px" }}>
-          Send to a different address (optional -- e.g. for testing)
-          <input className="sad-input" type="email" placeholder={selected ? selected.email : "Leave blank to use the customer's own email"} value={overrideEmail} onChange={(e) => setOverrideEmail(e.target.value)} />
-        </label>
-        <button type="button" className="sad-btn" disabled={!selected || busy} onClick={handleSend}>{busy ? "Sending…" : "Send email"}</button>
-      </div>
+      {selected ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 320px" }}>
+            Send to a different address (optional -- e.g. for testing)
+            <input className="sad-input" type="email" placeholder={selected.email} value={overrideEmail} onChange={(e) => setOverrideEmail(e.target.value)} />
+          </label>
+          <button type="button" className="sad-btn" disabled={busy} onClick={handleSend}>{busy ? "Sending…" : "Send email"}</button>
+        </div>
+      ) : (
+        <>
+          <p className="sad-empty" style={{ margin: "0 0 10px", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase" }}>Or send a standalone test</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 220px" }}>
+              Test email
+              <input className="sad-input" type="email" placeholder="you@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 180px" }}>
+              Addressed to (name)
+              <input className="sad-input" type="text" placeholder="e.g. Thabo" value={testName} onChange={(e) => setTestName(e.target.value)} />
+            </label>
+            <button type="button" className="sad-btn" disabled={!testReady || busy} onClick={handleSend}>{busy ? "Sending…" : "Send test"}</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

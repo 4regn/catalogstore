@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
-import {
-  sendSetlaEmail,
-  signupNudgeEmailContent,
-  applicationReceivedEmailContent,
-  underReviewEmailContent,
-  approvedEmailContent,
-  declinedEmailContent,
-} from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, SETLA_EMAIL_TYPES } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
-
-type Customer = { first_name: string; approved_limit: number };
 
 // Manual "pick the customer, pick the email" tool for the admin panel --
 // mirrors the partner resend flow in Brand Manager. One eligible
@@ -21,18 +12,8 @@ type Customer = { first_name: string; approved_limit: number };
 // to someone who isn't approved). The decision route already auto-sends
 // approved/declined/manual_review emails the moment a decision is made --
 // this exists for resending those, and for "under_review"/"signup_nudge",
-// which aren't tied to any status change. Every type shares its content
-// builder with wherever else that email fires (see lib/setla-email.ts) so
-// a manual resend can never drift from the real thing.
-type EmailContent = Omit<Parameters<typeof sendSetlaEmail>[0], "to">;
-const EMAIL_TYPES: Record<string, { eligibleStatus: string; content: (c: Customer) => EmailContent }> = {
-  signup_nudge: { eligibleStatus: "not_applied", content: (c) => signupNudgeEmailContent(c.first_name) },
-  received: { eligibleStatus: "pending", content: (c) => applicationReceivedEmailContent(c.first_name) },
-  under_review: { eligibleStatus: "pending", content: (c) => underReviewEmailContent(c.first_name) },
-  approved: { eligibleStatus: "approved", content: (c) => approvedEmailContent(c.first_name, c.approved_limit) },
-  declined: { eligibleStatus: "declined", content: (c) => declinedEmailContent(c.first_name, null) },
-};
-
+// which aren't tied to any status change. See app/api/setla/admin/
+// send-test-email for the no-customer-required version of this same tool.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireSetlaAdmin(req);
   if ("response" in auth) return auth.response;
@@ -40,7 +21,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const body = await req.json().catch(() => ({}));
   const emailType = String(body.emailType || "");
-  const type = EMAIL_TYPES[emailType];
+  const type = SETLA_EMAIL_TYPES[emailType];
   if (!type) return NextResponse.json({ error: "Invalid email type" }, { status: 400 });
 
   // Redirects delivery only -- content/personalisation still comes from
@@ -69,7 +50,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   const deliverTo = overrideEmailRaw || customer.email;
-  const content = type.content(customer);
+  const content = type.content(customer.first_name, customer.approved_limit);
   await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: content.subject, body: content.headline });
   await sendSetlaEmail({ ...content, to: deliverTo });
   if (emailType === "signup_nudge") {
