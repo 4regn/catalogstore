@@ -349,9 +349,76 @@
   // killed the rest of this script before renderDashboard()/nav wiring ran.
   if(form)setCameraState('idle');
   const applicationAccount=currentAccount();
-  if(form&&applicationAccount){const parts={firstName:applicationAccount.firstName,lastName:applicationAccount.lastName,email:applicationAccount.email,phone:applicationAccount.phone};Object.entries(parts).forEach(([name,value])=>{const input=form.elements[name];if(input&&value)input.value=value})}
+  function paintSavedAccount(acc){
+    if(!acc)return;
+    const nameEl=document.getElementById('savedSignupName'),emailEl=document.getElementById('savedSignupEmail'),phoneEl=document.getElementById('savedSignupPhone');
+    if(nameEl)nameEl.textContent=[acc.firstName,acc.lastName].filter(Boolean).join(' ')||'—';
+    if(emailEl)emailEl.textContent=acc.email||'—';
+    if(phoneEl)phoneEl.textContent=acc.phone||'—';
+  }
+  if(form&&applicationAccount){
+    const parts={firstName:applicationAccount.firstName,lastName:applicationAccount.lastName,email:applicationAccount.email,phone:applicationAccount.phone};
+    Object.entries(parts).forEach(([name,value])=>{const input=form.elements[name];if(input&&value)input.value=value});
+    paintSavedAccount(applicationAccount);
+  }
+  // "Edit details" reveals the same firstName/lastName/phone inputs already
+  // prefilled above (email stays disabled -- it's the Supabase Auth login
+  // identity, not a plain profile field) and persists them for real via
+  // /api/setla/profile, then repaints the saved-account summary card.
+  document.getElementById('editSignupDetails')?.addEventListener('click',()=>{
+    const editor=document.getElementById('signupDetailsEditor');
+    if(editor){editor.hidden=false;editor.scrollIntoView({behavior:'smooth',block:'center'})}
+  });
+  document.getElementById('saveSignupDetails')?.addEventListener('click',async()=>{
+    const first=form?.elements['firstName'],last=form?.elements['lastName'],phone=form?.elements['phone'];
+    const required=[first,last,phone].filter(Boolean);
+    const invalid=required.find(el=>!el.checkValidity());
+    if(invalid){invalid.reportValidity();return}
+    const btn=document.getElementById('saveSignupDetails');
+    if(btn){btn.disabled=true;btn.textContent='Saving…'}
+    try{
+      const res=await fetch('/api/setla/profile',{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({firstName:first?.value,lastName:last?.value,phone:phone?.value})});
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok){setlaToast(payload.error||'Could not save your details');return}
+      paintSavedAccount({firstName:payload.firstName,lastName:payload.lastName,phone:payload.phone,email:applicationAccount?.email});
+      document.getElementById('signupDetailsEditor').hidden=true;
+      setlaToast('Details updated.');
+    }catch(_){setlaToast('Something went wrong. Please try again.')}
+    finally{if(btn){btn.disabled=false;btn.textContent='Save details'}}
+  });
 
   if(form){
+    // 3-step wizard navigation -- steps are purely a display/validation
+    // concern (which section is visible, which required fields block
+    // "Continue"), completely separate from the real, server-computed
+    // progress percentage rendered by renderApplyProgress() above. A step
+    // is marked "complete" once the customer has navigated past it, not
+    // because every field in it is individually done.
+    const stages=[...document.querySelectorAll('[data-application-step]')];
+    const indicators=[...document.querySelectorAll('[data-step-indicator]')];
+    function showStep(step,{scroll=true}={}){
+      stages.forEach(s=>s.classList.toggle('active',Number(s.dataset.applicationStep)===step));
+      indicators.forEach(indicator=>{
+        const n=Number(indicator.dataset.stepIndicator);
+        indicator.classList.toggle('active',n===step);
+        indicator.classList.toggle('complete',n<step);
+        const dot=indicator.querySelector('.step-dot');
+        if(dot)dot.textContent=n<step?'✓':String(n);
+      });
+      if(scroll)document.querySelector('.application-stage-card')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    document.addEventListener('click',event=>{
+      const next=event.target.closest('[data-next-step]');
+      const prev=event.target.closest('[data-prev-step]');
+      if(next){
+        const current=next.closest('[data-application-step]');
+        const required=[...current.querySelectorAll('[required]')].filter(el=>!el.disabled);
+        const firstInvalid=required.find(el=>!el.checkValidity());
+        if(firstInvalid){firstInvalid.reportValidity();firstInvalid.focus({preventScroll:false});return}
+        showStep(Number(next.dataset.nextStep));
+      }
+      if(prev)showStep(Number(prev.dataset.prevStep));
+    });
     // Save on blur (change for selects), not on every keystroke -- fires
     // once the customer actually moves to the next field.
     DRAFT_FIELD_NAMES.forEach(name=>{
@@ -390,6 +457,15 @@
         if(['id_document','proof_of_address','proof_of_banking','bank_statement'].includes(item.key))setUploadStatus(item.key,'✓ Already uploaded','is-done');
       });
       renderApplyProgress(payload);
+      // computeProgress() orders its 9 items identity(3)/affordability(3)/
+      // banking(3) -- exactly the same grouping as the 3 wizard steps, so
+      // "first step with an incomplete item" is a real resume point, not a
+      // guess. A returning customer lands past whatever they already
+      // finished instead of re-clicking through completed steps.
+      const items=payload.items||[];
+      const stepGroups=[items.slice(0,3),items.slice(3,6),items.slice(6,9)];
+      const firstIncomplete=stepGroups.findIndex(group=>group.some(item=>!item.done));
+      showStep(firstIncomplete===-1?3:firstIncomplete+1,{scroll:false});
     }).catch(()=>{});
   }
   // Every field and document is already saved by the time this fires --
@@ -488,13 +564,6 @@
     const payLater=orders.filter(order=>order.methodCode!=='laybuy'),laybuy=orders.filter(order=>order.methodCode==='laybuy'),latest=orders[0];
     const firstName=account.firstName||account.name?.split(' ')[0]||'there',fullName=account.name||[account.firstName,account.lastName].filter(Boolean).join(' ')||'Customer';
     document.getElementById('welcomeName').textContent=`Welcome, ${firstName}.`;document.getElementById('welcomeEmail').textContent=account.email||'';
-    document.getElementById('accountStatus').innerHTML=`<span></span>${approved?'Active account':pending?'Application in review':'Application required'}`;
-    // Bar represents spending POWER remaining, not amount used -- starts
-    // full (100% = full approved limit still available) and depletes
-    // toward 0 as the customer spends, like a fuel/battery gauge, matching
-    // the "Available spending limit" label above it.
-    document.getElementById('availableLimit').textContent=money(available);document.getElementById('limitProgress').style.width=`${approvedLimit?Math.max(0,Math.min(100,available/approvedLimit*100)):0}%`;
-    document.getElementById('limitCaption').textContent=approved?`${money(approvedLimit-available)} used of your ${money(approvedLimit)} approved limit`:pending?'Your personal limit will appear after review.':'Complete your application to discover your personal limit.';
     // Not yet applied and started at least one field/document ('draft') get
     // a real, server-computed progress bar and a "still needed" checklist
     // instead of generic "one step left" copy -- driven by
@@ -502,7 +571,26 @@
     // apply.html itself uses, so the two never disagree on the percentage.
     const progress=account.applicationProgress;
     const inProgress=status==='draft'||(status==='not_applied'&&progress&&progress.percent>0);
-    document.getElementById('accountState').innerHTML=approved?'':pending?`<section class="card account-state-card"><div><div class="card-kicker">Application received</div><h2>We are reviewing your application.</h2><p>We will email you when a decision and personal limit are ready. SETLA Laybuy remains available at checkout.</p></div><a class="button outline" href="#support" data-view="support">Speak to support</a></section>`:`<section class="card account-state-card action-needed"><div><div class="card-kicker">${inProgress?'Continue your application':'One step left'}</div><h2>${inProgress?`${progress.percent}% of your application is done.`:"You're one step closer to unlocking your spending limit."}</h2><p>${inProgress?`Still needed: ${progress.remaining.map(r=>r.label).join(', ')}`:'You signed up, but your application is not done yet. Submit your identity, affordability and banking information to be considered for Pay Later.'}</p>${inProgress?`<div class="apply-progress"><div class="apply-progress-bar"><i style="width:${progress.percent}%"></i></div></div>`:''}</div><a class="button primary" href="apply.html">${inProgress?'Continue application':'Start application'}</a></section>`;
+    document.getElementById('accountStatus').innerHTML=`<span></span>${approved?'Approved':pending?'Application in review':inProgress?`Application ${progress.percent}% complete`:'Application required'}`;
+    // Bar represents spending POWER remaining, not amount used -- starts
+    // full (100% = full approved limit still available) and depletes
+    // toward 0 as the customer spends, like a fuel/battery gauge, matching
+    // the "Available spending limit" label above it.
+    document.getElementById('availableLimit').textContent=money(available);document.getElementById('limitProgress').style.width=`${approvedLimit?Math.max(0,Math.min(100,available/approvedLimit*100)):0}%`;
+    document.getElementById('limitCaption').textContent=approved?`${money(approvedLimit-available)} used of your ${money(approvedLimit)} approved limit`:pending?'Your personal limit will appear after review.':'Complete your application to discover your personal limit.';
+    const limitDisclaimer=document.getElementById('limitDisclaimer');if(limitDisclaimer)limitDisclaimer.hidden=!approved;
+    // Before an application is even submitted, "Manage payments"/"Track
+    // order"/the latest-order card have nothing real to show yet -- hiding
+    // them (and dimming the still-empty limit/next-payment cards) keeps a
+    // brand-new account's dashboard focused on the one thing that matters:
+    // finishing the application. Both come back the moment there's an
+    // application in review or a decision.
+    const notYetApplied=status==='not_applied'||status==='draft';
+    document.getElementById('dashGrid')?.classList.toggle('dashboard-deemphasized',notYetApplied);
+    const latestOrderSection=document.getElementById('latestOrderCard');if(latestOrderSection)latestOrderSection.hidden=notYetApplied;
+    const quickActionsSection=document.getElementById('quickActionsCard');if(quickActionsSection)quickActionsSection.hidden=notYetApplied;
+    const shopLogos={fourRegn:'assets/footer-4regn-logo.png',unik:'assets/unik-labs-logo.png'};
+    document.getElementById('accountState').innerHTML=approved?`<div class="starter-banner"><section class="starter-card"><span class="starter-label">You're approved</span><span class="completion-chip">✓ Application complete · 100%</span><strong class="starter-amount">${money(approvedLimit)}</strong><h2>Your SETLA limit is ready.</h2><p>This is your starting spending limit. Use SETLA responsibly and your account will be eligible for future limit increases.</p><div class="merchant-shop-grid" aria-label="Shop with SETLA"><a class="merchant-shop-link" href="https://www.4regn.com" target="_blank" rel="noopener" data-analytics="shop_4regn_clicked"><img class="merchant-shop-logo" src="${shopLogos.fourRegn}" alt="4REGN logo"><span class="merchant-shop-copy"><small>Shop now</small><strong>www.4regn.com</strong></span></a><a class="merchant-shop-link" href="https://www.uniklabs.co.za" target="_blank" rel="noopener" data-analytics="shop_uniklabs_clicked"><img class="merchant-shop-logo" src="${shopLogos.unik}" alt="UNIK Labs logo"><span class="merchant-shop-copy"><small>Shop now</small><strong>www.uniklabs.co.za</strong></span></a></div></section><section class="build-history"><div class="card-kicker">Your SETLA history</div><h3>Build your SETLA history.</h3><p>Your account setup and application are complete. Responsible use and on-time repayments help build your SETLA account history over time.</p><div class="history-steps"><div class="history-step"><span class="bubble">1</span><div><strong>Current limit</strong><small>${money(approvedLimit)} available now</small></div><span class="tag">Current</span></div><div class="history-step"><span class="bubble">2</span><div><strong>Use it responsibly</strong><small>Keep repayments on time and your account in good standing</small></div><span class="tag">Next</span></div><div class="history-step"><span class="bubble">3</span><div><strong>Future review</strong><small>Eligible accounts may be reviewed for a different limit</small></div><span class="tag">Later</span></div></div></section></div><div class="reassurance-strip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.7 2.9 8 7 10 4.1-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg><div><strong>Your account, still growing.</strong><p>SETLA may review limits over time based on eligibility, account behaviour and responsible use. A higher future limit is not guaranteed.</p></div></div>`:pending?`<section class="card account-state-card"><div><div class="card-kicker">Application received</div><h2>We are reviewing your application.</h2><p>We will email you when a decision and personal limit are ready. SETLA Laybuy remains available at checkout.</p></div><a class="button outline" href="#support" data-view="support">Speak to support</a></section>`:`<section class="pilot-hero"><div class="pilot-hero-grid"><div><div class="pilot-kicker">${inProgress?`You're already ${progress.percent}% there`:'Ready when you are'}</div><h2 class="pilot-title">Let's find your SETLA limit.</h2><p class="pilot-copy">${inProgress?'Your SETLA account and basic details are already saved. Continue your eligibility application so we can review your identity, affordability and determine whether you qualify for a spending limit.':'Create your eligibility application so we can review your identity, affordability and determine whether you qualify for a spending limit.'}</p><div class="pilot-actions"><a class="button primary pilot-primary" href="apply.html" data-analytics="application_start_clicked">${inProgress?'Continue my application':'Start my application'}</a><span class="apply-trust-pill">No credit history? You can still apply.</span></div><div class="pilot-subnote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.7 2.9 8 7 10 4.1-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg><span>Having little or no credit history does not automatically disqualify you. Eligibility and limits depend on your individual application.</span></div></div><div class="limit-orbit" aria-label="Application status"><small>Application status</small><strong>${inProgress?progress.percent:0}%</strong><p><b>Account created ✓</b><br>Your name, surname, email and mobile number are already saved.</p><div class="orbit-track"><span style="width:${inProgress?progress.percent:0}%"></span></div><p>Possible outcome: a personal SETLA limit, including a smaller Starter Limit for some eligible new customers.</p></div></div></section><div class="pilot-grid-3" aria-label="How the SETLA application works"><article class="pilot-mini completed"><span class="num">✓</span><strong>Account created</strong><p>Your name, surname, email and mobile number are already saved. You do not need to enter them again.</p></article><article class="pilot-mini"><span class="num">2</span><strong>Complete your review</strong><p>Verify your identity and share the affordability information we need to assess your application.</p></article><article class="pilot-mini"><span class="num">3</span><strong>Banking &amp; outcome</strong><p>Complete final verification. If eligible, you may receive a personal SETLA limit or Starter Limit.</p></article></div><div class="reassurance-strip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><div><strong>New to credit? That's okay.</strong><p>SETLA considers more than a credit score. A thin or missing credit history is not an automatic rejection, but approval is never guaranteed.</p></div></div>`;
     const next=(latest?.schedule||[])[0];document.getElementById('nextPaymentCard').innerHTML=next?`<div class="card-kicker">Coming up</div><h2>Next payment</h2><div class="due-amount">${money(next.amount)}</div><p>${escapeHTML(next.date)} · Order ${escapeHTML(latest.id)}</p><button class="button primary" data-view="${latest.methodCode==='laybuy'?'laybuy':'plans'}">Manage payment plan</button>`:`<div class="card-kicker">Coming up</div><h2>No payment due</h2><p>Your next confirmed payment will appear here.</p>`;
     document.getElementById('latestOrderCard').innerHTML=latest?`<div class="section-heading"><div><div class="card-kicker">Latest purchase</div><h2>Order ${escapeHTML(latest.id)}</h2></div><span class="status-badge ${latest.methodCode==='laybuy'?'pending':'good'}">${orderStatus(latest)}</span></div><div class="order-preview"><div class="product-thumb"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div><div><strong>${escapeHTML(itemTitle(latest.items?.[0]||{}))}</strong><p>${Number(latest.items?.length||0)} item${latest.items?.length===1?'':'s'}</p></div><div class="order-price"><small>Order total</small><strong>${money(latest.total)}</strong></div></div><button class="text-action" data-view="track">Track this order</button>`:`<div class="card-kicker">Latest purchase</div><h2>No orders yet</h2><p>Your first 4REGN x SETLA x UNIK Labs order will appear here.</p>`;
     document.getElementById('notificationPreview').innerHTML=pending?`<div class="notice-icon"></div><div><small>Application update</small><strong>Your application is being reviewed</strong><p>We will notify ${escapeHTML(account.email||'you')} when a decision is ready.</p></div><button class="text-action" data-view="notifications">View all</button>`:`<div class="notice-icon"></div><div><small>SETLA updates</small><strong>${latest?'Your order is connected':'No new notifications'}</strong><p>${latest?`Order ${escapeHTML(latest.id)} is now visible in your dashboard.`:'Account, payment and order updates will appear here.'}</p></div>`;
