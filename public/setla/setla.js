@@ -423,9 +423,19 @@
   // (schedule[].isNext, computed server-side in /api/setla/dashboard) --
   // not array position 0, since instalment #1 is normally already paid at
   // checkout by the time a customer looks at their dashboard.
+  // Laybuy has no fixed schedule -- shows a running balance and a
+  // pick-your-own-amount payment box instead of the instalment list Pay
+  // Later gets below.
+  function laybuyCardBody(order){
+    const lb=order.laybuy;
+    if(!lb)return '';
+    return `<div class="laybuy-balance"><div><small>Paid so far</small><strong>${money(lb.paid)}</strong></div><div><small>Remaining balance</small><strong>${money(lb.remaining)}</strong></div></div><p class="laybuy-note">Pay any amount, any time, until your balance reaches R0 -- production begins the moment you're fully paid.</p>${lb.complete?'':`<div class="laybuy-pay-row"><input type="number" min="1" max="${lb.remaining}" step="0.01" class="laybuy-amount-input" placeholder="Amount to pay" data-plan-id="${escapeHTML(lb.planId)}"><button class="button primary laybuy-pay-btn" type="button" data-plan-id="${escapeHTML(lb.planId)}" data-remaining="${lb.remaining}">Make a payment</button></div>`}`;
+  }
   function scheduleCard(order){
     const nextRow=(order.schedule||[]).find(row=>row.isNext);
-    return `<article class="card plan-card"><div class="plan-top"><div><small>UNIK Labs · ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(order.items?.[0]||{}))}</h2></div><span class="status-badge ${order.methodCode==='laybuy'?'pending':'good'}">${orderStatus(order)}</span></div><div class="plan-numbers"><div><small>Order total</small><strong>${money(order.total)}</strong></div><div><small>Payment route</small><strong>${escapeHTML(order.method)}</strong></div><div><small>Status</small><strong>${order.methodCode==='laybuy'?'Production locked':'First payment due'}</strong></div></div><div class="instalments">${(order.schedule||[]).map((row,index)=>`<div class="${row.isNext?'next':''}${row.status==='paid'?' paid':''}"><i>${row.status==='paid'?'✓':index+1}</i><span><strong>${row.status==='paid'?'Paid':row.isNext?'Due now':row.status==='overdue'?'Overdue':'Scheduled'}</strong><small>${escapeHTML(row.date)}</small></span><b>${money(row.amount)}</b></div>`).join('')}</div>${nextRow?`<button class="button primary pay-instalment" data-instalment-id="${escapeHTML(nextRow.instalmentId)}" type="button">Pay ${money(nextRow.amount)} now</button>`:''}</article>`;
+    const isLaybuy=order.methodCode==='laybuy';
+    const statusLabel=isLaybuy?(order.laybuy?.complete?'Fully paid':'Production locked'):'First payment due';
+    return `<article class="card plan-card"><div class="plan-top"><div><small>UNIK Labs · ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(order.items?.[0]||{}))}</h2></div><span class="status-badge ${isLaybuy&&!order.laybuy?.complete?'pending':'good'}">${orderStatus(order)}</span></div><div class="plan-numbers"><div><small>Order total</small><strong>${money(order.total)}</strong></div><div><small>Payment route</small><strong>${escapeHTML(order.method)}</strong></div><div><small>Status</small><strong>${statusLabel}</strong></div></div>${isLaybuy?laybuyCardBody(order):`<div class="instalments">${(order.schedule||[]).map((row,index)=>`<div class="${row.isNext?'next':''}${row.status==='paid'?' paid':''}"><i>${row.status==='paid'?'✓':index+1}</i><span><strong>${row.status==='paid'?'Paid':row.isNext?'Due now':row.status==='overdue'?'Overdue':'Scheduled'}</strong><small>${escapeHTML(row.date)}</small></span><b>${money(row.amount)}</b></div>`).join('')}</div>${nextRow?`<button class="button primary pay-instalment" data-instalment-id="${escapeHTML(nextRow.instalmentId)}" type="button">Pay ${money(nextRow.amount)} now</button>`:''}`}</article>`;
   }
   // Delegated so it works regardless of when a plan card gets injected by
   // renderDashboard() below.
@@ -442,6 +452,29 @@
       location.href=payload.redirectUrl;
     }catch(_){
       setlaToast('Something went wrong. Please try again.');btn.disabled=false;btn.textContent='Pay now';
+    }
+  });
+  // Laybuy's pick-your-own-amount payment button -- same delegated pattern
+  // as .pay-instalment above, just reading the amount from the adjacent
+  // input instead of a fixed instalment amount.
+  document.addEventListener('click',async event=>{
+    const btn=event.target.closest?.('.laybuy-pay-btn');
+    if(!btn)return;
+    const planId=btn.dataset.planId;
+    const remaining=Number(btn.dataset.remaining||0);
+    const input=btn.parentElement?.querySelector('.laybuy-amount-input');
+    const amount=Number(input?.value||0);
+    if(!planId)return;
+    if(!amount||amount<=0){setlaToast('Enter an amount to pay.');return}
+    if(amount>remaining+0.005){setlaToast(`Your remaining balance is ${money(remaining)} -- enter an amount up to that.`);return}
+    btn.disabled=true;btn.textContent='Starting secure payment…';
+    try{
+      const res=await fetch('/api/setla/laybuy/pay',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({planId,amount,returnOrigin:location.origin})});
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok){setlaToast(payload.error||'Could not start payment. Please try again.');btn.disabled=false;btn.textContent='Make a payment';return}
+      location.href=payload.redirectUrl;
+    }catch(_){
+      setlaToast('Something went wrong. Please try again.');btn.disabled=false;btn.textContent='Make a payment';
     }
   });
   function renderDashboard(account){
@@ -866,17 +899,46 @@
   // read straight from the same cart key store.js itself writes to
   // (CART_KEY = 'unik-labs-cart-v1'), same origin, no duplication needed.
   function unikCartItems(){try{return JSON.parse(localStorage.getItem('unik-labs-cart-v1')||'[]')}catch{return []}}
-  // Pay Later = "Pay in 4" (4 instalments, 14 days apart, 6 weeks total),
-  // Laybuy = "Pay half / half" (2 instalments, 30 days apart) -- matches
-  // both lib/setla-instalments.ts (the real server-side charge) and every
-  // customer-facing plan description elsewhere in the product.
+  // Pay Later = "Pay in 4" -- a genuine fixed schedule (4 instalments, 14
+  // days apart, 6 weeks total), matches lib/setla-instalments.ts exactly.
+  // Laybuy has NO fixed schedule: a minimum 30% deposit today, then the
+  // customer pays off the rest in whatever amounts, whenever, over up to
+  // 3 months (see the laybuy-deposit-picker markup + laybuyCardBody in
+  // scheduleCard above for the post-purchase top-up UI). minDeposit here
+  // mirrors lib/setla-instalments.ts's minLaybuyDeposit() rounding exactly
+  // so the client-shown minimum never disagrees with what the server
+  // actually enforces.
+  function minDeposit(total){const totalCents=Math.round(Number(total)*100);return Math.ceil(totalCents*0.3)/100}
   function renderSchedule(total,plan){
     const schedule=document.getElementById('paymentSchedule');if(!schedule)return [];
-    const count=plan==='laybuy'?2:4,interval=plan==='laybuy'?30:14,parts=splitAmount(total,count);
+    const depositPicker=document.getElementById('laybuyDepositPicker');
+    if(plan==='laybuy'){
+      schedule.innerHTML='';
+      document.getElementById('scheduleTotal').textContent=money(total);
+      const min=minDeposit(total);
+      const input=document.getElementById('laybuyDepositInput');
+      if(depositPicker){
+        depositPicker.hidden=false;
+        if(input){
+          input.min=min;input.max=total;
+          // Only reset to the minimum the first time (or if the current
+          // value no longer makes sense against a changed total) -- a
+          // customer who already typed a bigger deposit shouldn't have it
+          // silently reset just because they clicked back onto this tab.
+          const current=Number(input.value||0);
+          if(!current||current<min||current>total)input.value=min.toFixed(2);
+        }
+      }
+      document.getElementById('laybuyDepositHint').textContent=`Minimum deposit: ${money(min)} (30% of your order). Pay the rest -- any amount, any time -- over up to 3 months from your dashboard.`;
+      document.getElementById('scheduleNote').textContent='UNIK Labs production stays locked until your full balance is paid. There are no fixed due dates for the remainder -- pay whatever you like, whenever you like.';
+      return [];
+    }
+    if(depositPicker)depositPicker.hidden=true;
+    const count=4,interval=14,parts=splitAmount(total,count);
     const rows=parts.map((amount,index)=>({number:index+1,amount,date:index===0?'Today':dateAfter(index*interval),status:index===0?'Due now':'Scheduled'}));
     schedule.innerHTML=rows.map(row=>`<div class="schedule-row"><i>${row.number}</i><span><small>${row.status}</small><strong>${row.date}</strong></span><b>${money(row.amount)}</b></div>`).join('');
     document.getElementById('scheduleTotal').textContent=money(total);
-    document.getElementById('scheduleNote').textContent=plan==='laybuy'?'UNIK Labs production remains locked until both Laybuy instalments are complete. Once fully paid, your order moves into production automatically.':'Your first instalment is due today. The remaining three payments follow every 14 days and can be managed from your dashboard.';
+    document.getElementById('scheduleNote').textContent='Your first instalment is due today. The remaining three payments follow every 14 days and can be managed from your dashboard.';
     return rows;
   }
   function itemTitle(item){return item?.name||item?.title||item?.productName||item?.options?.name||`${item?.options?.garment||'Custom'} ${item?.options?.type||'garment'}`}
@@ -931,10 +993,17 @@
       const rawPlan=selectedPlan(),plan=rawPlan==='laybuy'?'laybuy':'pay_later';
       if(!document.getElementById('checkoutTerms').checked){error.textContent='Review the schedule and accept the SETLA terms before continuing.';error.classList.add('show');return}
       if(plan==='pay_later'&&!allowed){error.textContent='Pay Later is not available for this order. Select SETLA Laybuy to continue.';error.classList.add('show');return}
+      let depositAmount;
+      if(plan==='laybuy'){
+        depositAmount=Number(document.getElementById('laybuyDepositInput')?.value||0);
+        const min=minDeposit(total);
+        if(!depositAmount||depositAmount<min){error.textContent=`Minimum Laybuy deposit is ${money(min)} (30% of your order).`;error.classList.add('show');return}
+      }
       btn.disabled=true;btn.textContent='Starting secure payment…';
       try{
         const res=await fetch('/api/setla/checkout/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
           plan,
+          depositAmount,
           items:cartItems.map(item=>item.options?.customUpload?{customUpload:item.options.customUpload,qty:item.qty||1,preview:item.preview}:{designId:item.options?.designId,qty:item.qty||1}),
           customer:draft.customer,
           notes:draft.notes,

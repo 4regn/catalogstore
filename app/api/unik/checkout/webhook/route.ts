@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { verifyYocoWebhookSignature } from "../../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../../lib/unik-orders";
-import { markSetlaInstalmentPaid, markSetlaInstalmentFailed } from "../../../../../lib/setla-instalments";
+import { markSetlaInstalmentPaid, markSetlaInstalmentFailed, markLaybuyPaymentPaid, markLaybuyPaymentFailed } from "../../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
     const failedInstalmentId: string | undefined = failedPayload.metadata?.instalmentId;
     if (failedInstalmentId) {
       await markSetlaInstalmentFailed(getAdmin(), failedInstalmentId);
+      return NextResponse.json({ status: "ok" });
+    }
+    // A Laybuy top-up is its own one-off Yoco checkout too, same reasoning
+    // as the Pay Later instalment branch above.
+    const failedLaybuyPaymentId: string | undefined = failedPayload.metadata?.laybuyPaymentId;
+    if (failedLaybuyPaymentId) {
+      await markLaybuyPaymentFailed(getAdmin(), failedLaybuyPaymentId);
       return NextResponse.json({ status: "ok" });
     }
 
@@ -87,6 +94,24 @@ export async function POST(req: NextRequest) {
     const result = await markSetlaInstalmentPaid(getAdmin(), { instalmentId, paymentId: instalmentPaymentId, eventId: event.id || null });
     if (!result.ok) {
       console.error("SETLA Yoco webhook: markSetlaInstalmentPaid failed", { instalmentId, error: result.error });
+      return NextResponse.json({ status: "error" }, { status: 500 });
+    }
+    return NextResponse.json({ status: "ok" });
+  }
+
+  // A Laybuy top-up (deposit or any later custom-amount payment) is also
+  // its own one-off Yoco checkout, checked before the order lookup for
+  // the same reason as the Pay Later branch above.
+  const laybuyPaymentId: string | undefined = payload.metadata?.laybuyPaymentId;
+  if (laybuyPaymentId) {
+    const laybuyPaymentProviderId: string | undefined = payload.id;
+    if (!laybuyPaymentProviderId) {
+      console.error("SETLA Yoco webhook: laybuy payment.succeeded missing payment id", { laybuyPaymentId });
+      return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
+    }
+    const result = await markLaybuyPaymentPaid(getAdmin(), { paymentId: laybuyPaymentId, providerReference: laybuyPaymentProviderId, eventId: event.id || null });
+    if (!result.ok) {
+      console.error("SETLA Yoco webhook: markLaybuyPaymentPaid failed", { laybuyPaymentId, error: result.error });
       return NextResponse.json({ status: "error" }, { status: 500 });
     }
     return NextResponse.json({ status: "ok" });

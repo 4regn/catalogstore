@@ -5,7 +5,7 @@ import { getUnikSeller } from "../../../../../lib/unik-customer";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 import { createYocoCheckout } from "../../../../../lib/yoco";
 import { resolveUnikCart, runDeferredUnikUploads, type RawCartItem } from "../../../../../lib/unik-cart-resolve";
-import { buildInstalmentSchedule, type SetlaPlanType } from "../../../../../lib/setla-instalments";
+import { buildInstalmentSchedule, minLaybuyDeposit, type SetlaPlanType } from "../../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +107,23 @@ export async function POST(req: NextRequest) {
     excessUpfront = Math.round((total - financedAmount) * 100) / 100;
   }
 
+  // Laybuy: no fixed schedule, just a minimum 30% deposit due now -- the
+  // customer picks how much of that minimum (or more) they want to pay
+  // upfront; the remainder is paid off in whatever amounts, whenever,
+  // from the dashboard (see app/api/setla/laybuy/pay/route.ts).
+  let laybuyMinDeposit = 0;
+  let laybuyDeposit = 0;
+  if (planType === "laybuy") {
+    laybuyMinDeposit = minLaybuyDeposit(total);
+    laybuyDeposit = Math.round(Number(body?.depositAmount ?? laybuyMinDeposit) * 100) / 100;
+    if (!Number.isFinite(laybuyDeposit) || laybuyDeposit < laybuyMinDeposit) {
+      return NextResponse.json({ error: `Minimum Laybuy deposit is R${laybuyMinDeposit.toFixed(2)} (30% of your order)` }, { status: 400 });
+    }
+    if (laybuyDeposit > total) {
+      return NextResponse.json({ error: "Your deposit can't be more than the order total" }, { status: 400 });
+    }
+  }
+
   const { data: order, error: orderErr } = await admin.from("orders").insert({
     seller_id: seller.id,
     customer_name: `${firstName} ${lastName}`.trim(),
@@ -152,31 +169,44 @@ export async function POST(req: NextRequest) {
   // principal_amount is the actual credit extended (financedAmount), not
   // the whole order -- the upfront excess above the customer's limit is a
   // straight cash payment, never financed, so it isn't part of the "loan".
+  // For Laybuy, financedAmount is just the full order total (no credit
+  // involved) and min_deposit_amount records what the 30% minimum was at
+  // the time of this specific order.
   const { data: plan, error: planErr } = await admin.from("setla_payment_plans").insert({
     customer_id: customer.id,
     order_id: setlaOrder.id,
     plan_type: planType,
     principal_amount: financedAmount,
+    min_deposit_amount: planType === "laybuy" ? laybuyMinDeposit : null,
   }).select("id").single();
   if (planErr || !plan) {
     console.error("SETLA checkout: setla_payment_plans insert failed:", planErr);
     return NextResponse.json({ error: `Could not create your payment plan (${planErr?.message || "unknown error"})` }, { status: 500 });
   }
 
-  const schedule = buildInstalmentSchedule(financedAmount, planType as SetlaPlanType);
-  if (excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
-  const { data: instalments, error: instalErr } = await admin
-    .from("setla_instalments")
-    .insert(schedule.map((row) => ({ plan_id: plan.id, sequence_number: row.sequenceNumber, amount: row.amount, due_at: row.dueAt.toISOString() })))
-    .select("id, sequence_number, amount")
-    .order("sequence_number", { ascending: true });
-  if (instalErr || !instalments || !instalments.length) {
-    console.error("SETLA checkout: setla_instalments insert failed:", instalErr);
-    return NextResponse.json({ error: `Could not create your payment schedule (${instalErr?.message || "unknown error"})` }, { status: 500 });
-  }
-  const firstInstalment = instalments[0];
+  // Pay Later gets its real fixed schedule (4 instalments, 14 days apart);
+  // Laybuy gets a single ledger row for the deposit -- the rest is paid
+  // off in whatever amounts, whenever, via app/api/setla/laybuy/pay.
+  let firstChargeId: string;
+  let firstChargeAmount: number;
+  let instalmentCount = 1;
 
   if (planType === "pay_later") {
+    const schedule = buildInstalmentSchedule(financedAmount);
+    if (excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
+    const { data: instalments, error: instalErr } = await admin
+      .from("setla_instalments")
+      .insert(schedule.map((row) => ({ plan_id: plan.id, sequence_number: row.sequenceNumber, amount: row.amount, due_at: row.dueAt.toISOString() })))
+      .select("id, sequence_number, amount")
+      .order("sequence_number", { ascending: true });
+    if (instalErr || !instalments || !instalments.length) {
+      console.error("SETLA checkout: setla_instalments insert failed:", instalErr);
+      return NextResponse.json({ error: `Could not create your payment schedule (${instalErr?.message || "unknown error"})` }, { status: 500 });
+    }
+    firstChargeId = instalments[0].id;
+    firstChargeAmount = Number(instalments[0].amount);
+    instalmentCount = instalments.length;
+
     // Optimistic-lock claim -- same shape as the discount code's used_count
     // claim in lib/unik-cart-resolve.ts. Only the financed portion is
     // claimed against the limit, not the whole order. Loses the race only
@@ -192,19 +222,41 @@ export async function POST(req: NextRequest) {
     if (claimErr || !claimed || !claimed.length) {
       return NextResponse.json({ error: "Your available limit has changed. Please refresh and try again." }, { status: 409 });
     }
+  } else {
+    const { data: payment, error: paymentErr } = await admin
+      .from("setla_laybuy_payments")
+      .insert({ plan_id: plan.id, amount: laybuyDeposit, is_deposit: true })
+      .select("id, amount")
+      .single();
+    if (paymentErr || !payment) {
+      console.error("SETLA checkout: setla_laybuy_payments insert failed:", paymentErr);
+      return NextResponse.json({ error: `Could not create your Laybuy deposit (${paymentErr?.message || "unknown error"})` }, { status: 500 });
+    }
+    firstChargeId = payment.id;
+    firstChargeAmount = Number(payment.amount);
   }
 
   const origin = safeOrigin(body?.returnOrigin);
   try {
     const checkout = await createYocoCheckout({
-      amountCents: Math.round(firstInstalment.amount * 100),
-      metadata: { instalmentId: String(firstInstalment.id) },
+      amountCents: Math.round(firstChargeAmount * 100),
+      metadata: planType === "pay_later" ? { instalmentId: String(firstChargeId) } : { laybuyPaymentId: String(firstChargeId) },
       successUrl: `${origin}${CONFIRM_PATH}?paid=1&orderId=${order.id}`,
       cancelUrl: `${origin}${CONFIRM_PATH}?cancelled=1&orderId=${order.id}`,
       failureUrl: `${origin}${CONFIRM_PATH}?failed=1&orderId=${order.id}`,
-      lineItems: [{ displayName: excessUpfront > 0 ? `SETLA order balance + instalment 1 of ${instalments.length} — Order ${order.order_number}` : `SETLA instalment 1 of ${instalments.length} — Order ${order.order_number}`, quantity: 1, pricingDetails: { price: Math.round(firstInstalment.amount * 100) } }],
+      lineItems: [{
+        displayName: planType === "laybuy"
+          ? `SETLA Laybuy deposit — Order ${order.order_number}`
+          : (excessUpfront > 0 ? `SETLA order balance + instalment 1 of ${instalmentCount} — Order ${order.order_number}` : `SETLA instalment 1 of ${instalmentCount} — Order ${order.order_number}`),
+        quantity: 1,
+        pricingDetails: { price: Math.round(firstChargeAmount * 100) },
+      }],
     });
-    await admin.from("setla_instalments").update({ yoco_checkout_id: checkout.id }).eq("id", firstInstalment.id);
+    if (planType === "pay_later") {
+      await admin.from("setla_instalments").update({ yoco_checkout_id: checkout.id }).eq("id", firstChargeId);
+    } else {
+      await admin.from("setla_laybuy_payments").update({ yoco_checkout_id: checkout.id }).eq("id", firstChargeId);
+    }
 
     if (deferredJobs.length) {
       const orderId = order.id;

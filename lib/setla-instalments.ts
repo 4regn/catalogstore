@@ -3,28 +3,24 @@ import { sendEmail } from "./email";
 
 export type SetlaPlanType = "pay_later" | "laybuy";
 
-// Fixed for now -- the business is still deciding whether to offer
-// multiple repayment tiers/customer choice. Isolated here as the one place
-// that would change if/when that's decided, instead of being duplicated
-// across the checkout route and any future admin tooling.
+// Pay Later ("Pay in 4") is a genuine fixed schedule: 4 instalments, 14
+// days apart (today + 14 + 28 + 42 days, 6 weeks total) -- matches every
+// customer-facing description of it (landing page calculator, product/
+// cart widgets, signup page). This file is the real source of truth the
+// server actually bills against, so a mismatch here means the marketing
+// math and the real charge silently disagree.
 //
-// These MUST match what's advertised everywhere else in the product
-// (setla.4regn.com's landing page calculator, the 4REGN product/cart
-// widgets, the signup page): pay_later is "Pay in 4" -- 4 instalments,
-// 14 days apart (today + 14 + 28 + 42 days, 6 weeks total); laybuy is
-// "Pay half / half" -- 2 instalments, 30 days apart. This file is the
-// real source of truth the server actually bills against, so a mismatch
-// here means the marketing math and the real charge silently disagree.
-const PLAN_CONFIG: Record<SetlaPlanType, { count: number; intervalDays: number }> = {
-  pay_later: { count: 4, intervalDays: 14 },
-  laybuy: { count: 2, intervalDays: 30 },
-};
+// Laybuy has no fixed schedule at all -- see LAYBUY_MIN_DEPOSIT_PERCENT
+// and the setla_laybuy_payments ledger below instead of PLAN_CONFIG.
+const PAY_LATER_CONFIG = { count: 4, intervalDays: 14 };
 
 /* Server-side port of setla.js's old client-only splitAmount()/dateAfter()
    -- splits to the cent, remainder cents go to the earliest instalments.
-   Instalment #1 is always due immediately (paid at checkout itself). */
-export function buildInstalmentSchedule(total: number, planType: SetlaPlanType): Array<{ sequenceNumber: number; amount: number; dueAt: Date }> {
-  const { count, intervalDays } = PLAN_CONFIG[planType];
+   Instalment #1 is always due immediately (paid at checkout itself).
+   Pay Later only -- Laybuy doesn't have a fixed schedule to build (see
+   minLaybuyDeposit below). */
+export function buildInstalmentSchedule(total: number): Array<{ sequenceNumber: number; amount: number; dueAt: Date }> {
+  const { count, intervalDays } = PAY_LATER_CONFIG;
   const cents = Math.round(Number(total) * 100);
   const base = Math.floor(cents / count);
   const parts = Array(count).fill(base);
@@ -37,15 +33,30 @@ export function buildInstalmentSchedule(total: number, planType: SetlaPlanType):
   }));
 }
 
-/* Idempotently marks one SETLA instalment paid, then cascades: updates the
-   plan's paid_amount, decides whether production unlocks (pay_later:
-   unlocks the moment instalment #1 clears, since it's a credit product and
-   the customer is already trusted for the balance; laybuy: only once every
-   instalment is paid, matching the "production begins once the balance is
-   complete" promise already shown to customers), and on the plan's last
-   instalment marks it completed. Shared between the Yoco webhook (primary
-   path) and the admin manual-mark-paid route -- one implementation of
-   "what happens when an instalment is paid", not two. */
+// SETLA Laybuy: no fixed instalment count or due dates -- a minimum 30%
+// deposit at checkout, then the customer pays off the remaining balance
+// with whatever amount they choose, whenever they choose (see
+// app/api/setla/laybuy/pay/route.ts), over up to 3 months. If the balance
+// isn't fully paid by then, production simply stays locked -- no
+// automatic cancellation (explicit product decision, not an oversight).
+export const LAYBUY_MIN_DEPOSIT_PERCENT = 0.3;
+
+// Rounded up to the cent -- a deposit that rounded DOWN could let a
+// customer pay a fraction of a cent under the real 30% minimum.
+export function minLaybuyDeposit(total: number): number {
+  const totalCents = Math.round(Number(total) * 100);
+  const minCents = Math.ceil(totalCents * LAYBUY_MIN_DEPOSIT_PERCENT);
+  return minCents / 100;
+}
+
+/* Idempotently marks one Pay Later instalment paid, then cascades: updates
+   the plan's paid_amount, unlocks production (Pay Later unlocks the moment
+   instalment #1 clears, since it's a credit product and the customer is
+   already trusted for the balance), and on the plan's last instalment
+   marks it completed. Shared between the Yoco webhook (primary path) and
+   the admin manual-mark-paid route -- one implementation of "what happens
+   when an instalment is paid", not two. Pay Later only -- see
+   markLaybuyPaymentPaid below for Laybuy's flexible-ledger equivalent. */
 export async function markSetlaInstalmentPaid(
   admin: SupabaseClient,
   params: { instalmentId: string; paymentId: string; eventId?: string | null }
@@ -81,7 +92,10 @@ export async function markSetlaInstalmentPaid(
 
   const { data: allInstalments } = await admin.from("setla_instalments").select("status").eq("plan_id", plan.id);
   const planComplete = (allInstalments || []).every((i) => i.status === "paid" || i.status === "waived");
-  const shouldUnlock = plan.plan_type === "pay_later" ? updated.sequence_number === 1 : planComplete;
+  // Always true for a Pay Later instalment #1 -- this function is never
+  // called for Laybuy anymore, but the "first instalment unlocks"
+  // reasoning is preserved verbatim in case that ever changes back.
+  const shouldUnlock = updated.sequence_number === 1 || planComplete;
 
   const newSetlaOrderStatus = planComplete ? "paid" : shouldUnlock ? "production" : "partially_paid";
   if (newSetlaOrderStatus !== order.status || (shouldUnlock && order.production_locked)) {
@@ -113,6 +127,69 @@ export async function markSetlaInstalmentPaid(
   return { ok: true };
 }
 
+/* Laybuy's equivalent of markSetlaInstalmentPaid, but for the flexible
+   ledger instead of a fixed schedule: marks one setla_laybuy_payments row
+   paid, adds it to the plan's paid_amount, and unlocks production only
+   once the running total reaches the full principal -- Laybuy has never
+   unlocked on a partial payment (matches the "production begins once the
+   balance is complete" promise shown to customers), unlike Pay Later's
+   first-instalment unlock above. No due dates, no "overdue" concept: a
+   customer who hasn't finished paying within the informal 3-month window
+   just stays locked, by design (no automatic cancellation). */
+export async function markLaybuyPaymentPaid(
+  admin: SupabaseClient,
+  params: { paymentId: string; providerReference: string; eventId?: string | null }
+): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; error: string }> {
+  const { paymentId, providerReference, eventId } = params;
+
+  const { data: updated, error: updateErr } = await admin
+    .from("setla_laybuy_payments")
+    .update({ status: "paid", paid_at: new Date().toISOString(), payment_provider_reference: providerReference, yoco_event_id: eventId || null })
+    .eq("id", paymentId)
+    .eq("status", "pending")
+    .select("id, plan_id, amount")
+    .maybeSingle();
+  if (updateErr) return { ok: false, error: updateErr.message };
+  if (!updated) return { ok: true, alreadyProcessed: true };
+
+  const { data: plan } = await admin
+    .from("setla_payment_plans")
+    .select("id, customer_id, order_id, principal_amount, paid_amount")
+    .eq("id", updated.plan_id)
+    .single();
+  if (!plan) return { ok: false, error: "Payment plan not found" };
+
+  const newPaidAmount = Number(plan.paid_amount) + Number(updated.amount);
+  await admin.from("setla_payment_plans").update({ paid_amount: newPaidAmount }).eq("id", plan.id);
+
+  const { data: order } = await admin.from("setla_orders").select("id, unik_order_id, production_locked, status").eq("id", plan.order_id).single();
+  if (!order) return { ok: false, error: "Order not found" };
+
+  const planComplete = newPaidAmount >= Number(plan.principal_amount);
+  const newSetlaOrderStatus = planComplete ? "paid" : "partially_paid";
+  if (newSetlaOrderStatus !== order.status || (planComplete && order.production_locked)) {
+    await admin.from("setla_orders").update({ status: newSetlaOrderStatus, production_locked: planComplete ? false : order.production_locked }).eq("id", order.id);
+  }
+  if (planComplete) {
+    await admin.from("setla_payment_plans").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", plan.id);
+  }
+
+  await admin.from("orders").update({ status: "confirmed", payment_status: planComplete ? "paid" : "partial" }).eq("id", order.unik_order_id);
+
+  const { data: customer } = await admin.from("setla_customers").select("id, first_name, email").eq("id", plan.customer_id).single();
+  if (customer) {
+    const remaining = Math.max(0, Number(plan.principal_amount) - newPaidAmount);
+    const title = planComplete ? "Your SETLA Laybuy is fully paid" : "Laybuy payment received";
+    const body = planComplete
+      ? "Your final Laybuy payment has been received and your order is now with UNIK Labs for production."
+      : `We've received your payment of R${updated.amount.toFixed(2)}. R${remaining.toFixed(2)} remains -- pay it off in any amount, any time, from your dashboard.`;
+    await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "laybuy_payment_received", title, body });
+    await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
+  }
+
+  return { ok: true };
+}
+
 /* Matches setla.js's old client-only dateAfter() display format, but
    status-aware: "Today" for whichever instalment is actually due right now
    rather than blindly assuming array position 0 (instalment #1 is usually
@@ -138,6 +215,25 @@ export async function markSetlaInstalmentFailed(admin: SupabaseClient, instalmen
     .maybeSingle();
   if (error) {
     console.error("markSetlaInstalmentFailed: update failed", error);
+    return "no_change";
+  }
+  return updated ? "failed" : "no_change";
+}
+
+/* Laybuy equivalent of markSetlaInstalmentFailed -- a failed payment
+   attempt on a ledger row just gets marked failed; the customer can
+   always submit a fresh payment of any amount from their dashboard, same
+   as any other Laybuy top-up. */
+export async function markLaybuyPaymentFailed(admin: SupabaseClient, paymentId: string): Promise<"failed" | "no_change"> {
+  const { data: updated, error } = await admin
+    .from("setla_laybuy_payments")
+    .update({ status: "failed" })
+    .eq("id", paymentId)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error("markLaybuyPaymentFailed: update failed", error);
     return "no_change";
   }
   return updated ? "failed" : "no_change";
