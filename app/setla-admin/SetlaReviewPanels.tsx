@@ -479,6 +479,7 @@ const SETLA_EMAIL_TYPES: { value: string; label: string; eligibleStatus: string 
   { value: "signup_nudge", label: "Signup nudge -- complete your application", eligibleStatus: "not_applied" },
   { value: "received", label: "Application received (resend)", eligibleStatus: "pending" },
   { value: "under_review", label: "Under review update (2-5 working days)", eligibleStatus: "pending" },
+  { value: "documents_requested", label: "Need more documents (3-month bank statement)", eligibleStatus: "pending" },
   { value: "approved", label: "Approved -- spending limit", eligibleStatus: "approved" },
   { value: "declined", label: "Declined", eligibleStatus: "declined" },
 ];

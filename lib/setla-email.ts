@@ -200,6 +200,19 @@ export function declinedEmailContent(firstName: string, reason: string | null) {
   };
 }
 
+export function documentsRequestedEmailContent(firstName: string) {
+  return {
+    firstName,
+    subject: "We need a bit more from you — SETLA application",
+    kicker: "Action needed",
+    headline: "We need 3 months of bank statements to continue.",
+    bodyHtml: "Your application is still under review, but the bank statement you sent only covers one month &mdash; we need the most recent <strong class=\"setla-fg\" style=\"color:#ffffff\">3 months</strong> to properly assess affordability. One month isn't enough to tell a normal pattern from a one-off.",
+    extraHtml: "<p class=\"setla-fg\" style=\"font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0\">Reply to this email with your latest 3-month bank statement (PDF is fine) and we'll pick your review back up as soon as it arrives.</p>",
+    ctaLabel: "Message support",
+    ctaUrl: `${SETLA_APP_ORIGIN}/setla/dashboard.html`,
+  };
+}
+
 export function manualReviewEmailContent(firstName: string) {
   return {
     firstName,
@@ -240,6 +253,7 @@ export const SETLA_EMAIL_TYPES: Record<string, { eligibleStatus: string; content
   signup_nudge: { eligibleStatus: "not_applied", content: (firstName) => signupNudgeEmailContent(firstName) },
   received: { eligibleStatus: "pending", content: (firstName) => applicationReceivedEmailContent(firstName) },
   under_review: { eligibleStatus: "pending", content: (firstName) => underReviewEmailContent(firstName) },
+  documents_requested: { eligibleStatus: "pending", content: (firstName) => documentsRequestedEmailContent(firstName) },
   approved: { eligibleStatus: "approved", content: (firstName, approvedLimit) => approvedEmailContent(firstName, approvedLimit ?? SETLA_SAMPLE_LIMIT) },
   declined: { eligibleStatus: "declined", content: (firstName) => declinedEmailContent(firstName, null) },
 };
