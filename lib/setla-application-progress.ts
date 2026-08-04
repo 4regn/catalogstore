@@ -3,8 +3,10 @@
 // (indirectly, via the same shape) apply.html's progress bar, so the
 // checklist can never drift into three slightly different lists.
 //
-// Mirrors the 4-section layout apply.html already uses (personal, live
-// identity, address, affordability & banking) -- one checklist item per
+// Ordered to match apply.html's 3-step wizard: items[0..2] are step 1
+// (Identity), items[3..5] are step 2 (Affordability), the rest are step 3
+// (Banking) -- setla.js slices this array by that exact grouping to know
+// which step to resume a returning customer on. One checklist item per
 // section-piece, not one per raw field, so "address" is a single item
 // covering all 4 address sub-fields rather than 4 separate ticks.
 
@@ -57,14 +59,20 @@ export function computeProgress(draft: ApplicationDraft, uploadedDocumentTypes: 
     { key: "proof_of_address", label: "Proof of address", done: uploadedDocumentTypes.has("proof_of_address") },
     { key: "affordability", label: "Income & expenses", done: draft.income != null && draft.expenses != null },
     { key: "banking", label: "Banking details", done: !!(draft.bank && draft.accountHolder && draft.accountNumber && draft.accountType) },
-    { key: "proof_of_banking", label: "Proof of banking", done: uploadedDocumentTypes.has("proof_of_banking") },
+    // Deliberately no separate "proof of banking" item -- a bank statement
+    // already covers what a proof-of-banking document would (bank, account
+    // holder, account number), and admin review treats them identically
+    // (both just land in the same generic document list), so asking for
+    // both was pure duplicate friction. "proof_of_banking" stays a valid
+    // DOCUMENT_TYPES value for backward compatibility, it's just no longer
+    // part of the required checklist.
     { key: "bank_statement", label: "Bank statement", done: uploadedDocumentTypes.has("bank_statement") },
   ];
   const doneCount = items.filter((i) => i.done).length;
   // Signup already collects name/email/mobile, so a brand-new applicant
   // isn't starting from a blank slate -- the checklist below is scaled
   // into the remaining 80%, on top of a fixed 20% for the account details
-  // already on file. All 9 items done still lands exactly on 100%.
+  // already on file. All items done still lands exactly on 100%.
   const percent = Math.round(20 + (doneCount / items.length) * 80);
   const remaining = items.filter((i) => !i.done).map((i) => ({ key: i.key, label: i.label }));
   return { percent, items, remaining, complete: doneCount === items.length };

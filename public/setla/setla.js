@@ -429,7 +429,7 @@
     // Documents upload the instant a file is chosen -- same "save the
     // moment they add something" rule the text fields follow above, just
     // triggered by a change event instead of blur.
-    [['idDocument','id_document'],['addressProof','proof_of_address'],['bankProof','proof_of_banking'],['statement','bank_statement']].forEach(([fieldName,documentType])=>{
+    [['idDocument','id_document'],['addressProof','proof_of_address'],['statement','bank_statement']].forEach(([fieldName,documentType])=>{
       const input=form.elements[fieldName];
       if(!input)return;
       input.addEventListener('change',async()=>{
@@ -437,7 +437,15 @@
         if(!file)return;
         setUploadStatus(documentType,'Uploading…');
         const result=await uploadOneDocument(documentType,file);
-        if(result.ok){setUploadStatus(documentType,'✓ Uploaded','is-done');renderApplyProgress(result.progress)}
+        if(result.ok){
+          setUploadStatus(documentType,'✓ Uploaded','is-done');
+          renderApplyProgress(result.progress);
+          // The manual bank-detail fields only ever ask for information we
+          // can't already get from the statement itself -- no point showing
+          // "Bank name / Account holder / ..." before there's even a
+          // statement to confirm them against.
+          if(documentType==='bank_statement'){const bankFields=document.getElementById('bankDetailsFields');if(bankFields)bankFields.hidden=false}
+        }
         else setUploadStatus(documentType,result.error||'Upload failed','is-error');
       });
     });
@@ -454,16 +462,17 @@
       (payload.items||[]).forEach(item=>{
         if(!item.done)return;
         if(item.key==='live_selfie'){status.textContent='Selfie captured & saved';return}
-        if(['id_document','proof_of_address','proof_of_banking','bank_statement'].includes(item.key))setUploadStatus(item.key,'✓ Already uploaded','is-done');
+        if(['id_document','proof_of_address','bank_statement'].includes(item.key))setUploadStatus(item.key,'✓ Already uploaded','is-done');
+        if(item.key==='bank_statement'){const bankFields=document.getElementById('bankDetailsFields');if(bankFields)bankFields.hidden=false}
       });
       renderApplyProgress(payload);
-      // computeProgress() orders its 9 items identity(3)/affordability(3)/
-      // banking(3) -- exactly the same grouping as the 3 wizard steps, so
+      // computeProgress() orders its 8 items identity(3)/affordability(3)/
+      // banking(2) -- exactly the same grouping as the 3 wizard steps, so
       // "first step with an incomplete item" is a real resume point, not a
       // guess. A returning customer lands past whatever they already
       // finished instead of re-clicking through completed steps.
       const items=payload.items||[];
-      const stepGroups=[items.slice(0,3),items.slice(3,6),items.slice(6,9)];
+      const stepGroups=[items.slice(0,3),items.slice(3,6),items.slice(6,8)];
       const firstIncomplete=stepGroups.findIndex(group=>group.some(item=>!item.done));
       showStep(firstIncomplete===-1?3:firstIncomplete+1,{scroll:false});
     }).catch(()=>{});
