@@ -10,7 +10,7 @@
 </head>
 <body class="landing-conv">
   <header class="shell nav">
-    <a class="brand" href="index.html"><img class="setla" src="assets/setla-payments-logo.png" alt="SETLA"><span class="divider"></span><img class="unik" src="assets/unik-labs-logo.png" alt="Powered by UNIK Labs"></a>
+    <a class="brand" href="index.html"><img class="setla" src="assets/setla-payments-logo.png" alt="SETLA"></a>
     <nav class="nav-links"><a href="#how">How it works</a><a href="faq.html">FAQs</a><a href="login.html">Log in</a><a class="nav-cta" href="signup.html">Sign up</a></nav>
   </header>
   <main>
@@ -147,7 +147,6 @@
         <div class="step"><b>03</b><h3>Get reviewed</h3><p>We assess affordability and verify that identity and banking information match.</p></div>
         <div class="step"><b>04</b><h3>Track everything</h3><p>See your decision, spending limit, payments, due dates, orders and support in one account.</p></div>
       </div>
-      <div class="resume-note"><strong>You don't have to finish everything in one sitting.</strong> Create your account first, then return to complete your application when you have your ID and supporting information nearby.</div>
     </section>
 
     <section class="shell section">
@@ -211,7 +210,7 @@
         var n = Number(value) || 0;
         var hasCents = Math.round(n * 100) % 100 !== 0;
         try {
-          return 'R' + n.toLocaleString('en-ZA',{minimumFractionDigits:hasCents?2:0,maximumFractionDigits:2}).replace(/,/g,' ');
+          return 'R' + n.toLocaleString('en-ZA',{minimumFractionDigits:hasCents?2:0,maximumFractionDigits:2});
         } catch(e) {
           return 'R' + n.toFixed(hasCents?2:0);
         }
