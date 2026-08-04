@@ -61,7 +61,11 @@ export function computeProgress(draft: ApplicationDraft, uploadedDocumentTypes: 
     { key: "bank_statement", label: "Bank statement", done: uploadedDocumentTypes.has("bank_statement") },
   ];
   const doneCount = items.filter((i) => i.done).length;
-  const percent = Math.round((doneCount / items.length) * 100);
+  // Signup already collects name/email/mobile, so a brand-new applicant
+  // isn't starting from a blank slate -- the checklist below is scaled
+  // into the remaining 80%, on top of a fixed 20% for the account details
+  // already on file. All 9 items done still lands exactly on 100%.
+  const percent = Math.round(20 + (doneCount / items.length) * 80);
   const remaining = items.filter((i) => !i.done).map((i) => ({ key: i.key, label: i.label }));
   return { percent, items, remaining, complete: doneCount === items.length };
 }
