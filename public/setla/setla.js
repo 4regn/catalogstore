@@ -818,6 +818,26 @@
     document.getElementById('summarySubtotal').textContent=money(subtotal);document.getElementById('summaryDelivery').textContent=money(delivery);document.getElementById('orderTotal').textContent=money(total);
     const customerInfo=draft.customer||{},method=draft.deliveryMethod||{};document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?'Collection details will be confirmed by UNIK Labs.':escapeHTML([customerInfo.streetAddress,customerInfo.suburb,customerInfo.townCity,customerInfo.province,customerInfo.postal].filter(Boolean).join(', '))}`;
     const payLater=document.getElementById('payLaterChoice'),title=document.getElementById('eligibilityTitle'),copy=document.getElementById('eligibilityCopy'),hint=document.getElementById('limitHint'),action=document.getElementById('eligibilityAction'),card=document.getElementById('eligibilityCard');
+    // Checkout can silently run against whichever SETLA session already
+    // exists in the browser (e.g. left over from earlier testing) --
+    // eligibility/limit math is already correctly tied to that real
+    // account (see below), but nothing on the page ever SHOWED which one,
+    // so a stale session could drive the calculation without anyone
+    // noticing. Making the identity explicit, with an easy way out,
+    // fixes that without forcing a fresh login on every legitimate
+    // returning customer.
+    const accountLine=document.getElementById('checkoutAccountLine');
+    if(accountLine){
+      const accountName=[account.firstName,account.lastName].filter(Boolean).join(' ')||account.email;
+      accountLine.innerHTML=`Checking out as <strong>${escapeHTML(accountName)}</strong> (${escapeHTML(account.email||'')}) &middot; <a href="#" id="switchAccountLink">Not you? Log out</a>`;
+      accountLine.hidden=false;
+      document.getElementById('switchAccountLink')?.addEventListener('click',async(event)=>{
+        event.preventDefault();
+        await fetch('/api/setla/auth/session',{method:'DELETE',credentials:'include'}).catch(()=>{});
+        clearRefreshToken();
+        location.href='login.html?next=checkout.html';
+      });
+    }
     const status=account.applicationStatus||'not_applied',available=Number(account.availableLimit||0);let allowed=status==='approved'&&available>=total;
     if(status==='approved'){title.textContent=allowed?'Pay Later is available for this order.':'This order is above your available limit.';copy.textContent=`Available now: ${money(available)} · Order total: ${money(total)}`;hint.textContent=`${money(available)} available`;action.href='dashboard.html';action.textContent='View limit';if(!allowed)card.classList.add('needs-action')}
     else if(status==='pending'){title.textContent='Your Pay Later application is in review.';copy.textContent='SETLA Laybuy remains available while you wait for your decision.';action.href='dashboard.html';action.textContent='View status';card.classList.add('pending-state')}
