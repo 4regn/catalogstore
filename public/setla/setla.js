@@ -197,7 +197,6 @@
   const captureConfirmText=document.getElementById('captureConfirmText');
   const TARGET_RATIO=3/4; // width/height -- matches .camera's aspect-ratio in setla.css
   let stream=null,captured=false,capturedBlob=null,previewUrl=null;
-  let applyInflight=null; // {applicationId,bucket,uploads} from /api/setla/apply/start, kept only in memory so a mid-page retry (transient upload failure) resumes instead of re-submitting the whole form -- a real page reload starts clean, which is fine since the file inputs are empty again anyway (browsers never restore those)
   let sbClientPromise=null;
   // Lazily loads a plain Supabase client (anon key only, no session needed)
   // for uploadToSignedUrl -- only apply.html loads the CDN SDK this needs.
@@ -209,28 +208,63 @@
     return sbClientPromise;
   }
   // Uploads go straight from this browser to Supabase Storage, never through
-  // our own API -- Vercel Functions cap request bodies at 4.5MB, and real
-  // phone photos/PDFs for 5 documents routinely blow past that combined,
-  // which is what was making submission hang and then silently fail.
-  // Returns {type: errorMessage} for whatever failed -- /api/setla/apply/
-  // finish is still the real source of truth (it re-checks Storage
-  // directly), so a retry that re-hits an already-consumed upload token
-  // for a file that actually succeeded the first time just fails
-  // harmlessly here and finish won't report it missing.
-  async function uploadDocuments(uploads,fileMap,bucket){
-    const sb=await getSbClient();
-    const errors={};
-    await Promise.all(Object.entries(fileMap).map(async([type,file])=>{
-      const target=uploads[type];
-      if(!file||!target)return;
-      try{
-        const{error}=await sb.storage.from(bucket).uploadToSignedUrl(target.path,target.token,file,{contentType:file.type||'application/octet-stream'});
-        if(error)errors[type]=error.message;
-      }catch(err){errors[type]=err instanceof Error?err.message:'Upload failed'}
-    }));
-    return errors;
+  // our own API -- Vercel Functions cap request bodies at 4.5MB, and a real
+  // phone photo/PDF can get close to that on its own. One document at a
+  // time now (see the "save the moment they add something" wiring below),
+  // not all 5 batched at final submit: request a signed URL scoped to just
+  // this document, upload to it, then confirm so setla_documents/progress
+  // updates immediately -- a customer who only has their ID photo ready
+  // today keeps that saved even if they close the tab before the rest.
+  async function uploadOneDocument(documentType,file){
+    try{
+      const urlRes=await fetch('/api/setla/apply/document-upload-url',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({documentType})});
+      const urlPayload=await urlRes.json().catch(()=>({}));
+      if(!urlRes.ok)return{ok:false,error:urlPayload.error||'Could not prepare upload'};
+      const sb=await getSbClient();
+      const{error:uploadErr}=await sb.storage.from(urlPayload.bucket).uploadToSignedUrl(urlPayload.path,urlPayload.token,file,{contentType:file.type||'application/octet-stream',upsert:true});
+      if(uploadErr)return{ok:false,error:uploadErr.message||'Upload failed'};
+      const confirmRes=await fetch('/api/setla/apply/document-confirm',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({documentType})});
+      const confirmPayload=await confirmRes.json().catch(()=>({}));
+      if(!confirmRes.ok)return{ok:false,error:confirmPayload.error||'Could not save document'};
+      return{ok:true,progress:confirmPayload};
+    }catch(err){
+      return{ok:false,error:err instanceof Error?err.message:'Upload failed'};
+    }
   }
-  const DOCUMENT_LABELS={id_document:'ID document',live_selfie:'live selfie',proof_of_address:'proof of address',proof_of_banking:'proof of banking',bank_statement:'bank statement'};
+  function setUploadStatus(documentType,text,cls){
+    const el=form?.querySelector(`[data-status-for="${documentType}"]`);
+    if(!el)return;
+    el.textContent=text;
+    el.className='upload-status'+(cls?` ${cls}`:'');
+  }
+
+  // Single render function for the progress bar/checklist/submit-button
+  // state -- called after every save (field blur, document upload, or the
+  // initial prefill load) so the UI is always showing exactly what's
+  // actually persisted, never a locally-guessed state.
+  function renderApplyProgress(progress){
+    if(!progress)return;
+    const percentEl=document.getElementById('applyProgressPercent');
+    const remainingEl=document.getElementById('applyProgressRemaining');
+    const fillEl=document.getElementById('applyProgressFill');
+    const submitBtn=document.getElementById('applySubmitBtn');
+    if(percentEl)percentEl.textContent=`${progress.percent}% complete`;
+    if(fillEl)fillEl.style.width=`${progress.percent}%`;
+    if(remainingEl)remainingEl.textContent=(progress.remaining&&progress.remaining.length)?`Still needed: ${progress.remaining.map(r=>r.label).join(', ')}`:'Everything is in — ready to submit';
+    if(submitBtn){
+      submitBtn.disabled=!progress.complete;
+      submitBtn.textContent=progress.complete?'Submit for review':'Complete every section to submit';
+    }
+  }
+
+  const DRAFT_FIELD_NAMES=['idNumber','address','city','province','postal','income','expenses','bank','accountHolder','accountNumber','accountType'];
+  async function saveDraftField(name,value){
+    try{
+      const res=await fetch('/api/setla/apply/draft',{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({[name]:value})});
+      const payload=await res.json().catch(()=>({}));
+      if(res.ok)renderApplyProgress(payload);
+    }catch(_){/* best-effort -- the field keeps its typed value regardless; the next successful save or a reload (which prefills from the server) catches up */}
+  }
 
   function stopStream(){stream?.getTracks().forEach(track=>track.stop());stream=null}
 
@@ -292,6 +326,14 @@
       if(previewUrl)URL.revokeObjectURL(previewUrl);
       previewUrl=URL.createObjectURL(blob);
       preview.src=previewUrl;
+      // Uploads immediately -- same "save the moment they add something"
+      // rule the other documents follow, just triggered by the capture
+      // button instead of a file input's change event.
+      status.textContent='Saving selfie…';
+      uploadOneDocument('live_selfie',blob).then(result=>{
+        if(result.ok){status.textContent='Selfie captured & saved';renderApplyProgress(result.progress)}
+        else{status.textContent='Not saved — retake';setlaToast(result.error||'Could not save your selfie. Please retake it.')}
+      });
     },'image/jpeg',0.92);
     captured=true;
     stopStream();
@@ -308,43 +350,69 @@
   if(form)setCameraState('idle');
   const applicationAccount=currentAccount();
   if(form&&applicationAccount){const parts={firstName:applicationAccount.firstName,lastName:applicationAccount.lastName,email:applicationAccount.email,phone:applicationAccount.phone};Object.entries(parts).forEach(([name,value])=>{const input=form.elements[name];if(input&&value)input.value=value})}
+
+  if(form){
+    // Save on blur (change for selects), not on every keystroke -- fires
+    // once the customer actually moves to the next field.
+    DRAFT_FIELD_NAMES.forEach(name=>{
+      const input=form.elements[name];
+      if(!input)return;
+      input.addEventListener(input.tagName==='SELECT'?'change':'blur',()=>{if(input.value)saveDraftField(name,input.value)});
+    });
+    // Documents upload the instant a file is chosen -- same "save the
+    // moment they add something" rule the text fields follow above, just
+    // triggered by a change event instead of blur.
+    [['idDocument','id_document'],['addressProof','proof_of_address'],['bankProof','proof_of_banking'],['statement','bank_statement']].forEach(([fieldName,documentType])=>{
+      const input=form.elements[fieldName];
+      if(!input)return;
+      input.addEventListener('change',async()=>{
+        const file=input.files&&input.files[0];
+        if(!file)return;
+        setUploadStatus(documentType,'Uploading…');
+        const result=await uploadOneDocument(documentType,file);
+        if(result.ok){setUploadStatus(documentType,'✓ Uploaded','is-done');renderApplyProgress(result.progress)}
+        else setUploadStatus(documentType,result.error||'Upload failed','is-error');
+      });
+    });
+    // Resumes a return visit: prefill every saved field and mark already-
+    // uploaded documents as done, then render the real progress bar --
+    // without this, "save as you go" would save correctly but a reload
+    // would still look like starting over blank.
+    fetch('/api/setla/apply/draft',{credentials:'include',cache:'no-store'}).then(r=>r.json()).then(payload=>{
+      const draft=payload.draft||{};
+      DRAFT_FIELD_NAMES.forEach(name=>{
+        const input=form.elements[name];
+        if(input&&draft[name]!=null&&draft[name]!=='')input.value=draft[name];
+      });
+      (payload.items||[]).forEach(item=>{
+        if(!item.done)return;
+        if(item.key==='live_selfie'){status.textContent='Selfie captured & saved';return}
+        if(['id_document','proof_of_address','proof_of_banking','bank_statement'].includes(item.key))setUploadStatus(item.key,'✓ Already uploaded','is-done');
+      });
+      renderApplyProgress(payload);
+    }).catch(()=>{});
+  }
+  // Every field and document is already saved by the time this fires --
+  // submit is just the final "I'm done" action, not the thing that
+  // actually moves the data. The button stays disabled (see
+  // renderApplyProgress) until the server-computed progress says 100%,
+  // so a real click here should always have everything it needs.
   form?.addEventListener('submit',async event=>{
     event.preventDefault();
-    if(!captured||!capturedBlob){setlaToast('Complete the live identity check before submitting.');return}
-    const submitBtn=form.querySelector('button[type="submit"]');
+    const submitBtn=document.getElementById('applySubmitBtn');
     if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting…'}
     try{
-      if(!applyInflight){
-        const data=new FormData(form);
-        const fields={};
-        ['firstName','lastName','email','phone','idNumber','address','city','province','postal','income','expenses','bank','accountHolder','accountNumber','accountType'].forEach(name=>{fields[name]=data.get(name)});
-        const startRes=await fetch('/api/setla/apply/start',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});
-        const startPayload=await startRes.json().catch(()=>({}));
-        if(!startRes.ok){setlaToast(startPayload.error||'Could not submit your application');return}
-        applyInflight={applicationId:startPayload.applicationId,bucket:startPayload.bucket,uploads:startPayload.uploads};
-      }
-      if(submitBtn)submitBtn.textContent='Uploading documents…';
-      const fileMap={
-        id_document:form.elements.idDocument?.files?.[0],
-        proof_of_address:form.elements.addressProof?.files?.[0],
-        proof_of_banking:form.elements.bankProof?.files?.[0],
-        bank_statement:form.elements.statement?.files?.[0],
-        live_selfie:capturedBlob,
-      };
-      const uploadErrors=await uploadDocuments(applyInflight.uploads,fileMap,applyInflight.bucket);
-      const finishRes=await fetch('/api/setla/apply/finish',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({applicationId:applyInflight.applicationId})});
-      const finishPayload=await finishRes.json().catch(()=>({}));
-      if(!finishRes.ok){
-        const missing=(finishPayload.missing||[]).map(type=>uploadErrors[type]?`${DOCUMENT_LABELS[type]||type} (${uploadErrors[type]})`:DOCUMENT_LABELS[type]||type);
-        setlaToast(missing.length?`Couldn't upload: ${missing.join(', ')}. Please try again.`:(finishPayload.error||'Some documents could not be uploaded. Please try again.'));
+      const res=await fetch('/api/setla/apply/submit',{method:'POST',credentials:'include'});
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok){
+        setlaToast(payload.error||'Could not submit your application');
+        if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Submit for review'}
         return;
       }
-      applyInflight=null;
       stream?.getTracks().forEach(track=>track.stop());
       location.href='dashboard.html?submitted=1';
     }catch(_){
       setlaToast('Something went wrong. Please try again.');
-    }finally{
       if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Submit for review'}
     }
   });
@@ -394,7 +462,14 @@
     // the "Available spending limit" label above it.
     document.getElementById('availableLimit').textContent=money(available);document.getElementById('limitProgress').style.width=`${approvedLimit?Math.max(0,Math.min(100,available/approvedLimit*100)):0}%`;
     document.getElementById('limitCaption').textContent=approved?`${money(approvedLimit-available)} used of your ${money(approvedLimit)} approved limit`:pending?'Your personal limit will appear after review.':'Complete your application to discover your personal limit.';
-    document.getElementById('accountState').innerHTML=approved?'':`<section class="card account-state-card${pending?'':' action-needed'}"><div><div class="card-kicker">${pending?'Application received':'One step left'}</div><h2>${pending?'We are reviewing your application.':"You're one step closer to unlocking your spending limit."}</h2><p>${pending?'We will email you when a decision and personal limit are ready. SETLA Laybuy remains available at checkout.':'You signed up, but your application is not done yet. Submit your identity, affordability and banking information to be considered for Pay Later.'}</p></div><a class="button ${pending?'outline':'primary'}" href="${pending?'#support':'apply.html'}" ${pending?'data-view="support"':''}>${pending?'Speak to support':'Continue application'}</a></section>`;
+    // Not yet applied and started at least one field/document ('draft') get
+    // a real, server-computed progress bar and a "still needed" checklist
+    // instead of generic "one step left" copy -- driven by
+    // applicationProgress from /api/setla/dashboard, the same shape
+    // apply.html itself uses, so the two never disagree on the percentage.
+    const progress=account.applicationProgress;
+    const inProgress=status==='draft'||(status==='not_applied'&&progress&&progress.percent>0);
+    document.getElementById('accountState').innerHTML=approved?'':pending?`<section class="card account-state-card"><div><div class="card-kicker">Application received</div><h2>We are reviewing your application.</h2><p>We will email you when a decision and personal limit are ready. SETLA Laybuy remains available at checkout.</p></div><a class="button outline" href="#support" data-view="support">Speak to support</a></section>`:`<section class="card account-state-card action-needed"><div><div class="card-kicker">${inProgress?'Continue your application':'One step left'}</div><h2>${inProgress?`${progress.percent}% of your application is done.`:"You're one step closer to unlocking your spending limit."}</h2><p>${inProgress?`Still needed: ${progress.remaining.map(r=>r.label).join(', ')}`:'You signed up, but your application is not done yet. Submit your identity, affordability and banking information to be considered for Pay Later.'}</p>${inProgress?`<div class="apply-progress"><div class="apply-progress-bar"><i style="width:${progress.percent}%"></i></div></div>`:''}</div><a class="button primary" href="apply.html">${inProgress?'Continue application':'Start application'}</a></section>`;
     const next=(latest?.schedule||[])[0];document.getElementById('nextPaymentCard').innerHTML=next?`<div class="card-kicker">Coming up</div><h2>Next payment</h2><div class="due-amount">${money(next.amount)}</div><p>${escapeHTML(next.date)} · Order ${escapeHTML(latest.id)}</p><button class="button primary" data-view="${latest.methodCode==='laybuy'?'laybuy':'plans'}">Manage payment plan</button>`:`<div class="card-kicker">Coming up</div><h2>No payment due</h2><p>Your next confirmed payment will appear here.</p>`;
     document.getElementById('latestOrderCard').innerHTML=latest?`<div class="section-heading"><div><div class="card-kicker">Latest purchase</div><h2>Order ${escapeHTML(latest.id)}</h2></div><span class="status-badge ${latest.methodCode==='laybuy'?'pending':'good'}">${orderStatus(latest)}</span></div><div class="order-preview"><div class="product-thumb"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div><div><strong>${escapeHTML(itemTitle(latest.items?.[0]||{}))}</strong><p>${Number(latest.items?.length||0)} item${latest.items?.length===1?'':'s'}</p></div><div class="order-price"><small>Order total</small><strong>${money(latest.total)}</strong></div></div><button class="text-action" data-view="track">Track this order</button>`:`<div class="card-kicker">Latest purchase</div><h2>No orders yet</h2><p>Your first 4REGN x SETLA x UNIK Labs order will appear here.</p>`;
     document.getElementById('notificationPreview').innerHTML=pending?`<div class="notice-icon"></div><div><small>Application update</small><strong>Your application is being reviewed</strong><p>We will notify ${escapeHTML(account.email||'you')} when a decision is ready.</p></div><button class="text-action" data-view="notifications">View all</button>`:`<div class="notice-icon"></div><div><small>SETLA updates</small><strong>${latest?'Your order is connected':'No new notifications'}</strong><p>${latest?`Order ${escapeHTML(latest.id)} is now visible in your dashboard.`:'Account, payment and order updates will appear here.'}</p></div>`;

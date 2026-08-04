@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { requireSetlaCustomer } from "../../../../lib/setla-customer";
 import { formatInstalmentDueDate } from "../../../../lib/setla-instalments";
+import { computeProgress, DOCUMENT_TYPES } from "../../../../lib/setla-application-progress";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const [{ data: latestApplication }, { data: latestBank }, { data: notifications }] = await Promise.all([
+  const [{ data: latestApplication }, { data: latestBank }, { data: notifications }, { data: draftDocs }] = await Promise.all([
     admin
       .from("setla_applications")
       .select("id, status, decision_reason, proposed_limit, submitted_at, reviewed_at")
@@ -83,7 +84,18 @@ export async function GET(req: NextRequest) {
       .eq("customer_id", customer.id)
       .order("created_at", { ascending: false })
       .limit(20),
+    // Only relevant while application_status is 'not_applied'/'draft' (an
+    // approved/pending/declined customer already has a real application on
+    // file), but cheap enough to always compute rather than branch on it.
+    admin
+      .from("setla_documents")
+      .select("document_type")
+      .eq("customer_id", customer.id)
+      .is("application_id", null)
+      .in("document_type", DOCUMENT_TYPES as unknown as string[]),
   ]);
+
+  const applicationProgress = computeProgress(customer.application_draft || {}, new Set((draftDocs || []).map((d) => d.document_type)));
 
   const fullName = `${customer.first_name} ${customer.last_name}`.trim();
 
@@ -114,5 +126,6 @@ export async function GET(req: NextRequest) {
       : null,
     notifications: notifications || [],
     orders,
+    applicationProgress,
   });
 }

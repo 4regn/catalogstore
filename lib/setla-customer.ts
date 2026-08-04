@@ -24,7 +24,7 @@ export async function requireSetlaCustomer(req: NextRequest) {
 
   const { data: customer, error: customerError } = await admin
     .from("setla_customers")
-    .select("id, auth_user_id, first_name, last_name, email, phone, id_number, address, application_status, identity_status, approved_limit, available_limit, payment_status, created_at")
+    .select("id, auth_user_id, first_name, last_name, email, phone, id_number, address, application_status, identity_status, approved_limit, available_limit, payment_status, created_at, application_draft")
     .eq("auth_user_id", userData.user.id)
     .maybeSingle();
   if (customerError || !customer) {

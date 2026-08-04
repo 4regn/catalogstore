@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   if ("response" in auth) return auth.response;
 
   const admin = getAdmin();
-  const [{ count: pendingApplications }, { count: pendingBankReviews }, { count: pendingAppeals }, { count: totalSignups }, { count: applicationsSubmitted }] = await Promise.all([
+  const [{ count: pendingApplications }, { count: pendingBankReviews }, { count: pendingAppeals }, { count: totalSignups }, { count: applicationsStarted }, { count: applicationsSubmitted }] = await Promise.all([
     admin.from("setla_applications").select("id", { count: "exact", head: true }).in("status", ["pending", "manual_review"]),
     admin.from("setla_bank_accounts").select("id", { count: "exact", head: true }).eq("review_status", "pending"),
     admin.from("setla_appeals").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -23,7 +23,13 @@ export async function GET(req: NextRequest) {
     // couldn't previously answer at a glance ("we only saw the application
     // after it was submitted, we wouldn't know who signed up").
     admin.from("setla_customers").select("id", { count: "exact", head: true }),
-    admin.from("setla_customers").select("id", { count: "exact", head: true }).neq("application_status", "not_applied"),
+    // 'draft' -- saved at least one field/document via the resumable apply
+    // flow but hasn't hit final submit yet. A real three-stage funnel now:
+    // signed up -> started -> submitted, not just signed up -> submitted,
+    // since "started but abandoned" used to be indistinguishable from
+    // "never touched it" (both were 'not_applied').
+    admin.from("setla_customers").select("id", { count: "exact", head: true }).eq("application_status", "draft"),
+    admin.from("setla_customers").select("id", { count: "exact", head: true }).not("application_status", "in", "(not_applied,draft)"),
   ]);
 
   return NextResponse.json({
@@ -34,6 +40,7 @@ export async function GET(req: NextRequest) {
     overdueInstalments: 0,
     openSupportConversations: 0,
     totalSignups: totalSignups || 0,
+    applicationsStarted: applicationsStarted || 0,
     applicationsSubmitted: applicationsSubmitted || 0,
   });
 }
