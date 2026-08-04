@@ -150,6 +150,13 @@
       const payload=await res.json().catch(()=>({}));
       if(!res.ok){showAuthError(payload.error||'Could not sign in');return}
       if(payload.refreshToken)storeRefreshToken(payload.refreshToken,!!data.get('remember'));
+      // The dashboard's early-paint cache (see the top of this file) is
+      // deliberately NOT scoped per-account -- it can't be, the customer
+      // isn't known until the dashboard fetch resolves. Clearing it on
+      // every fresh sign-in stops a *different* account's last-known
+      // status (e.g. someone testing two accounts on the same phone)
+      // from leaking into this login's first paint.
+      try{localStorage.removeItem('setla-dash-status-cache')}catch(_){}
       location.href=safeNext()||'dashboard.html';
     }catch(_){
       showAuthError('Something went wrong. Please try again.');
@@ -174,6 +181,7 @@
   document.getElementById('logoutButton')?.addEventListener('click',async()=>{
     await fetch('/api/setla/auth/session',{method:'DELETE',credentials:'include'}).catch(()=>{});
     clearRefreshToken();
+    try{localStorage.removeItem('setla-dash-status-cache')}catch(_){}
     location.href='login.html';
   });
 

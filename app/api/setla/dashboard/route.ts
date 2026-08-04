@@ -24,7 +24,16 @@ export async function GET(req: NextRequest) {
     .eq("customer_id", customer.id)
     .order("created_at", { ascending: false });
 
+  // Wrapped end-to-end: this block enriches setla_orders with instalments/
+  // laybuy-payment data purely for display, and it's the one part of this
+  // route whose shape depends on what a customer has actually bought --
+  // a single malformed/unexpected row here must never fail the whole
+  // dashboard fetch, since resolveSession() on the client treats *any*
+  // non-ok response from this route as "not signed in" and redirects to
+  // login. A customer should never get logged out of their own account
+  // because their order history failed to format.
   let orders: any[] = [];
+  try {
   if (setlaOrders && setlaOrders.length) {
     const unikOrderIds = setlaOrders.map((o) => o.unik_order_id);
     const planIds = setlaOrders.map((o) => (Array.isArray(o.setla_payment_plans) ? o.setla_payment_plans[0]?.id : (o.setla_payment_plans as any)?.id)).filter(Boolean);
@@ -98,6 +107,10 @@ export async function GET(req: NextRequest) {
         createdAt: row.created_at,
       };
     });
+  }
+  } catch (err) {
+    console.error("SETLA dashboard: order enrichment failed, returning empty orders", err);
+    orders = [];
   }
 
   const [{ data: latestApplication }, { data: latestBank }, { data: notifications }, { data: draftDocs }] = await Promise.all([
