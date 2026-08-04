@@ -866,13 +866,17 @@
   // read straight from the same cart key store.js itself writes to
   // (CART_KEY = 'unik-labs-cart-v1'), same origin, no duplication needed.
   function unikCartItems(){try{return JSON.parse(localStorage.getItem('unik-labs-cart-v1')||'[]')}catch{return []}}
+  // Pay Later = "Pay in 4" (4 instalments, 14 days apart, 6 weeks total),
+  // Laybuy = "Pay half / half" (2 instalments, 30 days apart) -- matches
+  // both lib/setla-instalments.ts (the real server-side charge) and every
+  // customer-facing plan description elsewhere in the product.
   function renderSchedule(total,plan){
     const schedule=document.getElementById('paymentSchedule');if(!schedule)return [];
-    const count=plan==='laybuy'?4:3,interval=plan==='laybuy'?7:14,parts=splitAmount(total,count);
+    const count=plan==='laybuy'?2:4,interval=plan==='laybuy'?30:14,parts=splitAmount(total,count);
     const rows=parts.map((amount,index)=>({number:index+1,amount,date:index===0?'Today':dateAfter(index*interval),status:index===0?'Due now':'Scheduled'}));
     schedule.innerHTML=rows.map(row=>`<div class="schedule-row"><i>${row.number}</i><span><small>${row.status}</small><strong>${row.date}</strong></span><b>${money(row.amount)}</b></div>`).join('');
     document.getElementById('scheduleTotal').textContent=money(total);
-    document.getElementById('scheduleNote').textContent=plan==='laybuy'?'UNIK Labs production remains locked until all four Laybuy instalments are complete. Once fully paid, your order moves into production automatically.':'Your first instalment is due today. The remaining two payments follow every 14 days and can be managed from your dashboard.';
+    document.getElementById('scheduleNote').textContent=plan==='laybuy'?'UNIK Labs production remains locked until both Laybuy instalments are complete. Once fully paid, your order moves into production automatically.':'Your first instalment is due today. The remaining three payments follow every 14 days and can be managed from your dashboard.';
     return rows;
   }
   function itemTitle(item){return item?.name||item?.title||item?.productName||item?.options?.name||`${item?.options?.garment||'Custom'} ${item?.options?.type||'garment'}`}

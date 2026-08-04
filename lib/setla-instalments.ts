@@ -7,9 +7,17 @@ export type SetlaPlanType = "pay_later" | "laybuy";
 // multiple repayment tiers/customer choice. Isolated here as the one place
 // that would change if/when that's decided, instead of being duplicated
 // across the checkout route and any future admin tooling.
+//
+// These MUST match what's advertised everywhere else in the product
+// (setla.4regn.com's landing page calculator, the 4REGN product/cart
+// widgets, the signup page): pay_later is "Pay in 4" -- 4 instalments,
+// 14 days apart (today + 14 + 28 + 42 days, 6 weeks total); laybuy is
+// "Pay half / half" -- 2 instalments, 30 days apart. This file is the
+// real source of truth the server actually bills against, so a mismatch
+// here means the marketing math and the real charge silently disagree.
 const PLAN_CONFIG: Record<SetlaPlanType, { count: number; intervalDays: number }> = {
-  pay_later: { count: 3, intervalDays: 14 },
-  laybuy: { count: 4, intervalDays: 7 },
+  pay_later: { count: 4, intervalDays: 14 },
+  laybuy: { count: 2, intervalDays: 30 },
 };
 
 /* Server-side port of setla.js's old client-only splitAmount()/dateAfter()
