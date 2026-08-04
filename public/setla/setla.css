@@ -146,3 +146,19 @@
 @media(max-width:880px){.pilot-hero-grid,.starter-banner{grid-template-columns:1fr}.pilot-grid-3{grid-template-columns:1fr}.apply-intro-v2{grid-template-columns:1fr}.apply-intro-v2 .back{justify-self:start}.stepper-item{padding:14px 12px}.stepper-item span:last-child{display:none}.mobile-progress-copy{display:block}}
 @media(max-width:700px){.saved-account-grid{grid-template-columns:1fr 1fr}.saved-account-item.name{grid-column:1/-1}.saved-account-actions{align-items:flex-start}.stepper-v2.with-account{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:640px){.pilot-hero,.starter-card,.build-history{padding:22px;border-radius:20px}.pilot-title{font-size:36px}.limit-orbit strong{font-size:38px}.pilot-actions{align-items:stretch}.pilot-actions .button{width:100%;justify-content:center}.apply-shell-v2{padding-bottom:76px}.apply-intro-v2{margin-bottom:14px}.apply-intro-v2 h1{font-size:38px}.application-stage-card{border-radius:20px}.apply-stage{padding:20px 17px}.stepper-item{justify-content:center}.stage-head{display:block}.stage-count{display:block;margin-top:8px}.stage-actions{position:sticky;bottom:64px;background:#0a0c0a;margin-inline:-17px;padding:14px 17px;border-top:1px solid var(--line);box-shadow:0 -10px 24px rgba(0,0,0,.4);z-index:5}.stage-actions .right{width:100%}.stage-actions .button{flex:1;min-width:0}.starter-amount{font-size:58px}.history-step{grid-template-columns:34px 1fr}.history-step .tag{grid-column:2}.dashboard-deemphasized{display:none}.merchant-shop-grid{grid-template-columns:1fr}.merchant-shop-link{min-height:58px}}
+
+/* Locked spending-limit strip -- a green ribbon crossing the R0.00 amount
+   on a not-yet-applied dashboard, doubling as the "go apply" CTA. */
+.mini-limit{position:relative;overflow:hidden}
+.limit-amount-row{position:relative}
+.limit-lock-strip{position:absolute;left:-24px;right:-24px;top:50%;transform:translateY(-50%);min-height:50px;display:flex;align-items:center;justify-content:center;gap:9px;padding:11px 20px;background:linear-gradient(90deg,var(--green),var(--bright));color:#fff;text-decoration:none;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;text-align:center;box-shadow:0 10px 26px rgba(0,117,23,.32);cursor:pointer;transition:transform .18s ease,box-shadow .18s ease;z-index:2}
+.limit-lock-strip:hover{box-shadow:0 14px 32px rgba(0,117,23,.45)}
+.limit-lock-strip:active{transform:translateY(-50%) scale(.98)}
+.limit-lock-icon{display:grid;place-items:center;flex:0 0 auto;position:relative;width:19px;height:19px}
+.limit-lock-icon svg{position:absolute;inset:0;width:19px;height:19px}
+.limit-lock-icon .lock-open{opacity:0}
+.limit-lock-strip.is-unlocking{background:linear-gradient(90deg,var(--bright),#a8f6ba);pointer-events:none}
+.limit-lock-strip.is-unlocking .lock-closed{opacity:0}
+.limit-lock-strip.is-unlocking .lock-open{opacity:1;animation:lockSpring .45s cubic-bezier(.34,1.56,.64,1)}
+@keyframes lockSpring{0%{transform:scale(.55) rotate(-16deg)}55%{transform:scale(1.25) rotate(7deg)}100%{transform:scale(1) rotate(0)}}
+@media(max-width:590px){.limit-lock-strip{font-size:10px;padding:10px 14px;gap:7px}}
