@@ -802,7 +802,7 @@ export default function Dashboard() {
   const deleteForever = async (id: string) => { if (!confirm("Permanently delete this product? This cannot be undone.")) return; await supabase.from("products").delete().eq("id", id); setProducts(products.filter((p) => p.id !== id)); revalidateMyStore(); };
   const duplicateProduct = async (p: Product) => {
     if (!seller) return;
-    if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Pro for up to 100 products." : "")); return; }
+    if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Pro for unlimited products." : "")); return; }
     const { data, error } = await supabase.from("products").insert({
       seller_id: seller.id,
       name: p.name + " (Copy)",
@@ -1096,7 +1096,7 @@ export default function Dashboard() {
   const isFreePlan = seller?.subscription_status === "free";
   const planLimits = isFreePlan
     ? { products: 15, images: 5, collections: 10, templates: 1 }
-    : { products: 100, images: 20, collections: 10, templates: 5 };
+    : { products: Infinity, images: 50, collections: 10, templates: 5 };
   const activeProductCount = products.filter((p) => p.status !== "trashed").length;
   const canAddProduct = activeProductCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
@@ -1124,8 +1124,8 @@ export default function Dashboard() {
     growItems.push({ label: "3 More Premium Templates", desc: <>3 more premium templates available. <i>You're on the Pro plan.</i></>, fn: () => { switchTab("mystore"); setTemplateOpen(true); }, cta: "Browse" });
   }
   if (isFreePlan) {
-    growItems.push({ label: "Increase Product Limits", desc: "Up to 100 products instead of 15", fn: () => router.push("/dashboard/billing"), cta: "Upgrade" });
-    growItems.push({ label: "Additional Product Images", desc: "20 photos per product instead of 5", fn: () => router.push("/dashboard/billing"), cta: "Upgrade" });
+    growItems.push({ label: "Increase Product Limits", desc: "Unlimited products instead of 15", fn: () => router.push("/dashboard/billing"), cta: "Upgrade" });
+    growItems.push({ label: "Additional Product Images", desc: "50 photos per product instead of 5", fn: () => router.push("/dashboard/billing"), cta: "Upgrade" });
   }
   // Fades the card out after ~5 dashboard sessions once launch is complete,
   // or immediately if the seller closes it manually.

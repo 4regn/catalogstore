@@ -14,7 +14,7 @@ const PLANS = [
     name: "Pro",
     price: 199,
     features: [
-      "Up to 100 products",
+      "Unlimited products",
       "Up to 10 collections",
       "All 5 store templates",
       "Personal onboarding — we set you up 1-on-1",
@@ -24,7 +24,7 @@ const PLANS = [
       "Secure card payment gateways, EFT, Apple Pay, WhatsApp checkout",
       "Cancel anytime",
     ],
-    limits: { products: 100, images: 20, collections: 10, templates: 4 },
+    limits: { products: Infinity, images: 50, collections: 10, templates: 4 },
   },
 ];
 
@@ -187,7 +187,7 @@ export default function BillingPage() {
           <div style={{ padding: "24px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(245,245,245,0.5)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Free Plan</div>
             <div style={{ fontSize: 20, fontWeight: 900 }}>1 template · 4 products · 5 photos each</div>
-            <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Upgrade to Pro for all 5 templates, 100 products, and a custom domain</p>
+            <p style={{ fontSize: 12, color: "rgba(245,245,245,0.25)", marginTop: 8 }}>Upgrade to Pro for all 5 templates, unlimited products, and a custom domain</p>
           </div>
         )}
 

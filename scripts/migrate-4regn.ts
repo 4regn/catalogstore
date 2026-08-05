@@ -216,7 +216,7 @@ async function main() {
     process.exit(1);
   }
 
-  const productCap = seller.subscription_status === "free" ? 15 : 100;
+  const productCap = seller.subscription_status === "free" ? 15 : Infinity;
   const finalCount = existingCount + rows.length;
   console.log(`\nParsed ${rows.length} product(s) from ${handleMap.size} handle group(s), ${errors} skipped for missing title/price.`);
   console.log(`Seller currently has ${existingCount} product(s); this run would bring it to ${finalCount} (plan cap: ${productCap}).`);

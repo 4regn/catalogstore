@@ -26,8 +26,8 @@ const FREE_PLAN_FEATURES = [
   "No credit card required",
 ];
 const PLAN_FEATURES = [
-  "Up to 100 products",
-  "20 photos per product",
+  "Unlimited products",
+  "50 photos per product",
   "Up to 10 collections",
   "All 5 store templates",
   "Personal onboarding — we set you up 1-on-1",
@@ -133,7 +133,7 @@ const FAQS = [
   },
   {
     q: "How do I add my products?",
-    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. The Free plan includes up to 15 products to get started; Pro goes up to 100.",
+    a: "Add products one at a time through the dashboard, or bulk-upload with a CSV import. Each product gets photos, variants (size / colour), pricing, and a description. The Free plan includes up to 15 products to get started; Pro is unlimited.",
   },
   {
     q: "What if I get stuck?",
