@@ -241,13 +241,17 @@ async function main() {
   const productCap = seller.subscription_status === "free" ? 15 : Infinity;
   const finalCount = existingCount + rows.length;
   console.log(`\nParsed ${rows.length} product(s) from ${handleMap.size} handle group(s), ${errors} skipped for missing title/price.`);
-  console.log(`Seller currently has ${existingCount} product(s); this run would bring it to ${finalCount} (plan cap: ${productCap}).`);
+  if (args.resumeImages) {
+    console.log(`Seller currently has ${existingCount} product(s) (--resume-images: no new products will be inserted, only matched and re-processed for images/redirects).`);
+  } else {
+    console.log(`Seller currently has ${existingCount} product(s); this run would bring it to ${finalCount} (plan cap: ${productCap}).`);
+  }
   if (priceDeltaWarnings.length) {
     console.log(`\n${priceDeltaWarnings.length} product(s) need manual price review after import:`);
     for (const w of priceDeltaWarnings) console.log(`  - ${w}`);
   }
 
-  if (finalCount > productCap && !args.force) {
+  if (!args.resumeImages && finalCount > productCap && !args.force) {
     console.error(
       `\nThis would exceed the seller's plan cap of ${productCap} products. ` +
         `Either upgrade the seller's plan first, or re-run with --force to import anyway.`
@@ -260,14 +264,62 @@ async function main() {
     return;
   }
 
+  // --resume-images skips inserting products entirely and instead looks up
+  // already-inserted products by source_url -- for recovering from a run
+  // that got through the product insert but hung or crashed during image
+  // upload (the insert has no dedupe key, so blindly re-running the whole
+  // script would duplicate every product). Redirects still get (re-)seeded
+  // for every matched product regardless of image state, since a prior run
+  // hanging during image upload means it never reached the redirect step
+  // either.
   let inserted: any[];
-  try {
-    inserted = await insertInBatchesReturning(admin, "products", rows);
-  } catch (e) {
-    console.error(`\n${e instanceof Error ? e.message : String(e)}`);
-    process.exit(1);
+  let redirectTargets: any[];
+  let redirectHandles: string[];
+  if (args.resumeImages) {
+    console.log("\n--resume-images: skipping product insert, matching existing products by source_url instead...");
+    const { data: existing, error: fetchErr } = await admin.from("products").select("id, source_url, images").eq("seller_id", sellerId);
+    if (fetchErr) {
+      console.error("Failed to fetch existing products:", fetchErr.message);
+      process.exit(1);
+    }
+    const bySourceUrl = new Map((existing || []).filter((p) => p.source_url).map((p) => [p.source_url, p]));
+    const matched: any[] = [];
+    const matchedHandles: string[] = [];
+    const needingImages: any[] = [];
+    const needingImagesSrcs: string[][] = [];
+    const needingImagesHandles: string[] = [];
+    let notFound = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const p = rows[i].source_url ? bySourceUrl.get(rows[i].source_url!) : undefined;
+      if (!p) {
+        notFound++;
+        continue;
+      }
+      matched.push(p);
+      matchedHandles.push(allHandles[i]);
+      if (!p.images || p.images.length === 0) {
+        needingImages.push(p);
+        needingImagesSrcs.push(allImageSrcs[i]);
+        needingImagesHandles.push(allHandles[i]);
+      }
+    }
+    console.log(`Matched ${matched.length} existing product(s) by source_url (${notFound} not found -- run the normal import first if this is unexpectedly high). ${needingImages.length} still need images.`);
+    inserted = needingImages;
+    redirectTargets = matched;
+    redirectHandles = matchedHandles;
+    allImageSrcs.length = 0;
+    allImageSrcs.push(...needingImagesSrcs);
+  } else {
+    try {
+      inserted = await insertInBatchesReturning(admin, "products", rows);
+    } catch (e) {
+      console.error(`\n${e instanceof Error ? e.message : String(e)}`);
+      process.exit(1);
+    }
+    console.log(`\nInserted ${inserted.length} product(s).`);
+    redirectTargets = inserted;
+    redirectHandles = allHandles;
   }
-  console.log(`\nInserted ${inserted.length} product(s).`);
 
   const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
   let imagesUploaded = 0;
@@ -282,7 +334,12 @@ async function main() {
 
   async function runTask(task: { productIdx: number; imgIdx: number; url: string }) {
     try {
-      const resp = await fetch(task.url);
+      // A stalled (not dropped) connection to the image host can otherwise
+      // hang a worker forever -- confirmed in practice: a real run sat at
+      // "Inserted 2023 product(s)" for over an hour with zero progress,
+      // most likely one image request that opened a connection and never
+      // responded. Node's fetch has no default timeout.
+      const resp = await fetch(task.url, { signal: AbortSignal.timeout(20000) });
       if (!resp.ok) {
         imagesFailed++;
         return;
@@ -350,9 +407,9 @@ async function main() {
   if (updateFailures) console.log(`${updateFailures} product(s) had their images uploaded but failed to save the image_url/images fields -- these products will show no photos until re-run or fixed manually.`);
   console.log(`Images: ${imagesUploaded} uploaded, ${imagesFailed} failed.`);
 
-  const redirectRows = inserted.map((product, i) => ({
+  const redirectRows = redirectTargets.map((product, i) => ({
     seller_id: sellerId,
-    old_path: `/products/${allHandles[i]}`,
+    old_path: `/products/${redirectHandles[i]}`,
     destination_path: `/p/${product.id}`,
     product_id: product.id,
   }));

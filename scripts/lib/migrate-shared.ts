@@ -47,13 +47,15 @@ export type CliArgs = {
   force: boolean;
   limit: number | null;
   sourceDomain: string | null;
+  resumeImages: boolean;
 };
 
 export function parseArgs(usage: string): CliArgs {
-  const out: Partial<CliArgs> = { dryRun: false, force: false, limit: null, sourceDomain: null };
+  const out: Partial<CliArgs> = { dryRun: false, force: false, limit: null, sourceDomain: null, resumeImages: false };
   for (const arg of process.argv.slice(2)) {
     if (arg === "--dry-run") out.dryRun = true;
     else if (arg === "--force") out.force = true;
+    else if (arg === "--resume-images") out.resumeImages = true;
     else if (arg.startsWith("--csv=")) out.csv = arg.slice("--csv=".length);
     else if (arg.startsWith("--seller=")) out.seller = arg.slice("--seller=".length);
     else if (arg.startsWith("--limit=")) out.limit = parseInt(arg.slice("--limit=".length), 10);
