@@ -21,7 +21,7 @@
 // Usage:
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
 
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml, insertInBatchesReturning, writeInBatches } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml, insertInBatchesReturning, writeInBatches, withTimeout } from "./lib/migrate-shared";
 
 type ProductRow = {
   seller_id: string;
@@ -375,7 +375,23 @@ async function main() {
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, allTasks.length) }, () => worker()));
+  // A separate heartbeat, independent of the per-10-task progress line above
+  // -- with the 20s per-image timeout now in place, a genuinely stuck run
+  // is no longer possible, but this makes "still alive, just slow" visibly
+  // distinguishable from "actually frozen" without having to guess based on
+  // how often the count happens to tick over.
+  const heartbeatStart = Date.now();
+  const heartbeat = allTasks.length
+    ? setInterval(() => {
+        const elapsed = Math.round((Date.now() - heartbeatStart) / 1000);
+        process.stdout.write(`\n  ...still running (${elapsed}s elapsed, ${tasksDone}/${allTasks.length} images processed so far)\n`);
+      }, 15000)
+    : null;
+  try {
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, allTasks.length) }, () => worker()));
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+  }
   if (allTasks.length) process.stdout.write("\n");
 
   const byProduct = new Map<number, { imgIdx: number; publicUrl: string }[]>();
@@ -394,15 +410,30 @@ async function main() {
       const [pIdx, imgs] = productEntries[idx];
       imgs.sort((a, b) => a.imgIdx - b.imgIdx);
       const urls = imgs.map((m) => m.publicUrl);
-      const { error } = await admin.from("products").update({ image_url: urls[0], images: urls }).eq("id", inserted[pIdx].id);
-      if (error) updateFailures++;
+      try {
+        const { error } = await withTimeout(admin.from("products").update({ image_url: urls[0], images: urls }).eq("id", inserted[pIdx].id), "product image URL save");
+        if (error) updateFailures++;
+      } catch {
+        updateFailures++;
+      }
       updatesDone++;
       if (updatesDone % 10 === 0 || updatesDone === productEntries.length) {
         process.stdout.write(`\r  image URLs saved: ${updatesDone}/${productEntries.length} (${updateFailures} failed)...`);
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, productEntries.length) }, () => updateWorker()));
+  const updateHeartbeatStart = Date.now();
+  const updateHeartbeat = productEntries.length
+    ? setInterval(() => {
+        const elapsed = Math.round((Date.now() - updateHeartbeatStart) / 1000);
+        process.stdout.write(`\n  ...still running (${elapsed}s elapsed, ${updatesDone}/${productEntries.length} image URLs saved so far)\n`);
+      }, 15000)
+    : null;
+  try {
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, productEntries.length) }, () => updateWorker()));
+  } finally {
+    if (updateHeartbeat) clearInterval(updateHeartbeat);
+  }
   if (productEntries.length) process.stdout.write("\n");
   if (updateFailures) console.log(`${updateFailures} product(s) had their images uploaded but failed to save the image_url/images fields -- these products will show no photos until re-run or fixed manually.`);
   console.log(`Images: ${imagesUploaded} uploaded, ${imagesFailed} failed.`);

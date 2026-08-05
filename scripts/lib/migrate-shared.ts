@@ -176,6 +176,21 @@ export class BatchWriteError extends Error {
 }
 
 const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
+const CALL_TIMEOUT_MS = 20000;
+
+// Supabase-js's fetch calls have no default timeout, so a stalled (not
+// dropped) connection hangs forever rather than erroring -- confirmed in
+// practice with the image-download step. Races any Supabase call against a
+// timer so it always eventually settles one way or the other.
+export function withTimeout<T>(promise: PromiseLike<T>, label: string, ms = CALL_TIMEOUT_MS): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s (no response -- likely a stalled connection)`)), ms);
+    Promise.resolve(promise).then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
 
 // Retries a single batch attempt on failure with exponential backoff before
 // giving up -- added after observing real, intermittent "TypeError: fetch
@@ -183,13 +198,14 @@ const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
 // each run (600, then 1400, then 600 again), the signature of a flaky
 // connection rather than a payload-size problem (batching already fixed
 // that). `attempt()` should return the Supabase `{data, error}` result, not
-// throw -- a thrown exception (e.g. an actual dropped connection mid-request)
-// is caught and retried the same as a returned `error`.
+// throw -- a thrown exception (e.g. an actual dropped connection mid-request,
+// or the timeout above firing) is caught and retried the same as a returned
+// `error`.
 async function withRetry<T extends { data?: any; error: any }>(attempt: () => PromiseLike<T>, label: string): Promise<T> {
   let lastResult: T | undefined;
   for (let i = 0; i <= RETRY_DELAYS_MS.length; i++) {
     try {
-      lastResult = await attempt();
+      lastResult = await withTimeout(attempt(), label);
       if (!lastResult.error) return lastResult;
     } catch (e) {
       lastResult = { error: e instanceof Error ? e : new Error(String(e)) } as T;
