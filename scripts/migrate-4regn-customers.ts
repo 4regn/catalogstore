@@ -8,7 +8,7 @@
 // Usage:
 //   npx tsx scripts/migrate-4regn-customers.ts --csv=customers.csv --seller=owner@4regn.com [--dry-run] [--limit=20]
 
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, parseYesNo } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, parseYesNo, writeInBatches } from "./lib/migrate-shared";
 
 async function main() {
   const args = parseArgs("Usage: npx tsx scripts/migrate-4regn-customers.ts --csv=customers.csv --seller=owner@example.com [--dry-run] [--limit=20]");
@@ -106,21 +106,12 @@ async function main() {
   const withoutEmail = rows.filter((r) => !r.email);
 
   let written = 0;
-  if (withEmail.length) {
-    const { data, error } = await admin.from("customers").upsert(withEmail, { onConflict: "seller_id,email" }).select("id");
-    if (error) {
-      console.error("Customer upsert failed:", error.message);
-      process.exit(1);
-    }
-    written += data?.length || 0;
-  }
-  if (withoutEmail.length) {
-    const { data, error } = await admin.from("customers").insert(withoutEmail).select("id");
-    if (error) {
-      console.error("Phone-only customer insert failed:", error.message);
-      process.exit(1);
-    }
-    written += data?.length || 0;
+  try {
+    if (withEmail.length) written += await writeInBatches(admin, "customers", withEmail, { onConflict: "seller_id,email" });
+    if (withoutEmail.length) written += await writeInBatches(admin, "customers", withoutEmail);
+  } catch (e) {
+    console.error(`\n${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
   }
 
   console.log(`\nDone. ${written} customer(s) written to the database.`);

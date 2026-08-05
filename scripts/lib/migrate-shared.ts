@@ -163,6 +163,74 @@ export function makeCol(header: string[]) {
   };
 }
 
+// Thrown by writeInBatches/insertInBatchesReturning so each call site can
+// decide whether a failed batch is fatal (most writes -- exit and tell the
+// operator what's safe to re-run) or soft (e.g. redirect rows, where the
+// products they point at are already safely written by that point).
+export class BatchWriteError extends Error {
+  constructor(message: string, public writtenCount: number) {
+    super(message);
+  }
+}
+
+// Writing thousands of rows in one insert/upsert call risks hitting a
+// payload-size or timeout limit on the request -- confirmed in practice: a
+// single ~5,800-row customer upsert failed with a generic "fetch failed"
+// (no useful error detail, since the request itself never completed). Batches
+// keep each request small and let a real error from row N surface with
+// exactly which rows failed, rather than losing the whole write.
+export async function writeInBatches(
+  admin: SupabaseClient,
+  table: string,
+  rows: any[],
+  opts: { onConflict?: string } = {},
+  batchSize = 200
+): Promise<number> {
+  let written = 0;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize);
+    const query = opts.onConflict
+      ? admin.from(table).upsert(chunk, { onConflict: opts.onConflict })
+      : admin.from(table).insert(chunk);
+    const { data, error } = await query.select("id");
+    if (error) {
+      const safety = opts.onConflict
+        ? `${written} row(s) before this batch were written successfully -- safe to re-run the same import once the underlying issue is fixed, this table upserts on (${opts.onConflict}) so already-written rows just update in place rather than duplicating.`
+        : `${written} row(s) before this batch were written successfully as plain inserts (no dedupe key on this table) -- do not blindly re-run the full import, or those rows will be duplicated.`;
+      throw new BatchWriteError(`Write to "${table}" failed on rows ${i}-${i + chunk.length - 1} of ${rows.length}: ${error.message}\n${safety}`, written);
+    }
+    written += data?.length || 0;
+    if (rows.length > batchSize) process.stdout.write(`\r  ${table}: ${written}/${rows.length} written...`);
+  }
+  if (rows.length > batchSize) process.stdout.write("\n");
+  return written;
+}
+
+// Same batching rationale as writeInBatches, but for the one call site
+// (product insert) where the caller needs the actual inserted rows back --
+// not just a count -- to reference by index afterward (image uploads,
+// redirect-row building). Supabase preserves input order in the returned
+// `data` array per request, so concatenating each batch's result in order
+// keeps `result[i]` corresponding to `rows[i]` across the whole run.
+export async function insertInBatchesReturning(admin: SupabaseClient, table: string, rows: any[], batchSize = 200): Promise<any[]> {
+  const result: any[] = [];
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize);
+    const { data, error } = await admin.from(table).insert(chunk).select();
+    if (error || !data) {
+      throw new BatchWriteError(
+        `Insert into "${table}" failed on rows ${i}-${i + chunk.length - 1} of ${rows.length}: ${error?.message}\n` +
+          `${result.length} row(s) before this batch were inserted successfully -- do not blindly re-run the full import, or those rows will be duplicated.`,
+        result.length
+      );
+    }
+    result.push(...data);
+    if (rows.length > batchSize) process.stdout.write(`\r  ${table}: ${result.length}/${rows.length} inserted...`);
+  }
+  if (rows.length > batchSize) process.stdout.write("\n");
+  return result;
+}
+
 export function stripHtml(html: string): string {
   return html
     .replace(/<[^>]*>/g, " ")

@@ -21,7 +21,7 @@
 // Usage:
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
 
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml, insertInBatchesReturning, writeInBatches } from "./lib/migrate-shared";
 
 type ProductRow = {
   seller_id: string;
@@ -260,9 +260,11 @@ async function main() {
     return;
   }
 
-  const { data: inserted, error: insertErr } = await admin.from("products").insert(rows).select();
-  if (insertErr || !inserted) {
-    console.error("Product insert failed:", insertErr?.message);
+  let inserted: any[];
+  try {
+    inserted = await insertInBatchesReturning(admin, "products", rows);
+  } catch (e) {
+    console.error(`\n${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
   }
   console.log(`\nInserted ${inserted.length} product(s).`);
@@ -332,11 +334,17 @@ async function main() {
     destination_path: `/p/${product.id}`,
     product_id: product.id,
   }));
-  const { error: redirectErr } = await admin.from("product_redirects").upsert(redirectRows, { onConflict: "seller_id,old_path" });
-  if (redirectErr) {
-    console.error(`Redirect rows failed to write (products are still imported fine): ${redirectErr.message}`);
+  let redirectsWritten = 0;
+  let redirectErrMsg: string | null = null;
+  try {
+    redirectsWritten = await writeInBatches(admin, "product_redirects", redirectRows, { onConflict: "seller_id,old_path" });
+  } catch (e) {
+    redirectErrMsg = e instanceof Error ? e.message : String(e);
+  }
+  if (redirectErrMsg) {
+    console.error(`Redirect rows failed to write (products are still imported fine): ${redirectErrMsg}`);
   } else {
-    console.log(`Redirects: ${redirectRows.length} old Shopify URL(s) mapped to their new /p/{uuid} pages.`);
+    console.log(`Redirects: ${redirectsWritten} old Shopify URL(s) mapped to their new /p/{uuid} pages.`);
   }
 
   console.log("\nDone. Remember: SKU/stock-level data isn't captured by this import (no such columns exist yet) -- do a manual stock pass in the dashboard before going live.");

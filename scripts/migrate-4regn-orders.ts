@@ -13,7 +13,7 @@
 // Usage:
 //   npx tsx scripts/migrate-4regn-orders.ts --csv=orders.csv --seller=owner@4regn.com [--dry-run] [--limit=20]
 
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, writeInBatches } from "./lib/migrate-shared";
 
 function mapPaymentStatus(financialStatus: string): string {
   const s = financialStatus.toLowerCase();
@@ -150,12 +150,14 @@ async function main() {
     return;
   }
 
-  const { data, error } = await admin.from("orders").upsert(rows, { onConflict: "seller_id,external_id" }).select("id");
-  if (error) {
-    console.error("Order upsert failed:", error.message);
+  let written = 0;
+  try {
+    written = await writeInBatches(admin, "orders", rows, { onConflict: "seller_id,external_id" });
+  } catch (e) {
+    console.error(`\n${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
   }
-  console.log(`\nDone. ${data?.length || 0} order(s) written to the database.`);
+  console.log(`\nDone. ${written} order(s) written to the database.`);
 }
 
 main().catch((err) => {
