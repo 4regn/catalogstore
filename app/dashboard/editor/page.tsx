@@ -329,6 +329,7 @@ export default function StoreEditor() {
   const [newsletterLabel, setNewsletterLabel] = useState("Newsletter");
   const [newsletterCopyright, setNewsletterCopyright] = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
+  const setlaPhotoRef = useRef<HTMLInputElement>(null);
   const heroVideoRef = useRef<HTMLInputElement>(null);
   const heroSplitImage2Ref = useRef<HTMLInputElement>(null);
   const policiesBgRef = useRef<HTMLInputElement>(null);
@@ -366,6 +367,7 @@ export default function StoreEditor() {
   const [setlaNote, setSetlaNote]             = useState("");
   const [setlaCtaPrimary, setSetlaCtaPrimary]     = useState("");
   const [setlaCtaSecondary, setSetlaCtaSecondary] = useState("");
+  const [setlaPhotoUrl, setSetlaPhotoUrl]         = useState("");
   const [heroCta, setHeroCta]                         = useState("");
   const [heroCtaTarget, setHeroCtaTarget]             = useState<CtaTarget>({ type: "products" });
   const [heroTitle, setHeroTitle]                     = useState("");
@@ -532,6 +534,7 @@ export default function StoreEditor() {
       setSetlaNote((cfg as any)?.setla_note ?? "");
       setSetlaCtaPrimary((cfg as any)?.setla_cta_primary ?? "");
       setSetlaCtaSecondary((cfg as any)?.setla_cta_secondary ?? "");
+      setSetlaPhotoUrl((cfg as any)?.setla_photo_url ?? "");
       setHeroCta(cfg?.hero_cta ?? "");
       setHeroCtaTarget(cfg?.hero_cta_target ?? { type: "products" });
       setHeroTitle(cfg?.hero_title !== undefined ? cfg.hero_title : (s.store_name || ""));
@@ -817,6 +820,7 @@ export default function StoreEditor() {
       setla_note: setlaNote,
       setla_cta_primary: setlaCtaPrimary,
       setla_cta_secondary: setlaCtaSecondary,
+      setla_photo_url: setlaPhotoUrl,
       hero_cta: heroCta || undefined,
       hero_cta_target: heroCtaTarget,
       hero_title: heroTitle,
@@ -1670,6 +1674,25 @@ export default function StoreEditor() {
                   <input type="checkbox" checked={showSetlaBanner} onChange={e => setShowSetlaBanner(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
                   <span style={{ fontSize: 13, color: "rgba(245,245,245,0.58)" }}>Show the SETLA promo strip under the hero</span>
                 </label>
+
+                <div>
+                  <label style={labelStyle}>Photo</label>
+                  <div onClick={() => setlaPhotoRef.current?.click()}
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {setlaPhotoUrl
+                      ? <img src={setlaPhotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Optional — customers wearing your clothing works best</div></div>}
+                  </div>
+                  <input ref={setlaPhotoRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/setla_photo_${Date.now()}.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); setSetlaPhotoUrl(data.publicUrl); }
+                    }} style={{ display: "none" }} />
+                  {setlaPhotoUrl && <button onClick={() => setSetlaPhotoUrl("")} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                </div>
 
                 <div>
                   <label style={labelStyle}>Badge Text</label>

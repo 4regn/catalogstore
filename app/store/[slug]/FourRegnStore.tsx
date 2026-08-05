@@ -55,6 +55,7 @@ interface StoreConfig {
   setla_note?: string;
   setla_cta_primary?: string;
   setla_cta_secondary?: string;
+  setla_photo_url?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -465,6 +466,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const setlaNote = config.setla_note ?? "Subject to eligibility and affordability assessment. Personal spending limits and available payment options may vary.";
   const setlaCtaPrimary = config.setla_cta_primary ?? "Discover my SETLA limit";
   const setlaCtaSecondary = config.setla_cta_secondary ?? "See how SETLA works";
+  const setlaPhotoUrl = (config as any).setla_photo_url || null;
 
   const displayFooterTagline = liveFooterTagline ?? config.footer_tagline ?? liveDescription ?? seller.description ?? seller.tagline ?? "";
   const displayFooterCol1 = liveFooterCol1Label ?? config.footer_col1_label ?? "Shop";
@@ -568,14 +570,30 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-timer-digits{font-family:var(--serif);font-weight:700;font-size:38px;letter-spacing:2px;line-height:1;color:#fdfbf7}
 .fr-timer-digits .sep{color:rgba(253,251,247,0.3);margin:0 2px}
 
-.fr-setla{background:#000;padding:56px 40px}
-.fr-setla-inner{max-width:640px;margin:0 auto;text-align:center}
-.fr-setla-badge{display:inline-block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#fdfbf7;background:linear-gradient(320deg,#86106a,#5e3653 100%);padding:8px 18px;border-radius:100px;margin-bottom:20px}
-.fr-setla-eyebrow{font-family:var(--serif);font-weight:700;font-size:clamp(22px,3vw,30px);color:#fdfbf7;margin-bottom:14px}
-.fr-setla-lead{font-family:var(--body);font-size:15px;line-height:1.7;color:rgba(253,251,247,0.72);margin-bottom:30px}
-.fr-setla .fr-cta-row{justify-content:center;margin-bottom:20px}
-.fr-btn-purple{background:linear-gradient(320deg,#86106a,#5e3653 100%);color:#fdfbf7}
-.fr-setla-note{font-family:var(--body);font-size:11px;line-height:1.6;color:rgba(253,251,247,0.4);max-width:480px;margin:0 auto}
+/* SETLA's own green identity (matches setla.4regn.com and the SETLA
+   customer dashboard) -- deliberately not 4regn's black/brown/purple. */
+.fr-setla{position:relative;min-height:560px;overflow:hidden;background:#050505;isolation:isolate}
+.fr-setla::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(5,5,5,.99) 0%,rgba(5,5,5,.95) 30%,rgba(5,5,5,.6) 47%,rgba(5,5,5,.1) 68%,rgba(5,5,5,.1) 100%);z-index:1}
+.fr-setla-photo{position:absolute;inset:0 0 0 39%;z-index:0}
+.fr-setla-glow{position:absolute;z-index:1;width:380px;height:380px;border-radius:50%;background:rgba(0,117,23,.24);filter:blur(120px);left:18%;bottom:-160px;pointer-events:none}
+.fr-setla-inner{position:relative;z-index:2;max-width:1360px;min-height:560px;margin:0 auto;padding:64px 40px 96px;display:flex;align-items:center}
+.fr-setla-eyebrow{display:flex;align-items:center;gap:10px;color:#4ade80;font-family:var(--body);font-size:12px;letter-spacing:0.25em;text-transform:uppercase;font-weight:700;margin-bottom:18px}
+.fr-setla-eyebrow::before{content:'';width:26px;height:1px;background:#4ade80}
+.fr-setla-h1{margin:0;font-family:var(--serif);font-size:clamp(40px,6vw,76px);line-height:0.92;letter-spacing:-0.02em;font-weight:700;color:#f7f7f7;max-width:560px}
+.fr-setla-lead{max-width:480px;color:#d1d6d2;font-family:var(--body);font-size:15px;line-height:1.65;margin:22px 0 0}
+.fr-setla .fr-cta-row{margin-top:28px}
+.fr-setla-btn{height:52px;padding:0 22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-family:var(--body);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;font-size:11px;transition:transform 0.2s ease}
+.fr-setla-btn:hover{transform:translateY(-2px)}
+.fr-setla-btn-primary{background:linear-gradient(90deg,#0c8f26,#25c749);box-shadow:0 12px 30px rgba(24,184,61,0.25);color:#fff}
+.fr-setla-btn-secondary{border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.34);color:#f7f7f7}
+.fr-setla-note{margin-top:14px;color:#8f9891;font-family:var(--body);font-size:11px;line-height:1.5;max-width:460px}
+.fr-setla-plans{position:absolute;z-index:3;left:40px;bottom:28px;display:flex;gap:10px}
+.fr-setla-plan{display:flex;align-items:center;gap:10px;min-height:58px;padding:12px 15px;border:1px solid rgba(74,222,128,0.19);border-radius:16px;background:rgba(7,10,8,0.82);box-shadow:0 10px 30px rgba(0,0,0,0.18)}
+.fr-setla-plan-num{width:34px;height:34px;display:grid;place-items:center;border-radius:11px;background:rgba(24,184,61,0.13);color:#4ade80;border:1px solid rgba(74,222,128,0.22);font-weight:700}
+.fr-setla-plan strong{display:block;font-family:var(--body);font-size:12px;margin-bottom:2px;color:#f7f7f7}
+.fr-setla-plan span{display:block;font-family:var(--body);color:#929c94;font-size:10px}
+.fr-setla-badge{position:absolute;z-index:3;right:28px;bottom:28px;padding:12px 14px;border:1px solid rgba(255,255,255,0.12);border-radius:15px;background:rgba(5,5,5,0.56);display:flex;align-items:center;gap:9px;color:#d8ddd9;font-family:var(--body);font-size:11px}
+.fr-setla-badge i{display:block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 16px #4ade80}
 
 .fr-section{max-width:1360px;margin:0 auto;padding:64px 40px}
 .fr-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;gap:20px;flex-wrap:wrap}
@@ -739,7 +757,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-nav-links{display:none}
   .fr-nav-right{order:3}
   .fr-hero-inner{padding:0 24px 48px}
-  .fr-setla{padding:40px 20px}
+  .fr-setla{min-height:0;display:flex;flex-direction:column}
+  .fr-setla::after{background:linear-gradient(180deg,rgba(5,5,5,.04) 0%,rgba(5,5,5,.14) 35%,rgba(5,5,5,.9) 63%,rgba(5,5,5,1) 100%)}
+  .fr-setla-photo{inset:0 0 auto 0;height:340px}
+  .fr-setla-inner{min-height:0;padding:28px 20px 16px;align-items:flex-end;flex:0 0 auto}
+  .fr-setla-h1{font-size:clamp(38px,13vw,60px);max-width:100%}
+  .fr-setla-plans{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .fr-setla-badge{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 18px;padding:4px 0 0;border:0;background:transparent}
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
@@ -1020,20 +1044,41 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </EditSection>
         )}
 
-        {/* SETLA PROMO STRIP — only on landing page */}
+        {/* SETLA PROMO STRIP — only on landing page. Ported from the real
+            "SETLA Hero Banner" Liquid section on 4regn's live site: SETLA's
+            own green brand (not 4regn's black/brown/purple palette -- SETLA
+            is a distinct financial product with its own established
+            identity, same green used across setla.4regn.com and the SETLA
+            customer dashboard), full-bleed photo panel, plan chips, and a
+            live-dot badge. Headline and plan-chip labels are SETLA product
+            branding, not 4regn brand copy, so unlike the rest of this
+            component they're fixed text rather than editable fields --
+            matches the real section, which doesn't expose them as settings
+            either. */}
         {!isCollectionView && showSetlaBanner && (
           <EditSection id="setla">
             <section className="fr-setla">
+              {setlaPhotoUrl && (
+                <div className="fr-setla-photo">
+                  <Image src={setlaPhotoUrl} alt="" fill sizes="100vw" quality={75} style={{ objectFit: "cover" }} />
+                </div>
+              )}
+              <div className="fr-setla-glow" />
               <div className="fr-setla-inner">
-                <div className="fr-setla-badge">{setlaBadge}</div>
                 <div className="fr-setla-eyebrow">{setlaEyebrow}</div>
+                <h2 className="fr-setla-h1">Buy now,<br />Pay Later</h2>
                 <p className="fr-setla-lead">{setlaLead}</p>
                 <div className="fr-cta-row">
-                  <a className="fr-btn fr-btn-purple" href="https://setla.4regn.com/signup.html" target="_blank" rel="noopener noreferrer">{setlaCtaPrimary}</a>
-                  <a className="fr-btn-ghost" href="https://setla.4regn.com/faq.html" target="_blank" rel="noopener noreferrer">{setlaCtaSecondary}</a>
+                  <a className="fr-setla-btn fr-setla-btn-primary" href="https://setla.4regn.com/signup.html" target="_blank" rel="noopener noreferrer">{setlaCtaPrimary} →</a>
+                  <a className="fr-setla-btn fr-setla-btn-secondary" href="https://setla.4regn.com/faq.html" target="_blank" rel="noopener noreferrer">{setlaCtaSecondary}</a>
                 </div>
-                <div className="fr-setla-note">{setlaNote}</div>
+                <p className="fr-setla-note">{setlaNote}</p>
               </div>
+              <div className="fr-setla-plans" aria-label="SETLA payment options">
+                <div className="fr-setla-plan"><div className="fr-setla-plan-num">4</div><div><strong>4 instalments</strong><span>Over 6 weeks</span></div></div>
+                <div className="fr-setla-plan"><div className="fr-setla-plan-num">2</div><div><strong>2 instalments</strong><span>Monthly</span></div></div>
+              </div>
+              <div className="fr-setla-badge"><i />{setlaBadge}</div>
             </section>
           </EditSection>
         )}

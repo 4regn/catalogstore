@@ -41,7 +41,7 @@ export const TEMPLATE_SCOPED_KEYS = [
   "newsletter_label", "newsletter_title", "newsletter_sub", "newsletter_copyright",
   // 4regn SETLA promo strip
   "show_setla_banner", "setla_eyebrow", "setla_lead", "setla_badge", "setla_note",
-  "setla_cta_primary", "setla_cta_secondary",
+  "setla_cta_primary", "setla_cta_secondary", "setla_photo_url",
   // Velour (beauty/cosmetology services template)
   "brand_name", "brand_subtitle", "monogram_letters", "accent_color", "city",
   "callout_available", "callout_area", "business_hours", "payment_methods",
