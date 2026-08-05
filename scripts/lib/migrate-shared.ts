@@ -88,7 +88,7 @@ export function readCsv(csvArg: string): { lines: string[]; header: string[] } {
     process.exit(1);
   }
   const text = readFileSync(csvPath, "utf8");
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const lines = splitCsvRows(text);
   if (lines.length < 2) {
     console.error("CSV must have a header row and at least one data row.");
     process.exit(1);
@@ -96,6 +96,40 @@ export function readCsv(csvArg: string): { lines: string[]; header: string[] } {
   const rawHeader = parseCsvLine(lines[0]);
   const header = rawHeader.map((h) => h.toLowerCase().replace(/"/g, "").trim());
   return { lines, header };
+}
+
+// Splits raw CSV text into logical rows, respecting quoted fields -- a plain
+// `text.split(/\r?\n/)` (the previous approach) breaks the moment any quoted
+// field contains a literal newline, which Shopify's "Body (HTML)" column
+// does constantly (multi-paragraph descriptions). That shattered one real
+// row into several bogus ones and misaligned every column after it,
+// silently corrupting the parse for a large share of rows rather than
+// erroring -- caught via a dry-run skip count (85% of a real catalog) that
+// was far too high to be genuine bad data.
+function splitCsvRows(text: string): string[] {
+  const rows: string[] = [];
+  let cur = "";
+  let inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (inQuote && text[i + 1] === '"') {
+        cur += '""';
+        i++;
+        continue;
+      }
+      inQuote = !inQuote;
+      cur += ch;
+    } else if ((ch === "\n" || ch === "\r") && !inQuote) {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      if (cur.trim()) rows.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) rows.push(cur);
+  return rows;
 }
 
 export function parseCsvLine(line: string): string[] {
