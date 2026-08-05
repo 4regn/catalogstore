@@ -310,6 +310,24 @@
       if(res.ok)renderApplyProgress(payload);
     }catch(_){/* best-effort -- the field keeps its typed value regardless; the next successful save or a reload (which prefills from the server) catches up */}
   }
+  // Blur-to-save is fire-and-forget by design (typing shouldn't feel
+  // blocked on network round trips), but that means a field saved a split
+  // second before "Continue"/"Submit" is clicked can still be in flight
+  // when the click fires -- the step advances (or the final submit hits
+  // the server) before that save has actually landed, so the server's own
+  // completeness check can correctly-but-confusingly say a just-typed
+  // field is still missing. This re-saves and *waits for* every currently
+  // filled draft field, so both step navigation and final submit are
+  // guaranteed to be working with what's really in the database, not
+  // racing an in-flight request.
+  async function flushDraftFields(){
+    const pending=DRAFT_FIELD_NAMES.map(name=>{
+      const input=form?.elements[name];
+      if(!input||!input.value)return null;
+      return saveDraftField(name,input.value);
+    }).filter(Boolean);
+    await Promise.all(pending);
+  }
 
   function stopStream(){stream?.getTracks().forEach(track=>track.stop());stream=null}
 
@@ -452,7 +470,7 @@
       });
       if(scroll)document.querySelector('.application-stage-card')?.scrollIntoView({behavior:'smooth',block:'start'});
     }
-    document.addEventListener('click',event=>{
+    document.addEventListener('click',async event=>{
       const next=event.target.closest('[data-next-step]');
       const prev=event.target.closest('[data-prev-step]');
       if(next){
@@ -460,6 +478,14 @@
         const required=[...current.querySelectorAll('[required]')].filter(el=>!el.disabled);
         const firstInvalid=required.find(el=>!el.checkValidity());
         if(firstInvalid){firstInvalid.reportValidity();firstInvalid.focus({preventScroll:false});return}
+        // Waits for every field on this step to actually be confirmed
+        // saved before moving on -- see flushDraftFields() -- so a field
+        // saved a moment ago can't still be in flight when the customer
+        // reaches the final submit.
+        const originalLabel=next.textContent;
+        next.disabled=true;next.textContent='Saving…';
+        await flushDraftFields();
+        next.disabled=false;next.textContent=originalLabel;
         showStep(Number(next.dataset.nextStep));
       }
       if(prev)showStep(Number(prev.dataset.prevStep));
@@ -522,15 +548,19 @@
       showStep(firstIncomplete===-1?3:firstIncomplete+1,{scroll:false});
     }).catch(()=>{});
   }
-  // Every field and document is already saved by the time this fires --
-  // submit is just the final "I'm done" action, not the thing that
-  // actually moves the data. The button stays disabled (see
-  // renderApplyProgress) until the server-computed progress says 100%,
-  // so a real click here should always have everything it needs.
+  // Submit is meant to be the final "I'm done" action, not the thing that
+  // actually moves the data -- every field should already be saved by the
+  // time this fires. In practice a field's blur-triggered save is
+  // fire-and-forget, so it's possible to reach this button with the very
+  // last edit still in flight (see flushDraftFields()). Flushing here too
+  // -- not just on step navigation -- covers a field edited without ever
+  // leaving the final step.
   form?.addEventListener('submit',async event=>{
     event.preventDefault();
     const submitBtn=document.getElementById('applySubmitBtn');
-    if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting…'}
+    if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Saving…'}
+    await flushDraftFields();
+    if(submitBtn)submitBtn.textContent='Submitting…';
     try{
       const res=await fetch('/api/setla/apply/submit',{method:'POST',credentials:'include'});
       const payload=await res.json().catch(()=>({}));
