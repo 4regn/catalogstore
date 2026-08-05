@@ -185,7 +185,15 @@ const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
 const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
 const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, amount, created_at";
-const PRODUCTS_LIMIT = 500;
+// A leftover from when the paid-plan cap was 100 products (500 was a
+// generous buffer, never expected to be hit) -- now that plans can have
+// unlimited products, this silently truncated the whole dashboard (product
+// list, published/draft counts, everything derived from `products` state)
+// at 500 with no error or indication anything was missing. Raised with
+// real headroom; a catalog that genuinely exceeds this needs real
+// pagination instead of loading the full list into one client-side array,
+// which this dashboard doesn't have yet.
+const PRODUCTS_LIMIT = 5000;
 const ORDERS_LIMIT = 100;
 const DISCOUNTS_LIMIT = 100;
 
