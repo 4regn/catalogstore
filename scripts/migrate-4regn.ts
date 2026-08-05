@@ -21,6 +21,7 @@
 // Usage:
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
 
+import { writeFileSync } from "fs";
 import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml, insertInBatchesReturning, writeInBatches, withTimeout } from "./lib/migrate-shared";
 
 type ProductRow = {
@@ -297,13 +298,17 @@ async function main() {
       }
       matched.push(p);
       matchedHandles.push(allHandles[i]);
-      if (!p.images || p.images.length === 0) {
+      // Catches partial failures too, not just products with zero images --
+      // a product that got 2 of its 5 CSV images uploaded before a prior
+      // run's failures still needs the other 3, not a full skip.
+      const expectedCount = allImageSrcs[i]?.length || 0;
+      if (expectedCount > 0 && (!p.images || p.images.length < expectedCount)) {
         needingImages.push(p);
         needingImagesSrcs.push(allImageSrcs[i]);
         needingImagesHandles.push(allHandles[i]);
       }
     }
-    console.log(`Matched ${matched.length} existing product(s) by source_url (${notFound} not found -- run the normal import first if this is unexpectedly high). ${needingImages.length} still need images.`);
+    console.log(`Matched ${matched.length} existing product(s) by source_url (${notFound} not found -- run the normal import first if this is unexpectedly high). ${needingImages.length} still need images (including partially-completed ones).`);
     inserted = needingImages;
     redirectTargets = matched;
     redirectHandles = matchedHandles;
@@ -332,33 +337,47 @@ async function main() {
     for (let j = 0; j < srcs.length; j++) allTasks.push({ productIdx: i, imgIdx: j, url: srcs[j] });
   }
 
+  const failedTasks: { productIdx: number; imgIdx: number; url: string }[] = [];
+  const IMAGE_RETRY_DELAYS_MS = [1000, 3000];
+
+  async function attemptOnce(task: { productIdx: number; imgIdx: number; url: string }): Promise<boolean> {
+    // A stalled (not dropped) connection to the image host can otherwise
+    // hang a worker forever -- confirmed in practice: a real run sat at
+    // "Inserted 2023 product(s)" for over an hour with zero progress, most
+    // likely one image request that opened a connection and never
+    // responded. Node's fetch has no default timeout.
+    const resp = await fetch(task.url, { signal: AbortSignal.timeout(20000) });
+    if (!resp.ok) return false;
+    const buffer = await resp.arrayBuffer();
+    const contentType = resp.headers.get("content-type") || "image/jpeg";
+    const ext = mimeToExt[contentType] || "jpg";
+    const path = `${sellerId}/${inserted![task.productIdx].id}/csv-${task.imgIdx}.${ext}`;
+    const { error: upErr } = await admin.storage.from("product-images").upload(path, Buffer.from(buffer), { contentType, upsert: true });
+    if (upErr) return false;
+    const { data: urlData } = admin.storage.from("product-images").getPublicUrl(path);
+    results.push({ productIdx: task.productIdx, imgIdx: task.imgIdx, publicUrl: urlData.publicUrl });
+    return true;
+  }
+
+  // A one-shot failure rate this high (56% observed in one real run) is
+  // very likely to include plenty of transient blips, not just permanently
+  // broken URLs -- retrying a couple of times before giving up on an image
+  // for good meaningfully changes the outcome, the same reasoning already
+  // applied to the database writes.
   async function runTask(task: { productIdx: number; imgIdx: number; url: string }) {
-    try {
-      // A stalled (not dropped) connection to the image host can otherwise
-      // hang a worker forever -- confirmed in practice: a real run sat at
-      // "Inserted 2023 product(s)" for over an hour with zero progress,
-      // most likely one image request that opened a connection and never
-      // responded. Node's fetch has no default timeout.
-      const resp = await fetch(task.url, { signal: AbortSignal.timeout(20000) });
-      if (!resp.ok) {
-        imagesFailed++;
-        return;
+    for (let attempt = 0; attempt <= IMAGE_RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        if (await attemptOnce(task)) {
+          imagesUploaded++;
+          return;
+        }
+      } catch {
+        // fall through to retry/failure below
       }
-      const buffer = await resp.arrayBuffer();
-      const contentType = resp.headers.get("content-type") || "image/jpeg";
-      const ext = mimeToExt[contentType] || "jpg";
-      const path = `${sellerId}/${inserted![task.productIdx].id}/csv-${task.imgIdx}.${ext}`;
-      const { error: upErr } = await admin.storage.from("product-images").upload(path, Buffer.from(buffer), { contentType, upsert: true });
-      if (!upErr) {
-        const { data: urlData } = admin.storage.from("product-images").getPublicUrl(path);
-        results.push({ productIdx: task.productIdx, imgIdx: task.imgIdx, publicUrl: urlData.publicUrl });
-        imagesUploaded++;
-      } else {
-        imagesFailed++;
-      }
-    } catch {
-      imagesFailed++;
+      if (attempt < IMAGE_RETRY_DELAYS_MS.length) await new Promise((r) => setTimeout(r, IMAGE_RETRY_DELAYS_MS[attempt]));
     }
+    imagesFailed++;
+    failedTasks.push(task);
   }
 
   console.log(`Uploading images for ${inserted.length} product(s) (${allTasks.length} image(s) total, ${args.concurrency} at a time -- tune with --concurrency=N if this is too slow or too many are timing out)...`);
@@ -409,7 +428,15 @@ async function main() {
       const idx = updateCursor++;
       const [pIdx, imgs] = productEntries[idx];
       imgs.sort((a, b) => a.imgIdx - b.imgIdx);
-      const urls = imgs.map((m) => m.publicUrl);
+      // Merge onto the product's existing images (present in --resume-images
+      // mode, since a partially-completed product's already-successful
+      // images are fetched up front) rather than replacing outright -- every
+      // image index gets re-attempted on resume, so a slot that succeeded
+      // in an earlier run but fails again on this retry must keep its old
+      // URL, not silently disappear because this run's overwrite dropped it.
+      const merged: string[] = [...(inserted[pIdx].images || [])];
+      for (const img of imgs) merged[img.imgIdx] = img.publicUrl;
+      const urls = merged.filter(Boolean);
       try {
         const { error } = await withTimeout(admin.from("products").update({ image_url: urls[0], images: urls }).eq("id", inserted[pIdx].id), "product image URL save");
         if (error) updateFailures++;
@@ -436,7 +463,13 @@ async function main() {
   }
   if (productEntries.length) process.stdout.write("\n");
   if (updateFailures) console.log(`${updateFailures} product(s) had their images uploaded but failed to save the image_url/images fields -- these products will show no photos until re-run or fixed manually.`);
-  console.log(`Images: ${imagesUploaded} uploaded, ${imagesFailed} failed.`);
+  console.log(`Images: ${imagesUploaded} uploaded, ${imagesFailed} failed (each attempted up to ${IMAGE_RETRY_DELAYS_MS.length + 1} times before being counted as failed).`);
+  if (failedTasks.length) {
+    const reportPath = `failed-images-${Date.now()}.json`;
+    const report = failedTasks.map((t) => ({ product_id: inserted[t.productIdx]?.id, url: t.url }));
+    writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    console.log(`Wrote ${failedTasks.length} still-failed image URL(s) to ${reportPath} for reference. Re-running with --resume-images will retry any product that ended up with fewer images than its CSV row listed, not just ones with zero.`);
+  }
 
   const redirectRows = redirectTargets.map((product, i) => ({
     seller_id: sellerId,
