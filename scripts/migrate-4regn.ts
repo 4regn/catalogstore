@@ -63,12 +63,28 @@ async function main() {
     process.exit(1);
   }
   const col = makeCol(header);
-  const metafieldHeaders = header.filter((h) => h.startsWith("metafield"));
+  // Two Shopify export header shapes carry metafields:
+  //   older:  "metafield: custom.material [single_line_text_field]"
+  //   newer:  "material (product.metafields.custom.material)"
+  // Both are matched here rather than just the older `startsWith("metafield")`
+  // check -- the newer shape is what Shopify's current product-export
+  // actually produces, and silently matching zero columns on a real export
+  // is a much worse failure than a slightly messier key.
+  const metafieldHeaders = header.filter((h) => h.startsWith("metafield") || /\(product\.metafields\.[a-z0-9_]+\.[a-z0-9_-]+\)/.test(h));
   if (metafieldHeaders.length) {
     console.log(`Found ${metafieldHeaders.length} metafield column(s): ${metafieldHeaders.join(", ")}`);
   } else {
     console.log("No metafield columns found in this export (only present if it was exported with Shopify's 'add metafield columns' option) -- metafields will be empty.");
   }
+  // Reduces a verbose header down to just the "namespace.key" Shopify uses
+  // internally, e.g. "material (product.metafields.custom.material)" ->
+  // "custom.material" -- much more useful as a jsonb key than the raw label.
+  const metafieldKey = (h: string): string => {
+    const newShape = h.match(/\(product\.metafields\.([a-z0-9_]+\.[a-z0-9_-]+)\)/);
+    if (newShape) return newShape[1];
+    return h.replace(/^metafield:\s*/, "").replace(/\s*\[[^\]]+\]$/, "").trim();
+  };
+  const sourceUrlHeader = header.find((h) => /\(product\.metafields\.[a-z0-9_]+\.product_upload_source_url\)/.test(h) || h === "product upload source url");
 
   const handleMap = new Map<string, string[][]>();
   for (let i = 1; i < lines.length; i++) {
@@ -121,10 +137,16 @@ async function main() {
     const metafields: Record<string, string> = {};
     for (const mh of metafieldHeaders) {
       const value = col(first, mh);
-      if (value) metafields[mh] = value;
+      if (value) metafields[metafieldKey(mh)] = value;
     }
 
-    const source_url = args.sourceDomain ? `${args.sourceDomain}/products/${handle}` : null;
+    // Prefer the real per-product URL if the export recorded one (a
+    // "product_upload_source_url" metafield, seen on some catalogs) --
+    // more accurate than reconstructing it from the handle, which breaks
+    // for any product whose live URL doesn't follow the plain
+    // /products/{handle} convention (e.g. it was renamed after publishing).
+    const recordedSourceUrl = sourceUrlHeader ? col(first, sourceUrlHeader) : "";
+    const source_url = recordedSourceUrl || (args.sourceDomain ? `${args.sourceDomain}/products/${handle}` : null);
 
     const imageSrcs: string[] = [];
     const seenUrls = new Set<string>();
