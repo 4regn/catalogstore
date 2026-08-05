@@ -304,28 +304,50 @@ async function main() {
     }
   }
 
+  console.log(`Uploading images for ${inserted.length} product(s) (${allTasks.length} image(s) total)...`);
   const CONCURRENCY = 10;
   let cursor = 0;
+  let tasksDone = 0;
   async function worker() {
     while (cursor < allTasks.length) {
       const idx = cursor++;
       await runTask(allTasks[idx]);
+      tasksDone++;
+      if (tasksDone % 10 === 0 || tasksDone === allTasks.length) {
+        process.stdout.write(`\r  images: ${tasksDone}/${allTasks.length} processed (${imagesUploaded} ok, ${imagesFailed} failed)...`);
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, allTasks.length) }, () => worker()));
+  if (allTasks.length) process.stdout.write("\n");
 
   const byProduct = new Map<number, { imgIdx: number; publicUrl: string }[]>();
   for (const r of results) {
     if (!byProduct.has(r.productIdx)) byProduct.set(r.productIdx, []);
     byProduct.get(r.productIdx)!.push(r);
   }
-  await Promise.all(
-    Array.from(byProduct.entries()).map(async ([pIdx, imgs]) => {
+  const productEntries = Array.from(byProduct.entries());
+  console.log(`Saving image URLs onto ${productEntries.length} product(s)...`);
+  let updateFailures = 0;
+  let updatesDone = 0;
+  let updateCursor = 0;
+  async function updateWorker() {
+    while (updateCursor < productEntries.length) {
+      const idx = updateCursor++;
+      const [pIdx, imgs] = productEntries[idx];
       imgs.sort((a, b) => a.imgIdx - b.imgIdx);
       const urls = imgs.map((m) => m.publicUrl);
-      await admin.from("products").update({ image_url: urls[0], images: urls }).eq("id", inserted[pIdx].id);
-    })
-  );
+      const { error } = await admin.from("products").update({ image_url: urls[0], images: urls }).eq("id", inserted[pIdx].id);
+      if (error) updateFailures++;
+      updatesDone++;
+      if (updatesDone % 10 === 0 || updatesDone === productEntries.length) {
+        process.stdout.write(`\r  image URLs saved: ${updatesDone}/${productEntries.length} (${updateFailures} failed)...`);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, productEntries.length) }, () => updateWorker()));
+  if (productEntries.length) process.stdout.write("\n");
+  if (updateFailures) console.log(`${updateFailures} product(s) had their images uploaded but failed to save the image_url/images fields -- these products will show no photos until re-run or fixed manually.`);
   console.log(`Images: ${imagesUploaded} uploaded, ${imagesFailed} failed.`);
 
   const redirectRows = inserted.map((product, i) => ({
