@@ -11,7 +11,12 @@
   // regardless, this is purely about not showing the *wrong* thing meanwhile.
   if(document.body.dataset.page==='dashboard'){
     try{
-      const cachedStatus=localStorage.getItem('setla-dash-status-cache');
+      // Scoped per-email (not a single global key) so this only ever
+      // reflects the account that's actually signed in right now -- see
+      // the matching write in renderDashboard() and the "active email"
+      // set on login below.
+      const activeEmail=localStorage.getItem('setla-active-email');
+      const cachedStatus=activeEmail?localStorage.getItem('setla-dash-status-cache:'+activeEmail):null;
       if(cachedStatus&&cachedStatus!=='not_applied'&&cachedStatus!=='draft'){
         const state=document.getElementById('accountState');
         if(state)state.innerHTML='<div class="dash-loading">Loading your account…</div>';
@@ -130,6 +135,7 @@
         return;
       }
       if(payload.refreshToken)storeRefreshToken(payload.refreshToken,true);
+      try{localStorage.setItem('setla-active-email',String(data.get('email')||'').trim().toLowerCase())}catch(_){}
       location.href=safeNext()||'apply.html';
     }catch(_){
       showAuthError('Something went wrong. Please try again.');
@@ -150,13 +156,11 @@
       const payload=await res.json().catch(()=>({}));
       if(!res.ok){showAuthError(payload.error||'Could not sign in');return}
       if(payload.refreshToken)storeRefreshToken(payload.refreshToken,!!data.get('remember'));
-      // The dashboard's early-paint cache (see the top of this file) is
-      // deliberately NOT scoped per-account -- it can't be, the customer
-      // isn't known until the dashboard fetch resolves. Clearing it on
-      // every fresh sign-in stops a *different* account's last-known
-      // status (e.g. someone testing two accounts on the same phone)
-      // from leaking into this login's first paint.
-      try{localStorage.removeItem('setla-dash-status-cache')}catch(_){}
+      // Records which account is now signed in, so the dashboard's
+      // early-paint cache (see the top of this file) can look up *this*
+      // account's own last-known status instead of accidentally reusing
+      // whatever a different account last cached on this device.
+      try{localStorage.setItem('setla-active-email',String(data.get('email')||'').trim().toLowerCase())}catch(_){}
       location.href=safeNext()||'dashboard.html';
     }catch(_){
       showAuthError('Something went wrong. Please try again.');
@@ -181,7 +185,7 @@
   document.getElementById('logoutButton')?.addEventListener('click',async()=>{
     await fetch('/api/setla/auth/session',{method:'DELETE',credentials:'include'}).catch(()=>{});
     clearRefreshToken();
-    try{localStorage.removeItem('setla-dash-status-cache')}catch(_){}
+    try{localStorage.removeItem('setla-active-email')}catch(_){}
     location.href='login.html';
   });
 
@@ -607,7 +611,9 @@
     const status=account.applicationStatus||account.status||'not_applied',approved=status==='approved',pending=status==='pending';
     // Remembered purely to stop a *future* page load from flashing the
     // wrong state -- see the cache read at the very top of this script.
-    try{localStorage.setItem('setla-dash-status-cache',status)}catch(_){}
+    // Keyed by this account's own email (not a single shared key) so it
+    // can never be confused with a different account's cached status.
+    try{if(account.email)localStorage.setItem('setla-dash-status-cache:'+String(account.email).trim().toLowerCase(),status)}catch(_){}
     const approvedLimit=approved?Number(account.approvedLimit||0):0,available=approved?Number(account.availableLimit??approvedLimit):0;
     // account.orders comes straight from /api/setla/dashboard, already
     // scoped to this customer -- real orders/instalments are Phase 2, so
