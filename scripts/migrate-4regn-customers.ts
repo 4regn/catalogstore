@@ -97,18 +97,21 @@ async function main() {
     return;
   }
 
-  // Upsert on (seller_id, email) so re-running the import (e.g. with an
-  // updated export) updates existing rows instead of duplicating them.
-  // Rows with no email (phone-only contacts) always insert fresh, since
-  // there's no unique constraint to de-dupe them against -- Shopify
-  // customers without an email are rare, but not impossible.
+  // Upsert on (seller_id, email) where there's an email, otherwise on
+  // (seller_id, external_id) -- Shopify's own Customer ID is present even
+  // on phone-only rows, so that's a reliable dedupe key too (see
+  // 20260813_customers_external_id_unique.sql). Only a row with neither
+  // ever falls back to a plain insert with no dedupe key, since that's
+  // genuinely all that's left to key off of.
   const withEmail = rows.filter((r) => r.email);
-  const withoutEmail = rows.filter((r) => !r.email);
+  const withExternalId = rows.filter((r) => !r.email && r.external_id);
+  const withNeither = rows.filter((r) => !r.email && !r.external_id);
 
   let written = 0;
   try {
     if (withEmail.length) written += await writeInBatches(admin, "customers", withEmail, { onConflict: "seller_id,email" });
-    if (withoutEmail.length) written += await writeInBatches(admin, "customers", withoutEmail);
+    if (withExternalId.length) written += await writeInBatches(admin, "customers", withExternalId, { onConflict: "seller_id,external_id" });
+    if (withNeither.length) written += await writeInBatches(admin, "customers", withNeither);
   } catch (e) {
     console.error(`\n${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
