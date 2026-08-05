@@ -189,12 +189,34 @@ const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, s
 // generous buffer, never expected to be hit) -- now that plans can have
 // unlimited products, this silently truncated the whole dashboard (product
 // list, published/draft counts, everything derived from `products` state)
-// at 500 with no error or indication anything was missing. Raised with
-// real headroom; a catalog that genuinely exceeds this needs real
-// pagination instead of loading the full list into one client-side array,
-// which this dashboard doesn't have yet.
+// at 500 with no error or indication anything was missing. Now just an
+// upper safety valve on fetchAllProducts() below, not the actual limiting
+// factor -- real pagination lives client-side in the products tab itself
+// (PRODUCTS_PER_PAGE), so this only bounds total memory/fetch time for a
+// genuinely enormous catalog.
 const PRODUCTS_LIMIT = 5000;
 const ORDERS_LIMIT = 100;
+
+// A single .select() with no .range()/.limit() smaller than the project's
+// row cap gets silently truncated by PostgREST's own default (commonly
+// 1000) -- confirmed against a real ~2,032-product seller, whose dashboard
+// stayed frozen at exactly 1,000 products no matter how many more were
+// actually imported, even after PRODUCTS_LIMIT was raised well past that
+// (a client-requested limit can't exceed the server's own cap). Pages
+// through via .range() until a page comes back short.
+async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null }> {
+  const all: any[] = [];
+  const PAGE = 1000;
+  let from = 0;
+  while (all.length < PRODUCTS_LIMIT) {
+    const { data, error } = await supabase.from("products").select(PRODUCT_COLUMNS).eq("seller_id", sellerId).order("sort_order", { ascending: true }).range(from, from + PAGE - 1);
+    if (error || !data) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return { data: all };
+}
 const DISCOUNTS_LIMIT = 100;
 
 // UNIK's print-on-demand fulfillment involves a courier handoff a generic
@@ -296,6 +318,9 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
+  const [productPage, setProductPage] = useState(0);
+  const PRODUCTS_PER_PAGE = 50;
+  useEffect(() => { setProductPage(0); }, [productFilter, searchQuery]);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [showBulkPrice, setShowBulkPrice] = useState(false);
   const [bulkMode, setBulkMode] = useState<"percent" | "flat" | "set">("percent");
@@ -436,7 +461,7 @@ export default function Dashboard() {
     // Fetch seller + products + orders + discounts in a single parallel batch
     const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult] = await Promise.all([
       supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single(),
-      supabase.from("products").select(PRODUCT_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }).limit(PRODUCTS_LIMIT),
+      fetchAllProducts(user.id),
       supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT),
       supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
       supabase.from("services").select(VELOUR_SERVICE_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }),
@@ -965,6 +990,17 @@ export default function Dashboard() {
   const abandonedOrders = orders.filter((o) => o.payment_method === "payfast" && o.payment_status === "pending");
   const totalImageSlots = existingImages.length + formImages.length;
   const filteredProducts = products.filter((p) => { const status = p.status || "published"; if (status !== productFilter) return false; if (searchQuery) { const q = searchQuery.toLowerCase(); return p.name.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q); } return true; }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  // Rendering thousands of product rows in one page was the actual
+  // complaint, separate from the fetch-side row cap -- pagination here
+  // only slices what gets rendered to DOM, it doesn't touch sort_order or
+  // drag-reorder logic, both of which still need real positions within the
+  // *full* filtered list (not page-local ones), so productIdx below is
+  // computed against filteredProducts before slicing, not after.
+  const productTotalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  const productPageClamped = Math.min(productPage, productTotalPages - 1);
+  const pagedProducts = filteredProducts
+    .map((product, productIdx) => ({ product, productIdx }))
+    .slice(productPageClamped * PRODUCTS_PER_PAGE, (productPageClamped + 1) * PRODUCTS_PER_PAGE);
 
   // ── LAUNCH PROGRESS ── "Can this merchant successfully receive an order
   // today?" Everything counted here is required for a real sale; anything
@@ -2021,7 +2057,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {filteredProducts.map((product, productIdx) => (
+                {pagedProducts.map(({ product, productIdx }) => (
                   <div
                     key={product.id}
                     draggable={productFilter !== "trashed"}
@@ -2081,6 +2117,28 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {filteredProducts.length > PRODUCTS_PER_PAGE && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 16, padding: "12px 0" }}>
+                <button
+                  onClick={() => setProductPage((p) => Math.max(0, p - 1))}
+                  disabled={productPageClamped === 0}
+                  style={{ padding: "8px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8, color: productPageClamped === 0 ? "var(--muted-2)" : "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: productPageClamped === 0 ? "not-allowed" : "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}
+                >
+                  Prev
+                </button>
+                <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700 }}>
+                  Page {productPageClamped + 1} of {productTotalPages} &middot; {filteredProducts.length} products
+                </span>
+                <button
+                  onClick={() => setProductPage((p) => Math.min(productTotalPages - 1, p + 1))}
+                  disabled={productPageClamped >= productTotalPages - 1}
+                  style={{ padding: "8px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8, color: productPageClamped >= productTotalPages - 1 ? "var(--muted-2)" : "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: productPageClamped >= productTotalPages - 1 ? "not-allowed" : "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}
+                >
+                  Next
+                </button>
               </div>
             )}
 
