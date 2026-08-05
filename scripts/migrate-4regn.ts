@@ -41,7 +41,7 @@ type ProductRow = {
 
 async function main() {
   const args = parseArgs(
-    "Usage: npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@example.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]"
+    "Usage: npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@example.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20] [--resume-images] [--concurrency=4]"
   );
   const admin = getAdminClient();
   const seller = await resolveSeller(admin, args.seller);
@@ -361,8 +361,8 @@ async function main() {
     }
   }
 
-  console.log(`Uploading images for ${inserted.length} product(s) (${allTasks.length} image(s) total)...`);
-  const CONCURRENCY = 10;
+  console.log(`Uploading images for ${inserted.length} product(s) (${allTasks.length} image(s) total, ${args.concurrency} at a time -- tune with --concurrency=N if this is too slow or too many are timing out)...`);
+  const CONCURRENCY = args.concurrency;
   let cursor = 0;
   let tasksDone = 0;
   async function worker() {

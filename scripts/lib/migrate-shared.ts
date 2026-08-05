@@ -48,10 +48,11 @@ export type CliArgs = {
   limit: number | null;
   sourceDomain: string | null;
   resumeImages: boolean;
+  concurrency: number;
 };
 
 export function parseArgs(usage: string): CliArgs {
-  const out: Partial<CliArgs> = { dryRun: false, force: false, limit: null, sourceDomain: null, resumeImages: false };
+  const out: Partial<CliArgs> = { dryRun: false, force: false, limit: null, sourceDomain: null, resumeImages: false, concurrency: 4 };
   for (const arg of process.argv.slice(2)) {
     if (arg === "--dry-run") out.dryRun = true;
     else if (arg === "--force") out.force = true;
@@ -60,6 +61,7 @@ export function parseArgs(usage: string): CliArgs {
     else if (arg.startsWith("--seller=")) out.seller = arg.slice("--seller=".length);
     else if (arg.startsWith("--limit=")) out.limit = parseInt(arg.slice("--limit=".length), 10);
     else if (arg.startsWith("--source-domain=")) out.sourceDomain = arg.slice("--source-domain=".length).replace(/\/$/, "");
+    else if (arg.startsWith("--concurrency=")) out.concurrency = parseInt(arg.slice("--concurrency=".length), 10);
   }
   if (!out.csv || !out.seller) {
     console.error(usage);
