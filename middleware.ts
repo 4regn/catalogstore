@@ -31,6 +31,41 @@ async function resolveCustomDomain(hostname: string): Promise<string | null> {
   }
 }
 
+// Legacy-URL redirects for a seller who migrated their catalog here from
+// another platform (e.g. Shopify's /products/{handle}) -- see
+// product_redirects migration + app/api/csv-import/route.ts, which
+// populates this table for free off the same CSV a migrating seller
+// already has to upload to import their products. Gated behind a prefix
+// check first: this app never serves anything under /products/, /product/,
+// /collections/, /shop/, or /item/ (real routes are /p/, /c/, /account,
+// etc.), so on every normal request this is a zero-cost no-op -- the one
+// Supabase round trip only happens for paths shaped like a legacy
+// platform's URLs, and even those are cached an hour once resolved, since
+// this data is effectively immutable once seeded.
+const LEGACY_REDIRECT_PREFIXES = ["/products/", "/product/", "/collections/", "/shop/", "/item/"];
+
+async function resolveLegacyRedirect(slug: string, pathname: string): Promise<string | null> {
+  if (!LEGACY_REDIRECT_PREFIXES.some((p) => pathname.startsWith(p))) return null;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/product_redirects?select=destination_path,sellers!inner(subdomain)` +
+        `&sellers.subdomain=eq.${encodeURIComponent(slug)}&old_path=eq.${encodeURIComponent(pathname)}&limit=1`,
+      {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+        next: { revalidate: 3600 },
+      }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows?.[0]?.destination_path || null;
+  } catch {
+    return null;
+  }
+}
+
 // SETLA's marketing/signup domain -- a standalone demand-validation
 // landing page, not a seller storefront, so it doesn't go through
 // resolveCustomDomain()/sellers.custom_domain at all. Every SETLA page
@@ -100,6 +135,8 @@ export async function middleware(req: NextRequest) {
   if (isSubdomainHost(hostname) && !pathname.startsWith("/api/") && !isStaticFile) {
     const sub = hostname.slice(0, -(`.${STORE_ROOT_DOMAIN}`.length));
     if (SLUG_PATTERN.test(sub)) {
+      const legacyDest = await resolveLegacyRedirect(sub, pathname);
+      if (legacyDest) return NextResponse.redirect(new URL(`${legacyDest}${search}`, req.url), 308);
       const url = req.nextUrl.clone();
       url.pathname = `/store/${sub}${pathname === "/" ? "" : pathname}`;
       return NextResponse.rewrite(url);
@@ -114,6 +151,8 @@ export async function middleware(req: NextRequest) {
   if (!pathname.startsWith("/api/") && !isStaticFile) {
     const slug = await resolveCustomDomain(hostname);
     if (slug) {
+      const legacyDest = await resolveLegacyRedirect(slug, pathname);
+      if (legacyDest) return NextResponse.redirect(new URL(`${legacyDest}${search}`, req.url), 308);
       const url = req.nextUrl.clone();
       url.pathname = `/store/${slug}${pathname === "/" ? "" : pathname}`;
       return NextResponse.rewrite(url);

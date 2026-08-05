@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getAdmin } from "../../../lib/supabase-admin";
 
 export const maxDuration = 60;
 
@@ -59,6 +60,14 @@ export async function POST(req: NextRequest) {
     let errors = 0;
     const rows: any[] = [];
     const allImageSrcs: string[][] = [];
+    // Shopify's product URL is always /products/{handle} -- captured here
+    // purely so a migrating seller's redirect table (product_redirects)
+    // can be populated for free off the same CSV they already have to
+    // upload to import their catalog, instead of needing a second manual
+    // step. Kept in lockstep with `rows`/`allImageSrcs` (including the
+    // plan-cap truncation below) so index i always refers to the same
+    // product across all three arrays.
+    const allHandles: string[] = [];
 
     if (isShopify) {
       const handleMap = new Map<string, string[][]>();
@@ -70,7 +79,7 @@ export async function POST(req: NextRequest) {
         handleMap.get(handle)!.push(cols);
       }
 
-      for (const [, variantRows] of handleMap) {
+      for (const [handle, variantRows] of handleMap) {
         const first = variantRows[0];
         const title = col(first, "title");
         if (!title) { errors++; continue; }
@@ -127,6 +136,7 @@ export async function POST(req: NextRequest) {
           sort_order: existingCount + rows.length,
         });
         allImageSrcs.push(imageSrcs);
+        allHandles.push(handle);
       }
     } else {
       const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
@@ -155,6 +165,7 @@ export async function POST(req: NextRequest) {
           sort_order: existingCount + rows.length,
         });
         allImageSrcs.push([]);
+        allHandles.push("");
       }
     }
 
@@ -173,6 +184,7 @@ export async function POST(req: NextRequest) {
       skippedForPlanLimit = rows.length - remainingSlots;
       rows.length = remainingSlots;
       allImageSrcs.length = remainingSlots;
+      allHandles.length = remainingSlots;
     }
     if (rows.length === 0) {
       return NextResponse.json({ error: `You've reached your plan's limit of ${productCap} products.` }, { status: 400 });
@@ -181,6 +193,35 @@ export async function POST(req: NextRequest) {
     const { data: inserted, error: insertErr } = await supabase.from("products").insert(rows).select();
     if (insertErr) {
       return NextResponse.json({ error: "Import failed: " + insertErr.message }, { status: 500 });
+    }
+
+    // Free redirect-mapping seed for a migrating seller: Shopify's product
+    // URL is always /products/{handle}, and product_redirects is what
+    // middleware.ts checks so those old URLs 308 to this product's real
+    // /p/{uuid} page instead of 404ing once the seller's domain cuts over
+    // here -- see the product_redirects migration for why this matters
+    // (preserving Google rankings/backlinks through the migration).
+    // product_redirects has no RLS policies (service-role only), unlike
+    // `products` above, so this needs the admin client, not the
+    // request-scoped one. Best-effort: a failure here shouldn't fail the
+    // whole import, since the products themselves are already saved.
+    if (inserted) {
+      const redirectRows = inserted
+        .map((product, i) => ({ handle: allHandles[i], product }))
+        .filter((r) => r.handle)
+        .map((r) => ({
+          seller_id: sellerId,
+          old_path: `/products/${r.handle}`,
+          destination_path: `/p/${r.product.id}`,
+          product_id: r.product.id,
+        }));
+      if (redirectRows.length) {
+        try {
+          await getAdmin().from("product_redirects").upsert(redirectRows, { onConflict: "seller_id,old_path" });
+        } catch (redirectErr) {
+          console.error("csv-import: product_redirects upsert failed (non-fatal):", redirectErr);
+        }
+      }
     }
 
     let imagesUploaded = 0;

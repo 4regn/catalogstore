@@ -126,11 +126,19 @@ export async function removeVercelDomain(domain: string): Promise<void> {
   }
 }
 
+// Kept in sync with SETLA_MARKETING_HOSTS in middleware.ts -- that block
+// runs first and would win regardless, but a seller should never be able
+// to attach these hosts as their own custom domain in the first place
+// (accidentally or otherwise), so it's rejected here too, at the point of
+// connection rather than relying only on routing precedence.
+const RESERVED_CUSTOM_DOMAINS = new Set(["setla.4regn.com", "www.setla.4regn.com"]);
+
 export function isValidCustomDomain(domain: string): boolean {
   const cleaned = domain.trim().toLowerCase();
   // Basic hostname shape check -- at least one dot, valid label characters,
   // no protocol/path. Real validity is ultimately decided by Vercel/DNS.
   return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(cleaned)
     && !cleaned.endsWith(".catalogstore.co.za")
-    && cleaned !== "catalogstore.co.za";
+    && cleaned !== "catalogstore.co.za"
+    && !RESERVED_CUSTOM_DOMAINS.has(cleaned);
 }
