@@ -48,6 +48,13 @@ interface StoreConfig {
   operating_hours?: string;
   physical_address?: string;
   products_heading?: string;
+  show_setla_banner?: boolean;
+  setla_eyebrow?: string;
+  setla_lead?: string;
+  setla_badge?: string;
+  setla_note?: string;
+  setla_cta_primary?: string;
+  setla_cta_secondary?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -445,6 +452,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const showCtaPrimary = displayCtaPrimary.trim() !== "" && displayCtaPrimaryTarget.type !== "none";
   const showCtaSecondary = displayCtaSecondary.trim() !== "" && displayCtaSecondaryTarget.type !== "none";
 
+  // SETLA promo strip -- 4regn's real storefront advertises SETLA (buy-now-
+  // pay-later) right under the hero, so it's opt-out (default on) rather
+  // than opt-in, with real copy pre-filled as the default. Links out to the
+  // SETLA marketing subdomain the same way the rest of the platform does --
+  // not a per-seller-editable link, since it's platform routing, not brand
+  // content.
+  const showSetlaBanner = config.show_setla_banner ?? true;
+  const setlaEyebrow = config.setla_eyebrow ?? `Flexible payments on ${seller.store_name}`;
+  const setlaLead = config.setla_lead ?? "Eligible customers can shop with SETLA and split selected purchases into interest-free instalments — with your payment plan shown clearly before you commit.";
+  const setlaBadge = config.setla_badge ?? "Interest-free SETLA payment options";
+  const setlaNote = config.setla_note ?? "Subject to eligibility and affordability assessment. Personal spending limits and available payment options may vary.";
+  const setlaCtaPrimary = config.setla_cta_primary ?? "Discover my SETLA limit";
+  const setlaCtaSecondary = config.setla_cta_secondary ?? "See how SETLA works";
+
   const displayFooterTagline = liveFooterTagline ?? config.footer_tagline ?? liveDescription ?? seller.description ?? seller.tagline ?? "";
   const displayFooterCol1 = liveFooterCol1Label ?? config.footer_col1_label ?? "Shop";
   const showNewsletter = config.show_newsletter ?? true;
@@ -546,6 +567,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-timer-note{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(253,251,247,0.5)}
 .fr-timer-digits{font-family:var(--serif);font-weight:700;font-size:38px;letter-spacing:2px;line-height:1;color:#fdfbf7}
 .fr-timer-digits .sep{color:rgba(253,251,247,0.3);margin:0 2px}
+
+.fr-setla{background:#000;padding:56px 40px}
+.fr-setla-inner{max-width:640px;margin:0 auto;text-align:center}
+.fr-setla-badge{display:inline-block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#fdfbf7;background:linear-gradient(320deg,#86106a,#5e3653 100%);padding:8px 18px;border-radius:100px;margin-bottom:20px}
+.fr-setla-eyebrow{font-family:var(--serif);font-weight:700;font-size:clamp(22px,3vw,30px);color:#fdfbf7;margin-bottom:14px}
+.fr-setla-lead{font-family:var(--body);font-size:15px;line-height:1.7;color:rgba(253,251,247,0.72);margin-bottom:30px}
+.fr-setla .fr-cta-row{justify-content:center;margin-bottom:20px}
+.fr-btn-purple{background:linear-gradient(320deg,#86106a,#5e3653 100%);color:#fdfbf7}
+.fr-setla-note{font-family:var(--body);font-size:11px;line-height:1.6;color:rgba(253,251,247,0.4);max-width:480px;margin:0 auto}
 
 .fr-section{max-width:1360px;margin:0 auto;padding:64px 40px}
 .fr-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;gap:20px;flex-wrap:wrap}
@@ -709,6 +739,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-nav-links{display:none}
   .fr-nav-right{order:3}
   .fr-hero-inner{padding:0 24px 48px}
+  .fr-setla{padding:40px 20px}
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
@@ -984,6 +1015,24 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     )}
                   </PromoCountdown>
                 )}
+              </div>
+            </section>
+          </EditSection>
+        )}
+
+        {/* SETLA PROMO STRIP — only on landing page */}
+        {!isCollectionView && showSetlaBanner && (
+          <EditSection id="setla">
+            <section className="fr-setla">
+              <div className="fr-setla-inner">
+                <div className="fr-setla-badge">{setlaBadge}</div>
+                <div className="fr-setla-eyebrow">{setlaEyebrow}</div>
+                <p className="fr-setla-lead">{setlaLead}</p>
+                <div className="fr-cta-row">
+                  <a className="fr-btn fr-btn-purple" href="https://setla.4regn.com/signup.html" target="_blank" rel="noopener noreferrer">{setlaCtaPrimary}</a>
+                  <a className="fr-btn-ghost" href="https://setla.4regn.com/faq.html" target="_blank" rel="noopener noreferrer">{setlaCtaSecondary}</a>
+                </div>
+                <div className="fr-setla-note">{setlaNote}</div>
               </div>
             </section>
           </EditSection>

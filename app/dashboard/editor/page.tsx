@@ -162,6 +162,7 @@ interface DayHours {
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
+  | "setla"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -180,6 +181,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   trust:        { icon: "trust",        label: "Trust Bar" },
   footer:       { icon: "footer",       label: "Footer" },
   occasions:    { icon: "circle",       label: "Shop by Occasion" },
+  setla:        { icon: "cta",          label: "SETLA Promo Strip" },
 };
 
 // Compact icon+label inline component for the chrome.
@@ -356,6 +358,14 @@ export default function StoreEditor() {
      "Limited drop ends in". */
   const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
   const [heroSaleHeadline, setHeroSaleHeadline]       = useState("");
+  // 4regn SETLA promo strip
+  const [showSetlaBanner, setShowSetlaBanner] = useState(true);
+  const [setlaEyebrow, setSetlaEyebrow]       = useState("");
+  const [setlaLead, setSetlaLead]             = useState("");
+  const [setlaBadge, setSetlaBadge]           = useState("");
+  const [setlaNote, setSetlaNote]             = useState("");
+  const [setlaCtaPrimary, setSetlaCtaPrimary]     = useState("");
+  const [setlaCtaSecondary, setSetlaCtaSecondary] = useState("");
   const [heroCta, setHeroCta]                         = useState("");
   const [heroCtaTarget, setHeroCtaTarget]             = useState<CtaTarget>({ type: "products" });
   const [heroTitle, setHeroTitle]                     = useState("");
@@ -514,6 +524,14 @@ export default function StoreEditor() {
       setReturnPolicy((s.store_config as any)?.return_policy ?? "");
       setHeroCountdownLabel(cfg?.hero_countdown_label ?? "");
       setHeroSaleHeadline((cfg as any)?.hero_sale_headline ?? "");
+      // 4regn SETLA promo strip
+      setShowSetlaBanner((cfg as any)?.show_setla_banner ?? true);
+      setSetlaEyebrow((cfg as any)?.setla_eyebrow ?? "");
+      setSetlaLead((cfg as any)?.setla_lead ?? "");
+      setSetlaBadge((cfg as any)?.setla_badge ?? "");
+      setSetlaNote((cfg as any)?.setla_note ?? "");
+      setSetlaCtaPrimary((cfg as any)?.setla_cta_primary ?? "");
+      setSetlaCtaSecondary((cfg as any)?.setla_cta_secondary ?? "");
       setHeroCta(cfg?.hero_cta ?? "");
       setHeroCtaTarget(cfg?.hero_cta_target ?? { type: "products" });
       setHeroTitle(cfg?.hero_title !== undefined ? cfg.hero_title : (s.store_name || ""));
@@ -792,6 +810,13 @@ export default function StoreEditor() {
       return_policy: returnPolicy,
       hero_countdown_label: heroCountdownLabel,
       hero_sale_headline: heroSaleHeadline,
+      show_setla_banner: showSetlaBanner,
+      setla_eyebrow: setlaEyebrow,
+      setla_lead: setlaLead,
+      setla_badge: setlaBadge,
+      setla_note: setlaNote,
+      setla_cta_primary: setlaCtaPrimary,
+      setla_cta_secondary: setlaCtaSecondary,
       hero_cta: heroCta || undefined,
       hero_cta_target: heroCtaTarget,
       hero_title: heroTitle,
@@ -1631,6 +1656,51 @@ export default function StoreEditor() {
                     code with &quot;Show Countdown&quot; is active — manage codes
                     in <strong>Dashboard → Discounts</strong>.
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* SETLA PROMO STRIP — 4regn only. Links to the SETLA marketing
+                subdomain are fixed (platform routing, not brand content),
+                so only the surrounding copy and the show/hide toggle are
+                editable here. */}
+            {activeSection === "setla" && seller?.template === "4regn" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                  <input type="checkbox" checked={showSetlaBanner} onChange={e => setShowSetlaBanner(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                  <span style={{ fontSize: 13, color: "rgba(245,245,245,0.58)" }}>Show the SETLA promo strip under the hero</span>
+                </label>
+
+                <div>
+                  <label style={labelStyle}>Badge Text</label>
+                  <input value={setlaBadge} onChange={e => setSetlaBadge(e.target.value)} placeholder="Interest-free SETLA payment options" style={inputStyle} />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Eyebrow</label>
+                  <input value={setlaEyebrow} onChange={e => setSetlaEyebrow(e.target.value)} placeholder={`Flexible payments on ${seller.store_name}`} style={inputStyle} />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Lead Text</label>
+                  <textarea value={setlaLead} onChange={e => setSetlaLead(e.target.value)} rows={3} placeholder="Eligible customers can shop with SETLA and split selected purchases into interest-free instalments..." style={{ ...inputStyle, resize: "vertical", minHeight: 72 }} />
+                </div>
+
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Primary Button</div>
+                  <input value={setlaCtaPrimary} onChange={e => setSetlaCtaPrimary(e.target.value)} placeholder="Discover my SETLA limit" style={inputStyle} />
+                  <div style={hintStyle}>Links to SETLA sign-up. The destination isn&apos;t editable here — only the label.</div>
+                </div>
+
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Secondary Button</div>
+                  <input value={setlaCtaSecondary} onChange={e => setSetlaCtaSecondary(e.target.value)} placeholder="See how SETLA works" style={inputStyle} />
+                  <div style={hintStyle}>Links to the SETLA FAQ. The destination isn&apos;t editable here — only the label.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Fine Print</label>
+                  <textarea value={setlaNote} onChange={e => setSetlaNote(e.target.value)} rows={2} placeholder="Subject to eligibility and affordability assessment..." style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
                 </div>
               </div>
             )}
