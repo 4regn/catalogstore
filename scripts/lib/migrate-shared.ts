@@ -173,6 +173,33 @@ export class BatchWriteError extends Error {
   }
 }
 
+const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
+
+// Retries a single batch attempt on failure with exponential backoff before
+// giving up -- added after observing real, intermittent "TypeError: fetch
+// failed" errors on a home network that landed at a different row range
+// each run (600, then 1400, then 600 again), the signature of a flaky
+// connection rather than a payload-size problem (batching already fixed
+// that). `attempt()` should return the Supabase `{data, error}` result, not
+// throw -- a thrown exception (e.g. an actual dropped connection mid-request)
+// is caught and retried the same as a returned `error`.
+async function withRetry<T extends { data?: any; error: any }>(attempt: () => PromiseLike<T>, label: string): Promise<T> {
+  let lastResult: T | undefined;
+  for (let i = 0; i <= RETRY_DELAYS_MS.length; i++) {
+    try {
+      lastResult = await attempt();
+      if (!lastResult.error) return lastResult;
+    } catch (e) {
+      lastResult = { error: e instanceof Error ? e : new Error(String(e)) } as T;
+    }
+    if (i < RETRY_DELAYS_MS.length) {
+      process.stdout.write(`\n  ${label} failed (${lastResult.error?.message || lastResult.error}), retrying in ${RETRY_DELAYS_MS[i] / 1000}s...`);
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[i]));
+    }
+  }
+  return lastResult!;
+}
+
 // Writing thousands of rows in one insert/upsert call risks hitting a
 // payload-size or timeout limit on the request -- confirmed in practice: a
 // single ~5,800-row customer upsert failed with a generic "fetch failed"
@@ -189,10 +216,10 @@ export async function writeInBatches(
   let written = 0;
   for (let i = 0; i < rows.length; i += batchSize) {
     const chunk = rows.slice(i, i + batchSize);
-    const query = opts.onConflict
-      ? admin.from(table).upsert(chunk, { onConflict: opts.onConflict })
-      : admin.from(table).insert(chunk);
-    const { data, error } = await query.select("id");
+    const { data, error } = await withRetry(
+      () => (opts.onConflict ? admin.from(table).upsert(chunk, { onConflict: opts.onConflict }) : admin.from(table).insert(chunk)).select("id"),
+      `${table} rows ${i}-${i + chunk.length - 1}`
+    );
     if (error) {
       const safety = opts.onConflict
         ? `${written} row(s) before this batch were written successfully -- safe to re-run the same import once the underlying issue is fixed, this table upserts on (${opts.onConflict}) so already-written rows just update in place rather than duplicating.`
@@ -216,7 +243,7 @@ export async function insertInBatchesReturning(admin: SupabaseClient, table: str
   const result: any[] = [];
   for (let i = 0; i < rows.length; i += batchSize) {
     const chunk = rows.slice(i, i + batchSize);
-    const { data, error } = await admin.from(table).insert(chunk).select();
+    const { data, error } = await withRetry(() => admin.from(table).insert(chunk).select(), `${table} rows ${i}-${i + chunk.length - 1}`);
     if (error || !data) {
       throw new BatchWriteError(
         `Insert into "${table}" failed on rows ${i}-${i + chunk.length - 1} of ${rows.length}: ${error?.message}\n` +
