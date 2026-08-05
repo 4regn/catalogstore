@@ -613,7 +613,20 @@
     // wrong state -- see the cache read at the very top of this script.
     // Keyed by this account's own email (not a single shared key) so it
     // can never be confused with a different account's cached status.
-    try{if(account.email)localStorage.setItem('setla-dash-status-cache:'+String(account.email).trim().toLowerCase(),status)}catch(_){}
+    // Also (re-)sets "active email" here, not just at login: most repeat
+    // visits never touch the login form at all -- the session cookie
+    // just keeps someone signed in silently -- so this was the actual
+    // gap. Every successful render now self-heals "active email" to
+    // whoever is really signed in, which is what makes the *next* load
+    // (cookie-only, no fresh login) correctly find this account's own
+    // cached status instead of finding nothing.
+    try{
+      if(account.email){
+        const email=String(account.email).trim().toLowerCase();
+        localStorage.setItem('setla-active-email',email);
+        localStorage.setItem('setla-dash-status-cache:'+email,status);
+      }
+    }catch(_){}
     const approvedLimit=approved?Number(account.approvedLimit||0):0,available=approved?Number(account.availableLimit??approvedLimit):0;
     // account.orders comes straight from /api/setla/dashboard, already
     // scoped to this customer -- real orders/instalments are Phase 2, so
