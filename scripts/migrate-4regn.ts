@@ -22,7 +22,7 @@
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
 
 import { writeFileSync } from "fs";
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml, insertInBatchesReturning, writeInBatches, withTimeout } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows } from "./lib/migrate-shared";
 
 type ProductRow = {
   seller_id: string;
@@ -278,12 +278,15 @@ async function main() {
   let redirectHandles: string[];
   if (args.resumeImages) {
     console.log("\n--resume-images: skipping product insert, matching existing products by source_url instead...");
-    const { data: existing, error: fetchErr } = await admin.from("products").select("id, source_url, images").eq("seller_id", sellerId);
-    if (fetchErr) {
-      console.error("Failed to fetch existing products:", fetchErr.message);
+    let existing: { id: string; source_url: string | null; images: string[] | null }[];
+    try {
+      existing = await fetchAllRows(admin, "products", "id, source_url, images", (q) => q.eq("seller_id", sellerId));
+    } catch (e) {
+      console.error("Failed to fetch existing products:", e instanceof Error ? e.message : String(e));
       process.exit(1);
     }
-    const existingWithUrl = (existing || []).filter((p) => p.source_url);
+    console.log(`Fetched ${existing.length} existing product(s) for this seller.`);
+    const existingWithUrl = existing.filter((p) => p.source_url);
     const bySourceUrl = new Map(existingWithUrl.map((p) => [p.source_url, p]));
     // If this is smaller than existingWithUrl.length, multiple existing
     // products share the same source_url -- a real data problem worth

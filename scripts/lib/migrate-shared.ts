@@ -29,6 +29,29 @@ export function loadDotEnvLocal() {
   }
 }
 
+// PostgREST applies its own default row cap (commonly 1000) to any select
+// with no explicit .limit() -- confirmed in practice: a real seller with
+// ~2,032 products got a silently-truncated read of the products table via
+// --resume-images's source_url lookup, causing ~1,030 genuinely-existing
+// products to register as "not found" even though they were already
+// correctly imported. .range() pages through in fixed-size chunks so the
+// full row set always comes back regardless of the project's row cap.
+export async function fetchAllRows<T>(admin: SupabaseClient, table: string, columns: string, filter: (q: any) => any, pageSize = 1000): Promise<T[]> {
+  const all: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await withTimeout<{ data: any[] | null; error: any }>(
+      filter(admin.from(table).select(columns)).range(from, from + pageSize - 1),
+      `fetch ${table} rows ${from}-${from + pageSize - 1}`
+    );
+    if (error) throw new Error(`Fetching "${table}" failed at offset ${from}: ${error.message}`);
+    all.push(...((data as T[]) || []));
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
 export function getAdminClient(): SupabaseClient {
   loadDotEnvLocal();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
