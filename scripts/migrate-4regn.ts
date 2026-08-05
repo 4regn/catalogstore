@@ -283,17 +283,26 @@ async function main() {
       console.error("Failed to fetch existing products:", fetchErr.message);
       process.exit(1);
     }
-    const bySourceUrl = new Map((existing || []).filter((p) => p.source_url).map((p) => [p.source_url, p]));
+    const existingWithUrl = (existing || []).filter((p) => p.source_url);
+    const bySourceUrl = new Map(existingWithUrl.map((p) => [p.source_url, p]));
+    // If this is smaller than existingWithUrl.length, multiple existing
+    // products share the same source_url -- a real data problem worth
+    // knowing about explicitly, not just a lower match count with no clue
+    // why.
+    const duplicateSourceUrls = existingWithUrl.length - bySourceUrl.size;
+
     const matched: any[] = [];
     const matchedHandles: string[] = [];
     const needingImages: any[] = [];
     const needingImagesSrcs: string[][] = [];
     const needingImagesHandles: string[] = [];
+    const unmatchedSample: { handle: string; source_url: string | null }[] = [];
     let notFound = 0;
     for (let i = 0; i < rows.length; i++) {
       const p = rows[i].source_url ? bySourceUrl.get(rows[i].source_url!) : undefined;
       if (!p) {
         notFound++;
+        if (unmatchedSample.length < 25) unmatchedSample.push({ handle: allHandles[i], source_url: rows[i].source_url });
         continue;
       }
       matched.push(p);
@@ -309,6 +318,14 @@ async function main() {
       }
     }
     console.log(`Matched ${matched.length} existing product(s) by source_url (${notFound} not found -- run the normal import first if this is unexpectedly high). ${needingImages.length} still need images (including partially-completed ones).`);
+    if (duplicateSourceUrls > 0) {
+      console.log(`Note: ${existingWithUrl.length} existing product(s) have a source_url set, but only ${bySourceUrl.size} unique values among them (${duplicateSourceUrls} duplicate(s)) -- some existing products share the same source_url, which silently caps how many can ever be matched this way.`);
+    }
+    if (notFound > 0) {
+      const diagPath = `unmatched-products-${Date.now()}.json`;
+      writeFileSync(diagPath, JSON.stringify({ notFound, existingWithSourceUrl: existingWithUrl.length, uniqueExistingSourceUrls: bySourceUrl.size, sample: unmatchedSample }, null, 2));
+      console.log(`Wrote details on ${notFound} unmatched row(s) (25-row sample) to ${diagPath}.`);
+    }
     inserted = needingImages;
     redirectTargets = matched;
     redirectHandles = matchedHandles;
