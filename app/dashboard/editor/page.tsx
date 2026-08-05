@@ -494,7 +494,7 @@ export default function StoreEditor() {
       setVelourInstagram(s.social_links?.instagram || "");
       setVelourTiktok(s.social_links?.tiktok || "");
       setVelourWhatsapp(s.whatsapp_number || "");
-      if (!cfg?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic")) {
+      if (!cfg?.hero_image && s.banner_url && (s.template === "soft-luxury" || s.template === "glass-futuristic" || s.template === "4regn")) {
         setHeroImagePreview(s.banner_url);
         setHeroImageUrl(s.banner_url);
       }
@@ -691,7 +691,7 @@ export default function StoreEditor() {
       logoUrl = null;
     }
     const heroUrl = heroImageUrl || heroImagePreview || undefined;
-    const isBannerTemplate = seller.template === "soft-luxury" || seller.template === "glass-futuristic";
+    const isBannerTemplate = seller.template === "soft-luxury" || seller.template === "glass-futuristic" || seller.template === "4regn";
 
     // Everything the editor manages, in one place. pickTemplateFields /
     // omitTemplateFields (lib/template-config.ts) route each key to either
@@ -1543,6 +1543,95 @@ export default function StoreEditor() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* HERO — 4regn (banner_url + focal point, like Soft Luxury, plus
+                Heirloom-style hero copy/CTA/countdown fields). No transparent-
+                header or split-layout options -- the storefront's header is a
+                fixed solid black bar and the hero is a single full-bleed
+                layout, so those controls would do nothing here. */}
+            {activeSection === "hero" && seller?.template === "4regn" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Hero Background Image</label>
+                  <div onClick={() => heroImageRef.current?.click()}
+                    style={{ width: "100%", height: 120, borderRadius: 10, border: "1px dashed rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {heroImagePreview
+                      ? <img src={heroImagePreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ textAlign: "center", color: "rgba(245,245,245,0.5)" }}><EditorIcon name="image" size={26} /><div style={{ fontSize: 11, marginTop: 6 }}>Click to upload hero image</div></div>}
+                  </div>
+                  <input ref={heroImageRef} type="file" accept="image/*"
+                    onChange={async e => {
+                      const f = e.target.files?.[0]; if (!f || !seller) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => { const localUrl = ev.target?.result as string; setHeroImagePreview(localUrl); postUpdate({ heroImage: localUrl }); };
+                      reader.readAsDataURL(f);
+                      const ext = f.name.split(".").pop();
+                      const path = `${seller.id}/hero_image_${Date.now()}.${ext}`;
+                      const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                      if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); const finalUrl = data.publicUrl; setHeroImagePreview(finalUrl); setHeroImageUrl(finalUrl); postUpdate({ heroImage: finalUrl }); }
+                    }} style={{ display: "none" }} />
+                  {heroImagePreview && <button onClick={() => { setHeroImagePreview(""); setHeroImageUrl(""); postUpdate({ heroImage: "" }); }} style={{ marginTop: 6, fontSize: 10, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>}
+                </div>
+
+                <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <label style={labelStyle}>Banner Position</label>
+                  <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginBottom: 8 }}>Click or drag on the preview to pick the exact point that stays visible on desktop -- fixes portrait banners getting cropped oddly on wide screens.</div>
+                  <div style={{ marginBottom: 16 }}>
+                    <FocalPointPicker value={heroImagePosition} onChange={setHeroImagePosition} imageUrl={heroImagePreview} />
+                  </div>
+                </div>
+
+                <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <label style={labelStyle}>Hero Label</label>
+                  <input value={heroLabel} onChange={e => setHeroLabel(e.target.value)} placeholder="e.g. NEW SEASON" style={inputStyle} />
+                  <div style={hintStyle}>The smaller line above the headline.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Headline</label>
+                  <textarea value={heroHeadline} onChange={e => setHeroHeadline(e.target.value)} rows={3} placeholder={seller?.tagline || seller?.store_name || "Built to outlast the season."} style={{ ...inputStyle, resize: "vertical", minHeight: 80 }} />
+                  <div style={hintStyle}>Leave empty to fall back to your store tagline.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Hero Body</label>
+                  <textarea value={heroBody} onChange={e => setHeroBody(e.target.value)} rows={3} placeholder={seller?.description || "Short sentence under the headline."} style={{ ...inputStyle, resize: "vertical", minHeight: 64 }} />
+                  <div style={hintStyle}>Leave empty to fall back to your store description.</div>
+                </div>
+
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Primary Button</div>
+                  <input value={heroCtaPrimary} onChange={e => setHeroCtaPrimary(e.target.value)} placeholder="Shop the Collection" style={inputStyle} />
+                  <div style={{ height: 10 }} />
+                  <CtaTargetPicker target={heroCtaPrimaryTarget} onChange={setHeroCtaPrimaryTarget} collections={seller.collections || []} />
+                </div>
+
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Secondary Button <span style={{ fontWeight: 400, color: "rgba(245,245,245,0.3)" }}>(optional)</span></div>
+                  <input value={heroCtaSecondary} onChange={e => setHeroCtaSecondary(e.target.value)} placeholder="e.g. View Collection — leave blank to hide" style={inputStyle} />
+                  <div style={{ height: 10 }} />
+                  <CtaTargetPicker target={heroCtaSecondaryTarget} onChange={setHeroCtaSecondaryTarget} collections={seller.collections || []} />
+                </div>
+
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Sale Countdown</div>
+                  <input value={heroSaleHeadline} onChange={e => setHeroSaleHeadline(e.target.value)}
+                    placeholder="e.g. Summer Sale" style={inputStyle} />
+                  <div style={{ ...hintStyle, marginTop: 4, marginBottom: 12 }}>
+                    Big headline shown above the countdown. Leave empty to hide.
+                  </div>
+                  <input value={heroCountdownLabel} onChange={e => setHeroCountdownLabel(e.target.value)}
+                    placeholder="e.g. Limited drop ends in" style={inputStyle} />
+                  <div style={{ ...hintStyle, marginTop: 8 }}>
+                    Smaller label above the countdown timer. Leave empty to auto-show
+                    &quot;<em>{`<CODE>`}</em> ends in&quot; based on the active
+                    discount. The timer itself only appears when a real discount
+                    code with &quot;Show Countdown&quot; is active — manage codes
+                    in <strong>Dashboard → Discounts</strong>.
+                  </div>
+                </div>
               </div>
             )}
 

@@ -167,6 +167,7 @@ export default function CheckoutPageClient() {
   const isHL = seller?.template === "heirloom";
   const isRF = seller?.template === "rosefields";
   const isCrown = seller?.template === "crown";
+  const isFourRegn = seller?.template === "4regn";
   const slCfg = seller ? (effectiveStoreConfig(seller) as any) : {};
   const slFontPair = getFontPair(seller ? slCfg.font_pair : undefined);
   const slBg = slCfg.bg_color || "#f6f3ef";
@@ -226,6 +227,18 @@ export default function CheckoutPageClient() {
     summaryBg: "rgba(196,162,101,0.05)", summaryBorder: "rgba(196,162,101,0.12)",
     badgeBg: "#c4a265", badgeText: "#0a0908",
     stickyBg: `${slCfg.bg_color || "#0a0908"}f2`, emptyImg: "#1a1816", payCardBg: "#1a1816",
+  } : isFourRegn ? {
+    // 4regn: light neutral gradient paper + charcoal ink + solid-black CTAs,
+    // matching the storefront's Quattrocento/Amiri pairing and dark header.
+    bg: "#f5f5f5", card: "#fff", text: "#2e2a39", muted: "rgba(46,42,57,0.6)", border: "rgba(0,0,0,0.08)",
+    inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: "#2e2a39",
+    btnBg: "#000000", btnText: "#ffffff", btnRadius: "10px",
+    headFont: "'Quattrocento', Georgia, serif", bodyFont: "'Amiri', Georgia, serif",
+    selectBg: "rgba(0,0,0,0.03)", eftBg: "#f5f5f5",
+    fonts: "@import url('https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');",
+    summaryBg: "rgba(0,0,0,0.015)", summaryBorder: "rgba(0,0,0,0.06)",
+    badgeBg: "#765341", badgeText: "#fdfbf7",
+    stickyBg: "rgba(245,245,245,0.95)", emptyImg: "#eeeeee", payCardBg: "#fff",
   } : {
     bg: slBg, card: "#fff", text: slText, muted: slMuted, border: "rgba(0,0,0,0.12)",
     inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: slText,
@@ -404,13 +417,13 @@ export default function CheckoutPageClient() {
           {paidOrder._processing ? (
             <>
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL ? 400 : 300, marginBottom: 8 }}>Processing payment…</h1>
+              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>Processing payment…</h1>
               <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
             </>
           ) : (
             <>
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(34,197,94,0.12)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
+              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
               <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
             </>
           )}

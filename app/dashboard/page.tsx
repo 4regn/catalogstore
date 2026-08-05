@@ -11,7 +11,7 @@ import FocalPointPicker from "../components/FocalPointPicker";
 import Spinner from "../components/Spinner";
 import SupportChat from "../components/SupportChat";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
-import { UNIK_TEMPLATE_ID } from "../../lib/store-template-access";
+import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -229,8 +229,19 @@ const UNIK_PRIVATE_TEMPLATE = {
   colors: { bg: "#050505", card: "#151515", text: "#ffffff" },
 };
 
-const templatesForSeller = (subdomain?: string | null) =>
-  subdomain === "unik" ? [...TEMPLATES, UNIK_PRIVATE_TEMPLATE] : TEMPLATES;
+const FOURREGN_PRIVATE_TEMPLATE = {
+  id: FOURREGN_TEMPLATE_ID,
+  name: "4regn Noir",
+  desc: "Brand-matched dark editorial boutique storefront",
+  colors: { bg: "#000000", card: "#1a1816", text: "#fdfbf7" },
+};
+
+const templatesForSeller = (subdomain?: string | null) => {
+  let list = TEMPLATES;
+  if (subdomain === "unik") list = [...list, UNIK_PRIVATE_TEMPLATE];
+  if (subdomain === "4regn") list = [...list, FOURREGN_PRIVATE_TEMPLATE];
+  return list;
+};
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 

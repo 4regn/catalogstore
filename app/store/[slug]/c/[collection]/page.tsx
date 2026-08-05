@@ -4,15 +4,17 @@ import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
+import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
 
-// Heirloom and Soft Luxury support dedicated collection pages today. If a
-// seller on another template ends up here (e.g. someone shared a deep
+// Heirloom, Soft Luxury and 4regn support dedicated collection pages today.
+// If a seller on another template ends up here (e.g. someone shared a deep
 // link), fall back to the main storefront so they don't see a broken page.
 const Heirloom = dynamic(() => import("../../HeirloomStore"));
 const SoftLuxury = dynamic(() => import("../../SoftLuxuryStore"));
+const FourRegn = dynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
@@ -76,9 +78,14 @@ export default async function CollectionPage({
 
   const isSubdomain = await isStoreSubdomainRequest();
 
-  // Only Heirloom and Soft Luxury render collection pages. Other templates
-  // send the visitor home.
-  if (seller.template !== "heirloom" && seller.template !== "soft-luxury") {
+  // Resolve through the same private-template gate the main store page uses,
+  // so a raw `template` column value can't be used to reach 4regn's private
+  // storefront from a seller who isn't allowed to use it.
+  const tpl = resolveSellerTemplate(seller);
+
+  // Only Heirloom, Soft Luxury and 4regn render collection pages. Other
+  // templates send the visitor home.
+  if (tpl !== "heirloom" && tpl !== "soft-luxury" && tpl !== "4regn") {
     redirect(isSubdomain ? "/" : `/store/${slug}`);
   }
 
@@ -145,6 +152,7 @@ export default async function CollectionPage({
     isSubdomain,
   };
 
-  if (seller.template === "soft-luxury") return <SoftLuxury {...props} />;
+  if (tpl === "soft-luxury") return <SoftLuxury {...props} />;
+  if (tpl === "4regn") return <FourRegn {...props} />;
   return <Heirloom {...props} />;
 }

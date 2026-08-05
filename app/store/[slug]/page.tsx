@@ -15,6 +15,7 @@ const GlassChrome = dynamic(() => import("./GlassChromeStore"));
 const Crown       = dynamic(() => import("./CrownStore"));
 const Heirloom    = dynamic(() => import("./HeirloomStore"));
 const Rosefields  = dynamic(() => import("./RosefieldsStore"));
+const FourRegn    = dynamic(() => import("./FourRegnStore"));
 const Velour      = dynamic(() => import("./VelourStore"));
 const UnikLabs    = dynamic(() => import("./UnikLabsStore"));
 
@@ -160,6 +161,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome :
     tpl === "heirloom" ? Heirloom :
     tpl === "rosefields" ? Rosefields :
+    tpl === "4regn" ? FourRegn :
     SoftLuxury;
 
   return (
