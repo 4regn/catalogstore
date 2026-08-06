@@ -510,6 +510,147 @@ export function htmlToDescriptionText(html: string): string {
   return htmlToParagraphs(withTablesConverted);
 }
 
+// Narrow, defensively-validated CSS color value: hex (#abc/#aabbcc/#aabbccdd),
+// rgb(r, g, b), or a bare CSS color keyword (red, DarkRed, etc). Anything
+// else found in a `color:` style declaration is treated as absent rather
+// than passed through -- this is the one place a malicious/malformed style
+// attribute in imported HTML could otherwise leak an unvalidated string into
+// stored product data, so this stays conservative rather than permissive.
+const SAFE_COLOR_VALUE = /^(#[0-9a-fA-F]{3,8}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)|[a-zA-Z]+)$/;
+
+// Extracts a `color: VALUE` declaration from an inline style="..." attribute
+// value, returning VALUE only if it passes SAFE_COLOR_VALUE -- e.g.
+// `color: red; font-size: 12px` -> "red", `color:#ff0000` -> "#ff0000".
+// Returns null both when there's no color declaration at all AND when there
+// is one but it fails validation -- callers can't (and don't need to)
+// distinguish those two cases, both mean "render as unstyled text".
+function extractSafeColor(styleAttr: string): string | null {
+  const match = styleAttr.match(/color\s*:\s*([^;]+?)\s*(?:;|$)/i);
+  if (!match) return null;
+  const value = match[1].trim();
+  return SAFE_COLOR_VALUE.test(value) ? value : null;
+}
+
+// Converts one <table>...</table> block into pipe-separated-row lines, same
+// as tableToRowLines() above, but ALSO preserves <strong>/<b>, <em>/<i>, and
+// a validated inline `color` style as the same **/__ /[[color:...]] markers
+// markupInline() below produces for non-table text -- a bold/colored cell
+// (e.g. a sale price highlighted in a size chart) shouldn't lose that
+// formatting just because it's inside a table. Structurally identical to
+// tableToRowLines(): one line per <tr>, cells joined with " | ", only the
+// per-cell text extraction differs (markupInline() instead of a flat
+// tag-strip).
+function tableToRowLinesMarkup(tableHtml: string): string[] {
+  const rowMatches = tableHtml.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi) || [];
+  const lines: string[] = [];
+  for (const rowHtml of rowMatches) {
+    const cellMatches = rowHtml.match(/<(?:td|th)\b[^>]*>[\s\S]*?<\/(?:td|th)>/gi) || [];
+    if (!cellMatches.length) continue;
+    const cells = cellMatches.map((cellHtml) =>
+      markupInline(
+        cellHtml
+          .replace(/^<(?:td|th)\b[^>]*>/i, "")
+          .replace(/<\/(?:td|th)>\s*$/i, "")
+      )
+        .replace(/[ \t]+/g, " ")
+        .trim()
+    );
+    lines.push(cells.join(" | "));
+  }
+  return lines;
+}
+
+// Converts a run of inline HTML (no block-level tags expected -- this
+// operates on already-isolated fragments like a single table cell, or the
+// body text between block boundaries) into the small custom markup grammar
+// htmlToDescriptionMarkup() emits: <strong>/<b> -> **text**, <em>/<i> ->
+// __text__, and any element carrying a validated inline `color` style ->
+// [[color:VALUE]]text[[/color]]. Deliberately single-level: it matches each
+// of these element types by tag pair and recurses into its own inner HTML
+// once (so bold-and-colored combinations survive, e.g. a <strong> wrapping a
+// colored <span> or vice versa), but doesn't attempt to handle arbitrary
+// deeper nesting -- real Shopify rich-text descriptions don't produce that,
+// and the point of this grammar is to stay trivial to parse back out again
+// in Part 2, not to be a general HTML-to-markup converter. Anything left
+// after those substitutions (any other tag) is stripped outright, same as
+// htmlToParagraphs() does today.
+// Block-level tags htmlToParagraphs() itself treats as paragraph/line
+// boundaries (see its own block-tag regex) -- when a color style lands on
+// one of these (a real, common Shopify export shape: a rich-text editor
+// applying a color to a whole selected paragraph produces
+// <p style="color:red">...</p>, not a <span> wrapped inside a plain <p>),
+// the color pass below must NOT consume the tag's own open/close markers,
+// only wrap its inner content -- otherwise the </p> that htmlToParagraphs()
+// needs to detect the paragraph boundary is gone from the string entirely,
+// and that paragraph silently merges into whatever follows with no break at
+// all. Confirmed as a real bug via a direct test before this fix: a
+// <p style="color:red"> paragraph run together with the very next <p>,
+// producing "...R700!![[/color]]__discount..." with no separator between
+// two visually distinct paragraphs.
+const BLOCK_LEVEL_TAGS = new Set(["p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6"]);
+
+function markupInline(html: string): string {
+  let out = html;
+  // <span ... style="...color:...">text</span> (and any other element type
+  // carrying a style attribute, e.g. a Shopify export's <p style="color:red">)
+  // -- matched generically by tag name so both cases work the same way.
+  out = out.replace(/<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>([\s\S]*?)<\/\1>/g, (full, tag, attrs, inner) => {
+    const styleMatch = attrs.match(/style\s*=\s*"([^"]*)"|style\s*=\s*'([^']*)'/i);
+    if (!styleMatch) return full; // no style attribute -- leave for the tag-specific passes below
+    const color = extractSafeColor(styleMatch[1] ?? styleMatch[2] ?? "");
+    if (!color) return inner; // style present but no safe color -- drop the wrapper, keep the text
+    const marked = `[[color:${color}]]${inner}[[/color]]`;
+    // Inline tag (span, a, etc.) -- safe to discard entirely, it never
+    // carries paragraph-boundary significance for htmlToParagraphs().
+    // Block tag -- keep the real open/close tags around the marked-up
+    // inner content so the </p>/</div>/etc. survives for htmlToParagraphs()
+    // to convert into a line break exactly as it would have unstyled.
+    return BLOCK_LEVEL_TAGS.has(tag.toLowerCase()) ? `<${tag}${attrs}>${marked}</${tag}>` : marked;
+  });
+  // <strong>/<b> -> **text**, <em>/<i> -> __text__. Applied after the color
+  // pass above so e.g. <strong><span style="color:red">SALE</span></strong>
+  // has already had its inner <span> replaced with [[color:...]] markers by
+  // the time this wraps it in **...**.
+  out = out.replace(/<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, (_full, inner) => `**${inner}**`);
+  out = out.replace(/<(?:em|i)\b[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, (_full, inner) => `__${inner}__`);
+  return out;
+}
+
+// Same purpose as htmlToDescriptionText() above -- convert a Shopify product
+// description into readable plain text with table support -- but preserves
+// bold/italic/color formatting as the plain-text marker grammar documented
+// on DescriptionText in FourRegnStore.tsx, instead of stripping all inline
+// formatting the way htmlToDescriptionText() does. htmlToDescriptionText()
+// itself is left completely untouched (still used as-is wherever exact
+// current behavior -- fully flat plain text -- is relied on); this is a new,
+// additional function for call sites that want formatting preserved.
+//
+// Shares the same table-to-pipe-lines / htmlToParagraphs() core as
+// htmlToDescriptionText(): tables become pipe-separated-row blocks spliced
+// back into the HTML and the whole result still goes through the existing,
+// unmodified htmlToParagraphs() for paragraph/line structure and entity
+// decoding. The only difference is what happens to inline formatting tags
+// before that: markupInline() converts them to markers instead of
+// tableToRowLines()/htmlToParagraphs()'s flat stripping.
+export function htmlToDescriptionMarkup(html: string): string {
+  const withInlineMarked = markupInline(html);
+  const withTablesConverted = withInlineMarked.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, (tableHtml) => {
+    // markupInline() already ran over the whole document above, so any
+    // <strong>/<em>/color spans inside this table's cells have already been
+    // turned into **/__/[[color:...]] markers by the time tableHtml gets
+    // here -- tableToRowLinesMarkup()'s own per-cell markupInline() call is
+    // therefore a no-op on this path (no raw tags left to match), kept only
+    // because that function is also usable standalone on not-yet-marked-up
+    // table HTML. Passing the marked-up HTML through tableToRowLinesMarkup
+    // (rather than the original tableToRowLines()) keeps its per-cell
+    // whitespace collapsing but leaves the markers already inserted intact.
+    const lines = tableToRowLinesMarkup(tableHtml);
+    if (!lines.length) return "";
+    return `\n\n${lines.join("\n")}\n\n`;
+  });
+  return htmlToParagraphs(withTablesConverted);
+}
+
 export function parseYesNo(value: string): boolean {
   return /^(yes|true|1)$/i.test(value.trim());
 }

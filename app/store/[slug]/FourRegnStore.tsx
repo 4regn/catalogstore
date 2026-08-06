@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition, type TouchEvent as ReactTouchEvent } from "react";
+import { useState, useEffect, useRef, useTransition, Fragment, type TouchEvent as ReactTouchEvent } from "react";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -1292,7 +1292,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-prow{display:flex;align-items:baseline;gap:14px;margin-bottom:22px}
 .fr-pdp-price{font-size:20px;font-weight:700;color:var(--ink)}
 .fr-pdp-was{font-size:14px;color:rgba(46,42,57,0.5);text-decoration:line-through}
-.fr-pdp-desc{font-size:14px;line-height:1.7;color:rgba(46,42,57,0.75);margin:0 0 28px;white-space:pre-line;font-style:italic}
+.fr-pdp-desc{font-size:14px;line-height:1.7;color:rgba(46,42,57,0.75);margin:0 0 28px;font-style:italic}
 .fr-pdp-section{border-top:1px solid rgba(0,0,0,0.07);padding:16px 0}
 .fr-pdp-section-lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:12px}
 .fr-size-row{display:flex;gap:8px;flex-wrap:wrap}
@@ -1573,7 +1573,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
-                    {p.description && <p className="fr-pdp-desc">{p.description}</p>}
+                    {p.description && <DescriptionText text={p.description} />}
                     {(p.variants || []).filter(v => v.options?.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -1877,7 +1877,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
-                    {p.description && <p className="fr-pdp-desc">{p.description}</p>}
+                    {p.description && <DescriptionText text={p.description} />}
                     {(p.variants || []).filter(v => v.options?.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -2355,6 +2355,68 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         </div>
       )}
     </>
+  );
+}
+
+// Renders a product description stored in the small custom markup
+// htmlToDescriptionMarkup() (scripts/lib/migrate-shared.ts) produces:
+// **bold**, __italic__, and [[color:VALUE]]...[[/color]] -- deliberately
+// NOT real HTML, so this never touches dangerouslySetInnerHTML at all; even
+// a bug in the tokenizer below can only ever produce a plain React element
+// tree, never executable markup. A description with none of these markers
+// (every description imported before this feature existed) just renders as
+// plain paragraphs, which INLINE_MARKUP_RE naturally does nothing for --
+// no separate "legacy" code path needed.
+//
+// Paragraphs come from blank lines (matching htmlToParagraphs()'s own
+// paragraph-break convention); single newlines within a paragraph (used for
+// pipe-separated table rows) become explicit <br/>s instead of relying on
+// CSS white-space, so this can render as real elements instead of raw text.
+const INLINE_MARKUP_RE = /\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|\[\[color:([^\]]+)\]\]([\s\S]+?)\[\[\/color\]\]/g;
+
+function parseInlineMarkup(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let i = 0;
+  INLINE_MARKUP_RE.lastIndex = 0;
+  while ((match = INLINE_MARKUP_RE.exec(text))) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    const key = `${keyPrefix}-${i++}`;
+    if (match[1] !== undefined) {
+      nodes.push(<strong key={key}>{parseInlineMarkup(match[1], key)}</strong>);
+    } else if (match[2] !== undefined) {
+      nodes.push(<em key={key}>{parseInlineMarkup(match[2], key)}</em>);
+    } else if (match[3] !== undefined && match[4] !== undefined) {
+      nodes.push(<span key={key} style={{ color: match[3] }}>{parseInlineMarkup(match[4], key)}</span>);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
+function DescriptionText({ text }: { text: string }) {
+  const paragraphs = text.split(/\n\n+/);
+  return (
+    <p className="fr-pdp-desc">
+      {paragraphs.map((para, pi) => (
+        <Fragment key={pi}>
+          {pi > 0 && (
+            <>
+              <br />
+              <br />
+            </>
+          )}
+          {para.split("\n").map((line, li) => (
+            <Fragment key={li}>
+              {li > 0 && <br />}
+              {parseInlineMarkup(line, `${pi}-${li}`)}
+            </Fragment>
+          ))}
+        </Fragment>
+      ))}
+    </p>
   );
 }
 

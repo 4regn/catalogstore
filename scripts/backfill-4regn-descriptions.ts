@@ -10,9 +10,13 @@
 //
 // Re-reads the ORIGINAL Shopify product CSV export (same file
 // migrate-4regn.ts itself reads) and re-derives each product's description
-// via htmlToDescriptionText() (see lib/migrate-shared.ts), which preserves
+// via htmlToDescriptionMarkup() (see lib/migrate-shared.ts), which preserves
 // table structure as readable "cell | cell | cell" lines instead of
-// flattening it.
+// flattening it, and also preserves bold/italic/color formatting as a small
+// marker grammar (see DescriptionText in FourRegnStore.tsx) instead of
+// stripping it -- real Shopify descriptions use bold/colored text for sale
+// callouts, and losing that made every product look flat/bland by
+// comparison to the live site.
 //
 // Join key: products.handle, populated by the earlier
 // backfill-4regn-handles.ts run -- no need to go through product_redirects
@@ -21,7 +25,7 @@
 // Usage:
 //   npx tsx scripts/backfill-4regn-descriptions.ts --csv=products.csv --seller=owner@4regn.com [--dry-run] [--concurrency=4]
 
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionText, fetchAllRows, withTimeout } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionMarkup, fetchAllRows, withTimeout } from "./lib/migrate-shared";
 
 type ProductRow = { id: string; name: string; handle: string | null; description: string | null };
 
@@ -83,7 +87,7 @@ async function main() {
       noCsvMatch++;
       continue;
     }
-    const newDescription = htmlToDescriptionText(bodyHtml);
+    const newDescription = htmlToDescriptionMarkup(bodyHtml);
     matched.push({ product: p, newDescription });
   }
 
