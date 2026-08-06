@@ -1193,7 +1193,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
 .fr-mm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:998;opacity:0;pointer-events:none;transition:opacity 0.3s}
 .fr-mm-overlay.open{opacity:1;pointer-events:all}
-.fr-mm{position:fixed;top:0;left:0;bottom:0;width:320px;max-width:90vw;background:#000;color:#fdfbf7;z-index:999;transform:translateX(-100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column;padding:26px}
+.fr-mm{position:fixed;top:0;left:0;bottom:0;width:320px;max-width:90vw;background:#000;color:#fdfbf7;z-index:999;transform:translateX(-100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column;padding:26px;overflow-y:auto;overscroll-behavior:contain}
 .fr-mm.open{transform:translateX(0)}
 .fr-mm-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:36px}
 .fr-mm-logo{font-family:var(--serif);font-weight:700;font-size:22px}
@@ -1242,9 +1242,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:32px;gap:10px;border-right:1px solid rgba(0,0,0,0.06)}
 .fr-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;border-radius:var(--card-radius)}
 .fr-pdp-main img{width:100%;height:100%;object-fit:contain;display:block}
-.fr-pdp-thumbs{display:flex;gap:8px;flex-wrap:wrap}
-.fr-pdp-thumb{width:62px;height:62px;border:1px solid transparent;border-radius:8px;cursor:pointer;background:none;background-size:cover;background-position:center;padding:0}
-.fr-pdp-thumb.active{border-color:#000}
+.fr-pdp-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.7);color:#1a1a1a;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:2px;box-shadow:0 1px 6px rgba(0,0,0,0.12);transition:all 0.2s;z-index:1}
+.fr-pdp-nav:hover{background:rgba(255,255,255,0.95);transform:translateY(-50%) scale(1.08)}
+.fr-pdp-nav-prev{left:14px}
+.fr-pdp-nav-next{right:14px}
+.fr-pdp-imgcount{position:absolute;bottom:14px;right:14px;padding:5px 11px;border-radius:100px;background:rgba(0,0,0,0.55);color:#fff;font-size:11px;letter-spacing:0.5px;font-family:var(--body);line-height:1;z-index:1}
 .fr-pdp-info{padding:44px 52px;display:flex;flex-direction:column}
 .fr-pdp-cat{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:12px}
 .fr-pdp-name{font-family:var(--serif);font-weight:700;font-size:32px;line-height:1.15;margin-bottom:14px;color:var(--ink)}
@@ -1302,11 +1304,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px}
 .fr-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pan-y pinch-zoom}
 .fr-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-user-select:none;user-select:none;pointer-events:none}
-.fr-lb-close{position:fixed;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.fr-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,0.08);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:4px}
+.fr-lb-close{position:fixed;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.fr-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,0.08);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:4px;z-index:2}
 .fr-lb-prev{left:18px}
 .fr-lb-next{right:18px}
-.fr-lb-dots{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:100px;background:rgba(255,255,255,0.08)}
+.fr-lb-dots{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:100px;background:rgba(255,255,255,0.08);z-index:2}
 .fr-lb-dot{width:6px;height:6px;border-radius:50%;border:none;padding:0;background:rgba(255,255,255,0.35);cursor:pointer}
 .fr-lb-dot.active{background:#fff;transform:scale(1.3)}
 
@@ -1489,8 +1491,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <aside className={"fr-pdp" + (selectedProduct ? " open" : "")}>
           {selectedProduct && (() => {
             const p = selectedProduct;
-            const allImgs = [p.image_url, ...(p.images || [])].filter(Boolean) as string[];
-            const mainImg = allImgs[activeImg] || p.image_url;
+            const allImgs = (p.images && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
             const onSale = p.old_price && p.old_price > p.price;
             return (
               <>
@@ -1500,35 +1501,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 </div>
                 <div className="fr-pdp-grid">
                   <div className="fr-pdp-gal">
-                    <div
-                      className="fr-pdp-main"
-                      role={allImgs.length > 0 ? "button" : undefined}
-                      tabIndex={allImgs.length > 0 ? 0 : undefined}
-                      onClick={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
-                      onKeyDown={(e) => { if (allImgs.length > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLightbox({ imgs: allImgs, index: activeImg }); } }}
-                      aria-label={allImgs.length > 0 ? "View images" : undefined}
-                    >
-                      {mainImg ? (
-                        <>
-                          <img src={mainImg} alt={p.name} onError={handleImgError} />
-                          <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
-                        </>
-                      ) : (
-                        <span className="fr-p-mark">{initials(p.name)}</span>
-                      )}
-                    </div>
-                    {allImgs.length > 1 && (
-                      <div className="fr-pdp-thumbs">
-                        {allImgs.map((img, i) => (
-                          <button
-                            key={i}
-                            className={"fr-pdp-thumb" + (activeImg === i ? " active" : "")}
-                            style={{ backgroundImage: `url("${img}")` }}
-                            onClick={() => setActiveImg(i)}
-                          />
-                        ))}
-                      </div>
-                    )}
+                    <ProductGallery
+                      imgs={allImgs}
+                      activeIndex={activeImg}
+                      onIndexChange={setActiveImg}
+                      onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
+                      onImgError={handleImgError}
+                      alt={p.name}
+                    />
                   </div>
                   <div className="fr-pdp-info">
                     <div className="fr-pdp-cat">{p.category}</div>
@@ -1796,8 +1776,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             Also Like" row the slide-over doesn't have. */}
         {isProductView && initialActiveProduct && (() => {
           const p = initialActiveProduct;
-          const allImgs = [p.image_url, ...(p.images || [])].filter(Boolean) as string[];
-          const mainImg = allImgs[activeImg] || p.image_url;
+          const allImgs = (p.images && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
           const onSale = p.old_price && p.old_price > p.price;
           const catTokens = (p.category || "").split(",").map((c) => c.trim()).filter(Boolean);
           const firstRealCategory = catTokens[0] || null;
@@ -1827,35 +1806,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 </div>
                 <div className="fr-pdp-grid">
                   <div className="fr-pdp-gal">
-                    <div
-                      className="fr-pdp-main"
-                      role={allImgs.length > 0 ? "button" : undefined}
-                      tabIndex={allImgs.length > 0 ? 0 : undefined}
-                      onClick={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
-                      onKeyDown={(e) => { if (allImgs.length > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLightbox({ imgs: allImgs, index: activeImg }); } }}
-                      aria-label={allImgs.length > 0 ? "View images" : undefined}
-                    >
-                      {mainImg ? (
-                        <>
-                          <img src={mainImg} alt={p.name} onError={handleImgError} />
-                          <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
-                        </>
-                      ) : (
-                        <span className="fr-p-mark">{initials(p.name)}</span>
-                      )}
-                    </div>
-                    {allImgs.length > 1 && (
-                      <div className="fr-pdp-thumbs">
-                        {allImgs.map((img, i) => (
-                          <button
-                            key={i}
-                            className={"fr-pdp-thumb" + (activeImg === i ? " active" : "")}
-                            style={{ backgroundImage: `url("${img}")` }}
-                            onClick={() => setActiveImg(i)}
-                          />
-                        ))}
-                      </div>
-                    )}
+                    <ProductGallery
+                      imgs={allImgs}
+                      activeIndex={activeImg}
+                      onIndexChange={setActiveImg}
+                      onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
+                      onImgError={handleImgError}
+                      alt={p.name}
+                    />
                   </div>
                   <div className="fr-pdp-info">
                     <div className="fr-pdp-cat">{p.category}</div>
@@ -2393,6 +2351,68 @@ function LightboxGallery({ imgs, index, onClose, onIndex }: {
               <button key={i} type="button" className={"fr-lb-dot" + (i === index ? " active" : "")} onClick={() => onIndex(i)} aria-label={`Image ${i + 1}`} />
             ))}
           </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// PDP main image area, shared by the slide-over PDP and the dedicated
+// full-page PDP -- replaces the old thumbnail-wall gallery (which pushed
+// price/description far below the fold for products with 20-25+ images)
+// with a single swipeable image, small prev/next overlay arrows, and a
+// "n / total" counter badge. Swipe handling mirrors LightboxGallery's
+// touch-swipe pattern above (same ~40px threshold), just against local
+// touch state since this component doesn't own the active index itself.
+function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onImgError, alt }: {
+  imgs: string[];
+  activeIndex: number;
+  onIndexChange: (i: number) => void;
+  onOpenLightbox: () => void;
+  onImgError: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+  alt: string;
+}) {
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const mainImg = imgs[activeIndex];
+
+  const onTouchStart = (e: ReactTouchEvent) => setTouchStartX(e.touches[0].clientX);
+  const onTouchEnd = (e: ReactTouchEvent) => {
+    if (touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    setTouchStartX(null);
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0 && activeIndex < imgs.length - 1) onIndexChange(activeIndex + 1);
+    else if (dx > 0 && activeIndex > 0) onIndexChange(activeIndex - 1);
+  };
+
+  return (
+    <div
+      className="fr-pdp-main"
+      role={imgs.length > 0 ? "button" : undefined}
+      tabIndex={imgs.length > 0 ? 0 : undefined}
+      onClick={() => { if (imgs.length > 0) onOpenLightbox(); }}
+      onKeyDown={(e) => { if (imgs.length > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpenLightbox(); } }}
+      aria-label={imgs.length > 0 ? "View images" : undefined}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      {mainImg ? (
+        <>
+          <img src={mainImg} alt={alt} onError={onImgError} />
+          <span className="fr-p-mark" style={{ display: "none" }}>{initials(alt)}</span>
+        </>
+      ) : (
+        <span className="fr-p-mark">{initials(alt)}</span>
+      )}
+      {imgs.length > 1 && (
+        <>
+          {activeIndex > 0 && (
+            <button className="fr-pdp-nav fr-pdp-nav-prev" type="button" onClick={(e) => { e.stopPropagation(); onIndexChange(activeIndex - 1); }} aria-label="Previous image">‹</button>
+          )}
+          {activeIndex < imgs.length - 1 && (
+            <button className="fr-pdp-nav fr-pdp-nav-next" type="button" onClick={(e) => { e.stopPropagation(); onIndexChange(activeIndex + 1); }} aria-label="Next image">›</button>
+          )}
+          <span className="fr-pdp-imgcount">{activeIndex + 1} / {imgs.length}</span>
         </>
       )}
     </div>
