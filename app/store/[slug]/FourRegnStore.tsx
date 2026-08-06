@@ -1365,11 +1365,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-lb{position:fixed;inset:0;height:100dvh;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px}
 .fr-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pinch-zoom}
 .fr-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-user-select:none;user-select:none;pointer-events:none}
-.fr-lb-close{position:fixed;top:max(18px, env(safe-area-inset-top, 18px));right:max(18px, env(safe-area-inset-right, 18px));width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
-.fr-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,0.08);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:4px;z-index:2}
+.fr-lb-close{position:fixed;top:max(18px, env(safe-area-inset-top, 18px));right:max(18px, env(safe-area-inset-right, 18px));width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.18);backdrop-filter:blur(12px) saturate(180%);-webkit-backdrop-filter:blur(12px) saturate(180%);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.fr-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.18);backdrop-filter:blur(12px) saturate(180%);-webkit-backdrop-filter:blur(12px) saturate(180%);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:4px;z-index:2}
 .fr-lb-prev{left:max(18px, env(safe-area-inset-left, 18px))}
 .fr-lb-next{right:max(18px, env(safe-area-inset-right, 18px))}
-.fr-lb-dots{position:fixed;bottom:max(24px, env(safe-area-inset-bottom, 24px));left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:100px;background:rgba(255,255,255,0.08);z-index:2}
+.fr-lb-dots{position:fixed;bottom:max(24px, env(safe-area-inset-bottom, 24px));left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:100px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.18);backdrop-filter:blur(12px) saturate(180%);-webkit-backdrop-filter:blur(12px) saturate(180%);z-index:2}
 .fr-lb-dot{width:6px;height:6px;border-radius:50%;border:none;padding:0;background:rgba(255,255,255,0.35);cursor:pointer}
 .fr-lb-dot.active{background:#fff;transform:scale(1.3)}
 
