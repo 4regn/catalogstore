@@ -129,7 +129,7 @@ export async function resolveSeller(admin: SupabaseClient, sellerArg: string) {
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerArg);
   const { data: seller, error } = await admin
     .from("sellers")
-    .select("id, email, subdomain, subscription_status")
+    .select("id, email, subdomain, subscription_status, collections")
     .eq(isUuid ? "id" : "email", sellerArg)
     .maybeSingle();
   if (error || !seller) {
@@ -146,7 +146,11 @@ export function readCsv(csvArg: string): { lines: string[]; header: string[] } {
     console.error(`CSV file not found: ${csvPath}`);
     process.exit(1);
   }
-  const text = readFileSync(csvPath, "utf8");
+  // Node's utf8 decoding doesn't strip a leading byte-order-mark -- left
+  // in place, it silently corrupts the first header cell (e.g. "ID"
+  // becomes "﻿ID"), breaking every col()/makeCol() lookup against it.
+  // Confirmed present on a real Matrixify export.
+  const text = readFileSync(csvPath, "utf8").replace(/^﻿/, "");
   const lines = splitCsvRows(text);
   if (lines.length < 2) {
     console.error("CSV must have a header row and at least one data row.");
