@@ -199,6 +199,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   /* ─── UI ─── */
   const [activeCategory, setActiveCategory] = useState("All");
   const [productSort, setProductSort] = useState("default");
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
   const [lightbox, setLightbox] = useState<{ imgs: string[]; index: number } | null>(null);
@@ -293,21 +295,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     return () => window.removeEventListener("message", handler);
   }, [isEditMode]);
 
-  /* ─── BODY SCROLL LOCK + LIGHTBOX KEYS ─── */
+  /* ─── BODY SCROLL LOCK + LIGHTBOX/SEARCH KEYS ─── */
   useEffect(() => {
-    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen || !!lightbox) ? "hidden" : "";
-    if (!lightbox) return;
+    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen || !!lightbox || showSearch) ? "hidden" : "";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightbox(null);
-      else if (e.key === "ArrowLeft" && lightbox.imgs.length > 1) {
+      if (e.key === "Escape") {
+        if (lightbox) setLightbox(null);
+        else if (showSearch) { setShowSearch(false); setSearchQuery(""); }
+      } else if (lightbox && e.key === "ArrowLeft" && lightbox.imgs.length > 1) {
         setLightbox((s) => s ? { ...s, index: (s.index - 1 + s.imgs.length) % s.imgs.length } : s);
-      } else if (e.key === "ArrowRight" && lightbox.imgs.length > 1) {
+      } else if (lightbox && e.key === "ArrowRight" && lightbox.imgs.length > 1) {
         setLightbox((s) => s ? { ...s, index: (s.index + 1) % s.imgs.length } : s);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [cartOpen, selectedProduct, mobileNavOpen, lightbox]);
+  }, [cartOpen, selectedProduct, mobileNavOpen, lightbox, showSearch]);
 
   /* ─── CART OPS ─── */
   const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
@@ -414,6 +417,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // fixed menu structure baked in here.
   const menuCategories = ["All", ...sellerCollections];
   const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
+  // Real product search -- same `products` source the category-filter grid
+  // above already uses, matched against a free-text query by name and
+  // category instead of a fixed active category. Null (not just an empty
+  // array) when the box is empty so the overlay can tell "no query yet"
+  // apart from "query matched nothing".
+  const searchQueryTrimmed = searchQuery.trim().toLowerCase();
+  const searched = searchQueryTrimmed
+    ? products.filter((p) =>
+        p.name.toLowerCase().includes(searchQueryTrimmed) ||
+        (p.category || "").toLowerCase().includes(searchQueryTrimmed)
+      )
+    : null;
   const sortProducts = (list: Product[]) => {
     const out = [...list];
     if (productSort === "az") out.sort((a, b) => a.name.localeCompare(b.name));
@@ -651,6 +666,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-nav-link{font-family:var(--body);font-size:12px;font-weight:400;letter-spacing:1px;text-transform:uppercase;text-decoration:none;color:rgba(253,251,247,0.75);transition:color 0.2s;background:none;border:none;cursor:pointer;white-space:nowrap}
 .fr-nav-link:hover{color:var(--head-text)}
 .fr-nav-right{display:flex;justify-content:flex-end;align-items:center;gap:18px}
+.fr-search-btn{background:none;border:none;cursor:pointer;color:var(--head-text);padding:4px;display:flex;align-items:center}
 .fr-cart-btn{position:relative;background:none;border:none;cursor:pointer;color:var(--head-text);padding:4px;display:flex;align-items:center}
 .fr-cart-count{position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:999px;background:var(--brown);color:var(--cream);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--body)}
 
@@ -781,6 +797,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-modal-close{position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;color:var(--ink);cursor:pointer;padding:4px 8px;line-height:1}
 .fr-modal h3{font-family:var(--serif);font-weight:700;font-size:22px;color:var(--ink);margin:0 0 16px}
 .fr-modal p{font-size:14px;color:rgba(46,42,57,0.75);line-height:1.7;margin:0;white-space:pre-wrap}
+
+.fr-search-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:flex-start;justify-content:center;padding:90px 24px 24px}
+.fr-search-panel{background:#fff;border-radius:var(--card-radius);max-width:640px;width:100%;max-height:74vh;overflow:hidden;box-shadow:var(--card-shadow);display:flex;flex-direction:column}
+.fr-search-bar{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid rgba(0,0,0,0.08);flex-shrink:0}
+.fr-search-bar svg{flex-shrink:0;color:rgba(46,42,57,0.4)}
+.fr-search-input{flex:1;min-width:0;border:none;outline:none;background:none;font-family:var(--serif);font-size:19px;color:var(--ink)}
+.fr-search-close{background:none;border:none;font-size:20px;color:rgba(46,42,57,0.5);cursor:pointer;padding:4px 6px;flex-shrink:0}
+.fr-search-results{overflow-y:auto;padding:8px 12px}
+.fr-search-empty,.fr-search-hint{padding:36px 12px;text-align:center;color:rgba(46,42,57,0.5);font-size:13px}
+.fr-search-item{display:flex;align-items:center;gap:14px;padding:12px;border-radius:10px;cursor:pointer;text-align:left;background:none;border:none;width:100%}
+.fr-search-item:hover{background:rgba(0,0,0,0.04)}
+.fr-search-item-img{width:52px;height:64px;border-radius:6px;object-fit:cover;flex-shrink:0;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
+.fr-search-item-info{flex:1;min-width:0}
+.fr-search-item-name{font-family:var(--serif);font-weight:700;font-size:14px;color:var(--ink);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-search-item-cat{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.5)}
+.fr-search-item-price{font-size:13px;font-weight:700;color:var(--ink);flex-shrink:0}
 .fr-contact-list{list-style:none;margin:0;padding:0}
 .fr-contact-list li{padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;align-items:center;gap:12px}
 .fr-contact-list li:last-child{border-bottom:none}
@@ -925,6 +957,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-cart{width:100vw}
   .fr-root{padding-bottom:78px}
   .fr-dock{display:flex;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:150;background:rgba(0,0,0,0.92);backdrop-filter:blur(10px);border-radius:999px;padding:6px 4px;gap:2px;box-shadow:0 10px 30px rgba(0,0,0,0.35);align-items:center}
+  .fr-search-overlay{padding:24px 14px}
+  .fr-search-panel{max-height:88vh}
+  .fr-search-bar{padding:16px 18px}
+  .fr-search-input{font-size:17px}
 }
       `}</style>
 
@@ -1133,6 +1169,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             })}
           </div>
           <div className="fr-nav-right">
+            <button className="fr-search-btn" onClick={() => setShowSearch(true)} aria-label="Search products" title="Search products">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            </button>
             <button className="fr-cart-btn" onClick={() => setCartOpen(true)} aria-label="Cart">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
               {cartCount > 0 && <span className="fr-cart-count">{cartCount}</span>}
@@ -1451,23 +1490,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {/* MOBILE BOTTOM DOCK — Home / Search / Cart / Account only (no
             Wishlist icon: that's a separate, not-yet-built feature). Search
-            scrolls to the product grid since this template doesn't have a
-            dedicated search overlay; Account opens the same Contact panel
-            everything else in this template already uses in place of a
-            not-yet-built account/login system. */}
+            opens the same real product-search overlay as the header search
+            icon; Account opens the same Contact panel everything else in
+            this template already uses in place of a not-yet-built
+            account/login system. */}
         <nav className="fr-dock" aria-label="Mobile navigation">
           <button type="button" className={"fr-dock-item" + (!isCollectionView ? " active" : "")} onClick={() => navigate(sp())}>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
             Home
           </button>
-          <button
-            type="button"
-            className="fr-dock-item"
-            onClick={() => {
-              if (isCollectionView) { navigate(sp()); return; }
-              document.getElementById("fr-products")?.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
+          <button type="button" className="fr-dock-item" onClick={() => setShowSearch(true)} aria-label="Search products">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
             Search
           </button>
@@ -1544,6 +1576,59 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 </li>
               )}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Search overlay -- real product search, opened from the header
+          search icon and the mobile dock's Search item. Reuses the same
+          `products` list + name/category matching the activeCategory grid
+          filter above already relies on (see `searched`), just driven by
+          free text instead of a fixed category, so results update live as
+          the seller's customer types. */}
+      {showSearch && (
+        <div className="fr-search-overlay" onClick={() => { setShowSearch(false); setSearchQuery(""); }}>
+          <div className="fr-search-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="fr-search-bar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input
+                type="text"
+                autoFocus
+                className="fr-search-input"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search products"
+              />
+              <button type="button" className="fr-search-close" onClick={() => { setShowSearch(false); setSearchQuery(""); }} aria-label="Close search">✕</button>
+            </div>
+            <div className="fr-search-results">
+              {searched === null ? (
+                <div className="fr-search-hint">Start typing to search {seller.store_name}'s products.</div>
+              ) : searched.length === 0 ? (
+                <div className="fr-search-empty">No products match "{searchQuery.trim()}".</div>
+              ) : (
+                searched.slice(0, 12).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="fr-search-item"
+                    onClick={() => { setShowSearch(false); setSearchQuery(""); goToProduct(p); }}
+                  >
+                    {p.image_url ? (
+                      <img src={p.image_url} alt="" loading="lazy" decoding="async" className="fr-search-item-img" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                    ) : (
+                      <div className="fr-search-item-img" />
+                    )}
+                    <div className="fr-search-item-info">
+                      <div className="fr-search-item-name">{p.name}</div>
+                      {p.category && <div className="fr-search-item-cat">{p.category}</div>}
+                    </div>
+                    <div className="fr-search-item-price">{fmt(p.price)}</div>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
