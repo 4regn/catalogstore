@@ -1,8 +1,9 @@
 // Imports a Shopify store's real legal policy content (Shipping, Refund,
 // Privacy, Terms of Service) straight from Shopify's own Admin GraphQL API
-// -- the same `shop { ... }` object Shopify's own storefront reads these
-// from -- and writes them into this platform's sellers.store_config JSONB
-// column (shipping_policy / return_policy / privacy_policy /
+// -- via shop.shopPolicies, matched by `type` substring (Shopify removed
+// the older individual shop.shippingPolicy/refundPolicy/etc. fields before
+// API 2024-10) -- and writes them into this platform's sellers.store_config
+// JSONB column (shipping_policy / return_policy / privacy_policy /
 // terms_of_service keys; see app/dashboard/editor/page.tsx, which reads and
 // writes those same four keys off store_config, not real columns on
 // `sellers`).
@@ -41,20 +42,24 @@ function parseArgs() {
 
 interface ShopPolicies {
   shop: {
-    shippingPolicy: { body: string } | null;
-    refundPolicy: { body: string } | null;
-    privacyPolicy: { body: string } | null;
-    termsOfService: { body: string } | null;
+    shopPolicies: { type: string; body: string }[];
   };
 }
 
-// Maps Shopify's shop-policy field name to this platform's store_config key
-// (see app/dashboard/editor/page.tsx lines around 555-558 / 806-859).
-const POLICY_FIELD_MAP: { shopifyField: keyof ShopPolicies["shop"]; storeConfigKey: string; label: string }[] = [
-  { shopifyField: "shippingPolicy", storeConfigKey: "shipping_policy", label: "Shipping Policy" },
-  { shopifyField: "refundPolicy", storeConfigKey: "return_policy", label: "Refund Policy" },
-  { shopifyField: "privacyPolicy", storeConfigKey: "privacy_policy", label: "Privacy Policy" },
-  { shopifyField: "termsOfService", storeConfigKey: "terms_of_service", label: "Terms of Service" },
+// Shopify removed the individual shop.shippingPolicy/refundPolicy/
+// privacyPolicy/termsOfService fields at some point before API 2024-10 --
+// confirmed live against a real store on that version ("Field
+// 'shippingPolicy' doesn't exist on type 'Shop'") -- in favor of a unified
+// shop.shopPolicies list, each entry carrying a `type` enum and a `body`.
+// Matched by substring (case-insensitive) rather than an exact enum value
+// since Shopify's exact casing isn't confirmed from docs alone; the raw
+// `type` values actually returned are logged below so this can be
+// tightened to an exact match once seen for real.
+const POLICY_FIELD_MAP: { typeMatch: string; storeConfigKey: string; label: string }[] = [
+  { typeMatch: "shipping", storeConfigKey: "shipping_policy", label: "Shipping Policy" },
+  { typeMatch: "refund", storeConfigKey: "return_policy", label: "Refund Policy" },
+  { typeMatch: "privacy", storeConfigKey: "privacy_policy", label: "Privacy Policy" },
+  { typeMatch: "terms", storeConfigKey: "terms_of_service", label: "Terms of Service" },
 ];
 
 async function main() {
@@ -68,21 +73,22 @@ async function main() {
     args.domain, args.token, args.apiVersion,
     `query {
       shop {
-        shippingPolicy { body }
-        refundPolicy { body }
-        privacyPolicy { body }
-        termsOfService { body }
+        shopPolicies { type body }
       }
     }`,
     {}
   );
 
+  const policies = data.shop.shopPolicies || [];
+  console.log(`\nShopify returned ${policies.length} polic(y/ies), type(s): ${policies.map((p) => p.type).join(", ") || "(none)"}`);
+
   const found: { storeConfigKey: string; label: string; text: string }[] = [];
   console.log("\nPolicy summary:");
-  for (const { shopifyField, storeConfigKey, label } of POLICY_FIELD_MAP) {
-    const raw = data.shop[shopifyField]?.body;
+  for (const { typeMatch, storeConfigKey, label } of POLICY_FIELD_MAP) {
+    const match = policies.find((p) => (p.type || "").toLowerCase().includes(typeMatch));
+    const raw = match?.body;
     if (!raw || !raw.trim()) {
-      console.log(`  - ${label}: not found (Shopify returned null/empty body)`);
+      console.log(`  - ${label}: not found (no shopPolicies entry with type matching "${typeMatch}", or empty body)`);
       continue;
     }
     const text = htmlToParagraphs(raw);
@@ -91,7 +97,7 @@ async function main() {
       continue;
     }
     const preview = text.slice(0, 150).replace(/\n/g, " ⏎ ");
-    console.log(`  - ${label}: found, ${text.length} char(s) -- "${preview}${text.length > 150 ? "..." : ""}"`);
+    console.log(`  - ${label}: found (type="${match!.type}"), ${text.length} char(s) -- "${preview}${text.length > 150 ? "..." : ""}"`);
     found.push({ storeConfigKey, label, text });
   }
 
