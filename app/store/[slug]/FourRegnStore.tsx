@@ -648,12 +648,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       : (activeCategory === "All" ? [...products] : products.filter((p) => pInCat(p, activeCategory)));
     return sortProducts(list);
   })();
-  // Homepage product wall, grouped by collection instead of one flat dump
-  // of every product. Each seller collection gets its own titled row (first
-  // 8 pieces + "View all"); anything not tagged into any collection falls
-  // into a final catch-all row so nothing silently disappears. Stores that
-  // haven't set up collections yet keep today's single flat grid.
-  const productGroups = (isHomeView && sellerCollections.length > 0)
+  // Per-collection product-preview rows used to render on the homepage
+  // (one titled row per collection). Removed: the homepage already has a
+  // "Shop by Collection" tile grid, a dedicated /c/<collection> page per
+  // collection, and a "View All Products" link, so repeating every
+  // collection's products again here was redundant. The grouping logic is
+  // kept (and still selectable below) in case a future view wants it, but
+  // it is hardcoded off for the home view -- productGroups is always null
+  // there, so the homepage now always falls through to the flat single-grid
+  // path below (the same one collection pages already use).
+  const productGroups = (false && isHomeView && sellerCollections.length > 0)
     ? (() => {
         // name: null marks the catch-all "everything else" row, whose
         // heading uses the seller's configurable Products heading rather
@@ -957,6 +961,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:rgba(0,0,0,0.08);overflow:hidden;pointer-events:none}
 .fr-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:40%;background:#000;border-radius:0 2px 2px 0;animation:fr-progress 0.8s ease-in-out infinite}
 @keyframes fr-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}
+@keyframes fr-spin{to{transform:rotate(360deg)}}
 
 .fr-nav{position:sticky;top:0;z-index:100;background:var(--head-bg);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:24px;padding:0 40px;height:72px}
 .fr-nav-left{display:flex;align-items:center;gap:20px}
@@ -1239,16 +1244,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-bread{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-pdp-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink)}
 .fr-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1}
-.fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:32px;gap:10px;border-right:1px solid rgba(0,0,0,0.06)}
-.fr-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;border-radius:var(--card-radius)}
+.fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:20px;gap:10px;border-right:1px solid rgba(0,0,0,0.06)}
+.fr-pdp-main{flex:1;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;border-radius:var(--card-radius)}
 .fr-pdp-main img{width:100%;height:100%;object-fit:contain;display:block}
+.fr-pdp-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(245,245,245,0.6);z-index:2;pointer-events:none}
+.fr-pdp-loading-spin{width:26px;height:26px;border:2px solid rgba(0,0,0,0.1);border-top-color:rgba(0,0,0,0.4);border-radius:50%;animation:fr-spin 0.9s linear infinite}
 .fr-pdp-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.7);color:#1a1a1a;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:2px;box-shadow:0 1px 6px rgba(0,0,0,0.12);transition:all 0.2s;z-index:1}
 .fr-pdp-nav:hover{background:rgba(255,255,255,0.95);transform:translateY(-50%) scale(1.08)}
 .fr-pdp-nav-prev{left:14px}
 .fr-pdp-nav-next{right:14px}
 .fr-pdp-imgcount{position:absolute;bottom:14px;right:14px;padding:5px 11px;border-radius:100px;background:rgba(0,0,0,0.55);color:#fff;font-size:11px;letter-spacing:0.5px;font-family:var(--body);line-height:1;z-index:1}
 .fr-pdp-info{padding:44px 52px;display:flex;flex-direction:column}
-.fr-pdp-cat{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:12px}
 .fr-pdp-name{font-family:var(--serif);font-weight:700;font-size:32px;line-height:1.15;margin-bottom:14px;color:var(--ink)}
 .fr-pdp-prow{display:flex;align-items:baseline;gap:14px;margin-bottom:22px}
 .fr-pdp-price{font-size:20px;font-weight:700;color:var(--ink)}
@@ -1399,7 +1405,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 }
       `}</style>
 
-      <div className="fr-root" style={isNavigating ? { opacity: 0.6, pointerEvents: "none", transition: "opacity 0.2s" } : undefined}>
+      <div className="fr-root">
         {isNavigating && <div className="fr-progress" aria-hidden="true" />}
         {displayAnnouncement && (
           <div style={{ background: "#000", color: "#fdfbf7", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center", fontFamily: "'Amiri', serif" }}>
@@ -1511,7 +1517,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     />
                   </div>
                   <div className="fr-pdp-info">
-                    <div className="fr-pdp-cat">{p.category}</div>
                     <h2 className="fr-pdp-name">{p.name}</h2>
                     <div className="fr-pdp-prow">
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
@@ -1816,7 +1821,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     />
                   </div>
                   <div className="fr-pdp-info">
-                    <div className="fr-pdp-cat">{p.category}</div>
                     <h1 className="fr-pdp-name">{p.name}</h1>
                     <div className="fr-pdp-prow">
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
@@ -2373,7 +2377,36 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
   alt: string;
 }) {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   const mainImg = imgs[activeIndex];
+
+  // Reset the loading indicator whenever the active image changes -- the
+  // <img>'s onLoad below flips it back to true once the new image is
+  // actually painted. Also check img.complete right after: a server-rendered
+  // (or already-browser-cached) image can finish loading before React even
+  // attaches the onLoad listener, in which case that event never fires and
+  // the spinner would otherwise get stuck forever -- .complete catches that.
+  useEffect(() => {
+    setImgLoaded(false);
+    if (imgRef.current?.complete) setImgLoaded(true);
+  }, [mainImg]);
+
+  // Prefetch the images on either side of the active one so swiping/tapping
+  // the arrows repeatedly doesn't feel "frozen" on a slow connection --
+  // by the time the user reaches a neighbor, the browser has likely already
+  // cached it. Uses the global window.Image constructor (this file already
+  // imports `Image` from next/image for its <Image> components, so that
+  // name is taken -- window.Image avoids the collision).
+  useEffect(() => {
+    const preload = (url: string | undefined) => {
+      if (!url) return;
+      const img = new window.Image();
+      img.src = url;
+    };
+    preload(imgs[activeIndex - 1]);
+    preload(imgs[activeIndex + 1]);
+  }, [imgs, activeIndex]);
 
   const onTouchStart = (e: ReactTouchEvent) => setTouchStartX(e.touches[0].clientX);
   const onTouchEnd = (e: ReactTouchEvent) => {
@@ -2398,8 +2431,13 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
     >
       {mainImg ? (
         <>
-          <img src={mainImg} alt={alt} onError={onImgError} />
+          <img ref={imgRef} src={mainImg} alt={alt} onError={onImgError} onLoad={() => setImgLoaded(true)} />
           <span className="fr-p-mark" style={{ display: "none" }}>{initials(alt)}</span>
+          {!imgLoaded && (
+            <div className="fr-pdp-loading" aria-hidden="true">
+              <div className="fr-pdp-loading-spin" />
+            </div>
+          )}
         </>
       ) : (
         <span className="fr-p-mark">{initials(alt)}</span>
