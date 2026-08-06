@@ -845,7 +845,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
 .fr-cat-card{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;border:none;padding:0;text-align:center;display:block;width:100%;font-family:var(--body)}
 .fr-cat-img{width:100%;aspect-ratio:4/5;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
-.fr-cat-img img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
+.fr-cat-img img{width:100%;height:100%;object-fit:contain;display:block;transition:transform 0.5s ease}
 .fr-cat-card:hover .fr-cat-img img{transform:scale(1.05)}
 .fr-cat-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:22px;color:rgba(46,42,57,0.35);text-transform:capitalize}
 .fr-cat-foot{padding:16px 14px 20px}
@@ -856,7 +856,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pcard{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;text-align:center;position:relative;transition:transform 0.2s}
 .fr-pcard:hover{transform:translateY(-3px)}
 .fr-pimg{width:100%;aspect-ratio:1;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
-.fr-pimg img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
+.fr-pimg img{width:100%;height:100%;object-fit:contain;display:block;transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:var(--brown)}
@@ -974,7 +974,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink)}
 .fr-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1}
 .fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:32px;gap:10px;border-right:1px solid rgba(0,0,0,0.06)}
-.fr-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-size:cover;background-position:center;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;border-radius:var(--card-radius)}
+.fr-pdp-main{flex:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;border-radius:var(--card-radius)}
+.fr-pdp-main img{width:100%;height:100%;object-fit:contain;display:block}
 .fr-pdp-thumbs{display:flex;gap:8px;flex-wrap:wrap}
 .fr-pdp-thumb{width:62px;height:62px;border:1px solid transparent;border-radius:8px;cursor:pointer;background:none;background-size:cover;background-position:center;padding:0}
 .fr-pdp-thumb.active{border-color:#000}
@@ -1185,14 +1186,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <div className="fr-pdp-gal">
                     <div
                       className="fr-pdp-main"
-                      style={mainImg ? { backgroundImage: `url("${mainImg}")` } : {}}
                       role={allImgs.length > 0 ? "button" : undefined}
                       tabIndex={allImgs.length > 0 ? 0 : undefined}
                       onClick={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
                       onKeyDown={(e) => { if (allImgs.length > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLightbox({ imgs: allImgs, index: activeImg }); } }}
                       aria-label={allImgs.length > 0 ? "View images" : undefined}
                     >
-                      {!mainImg && <span className="fr-p-mark">{initials(p.name)}</span>}
+                      {mainImg ? (
+                        <>
+                          <img src={mainImg} alt={p.name} onError={handleImgError} />
+                          <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
+                        </>
+                      ) : (
+                        <span className="fr-p-mark">{initials(p.name)}</span>
+                      )}
                     </div>
                     {allImgs.length > 1 && (
                       <div className="fr-pdp-thumbs">
@@ -1464,7 +1471,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <h2 className="fr-section-title">Shop by Collection</h2>
               </div>
               <div className="fr-cat-grid">
-                {categoryList.map((cat) => {
+                {categoryList.slice(0, 20).map((cat) => {
                   const img = catImage(cat);
                   return (
                     <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))}>
@@ -1483,6 +1490,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     </button>
                   );
                 })}
+                {categoryList.length > 20 && (
+                  <a
+                    href={sp("/collections")}
+                    className="fr-cat-card"
+                    onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
+                  >
+                    <div className="fr-cat-img" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span className="fr-cat-mark">View All Collections</span>
+                    </div>
+                    <div className="fr-cat-foot">
+                      <div className="fr-cat-name">View More →</div>
+                    </div>
+                  </a>
+                )}
               </div>
             </div>
           </EditSection>
@@ -1497,6 +1518,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <div className="fr-section-head">
               <h2 className="fr-section-title">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "New Arrivals") : effectiveCategory}</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                {!isCollectionView && (
+                  <a
+                    href={sp("/c/all")}
+                    onClick={(e) => { e.preventDefault(); navigate(sp("/c/all")); }}
+                    style={{ fontFamily: "var(--body)", fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}
+                  >
+                    View All Products
+                  </a>
+                )}
                 <select value={productSort} onChange={(e) => setProductSort(e.target.value)} className="fr-sort-select" aria-label="Sort products">
                   <option value="default">Sort: Default</option>
                   <option value="latest">Newest</option>
