@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../lib/store-template-access";
+import { fetchAllRows } from "../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../StoreUnavailable";
 
 export const revalidate = 60;
@@ -15,6 +16,14 @@ const FourRegn = dynamic(() => import("../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+// Same columns app/store/[slug]/c/[collection]/page.tsx fetches for its own
+// product list. The collections-index view only actually reads
+// id/category/image_url (catCount/catImage), but FourRegnStore's `Product`
+// interface requires the rest to type-check as `initialProducts` -- fetching
+// the full column set here keeps this route on the same shape as every
+// other product fetch instead of inventing a narrower one-off type.
+const PRODUCT_COLUMNS =
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status";
 
 export async function generateMetadata({
   params,
@@ -74,11 +83,19 @@ export default async function CollectionsIndexPage({
     redirect(isSubdomain ? "/" : `/store/${slug}`);
   }
 
-  // Collection tiles only -- no product list needed for this page.
+  // Real product rows are needed even though this page renders no product
+  // grid itself -- catCount()/catImage() (used by every collection row)
+  // scan the `products` array, so an empty list here silently zeroed out
+  // every tile's count and image. Paginated via fetchAllRows since a seller
+  // can have well over PostgREST's default 1000-row cap.
+  const initialProducts = await fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q) =>
+    q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published")
+  );
+
   return (
     <FourRegn
       initialSeller={seller}
-      initialProducts={[]}
+      initialProducts={initialProducts}
       initialDiscountCodes={[]}
       mode="collections-index"
       isSubdomain={isSubdomain}

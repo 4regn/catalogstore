@@ -352,6 +352,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   /* ─── UI ─── */
   const [activeCategory, setActiveCategory] = useState("All");
   const [productSort, setProductSort] = useState("default");
+  // Sort control for the dedicated /collections index list -- same
+  // state/select shape as productSort above, just a different option set
+  // (name and product-count based, no date/price since collections have
+  // neither) for the fr-collist-* compact list below.
+  const [collectionSort, setCollectionSort] = useState("az");
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -525,12 +530,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const fallback = e.currentTarget.parentElement?.querySelector<HTMLElement>(".fr-p-mark, .fr-cat-mark");
     if (fallback) fallback.style.display = "flex";
   };
-  useEffect(() => {
-    if (initialProductId && products.length > 0 && !selectedProduct) {
-      const p = products.find((pr) => pr.id === initialProductId);
-      if (p) openProduct(p);
-    }
-  }, [initialProductId, products.length]);
   // Dedicated product-detail page (mode="product") -- resets the same
   // gallery/variant state the slide-over's openProduct() resets, but for
   // initialActiveProduct instead of a card click. Keyed on the product id so
@@ -776,6 +775,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   };
   const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
 
+  // Sort order for the /collections index list (collectionSort state) --
+  // only computed there, but cheap enough (72-ish collections, not
+  // thousands of products) to just derive on every render like `filtered`
+  // above rather than memoize.
+  const sortedSellerCollections = [...sellerCollections].sort((a, b) => {
+    if (collectionSort === "za") return b.localeCompare(a);
+    if (collectionSort === "most") return catCount(b) - catCount(a);
+    if (collectionSort === "fewest") return catCount(a) - catCount(b);
+    return a.localeCompare(b); // "az" (default)
+  });
+
   // Single tile renderer shared by the homepage's capped "Shop by
   // Collection" grid and the uncapped /collections index page, so both stay
   // in sync instead of two copy-pasted blocks.
@@ -826,7 +836,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             {onSale && <span className="was">{fmt(p.old_price!)}</span>}
             {fmt(p.price)}
           </div>
-          <button className="fr-pwa" type="button" onClick={(e) => { e.stopPropagation(); openProduct(p); }}>
+          <button className="fr-pwa" type="button" onClick={(e) => { e.stopPropagation(); goToProduct(p); }}>
             Add to Bag
           </button>
         </div>
@@ -947,6 +957,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-logo{font-family:var(--serif);font-weight:700;font-size:24px;letter-spacing:0.5px;color:var(--head-text);text-decoration:none;line-height:1;white-space:nowrap}
 .fr-logo img{height:34px;width:auto;display:block;object-fit:contain}
 .fr-nav-links{display:flex;gap:28px;align-items:center;justify-content:center;overflow:hidden}
+/* Mobile-only duplicate of .fr-logo, rendered inside .fr-nav-links so it can
+   occupy the nav's centered middle grid column once the real nav links hide
+   there below 900px -- see the two mobile-breakpoint rules that toggle
+   which of the two logo copies (this one vs. the .fr-nav-left one) is
+   visible. Hidden by default so it never doubles up the logo on desktop. */
+.fr-nav-links .fr-logo{display:none}
 .fr-nav-link{font-family:var(--body);font-size:12px;font-weight:400;letter-spacing:1px;text-transform:uppercase;text-decoration:none;color:rgba(253,251,247,0.75);transition:color 0.2s;background:none;border:none;cursor:pointer;white-space:nowrap}
 .fr-nav-link:hover{color:var(--head-text)}
 .fr-nav-right{display:flex;justify-content:flex-end;align-items:center;gap:18px}
@@ -1078,11 +1094,27 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cat-name{font-family:var(--serif);font-weight:700;font-size:15px;color:var(--ink);margin-bottom:4px}
 .fr-cat-count{font-size:11px;color:rgba(46,42,57,0.55)}
 
+/* /collections index -- compact, dense, sortable row list (fr-collist-*).
+   Deliberately not fr-cat-grid/fr-cat-card: a full 4:5-tile grid of a
+   seller's whole (often 70+) collection list is too visually heavy, unlike
+   the homepage's own capped ~20-item teaser that fr-cat-grid stays reserved
+   for. */
+.fr-collist{display:flex;flex-direction:column;background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden}
+.fr-collist-row{display:flex;align-items:center;gap:16px;padding:12px 18px;text-decoration:none;color:inherit;font-family:var(--body);border-bottom:1px solid rgba(0,0,0,0.06);cursor:pointer;background:none;transition:background 0.15s}
+.fr-collist-row:last-child{border-bottom:none}
+.fr-collist-row:hover{background:rgba(0,0,0,0.02)}
+.fr-collist-thumb{position:relative;width:60px;height:60px;flex-shrink:0;border-radius:8px;overflow:hidden;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
+.fr-collist-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.fr-collist-thumb .fr-cat-mark{font-size:11px}
+.fr-collist-name{flex:1;font-family:var(--serif);font-weight:700;font-size:15px;color:var(--ink)}
+.fr-collist-count{font-size:12px;color:rgba(46,42,57,0.55);white-space:nowrap}
+.fr-collist-arrow{font-size:18px;color:rgba(46,42,57,0.35);line-height:1}
+
 .fr-pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .fr-pcard{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;text-align:center;position:relative;transition:transform 0.2s}
 .fr-pcard:hover{transform:translateY(-3px)}
 .fr-pimg{width:100%;aspect-ratio:1;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
-.fr-pimg img{width:100%;height:100%;object-fit:contain;display:block;transition:transform 0.5s ease}
+.fr-pimg img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:var(--brown)}
@@ -1227,6 +1259,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    PDP's own fr-pdp-* classes above verbatim so the two stay visually
    identical. */
 .fr-pdp2-page{max-width:1360px;margin:0 auto;padding:40px 40px 0}
+/* Reuses .fr-coll-back's text treatment (the collection page's own "← Back"
+   link) verbatim for visual consistency; this override just left-aligns it
+   since .fr-coll-back's centering comes from its own parent
+   (.fr-coll-header{text-align:center}), which this page doesn't have. */
+.fr-pdp2-back{display:block;text-align:left}
 .fr-pdp2-bread{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--body);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55);margin-bottom:28px}
 .fr-pdp2-bread a{color:rgba(46,42,57,0.55);text-decoration:none}
 .fr-pdp2-bread a:hover{color:var(--ink);text-decoration:underline}
@@ -1285,7 +1322,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-nav{padding:0 18px;grid-template-columns:auto 1fr auto;height:60px}
   .fr-burger{display:flex}
   .fr-logo{font-size:19px}
-  .fr-nav-links{display:none}
+  /* Split the hamburger and logo apart on mobile: the burger stays alone in
+     .fr-nav-left, and the logo re-appears centered inside .fr-nav-links
+     (whose real nav-link children hide here) instead of being crammed next
+     to the burger in the left corner. */
+  .fr-nav-left .fr-logo{display:none}
+  .fr-nav-links{display:flex}
+  .fr-nav-link{display:none}
+  .fr-nav-links .fr-logo{display:block}
   .fr-hero-inner{padding:0 24px 48px}
   /* The photo was absolutely positioned (out of flow) as a fixed 340px top
      strip while the section's own height was driven only by its in-flow
@@ -1322,6 +1366,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
+  .fr-collist-row{padding:10px 14px;gap:12px}
+  .fr-collist-thumb{width:48px;height:48px}
+  .fr-collist-name{font-size:13px}
+  .fr-collist-count{font-size:11px}
   .fr-newsletter{padding:56px 20px}
   .fr-foot{padding:56px 20px 24px}
   .fr-foot-grid{grid-template-columns:1fr;gap:36px}
@@ -1542,6 +1590,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             </a>
           </div>
           <div className="fr-nav-links">
+            {/* Mobile-only duplicate of the .fr-nav-left logo above -- hidden
+                on desktop (.fr-nav-links .fr-logo{display:none}), shown here
+                only under the 900px breakpoint once the real links below
+                hide, so the logo visually centers instead of sitting
+                crammed next to the hamburger. Same markup/click-to-home
+                behavior as the original. */}
+            <a href={sp()} className="fr-logo">
+              {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
+            </a>
             {menuCategories.slice(0, 6).map((cat) => {
               const target = sp(`/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
               return (
@@ -1743,6 +1800,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           return (
             <>
               <div className="fr-pdp2-page">
+                <button type="button" className="fr-coll-back fr-pdp2-back" onClick={() => router.back()}>
+                  ‹ Back
+                </button>
                 <div className="fr-pdp2-bread">
                   <a href={sp("/")} onClick={(e) => { e.preventDefault(); navigate(sp("/")); }}>Home</a>
                   {firstRealCategory && (<>
@@ -1849,17 +1909,53 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         })()}
 
         {/* ALL COLLECTIONS — dedicated /collections index page
-            (mode="collections-index"). Same tile markup as the homepage's
-            "Shop by Collection" grid (via renderCatTile), just uncapped and
-            over the seller's real collections list only (no auto-derived
-            category fallback, unlike the homepage's categoryList). */}
+            (mode="collections-index"). Deliberately NOT the homepage's big
+            4:5-tile fr-cat-grid (via renderCatTile) -- that's fine for a
+            capped ~20-item teaser row, but far too heavy for the seller's
+            full (sometimes 70+) collection list, which was the actual
+            complaint ("way too many collections which makes the page
+            full"). This is its own compact, dense, sortable row list
+            instead; the homepage's own grid/renderCatTile is untouched. */}
         {isCollectionsIndexView && (
           <div className="fr-section">
             <div className="fr-section-head">
               <h2 className="fr-section-title">All Collections</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                <select value={collectionSort} onChange={(e) => setCollectionSort(e.target.value)} className="fr-sort-select" aria-label="Sort collections">
+                  <option value="az">A — Z</option>
+                  <option value="za">Z — A</option>
+                  <option value="most">Most Products</option>
+                  <option value="fewest">Fewest Products</option>
+                </select>
+                <span className="fr-count">{sortedSellerCollections.length} {sortedSellerCollections.length === 1 ? "collection" : "collections"}</span>
+              </div>
             </div>
-            <div className="fr-cat-grid">
-              {sellerCollections.map(renderCatTile)}
+            <div className="fr-collist">
+              {sortedSellerCollections.map((cat) => {
+                const img = catImage(cat);
+                const count = catCount(cat);
+                const target = sp(`/c/${collectionSlug(cat)}`);
+                return (
+                  <a
+                    key={cat}
+                    href={target}
+                    className="fr-collist-row"
+                    onClick={(e) => { e.preventDefault(); navigate(target); }}
+                  >
+                    <div className="fr-collist-thumb">
+                      {img ? (
+                        <>
+                          <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} />
+                          <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
+                        </>
+                      ) : <span className="fr-cat-mark">{cat}</span>}
+                    </div>
+                    <div className="fr-collist-name">{cat}</div>
+                    <div className="fr-collist-count">{count} {count === 1 ? "piece" : "pieces"}</div>
+                    <span className="fr-collist-arrow" aria-hidden="true">›</span>
+                  </a>
+                );
+              })}
             </div>
           </div>
         )}
