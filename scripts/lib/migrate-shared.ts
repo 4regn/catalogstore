@@ -52,6 +52,31 @@ export async function fetchAllRows<T>(admin: SupabaseClient, table: string, colu
   return all;
 }
 
+// This codebase's own live checkout route (app/api/checkout/place-order/
+// route.ts) already has to defensively handle "Could not find the 'X'
+// column of 'orders' in the schema cache" -- not every Supabase project
+// this code runs against has every historical migration applied, so
+// optional columns like subtotal/discount_code/shipping_option aren't
+// guaranteed to exist. Confirmed in practice against 4regn's project,
+// which is missing several of them. Probes once up front (rather than
+// place-order's per-request tiered retry, which doesn't fit a batched
+// import) so every row in a run consistently includes only columns that
+// actually exist, instead of failing batch after batch on the same error.
+export async function probeExistingColumns(admin: SupabaseClient, table: string, candidates: string[]): Promise<Set<string>> {
+  let remaining = [...candidates];
+  while (remaining.length > 0) {
+    const { error } = await admin.from(table).select(remaining.join(",")).limit(1);
+    if (!error) return new Set(remaining);
+    const match = error.message.match(/Could not find the '([^']+)' column/);
+    if (!match) {
+      console.error(`Warning: couldn't probe optional columns on "${table}" (${error.message}) -- proceeding without any of: ${remaining.join(", ")}`);
+      return new Set();
+    }
+    remaining = remaining.filter((c) => c !== match[1]);
+  }
+  return new Set();
+}
+
 export function getAdminClient(): SupabaseClient {
   loadDotEnvLocal();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

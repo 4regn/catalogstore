@@ -13,7 +13,14 @@
 // Usage:
 //   npx tsx scripts/migrate-4regn-orders.ts --csv=orders.csv --seller=owner@4regn.com [--dry-run] [--limit=20]
 
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, writeInBatches } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, writeInBatches, probeExistingColumns } from "./lib/migrate-shared";
+
+// external_id/customer_id are load-bearing (the upsert conflict target and
+// the customer link both depend on them), so a missing one is a hard
+// error telling the operator what to run -- not something to silently
+// degrade around like the cosmetic optional columns below.
+const REQUIRED_COLUMNS = ["external_id", "customer_id", "imported_at"];
+const OPTIONAL_COLUMNS = ["subtotal", "shipping_cost", "discount_code", "discount_amount", "shipping_option", "fulfillment_method", "notes"];
 
 function mapPaymentStatus(financialStatus: string): string {
   const s = financialStatus.toLowerCase();
@@ -44,6 +51,20 @@ async function main() {
   if (!header.includes("name")) {
     console.error(`This CSV doesn't have a "Name" column (Shopify's order number) -- can't group line items into orders. Found columns: ${header.join(", ")}`);
     process.exit(1);
+  }
+
+  const available = await probeExistingColumns(admin, "orders", [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS]);
+  const missingRequired = REQUIRED_COLUMNS.filter((c) => !available.has(c));
+  if (missingRequired.length) {
+    console.error(
+      `The "orders" table is missing required column(s): ${missingRequired.join(", ")}. ` +
+        `Run supabase/migrations/20260812_migration_import_support.sql in the Supabase SQL editor first.`
+    );
+    process.exit(1);
+  }
+  const missingOptional = OPTIONAL_COLUMNS.filter((c) => !available.has(c));
+  if (missingOptional.length) {
+    console.log(`Note: "orders" is missing optional column(s) ${missingOptional.join(", ")} -- importing without them rather than failing (matches how the live checkout route already handles this).`);
   }
 
   const orderMap = new Map<string, string[][]>();
@@ -108,6 +129,15 @@ async function main() {
       continue;
     }
 
+    const optionalFields: Record<string, any> = {};
+    if (available.has("subtotal")) optionalFields.subtotal = Number.isFinite(subtotal) ? subtotal : total;
+    if (available.has("shipping_cost")) optionalFields.shipping_cost = Number.isFinite(shippingCost) ? shippingCost : 0;
+    if (available.has("discount_code")) optionalFields.discount_code = discountCode;
+    if (available.has("discount_amount")) optionalFields.discount_amount = Number.isFinite(discountAmount) ? discountAmount : 0;
+    if (available.has("shipping_option")) optionalFields.shipping_option = shippingOption;
+    if (available.has("fulfillment_method")) optionalFields.fulfillment_method = "delivery";
+    if (available.has("notes")) optionalFields.notes = notes;
+
     rows.push({
       seller_id: sellerId,
       customer_id: customerId,
@@ -116,23 +146,17 @@ async function main() {
       customer_phone: phone,
       items,
       total,
-      subtotal: Number.isFinite(subtotal) ? subtotal : total,
-      shipping_cost: Number.isFinite(shippingCost) ? shippingCost : 0,
-      discount_code: discountCode,
-      discount_amount: Number.isFinite(discountAmount) ? discountAmount : 0,
-      shipping_option: shippingOption,
       shipping_address: null,
-      fulfillment_method: "delivery",
       payment_method: paymentMethod,
       payment_status: mapPaymentStatus(financialStatus),
       status: mapStatus(fulfillmentStatus, cancelledAt),
-      notes,
       external_id: name,
       imported_at: new Date().toISOString(),
       // Preserve the real historical order date rather than defaulting to
       // now() -- explicitly provided values always override a column's
       // DEFAULT on insert.
       created_at: createdAt ? new Date(createdAt).toISOString() : new Date().toISOString(),
+      ...optionalFields,
     });
   }
 
