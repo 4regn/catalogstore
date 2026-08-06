@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
+import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
@@ -102,32 +103,21 @@ export default async function CollectionPage({
     matched = collections.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
 
     if (!matched) {
-      const { data: distinctCats } = await supabaseAdmin
-        .from("products")
-        .select("category")
-        .eq("seller_id", seller.id)
-        .eq("in_stock", true)
-        .eq("status", "published")
-        .not("category", "is", null);
-      const cats = Array.from(new Set((distinctCats ?? []).flatMap((r: { category: string }) => (r.category || "").split(",").map((c) => c.trim())).filter(Boolean)));
+      const distinctCats = await fetchAllRows<{ category: string }>(supabaseAdmin, "products", "category", (q) =>
+        q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").not("category", "is", null)
+      );
+      const cats = Array.from(new Set(distinctCats.flatMap((r) => (r.category || "").split(",").map((c) => c.trim())).filter(Boolean)));
       matched = cats.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
     }
 
     if (!matched) notFound();
   }
 
-  const productsQuery = supabaseAdmin
-    .from("products")
-    .select(PRODUCT_COLUMNS)
-    .eq("seller_id", seller.id)
-    .eq("in_stock", true)
-    .eq("status", "published")
-    .order("sort_order", { ascending: true });
-
-  const [productsRes, discountsRes] = await Promise.all([
-    isAll
-      ? productsQuery
-      : productsQuery.like("category", `%${matched!}%`),
+  const [initialProductsRaw, discountsRes] = await Promise.all([
+    fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q) => {
+      const base = q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
+      return isAll ? base : base.like("category", `%${matched!}%`);
+    }),
     supabaseAdmin
       .from("discount_codes")
       .select(DISCOUNT_COLUMNS)
@@ -138,8 +128,8 @@ export default async function CollectionPage({
   ]);
 
   const collectionProducts = isAll
-    ? (productsRes.data ?? [])
-    : (productsRes.data ?? []).filter((p: any) =>
+    ? initialProductsRaw
+    : initialProductsRaw.filter((p: any) =>
         (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
       );
 

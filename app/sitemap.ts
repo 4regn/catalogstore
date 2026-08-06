@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 import { supabaseAdmin } from "../lib/supabase-admin";
 import { STORE_ROOT_DOMAIN, isSubdomainHost } from "../lib/store-url";
+import { fetchAllRows } from "../lib/fetch-all-rows";
 
 export const revalidate = 3600;
 
@@ -10,10 +11,10 @@ export const revalidate = 3600;
 // (unik-labs, rosefields, velour) has no product-detail route worth
 // listing, so it's deliberately left out rather than pointing crawlers at
 // a page that doesn't represent that product.
-const PRODUCT_PAGE_TEMPLATES = new Set(["crown", "glass-futuristic", "glass-chrome", "heirloom", "soft-luxury"]);
+const PRODUCT_PAGE_TEMPLATES = new Set(["crown", "glass-futuristic", "glass-chrome", "heirloom", "soft-luxury", "4regn"]);
 // Same story for collection pages (app/store/[slug]/c/[collection]/page.tsx
 // redirects every other template straight back to the store root).
-const COLLECTION_PAGE_TEMPLATES = new Set(["heirloom", "soft-luxury"]);
+const COLLECTION_PAGE_TEMPLATES = new Set(["heirloom", "soft-luxury", "4regn"]);
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
@@ -75,15 +76,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [{ url: origin, changeFrequency: "daily", priority: 1 }];
 
   if (PRODUCT_PAGE_TEMPLATES.has(seller.template)) {
-    const { data: products } = await supabaseAdmin
-      .from("products")
-      .select("id, created_at")
-      .eq("seller_id", seller.id)
-      .eq("in_stock", true)
-      .eq("status", "published")
-      .limit(2000);
+    // A single .limit() can't exceed the project's own server-side row cap
+    // (confirmed elsewhere in this codebase: requesting more than the cap
+    // just gets silently truncated to it), so a seller with more published
+    // products than that cap would have had the rest quietly missing from
+    // their sitemap. Pages through instead.
+    const products = await fetchAllRows<{ id: string; created_at: string | null }>(supabaseAdmin, "products", "id, created_at", (q) =>
+      q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published")
+    );
 
-    for (const p of products ?? []) {
+    for (const p of products) {
       entries.push({ url: `${origin}/p/${p.id}`, lastModified: p.created_at || undefined, changeFrequency: "weekly", priority: 0.8 });
     }
   }

@@ -6,6 +6,7 @@ import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../lib/store-template-access";
 import { canonicalStoreUrl } from "../../../lib/store-url";
+import { fetchAllRows } from "../../../lib/fetch-all-rows";
 import StoreUnavailable from "./StoreUnavailable";
 
 export const revalidate = 60;
@@ -134,14 +135,10 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     );
   }
 
-  const [productsRes, discountsRes] = await Promise.all([
-    supabaseAdmin
-      .from("products")
-      .select(PRODUCT_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("in_stock", true)
-      .eq("status", "published")
-      .order("sort_order", { ascending: true }),
+  const [initialProductsRaw, discountsRes] = await Promise.all([
+    fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q) =>
+      q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
+    ),
     supabaseAdmin
       .from("discount_codes")
       .select(DISCOUNT_COLUMNS)
@@ -151,7 +148,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
       .not("expires_at", "is", null),
   ]);
 
-  const initialProducts = productsRes.data ?? [];
+  const initialProducts = initialProductsRaw;
   const initialDiscountCodes = discountsRes.data ?? [];
   const isSubdomain = await isStoreSubdomainRequest();
   const props = { initialSeller: seller, initialProducts, initialDiscountCodes, isSubdomain };
