@@ -19,14 +19,21 @@ const FourRegn = dynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
-// Heirloom/SoftLuxury still need every column below (their own ProductCard
-// equivalents read old_price/images/variants/in_stock/description for a
-// client-side variant picker); this constant stays the full set for them.
-// Traced FourRegnStore.tsx separately for tpl === "4regn" -- see
+// Heirloom/SoftLuxury still need most columns below (their own ProductCard
+// equivalents + slide-over read old_price/images/variants/in_stock/
+// description straight off this same fetched array -- there's no separate
+// per-product fetch when a card is opened). `status` and `handle` are
+// dropped: neither template reads them client-side (both route product
+// links by /p/{id}, never by handle; `status` is only ever a query filter,
+// see .eq("status","published") below -- PostgREST applies filters
+// independent of the SELECT list), and this route's own code only reads
+// `category` off each row (the collectionProducts filter below).
+// created_at stays for their Newest/Oldest sort option. Traced
+// FourRegnStore.tsx separately for tpl === "4regn" -- see
 // FOUR_REGN_PRODUCT_COLUMNS below, which is what actually gets used on this
 // route once the seller is 4regn.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at";
 // 4regn's collection page renders a real flat ProductCard grid (unlike the
 // product-detail/collections-index routes, which only ever show 0 or 8 cards
 // off the full catalog). Traced ProductCard's current render in

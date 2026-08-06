@@ -22,8 +22,22 @@ const UnikLabs    = dynamic(() => import("./UnikLabsStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+// Crown/GlassChrome/Heirloom/Rosefields/SoftLuxury all render this fetched
+// list two ways off one array: the home grid (ProductCard reads id/name/
+// price/old_price/category/image_url) AND the same array entry's full
+// slide-over detail once a card is opened (openProduct/selectedProduct read
+// images/variants/in_stock/description straight off that entry -- there's
+// no separate per-product fetch for the slide-over). Traced each template's
+// `interface Product` + render path: every field below is read by at least
+// one of the five except `status` and `handle`, which none of them read --
+// all five route product links by /p/{id}, never by handle, and `status`
+// is only ever a query filter (.eq("status","published") below; PostgREST
+// applies filters independent of the SELECT list). created_at stays
+// because Heirloom/SoftLuxury/GlassChrome sort by it ("Newest"/"Oldest");
+// Crown/Rosefields ignore it but it's cheap to share one constant across
+// all five rather than branch per template here.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at";
 // 4regn's homepage no longer renders a flat product grid (it was removed --
 // see the "PRODUCTS" section in FourRegnStore.tsx, now gated to collection
 // view only). Traced every remaining isHomeView code path there and the only

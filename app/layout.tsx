@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
-import AffiliateRefTracker from "./components/AffiliateRefTracker";
-import AffiliateReferralBanner from "./components/AffiliateReferralBanner";
-import SupportChat from "./components/SupportChat";
+import RootClientWidgets from "./components/RootClientWidgets";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za"),
@@ -71,22 +69,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+      {/* Schibsted Grotesk is now self-hosted via @font-face in globals.css
+          (see the comment there) instead of fetched from
+          fonts.googleapis.com/fonts.gstatic.com — removes two extra
+          cross-origin round-trips on every page load. */}
       <body>
-        <AffiliateRefTracker />
-        <AffiliateReferralBanner />
-        <SupportChat />
+        <RootClientWidgets />
         {children}
         <Analytics />
       </body>

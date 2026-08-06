@@ -7,6 +7,17 @@ import { STORE_ROOT_DOMAIN, isSubdomainHost } from "./lib/store-url";
 // valid slug.
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
+// Hoisted out of the request path (previously a regex literal + derived
+// strings recomputed on every single invocation) -- these never change at
+// runtime since STORE_ROOT_DOMAIN is a static import-time constant, so
+// there's no reason to re-derive them per request. Behavior is identical;
+// this just avoids repeat allocation on the hottest code path in the app
+// (every request hits this file per the matcher below).
+const STATIC_FILE_PATTERN = /\.[a-zA-Z0-9]+$/;
+const WWW_ROOT_DOMAIN = `www.${STORE_ROOT_DOMAIN}`;
+const SUBDOMAIN_SUFFIX = `.${STORE_ROOT_DOMAIN}`;
+const SUBDOMAIN_SUFFIX_LENGTH = SUBDOMAIN_SUFFIX.length;
+
 // Looks up which seller (by subdomain slug) owns a verified custom domain.
 // Cached for 5 minutes via Next's fetch cache so most requests for the same
 // domain don't hit Supabase at all -- only genuine custom-domain traffic
@@ -89,9 +100,12 @@ const SETLA_MARKETING_HOSTS = new Set(["setla.4regn.com", "www.setla.4regn.com"]
 export async function middleware(req: NextRequest) {
   const hostname = (req.headers.get("host") || "").split(":")[0].toLowerCase();
   const { pathname, search } = req.nextUrl;
-  const isStaticFile = /\.[a-zA-Z0-9]+$/.test(pathname);
+  const isStaticFile = STATIC_FILE_PATTERN.test(pathname);
+  // Computed once and reused below (previously re-evaluated identically at
+  // both the subdomain-routing and custom-domain-routing checks).
+  const isApiRoute = pathname.startsWith("/api/");
 
-  if (SETLA_MARKETING_HOSTS.has(hostname) && !pathname.startsWith("/api/") && !pathname.startsWith("/setla/") && !pathname.startsWith("/_next")) {
+  if (SETLA_MARKETING_HOSTS.has(hostname) && !isApiRoute && !pathname.startsWith("/setla/") && !pathname.startsWith("/_next")) {
     if (pathname.endsWith(".html")) {
       const clean = pathname === "/index.html" ? "/" : pathname.slice(0, -".html".length);
       return NextResponse.redirect(new URL(`${clean}${search}`, req.url), 308);
@@ -112,7 +126,7 @@ export async function middleware(req: NextRequest) {
 
   // Legacy path-based links (catalogstore.co.za/store/mystore/...) redirect
   // to the clean subdomain form so old shared links keep working.
-  if (hostname === STORE_ROOT_DOMAIN || hostname === `www.${STORE_ROOT_DOMAIN}`) {
+  if (hostname === STORE_ROOT_DOMAIN || hostname === WWW_ROOT_DOMAIN) {
     if (pathname.startsWith("/store/")) {
       const rest = pathname.slice("/store/".length);
       const slashIdx = rest.indexOf("/");
@@ -132,8 +146,8 @@ export async function middleware(req: NextRequest) {
   // fonts, etc. served from /public) are host-agnostic and must never get
   // the /store prefix. Our own app routes never have a dot in the last
   // path segment, so this is a safe general-purpose exclusion.
-  if (isSubdomainHost(hostname) && !pathname.startsWith("/api/") && !isStaticFile) {
-    const sub = hostname.slice(0, -(`.${STORE_ROOT_DOMAIN}`.length));
+  if (isSubdomainHost(hostname) && !isApiRoute && !isStaticFile) {
+    const sub = hostname.slice(0, -SUBDOMAIN_SUFFIX_LENGTH);
     if (SLUG_PATTERN.test(sub)) {
       const legacyDest = await resolveLegacyRedirect(sub, pathname);
       if (legacyDest) return NextResponse.redirect(new URL(`${legacyDest}${search}`, req.url), 308);
@@ -148,7 +162,7 @@ export async function middleware(req: NextRequest) {
   // route as their subdomain. Only verified domains route -- a domain still
   // pending DNS verification, or one that's been disconnected, simply falls
   // through and 404s rather than silently serving the wrong store.
-  if (!pathname.startsWith("/api/") && !isStaticFile) {
+  if (!isApiRoute && !isStaticFile) {
     const slug = await resolveCustomDomain(hostname);
     if (slug) {
       const legacyDest = await resolveLegacyRedirect(slug, pathname);

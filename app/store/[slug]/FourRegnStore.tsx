@@ -1,11 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition, Fragment, type TouchEvent as ReactTouchEvent } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+
+// Only ever rendered after a click/keyboard interaction (see `lightbox`
+// state below) -- never needed for first paint, so it's split into its own
+// chunk and loaded on demand instead of shipping in every storefront's
+// initial JS. ssr:false is safe here: `lightbox` starts null on the server
+// too (nothing seeds it from an initial/SSR prop), so this never has SSR
+// markup to produce anyway.
+const LightboxGallery = dynamic(() => import("./FourRegnLightbox"), { ssr: false });
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -2459,59 +2468,14 @@ function DescriptionText({ text }: { text: string }) {
   );
 }
 
-// Full-screen lightbox gallery for the PDP -- same swipe/arrow-key/pinch-zoom
-// behaviour as Heirloom's version, restyled for this template's local class
-// names since it isn't exported from HeirloomStore.tsx.
-function LightboxGallery({ imgs, index, onClose, onIndex }: {
-  imgs: string[];
-  index: number;
-  onClose: () => void;
-  onIndex: (i: number) => void;
-}) {
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-
-  const onTouchStart = (e: ReactTouchEvent) => setTouchStartX(e.touches[0].clientX);
-  const onTouchEnd = (e: ReactTouchEvent) => {
-    if (touchStartX === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    setTouchStartX(null);
-    if (Math.abs(dx) < 40) return;
-    if (dx < 0 && index < imgs.length - 1) onIndex(index + 1);
-    else if (dx > 0 && index > 0) onIndex(index - 1);
-  };
-
-  return (
-    <div className="fr-lb" onClick={onClose} role="dialog" aria-modal="true" aria-label="Product images">
-      <button className="fr-lb-close" type="button" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close">✕</button>
-      <div className="fr-lb-stage" onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <img src={imgs[index]} alt="" className="fr-lb-img" draggable={false} />
-      </div>
-      {imgs.length > 1 && (
-        <>
-          {index > 0 && (
-            <button className="fr-lb-nav fr-lb-prev" type="button" onClick={(e) => { e.stopPropagation(); onIndex(index - 1); }} aria-label="Previous image">‹</button>
-          )}
-          {index < imgs.length - 1 && (
-            <button className="fr-lb-nav fr-lb-next" type="button" onClick={(e) => { e.stopPropagation(); onIndex(index + 1); }} aria-label="Next image">›</button>
-          )}
-          <div className="fr-lb-dots" onClick={(e) => e.stopPropagation()}>
-            {imgs.map((_, i) => (
-              <button key={i} type="button" className={"fr-lb-dot" + (i === index ? " active" : "")} onClick={() => onIndex(i)} aria-label={`Image ${i + 1}`} />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 // PDP main image area, shared by the slide-over PDP and the dedicated
 // full-page PDP -- replaces the old thumbnail-wall gallery (which pushed
 // price/description far below the fold for products with 20-25+ images)
 // with a single swipeable image, small prev/next overlay arrows, and a
 // "n / total" counter badge. Swipe handling mirrors LightboxGallery's
-// touch-swipe pattern above (same ~40px threshold), just against local
-// touch state since this component doesn't own the active index itself.
+// touch-swipe pattern (./FourRegnLightbox.tsx, same ~40px threshold), just
+// against local touch state since this component doesn't own the active
+// index itself.
 function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onImgError, alt }: {
   imgs: string[];
   activeIndex: number;

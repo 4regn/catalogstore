@@ -18,14 +18,21 @@ const FourRegn    = dynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
-// Full columns -- every non-4regn template still renders this route as its
-// own grid-plus-slide-over page (StoreComponent below gets the whole
-// `initialProducts` list, not just one product), so it genuinely needs
-// everything here. Also used, unchanged, for the single active-product
-// fetch on the 4regn branch below (that product's PDP render needs
-// everything: description, full images array, variants, old_price).
+// Full columns minus `status` -- every non-4regn template still renders
+// this route as its own grid-plus-slide-over page (StoreComponent below
+// gets the whole `initialProducts` list, not just one product), and none
+// of them (Crown/GlassChrome/Heirloom/SoftLuxury -- traced each `interface
+// Product` + render path) read `status` client-side; it's only ever a
+// query filter (.eq("status","published") below, which PostgREST applies
+// independent of the SELECT list). `handle` stays selected -- unlike
+// `status`, it's also read directly by THIS ROUTE's own code, not just a
+// client component: this same constant fetches the single active-product
+// row on the 4regn branch below, and that branch checks
+// `activeProduct.handle` to decide whether to redirect to the canonical
+// /products/{handle} page, so dropping it would break that redirect.
+// created_at stays for Heirloom/SoftLuxury's Newest/Oldest sort.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
 // 4regn-only: a SEPARATE fetch of the whole catalog, used only for
 // FourRegnStore's "You Might Also Like" row (relatedProducts: category
 // match, excludes the current product, caps at 8, rendered via ProductCard)
