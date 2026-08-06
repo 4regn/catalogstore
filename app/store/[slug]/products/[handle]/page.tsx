@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import dynamic from "next/dynamic";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
@@ -14,6 +14,22 @@ export const revalidate = 60;
 // /p/{uuid}; this handle-based route exists purely to match 4regn's real
 // (Shopify-era, already Google-indexed) /products/{handle} URL format.
 const FourRegn = dynamic(() => import("../../FourRegnStore"));
+
+// Any seller who lands on this route but isn't actually on the 4regn
+// template gets redirect()'d out below before anything renders, so this
+// static viewport export is effectively 4regn-only in practice -- safe to
+// set unconditionally here without touching the shared app/layout.tsx (used
+// by every template + the whole marketing site) or app/store/[slug]/layout.tsx
+// (still shared by every OTHER template's own routes). `viewportFit: "cover"`
+// is required for the `env(safe-area-inset-*)` values FourRegnStore's
+// lightbox CSS reads to report anything other than 0 on notch/Dynamic
+// Island iPhones -- see the .fr-lb-close/.fr-lb-nav/.fr-lb-dots comment in
+// FourRegnStore.tsx. Next.js merges this with the root layout's viewport
+// (width/initialScale/themeColor/colorScheme survive; see mergeViewport in
+// next/dist/lib/metadata/resolve-metadata.js), so nothing else changes.
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";

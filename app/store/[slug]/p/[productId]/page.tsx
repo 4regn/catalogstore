@@ -6,7 +6,7 @@ import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 export const revalidate = 60;
 
@@ -75,6 +75,36 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       ...(product.image_url ? { images: [{ url: product.image_url }] } : {}),
     },
   };
+}
+
+// Unlike ../../products/[handle]/page.tsx (a 4regn-only route where a static
+// `viewport` export is always correct), this route is still shared by every
+// other template's own full grid+slide-over render -- see the `tpl ===
+// "4regn"` branch below vs. the fallback further down. `viewportFit: "cover"`
+// is only wanted for 4regn's dedicated PDP render, whose lightbox CSS reads
+// `env(safe-area-inset-*)` (see FourRegnStore.tsx's .fr-lb-close comment);
+// setting it for every template would extend every OTHER template's fixed
+// nav/overlays under the notch/Dynamic Island too, most of which have no
+// safe-area padding of their own to compensate -- a real regression risk we
+// don't want to take on for templates that were never reported broken. A
+// `generateViewport` (rather than a static `viewport` export) lets this
+// resolve per-request off the seller's actual template instead. Returning
+// `{}` for every other template means "no override" -- it merges onto (and
+// doesn't touch) the root layout's viewport untouched, per Next's
+// mergeViewport (only keys present in this object are overridden).
+export async function generateViewport({ params }: { params: Promise<{ slug: string; productId: string }> }): Promise<Viewport> {
+  const { slug } = await params;
+
+  const { data: seller } = await supabaseAdmin
+    .from("sellers")
+    .select("template, subdomain")
+    .eq("subdomain", slug)
+    .maybeSingle();
+
+  if (!seller) return {};
+
+  const tpl = resolveSellerTemplate(seller);
+  return tpl === "4regn" ? { viewportFit: "cover" } : {};
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string; productId: string }> }) {

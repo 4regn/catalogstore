@@ -1313,14 +1313,36 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-policy-body p{margin:0 0 18px}
 .fr-policy-body p:last-child{margin-bottom:0}
 
-.fr-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px}
+/* Two independent iOS Safari bugs stacked on top of each other here, neither
+   of which the earlier z-index/touch-action fixes touched:
+   1) "position:fixed;inset:0" alone can size against the wrong viewport
+      while Safari's dynamic address bar is animating/collapsed, leaving the
+      box taller than what's actually visible and revealing black gaps top
+      and bottom around the (correctly max-height:100%-constrained) image.
+      "height:100dvh" (dynamic viewport height, iOS 15.4+) pins the box to
+      whatever is truly on-screen right now instead of the stale layout
+      viewport; kept "inset:0" for positioning since fixed/height together
+      with top+bottom:0 is a well-defined over-constrained case (height
+      wins, bottom is recomputed) -- min-height wouldn't have fixed this,
+      since the buggy auto-height from inset:0 was already >= 100dvh, so a
+      floor never kicks in; only clamping the actual height with "height"
+      does.
+   2) .fr-lb-close/.fr-lb-nav/.fr-lb-dots were positioned with plain pixel
+      offsets from the raw screen edge, which on a notch/Dynamic Island
+      iPhone can land under the status bar / home-indicator area.
+      "max(18px, env(safe-area-inset-*, 18px))" keeps the normal 18/24px
+      gap on ordinary screens but grows to clear the safe area on notched
+      ones. (Requires viewport-fit=cover on the page's viewport meta for
+      the env() values to report non-zero -- see the 4regn PDP routes'
+      viewport/generateViewport exports.) */
+.fr-lb{position:fixed;inset:0;height:100dvh;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px}
 .fr-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pinch-zoom}
 .fr-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-user-select:none;user-select:none;pointer-events:none}
-.fr-lb-close{position:fixed;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.fr-lb-close{position:fixed;top:max(18px, env(safe-area-inset-top, 18px));right:max(18px, env(safe-area-inset-right, 18px));width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .fr-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,0.08);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:4px;z-index:2}
-.fr-lb-prev{left:18px}
-.fr-lb-next{right:18px}
-.fr-lb-dots{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:100px;background:rgba(255,255,255,0.08);z-index:2}
+.fr-lb-prev{left:max(18px, env(safe-area-inset-left, 18px))}
+.fr-lb-next{right:max(18px, env(safe-area-inset-right, 18px))}
+.fr-lb-dots{position:fixed;bottom:max(24px, env(safe-area-inset-bottom, 24px));left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:100px;background:rgba(255,255,255,0.08);z-index:2}
 .fr-lb-dot{width:6px;height:6px;border-radius:50%;border:none;padding:0;background:rgba(255,255,255,0.35);cursor:pointer}
 .fr-lb-dot.active{background:#fff;transform:scale(1.3)}
 
