@@ -337,12 +337,103 @@ export async function insertInBatchesReturning(admin: SupabaseClient, table: str
   return result;
 }
 
+// Shopify Admin GraphQL request helper, shared by every script that talks
+// to Shopify's Admin API directly (as opposed to reading a Matrixify CSV
+// export). Retries on HTTP 429 and on GraphQL's own THROTTLED error code
+// (query-cost throttling, distinct from the HTTP-level rate limit), plus a
+// generic retry-with-backoff on any other failure (e.g. a dropped
+// connection), up to 5 attempts total. Each request is raced against a 20s
+// timeout via withTimeout so a stalled connection can't hang forever.
+export async function shopifyGraphQL<T>(domain: string, token: string, apiVersion: string, query: string, variables: Record<string, unknown>): Promise<T> {
+  const url = `https://${domain}/admin/api/${apiVersion}/graphql.json`;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const res = await withTimeout(
+        fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
+          body: JSON.stringify({ query, variables }),
+        }),
+        "Shopify GraphQL request",
+        20000
+      );
+      if (res.status === 429) {
+        const wait = 1000 * attempt;
+        console.log(`  rate-limited, waiting ${wait}ms before retry...`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`HTTP ${res.status}: ${body.slice(0, 300)}`);
+      }
+      const json = await res.json();
+      if (json.errors) {
+        const throttled = json.errors.some((e: any) => e.extensions?.code === "THROTTLED");
+        if (throttled) {
+          const wait = 1000 * attempt;
+          console.log(`  throttled by query cost, waiting ${wait}ms before retry...`);
+          await new Promise((r) => setTimeout(r, wait));
+          continue;
+        }
+        throw new Error(`GraphQL error(s): ${JSON.stringify(json.errors).slice(0, 500)}`);
+      }
+      return json.data as T;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 5) {
+        const wait = 1000 * attempt;
+        console.log(`  request failed (${(err as Error).message}), retrying in ${wait}ms...`);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export function stripHtml(html: string): string {
   return html
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 2000);
+}
+
+// Converts Shopify policy HTML (real <p>/<br>/<ul>/<li>/<h1-6> markup, plus
+// HTML entities) into clean plain text that PRESERVES paragraph/list
+// structure as blank-line-separated blocks -- unlike stripHtml() above,
+// which collapses all whitespace (including line breaks) to single spaces
+// and is relied on elsewhere for that exact behavior, so this is a
+// deliberate separate function rather than a change to stripHtml(). No
+// length cap -- these are full legal documents (Shipping/Refund/Privacy/
+// Terms), not short CSV cell values.
+export function htmlToParagraphs(html: string): string {
+  return html
+    // Block-closing tags become a line break.
+    .replace(/<\s*(\/p|br\s*\/?|\/li|\/h[1-6]|\/div)\s*>/gi, "\n")
+    // List items get a leading bullet marker.
+    .replace(/<\s*li[^>]*>/gi, "\n- ")
+    // Everything else (remaining tags) is stripped outright.
+    .replace(/<[^>]*>/g, "")
+    // Decode the common entities Shopify's policy HTML actually contains.
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&(#39|apos);/gi, "'")
+    // Collapse spaces/tabs within a line (but not the newlines themselves).
+    .replace(/[ \t]+/g, " ")
+    // Collapse 3+ consecutive newlines (with only whitespace between them)
+    // down to exactly one blank line between paragraphs.
+    .replace(/\n[ \t]*(\n[ \t]*)+/g, "\n\n")
+    // Trim each line individually...
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    // ...and the result as a whole.
+    .trim();
 }
 
 export function parseYesNo(value: string): boolean {

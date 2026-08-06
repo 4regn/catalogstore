@@ -14,7 +14,7 @@
 // (or set SHOPIFY_STORE_DOMAIN / SHOPIFY_ADMIN_API_TOKEN in .env.local instead of --domain/--token)
 
 import { writeFileSync } from "fs";
-import { loadDotEnvLocal, withTimeout } from "./lib/migrate-shared";
+import { loadDotEnvLocal, shopifyGraphQL } from "./lib/migrate-shared";
 
 function parseArgs() {
   const out: { domain?: string; token?: string; out: string; apiVersion: string } = {
@@ -40,54 +40,6 @@ function parseArgs() {
   return out as { domain: string; token: string; out: string; apiVersion: string };
 }
 
-async function gql<T>(domain: string, token: string, apiVersion: string, query: string, variables: Record<string, unknown>): Promise<T> {
-  const url = `https://${domain}/admin/api/${apiVersion}/graphql.json`;
-  let lastErr: unknown;
-  for (let attempt = 1; attempt <= 5; attempt++) {
-    try {
-      const res = await withTimeout(
-        fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
-          body: JSON.stringify({ query, variables }),
-        }),
-        "Shopify GraphQL request",
-        20000
-      );
-      if (res.status === 429) {
-        const wait = 1000 * attempt;
-        console.log(`  rate-limited, waiting ${wait}ms before retry...`);
-        await new Promise((r) => setTimeout(r, wait));
-        continue;
-      }
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`HTTP ${res.status}: ${body.slice(0, 300)}`);
-      }
-      const json = await res.json();
-      if (json.errors) {
-        const throttled = json.errors.some((e: any) => e.extensions?.code === "THROTTLED");
-        if (throttled) {
-          const wait = 1000 * attempt;
-          console.log(`  throttled by query cost, waiting ${wait}ms before retry...`);
-          await new Promise((r) => setTimeout(r, wait));
-          continue;
-        }
-        throw new Error(`GraphQL error(s): ${JSON.stringify(json.errors).slice(0, 500)}`);
-      }
-      return json.data as T;
-    } catch (err) {
-      lastErr = err;
-      if (attempt < 5) {
-        const wait = 1000 * attempt;
-        console.log(`  request failed (${(err as Error).message}), retrying in ${wait}ms...`);
-        await new Promise((r) => setTimeout(r, wait));
-      }
-    }
-  }
-  throw lastErr;
-}
-
 interface CollectionNode { id: string; title: string; handle: string; }
 
 async function fetchAllCollections(domain: string, token: string, apiVersion: string): Promise<CollectionNode[]> {
@@ -95,7 +47,7 @@ async function fetchAllCollections(domain: string, token: string, apiVersion: st
   let cursor: string | null = null;
   let hasNext = true;
   while (hasNext) {
-    const data: any = await gql(
+    const data: any = await shopifyGraphQL(
       domain, token, apiVersion,
       `query($cursor: String) {
         collections(first: 50, after: $cursor) {
@@ -118,7 +70,7 @@ async function fetchCollectionProductHandles(domain: string, token: string, apiV
   let cursor: string | null = null;
   let hasNext = true;
   while (hasNext) {
-    const data: any = await gql(
+    const data: any = await shopifyGraphQL(
       domain, token, apiVersion,
       `query($id: ID!, $cursor: String) {
         collection(id: $id) {
