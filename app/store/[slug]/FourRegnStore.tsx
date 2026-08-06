@@ -80,6 +80,11 @@ interface Product {
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
   sort_order: number; created_at?: string; tags?: string[];
+  // SEO-friendly Shopify-derived handle, once backfilled -- see
+  // goToProduct() below. Optional: not every product has one yet (a fresh
+  // product created directly on the platform, or before the handle backfill
+  // has run), and every other seller/template never sets this at all.
+  handle?: string;
 }
 interface CartItem {
   product: Product; qty: number;
@@ -512,14 +517,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     setLocalQty(1);
     setVariantError(false);
   };
-  // Every product now gets its own real, shareable, indexable URL
-  // (/store/<slug>/p/<id> -- same route + linking pattern Crown and Soft
-  // Luxury already use). Inside the Online Visual Editor iframe we keep
-  // opening the in-page modal instead, same as those templates, so editing
-  // doesn't navigate the preview away from the section being edited.
+  // Every product now gets its own real, shareable, indexable URL. Once a
+  // product has a real (Shopify-derived or generated) handle, link straight
+  // to the SEO-friendly /products/<handle> page matching 4regn's real
+  // storefront's URL format; a product with no handle yet (not backfilled,
+  // or the migration hasn't run at all) falls back to the /p/<id> route
+  // exactly as it worked before. Inside the Online Visual Editor iframe we
+  // keep opening the in-page modal instead, same as other templates, so
+  // editing doesn't navigate the preview away from the section being edited.
   const goToProduct = (p: Product) => {
     if (isEditMode) { openProduct(p); return; }
-    navigate(sp(`/p/${p.id}`));
+    navigate(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`));
   };
   // Shared broken-image fallback for grid thumbnails (product + collection
   // cards): if the stored image URL 404s/expires, swap in the initials

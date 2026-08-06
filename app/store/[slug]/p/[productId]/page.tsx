@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import dynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
@@ -18,7 +18,7 @@ const FourRegn    = dynamic(() => import("../../FourRegnStore"));
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
@@ -129,6 +129,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // initialActiveProduct, no home grid underneath) instead of the slide-over
   // every other template still uses initialProductId for on this same route.
   if (tpl === "4regn") {
+    // Once a product has a real handle (via the handle backfill), /p/{uuid}
+    // is a legacy URL for it -- send visitors on to the canonical
+    // /products/{handle} page instead of rendering the UUID route directly,
+    // so there's exactly one indexable URL per product. A product with no
+    // handle yet (e.g. one created directly on the platform before the next
+    // backfill run) falls through to the direct render below exactly as it
+    // works today -- this is a defensive fallback, not a new page.
+    if (activeProduct.handle) {
+      redirect(isSubdomain ? `/products/${activeProduct.handle}` : `/store/${slug}/products/${activeProduct.handle}`);
+    }
     return (
       <>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />

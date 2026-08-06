@@ -81,12 +81,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // just gets silently truncated to it), so a seller with more published
     // products than that cap would have had the rest quietly missing from
     // their sitemap. Pages through instead.
-    const products = await fetchAllRows<{ id: string; created_at: string | null }>(supabaseAdmin, "products", "id, created_at", (q) =>
+    // `handle` only ever gets set for 4regn today (see the products.handle
+    // backfill), but selecting it for every template here is harmless --
+    // it's simply null/undefined for everyone else, and the per-product
+    // fallback below already handles that.
+    const products = await fetchAllRows<{ id: string; created_at: string | null; handle: string | null }>(
+      supabaseAdmin, "products", "id, created_at, handle", (q) =>
       q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published")
     );
 
     for (const p of products) {
-      entries.push({ url: `${origin}/p/${p.id}`, lastModified: p.created_at || undefined, changeFrequency: "weekly", priority: 0.8 });
+      // 4regn's real, already-Google-indexed URL shape once a product has a
+      // handle; every other product (no handle backfilled, or any other
+      // template) keeps the existing /p/{uuid} form unchanged.
+      const path = p.handle ? `/products/${p.handle}` : `/p/${p.id}`;
+      entries.push({ url: `${origin}${path}`, lastModified: p.created_at || undefined, changeFrequency: "weekly", priority: 0.8 });
     }
   }
 
