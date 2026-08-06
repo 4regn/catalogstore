@@ -55,6 +55,17 @@ const PRODUCT_COLUMNS =
 const RELATED_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
+// Badges shown on the "You Might Also Like" ProductCard row (see
+// FourRegnStore.tsx's getProductPromoBadge). starts_at/ends_at are selected
+// only to filter the active window in JS (activePromoBadges below), not
+// passed down to the client.
+const PROMO_BADGE_COLUMNS = "label, scope, product_id, collection_name, starts_at, ends_at";
+
+function activePromoBadges(rows: { label: string; scope: "product" | "collection"; product_id: string | null; collection_name: string | null; starts_at: string | null; ends_at: string | null }[] | null, nowIso: string) {
+  return (rows || [])
+    .filter((r) => (!r.starts_at || r.starts_at <= nowIso) && (!r.ends_at || r.ends_at >= nowIso))
+    .map(({ label, scope, product_id, collection_name }) => ({ label, scope, product_id, collection_name }));
+}
 
 export async function generateMetadata({
   params,
@@ -128,7 +139,8 @@ export default async function ProductHandlePage({
     redirect(isSubdomain ? "/" : `/store/${slug}`);
   }
 
-  const [productRes, initialProducts, discountsRes] = await Promise.all([
+  const nowIso = new Date().toISOString();
+  const [productRes, initialProducts, discountsRes, promoBadgesRes] = await Promise.all([
     supabaseAdmin
       .from("products")
       .select(PRODUCT_COLUMNS)
@@ -151,6 +163,11 @@ export default async function ProductHandlePage({
       .eq("active", true)
       .eq("show_countdown", true)
       .not("expires_at", "is", null),
+    supabaseAdmin
+      .from("product_promo_badges")
+      .select(PROMO_BADGE_COLUMNS)
+      .eq("seller_id", seller.id)
+      .eq("active", true),
   ]);
 
   const activeProduct = productRes.data;
@@ -183,6 +200,7 @@ export default async function ProductHandlePage({
         initialSeller={seller}
         initialProducts={initialProducts}
         initialDiscountCodes={initialDiscountCodes}
+        initialPromoBadges={activePromoBadges(promoBadgesRes.data, nowIso)}
         mode="product"
         initialActiveProduct={activeProduct}
         isSubdomain={isSubdomain}

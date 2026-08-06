@@ -61,6 +61,13 @@ interface StoreConfig {
   show_shopbygender?: boolean;
   shopbygender_eyebrow?: string;
   shopbygender_heading?: string;
+  // Manually-set hero pill (e.g. "7 YEAR ANNIVERSARY SALE") -- purely a
+  // marketing label the seller types in themselves, same as
+  // hero_sale_headline/announcement above; NOT imported from Shopify (unlike
+  // the per-product promo badges, which come from real discount data -- see
+  // product_promo_badges/getProductPromoBadge).
+  show_hero_pill?: boolean;
+  hero_pill_label?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -94,6 +101,16 @@ interface PromoDiscount {
   code: string; type: string; value: number; applies_to: string;
   expires_at: string; product_ids: string[]; collection_names: string[];
   timeLeft: string;
+}
+// Display-only badge (e.g. real Shopify "BUY 2 GET 1 FREE" imports, or a
+// manually-created one) -- see product_promo_badges table. Distinct from
+// PromoDiscount/discount_codes above: this never carries a % or $ value and
+// never applies at checkout, it's purely a label shown on the product
+// card/PDP. label is shown verbatim, unlike PromoDiscount's computed
+// "-{value}%"/"Sale" text.
+interface PromoBadge {
+  label: string; scope: "product" | "collection";
+  product_id: string | null; collection_name: string | null;
 }
 
 /* ─── HELPERS ────────────────────────────────────────────── */
@@ -255,6 +272,7 @@ interface StorePageProps {
   initialSeller?: Seller;
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
+  initialPromoBadges?: PromoBadge[];
   initialProductId?: string;
   mode?: "home" | "collection" | "product" | "collections-index" | "policy";
   collectionName?: string;
@@ -302,7 +320,7 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
   return <>{children(timeLeft)}</>;
 }
 
-export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey }: StorePageProps = {}) {
+export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
   const isProductView = mode === "product";
@@ -348,12 +366,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveShowShopByGender, setLiveShowShopByGender] = useState<boolean | null>(null);
   const [liveShopByGenderEyebrow, setLiveShopByGenderEyebrow] = useState<string | null>(null);
   const [liveShopByGenderHeading, setLiveShopByGenderHeading] = useState<string | null>(null);
+  const [liveShowHeroPill, setLiveShowHeroPill] = useState<boolean | null>(null);
+  const [liveHeroPillLabel, setLiveHeroPillLabel] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
   /* ─── PROMO ─── */
   const [promoCountdown, setPromoCountdown] = useState<PromoDiscount | null>(() => buildInitialPromos(initialDiscountCodes).countdown);
   const [promoDiscounts, setPromoDiscounts] = useState<PromoDiscount[]>(() => buildInitialPromos(initialDiscountCodes).discounts);
+  const [promoBadges, setPromoBadges] = useState<PromoBadge[]>(initialPromoBadges || []);
 
   /* ─── UI ─── */
   const [activeCategory, setActiveCategory] = useState("All");
@@ -418,6 +439,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         );
         if (storePromo) setPromoCountdown({ ...storePromo, timeLeft: "" });
       }
+      const { data: badges } = await supabase
+        .from("product_promo_badges").select("label, scope, product_id, collection_name")
+        .eq("seller_id", s.id).eq("active", true);
+      setPromoBadges(badges || []);
       setLoading(false);
       if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
     })();
@@ -425,6 +450,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   const getProductPromo = (productId: string) =>
     promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
+
+  const getProductPromoBadge = (p: Product) =>
+    promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
 
   /* ─── LIVE EDIT POSTMESSAGE ─── */
   useEffect(() => {
@@ -454,6 +482,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.showShopByGender !== undefined) setLiveShowShopByGender(e.data.showShopByGender);
       if (e.data.shopByGenderEyebrow !== undefined) setLiveShopByGenderEyebrow(e.data.shopByGenderEyebrow);
       if (e.data.shopByGenderHeading !== undefined) setLiveShopByGenderHeading(e.data.shopByGenderHeading);
+      if (e.data.showHeroPill !== undefined) setLiveShowHeroPill(e.data.showHeroPill);
+      if (e.data.heroPillLabel !== undefined) setLiveHeroPillLabel(e.data.heroPillLabel);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -797,6 +827,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // the only editable copy (no fixed category slots) -- everything else is
   // derived straight from the seller's real `collections` list below.
   const showShopByGender = liveShowShopByGender ?? config.show_shopbygender ?? true;
+  // Hero pill (e.g. "7 YEAR ANNIVERSARY SALE") -- opt-in (default off),
+  // unlike Newsletter/Shop by Gender above: an empty label would otherwise
+  // render an empty pill by default on every seller's storefront.
+  const showHeroPill = (liveShowHeroPill ?? config.show_hero_pill ?? false) && !!(liveHeroPillLabel ?? config.hero_pill_label);
+  const heroPillLabel = liveHeroPillLabel ?? config.hero_pill_label ?? "";
   const sbgEyebrow = liveShopByGenderEyebrow ?? config.shopbygender_eyebrow ?? `${seller.store_name} Collection`;
   const sbgHeading = liveShopByGenderHeading ?? config.shopbygender_heading ?? "Shop by Category";
   // partitionGenderCollections only partitions by name convention -- it has
@@ -859,11 +894,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
      sync instead of drifting out of three copy-pasted blocks. */
   const ProductCard = ({ p }: { p: Product }) => {
     const onSale = p.old_price && p.old_price > p.price;
+    const badge = getProductPromoBadge(p);
     const promo = getProductPromo(p.id);
     return (
       <div className="fr-pcard" onClick={() => goToProduct(p)}>
-        {promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
-        {!promo && onSale && <span className="fr-ptag sale">Sale</span>}
+        {badge && <span className="fr-ptag sale">{badge.label}</span>}
+        {!badge && promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
+        {!badge && !promo && onSale && <span className="fr-ptag sale">Sale</span>}
         <div className="fr-pimg">
           {p.image_url ? (
             <>
@@ -1019,6 +1056,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-hero-bgimg{position:absolute;inset:0;z-index:0}
 .fr-hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(0,0,0,0.82) 0%,rgba(0,0,0,0.38) 55%,rgba(0,0,0,0.12) 100%)}
 .fr-hero-inner{position:relative;z-index:2;width:100%;max-width:720px;padding:0 56px 72px;text-align:left}
+.fr-hero-pill{display:inline-block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cream);background:var(--purple);padding:7px 16px;border-radius:999px;margin-bottom:16px}
 .fr-hero-label{font-family:var(--body);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(253,251,247,0.65);margin-bottom:18px;display:flex;align-items:center;gap:12px}
 .fr-hero-label::before{content:'';display:block;width:26px;height:1px;background:rgba(253,251,247,0.4)}
 .fr-hero-h1{font-family:var(--serif);font-weight:700;font-size:clamp(38px,6vw,72px);line-height:1.05;color:#fdfbf7;margin-bottom:20px;white-space:pre-line}
@@ -1682,6 +1720,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               )}
               <div className="fr-hero-overlay" />
               <div className="fr-hero-inner">
+                {showHeroPill && <div className="fr-hero-pill">{heroPillLabel}</div>}
                 {displayHeroLabel && <div className="fr-hero-label">{displayHeroLabel}</div>}
                 {displayHeroHeadline && <h1 className="fr-hero-h1">{displayHeroHeadline}</h1>}
                 {displayHeroBody && <p className="fr-hero-body">{displayHeroBody}</p>}

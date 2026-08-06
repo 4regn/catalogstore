@@ -369,6 +369,12 @@ export default function StoreEditor() {
      "Limited drop ends in". */
   const [heroCountdownLabel, setHeroCountdownLabel]   = useState("");
   const [heroSaleHeadline, setHeroSaleHeadline]       = useState("");
+  // 4regn hero pill -- e.g. "7 YEAR ANNIVERSARY SALE". Purely a manual
+  // marketing label (opt-in, default off), unlike the per-product promo
+  // badges imported from real Shopify discounts (product_promo_badges,
+  // scripts/import-4regn-discounts.ts -- no dashboard UI for those yet).
+  const [showHeroPill, setShowHeroPill] = useState(false);
+  const [heroPillLabel, setHeroPillLabel] = useState("");
   // 4regn SETLA promo strip
   const [showSetlaBanner, setShowSetlaBanner] = useState(true);
   const [setlaEyebrow, setSetlaEyebrow]       = useState("");
@@ -558,6 +564,9 @@ export default function StoreEditor() {
       setTermsOfService((s.store_config as any)?.terms_of_service ?? "");
       setHeroCountdownLabel(cfg?.hero_countdown_label ?? "");
       setHeroSaleHeadline((cfg as any)?.hero_sale_headline ?? "");
+      // 4regn hero pill
+      setShowHeroPill((cfg as any)?.show_hero_pill ?? false);
+      setHeroPillLabel((cfg as any)?.hero_pill_label ?? "");
       // 4regn SETLA promo strip
       setShowSetlaBanner((cfg as any)?.show_setla_banner ?? true);
       setSetlaEyebrow((cfg as any)?.setla_eyebrow ?? "");
@@ -713,6 +722,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ returnPolicy }); }, [returnPolicy]);
   useEffect(() => { postUpdate({ heroCountdownLabel }); }, [heroCountdownLabel]);
   useEffect(() => { postUpdate({ heroSaleHeadline }); }, [heroSaleHeadline]);
+  useEffect(() => { postUpdate({ showHeroPill }); }, [showHeroPill]);
+  useEffect(() => { postUpdate({ heroPillLabel }); }, [heroPillLabel]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
   useEffect(() => { postUpdate({ heroCta }); }, [heroCta]);
   useEffect(() => { postUpdate({ heroCtaTarget }); }, [heroCtaTarget]);
@@ -859,6 +870,8 @@ export default function StoreEditor() {
       return_policy: returnPolicy,
       hero_countdown_label: heroCountdownLabel,
       hero_sale_headline: heroSaleHeadline,
+      show_hero_pill: showHeroPill,
+      hero_pill_label: heroPillLabel,
       show_setla_banner: showSetlaBanner,
       setla_eyebrow: setlaEyebrow,
       setla_lead: setlaLead,
@@ -1665,6 +1678,16 @@ export default function StoreEditor() {
                   <label style={labelStyle}>Hero Label</label>
                   <input value={heroLabel} onChange={e => setHeroLabel(e.target.value)} placeholder="e.g. NEW SEASON" style={inputStyle} />
                   <div style={hintStyle}>The smaller line above the headline.</div>
+                </div>
+
+                <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" checked={showHeroPill} onChange={e => setShowHeroPill(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                    Promo Pill
+                  </label>
+                  <input value={heroPillLabel} onChange={e => setHeroPillLabel(e.target.value)}
+                    placeholder="e.g. 7 YEAR ANNIVERSARY SALE" style={{ ...inputStyle, marginTop: 8 }} disabled={!showHeroPill} />
+                  <div style={hintStyle}>Small rounded label shown above the hero content -- a manual marketing callout you set yourself, separate from any per-product sale badges shown on individual products.</div>
                 </div>
 
                 <div>
