@@ -436,6 +436,80 @@ export function htmlToParagraphs(html: string): string {
     .trim();
 }
 
+// Mirrors the entity list htmlToParagraphs() decodes (same set, same
+// order) -- kept as its own small helper rather than reaching into
+// htmlToParagraphs() itself, which is left completely untouched per its own
+// doc comment above. Used by tableToRowLines() below so table cell text is
+// decoded the same way as everything else in a description.
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&(#39|apos);/gi, "'");
+}
+
+// Converts one <table>...</table> block into one line of text per <tr>,
+// cells joined with " | " -- e.g. a size-chart header row
+// <tr><th>Size</th><th>Bust</th></tr> becomes "Size | Bust", a data row
+// becomes "S | 92-96". <thead>/<tbody> wrappers (if present) are ignored --
+// <tr> is matched wherever it occurs in the table's HTML regardless of
+// nesting. Any tags nested inside a cell (<strong>, <br>, etc.) are
+// stripped, not preserved -- a cell is one flat value, not its own
+// sub-document.
+function tableToRowLines(tableHtml: string): string[] {
+  const rowMatches = tableHtml.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi) || [];
+  const lines: string[] = [];
+  for (const rowHtml of rowMatches) {
+    const cellMatches = rowHtml.match(/<(?:td|th)\b[^>]*>[\s\S]*?<\/(?:td|th)>/gi) || [];
+    if (!cellMatches.length) continue;
+    const cells = cellMatches.map((cellHtml) =>
+      decodeHtmlEntities(
+        cellHtml
+          .replace(/^<(?:td|th)\b[^>]*>/i, "")
+          .replace(/<\/(?:td|th)>\s*$/i, "")
+          .replace(/<[^>]*>/g, " ")
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+    );
+    lines.push(cells.join(" | "));
+  }
+  return lines;
+}
+
+// Extends htmlToParagraphs() with real <table> support -- a size-chart
+// table (rows like Size/Shoulder/Bust/Length with numeric columns per size)
+// has no block-level markup htmlToParagraphs() can turn into line breaks,
+// so it collapses into an unreadable run-on paragraph ("...S 47.5 110 53
+// 62.8 40.8 23.8 M 49 114 55 64 42 25..."). This is why migrate-4regn.ts's
+// description field needs this function instead of stripHtml() -- confirmed
+// against a real Shopify product description containing exactly this shape
+// of size-chart table.
+//
+// Approach: pull each <table>...</table> block out with a regex pass, turn
+// it into pipe-separated-rows text via tableToRowLines() above (one line
+// per <tr>, NOT one blank-line-separated paragraph per <tr> -- a table's
+// rows are one visual block), splice that text back into the original
+// string wrapped in blank lines so it reads as its own paragraph-like
+// block, then run the ENTIRE result through the existing, unmodified
+// htmlToParagraphs() -- so every entity-decoding/line-collapsing/paragraph
+// rule already relied on for the non-table portions of a description
+// applies identically here too, rather than a second, subtly different
+// implementation of the same logic. No length cap (matches
+// htmlToParagraphs() -- these are real product descriptions, not
+// stripHtml()'s short CSV cell values).
+export function htmlToDescriptionText(html: string): string {
+  const withTablesConverted = html.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, (tableHtml) => {
+    const lines = tableToRowLines(tableHtml);
+    if (!lines.length) return "";
+    return `\n\n${lines.join("\n")}\n\n`;
+  });
+  return htmlToParagraphs(withTablesConverted);
+}
+
 export function parseYesNo(value: string): boolean {
   return /^(yes|true|1)$/i.test(value.trim());
 }

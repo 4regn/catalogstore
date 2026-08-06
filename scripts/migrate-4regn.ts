@@ -22,7 +22,7 @@
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
 
 import { writeFileSync } from "fs";
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, stripHtml, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionText, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows } from "./lib/migrate-shared";
 
 type ProductRow = {
   seller_id: string;
@@ -127,7 +127,7 @@ async function main() {
     const old_price = Number.isFinite(comparePrice) && comparePrice > price ? comparePrice : null;
 
     const bodyHtml = col(first, "body (html)");
-    const description = bodyHtml ? stripHtml(bodyHtml) : "";
+    const description = bodyHtml ? htmlToDescriptionText(bodyHtml) : "";
     const category = col(first, "type") || col(first, "product category") || null;
     const statusRaw = col(first, "status").toLowerCase();
     const status = statusRaw === "draft" ? "draft" : "published";
