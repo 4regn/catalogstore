@@ -302,6 +302,7 @@ export default function Dashboard() {
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [totalOrdersCount, setTotalOrdersCount] = useState<number | null>(null);
   const [velourServices, setVelourServices] = useState<VelourService[]>([]);
   const [velourBookings, setVelourBookings] = useState<VelourBooking[]>([]);
   const [inboxConversations, setInboxConversations] = useState<{ id: string; name: string | null; email: string | null; status: string; seller_unread: number; last_message_at: string; last_message_preview: string | null }[]>([]);
@@ -459,14 +460,23 @@ export default function Dashboard() {
     const user = session?.user;
     if (!user) { router.push("/login"); return; }
     // Fetch seller + products + orders + discounts in a single parallel batch
-    const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult] = await Promise.all([
+    const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult, ordersCountRes] = await Promise.all([
       supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single(),
       fetchAllProducts(user.id),
       supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT),
       supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
       supabase.from("services").select(VELOUR_SERVICE_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }),
       supabase.from("bookings").select(VELOUR_BOOKING_COLUMNS).eq("seller_id", user.id).order("date", { ascending: true }),
+      // The "Total Orders" stat needs a real count, not orders.length --
+      // that's just however many pages of ORDERS_LIMIT have been loaded
+      // into the browser so far, the same class of bug as the products
+      // count freezing at 500 (confirmed live: a seller with 2,531 real
+      // orders saw "100" until they'd manually clicked "Load More" 25+
+      // times). A head-only count query is cheap regardless of how many
+      // orders actually exist.
+      supabase.from("orders").select("*", { count: "exact", head: true }).eq("seller_id", user.id),
     ]);
+    if (ordersCountRes.count !== null) setTotalOrdersCount(ordersCountRes.count);
     const sd = sellerRes.data;
     // Pro signups don't get dashboard access until they've completed PayFast
     // subscription setup -- selecting "free" instead lands as subscription_status
@@ -1114,7 +1124,7 @@ export default function Dashboard() {
       label: "Sell",
       items: [
         { key: "live" as TabKey, name: "Live Visitors", icon: "live" as DashIconName, count: liveVisitors.length },
-        { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName, count: visibleOrders.length },
+        { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName, count: totalOrdersCount ?? visibleOrders.length },
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
         { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
         ...(seller?.template === "velour" ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
@@ -1624,7 +1634,7 @@ export default function Dashboard() {
 
             <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--muted-2)", marginBottom: 12 }}>Today's Overview</h3>
             <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-              {[{ n: publishedCount, l: "Published" }, { n: visibleOrders.length, l: "Total Orders" }, { n: todayOrders.length, l: "Orders Today" }, { n: "R" + totalRevenue.toFixed(0), l: "Revenue", c: N }].map((s, i) => (
+              {[{ n: publishedCount, l: "Published" }, { n: totalOrdersCount ?? visibleOrders.length, l: "Total Orders" }, { n: todayOrders.length, l: "Orders Today" }, { n: "R" + totalRevenue.toFixed(0), l: "Revenue", c: N }].map((s, i) => (
                 <div key={i} style={{ padding: 20, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
                   <div style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 900, letterSpacing: "-0.04em", marginBottom: 4, color: s.c || "var(--text)" }}>{s.n}</div>
                   <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>{s.l}</div>
@@ -2268,7 +2278,13 @@ export default function Dashboard() {
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Orders</h1><p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Track and manage incoming orders.</p></div>
               {selectedOrder && <button onClick={() => setSelectedOrder(null)} style={{ padding: "10px 20px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Orders</button>}
             </div>
-            {!selectedOrder && visibleOrders.length > 0 && <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>{visibleOrders.length} order{visibleOrders.length !== 1 ? "s" : ""}</p>}
+            {!selectedOrder && visibleOrders.length > 0 && (
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>
+                {totalOrdersCount !== null && totalOrdersCount > visibleOrders.length
+                  ? `Showing ${visibleOrders.length} of ${totalOrdersCount} orders`
+                  : `${visibleOrders.length} order${visibleOrders.length !== 1 ? "s" : ""}`}
+              </p>
+            )}
             {selectedOrder ? (
               <div>
                 <div style={{ padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16 }}>
