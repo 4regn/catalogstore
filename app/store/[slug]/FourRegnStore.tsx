@@ -1126,7 +1126,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .fr-pcard{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;text-align:center;position:relative;transition:transform 0.2s}
 .fr-pcard:hover{transform:translateY(-3px)}
-.fr-pimg{width:100%;aspect-ratio:1;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
+.fr-pimg{width:100%;aspect-ratio:4/5;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
 .fr-pimg img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
@@ -1308,7 +1308,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-policy-body p:last-child{margin-bottom:0}
 
 .fr-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px}
-.fr-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pan-y pinch-zoom}
+.fr-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pinch-zoom}
 .fr-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-user-select:none;user-select:none;pointer-events:none}
 .fr-lb-close{position:fixed;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .fr-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,0.08);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:4px;z-index:2}
@@ -1991,7 +1991,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             renders one titled row per collection instead of dumping every
             product into one undifferentiated wall. Not rendered at all for
             the dedicated product/collections-index/policy pages. */}
-        {(isHomeView || isCollectionView) && (isCollectionView || !productGroups ? (
+        {isCollectionView && (isCollectionView || !productGroups ? (
           <div id="fr-products" className="fr-section" style={{ paddingTop: isCollectionView ? 24 : undefined }}>
             <div className="fr-section-head">
               <h2 className="fr-section-title">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "New Arrivals") : effectiveCategory}</h2>

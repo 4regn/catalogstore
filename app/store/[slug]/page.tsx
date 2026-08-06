@@ -24,6 +24,21 @@ const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+// 4regn's homepage no longer renders a flat product grid (it was removed --
+// see the "PRODUCTS" section in FourRegnStore.tsx, now gated to collection
+// view only). Traced every remaining isHomeView code path there and the only
+// product fields it still reads are: id (React keys / goToProduct fallback
+// route), name (search overlay filter + display + A-Z/Z-A sort), price
+// (search overlay display + price sort), category (catCount/catImage behind
+// the "Shop by Collection" tiles and "Shop by Gender" panels, and the search
+// overlay filter/display), image_url (catImage, search overlay thumbnail),
+// and handle (goToProduct's /products/<handle> routing from search results).
+// old_price/images/variants/in_stock/description/sort_order/created_at are
+// never read on isHomeView now that the flat grid (the only place that used
+// them) is gone. This narrower set is 4regn-specific -- every other
+// template's homepage still renders a full product grid and needs the full
+// PRODUCT_COLUMNS above, so this is only swapped in for tpl === "4regn".
+const FOUR_REGN_HOME_PRODUCT_COLUMNS = "id, name, price, category, image_url, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
@@ -135,8 +150,9 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     );
   }
 
+  const productColumns = tpl === "4regn" ? FOUR_REGN_HOME_PRODUCT_COLUMNS : PRODUCT_COLUMNS;
   const [initialProductsRaw, discountsRes] = await Promise.all([
-    fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q) =>
+    fetchAllRows<any>(supabaseAdmin, "products", productColumns, (q) =>
       q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
     ),
     supabaseAdmin
