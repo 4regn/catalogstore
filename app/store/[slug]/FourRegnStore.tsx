@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useTransition, type TouchEvent as ReactTouchEvent } from "react";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 
@@ -311,6 +311,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const [isNavigating, startNavigation] = useTransition();
   const navigate = (path: string) => startNavigation(() => router.push(path));
   const slug = params.slug as string;
@@ -357,11 +358,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   /* ─── UI ─── */
   const [activeCategory, setActiveCategory] = useState("All");
   const [productSort, setProductSort] = useState("default");
-  // Sort control for the dedicated /collections index list -- same
-  // state/select shape as productSort above, just a different option set
-  // (name and product-count based, no date/price since collections have
-  // neither) for the fr-collist-* compact list below.
-  const [collectionSort, setCollectionSort] = useState("az");
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -484,11 +480,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
      memory from fighting Next.js App Router's client-side navigation (a
      sticky header + dynamically-sized above-the-fold content otherwise
      causes pages to briefly load scrolled near the bottom before jumping
-     back to the top). Take explicit control and force the top on mount. */
+     back to the top). Take explicit control and force the top on every real
+     page-content change -- not just once on first mount. App Router reuses
+     this same FourRegnStore instance across client-side navigations between
+     routes that share a layout boundary, so an empty-deps effect here only
+     ever fires on the very first load of a session; it needs pathname (and
+     mode, since some navigations are query-param-driven and may not change
+     the pathname) in its deps to re-run on every subsequent navigation too. */
   useEffect(() => {
     if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
     window.scrollTo(0, 0);
-  }, []);
+  }, [pathname, mode]);
 
   /* ─── CART OPS ─── */
   const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
@@ -618,17 +620,31 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── DERIVED ─── */
   const allCategories = ["All", ...Array.from(new Set(products.flatMap((p) => (p.category || "").split(",").map((c) => c.trim()).filter(Boolean))))];
+  // catImage/catCount only need `products`, which is already in scope here --
+  // moved up above categoryList/menuCategories/sellerCollections-derived
+  // buckets below so every place that renders a browsable collection list
+  // can filter out collections that currently match 0 products (sold out,
+  // unpublished, or just not tagged to anything) before anything renders.
+  const catImage = (cat: string) => {
+    const p = products.find((p) => pInCat(p, cat) && p.image_url);
+    return p?.image_url || null;
+  };
+  const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
   // "Shop by Collection" grid: the seller's real, explicitly-ordered
   // collections list is the source of truth here (same list the nav/footer
   // already use below) so this grid can never drift from what the seller
   // actually configured. Only falls back to auto-derived product.category
   // tags for stores that haven't set up collections yet, so the grid isn't
-  // simply empty for them.
+  // simply empty for them. Either way, a collection that currently matches 0
+  // products is never a clickable tile -- filtered out here so it can never
+  // slip into any browsable listing below.
   const sellerCollections = (seller?.collections || []).filter(Boolean);
-  const categoryList = sellerCollections.length > 0 ? sellerCollections : allCategories.filter((c) => c !== "All").slice(0, 8);
+  const categoryList = (sellerCollections.length > 0 ? sellerCollections : allCategories.filter((c) => c !== "All").slice(0, 8)).filter((cat) => catCount(cat) > 0);
   // Nav / menu links come straight from the seller's collections list -- no
-  // fixed menu structure baked in here.
-  const menuCategories = ["All", ...sellerCollections];
+  // fixed menu structure baked in here. "All" has no real per-collection
+  // count and always stays; every other (real, named) entry is dropped once
+  // it has 0 matching products.
+  const menuCategories = ["All", ...sellerCollections.filter((cat) => catCount(cat) > 0)];
   const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
   // Real product search -- same `products` source the category-filter grid
   // above already uses, matched against a free-text query by name and
@@ -783,7 +799,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const showShopByGender = liveShowShopByGender ?? config.show_shopbygender ?? true;
   const sbgEyebrow = liveShopByGenderEyebrow ?? config.shopbygender_eyebrow ?? `${seller.store_name} Collection`;
   const sbgHeading = liveShopByGenderHeading ?? config.shopbygender_heading ?? "Shop by Category";
-  const { men: sbgMen, women: sbgWomen } = partitionGenderCollections(sellerCollections);
+  // partitionGenderCollections only partitions by name convention -- it has
+  // no idea about product counts, so a "Men <thing>"/"Women <thing>" (or
+  // "ALL MEN"/"ALL WOMEN") collection with 0 matching products can slip
+  // straight through it. Apply the same catCount(cat) > 0 guard used
+  // everywhere else right after partitioning so these panels never get an
+  // empty clickable tile either -- nothing else about how this section
+  // works changes.
+  const { men: sbgMenRaw, women: sbgWomenRaw } = partitionGenderCollections(sellerCollections);
+  const filterGenderBucket = (b: GenderBucket): GenderBucket => ({
+    shopAll: b.shopAll && catCount(b.shopAll) > 0 ? b.shopAll : null,
+    items: b.items.filter((it) => catCount(it.name) > 0),
+  });
+  const sbgMen = filterGenderBucket(sbgMenRaw);
+  const sbgWomen = filterGenderBucket(sbgWomenRaw);
   const sbgHasMen = sbgMen.items.length > 0;
   const sbgHasWomen = sbgWomen.items.length > 0;
   // Hide the whole section if neither bucket has real collections yet
@@ -791,26 +820,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // empty panel if only one gender has collections set up.
   const showShopByGenderSection = isHomeView && showShopByGender && (sbgHasMen || sbgHasWomen);
 
-  const catImage = (cat: string) => {
-    const p = products.find((p) => pInCat(p, cat) && p.image_url);
-    return p?.image_url || null;
-  };
-  const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
+  // /collections index page (mode="collections-index") -- the seller's real
+  // collections, zero-product ones filtered out the same as every other
+  // browsable listing, sorted alphabetically (A-Z). The real theme's own
+  // main-list-collections.liquid sort is a one-time merchant/theme-editor
+  // setting, not a live customer control, so this is a fixed order rather
+  // than an on-page picker.
+  const collectionsIndexList = sellerCollections.filter((cat) => catCount(cat) > 0).sort((a, b) => a.localeCompare(b));
 
-  // Sort order for the /collections index list (collectionSort state) --
-  // only computed there, but cheap enough (72-ish collections, not
-  // thousands of products) to just derive on every render like `filtered`
-  // above rather than memoize.
-  const sortedSellerCollections = [...sellerCollections].sort((a, b) => {
-    if (collectionSort === "za") return b.localeCompare(a);
-    if (collectionSort === "most") return catCount(b) - catCount(a);
-    if (collectionSort === "fewest") return catCount(a) - catCount(b);
-    return a.localeCompare(b); // "az" (default)
-  });
-
-  // Single tile renderer shared by the homepage's capped "Shop by
-  // Collection" grid and the uncapped /collections index page, so both stay
-  // in sync instead of two copy-pasted blocks.
+  // Single tile renderer for the homepage's capped "Shop by Collection"
+  // grid. NOT shared with the /collections index page (mode=
+  // "collections-index") -- that page matches the real theme's own
+  // full-bleed image-tile main-list-collections.liquid grid one-for-one
+  // instead (see the fr-collgrid-* markup/CSS below), which is a
+  // deliberately different look from this capped teaser tile.
   const renderCatTile = (cat: string) => {
     const img = catImage(cat);
     return (
@@ -1114,21 +1137,25 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cat-name{font-family:var(--serif);font-weight:700;font-size:15px;color:var(--ink);margin-bottom:4px}
 .fr-cat-count{font-size:11px;color:rgba(46,42,57,0.55)}
 
-/* /collections index -- compact, dense, sortable row list (fr-collist-*).
-   Deliberately not fr-cat-grid/fr-cat-card: a full 4:5-tile grid of a
-   seller's whole (often 70+) collection list is too visually heavy, unlike
-   the homepage's own capped ~20-item teaser that fr-cat-grid stays reserved
-   for. */
-.fr-collist{display:flex;flex-direction:column;background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden}
-.fr-collist-row{display:flex;align-items:center;gap:16px;padding:12px 18px;text-decoration:none;color:inherit;font-family:var(--body);border-bottom:1px solid rgba(0,0,0,0.06);cursor:pointer;background:none;transition:background 0.15s}
-.fr-collist-row:last-child{border-bottom:none}
-.fr-collist-row:hover{background:rgba(0,0,0,0.02)}
-.fr-collist-thumb{position:relative;width:60px;height:60px;flex-shrink:0;border-radius:8px;overflow:hidden;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
-.fr-collist-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.fr-collist-thumb .fr-cat-mark{font-size:11px}
-.fr-collist-name{flex:1;font-family:var(--serif);font-weight:700;font-size:15px;color:var(--ink)}
-.fr-collist-count{font-size:12px;color:rgba(46,42,57,0.55);white-space:nowrap}
-.fr-collist-arrow{font-size:18px;color:rgba(46,42,57,0.35);line-height:1}
+/* /collections index (mode="collections-index", fr-collgrid-*) -- matches
+   the real 4regn.com "Collections" page, i.e. the real theme's own
+   main-list-collections.liquid: a plain "Collections" heading (no eyebrow)
+   over a warm-grey full-bleed section, and a simple 2/3-col full-bleed
+   image-tile grid with a dark-overlay title on each tile. Deliberately not
+   fr-cat-grid/fr-cat-card (the homepage's own, differently-styled, capped
+   ~20-item "Shop by Collection" teaser, which stays untouched) and no
+   longer the old compact row-list this page briefly used before. */
+.fr-collgrid-page{background:#e8e6e3;padding:40px 0}
+.fr-collgrid-heading{font-family:var(--serif);font-size:clamp(32px,5vw,52px);font-weight:400;font-style:italic;color:#111111;text-align:center;margin:0 0 32px}
+.fr-collgrid{list-style:none;margin:0 auto;max-width:1360px;padding:0 20px;display:grid;grid-template-columns:repeat(2,1fr);gap:5px}
+@media (min-width:750px){.fr-collgrid{grid-template-columns:repeat(3,1fr)}}
+.fr-collgrid-item{position:relative;overflow:hidden;aspect-ratio:4/5;background-color:#e8e6e3}
+.fr-collgrid-link{display:block;width:100%;height:100%;position:relative}
+.fr-collgrid-img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 1.5s ease}
+.fr-collgrid-link:hover .fr-collgrid-img{transform:scale(1.05)}
+.fr-collgrid-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);transition:background 0.3s ease}
+.fr-collgrid-link:hover .fr-collgrid-overlay{background:rgba(0,0,0,0.35)}
+.fr-collgrid-title{font-family:var(--serif) !important;font-size:clamp(1.4rem,3.5vw,2.8rem);color:#fff;text-transform:uppercase;font-style:italic;text-align:center;padding:0 15px;line-height:1.15}
 
 .fr-pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .fr-pcard{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;text-align:center;position:relative;transition:transform 0.2s}
@@ -1410,10 +1437,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
-  .fr-collist-row{padding:10px 14px;gap:12px}
-  .fr-collist-thumb{width:48px;height:48px}
-  .fr-collist-name{font-size:13px}
-  .fr-collist-count{font-size:11px}
   .fr-newsletter{padding:56px 20px}
   .fr-foot{padding:56px 20px 24px}
   .fr-foot-grid{grid-template-columns:1fr;gap:36px}
@@ -1907,54 +1930,46 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         })()}
 
         {/* ALL COLLECTIONS — dedicated /collections index page
-            (mode="collections-index"). Deliberately NOT the homepage's big
-            4:5-tile fr-cat-grid (via renderCatTile) -- that's fine for a
-            capped ~20-item teaser row, but far too heavy for the seller's
-            full (sometimes 70+) collection list, which was the actual
-            complaint ("way too many collections which makes the page
-            full"). This is its own compact, dense, sortable row list
-            instead; the homepage's own grid/renderCatTile is untouched. */}
+            (mode="collections-index"). Matches the real 4regn.com
+            "Collections" page one-for-one: the real theme's own
+            main-list-collections.liquid (Shopify's all-collections page
+            template), a plain "Collections" heading with no eyebrow over a
+            warm-grey full-bleed section, and a simple 2/3-col full-bleed
+            image-tile grid with a dark-overlay title on each tile -- NOT
+            the homepage's own separate "Shop by Collection" teaser section
+            (different eyebrow/heading, capped ~20-item fr-cat-grid via
+            renderCatTile, which stays completely untouched). No product
+            count or sort control shown to the customer here; the real
+            page's "sort" is a one-time merchant/theme-editor setting, so
+            collectionsIndexList above is just fixed A-Z. */}
         {isCollectionsIndexView && (
-          <div className="fr-section">
-            <div className="fr-section-head">
-              <h2 className="fr-section-title">All Collections</h2>
-              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-                <select value={collectionSort} onChange={(e) => setCollectionSort(e.target.value)} className="fr-sort-select" aria-label="Sort collections">
-                  <option value="az">A — Z</option>
-                  <option value="za">Z — A</option>
-                  <option value="most">Most Products</option>
-                  <option value="fewest">Fewest Products</option>
-                </select>
-                <span className="fr-count">{sortedSellerCollections.length} {sortedSellerCollections.length === 1 ? "collection" : "collections"}</span>
-              </div>
-            </div>
-            <div className="fr-collist">
-              {sortedSellerCollections.map((cat) => {
+          <div className="fr-collgrid-page">
+            <h1 className="fr-collgrid-heading">Collections</h1>
+            <ul className="fr-collgrid" role="list">
+              {collectionsIndexList.map((cat) => {
                 const img = catImage(cat);
-                const count = catCount(cat);
                 const target = sp(`/c/${collectionSlug(cat)}`);
                 return (
-                  <a
-                    key={cat}
-                    href={target}
-                    className="fr-collist-row"
-                    onClick={(e) => { e.preventDefault(); navigate(target); }}
-                  >
-                    <div className="fr-collist-thumb">
+                  <li key={cat} className="fr-collgrid-item">
+                    <a
+                      href={target}
+                      className="fr-collgrid-link"
+                      onClick={(e) => { e.preventDefault(); navigate(target); }}
+                    >
                       {img ? (
                         <>
-                          <Image src={img} alt={cat} fill sizes="(max-width: 900px) 48px, 60px" style={{ objectFit: "cover" }} onError={handleImgError} />
+                          <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} className="fr-collgrid-img" />
                           <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
+                          <div className="fr-collgrid-overlay">
+                            <span className="fr-collgrid-title">{cat}</span>
+                          </div>
                         </>
                       ) : <span className="fr-cat-mark">{cat}</span>}
-                    </div>
-                    <div className="fr-collist-name">{cat}</div>
-                    <div className="fr-collist-count">{count} {count === 1 ? "piece" : "pieces"}</div>
-                    <span className="fr-collist-arrow" aria-hidden="true">›</span>
-                  </a>
+                    </a>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
         )}
 
