@@ -219,6 +219,33 @@ async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null 
   }
   return { data: all };
 }
+
+// Real financial reporting (today/yesterday/week/month/year/custom range)
+// needs every order, not just the ORDERS_LIMIT-sized page the Orders tab's
+// list view loads -- confirmed live: "Revenue" stayed frozen at the same
+// number as when only 100 of a seller's 2,531 orders had ever been paged
+// in, since it was summed from that same capped `orders` state. A narrow
+// column set (no `items`/addresses/notes) keeps this cheap even at a few
+// thousand orders -- this is a lightweight aggregation dataset, not the
+// full order objects the list view and detail panel need.
+type OrderStatsRow = { total: number; payment_status: string; payment_method: string; created_at: string };
+async function fetchAllOrderStats(sellerId: string): Promise<OrderStatsRow[]> {
+  const all: OrderStatsRow[] = [];
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("total, payment_status, payment_method, created_at")
+      .eq("seller_id", sellerId)
+      .range(from, from + PAGE - 1);
+    if (error || !data) break;
+    all.push(...(data as OrderStatsRow[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
 const DISCOUNTS_LIMIT = 100;
 
 // UNIK's print-on-demand fulfillment involves a courier handoff a generic
@@ -305,6 +332,10 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [totalOrdersCount, setTotalOrdersCount] = useState<number | null>(null);
+  const [allOrderStats, setAllOrderStats] = useState<OrderStatsRow[]>([]);
+  const [financeRange, setFinanceRange] = useState<"today" | "yesterday" | "week" | "month" | "year" | "custom">("today");
+  const [financeCustomStart, setFinanceCustomStart] = useState("");
+  const [financeCustomEnd, setFinanceCustomEnd] = useState("");
   const [velourServices, setVelourServices] = useState<VelourService[]>([]);
   const [velourBookings, setVelourBookings] = useState<VelourBooking[]>([]);
   const [inboxConversations, setInboxConversations] = useState<{ id: string; name: string | null; email: string | null; status: string; seller_unread: number; last_message_at: string; last_message_preview: string | null }[]>([]);
@@ -462,7 +493,7 @@ export default function Dashboard() {
     const user = session?.user;
     if (!user) { router.push("/login"); return; }
     // Fetch seller + products + orders + discounts in a single parallel batch
-    const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult, ordersCountRes] = await Promise.all([
+    const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult, ordersCountRes, orderStats] = await Promise.all([
       supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single(),
       fetchAllProducts(user.id),
       supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT),
@@ -477,8 +508,10 @@ export default function Dashboard() {
       // times). A head-only count query is cheap regardless of how many
       // orders actually exist.
       supabase.from("orders").select("*", { count: "exact", head: true }).eq("seller_id", user.id),
+      fetchAllOrderStats(user.id),
     ]);
     if (ordersCountRes.count !== null) setTotalOrdersCount(ordersCountRes.count);
+    setAllOrderStats(orderStats);
     const sd = sellerRes.data;
     // Pro signups don't get dashboard access until they've completed PayFast
     // subscription setup -- selecting "free" instead lands as subscription_status
@@ -997,7 +1030,39 @@ export default function Dashboard() {
   const draftCount = products.filter((p) => p.status === "draft").length;
   const trashedCount = products.filter((p) => p.status === "trashed").length;
   const todayOrders = orders.filter((o) => !(o.payment_method === "payfast" && o.payment_status === "pending") && new Date(o.created_at).toDateString() === new Date().toDateString());
-  const totalRevenue = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0);
+  // Computed from allOrderStats (every order, fetched separately from the
+  // capped list-view `orders` state above) so this is a real total rather
+  // than whatever happens to have been paged into the browser.
+  const totalRevenue = allOrderStats.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0);
+
+  // ── FINANCIALS ── date-range revenue/order-count reporting. Presets are
+  // rolling windows (e.g. "This Week" = the last 7 days including today)
+  // rather than calendar-aligned ones -- simpler to reason about and
+  // matches how most storefront dashboards phrase these.
+  const financeRangeBounds = (() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (financeRange === "today") return { start: startOfToday, end: null as Date | null };
+    if (financeRange === "yesterday") {
+      const y = new Date(startOfToday); y.setDate(y.getDate() - 1);
+      return { start: y, end: startOfToday };
+    }
+    if (financeRange === "week") { const d = new Date(startOfToday); d.setDate(d.getDate() - 6); return { start: d, end: null }; }
+    if (financeRange === "month") { const d = new Date(startOfToday); d.setDate(d.getDate() - 29); return { start: d, end: null }; }
+    if (financeRange === "year") { const d = new Date(startOfToday); d.setDate(d.getDate() - 364); return { start: d, end: null }; }
+    // custom: inclusive of the whole end day
+    const start = financeCustomStart ? new Date(financeCustomStart) : null;
+    const end = financeCustomEnd ? new Date(new Date(financeCustomEnd).getTime() + 24 * 60 * 60 * 1000) : null;
+    return { start, end };
+  })();
+  const financeOrders = allOrderStats.filter((o) => {
+    if (o.payment_status !== "paid") return false;
+    const t = new Date(o.created_at).getTime();
+    if (financeRangeBounds.start && t < financeRangeBounds.start.getTime()) return false;
+    if (financeRangeBounds.end && t >= financeRangeBounds.end.getTime()) return false;
+    return true;
+  });
+  const financeRevenue = financeOrders.reduce((s, o) => s + o.total, 0);
   const visibleOrders = orders.filter((o) => !(o.payment_method === "payfast" && o.payment_status === "pending"));
   const abandonedOrders = orders.filter((o) => o.payment_method === "payfast" && o.payment_status === "pending");
   const totalImageSlots = existingImages.length + formImages.length;
@@ -1642,6 +1707,64 @@ export default function Dashboard() {
                   <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>{s.l}</div>
                 </div>
               ))}
+            </div>
+
+            <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--muted-2)", marginBottom: 12 }}>Financials</h3>
+            <div style={{ padding: 20, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 24 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 16 }}>
+                {([
+                  { key: "today", l: "Today" },
+                  { key: "yesterday", l: "Yesterday" },
+                  { key: "week", l: "Last 7 Days" },
+                  { key: "month", l: "Last 30 Days" },
+                  { key: "year", l: "Last Year" },
+                  { key: "custom", l: "Custom Range" },
+                ] as const).map((r) => (
+                  <button
+                    key={r.key}
+                    onClick={() => setFinanceRange(r.key)}
+                    style={{
+                      padding: "8px 16px", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700,
+                      textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer",
+                      background: financeRange === r.key ? "rgba(255,107,53,0.1)" : "var(--panel-2)",
+                      border: financeRange === r.key ? "1px solid rgba(255,107,53,0.2)" : "1px solid var(--border)",
+                      color: financeRange === r.key ? N : "var(--muted)",
+                    }}
+                  >
+                    {r.l}
+                  </button>
+                ))}
+              </div>
+              {financeRange === "custom" && (
+                <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16, flexWrap: "wrap" as const }}>
+                  <div>
+                    <label style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, display: "block", marginBottom: 4 }}>From</label>
+                    <input type="date" value={financeCustomStart} onChange={(e) => setFinanceCustomStart(e.target.value)} style={{ padding: "8px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, display: "block", marginBottom: 4 }}>To</label>
+                    <input type="date" value={financeCustomEnd} onChange={(e) => setFinanceCustomEnd(e.target.value)} style={{ padding: "8px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12 }} />
+                  </div>
+                </div>
+              )}
+              {financeRange === "custom" && (!financeCustomStart || !financeCustomEnd) ? (
+                <p style={{ fontSize: 12, color: "var(--muted-2)" }}>Pick a start and end date to see revenue for that range.</p>
+              ) : (
+                <div style={{ display: "flex", gap: 32, flexWrap: "wrap" as const }}>
+                  <div>
+                    <div style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 900, letterSpacing: "-0.04em", color: N }}>R{financeRevenue.toFixed(0)}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>Revenue (paid orders)</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 900, letterSpacing: "-0.04em" }}>{financeOrders.length}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>Paid Orders</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 900, letterSpacing: "-0.04em" }}>R{(financeOrders.length ? financeRevenue / financeOrders.length : 0).toFixed(0)}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>Avg Order Value</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="overview-panels-grid" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 24 }}>
