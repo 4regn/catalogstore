@@ -17,11 +17,26 @@ const FourRegn = dynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
-// Same columns app/store/[slug]/p/[productId]/page.tsx selects, plus
-// `handle` -- needed for FourRegnStore's breadcrumb/related-products/
-// goToProduct logic, which links off a product's handle when one is set.
+// Full columns for the single active product being viewed -- FourRegnStore's
+// PDP render (initialActiveProduct) needs everything: description, the full
+// images array, variants (size/option picker), old_price (sale price row).
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+// Second, separate fetch of the WHOLE catalog -- used only to compute
+// FourRegnStore's "You Might Also Like" row (relatedProducts: filters by
+// shared category, excludes the current product, caps at 8, renders each
+// via ProductCard) plus the header/mobile-dock search overlay, which is
+// rendered unconditionally on every page (not gated to mode="product") and
+// reads off this same `products` client state. Traced both consumers in
+// FourRegnStore.tsx: ProductCard's current render (its "Add to Bag" button
+// just navigates now, no client-side variant picker on the card) reads id,
+// name, price, old_price (sale badge), image_url, and handle (goToProduct);
+// the category match itself (pInCat) only needs `category`. The search
+// overlay reads id, name, price, category, image_url, and handle. Union of
+// both is exactly this set -- images/variants/in_stock/description/
+// sort_order/created_at are never read by either, those only apply to the
+// PDP's own `p = initialActiveProduct` render path above.
+const RELATED_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
@@ -107,8 +122,10 @@ export default async function ProductHandlePage({
       .eq("status", "published")
       .maybeSingle(),
     // Full product list -- same paginated pattern c/[collection]/page.tsx
-    // uses -- so "You Might Also Like" has real data to draw from.
-    fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q) =>
+    // uses -- so "You Might Also Like" has real data to draw from. Narrow
+    // columns only (see RELATED_PRODUCT_COLUMNS above): this is ~1600 rows
+    // for a real seller, just to filter down to 8 cards.
+    fetchAllRows<any>(supabaseAdmin, "products", RELATED_PRODUCT_COLUMNS, (q) =>
       q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
     ),
     supabaseAdmin

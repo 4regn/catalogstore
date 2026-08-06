@@ -19,8 +19,33 @@ const FourRegn = dynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+// Heirloom/SoftLuxury still need every column below (their own ProductCard
+// equivalents read old_price/images/variants/in_stock/description for a
+// client-side variant picker); this constant stays the full set for them.
+// Traced FourRegnStore.tsx separately for tpl === "4regn" -- see
+// FOUR_REGN_PRODUCT_COLUMNS below, which is what actually gets used on this
+// route once the seller is 4regn.
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+// 4regn's collection page renders a real flat ProductCard grid (unlike the
+// product-detail/collections-index routes, which only ever show 0 or 8 cards
+// off the full catalog). Traced ProductCard's current render in
+// FourRegnStore.tsx (its "Add to Bag" button now just calls goToProduct() --
+// no client-side variant picker on the card itself) plus every other reader
+// of `products` reachable from mode="collection": pInCat's category filter
+// that builds `filtered`/`collectionProducts`, the productSort comparator
+// (az/za/price-low/price-high plus latest/oldest, which read `created_at` --
+// the "Newest"/"Oldest" options in the sort <select> are live here, so
+// created_at survives), and the header/mobile-dock search overlay (rendered
+// unconditionally, reads id/name/price/category/image_url and goToProduct's
+// `handle` fallback). Card rendering itself reads id, name, price, old_price
+// (sale badge), image_url, and handle (goToProduct). sort_order is used only
+// in the server query's .order() clause below -- PostgREST orders on that
+// independent of the SELECT list, so it doesn't need to be a selected column
+// for the client. images (full array)/variants/in_stock/description are
+// never read for a related/grid card -- those only apply to the actual PDP's
+// own selectedProduct/initialActiveProduct render path, not this one.
+const FOUR_REGN_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle, created_at";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
@@ -113,8 +138,9 @@ export default async function CollectionPage({
     if (!matched) notFound();
   }
 
+  const productColumns = tpl === "4regn" ? FOUR_REGN_PRODUCT_COLUMNS : PRODUCT_COLUMNS;
   const [initialProductsRaw, discountsRes] = await Promise.all([
-    fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q) => {
+    fetchAllRows<any>(supabaseAdmin, "products", productColumns, (q) => {
       const base = q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
       return isAll ? base : base.like("category", `%${matched!}%`);
     }),

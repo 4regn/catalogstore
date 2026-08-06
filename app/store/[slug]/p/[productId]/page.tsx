@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
+import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata } from "next";
 
@@ -17,8 +18,27 @@ const FourRegn    = dynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+// Full columns -- every non-4regn template still renders this route as its
+// own grid-plus-slide-over page (StoreComponent below gets the whole
+// `initialProducts` list, not just one product), so it genuinely needs
+// everything here. Also used, unchanged, for the single active-product
+// fetch on the 4regn branch below (that product's PDP render needs
+// everything: description, full images array, variants, old_price).
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+// 4regn-only: a SEPARATE fetch of the whole catalog, used only for
+// FourRegnStore's "You Might Also Like" row (relatedProducts: category
+// match, excludes the current product, caps at 8, rendered via ProductCard)
+// plus the header/mobile-dock search overlay (unconditional on every page,
+// reads off this same `products` client state). Same trace/reasoning as
+// RELATED_PRODUCT_COLUMNS in ../../products/[handle]/page.tsx: ProductCard's
+// current render (no client-side variant picker on the card, just
+// goToProduct navigation) needs id/name/price/old_price(sale badge)/
+// image_url/handle; the category filter itself only needs `category`; the
+// search overlay needs id/name/price/category/image_url/handle. Union of
+// both is this set -- images/variants/in_stock/description/sort_order/
+// created_at are never read by either.
+const RELATED_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
@@ -72,6 +92,102 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     return <StoreUnavailable seller={seller} />;
   }
 
+  const isSubdomain = await isStoreSubdomainRequest();
+
+  // Resolve through the same private-template gate the collection page and
+  // main store page use, so a raw `template` column value can't be used to
+  // reach 4regn's private storefront from a seller who isn't allowed to
+  // use it. Resolved up front (rather than after the product fetch, as
+  // before) so the fetch strategy itself can branch on it below.
+  const tpl = resolveSellerTemplate(seller);
+
+  // 4regn gets a real dedicated product page (mode="product" +
+  // initialActiveProduct, no home grid underneath) instead of the slide-over
+  // every other template still uses initialProductId for on this same route.
+  // Unlike every other template (which needs the full, full-column product
+  // list below to render its own grid+slide-over page), 4regn only ever
+  // needs ONE full-column row (the product itself) plus a narrow-column
+  // catalog-wide list for "You Might Also Like" -- see RELATED_PRODUCT_COLUMNS
+  // above -- so it gets its own two-fetch path instead of sharing the
+  // single full-catalog-then-find query below.
+  if (tpl === "4regn") {
+    const [productRes, initialProducts, discountsRes] = await Promise.all([
+      supabaseAdmin
+        .from("products")
+        .select(PRODUCT_COLUMNS)
+        .eq("seller_id", seller.id)
+        .eq("id", productId)
+        .eq("in_stock", true)
+        .eq("status", "published")
+        .maybeSingle(),
+      // Full product list, narrow columns, paginated -- same pattern
+      // ../../products/[handle]/page.tsx uses for the identical "You Might
+      // Also Like" need.
+      fetchAllRows<any>(supabaseAdmin, "products", RELATED_PRODUCT_COLUMNS, (q) =>
+        q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
+      ),
+      supabaseAdmin
+        .from("discount_codes")
+        .select(DISCOUNT_COLUMNS)
+        .eq("seller_id", seller.id)
+        .eq("active", true)
+        .eq("show_countdown", true)
+        .not("expires_at", "is", null),
+    ]);
+
+    const activeProduct = productRes.data;
+    // A dedicated product page with nothing to show for a bad/expired id no
+    // longer makes sense once 4regn renders a real page here instead of a
+    // slide-over on top of the homepage (which used to just silently fall
+    // back to home with nothing open).
+    if (!activeProduct) notFound();
+
+    const initialDiscountCodes = discountsRes.data ?? [];
+
+    // Product schema, sourced from the same row already fetched for the page
+    // body -- gives Google a price/availability/image it can surface directly
+    // in search results instead of guessing from visible text.
+    const productJsonLd = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: activeProduct.name,
+      description: activeProduct.description || undefined,
+      image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
+      url: canonicalStoreUrl(slug, `/p/${productId}`),
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "ZAR",
+        price: activeProduct.price,
+        availability: activeProduct.in_stock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        url: canonicalStoreUrl(slug, `/p/${productId}`),
+      },
+    };
+
+    // Once a product has a real handle (via the handle backfill), /p/{uuid}
+    // is a legacy URL for it -- send visitors on to the canonical
+    // /products/{handle} page instead of rendering the UUID route directly,
+    // so there's exactly one indexable URL per product. A product with no
+    // handle yet (e.g. one created directly on the platform before the next
+    // backfill run) falls through to the direct render below exactly as it
+    // works today -- this is a defensive fallback, not a new page.
+    if (activeProduct.handle) {
+      redirect(isSubdomain ? `/products/${activeProduct.handle}` : `/store/${slug}/products/${activeProduct.handle}`);
+    }
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+        <FourRegn
+          initialSeller={seller}
+          initialProducts={initialProducts}
+          initialDiscountCodes={initialDiscountCodes}
+          mode="product"
+          initialActiveProduct={activeProduct}
+          isSubdomain={isSubdomain}
+        />
+      </>
+    );
+  }
+
   const [productsRes, discountsRes] = await Promise.all([
     supabaseAdmin
       .from("products")
@@ -91,7 +207,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const initialProducts = productsRes.data ?? [];
   const initialDiscountCodes = discountsRes.data ?? [];
-  const isSubdomain = await isStoreSubdomainRequest();
 
   const activeProduct = initialProducts.find((p: { id: string }) => p.id === productId);
   // A dedicated product page with nothing to show for a bad/expired id no
@@ -118,41 +233,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       url: canonicalStoreUrl(slug, `/p/${productId}`),
     },
   };
-
-  // Resolve through the same private-template gate the collection page and
-  // main store page use, so a raw `template` column value can't be used to
-  // reach 4regn's private storefront from a seller who isn't allowed to
-  // use it.
-  const tpl = resolveSellerTemplate(seller);
-
-  // 4regn gets a real dedicated product page (mode="product" +
-  // initialActiveProduct, no home grid underneath) instead of the slide-over
-  // every other template still uses initialProductId for on this same route.
-  if (tpl === "4regn") {
-    // Once a product has a real handle (via the handle backfill), /p/{uuid}
-    // is a legacy URL for it -- send visitors on to the canonical
-    // /products/{handle} page instead of rendering the UUID route directly,
-    // so there's exactly one indexable URL per product. A product with no
-    // handle yet (e.g. one created directly on the platform before the next
-    // backfill run) falls through to the direct render below exactly as it
-    // works today -- this is a defensive fallback, not a new page.
-    if (activeProduct.handle) {
-      redirect(isSubdomain ? `/products/${activeProduct.handle}` : `/store/${slug}/products/${activeProduct.handle}`);
-    }
-    return (
-      <>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
-        <FourRegn
-          initialSeller={seller}
-          initialProducts={initialProducts}
-          initialDiscountCodes={initialDiscountCodes}
-          mode="product"
-          initialActiveProduct={activeProduct}
-          isSubdomain={isSubdomain}
-        />
-      </>
-    );
-  }
 
   const props = { initialSeller: seller, initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
   const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : SoftLuxury;
