@@ -480,6 +480,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [cartOpen, selectedProduct, mobileNavOpen, lightbox, showSearch, sizeChartOpen]);
 
+  /* ─── SCROLL RESTORATION ─── Prevents the browser's native scroll-position
+     memory from fighting Next.js App Router's client-side navigation (a
+     sticky header + dynamically-sized above-the-fold content otherwise
+     causes pages to briefly load scrolled near the bottom before jumping
+     back to the top). Take explicit control and force the top on mount. */
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+  }, []);
+
   /* ─── CART OPS ─── */
   const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
     setCart((prev) => {
@@ -808,7 +818,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className="fr-cat-img">
           {img ? (
             <>
-              <Image src={img} alt={cat} fill sizes="(max-width: 900px) 50vw, 25vw" style={{ objectFit: "contain" }} onError={handleImgError} />
+              <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
             </>
           ) : <span className="fr-cat-mark">{cat}</span>}
@@ -834,7 +844,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className="fr-pimg">
           {p.image_url ? (
             <>
-              <Image src={p.image_url} alt={p.name} fill sizes="(max-width: 900px) 50vw, 25vw" style={{ objectFit: "cover" }} onError={handleImgError} />
+              <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
             </>
           ) : (
@@ -842,14 +852,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           )}
         </div>
         <div className="fr-pinfo">
-          <div className="fr-pcat">{p.category}</div>
           <div className="fr-pname">{p.name}</div>
           <div className="fr-pprice">
             {onSale && <span className="was">{fmt(p.old_price!)}</span>}
             {fmt(p.price)}
           </div>
           <button className="fr-pwa" type="button" onClick={(e) => { e.stopPropagation(); goToProduct(p); }}>
-            Add to Bag
+            Add to Cart
           </button>
         </div>
       </div>
@@ -1059,8 +1068,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sbg-shopall{display:inline-flex;align-items:center;gap:6px;padding:7px 18px;border-radius:40px;background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.9);box-shadow:0 2px 8px rgba(0,0,0,0.05),inset 0 1px 0 rgba(255,255,255,0.9);font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:#555;text-decoration:none;transition:all 0.22s;white-space:nowrap;cursor:pointer}
 .fr-sbg-shopall:hover{background:rgba(255,255,255,0.88);color:#1a1a1a;transform:scale(1.03)}
 .fr-sbg-track-wrap{width:100%;position:relative}
-.fr-sbg-track-wrap::after{content:'';position:absolute;top:0;right:0;bottom:0;width:56px;border-radius:0 22px 22px 0;background:linear-gradient(to right, rgba(235,235,235,0), rgba(235,235,235,0.92));pointer-events:none;opacity:1;transition:opacity 0.25s}
-.fr-sbg-track-wrap.at-end::after{opacity:0}
 .fr-sbg-track{display:flex;gap:14px;overflow-x:auto;padding:8px 2px 4px;scrollbar-width:none;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;cursor:grab}
 .fr-sbg-track::-webkit-scrollbar{display:none}
 .fr-sbg-track:active{cursor:grabbing}
@@ -1099,8 +1106,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
 .fr-cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
 .fr-cat-card{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;border:none;padding:0;text-align:center;display:block;width:100%;font-family:var(--body)}
-.fr-cat-img{width:100%;aspect-ratio:4/5;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
-.fr-cat-img img{width:100%;height:100%;object-fit:contain;display:block;transition:transform 0.5s ease}
+.fr-cat-img{width:100%;overflow:hidden;position:relative;min-height:160px;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
+.fr-cat-img img{transition:transform 0.5s ease}
 .fr-cat-card:hover .fr-cat-img img{transform:scale(1.05)}
 .fr-cat-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:22px;color:rgba(46,42,57,0.35);text-transform:capitalize}
 .fr-cat-foot{padding:16px 14px 20px}
@@ -1126,14 +1133,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .fr-pcard{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;text-align:center;position:relative;transition:transform 0.2s}
 .fr-pcard:hover{transform:translateY(-3px)}
-.fr-pimg{width:100%;aspect-ratio:4/5;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
-.fr-pimg img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
+.fr-pimg{width:100%;overflow:hidden;position:relative;min-height:160px;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
+.fr-pimg img{transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:var(--brown)}
 .fr-ptag.sale{background:var(--purple)}
 .fr-pinfo{padding:18px 16px 22px}
-.fr-pcat{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:6px}
 .fr-pname{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:8px;line-height:1.3;color:var(--ink)}
 .fr-pprice{font-family:var(--body);font-size:14px;font-weight:700;color:var(--ink)}
 .fr-pprice .was{font-size:12px;color:rgba(46,42,57,0.5);text-decoration:line-through;margin-right:6px;font-weight:400}
@@ -1443,13 +1449,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className={"fr-cart-overlay" + (cartOpen ? " open" : "")} onClick={() => setCartOpen(false)} />
         <aside className={"fr-cart" + (cartOpen ? " open" : "")}>
           <div className="fr-cart-h">
-            <h3>Your Bag</h3>
+            <h3>Your Cart</h3>
             <button className="fr-cart-close" onClick={() => setCartOpen(false)}>✕</button>
           </div>
           <div className="fr-cart-items">
             {cart.length === 0 ? (
               <div className="fr-cart-empty">
-                <p style={{ fontSize: 13, letterSpacing: 0.5 }}>Your bag is empty</p>
+                <p style={{ fontSize: 13, letterSpacing: 0.5 }}>Your cart is empty</p>
               </div>
             ) : (
               cart.map((i, idx) => {
@@ -1502,7 +1508,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             return (
               <>
                 <div className="fr-pdp-h">
-                  <span className="fr-pdp-bread">{p.category} &nbsp;/&nbsp; {p.name}</span>
+                  <span className="fr-pdp-bread">{p.name}</span>
                   <button className="fr-pdp-close" onClick={() => setSelectedProduct(null)}>✕</button>
                 </div>
                 <div className="fr-pdp-grid">
@@ -1542,7 +1548,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
                     <div className="fr-pdp-actions">
                       <button className="fr-pdp-add" onClick={handleAddToCart}>
-                        Add to Bag — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                        Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
                       </button>
                       <button className="fr-pdp-buynow" onClick={() => {
                         const validVariants = (p.variants || []).filter(v => v.options?.length > 0);
@@ -1855,7 +1861,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
                     <div className="fr-pdp-actions">
                       <button className="fr-pdp-add" onClick={() => addProductToCart(p)}>
-                        Add to Bag — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                        Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
                       </button>
                       <button className="fr-pdp-buynow" onClick={() => buyNowFor(p)}>
                         Buy Now
