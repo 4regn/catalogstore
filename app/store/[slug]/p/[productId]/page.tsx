@@ -92,42 +92,64 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const initialProducts = productsRes.data ?? [];
   const initialDiscountCodes = discountsRes.data ?? [];
   const isSubdomain = await isStoreSubdomainRequest();
-  const props = { initialSeller: seller, initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
 
   const activeProduct = initialProducts.find((p: { id: string }) => p.id === productId);
+  // A dedicated product page with nothing to show for a bad/expired id no
+  // longer makes sense once 4regn renders a real page here instead of a
+  // slide-over on top of the homepage (which used to just silently fall
+  // back to home with nothing open).
+  if (!activeProduct) notFound();
+
   // Product schema, sourced from the same row already fetched for the page
   // body -- gives Google a price/availability/image it can surface directly
   // in search results instead of guessing from visible text.
-  const productJsonLd = activeProduct
-    ? {
-        "@context": "https://schema.org",
-        "@type": "Product",
-        name: activeProduct.name,
-        description: activeProduct.description || undefined,
-        image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
-        url: canonicalStoreUrl(slug, `/p/${productId}`),
-        offers: {
-          "@type": "Offer",
-          priceCurrency: "ZAR",
-          price: activeProduct.price,
-          availability: activeProduct.in_stock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-          url: canonicalStoreUrl(slug, `/p/${productId}`),
-        },
-      }
-    : null;
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: activeProduct.name,
+    description: activeProduct.description || undefined,
+    image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
+    url: canonicalStoreUrl(slug, `/p/${productId}`),
+    offers: {
+      "@type": "Offer",
+      priceCurrency: "ZAR",
+      price: activeProduct.price,
+      availability: activeProduct.in_stock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      url: canonicalStoreUrl(slug, `/p/${productId}`),
+    },
+  };
 
   // Resolve through the same private-template gate the collection page and
   // main store page use, so a raw `template` column value can't be used to
   // reach 4regn's private storefront from a seller who isn't allowed to
   // use it.
   const tpl = resolveSellerTemplate(seller);
-  const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : tpl === "4regn" ? FourRegn : SoftLuxury;
+
+  // 4regn gets a real dedicated product page (mode="product" +
+  // initialActiveProduct, no home grid underneath) instead of the slide-over
+  // every other template still uses initialProductId for on this same route.
+  if (tpl === "4regn") {
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+        <FourRegn
+          initialSeller={seller}
+          initialProducts={initialProducts}
+          initialDiscountCodes={initialDiscountCodes}
+          mode="product"
+          initialActiveProduct={activeProduct}
+          isSubdomain={isSubdomain}
+        />
+      </>
+    );
+  }
+
+  const props = { initialSeller: seller, initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
+  const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : SoftLuxury;
 
   return (
     <>
-      {productJsonLd && (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
-      )}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <StoreComponent {...props} />
     </>
   );

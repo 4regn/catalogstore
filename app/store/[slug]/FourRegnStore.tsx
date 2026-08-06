@@ -79,7 +79,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
-  sort_order: number; created_at?: string;
+  sort_order: number; created_at?: string; tags?: string[];
 }
 interface CartItem {
   product: Product; qty: number;
@@ -108,6 +108,110 @@ const initials = (s: string) => (s || "").trim().slice(0, 1).toUpperCase();
 // other template uses for /store/<slug>/c/<collection-slug> links.
 export const collectionSlug = (name: string) =>
   name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+/* ─── SIZE CHARTS ────────────────────────────────────────────
+   Ported verbatim from the real 4regn Shopify theme's size-chart tables +
+   selection logic (product name keywords first, then a tag lookup). Not
+   editable/seller-configurable -- this is fixed reference data, same as the
+   SETLA copy above. */
+export type SizeChartType =
+  | "oversized_tee"
+  | "womenjackets"
+  | "menjackets"
+  | "ukmensizelabel"
+  | "menxsmallto3xlpants"
+  | "womenxsmalltoxlpants";
+
+export const SIZE_CHARTS: Record<SizeChartType, { headers: string[]; rows: string[][] }> = {
+  oversized_tee: {
+    headers: ["Label Size", "Bust (cm)", "Waist (cm)", "Height (cm)"],
+    rows: [
+      ["XS", "88-92", "74-78", "170-175"],
+      ["S", "92-96", "78-82", "170-175"],
+      ["M", "96-100", "82-86", "175-180"],
+      ["L", "100-105", "86-91", "180-185"],
+      ["XL", "105-110", "91-96", "185-190"],
+      ["XXL", "110-115", "96-102", "185-190"],
+    ],
+  },
+  womenjackets: {
+    headers: ["Label Size", "Bust (cm)", "Waist (cm)", "Hips (cm)", "Height (cm)"],
+    rows: [
+      ["S", "86-90", "66-70", "91-95", "165-170"],
+      ["M", "90-94", "70-74", "95-99", "170-175"],
+      ["L", "95-101", "75-81", "100-106", "175-180"],
+      ["XL", "101-107", "81-87", "106-112", "175-180"],
+    ],
+  },
+  menjackets: {
+    headers: ["Label Size", "Bust (cm)", "Waist (cm)", "Height (cm)"],
+    rows: [
+      ["S", "92-96", "78-82", "170-175"],
+      ["M", "96-100", "82-86", "175-180"],
+      ["L", "100-105", "86-91", "180-185"],
+      ["XL", "105-110", "91-96", "185-190"],
+      ["XXL", "110-115", "96-102", "185-190"],
+    ],
+  },
+  ukmensizelabel: {
+    headers: ["UK Size", "Waist (cm)", "Hips (cm)", "Height (cm)"],
+    rows: [
+      ["28", "70-74", "86-90", "165-170"],
+      ["30", "74-78", "90-94", "170-175"],
+      ["31", "78-82", "94-98", "170-175"],
+      ["32", "82-86", "98-102", "175-180"],
+      ["34", "86-91", "102-107", "180-185"],
+      ["36", "91-96", "107-112", "185-190"],
+    ],
+  },
+  menxsmallto3xlpants: {
+    headers: ["Label Size", "Waist (cm)", "Hips (cm)", "Height (cm)"],
+    rows: [
+      ["XS", "74-78", "90-94", "170-175"],
+      ["S", "78-82", "94-98", "170-175"],
+      ["M", "82-86", "98-102", "175-180"],
+      ["L", "86-91", "102-107", "180-185"],
+      ["XL", "91-96", "107-112", "185-190"],
+      ["XXL", "96-102", "112-118", "185-190"],
+      ["XXXL", "103-109", "119-125", "190-195"],
+    ],
+  },
+  womenxsmalltoxlpants: {
+    headers: ["Label Size", "UK", "Bust (cm)", "Waist (cm)", "Hips (cm)", "Height (cm)"],
+    rows: [
+      ["XS", "6", "82-86", "62-66", "87-91", "160-165"],
+      ["S", "8", "86-90", "66-70", "91-95", "165-170"],
+      ["M", "10", "90-94", "70-74", "95-99", "170-175"],
+      ["L", "12/14", "95-101", "75-81", "100-106", "175-180"],
+      ["XL", "16", "101-107", "81-87", "106-112", "175-180"],
+      ["XXL", "18", "107-113", "87-93", "112-118", "180-185"],
+    ],
+  },
+};
+
+const OVERSIZED_TEE_NAME_MATCHES = [
+  "oversized tee", "premium oversized", "4regn", "butterfly effect", "oversized t-shirt", "oversized tshirt",
+];
+const TAG_SIZE_CHART_MAP: Record<string, SizeChartType> = {
+  womenjackets: "womenjackets",
+  menjackets: "menjackets",
+  ukmensizelabel: "ukmensizelabel",
+  menxsmallto3xlpants: "menxsmallto3xlpants",
+  womenxsmalltoxlpants: "womenxsmalltoxlpants",
+};
+
+// Selection order matches the theme exactly: name-keyword match first (any
+// hit wins, always oversized_tee), then the first matching tag (in the
+// product's own tag order) wins. No match -> no chart at all, no fallback.
+export function getSizeChartType(product: { name: string; tags?: string[] }): SizeChartType | null {
+  const name = (product.name || "").toLowerCase();
+  if (OVERSIZED_TEE_NAME_MATCHES.some((m) => name.includes(m))) return "oversized_tee";
+  for (const tag of product.tags || []) {
+    const key = (tag || "").toLowerCase().replace(/\s+/g, "");
+    if (TAG_SIZE_CHART_MAP[key]) return TAG_SIZE_CHART_MAP[key];
+  }
+  return null;
+}
 
 /* ─── SHOP BY GENDER ────────────────────────────────────────
    Splits the seller's real, seller-editable `collections` list into a
@@ -147,9 +251,16 @@ interface StorePageProps {
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
   initialProductId?: string;
-  mode?: "home" | "collection";
+  mode?: "home" | "collection" | "product" | "collections-index" | "policy";
   collectionName?: string;
   isSubdomain?: boolean;
+  // Server-resolved product for the dedicated /p/<id> page (mode="product").
+  // Unlike initialProductId (which the slide-over preview looks up from
+  // `products` client-side), this is passed down already-resolved so the
+  // dedicated page never depends on `products` having loaded.
+  initialActiveProduct?: Product | null;
+  // Which policy page to render for mode="policy".
+  policyKey?: "shipping" | "returns" | "privacy" | "terms" | "contact";
 }
 
 const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[]; countdown: PromoDiscount | null } => {
@@ -186,8 +297,12 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
   return <>{children(timeLeft)}</>;
 }
 
-export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName, isSubdomain }: StorePageProps = {}) {
+export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
+  const isHomeView = mode === "home";
+  const isProductView = mode === "product";
+  const isCollectionsIndexView = mode === "collections-index";
+  const isPolicyView = mode === "policy";
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -228,7 +343,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveShopByGenderEyebrow, setLiveShopByGenderEyebrow] = useState<string | null>(null);
   const [liveShopByGenderHeading, setLiveShopByGenderHeading] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
-  const [contactOpen, setContactOpen] = useState(false);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
   /* ─── PROMO ─── */
@@ -246,6 +360,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [selectedVariants, setSelectedVariants] = useState<{ [k: string]: string }>({});
   const [localQty, setLocalQty] = useState(1);
   const [variantError, setVariantError] = useState(false);
+  const [sizeChartOpen, setSizeChartOpen] = useState(false);
+  const [sizeChartTab, setSizeChartTab] = useState<"chart" | "measure">("chart");
 
   /* ─── CART ─── */
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -339,7 +455,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── BODY SCROLL LOCK + LIGHTBOX/SEARCH KEYS ─── */
   useEffect(() => {
-    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen || !!lightbox || showSearch) ? "hidden" : "";
+    document.body.style.overflow = (cartOpen || !!selectedProduct || mobileNavOpen || !!lightbox || showSearch || sizeChartOpen) ? "hidden" : "";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (lightbox) setLightbox(null);
@@ -352,7 +468,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     };
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [cartOpen, selectedProduct, mobileNavOpen, lightbox, showSearch]);
+  }, [cartOpen, selectedProduct, mobileNavOpen, lightbox, showSearch, sizeChartOpen]);
 
   /* ─── CART OPS ─── */
   const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
@@ -415,6 +531,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (p) openProduct(p);
     }
   }, [initialProductId, products.length]);
+  // Dedicated product-detail page (mode="product") -- resets the same
+  // gallery/variant state the slide-over's openProduct() resets, but for
+  // initialActiveProduct instead of a card click. Keyed on the product id so
+  // navigating from one dedicated product page to another (e.g. via "You
+  // Might Also Like") resets the gallery/variant picker instead of carrying
+  // the previous product's selection over.
+  useEffect(() => {
+    if (mode === "product" && initialActiveProduct) {
+      setActiveImg(0);
+      setSelectedVariants({});
+      setLocalQty(1);
+      setVariantError(false);
+    }
+  }, [mode, initialActiveProduct?.id]);
   const handleAddToCart = () => {
     if (!selectedProduct) return;
     const validVariants = (selectedProduct.variants || []).filter(v => v.options?.length > 0);
@@ -426,6 +556,30 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     addToCart(selectedProduct, localQty, selectedVariants);
     setSelectedProduct(null);
     setCartOpen(true);
+  };
+  // Same add-to-cart validation/logic as handleAddToCart above, generalized
+  // to take an explicit product so the dedicated product-detail page
+  // (mode="product", which never sets selectedProduct) can reuse it for its
+  // own Add to Bag button.
+  const addProductToCart = (product: Product) => {
+    const validVariants = (product.variants || []).filter(v => v.options?.length > 0);
+    const allSelected = validVariants.every((v) => selectedVariants[v.name]);
+    if (!allSelected && validVariants.length > 0) {
+      setVariantError(true);
+      return;
+    }
+    addToCart(product, localQty, selectedVariants);
+    setCartOpen(true);
+  };
+  // Same Buy Now logic as the slide-over PDP's inline handler further below,
+  // generalized the same way for the dedicated product page.
+  const buyNowFor = (product: Product) => {
+    const validVariants = (product.variants || []).filter(v => v.options?.length > 0);
+    const allSelected = validVariants.every((v) => selectedVariants[v.name]);
+    if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
+    const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: product.image_url || "", selectedVariants }];
+    const encoded = btoa(JSON.stringify(payload));
+    window.location.href = sp(`/checkout?cart=${encoded}`);
   };
 
   /* ─── CHECKOUT (redirect to existing route) ─── */
@@ -492,7 +646,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // 8 pieces + "View all"); anything not tagged into any collection falls
   // into a final catch-all row so nothing silently disappears. Stores that
   // haven't set up collections yet keep today's single flat grid.
-  const productGroups = (!isCollectionView && sellerCollections.length > 0)
+  const productGroups = (isHomeView && sellerCollections.length > 0)
     ? (() => {
         // name: null marks the catch-all "everything else" row, whose
         // heading uses the seller's configurable Products heading rather
@@ -614,13 +768,36 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // Hide the whole section if neither bucket has real collections yet
   // (e.g. before migrate-4regn-collections.ts has run); hide just the
   // empty panel if only one gender has collections set up.
-  const showShopByGenderSection = !isCollectionView && showShopByGender && (sbgHasMen || sbgHasWomen);
+  const showShopByGenderSection = isHomeView && showShopByGender && (sbgHasMen || sbgHasWomen);
 
   const catImage = (cat: string) => {
     const p = products.find((p) => pInCat(p, cat) && p.image_url);
     return p?.image_url || null;
   };
   const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
+
+  // Single tile renderer shared by the homepage's capped "Shop by
+  // Collection" grid and the uncapped /collections index page, so both stay
+  // in sync instead of two copy-pasted blocks.
+  const renderCatTile = (cat: string) => {
+    const img = catImage(cat);
+    return (
+      <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))}>
+        <div className="fr-cat-img">
+          {img ? (
+            <>
+              <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} />
+              <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
+            </>
+          ) : <span className="fr-cat-mark">{cat}</span>}
+        </div>
+        <div className="fr-cat-foot">
+          <div className="fr-cat-name">{cat}</div>
+          <div className="fr-cat-count">{catCount(cat)} {catCount(cat) === 1 ? "piece" : "pieces"}</div>
+        </div>
+      </button>
+    );
+  };
 
   /* Shared product-card markup -- used by the grouped collection rows, the
      flat fallback grid, and the collection-page grid, so all three stay in
@@ -656,6 +833,55 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       </div>
     );
   };
+
+  /* Shared contact-info list -- rendered on the dedicated Contact page
+     (policyKey="contact"). */
+  const ContactInfoList = () => (
+    <ul className="fr-contact-list">
+      {seller.whatsapp_number && (
+        <li>
+          <span className="fr-contact-label">WhatsApp</span>
+          <a href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{seller.whatsapp_number}</a>
+        </li>
+      )}
+      {config.contact_email && (
+        <li>
+          <span className="fr-contact-label">Email</span>
+          <a href={`mailto:${config.contact_email}`}>{config.contact_email}</a>
+        </li>
+      )}
+      {config.contact_phone && (
+        <li>
+          <span className="fr-contact-label">Call</span>
+          <a href={`tel:${config.contact_phone.replace(/\s/g, "")}`}>{config.contact_phone}</a>
+        </li>
+      )}
+      {seller.social_links?.instagram && (
+        <li><span className="fr-contact-label">Instagram</span><a href={seller.social_links.instagram} target="_blank" rel="noreferrer">Instagram</a></li>
+      )}
+      {seller.social_links?.tiktok && (
+        <li><span className="fr-contact-label">TikTok</span><a href={seller.social_links.tiktok} target="_blank" rel="noreferrer">TikTok</a></li>
+      )}
+      {seller.social_links?.facebook && (
+        <li><span className="fr-contact-label">Facebook</span><a href={seller.social_links.facebook} target="_blank" rel="noreferrer">Facebook</a></li>
+      )}
+      {seller.social_links?.twitter && (
+        <li><span className="fr-contact-label">X / Twitter</span><a href={seller.social_links.twitter} target="_blank" rel="noreferrer">X / Twitter</a></li>
+      )}
+      {config.operating_hours && (
+        <li>
+          <span className="fr-contact-label">Hours</span>
+          <span style={{ fontSize: 13, color: "var(--ink)" }}>{config.operating_hours}</span>
+        </li>
+      )}
+      {config.physical_address && (
+        <li>
+          <span className="fr-contact-label">Address</span>
+          <span style={{ fontSize: 13, color: "var(--ink)" }}>{config.physical_address}</span>
+        </li>
+      )}
+    </ul>
+  );
 
   /* ─── EDIT SECTION WRAPPER (same iframe-postMessage affordance as the
        other templates -- lets the Online Visual Editor highlight sections) ─── */
@@ -996,6 +1222,38 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-buynow{background:transparent;color:var(--ink);border:1.5px solid #000;border-radius:var(--btn-radius);padding:17px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer}
 .fr-pdp-err{color:#a13a3a;font-size:11px;letter-spacing:0.5px;margin-top:8px}
 
+/* DEDICATED PRODUCT PAGE (/p/<id>, mode="product") — outer wrapper +
+   breadcrumb are new; everything inside .fr-pdp-grid reuses the slide-over
+   PDP's own fr-pdp-* classes above verbatim so the two stay visually
+   identical. */
+.fr-pdp2-page{max-width:1360px;margin:0 auto;padding:40px 40px 0}
+.fr-pdp2-bread{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--body);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55);margin-bottom:28px}
+.fr-pdp2-bread a{color:rgba(46,42,57,0.55);text-decoration:none}
+.fr-pdp2-bread a:hover{color:var(--ink);text-decoration:underline}
+.fr-pdp2-bread .sep{color:rgba(46,42,57,0.3)}
+.fr-pdp2-bread .current{color:var(--ink)}
+.fr-pdp2-sizechart-btn{align-self:flex-start;background:none;border:none;padding:0;margin:-6px 0 20px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px;color:var(--ink);cursor:pointer}
+
+/* SIZE CHART MODAL content -- reuses fr-modal-overlay/fr-modal from the
+   policy modal below for the overlay/close chrome. */
+.fr-sc-tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid rgba(0,0,0,0.08)}
+.fr-sc-tab{background:none;border:none;padding:8px 10px 12px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(46,42,57,0.5);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.fr-sc-tab.active{color:var(--ink);border-bottom-color:var(--ink)}
+.fr-sc-table-wrap{overflow-x:auto}
+.fr-sc-table{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--body)}
+.fr-sc-table th,.fr-sc-table td{padding:9px 12px;text-align:left;border-bottom:1px solid rgba(0,0,0,0.06);white-space:nowrap}
+.fr-sc-table th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(46,42,57,0.5)}
+.fr-sc-tip{margin:14px 0 0;font-size:12px;font-style:italic;color:rgba(46,42,57,0.6)}
+.fr-sc-measure h4{font-family:var(--serif);font-weight:700;font-size:16px;margin:0 0 14px;color:var(--ink)}
+.fr-sc-measure ol{margin:0;padding-left:20px;font-size:13px;line-height:1.85;color:rgba(46,42,57,0.75)}
+
+/* COLLECTIONS INDEX (/collections) & POLICY PAGES (/policies/<policy>) */
+.fr-policy-page{max-width:760px;margin:0 auto;padding:64px 40px 96px}
+.fr-policy-title{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,40px);color:var(--ink);text-align:center;margin:0 0 32px}
+.fr-policy-body{font-family:var(--body);font-size:14px;line-height:1.8;color:rgba(46,42,57,0.75)}
+.fr-policy-body p{margin:0 0 18px}
+.fr-policy-body p:last-child{margin-bottom:0}
+
 .fr-lb{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px}
 .fr-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pan-y pinch-zoom}
 .fr-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-user-select:none;user-select:none;pointer-events:none}
@@ -1071,6 +1329,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-pdp-gal{min-height:auto;padding:16px;border-right:none;border-bottom:1px solid rgba(0,0,0,0.06)}
   .fr-pdp-info{padding:28px 22px}
   .fr-pdp-name{font-size:26px}
+  .fr-pdp2-page{padding:24px 20px 0}
+  .fr-policy-page{padding:48px 20px 64px}
   .fr-cart{width:100vw}
   .fr-root{padding-bottom:78px}
   .fr-dock{display:flex;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:150;background:rgba(0,0,0,0.92);backdrop-filter:blur(10px);border-radius:999px;padding:6px 4px;gap:2px;box-shadow:0 10px 30px rgba(0,0,0,0.35);align-items:center}
@@ -1303,7 +1563,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         </nav>
 
         {/* HERO — only on landing page */}
-        {!isCollectionView && (
+        {isHomeView && (
           <EditSection id="hero">
             <section className="fr-hero">
               {displayHeroImage && (
@@ -1367,7 +1627,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             component they're fixed text rather than editable fields --
             matches the real section, which doesn't expose them as settings
             either. */}
-        {!isCollectionView && showSetlaBanner && (
+        {isHomeView && showSetlaBanner && (
           <EditSection id="setla">
             <section className="fr-setla">
               {setlaPhotoUrl && (
@@ -1463,33 +1723,184 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
         )}
 
+        {/* PRODUCT DETAIL — dedicated /p/<id> page (mode="product"). Real
+            full page, not the slide-over: breadcrumb, then the exact same
+            gallery/info/variant/actions markup + state the slide-over PDP
+            below uses (just re-targeted at initialActiveProduct instead of
+            selectedProduct), plus a size-chart button/modal and a "You Might
+            Also Like" row the slide-over doesn't have. */}
+        {isProductView && initialActiveProduct && (() => {
+          const p = initialActiveProduct;
+          const allImgs = [p.image_url, ...(p.images || [])].filter(Boolean) as string[];
+          const mainImg = allImgs[activeImg] || p.image_url;
+          const onSale = p.old_price && p.old_price > p.price;
+          const catTokens = (p.category || "").split(",").map((c) => c.trim()).filter(Boolean);
+          const firstRealCategory = catTokens[0] || null;
+          const sizeChartType = getSizeChartType(p);
+          const relatedProducts = catTokens.length > 0
+            ? products.filter((rp) => rp.id !== p.id && catTokens.some((t) => pInCat(rp, t))).slice(0, 8)
+            : [];
+          return (
+            <>
+              <div className="fr-pdp2-page">
+                <div className="fr-pdp2-bread">
+                  <a href={sp("/")} onClick={(e) => { e.preventDefault(); navigate(sp("/")); }}>Home</a>
+                  {firstRealCategory && (<>
+                    <span className="sep">/</span>
+                    <a
+                      href={sp(`/c/${collectionSlug(firstRealCategory)}`)}
+                      onClick={(e) => { e.preventDefault(); navigate(sp(`/c/${collectionSlug(firstRealCategory)}`)); }}
+                    >
+                      {firstRealCategory}
+                    </a>
+                  </>)}
+                  <span className="sep">/</span>
+                  <span className="current">{p.name}</span>
+                </div>
+                <div className="fr-pdp-grid">
+                  <div className="fr-pdp-gal">
+                    <div
+                      className="fr-pdp-main"
+                      role={allImgs.length > 0 ? "button" : undefined}
+                      tabIndex={allImgs.length > 0 ? 0 : undefined}
+                      onClick={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
+                      onKeyDown={(e) => { if (allImgs.length > 0 && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setLightbox({ imgs: allImgs, index: activeImg }); } }}
+                      aria-label={allImgs.length > 0 ? "View images" : undefined}
+                    >
+                      {mainImg ? (
+                        <>
+                          <img src={mainImg} alt={p.name} onError={handleImgError} />
+                          <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
+                        </>
+                      ) : (
+                        <span className="fr-p-mark">{initials(p.name)}</span>
+                      )}
+                    </div>
+                    {allImgs.length > 1 && (
+                      <div className="fr-pdp-thumbs">
+                        {allImgs.map((img, i) => (
+                          <button
+                            key={i}
+                            className={"fr-pdp-thumb" + (activeImg === i ? " active" : "")}
+                            style={{ backgroundImage: `url("${img}")` }}
+                            onClick={() => setActiveImg(i)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="fr-pdp-info">
+                    <div className="fr-pdp-cat">{p.category}</div>
+                    <h1 className="fr-pdp-name">{p.name}</h1>
+                    <div className="fr-pdp-prow">
+                      <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
+                      {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
+                    </div>
+                    {p.description && <p className="fr-pdp-desc">{p.description}</p>}
+                    {(p.variants || []).filter(v => v.options?.length > 0).map((v) => (
+                      <div className="fr-pdp-section" key={v.name}>
+                        <div className="fr-pdp-section-lbl">{v.name}</div>
+                        <div className="fr-size-row">
+                          {v.options.map((opt) => (
+                            <button
+                              key={opt}
+                              className={"fr-size-btn" + (selectedVariants[v.name] === opt ? " active" : "")}
+                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setVariantError(false); }}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {sizeChartType && (
+                      <button
+                        type="button"
+                        className="fr-pdp2-sizechart-btn"
+                        onClick={() => { setSizeChartTab("chart"); setSizeChartOpen(true); }}
+                      >
+                        Size Chart
+                      </button>
+                    )}
+                    {variantError && <div className="fr-pdp-err">Please select all options</div>}
+                    <div className="fr-pdp-actions">
+                      <button className="fr-pdp-add" onClick={() => addProductToCart(p)}>
+                        Add to Bag — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                      </button>
+                      <button className="fr-pdp-buynow" onClick={() => buyNowFor(p)}>
+                        Buy Now
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {relatedProducts.length > 0 && (
+                <div className="fr-section">
+                  <div className="fr-section-head">
+                    <h2 className="fr-section-title">You Might Also Like</h2>
+                  </div>
+                  <div className="fr-pgrid">
+                    {relatedProducts.map((rp) => <ProductCard key={rp.id} p={rp} />)}
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+        {/* ALL COLLECTIONS — dedicated /collections index page
+            (mode="collections-index"). Same tile markup as the homepage's
+            "Shop by Collection" grid (via renderCatTile), just uncapped and
+            over the seller's real collections list only (no auto-derived
+            category fallback, unlike the homepage's categoryList). */}
+        {isCollectionsIndexView && (
+          <div className="fr-section">
+            <div className="fr-section-head">
+              <h2 className="fr-section-title">All Collections</h2>
+            </div>
+            <div className="fr-cat-grid">
+              {sellerCollections.map(renderCatTile)}
+            </div>
+          </div>
+        )}
+
+        {/* POLICY / CONTACT PAGE — dedicated /policies/<policy> page
+            (mode="policy"). Same StoreConfig fields (and fallback copy) the
+            policy modal already reads, and the same contact info the
+            Contact modal already renders, just inline on a real page. */}
+        {isPolicyView && policyKey === "contact" && (
+          <div className="fr-policy-page">
+            <h1 className="fr-policy-title">Contact</h1>
+            <ContactInfoList />
+          </div>
+        )}
+        {isPolicyView && policyKey && policyKey !== "contact" && (() => {
+          const POLICY_META: Record<"shipping" | "returns" | "privacy" | "terms", { heading: string; body: string }> = {
+            shipping: { heading: "Shipping Policy", body: config.shipping_policy || "Contact us for details about our shipping policy." },
+            returns: { heading: "Returns & Refunds", body: config.return_policy || "Contact us for details about our returns and refund policy." },
+            privacy: { heading: "Privacy Policy", body: config.privacy_policy || "Contact us for details about our privacy policy." },
+            terms: { heading: "Terms of Service", body: config.terms_of_service || "Contact us for details about our terms of service." },
+          };
+          const meta = POLICY_META[policyKey];
+          return (
+            <div className="fr-policy-page">
+              <h1 className="fr-policy-title">{meta.heading}</h1>
+              <div className="fr-policy-body">
+                {meta.body.split("\n\n").map((para, i) => <p key={i}>{para}</p>)}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* COLLECTIONS GRID — only on landing page */}
-        {!isCollectionView && categoryList.length > 0 && (
+        {isHomeView && categoryList.length > 0 && (
           <EditSection id="categories">
             <div className="fr-section" style={{ paddingBottom: 0 }}>
               <div className="fr-section-head">
                 <h2 className="fr-section-title">Shop by Collection</h2>
               </div>
               <div className="fr-cat-grid">
-                {categoryList.slice(0, 20).map((cat) => {
-                  const img = catImage(cat);
-                  return (
-                    <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))}>
-                      <div className="fr-cat-img">
-                        {img ? (
-                          <>
-                            <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} />
-                            <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
-                          </>
-                        ) : <span className="fr-cat-mark">{cat}</span>}
-                      </div>
-                      <div className="fr-cat-foot">
-                        <div className="fr-cat-name">{cat}</div>
-                        <div className="fr-cat-count">{catCount(cat)} {catCount(cat) === 1 ? "piece" : "pieces"}</div>
-                      </div>
-                    </button>
-                  );
-                })}
+                {categoryList.slice(0, 20).map(renderCatTile)}
                 {categoryList.length > 20 && (
                   <a
                     href={sp("/collections")}
@@ -1512,13 +1923,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {/* PRODUCTS — collection page (or a store with no collections set
             up) gets a single flat, sortable grid. The homepage otherwise
             renders one titled row per collection instead of dumping every
-            product into one undifferentiated wall. */}
-        {isCollectionView || !productGroups ? (
+            product into one undifferentiated wall. Not rendered at all for
+            the dedicated product/collections-index/policy pages. */}
+        {(isHomeView || isCollectionView) && (isCollectionView || !productGroups ? (
           <div id="fr-products" className="fr-section" style={{ paddingTop: isCollectionView ? 24 : undefined }}>
             <div className="fr-section-head">
               <h2 className="fr-section-title">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "New Arrivals") : effectiveCategory}</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-                {!isCollectionView && (
+                {isHomeView && (
                   <a
                     href={sp("/c/all")}
                     onClick={(e) => { e.preventDefault(); navigate(sp("/c/all")); }}
@@ -1576,10 +1988,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               })}
             </EditSection>
           </div>
-        )}
+        ))}
 
         {/* NEWSLETTER — only on landing page */}
-        {!isCollectionView && showNewsletter && (
+        {isHomeView && showNewsletter && (
           <EditSection id="newsletter">
             <section className="fr-newsletter">
               <div className="fr-nl-lbl">{nlLabel}</div>
@@ -1654,11 +2066,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <div className="fr-foot-col">
                 <h4>Support</h4>
                 <ul>
-                  <li><button onClick={() => setPolicyModal({ title: "Shipping Policy", content: config.shipping_policy || "Contact us for details about our shipping policy." })}>Shipping</button></li>
-                  <li><button onClick={() => setPolicyModal({ title: "Returns & Refunds", content: config.return_policy || "Contact us for details about our returns and refund policy." })}>Returns & Refunds</button></li>
-                  <li><button onClick={() => setPolicyModal({ title: "Privacy Policy", content: config.privacy_policy || "Contact us for details about our privacy policy." })}>Privacy Policy</button></li>
-                  <li><button onClick={() => setPolicyModal({ title: "Terms of Service", content: config.terms_of_service || "Contact us for details about our terms of service." })}>Terms of Service</button></li>
-                  <li><button onClick={() => setContactOpen(true)}>Contact</button></li>
+                  <li><a href={sp("/policies/shipping")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/shipping")); }}>Shipping</a></li>
+                  <li><a href={sp("/policies/returns")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/returns")); }}>Returns & Refunds</a></li>
+                  <li><a href={sp("/policies/privacy")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/privacy")); }}>Privacy Policy</a></li>
+                  <li><a href={sp("/policies/terms")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/terms")); }}>Terms of Service</a></li>
+                  <li><a href={sp("/policies/contact")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/contact")); }}>Contact</a></li>
                 </ul>
               </div>
               <div className="fr-foot-col">
@@ -1691,7 +2103,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             this template already uses in place of a not-yet-built
             account/login system. */}
         <nav className="fr-dock" aria-label="Mobile navigation">
-          <button type="button" className={"fr-dock-item" + (!isCollectionView ? " active" : "")} onClick={() => navigate(sp())}>
+          <button type="button" className={"fr-dock-item" + (isHomeView ? " active" : "")} onClick={() => navigate(sp())}>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
             Home
           </button>
@@ -1704,12 +2116,71 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             {cartCount > 0 && <span className="fr-dock-count">{cartCount}</span>}
             Cart
           </button>
-          <button type="button" className="fr-dock-item" onClick={() => setContactOpen(true)}>
+          <button type="button" className="fr-dock-item" onClick={() => navigate(sp("/policies/contact"))}>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
             Account
           </button>
         </nav>
       </div>
+
+      {/* Size chart modal -- opened from the dedicated product page's Size
+          Chart button. Reuses the same fr-modal-overlay/fr-modal
+          overlay/close pattern as the policy modal below; table/tab content
+          uses new fr-sc- classes. */}
+      {sizeChartOpen && initialActiveProduct && (() => {
+        const sizeChartType = getSizeChartType(initialActiveProduct);
+        if (!sizeChartType) return null;
+        const chart = SIZE_CHARTS[sizeChartType];
+        return (
+          <div className="fr-modal-overlay" onClick={() => setSizeChartOpen(false)}>
+            <div className="fr-modal" onClick={(e) => e.stopPropagation()}>
+              <button className="fr-modal-close" onClick={() => setSizeChartOpen(false)}>✕</button>
+              <h3>Size Guide</h3>
+              <div className="fr-sc-tabs">
+                <button
+                  type="button"
+                  className={"fr-sc-tab" + (sizeChartTab === "chart" ? " active" : "")}
+                  onClick={() => setSizeChartTab("chart")}
+                >
+                  Size Chart
+                </button>
+                <button
+                  type="button"
+                  className={"fr-sc-tab" + (sizeChartTab === "measure" ? " active" : "")}
+                  onClick={() => setSizeChartTab("measure")}
+                >
+                  How to Measure
+                </button>
+              </div>
+              {sizeChartTab === "chart" ? (
+                <div className="fr-sc-table-wrap">
+                  <table className="fr-sc-table">
+                    <thead>
+                      <tr>{chart.headers.map((h) => <th key={h}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {chart.rows.map((row, i) => (
+                        <tr key={i}>{row.map((cell, j) => <td key={j}>{cell}</td>)}</tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="fr-sc-tip">All measurements in CM. If you are between sizes, we recommend sizing up.</p>
+                </div>
+              ) : (
+                <div className="fr-sc-measure">
+                  <h4>How to Measure (cm)</h4>
+                  <ol>
+                    <li><strong>Bust</strong> — Measure the circumference of the fullest part of your bust.</li>
+                    <li><strong>Waist</strong> — Measure the thinnest part of your waist.</li>
+                    <li><strong>Hips</strong> — Measure the fullest part of your hips.</li>
+                    <li><strong>Height</strong> — Measure your height.</li>
+                  </ol>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Policy / info modal */}
       {policyModal && (
@@ -1718,60 +2189,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <button className="fr-modal-close" onClick={() => setPolicyModal(null)}>✕</button>
             <h3>{policyModal.title}</h3>
             <p>{policyModal.content}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Contact modal */}
-      {contactOpen && (
-        <div className="fr-modal-overlay" onClick={() => setContactOpen(false)}>
-          <div className="fr-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="fr-modal-close" onClick={() => setContactOpen(false)}>✕</button>
-            <h3>Contact Us</h3>
-            <ul className="fr-contact-list">
-              {seller.whatsapp_number && (
-                <li>
-                  <span className="fr-contact-label">WhatsApp</span>
-                  <a href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{seller.whatsapp_number}</a>
-                </li>
-              )}
-              {config.contact_email && (
-                <li>
-                  <span className="fr-contact-label">Email</span>
-                  <a href={`mailto:${config.contact_email}`}>{config.contact_email}</a>
-                </li>
-              )}
-              {config.contact_phone && (
-                <li>
-                  <span className="fr-contact-label">Call</span>
-                  <a href={`tel:${config.contact_phone.replace(/\s/g, "")}`}>{config.contact_phone}</a>
-                </li>
-              )}
-              {seller.social_links?.instagram && (
-                <li><span className="fr-contact-label">Instagram</span><a href={seller.social_links.instagram} target="_blank" rel="noreferrer">Instagram</a></li>
-              )}
-              {seller.social_links?.tiktok && (
-                <li><span className="fr-contact-label">TikTok</span><a href={seller.social_links.tiktok} target="_blank" rel="noreferrer">TikTok</a></li>
-              )}
-              {seller.social_links?.facebook && (
-                <li><span className="fr-contact-label">Facebook</span><a href={seller.social_links.facebook} target="_blank" rel="noreferrer">Facebook</a></li>
-              )}
-              {seller.social_links?.twitter && (
-                <li><span className="fr-contact-label">X / Twitter</span><a href={seller.social_links.twitter} target="_blank" rel="noreferrer">X / Twitter</a></li>
-              )}
-              {config.operating_hours && (
-                <li>
-                  <span className="fr-contact-label">Hours</span>
-                  <span style={{ fontSize: 13, color: "var(--ink)" }}>{config.operating_hours}</span>
-                </li>
-              )}
-              {config.physical_address && (
-                <li>
-                  <span className="fr-contact-label">Address</span>
-                  <span style={{ fontSize: 13, color: "var(--ink)" }}>{config.physical_address}</span>
-                </li>
-              )}
-            </ul>
           </div>
         </div>
       )}
