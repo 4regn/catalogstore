@@ -43,6 +43,8 @@ interface StoreConfig {
   free_ship_threshold?: number;
   shipping_policy?: string;
   return_policy?: string;
+  privacy_policy?: string;
+  terms_of_service?: string;
   contact_email?: string;
   contact_phone?: string;
   operating_hours?: string;
@@ -182,6 +184,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveHeroCountdownLabel, setLiveHeroCountdownLabel] = useState<string | null>(null);
   const [liveHeroSaleHeadline, setLiveHeroSaleHeadline] = useState<string | null>(null);
   const [liveProductsHeading, setLiveProductsHeading] = useState<string | null>(null);
+  const [liveShowNewsletter, setLiveShowNewsletter] = useState<boolean | null>(null);
+  const [liveNewsletterLabel, setLiveNewsletterLabel] = useState<string | null>(null);
+  const [liveNewsletterTitle, setLiveNewsletterTitle] = useState<string | null>(null);
+  const [liveNewsletterSub, setLiveNewsletterSub] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
@@ -278,6 +284,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.heroCountdownLabel !== undefined) setLiveHeroCountdownLabel(e.data.heroCountdownLabel);
       if (e.data.heroSaleHeadline !== undefined) setLiveHeroSaleHeadline(e.data.heroSaleHeadline);
       if (e.data.productsHeading !== undefined) setLiveProductsHeading(e.data.productsHeading);
+      if (e.data.showNewsletter !== undefined) setLiveShowNewsletter(e.data.showNewsletter);
+      if (e.data.newsletterLabel !== undefined) setLiveNewsletterLabel(e.data.newsletterLabel);
+      if (e.data.newsletterTitle !== undefined) setLiveNewsletterTitle(e.data.newsletterTitle);
+      if (e.data.newsletterSub !== undefined) setLiveNewsletterSub(e.data.newsletterSub);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -336,6 +346,24 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     setLocalQty(1);
     setVariantError(false);
   };
+  // Every product now gets its own real, shareable, indexable URL
+  // (/store/<slug>/p/<id> -- same route + linking pattern Crown and Soft
+  // Luxury already use). Inside the Online Visual Editor iframe we keep
+  // opening the in-page modal instead, same as those templates, so editing
+  // doesn't navigate the preview away from the section being edited.
+  const goToProduct = (p: Product) => {
+    if (isEditMode) { openProduct(p); return; }
+    navigate(sp(`/p/${p.id}`));
+  };
+  // Shared broken-image fallback for grid thumbnails (product + collection
+  // cards): if the stored image URL 404s/expires, swap in the initials
+  // "frame" mark instead of leaving the browser's tiny broken-image icon
+  // floating in the corner of an otherwise-empty card.
+  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.style.display = "none";
+    const fallback = e.currentTarget.parentElement?.querySelector<HTMLElement>(".fr-p-mark, .fr-cat-mark");
+    if (fallback) fallback.style.display = "flex";
+  };
   useEffect(() => {
     if (initialProductId && products.length > 0 && !selectedProduct) {
       const p = products.find((pr) => pr.id === initialProductId);
@@ -374,23 +402,60 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── DERIVED ─── */
   const allCategories = ["All", ...Array.from(new Set(products.flatMap((p) => (p.category || "").split(",").map((c) => c.trim()).filter(Boolean))))];
-  const categoryList = allCategories.filter((c) => c !== "All").slice(0, 4);
+  // "Shop by Collection" grid: the seller's real, explicitly-ordered
+  // collections list is the source of truth here (same list the nav/footer
+  // already use below) so this grid can never drift from what the seller
+  // actually configured. Only falls back to auto-derived product.category
+  // tags for stores that haven't set up collections yet, so the grid isn't
+  // simply empty for them.
+  const sellerCollections = (seller?.collections || []).filter(Boolean);
+  const categoryList = sellerCollections.length > 0 ? sellerCollections : allCategories.filter((c) => c !== "All").slice(0, 8);
   // Nav / menu links come straight from the seller's collections list -- no
   // fixed menu structure baked in here.
-  const menuCategories = ["All", ...((seller?.collections || []).filter(Boolean))];
+  const menuCategories = ["All", ...sellerCollections];
   const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
+  const sortProducts = (list: Product[]) => {
+    const out = [...list];
+    if (productSort === "az") out.sort((a, b) => a.name.localeCompare(b.name));
+    else if (productSort === "za") out.sort((a, b) => b.name.localeCompare(a.name));
+    else if (productSort === "latest") out.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    else if (productSort === "oldest") out.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+    else if (productSort === "price-low") out.sort((a, b) => a.price - b.price);
+    else if (productSort === "price-high") out.sort((a, b) => b.price - a.price);
+    return out;
+  };
   const filtered = (() => {
     const list = isCollectionView
       ? [...products]
       : (activeCategory === "All" ? [...products] : products.filter((p) => pInCat(p, activeCategory)));
-    if (productSort === "az") list.sort((a, b) => a.name.localeCompare(b.name));
-    else if (productSort === "za") list.sort((a, b) => b.name.localeCompare(a.name));
-    else if (productSort === "latest") list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-    else if (productSort === "oldest") list.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
-    else if (productSort === "price-low") list.sort((a, b) => a.price - b.price);
-    else if (productSort === "price-high") list.sort((a, b) => b.price - a.price);
-    return list;
+    return sortProducts(list);
   })();
+  // Homepage product wall, grouped by collection instead of one flat dump
+  // of every product. Each seller collection gets its own titled row (first
+  // 8 pieces + "View all"); anything not tagged into any collection falls
+  // into a final catch-all row so nothing silently disappears. Stores that
+  // haven't set up collections yet keep today's single flat grid.
+  const productGroups = (!isCollectionView && sellerCollections.length > 0)
+    ? (() => {
+        // name: null marks the catch-all "everything else" row, whose
+        // heading uses the seller's configurable Products heading rather
+        // than a hardcoded label (resolved at render time, once `config`
+        // is in scope below).
+        const groups: { name: string | null; products: Product[] }[] = [];
+        const claimed = new Set<string>();
+        for (const cat of sellerCollections) {
+          const inCat = products.filter((p) => pInCat(p, cat));
+          if (inCat.length === 0) continue;
+          inCat.forEach((p) => claimed.add(p.id));
+          groups.push({ name: cat, products: sortProducts(inCat) });
+        }
+        const leftover = products.filter((p) => !claimed.has(p.id));
+        if (leftover.length > 0) {
+          groups.push({ name: null, products: sortProducts(leftover) });
+        }
+        return groups;
+      })()
+    : null;
   const cartTotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
@@ -470,16 +535,54 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   const displayFooterTagline = liveFooterTagline ?? config.footer_tagline ?? liveDescription ?? seller.description ?? seller.tagline ?? "";
   const displayFooterCol1 = liveFooterCol1Label ?? config.footer_col1_label ?? "Shop";
-  const showNewsletter = config.show_newsletter ?? true;
-  const nlLabel = config.newsletter_label ?? "Stay in the Know";
-  const nlTitle = config.newsletter_title ?? "Be first to see what's new.";
-  const nlSub = config.newsletter_sub ?? "We'll email you about new arrivals and restocks. Nothing else.";
+  // Opt-out (default on) -- 4regn's real storefront always shows the "Join
+  // the 4REGN Family" signup, so unlike Soft Luxury's newsletter (opt-in)
+  // this only hides when a seller has explicitly turned it off.
+  const showNewsletter = liveShowNewsletter ?? config.show_newsletter ?? true;
+  const nlLabel = liveNewsletterLabel ?? config.newsletter_label ?? "Join the Family";
+  const nlTitle = liveNewsletterTitle ?? config.newsletter_title ?? `Join the ${seller.store_name} Family`;
+  const nlSub = liveNewsletterSub ?? config.newsletter_sub ?? "We'll email you about new arrivals and restocks. Nothing else.";
 
   const catImage = (cat: string) => {
     const p = products.find((p) => pInCat(p, cat) && p.image_url);
     return p?.image_url || null;
   };
   const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
+
+  /* Shared product-card markup -- used by the grouped collection rows, the
+     flat fallback grid, and the collection-page grid, so all three stay in
+     sync instead of drifting out of three copy-pasted blocks. */
+  const ProductCard = ({ p }: { p: Product }) => {
+    const onSale = p.old_price && p.old_price > p.price;
+    const promo = getProductPromo(p.id);
+    return (
+      <div className="fr-pcard" onClick={() => goToProduct(p)}>
+        {promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
+        {!promo && onSale && <span className="fr-ptag sale">Sale</span>}
+        <div className="fr-pimg">
+          {p.image_url ? (
+            <>
+              <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" onError={handleImgError} />
+              <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
+            </>
+          ) : (
+            <span className="fr-p-mark">{initials(p.name)}</span>
+          )}
+        </div>
+        <div className="fr-pinfo">
+          <div className="fr-pcat">{p.category}</div>
+          <div className="fr-pname">{p.name}</div>
+          <div className="fr-pprice">
+            {onSale && <span className="was">{fmt(p.old_price!)}</span>}
+            {fmt(p.price)}
+          </div>
+          <button className="fr-pwa" type="button" onClick={(e) => { e.stopPropagation(); openProduct(p); }}>
+            Add to Bag
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   /* ─── EDIT SECTION WRAPPER (same iframe-postMessage affordance as the
        other templates -- lets the Online Visual Editor highlight sections) ─── */
@@ -576,7 +679,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(5,5,5,.99) 0%,rgba(5,5,5,.95) 30%,rgba(5,5,5,.6) 47%,rgba(5,5,5,.1) 68%,rgba(5,5,5,.1) 100%);z-index:1}
 .fr-setla-photo{position:absolute;inset:0 0 0 39%;z-index:0}
 .fr-setla-glow{position:absolute;z-index:1;width:380px;height:380px;border-radius:50%;background:rgba(0,117,23,.24);filter:blur(120px);left:18%;bottom:-160px;pointer-events:none}
-.fr-setla-inner{position:relative;z-index:2;max-width:1360px;min-height:560px;margin:0 auto;padding:64px 40px 96px;display:flex;align-items:center}
+/* This is flex with no flex-direction -- meaning its 5 direct children
+   (eyebrow, h1, lead paragraph, cta row, note) were laid out as a
+   horizontal ROW by default instead of the stacked text block the design
+   clearly calls for (max-width:560px on the headline, left-aligned copy).
+   That's the real root cause of the SETLA banner looking "cropped/doesn't
+   fit": every line was being squeezed to fit side-by-side in one row and
+   wrapping/overlapping instead of reading top-to-bottom. flex-direction:
+   column fixes the stacking; align-items:flex-start keeps the left-aligned
+   layout (align-items now controls the horizontal cross-axis); justify-
+   content:center keeps the original vertical-centering intent (now the
+   main axis). */
+.fr-setla-inner{position:relative;z-index:2;max-width:1360px;min-height:560px;margin:0 auto;padding:64px 40px 96px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .fr-setla-eyebrow{display:flex;align-items:center;gap:10px;color:#4ade80;font-family:var(--body);font-size:12px;letter-spacing:0.25em;text-transform:uppercase;font-weight:700;margin-bottom:18px}
 .fr-setla-eyebrow::before{content:'';width:26px;height:1px;background:#4ade80}
 .fr-setla-h1{margin:0;font-family:var(--serif);font-size:clamp(40px,6vw,76px);line-height:0.92;letter-spacing:-0.02em;font-weight:700;color:#f7f7f7;max-width:560px}
@@ -619,7 +733,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .fr-pcard{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;text-align:center;position:relative;transition:transform 0.2s}
 .fr-pcard:hover{transform:translateY(-3px)}
-.fr-pimg{aspect-ratio:1;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
+.fr-pimg{width:100%;aspect-ratio:1;overflow:hidden;position:relative;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
 .fr-pimg img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
@@ -632,14 +746,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pprice .was{font-size:12px;color:rgba(46,42,57,0.5);text-decoration:line-through;margin-right:6px;font-weight:400}
 .fr-pwa{margin-top:12px;width:100%;background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);padding:10px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
 
-.fr-newsletter{background:#000;padding:88px 40px;text-align:center}
-.fr-nl-lbl{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(253,251,247,0.55);margin-bottom:16px}
-.fr-nl-title{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,44px);color:#fdfbf7;margin-bottom:16px}
-.fr-nl-sub{font-size:14px;color:rgba(253,251,247,0.65);max-width:460px;margin:0 auto 28px;line-height:1.6}
+/* Light/cream treatment -- matches 4regn's real "Join the 4REGN Family"
+   section (light body background, not the dark "Stay in the know" style
+   the rest of this template deliberately avoids outside the header/footer
+   bookends). */
+.fr-newsletter{background:var(--cream);padding:88px 40px;text-align:center}
+.fr-nl-lbl{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(46,42,57,0.55);margin-bottom:16px}
+.fr-nl-title{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,44px);color:var(--ink);margin-bottom:16px}
+.fr-nl-sub{font-size:14px;color:rgba(46,42,57,0.65);max-width:460px;margin:0 auto 28px;line-height:1.6}
 .fr-nl-form{display:flex;max-width:440px;margin:0 auto;gap:8px}
-.fr-nl-form input{flex:1;background:rgba(253,251,247,0.08);border:1px solid rgba(253,251,247,0.2);border-radius:var(--btn-radius);outline:none;font-family:var(--body);font-size:13px;padding:13px 16px;color:#fdfbf7}
-.fr-nl-form input::placeholder{color:rgba(253,251,247,0.4)}
-.fr-nl-form button{background:#fdfbf7;color:#000;border:none;border-radius:var(--btn-radius);cursor:pointer;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:13px 22px}
+.fr-nl-form input{flex:1;background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:var(--btn-radius);outline:none;font-family:var(--body);font-size:13px;padding:13px 16px;color:var(--ink)}
+.fr-nl-form input::placeholder{color:rgba(46,42,57,0.4)}
+.fr-nl-form button{background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);cursor:pointer;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:13px 22px}
 
 .fr-foot{background:#f5f5f5;color:rgba(46,42,57,0.75);padding:72px 40px 28px}
 .fr-foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:56px;max-width:1360px;margin:0 auto 56px}
@@ -750,17 +868,47 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-lb-dot{width:6px;height:6px;border-radius:50%;border:none;padding:0;background:rgba(255,255,255,0.35);cursor:pointer}
 .fr-lb-dot.active{background:#fff;transform:scale(1.3)}
 
+/* MOBILE BOTTOM DOCK — Home / Search / Cart / Account. Hidden on desktop;
+   shown as a floating pill fixed to the bottom of the viewport on mobile
+   (matches the real 4regn.com mobile nav). No Wishlist icon -- that's a
+   separate, not-yet-built feature. */
+.fr-dock{display:none}
+.fr-dock-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:rgba(253,251,247,0.6);cursor:pointer;padding:8px 14px;font-family:var(--body);font-size:9px;letter-spacing:0.5px;text-transform:uppercase;line-height:1}
+.fr-dock-item.active{color:#fdfbf7}
+.fr-dock-count{position:absolute;top:2px;right:6px;min-width:14px;height:14px;padding:0 3px;border-radius:999px;background:var(--brown);color:var(--cream);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--body)}
+
 @media (max-width:900px){
-  .fr-nav{padding:0 18px;grid-template-columns:auto auto 1fr;height:60px}
-  .fr-burger{display:flex;order:1}
-  .fr-logo{font-size:19px;order:2}
+  /* Keep the same 3-column "auto 1fr auto" track as desktop -- the middle
+     column stays an empty flexible spacer even though .fr-nav-links itself
+     is hidden below, which is what actually pushes the cart icon to the
+     right edge. Swapping this to "auto auto 1fr" (as it was) put the
+     flexible spacer *after* both real columns instead of between them, so
+     the logo and cart icon collapsed together in the top-left with a dead
+     empty gap on the right. */
+  .fr-nav{padding:0 18px;grid-template-columns:auto 1fr auto;height:60px}
+  .fr-burger{display:flex}
+  .fr-logo{font-size:19px}
   .fr-nav-links{display:none}
-  .fr-nav-right{order:3}
   .fr-hero-inner{padding:0 24px 48px}
-  .fr-setla{min-height:0;display:flex;flex-direction:column}
+  /* The photo was absolutely positioned (out of flow) as a fixed 340px top
+     strip while the section's own height was driven only by its in-flow
+     flex children (min-height:0). Whenever that in-flow content (inner +
+     plans + badge) rendered shorter than 340px -- routine at 375-414px
+     widths -- the section itself shrank below 340px, and overflow:hidden
+     then clipped the photo to whatever short height was left, cropping it
+     and cramming the text/badges on top of it. Fix: let the photo cover
+     the *whole* section (like desktop) and give the section a real
+     min-height so it never collapses under the photo; justify-content
+     pins the text block to the bottom of that space, over the darkest
+     part of the gradient, instead of overlapping the image from the top. */
+  .fr-setla{min-height:620px;display:flex;flex-direction:column;justify-content:flex-end}
   .fr-setla::after{background:linear-gradient(180deg,rgba(5,5,5,.04) 0%,rgba(5,5,5,.14) 35%,rgba(5,5,5,.9) 63%,rgba(5,5,5,1) 100%)}
-  .fr-setla-photo{inset:0 0 auto 0;height:340px}
-  .fr-setla-inner{min-height:0;padding:28px 20px 16px;align-items:flex-end;flex:0 0 auto}
+  .fr-setla-photo{inset:0}
+  /* align-items stays flex-start (left-aligned text, matching desktop) --
+     vertical position is handled by the outer .fr-setla's
+     justify-content:flex-end above, which pins this whole block to the
+     bottom of the section. */
+  .fr-setla-inner{min-height:0;padding:28px 20px 16px;justify-content:flex-end;flex:0 0 auto}
   .fr-setla-h1{font-size:clamp(38px,13vw,60px);max-width:100%}
   .fr-setla-plans{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .fr-setla-badge{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 18px;padding:4px 0 0;border:0;background:transparent}
@@ -775,6 +923,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-pdp-info{padding:28px 22px}
   .fr-pdp-name{font-size:26px}
   .fr-cart{width:100vw}
+  .fr-root{padding-bottom:78px}
+  .fr-dock{display:flex;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:150;background:rgba(0,0,0,0.92);backdrop-filter:blur(10px);border-radius:999px;padding:6px 4px;gap:2px;box-shadow:0 10px 30px rgba(0,0,0,0.35);align-items:center}
 }
       `}</style>
 
@@ -1114,7 +1264,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   return (
                     <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))}>
                       <div className="fr-cat-img">
-                        {img ? <img src={img} alt={cat} loading="lazy" decoding="async" /> : <span className="fr-cat-mark">{cat}</span>}
+                        {img ? (
+                          <>
+                            <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} />
+                            <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
+                          </>
+                        ) : <span className="fr-cat-mark">{cat}</span>}
                       </div>
                       <div className="fr-cat-foot">
                         <div className="fr-cat-name">{cat}</div>
@@ -1128,56 +1283,65 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </EditSection>
         )}
 
-        {/* PRODUCTS */}
-        <div id="fr-products" className="fr-section" style={{ paddingTop: isCollectionView ? 24 : undefined }}>
-          <div className="fr-section-head">
-            <h2 className="fr-section-title">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "New Arrivals") : effectiveCategory}</h2>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <select value={productSort} onChange={(e) => setProductSort(e.target.value)} className="fr-sort-select" aria-label="Sort products">
-                <option value="default">Sort: Default</option>
-                <option value="latest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="az">A — Z</option>
-                <option value="za">Z — A</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-              </select>
-              <span className="fr-count">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</span>
+        {/* PRODUCTS — collection page (or a store with no collections set
+            up) gets a single flat, sortable grid. The homepage otherwise
+            renders one titled row per collection instead of dumping every
+            product into one undifferentiated wall. */}
+        {isCollectionView || !productGroups ? (
+          <div id="fr-products" className="fr-section" style={{ paddingTop: isCollectionView ? 24 : undefined }}>
+            <div className="fr-section-head">
+              <h2 className="fr-section-title">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "New Arrivals") : effectiveCategory}</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                <select value={productSort} onChange={(e) => setProductSort(e.target.value)} className="fr-sort-select" aria-label="Sort products">
+                  <option value="default">Sort: Default</option>
+                  <option value="latest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="az">A — Z</option>
+                  <option value="za">Z — A</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
+                </select>
+                <span className="fr-count">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</span>
+              </div>
             </div>
+            <EditSection id="products">
+              <div className="fr-pgrid">
+                {filtered.map((p) => <ProductCard key={p.id} p={p} />)}
+              </div>
+            </EditSection>
           </div>
-          <EditSection id="products">
-            <div className="fr-pgrid">
-              {filtered.map((p) => {
-                const onSale = p.old_price && p.old_price > p.price;
-                const promo = getProductPromo(p.id);
+        ) : (
+          <div id="fr-products">
+            <EditSection id="products">
+              {productGroups.map((group, gi) => {
+                const label = group.name ?? (liveProductsHeading ?? config.products_heading ?? "New Arrivals");
+                const isNamedCollection = group.name !== null;
                 return (
-                  <div key={p.id} className="fr-pcard" onClick={() => openProduct(p)}>
-                    {promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
-                    {!promo && onSale && <span className="fr-ptag sale">Sale</span>}
-                    <div className="fr-pimg">
-                      {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" />
-                      ) : (
-                        <span className="fr-p-mark">{initials(p.name)}</span>
-                      )}
-                    </div>
-                    <div className="fr-pinfo">
-                      <div className="fr-pcat">{p.category}</div>
-                      <div className="fr-pname">{p.name}</div>
-                      <div className="fr-pprice">
-                        {onSale && <span className="was">{fmt(p.old_price!)}</span>}
-                        {fmt(p.price)}
+                  <div key={group.name ?? "__other__"} className="fr-section" style={{ paddingTop: gi === 0 ? undefined : 0 }}>
+                    <div className="fr-section-head">
+                      <h2 className="fr-section-title">{label}</h2>
+                      <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                        {isNamedCollection && (
+                          <a
+                            href={sp(`/c/${collectionSlug(group.name!)}`)}
+                            onClick={(e) => { e.preventDefault(); navigate(sp(`/c/${collectionSlug(group.name!)}`)); }}
+                            style={{ fontFamily: "var(--body)", fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}
+                          >
+                            View All
+                          </a>
+                        )}
+                        <span className="fr-count">{group.products.length} {group.products.length === 1 ? "piece" : "pieces"}</span>
                       </div>
-                      <button className="fr-pwa" type="button" onClick={(e) => { e.stopPropagation(); openProduct(p); }}>
-                        Add to Bag
-                      </button>
+                    </div>
+                    <div className="fr-pgrid">
+                      {group.products.slice(0, 8).map((p) => <ProductCard key={p.id} p={p} />)}
                     </div>
                   </div>
                 );
               })}
-            </div>
-          </EditSection>
-        </div>
+            </EditSection>
+          </div>
+        )}
 
         {/* NEWSLETTER — only on landing page */}
         {!isCollectionView && showNewsletter && (
@@ -1257,6 +1421,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <ul>
                   <li><button onClick={() => setPolicyModal({ title: "Shipping Policy", content: config.shipping_policy || "Contact us for details about our shipping policy." })}>Shipping</button></li>
                   <li><button onClick={() => setPolicyModal({ title: "Returns & Refunds", content: config.return_policy || "Contact us for details about our returns and refund policy." })}>Returns & Refunds</button></li>
+                  <li><button onClick={() => setPolicyModal({ title: "Privacy Policy", content: config.privacy_policy || "Contact us for details about our privacy policy." })}>Privacy Policy</button></li>
+                  <li><button onClick={() => setPolicyModal({ title: "Terms of Service", content: config.terms_of_service || "Contact us for details about our terms of service." })}>Terms of Service</button></li>
                   <li><button onClick={() => setContactOpen(true)}>Contact</button></li>
                 </ul>
               </div>
@@ -1282,6 +1448,39 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             </div>
           </footer>
         </EditSection>
+
+        {/* MOBILE BOTTOM DOCK — Home / Search / Cart / Account only (no
+            Wishlist icon: that's a separate, not-yet-built feature). Search
+            scrolls to the product grid since this template doesn't have a
+            dedicated search overlay; Account opens the same Contact panel
+            everything else in this template already uses in place of a
+            not-yet-built account/login system. */}
+        <nav className="fr-dock" aria-label="Mobile navigation">
+          <button type="button" className={"fr-dock-item" + (!isCollectionView ? " active" : "")} onClick={() => navigate(sp())}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
+            Home
+          </button>
+          <button
+            type="button"
+            className="fr-dock-item"
+            onClick={() => {
+              if (isCollectionView) { navigate(sp()); return; }
+              document.getElementById("fr-products")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            Search
+          </button>
+          <button type="button" className="fr-dock-item" onClick={() => setCartOpen(true)} aria-label="Cart">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            {cartCount > 0 && <span className="fr-dock-count">{cartCount}</span>}
+            Cart
+          </button>
+          <button type="button" className="fr-dock-item" onClick={() => setContactOpen(true)}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
+            Account
+          </button>
+        </nav>
       </div>
 
       {/* Policy / info modal */}

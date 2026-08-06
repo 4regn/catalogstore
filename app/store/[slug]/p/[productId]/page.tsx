@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
+import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata } from "next";
 
@@ -12,6 +13,7 @@ const SoftLuxury  = dynamic(() => import("../../SoftLuxuryStore"));
 const GlassChrome = dynamic(() => import("../../GlassChromeStore"));
 const Crown       = dynamic(() => import("../../CrownStore"));
 const Heirloom    = dynamic(() => import("../../HeirloomStore"));
+const FourRegn    = dynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
@@ -114,8 +116,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       }
     : null;
 
-  const tpl = seller.template;
-  const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : SoftLuxury;
+  // Resolve through the same private-template gate the collection page and
+  // main store page use, so a raw `template` column value can't be used to
+  // reach 4regn's private storefront from a seller who isn't allowed to
+  // use it.
+  const tpl = resolveSellerTemplate(seller);
+  const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : tpl === "4regn" ? FourRegn : SoftLuxury;
 
   return (
     <>

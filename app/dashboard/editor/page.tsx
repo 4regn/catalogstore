@@ -162,7 +162,7 @@ interface DayHours {
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
-  | "setla"
+  | "setla" | "newsletter"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -182,6 +182,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   footer:       { icon: "footer",       label: "Footer" },
   occasions:    { icon: "circle",       label: "Shop by Occasion" },
   setla:        { icon: "cta",          label: "SETLA Promo Strip" },
+  newsletter:   { icon: "cta",          label: "Newsletter" },
 };
 
 // Compact icon+label inline component for the chrome.
@@ -328,6 +329,10 @@ export default function StoreEditor() {
   const [showNewsletter, setShowNewsletter] = useState(false);
   const [newsletterLabel, setNewsletterLabel] = useState("Newsletter");
   const [newsletterCopyright, setNewsletterCopyright] = useState("");
+  // 4regn's newsletter section ("Join the [Store] Family") -- title/sub
+  // text, separate from Soft Luxury's label+copyright fields above.
+  const [newsletterTitle, setNewsletterTitle] = useState("");
+  const [newsletterSub, setNewsletterSub] = useState("");
   const heroImageRef = useRef<HTMLInputElement>(null);
   const setlaPhotoRef = useRef<HTMLInputElement>(null);
   const heroVideoRef = useRef<HTMLInputElement>(null);
@@ -353,6 +358,10 @@ export default function StoreEditor() {
   const [footerCol1Label, setFooterCol1Label]         = useState("Shop");
   const [shippingPolicy, setShippingPolicy]           = useState("");
   const [returnPolicy, setReturnPolicy]               = useState("");
+  // Global (not template-scoped) like shipping/return policy above -- same
+  // popup-in-the-footer mechanism, just two more entries in it.
+  const [privacyPolicy, setPrivacyPolicy]             = useState("");
+  const [termsOfService, setTermsOfService]           = useState("");
 
   /* Editable label above the hero countdown timer. Empty string = default to
      `<CODE> ends in` from the active discount; sellers can override to e.g.
@@ -456,9 +465,23 @@ export default function StoreEditor() {
       setHeroButtonSize((cfg as any)?.hero_button_size || "md");
       setHeroHeadlineStyle((cfg as any)?.hero_headline_style || "elegant");
       setHeaderStyle((cfg as any)?.header_style || "icons");
-      setShowNewsletter((cfg as any)?.show_newsletter === true);
+      // Soft Luxury's newsletter is opt-in (defaults off, per its own
+      // wording: "Show email signup..."). 4regn's real storefront always
+      // shows its newsletter signup, so it's opt-out instead -- defaults on
+      // unless a seller has explicitly switched it off. Using the same
+      // "=== true" default for both templates was the actual bug behind it
+      // never showing on 4regn: this editor's Save button always writes
+      // show_newsletter for whichever template is currently selected (see
+      // `editedFields` below), so simply opening the editor and saving any
+      // unrelated change -- on a store that had never touched this toggle --
+      // silently persisted `show_newsletter: false` into 4regn's saved
+      // config every time, permanently hiding a section that was supposed
+      // to default to visible.
+      setShowNewsletter(s.template === "4regn" ? (cfg as any)?.show_newsletter !== false : (cfg as any)?.show_newsletter === true);
       setNewsletterLabel((cfg as any)?.newsletter_label || "Newsletter");
       setNewsletterCopyright((cfg as any)?.newsletter_copyright || "");
+      setNewsletterTitle((cfg as any)?.newsletter_title || "");
+      setNewsletterSub((cfg as any)?.newsletter_sub || "");
       if (cfg?.marquee_texts?.length) setMarqueeTexts(cfg.marquee_texts);
       else if (cfg?.ticker_texts?.length) setMarqueeTexts(cfg.ticker_texts);
       if (cfg?.marquee_speed) setMarqueeSpeed(cfg.marquee_speed);
@@ -524,6 +547,8 @@ export default function StoreEditor() {
       setFooterCol1Label(cfg?.footer_col1_label ?? "Shop");
       setShippingPolicy((s.store_config as any)?.shipping_policy ?? "");
       setReturnPolicy((s.store_config as any)?.return_policy ?? "");
+      setPrivacyPolicy((s.store_config as any)?.privacy_policy ?? "");
+      setTermsOfService((s.store_config as any)?.terms_of_service ?? "");
       setHeroCountdownLabel(cfg?.hero_countdown_label ?? "");
       setHeroSaleHeadline((cfg as any)?.hero_sale_headline ?? "");
       // 4regn SETLA promo strip
@@ -623,6 +648,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ headerStyle }); }, [headerStyle]);
   useEffect(() => { postUpdate({ showNewsletter }); }, [showNewsletter]);
   useEffect(() => { postUpdate({ newsletterLabel }); }, [newsletterLabel]);
+  useEffect(() => { postUpdate({ newsletterTitle }); }, [newsletterTitle]);
+  useEffect(() => { postUpdate({ newsletterSub }); }, [newsletterSub]);
   useEffect(() => { postUpdate({ newsletterCopyright }); }, [newsletterCopyright]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
@@ -759,6 +786,11 @@ export default function StoreEditor() {
       show_newsletter: showNewsletter,
       newsletter_label: newsletterLabel,
       newsletter_copyright: newsletterCopyright,
+      newsletter_title: newsletterTitle,
+      newsletter_sub: newsletterSub,
+      // 4regn footer legal links
+      privacy_policy: privacyPolicy,
+      terms_of_service: termsOfService,
       marquee_texts: marqueeTexts,
       marquee_speed: marqueeSpeed,
       // Dual-write for Crown/Heirloom, which still read ticker_texts directly.
@@ -2738,6 +2770,102 @@ export default function StoreEditor() {
               </div>
             )}
 
+            {/* FOOTER — 4regn. Same shape as Heirloom's footer panel above
+                (same field names, same popup mechanism) plus the two legal
+                links 4regn's footer was missing entirely: Privacy Policy
+                and Terms of Service. */}
+            {activeSection === "footer" && seller?.template === "4regn" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Footer Tagline</label>
+                  <textarea value={footerTagline} onChange={e => setFooterTagline(e.target.value)}
+                    rows={2} placeholder="e.g. Premium streetwear, made deliberately. Made in South Africa."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={hintStyle}>Short line under your logo in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Column 1 Heading</label>
+                  <input value={footerCol1Label} onChange={e => setFooterCol1Label(e.target.value)}
+                    placeholder="Shop" style={inputStyle} />
+                  <div style={hintStyle}>Links auto-populate from your collections — only the heading is editable here.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Shipping Policy</label>
+                  <textarea value={shippingPolicy} onChange={e => setShippingPolicy(e.target.value)}
+                    rows={4} placeholder="e.g. We deliver nationwide within 3-5 business days..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 72 }} />
+                  <div style={hintStyle}>Shown in a popup when customers click &quot;Shipping&quot; in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Return / Refund Policy</label>
+                  <textarea value={returnPolicy} onChange={e => setReturnPolicy(e.target.value)}
+                    rows={4} placeholder="e.g. We accept returns within 14 days of purchase..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 72 }} />
+                  <div style={hintStyle}>Shown in a popup when customers click &quot;Returns &amp; Refunds&quot; in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Privacy Policy</label>
+                  <textarea value={privacyPolicy} onChange={e => setPrivacyPolicy(e.target.value)}
+                    rows={4} placeholder="e.g. What information we collect and how we use it..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 72 }} />
+                  <div style={hintStyle}>Shown in a popup when customers click &quot;Privacy Policy&quot; in the footer.</div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Terms of Service</label>
+                  <textarea value={termsOfService} onChange={e => setTermsOfService(e.target.value)}
+                    rows={4} placeholder="e.g. By placing an order with us, you agree to..."
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 72 }} />
+                  <div style={hintStyle}>Shown in a popup when customers click &quot;Terms of Service&quot; in the footer.</div>
+                </div>
+
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  Support column shows Shipping, Returns &amp; Refunds, Privacy Policy, Terms of Service, and Contact links. Payment Methods column auto-populates from your checkout settings. Social links and contact info come from Dashboard → My Store.
+                </div>
+              </div>
+            )}
+
+            {/* NEWSLETTER — 4regn. Reached by clicking the newsletter
+                section in the live preview, same as Hero/SETLA. Defaults to
+                visible (see the template-aware default in the hydration
+                effect above) -- this panel is only for turning it off or
+                customizing its copy, not for turning it on. */}
+            {activeSection === "newsletter" && seller?.template === "4regn" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                  <input type="checkbox" checked={showNewsletter} onChange={e => setShowNewsletter(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                  <span style={{ fontSize: 13, color: "rgba(245,245,245,0.58)" }}>Show newsletter signup</span>
+                </label>
+                {showNewsletter && (
+                  <>
+                    <div>
+                      <label style={labelStyle}>Eyebrow Label</label>
+                      <input value={newsletterLabel} onChange={e => setNewsletterLabel(e.target.value)}
+                        placeholder="Join the Family" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Headline</label>
+                      <input value={newsletterTitle} onChange={e => setNewsletterTitle(e.target.value)}
+                        placeholder={`Join the ${seller?.store_name || "Store"} Family`} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Subtext</label>
+                      <textarea value={newsletterSub} onChange={e => setNewsletterSub(e.target.value)}
+                        rows={2} placeholder="We'll email you about new arrivals and restocks. Nothing else."
+                        style={{ ...inputStyle, resize: "vertical" }} />
+                    </div>
+                  </>
+                )}
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  Shown as a light-background section above the footer. Subscribers are viewable from Newsletter in the sidebar.
+                </div>
+              </div>
+            )}
+
             {/* FOOTER — Soft Luxury / Glass Chrome */}
             {activeSection === "footer" && (seller?.template === "soft-luxury" || seller?.template === "glass-futuristic") && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -2870,7 +2998,7 @@ export default function StoreEditor() {
             )}
 
             {/* FOOTER — Crown (legacy mapping) */}
-            {activeSection === "footer" && seller?.template !== "heirloom" && seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && (
+            {activeSection === "footer" && seller?.template !== "heirloom" && seller?.template !== "soft-luxury" && seller?.template !== "glass-futuristic" && seller?.template !== "4regn" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <label style={labelStyle}>Footer Tagline</label>
                 <input value={tagline} onChange={e => setTagline(e.target.value)}
