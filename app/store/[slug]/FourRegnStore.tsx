@@ -808,7 +808,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className="fr-cat-img">
           {img ? (
             <>
-              <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} />
+              <Image src={img} alt={cat} fill sizes="(max-width: 900px) 50vw, 25vw" style={{ objectFit: "contain" }} onError={handleImgError} />
               <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
             </>
           ) : <span className="fr-cat-mark">{cat}</span>}
@@ -834,7 +834,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className="fr-pimg">
           {p.image_url ? (
             <>
-              <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" onError={handleImgError} />
+              <Image src={p.image_url} alt={p.name} fill sizes="(max-width: 900px) 50vw, 25vw" style={{ objectFit: "cover" }} onError={handleImgError} />
               <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
             </>
           ) : (
@@ -1915,7 +1915,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <div className="fr-collist-thumb">
                       {img ? (
                         <>
-                          <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} />
+                          <Image src={img} alt={cat} fill sizes="(max-width: 900px) 48px, 60px" style={{ objectFit: "cover" }} onError={handleImgError} />
                           <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
                         </>
                       ) : <span className="fr-cat-mark">{cat}</span>}
@@ -2431,7 +2431,16 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
     >
       {mainImg ? (
         <>
-          <img ref={imgRef} src={mainImg} alt={alt} onError={onImgError} onLoad={() => setImgLoaded(true)} />
+          <Image
+            ref={imgRef}
+            src={mainImg}
+            alt={alt}
+            fill
+            sizes="(max-width: 900px) 100vw, 50vw"
+            style={{ objectFit: "contain" }}
+            onError={onImgError}
+            onLoad={() => setImgLoaded(true)}
+          />
           <span className="fr-p-mark" style={{ display: "none" }}>{initials(alt)}</span>
           {!imgLoaded && (
             <div className="fr-pdp-loading" aria-hidden="true">
@@ -2562,7 +2571,7 @@ function ShopByGenderPanel({ title, genderLabel, bucket, catImage, handleImgErro
                     <div className="fr-sbg-circle-img">
                       {img ? (
                         <>
-                          <img src={img} alt={cat.label} loading="lazy" decoding="async" onError={handleImgError} />
+                          <Image src={img} alt={cat.label} fill sizes="(max-width: 900px) 20vw, 10vw" style={{ objectFit: "cover" }} onError={handleImgError} />
                           <span className="fr-cat-mark" style={{ display: "none" }}>{cat.label}</span>
                         </>
                       ) : <span className="fr-cat-mark">{cat.label}</span>}
