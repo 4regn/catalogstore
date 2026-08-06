@@ -162,7 +162,7 @@ interface DayHours {
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
-  | "setla" | "newsletter"
+  | "setla" | "newsletter" | "shopbygender"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -183,6 +183,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   occasions:    { icon: "circle",       label: "Shop by Occasion" },
   setla:        { icon: "cta",          label: "SETLA Promo Strip" },
   newsletter:   { icon: "cta",          label: "Newsletter" },
+  shopbygender: { icon: "circle",       label: "Shop by Gender" },
 };
 
 // Compact icon+label inline component for the chrome.
@@ -377,6 +378,12 @@ export default function StoreEditor() {
   const [setlaCtaPrimary, setSetlaCtaPrimary]     = useState("");
   const [setlaCtaSecondary, setSetlaCtaSecondary] = useState("");
   const [setlaPhotoUrl, setSetlaPhotoUrl]         = useState("");
+  // 4regn Shop by Gender -- eyebrow/heading are the only editable copy; the
+  // category tiles themselves are derived from the seller's real
+  // `collections` list (Men.../Women... names), not editable settings here.
+  const [showShopByGender, setShowShopByGender] = useState(true);
+  const [shopByGenderEyebrow, setShopByGenderEyebrow] = useState("");
+  const [shopByGenderHeading, setShopByGenderHeading] = useState("");
   const [heroCta, setHeroCta]                         = useState("");
   const [heroCtaTarget, setHeroCtaTarget]             = useState<CtaTarget>({ type: "products" });
   const [heroTitle, setHeroTitle]                     = useState("");
@@ -560,6 +567,10 @@ export default function StoreEditor() {
       setSetlaCtaPrimary((cfg as any)?.setla_cta_primary ?? "");
       setSetlaCtaSecondary((cfg as any)?.setla_cta_secondary ?? "");
       setSetlaPhotoUrl((cfg as any)?.setla_photo_url ?? "");
+      // 4regn Shop by Gender
+      setShowShopByGender((cfg as any)?.show_shopbygender ?? true);
+      setShopByGenderEyebrow((cfg as any)?.shopbygender_eyebrow ?? "");
+      setShopByGenderHeading((cfg as any)?.shopbygender_heading ?? "");
       setHeroCta(cfg?.hero_cta ?? "");
       setHeroCtaTarget(cfg?.hero_cta_target ?? { type: "products" });
       setHeroTitle(cfg?.hero_title !== undefined ? cfg.hero_title : (s.store_name || ""));
@@ -650,6 +661,9 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ newsletterLabel }); }, [newsletterLabel]);
   useEffect(() => { postUpdate({ newsletterTitle }); }, [newsletterTitle]);
   useEffect(() => { postUpdate({ newsletterSub }); }, [newsletterSub]);
+  useEffect(() => { postUpdate({ showShopByGender }); }, [showShopByGender]);
+  useEffect(() => { postUpdate({ shopByGenderEyebrow }); }, [shopByGenderEyebrow]);
+  useEffect(() => { postUpdate({ shopByGenderHeading }); }, [shopByGenderHeading]);
   useEffect(() => { postUpdate({ newsletterCopyright }); }, [newsletterCopyright]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
@@ -853,6 +867,9 @@ export default function StoreEditor() {
       setla_cta_primary: setlaCtaPrimary,
       setla_cta_secondary: setlaCtaSecondary,
       setla_photo_url: setlaPhotoUrl,
+      show_shopbygender: showShopByGender,
+      shopbygender_eyebrow: shopByGenderEyebrow,
+      shopbygender_heading: shopByGenderHeading,
       hero_cta: heroCta || undefined,
       hero_cta_target: heroCtaTarget,
       hero_title: heroTitle,
@@ -1756,6 +1773,36 @@ export default function StoreEditor() {
                 <div>
                   <label style={labelStyle}>Fine Print</label>
                   <textarea value={setlaNote} onChange={e => setSetlaNote(e.target.value)} rows={2} placeholder="Subject to eligibility and affordability assessment..." style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                </div>
+              </div>
+            )}
+
+            {/* SHOP BY GENDER — 4regn only. The MEN/WOMEN category tiles
+                themselves aren't editable here -- they're derived straight
+                from the seller's real Collections list (any collection
+                named "Men <thing>" / "Women <thing>", plus "ALL MEN" /
+                "ALL WOMEN" for the Shop All buttons). Manage that list from
+                Dashboard → Collections; only the section's show/hide toggle
+                and heading copy live here. */}
+            {activeSection === "shopbygender" && seller?.template === "4regn" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                  <input type="checkbox" checked={showShopByGender} onChange={e => setShowShopByGender(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                  <span style={{ fontSize: 13, color: "rgba(245,245,245,0.58)" }}>Show the Shop by Gender section</span>
+                </label>
+
+                <div>
+                  <label style={labelStyle}>Eyebrow</label>
+                  <input value={shopByGenderEyebrow} onChange={e => setShopByGenderEyebrow(e.target.value)} placeholder={`${seller.store_name} Collection`} style={inputStyle} />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Heading</label>
+                  <input value={shopByGenderHeading} onChange={e => setShopByGenderHeading(e.target.value)} placeholder="Shop by Category" style={inputStyle} />
+                </div>
+
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                  The MEN and WOMEN category tiles come from your real Collections list — add collections named &quot;Men Tops&quot;, &quot;Women Dresses&quot;, etc. (and &quot;ALL MEN&quot; / &quot;ALL WOMEN&quot; for the Shop All buttons) from <strong>Dashboard → Collections</strong>. A gender panel only appears once it has at least one matching collection.
                 </div>
               </div>
             )}

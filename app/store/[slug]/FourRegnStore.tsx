@@ -58,6 +58,9 @@ interface StoreConfig {
   setla_cta_primary?: string;
   setla_cta_secondary?: string;
   setla_photo_url?: string;
+  show_shopbygender?: boolean;
+  shopbygender_eyebrow?: string;
+  shopbygender_heading?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -105,6 +108,39 @@ const initials = (s: string) => (s || "").trim().slice(0, 1).toUpperCase();
 // other template uses for /store/<slug>/c/<collection-slug> links.
 export const collectionSlug = (name: string) =>
   name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+/* ─── SHOP BY GENDER ────────────────────────────────────────
+   Splits the seller's real, seller-editable `collections` list into a
+   "men" and a "women" bucket, purely by name convention -- no fixed
+   category slots, no hardcoded 4regn collection names. This mirrors the
+   real shape `migrate-4regn-collections.ts` (and any seller who names
+   their own collections the same way) produces: "ALL MEN" / "ALL WOMEN"
+   as the two "shop everything" collections, and "Men <thing>" / "Women
+   <thing>" for everything else -- e.g. "Men Tops" becomes the tile label
+   "Tops". Collections that don't match either prefix (unisex/seasonal/etc)
+   simply don't appear in this section; they still show up in "Shop by
+   Collection" and the product grid below. */
+export interface GenderCollectionItem { name: string; label: string; }
+export interface GenderBucket { shopAll: string | null; items: GenderCollectionItem[]; }
+const GENDER_ALL_MEN_RE = /^all\s+men$/i;
+const GENDER_ALL_WOMEN_RE = /^all\s+women$/i;
+const GENDER_MEN_PREFIX_RE = /^men\s+(.+)$/i;
+const GENDER_WOMEN_PREFIX_RE = /^women\s+(.+)$/i;
+export function partitionGenderCollections(collections: string[]): { men: GenderBucket; women: GenderBucket } {
+  const men: GenderBucket = { shopAll: null, items: [] };
+  const women: GenderBucket = { shopAll: null, items: [] };
+  for (const raw of collections || []) {
+    const name = (raw || "").trim();
+    if (!name) continue;
+    if (GENDER_ALL_MEN_RE.test(name)) { if (!men.shopAll) men.shopAll = name; continue; }
+    if (GENDER_ALL_WOMEN_RE.test(name)) { if (!women.shopAll) women.shopAll = name; continue; }
+    const menMatch = GENDER_MEN_PREFIX_RE.exec(name);
+    if (menMatch) { men.items.push({ name, label: menMatch[1].trim() }); continue; }
+    const womenMatch = GENDER_WOMEN_PREFIX_RE.exec(name);
+    if (womenMatch) { women.items.push({ name, label: womenMatch[1].trim() }); continue; }
+  }
+  return { men, women };
+}
 
 interface StorePageProps {
   initialSeller?: Seller;
@@ -188,6 +224,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveNewsletterLabel, setLiveNewsletterLabel] = useState<string | null>(null);
   const [liveNewsletterTitle, setLiveNewsletterTitle] = useState<string | null>(null);
   const [liveNewsletterSub, setLiveNewsletterSub] = useState<string | null>(null);
+  const [liveShowShopByGender, setLiveShowShopByGender] = useState<boolean | null>(null);
+  const [liveShopByGenderEyebrow, setLiveShopByGenderEyebrow] = useState<string | null>(null);
+  const [liveShopByGenderHeading, setLiveShopByGenderHeading] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
@@ -290,6 +329,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.newsletterLabel !== undefined) setLiveNewsletterLabel(e.data.newsletterLabel);
       if (e.data.newsletterTitle !== undefined) setLiveNewsletterTitle(e.data.newsletterTitle);
       if (e.data.newsletterSub !== undefined) setLiveNewsletterSub(e.data.newsletterSub);
+      if (e.data.showShopByGender !== undefined) setLiveShowShopByGender(e.data.showShopByGender);
+      if (e.data.shopByGenderEyebrow !== undefined) setLiveShopByGenderEyebrow(e.data.shopByGenderEyebrow);
+      if (e.data.shopByGenderHeading !== undefined) setLiveShopByGenderHeading(e.data.shopByGenderHeading);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -558,6 +600,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const nlTitle = liveNewsletterTitle ?? config.newsletter_title ?? `Join the ${seller.store_name} Family`;
   const nlSub = liveNewsletterSub ?? config.newsletter_sub ?? "We'll email you about new arrivals and restocks. Nothing else.";
 
+  // Shop by Gender -- opt-out (default on), same "always show unless a
+  // seller explicitly hides it" convention as SETLA/Newsletter above, since
+  // it's the real 4regn homepage's default state too. Eyebrow/heading are
+  // the only editable copy (no fixed category slots) -- everything else is
+  // derived straight from the seller's real `collections` list below.
+  const showShopByGender = liveShowShopByGender ?? config.show_shopbygender ?? true;
+  const sbgEyebrow = liveShopByGenderEyebrow ?? config.shopbygender_eyebrow ?? `${seller.store_name} Collection`;
+  const sbgHeading = liveShopByGenderHeading ?? config.shopbygender_heading ?? "Shop by Category";
+  const { men: sbgMen, women: sbgWomen } = partitionGenderCollections(sellerCollections);
+  const sbgHasMen = sbgMen.items.length > 0;
+  const sbgHasWomen = sbgWomen.items.length > 0;
+  // Hide the whole section if neither bucket has real collections yet
+  // (e.g. before migrate-4regn-collections.ts has run); hide just the
+  // empty panel if only one gender has collections set up.
+  const showShopByGenderSection = !isCollectionView && showShopByGender && (sbgHasMen || sbgHasWomen);
+
   const catImage = (cat: string) => {
     const p = products.find((p) => pInCat(p, cat) && p.image_url);
     return p?.image_url || null;
@@ -724,6 +782,54 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-plan span{display:block;font-family:var(--body);color:#929c94;font-size:10px}
 .fr-setla-badge{position:absolute;z-index:3;right:28px;bottom:28px;padding:12px 14px;border:1px solid rgba(255,255,255,0.12);border-radius:15px;background:rgba(5,5,5,0.56);display:flex;align-items:center;gap:9px;color:#d8ddd9;font-family:var(--body);font-size:11px}
 .fr-setla-badge i{display:block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 16px #4ade80}
+
+/* SHOP BY GENDER — ported 1:1 from the real 4regn.com "Shop by Gender"
+   section (chrome-spinning glass panels, drag/arrow-scrollable circular
+   category tiles). Class names prefixed .fr-sbg- (not the raw Shopify
+   .sbg- names) to match this file's naming convention. */
+.fr-sbg-section{padding:40px 20px;background:#EBEBEB}
+.fr-sbg-inner{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.fr-sbg-header{text-align:center}
+.fr-sbg-eyebrow{font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:#8C8880;margin-bottom:6px}
+.fr-sbg-heading{font-size:clamp(16px,2vw,22px);font-weight:400;letter-spacing:7px;text-transform:uppercase;color:#1a1a1a;margin:0}
+.fr-sbg-panels{display:flex;flex-direction:row;gap:0;align-items:stretch}
+.fr-sbg-panel{flex:1;min-width:0;border-radius:24px;padding:2.5px;position:relative;overflow:hidden;box-shadow:0 16px 44px rgba(0,0,0,0.09),0 3px 10px rgba(0,0,0,0.05);transition:transform 0.3s ease;background:rgba(175,173,175,0.4)}
+.fr-sbg-panel::before{content:'';position:absolute;inset:-100%;background:conic-gradient(from 0deg, transparent 0deg, transparent 55deg, rgba(200,198,202,0.3) 70deg, rgba(255,255,255,0.95) 85deg, rgba(220,218,222,0.6) 98deg, rgba(255,255,255,0.3) 110deg, transparent 125deg, transparent 360deg);animation:fr-sbg-chrome-spin 3s linear infinite;z-index:0}
+@keyframes fr-sbg-chrome-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.fr-sbg-panel::after{content:'';position:absolute;inset:2.5px;border-radius:22px;background:#EBEBEB;z-index:1;pointer-events:none}
+.fr-sbg-panel:hover{transform:translateY(-3px)}
+.fr-sbg-panel-inner{background:rgba(255,255,255,0.56);backdrop-filter:blur(48px) saturate(175%);-webkit-backdrop-filter:blur(48px) saturate(175%);border-radius:22px;height:100%;padding:28px 18px 24px;display:flex;flex-direction:column;align-items:center;gap:14px;position:relative;overflow:hidden;z-index:2}
+.fr-sbg-panel-title{font-family:var(--serif);font-size:clamp(28px,4vw,48px);font-weight:700;letter-spacing:7px;color:#1a1a1a;text-transform:uppercase;text-align:center;margin:0;transition:letter-spacing 0.3s}
+.fr-sbg-panel:hover .fr-sbg-panel-title{letter-spacing:11px}
+.fr-sbg-shopall{display:inline-flex;align-items:center;gap:6px;padding:7px 18px;border-radius:40px;background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.9);box-shadow:0 2px 8px rgba(0,0,0,0.05),inset 0 1px 0 rgba(255,255,255,0.9);font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:#555;text-decoration:none;transition:all 0.22s;white-space:nowrap;cursor:pointer}
+.fr-sbg-shopall:hover{background:rgba(255,255,255,0.88);color:#1a1a1a;transform:scale(1.03)}
+.fr-sbg-track-wrap{width:100%;position:relative}
+.fr-sbg-track-wrap::after{content:'';position:absolute;top:0;right:0;bottom:0;width:56px;border-radius:0 22px 22px 0;background:linear-gradient(to right, rgba(235,235,235,0), rgba(235,235,235,0.92));pointer-events:none;opacity:1;transition:opacity 0.25s}
+.fr-sbg-track-wrap.at-end::after{opacity:0}
+.fr-sbg-track{display:flex;gap:14px;overflow-x:auto;padding:8px 2px 4px;scrollbar-width:none;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;cursor:grab}
+.fr-sbg-track::-webkit-scrollbar{display:none}
+.fr-sbg-track:active{cursor:grabbing}
+.fr-sbg-cat-item{display:flex;flex-direction:column;align-items:center;gap:9px;flex-shrink:0;scroll-snap-align:start;text-decoration:none;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1)}
+.fr-sbg-cat-item:hover{transform:translateY(-5px) scale(1.03)}
+.fr-sbg-circle-frame{width:clamp(70px,10vw,130px);height:clamp(70px,10vw,130px);border-radius:50%;flex-shrink:0;position:relative;overflow:hidden;background:rgba(172,170,172,0.35);box-shadow:0 5px 20px rgba(0,0,0,0.1),0 1px 5px rgba(0,0,0,0.05);transition:box-shadow 0.3s}
+.fr-sbg-circle-frame::before{content:'';position:absolute;inset:-100%;background:conic-gradient(from 0deg, transparent 0deg, transparent 60deg, rgba(200,198,202,0.25) 72deg, rgba(255,255,255,0.95) 82deg, rgba(220,218,224,0.5) 90deg, rgba(255,255,255,0.2) 100deg, transparent 112deg, transparent 360deg);animation:fr-sbg-circle-spin 2.5s linear infinite;z-index:0;pointer-events:none}
+@keyframes fr-sbg-circle-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.fr-sbg-circle-frame::after{content:'';position:absolute;inset:2px;border-radius:50%;background:#EBEBEB;z-index:1;pointer-events:none}
+.fr-sbg-cat-item:hover .fr-sbg-circle-frame{box-shadow:0 10px 30px rgba(0,0,0,0.14)}
+.fr-sbg-circle-img{position:absolute;inset:2px;border-radius:50%;overflow:hidden;background:#d8d4ce;z-index:2}
+.fr-sbg-circle-img img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;transition:transform 0.45s ease}
+.fr-sbg-cat-item:hover .fr-sbg-circle-img img{transform:scale(1.07)}
+.fr-sbg-cat-label{font-size:9px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#444;background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.88);padding:4px 11px;border-radius:30px;white-space:nowrap;transition:all 0.2s}
+.fr-sbg-cat-item:hover .fr-sbg-cat-label{background:rgba(255,255,255,0.85);color:#1a1a1a}
+.fr-sbg-arrow-row{display:flex;justify-content:space-between;align-items:center;width:100%}
+.fr-sbg-arrow{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#666;box-shadow:0 1px 6px rgba(0,0,0,0.06);transition:all 0.2s;font-size:13px;line-height:1;padding:0}
+.fr-sbg-arrow:hover{background:rgba(255,255,255,0.92);color:#1a1a1a;transform:scale(1.1)}
+.fr-sbg-dots{display:flex;gap:4px;align-items:center}
+.fr-sbg-dot{width:4px;height:4px;border-radius:999px;background:rgba(0,0,0,0.18);transition:all 0.25s ease;padding:0;border:none}
+.fr-sbg-dot.active{width:14px;background:rgba(0,0,0,0.55)}
+.fr-sbg-divider{width:1px;flex-shrink:0;align-self:stretch;margin:0 10px;background:linear-gradient(to bottom, transparent 0%, rgba(150,148,150,0.28) 15%, rgba(190,188,190,0.45) 35%, rgba(255,255,255,0.7) 50%, rgba(190,188,190,0.45) 65%, rgba(150,148,150,0.28) 85%, transparent 100%);position:relative;overflow:hidden}
+.fr-sbg-divider-shimmer{position:absolute;left:0;right:0;height:50px;background:linear-gradient(to bottom, transparent, rgba(255,255,255,0.88) 50%, transparent);animation:fr-sbg-divider-flow 2.8s ease-in-out infinite}
+@keyframes fr-sbg-divider-flow{0%{top:-100%}100%{top:100%}}
 
 .fr-section{max-width:1360px;margin:0 auto;padding:64px 40px}
 .fr-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;gap:20px;flex-wrap:wrap}
@@ -944,6 +1050,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-setla-h1{font-size:clamp(38px,13vw,60px);max-width:100%}
   .fr-setla-plans{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .fr-setla-badge{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 18px;padding:4px 0 0;border:0;background:transparent}
+  .fr-sbg-section{padding:28px 12px}
+  .fr-sbg-panel{border-radius:18px}
+  .fr-sbg-panel-inner{padding:18px 10px 16px;gap:12px;border-radius:16px}
+  .fr-sbg-panel-title{font-size:clamp(20px,7vw,30px);letter-spacing:5px}
+  .fr-sbg-panel:hover .fr-sbg-panel-title{letter-spacing:7px}
+  .fr-sbg-shopall{font-size:8px;padding:6px 14px}
+  .fr-sbg-circle-frame{width:clamp(58px,20vw,90px);height:clamp(58px,20vw,90px)}
+  .fr-sbg-track{gap:10px}
+  .fr-sbg-cat-label{font-size:7.5px;padding:3px 9px}
+  .fr-sbg-divider{margin:0 6px}
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
@@ -1268,6 +1384,56 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <div className="fr-setla-plan"><div className="fr-setla-plan-num">2</div><div><strong>2 instalments</strong><span>Monthly</span></div></div>
               </div>
               <div className="fr-setla-badge"><i />{setlaBadge}</div>
+            </section>
+          </EditSection>
+        )}
+
+        {/* SHOP BY GENDER — only on landing page. Ported from the real
+            "4REGN - Shop by Gender" Liquid section: two glass panels (MEN /
+            WOMEN) with a horizontally-scrollable row of circular category
+            tiles. Unlike the real Shopify section (12 fixed per-gender
+            settings slots), the tiles here are entirely derived from the
+            seller's real `collections` list via partitionGenderCollections
+            -- "Men <X>" / "Women <X>" become tiles, "ALL MEN" / "ALL WOMEN"
+            become the "Shop All" button target. No fixed category list is
+            baked in, so this stays generic for any seller who names their
+            collections this way, not just 4regn. */}
+        {showShopByGenderSection && (
+          <EditSection id="shopbygender">
+            <section className="fr-sbg-section">
+              <div className="fr-sbg-inner">
+                <div className="fr-sbg-header">
+                  <p className="fr-sbg-eyebrow">{sbgEyebrow}</p>
+                  <h2 className="fr-sbg-heading">{sbgHeading}</h2>
+                </div>
+                <div className="fr-sbg-panels">
+                  {sbgHasMen && (
+                    <ShopByGenderPanel
+                      title="MEN"
+                      genderLabel="Men"
+                      bucket={sbgMen}
+                      catImage={catImage}
+                      handleImgError={handleImgError}
+                      hrefFor={(name) => sp(`/c/${collectionSlug(name)}`)}
+                      onNavigate={(name) => navigate(sp(`/c/${collectionSlug(name)}`))}
+                    />
+                  )}
+                  {sbgHasMen && sbgHasWomen && (
+                    <div className="fr-sbg-divider" aria-hidden="true"><div className="fr-sbg-divider-shimmer" /></div>
+                  )}
+                  {sbgHasWomen && (
+                    <ShopByGenderPanel
+                      title="WOMEN"
+                      genderLabel="Women"
+                      bucket={sbgWomen}
+                      catImage={catImage}
+                      handleImgError={handleImgError}
+                      hrefFor={(name) => sp(`/c/${collectionSlug(name)}`)}
+                      onNavigate={(name) => navigate(sp(`/c/${collectionSlug(name)}`))}
+                    />
+                  )}
+                </div>
+              </div>
             </section>
           </EditSection>
         )}
@@ -1678,6 +1844,137 @@ function LightboxGallery({ imgs, index, onClose, onIndex }: {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// One "MEN" or "WOMEN" glass panel for the Shop by Gender section --
+// horizontally scrollable row of circular category tiles ported from the
+// real "4REGN - Shop by Gender" Liquid section's JS: arrow buttons scroll by
+// one tile-width, dots track scroll position, desktop drag-to-scroll (a
+// >5px pointer move before treating it as a drag, so ordinary clicks on a
+// tile still navigate), and the right-edge fade hides once scrolled to the
+// end. Defined outside FourRegnStore (like LightboxGallery above) since it
+// needs no closures over store state -- everything it needs is passed in.
+function ShopByGenderPanel({ title, genderLabel, bucket, catImage, handleImgError, hrefFor, onNavigate }: {
+  title: string;
+  genderLabel: string;
+  bucket: GenderBucket;
+  catImage: (cat: string) => string | null;
+  handleImgError: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+  hrefFor: (collectionName: string) => string;
+  onNavigate: (collectionName: string) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [activeDot, setActiveDot] = useState(0);
+  const [atEnd, setAtEnd] = useState(false);
+  const dragRef = useRef({ moved: false });
+
+  const updateScrollState = () => {
+    const el = trackRef.current;
+    if (!el) return;
+    const children = Array.from(el.children) as HTMLElement[];
+    if (children.length > 0) {
+      let idx = 0;
+      let min = Infinity;
+      children.forEach((c, i) => {
+        const d = Math.abs(c.offsetLeft - el.scrollLeft);
+        if (d < min) { min = d; idx = i; }
+      });
+      setActiveDot(idx);
+    }
+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+  };
+
+  useEffect(() => { updateScrollState(); }, [bucket.items.length]);
+
+  const scrollByOne = (dir: 1 | -1) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const first = el.children[0] as HTMLElement | undefined;
+    const gap = parseFloat(getComputedStyle(el).columnGap || "14") || 14;
+    const step = first ? first.getBoundingClientRect().width + gap : el.clientWidth * 0.8;
+    el.scrollBy({ left: dir * step, behavior: "smooth" });
+  };
+
+  const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const startX = e.clientX;
+    const startScroll = el.scrollLeft;
+    dragRef.current.moved = false;
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - startX;
+      if (Math.abs(dx) > 5) dragRef.current.moved = true;
+      el.scrollLeft = startScroll - dx;
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  return (
+    <div className="fr-sbg-panel">
+      <div className="fr-sbg-panel-inner">
+        <h3 className="fr-sbg-panel-title">{title}</h3>
+        {bucket.shopAll && (
+          <a
+            href={hrefFor(bucket.shopAll)}
+            className="fr-sbg-shopall"
+            onClick={(e) => { e.preventDefault(); onNavigate(bucket.shopAll!); }}
+          >
+            Shop All {genderLabel} →
+          </a>
+        )}
+        <div className={"fr-sbg-track-wrap" + (atEnd ? " at-end" : "")}>
+          <div
+            className="fr-sbg-track"
+            ref={trackRef}
+            onScroll={updateScrollState}
+            onMouseDown={onMouseDown}
+          >
+            {bucket.items.map((cat) => {
+              const img = catImage(cat.name);
+              return (
+                <a
+                  key={cat.name}
+                  href={hrefFor(cat.name)}
+                  className="fr-sbg-cat-item"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (dragRef.current.moved) { dragRef.current.moved = false; return; }
+                    onNavigate(cat.name);
+                  }}
+                >
+                  <div className="fr-sbg-circle-frame">
+                    <div className="fr-sbg-circle-img">
+                      {img ? (
+                        <>
+                          <img src={img} alt={cat.label} loading="lazy" decoding="async" onError={handleImgError} />
+                          <span className="fr-cat-mark" style={{ display: "none" }}>{cat.label}</span>
+                        </>
+                      ) : <span className="fr-cat-mark">{cat.label}</span>}
+                    </div>
+                  </div>
+                  <span className="fr-sbg-cat-label">{cat.label}</span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+        <div className="fr-sbg-arrow-row">
+          <button type="button" className="fr-sbg-arrow" aria-label={`Previous ${genderLabel.toLowerCase()} categories`} onClick={() => scrollByOne(-1)}>←</button>
+          <div className="fr-sbg-dots">
+            {bucket.items.map((_, i) => (
+              <span key={i} className={"fr-sbg-dot" + (i === activeDot ? " active" : "")} />
+            ))}
+          </div>
+          <button type="button" className="fr-sbg-arrow" aria-label={`Next ${genderLabel.toLowerCase()} categories`} onClick={() => scrollByOne(1)}>→</button>
+        </div>
+      </div>
     </div>
   );
 }
