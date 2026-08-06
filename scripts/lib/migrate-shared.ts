@@ -67,7 +67,14 @@ export async function probeExistingColumns(admin: SupabaseClient, table: string,
   while (remaining.length > 0) {
     const { error } = await admin.from(table).select(remaining.join(",")).limit(1);
     if (!error) return new Set(remaining);
-    const match = error.message.match(/Could not find the '([^']+)' column/);
+    // Two different error shapes turn up in practice for the same
+    // underlying problem: PostgREST's own schema-cache message, and a raw
+    // (optionally table-qualified) Postgres "column does not exist" --
+    // confirmed both occur against the same table depending on how many
+    // missing columns are in one .select() at once.
+    const match =
+      error.message.match(/Could not find the '([^']+)' column/) ||
+      error.message.match(/column\s+(?:[\w"]+\.)?"?(\w+)"?\s+does not exist/i);
     if (!match) {
       console.error(`Warning: couldn't probe optional columns on "${table}" (${error.message}) -- proceeding without any of: ${remaining.join(", ")}`);
       return new Set();
