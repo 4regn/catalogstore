@@ -339,7 +339,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const router = useRouter();
   const pathname = usePathname();
   const [isNavigating, startNavigation] = useTransition();
-  const navigate = (path: string) => startNavigation(() => router.push(path));
+  // Scrolling to top here (at the moment navigation is triggered) rather
+  // than only reactively once the new page has mounted (see the
+  // useLayoutEffect below) matters on slower connections/devices: React
+  // keeps the OLD page's DOM on screen during the pending transition
+  // (that's the whole point of useTransition -- no blank flash), so if
+  // the fetch takes a while, the visible page is still the previous one at
+  // its old scroll position for that entire window. Confirmed as a real,
+  // reported issue on mobile specifically -- slower network + a much
+  // taller stacked mobile layout makes that window both longer and the
+  // resulting jump far more visible than on desktop. Resetting immediately
+  // means the old page is already at the top throughout the wait, so
+  // there's nothing left to visibly jump when the new page takes over.
+  const navigate = (path: string) => { window.scrollTo(0, 0); startNavigation(() => router.push(path)); };
   // Warms a destination route's RSC payload ahead of an actual click --
   // wired to onMouseEnter (desktop hover) and onTouchStart (fires before
   // touchend/click on mobile) on the most-clicked in-app links below
