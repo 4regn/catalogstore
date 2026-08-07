@@ -293,6 +293,12 @@ interface StorePageProps {
   initialActiveProduct?: Product | null;
   // Which policy page to render for mode="policy".
   policyKey?: "shipping" | "returns" | "privacy" | "terms" | "contact";
+  // Collection-page pagination (mode="collection" only) -- initialProducts
+  // is already just the current page's slice (server-sorted+sliced, see
+  // app/store/[slug]/c/[collection]/page.tsx), not the whole collection.
+  currentPage?: number;
+  totalPages?: number;
+  currentSort?: string;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[]; countdown: PromoDiscount | null } => {
@@ -329,7 +335,7 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
   return <>{children(timeLeft)}</>;
 }
 
-export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey }: StorePageProps = {}) {
+export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default" }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
   const isProductView = mode === "product";
@@ -378,6 +384,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (new URLSearchParams(window.location.search).get("editMode") === "true") setIsEditMode(true);
   }, []);
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
+  // Collection-page pagination links -- page 1 has no ?page so the
+  // canonical/default URL stays clean; sort is only appended when it isn't
+  // the default, same reasoning. Reads the collection segment straight off
+  // the route's own params rather than re-deriving it from collectionName
+  // (which can be a display name like "All Products", not the URL slug).
+  const collectionParam = params.collection as string | undefined;
+  const buildCollectionHref = (page: number, sort: string) => {
+    const qs = new URLSearchParams();
+    if (page > 1) qs.set("page", String(page));
+    if (sort && sort !== "default") qs.set("sort", sort);
+    const q = qs.toString();
+    return sp(`/c/${collectionParam}`) + (q ? `?${q}` : "");
+  };
 
   /* ─── DATA ─── */
   const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
@@ -421,7 +440,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── UI ─── */
   const [activeCategory, setActiveCategory] = useState("All");
-  const [productSort, setProductSort] = useState("default");
+  const [productSort, setProductSort] = useState(currentSort);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Home view's own `products` (see FOUR_REGN_HOME_PRODUCT_COLUMNS in
@@ -520,7 +539,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // (searchProducts stays non-null, including as an empty array, once
   // resolved) rather than re-fetching every time the overlay reopens.
   useEffect(() => {
-    if (!(isHomeView || isProductView) || !showSearch || searchProducts !== null || searchLoading || !seller?.id) return;
+    if (!(isHomeView || isProductView || isCollectionView) || !showSearch || searchProducts !== null || searchLoading || !seller?.id) return;
     setSearchLoading(true);
     (async () => {
       const { data } = await supabase
@@ -539,14 +558,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setSearchProducts((data || []) as unknown as Product[]);
       setSearchLoading(false);
     })();
-  }, [isHomeView, isProductView, showSearch, searchProducts, searchLoading, seller?.id]);
-  // Collection view's `products` already has name/price/handle straight
-  // from its own route's fetch (see FOUR_REGN_PRODUCT_COLUMNS in
-  // c/[collection]/page.tsx -- the full collection's product list, not the
-  // whole catalog, so search there is scoped to the current collection,
-  // same as it's always been) -- only home and product views need the
-  // separate lazily-fetched full-catalog array above.
-  const searchSource = (isHomeView || isProductView) ? (searchProducts ?? []) : products;
+  }, [isHomeView, isProductView, isCollectionView, showSearch, searchProducts, searchLoading, seller?.id]);
+  // Collection view's `products` used to hold the WHOLE collection's
+  // product list (search there was scoped to just the current collection),
+  // but now that the collection route paginates server-side (24/page,
+  // see c/[collection]/page.tsx), `products` there is only the current
+  // page's slice -- searching it alone would silently miss everything not
+  // on the visible page. Reuses the same lazily-fetched full-catalog array
+  // home/product views already rely on, so search now covers the whole
+  // store regardless of which collection page it was opened from.
+  const searchSource = (isHomeView || isProductView || isCollectionView) ? (searchProducts ?? []) : products;
 
   /* ─── LIVE EDIT POSTMESSAGE ─── */
   useEffect(() => {
@@ -1308,6 +1329,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-collgrid-title{font-family:var(--serif) !important;font-size:clamp(1.4rem,3.5vw,2.8rem);color:#fff;text-transform:uppercase;font-style:italic;text-align:center;padding:0 15px;line-height:1.15}
 
 .fr-pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+.fr-pagination{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:48px;flex-wrap:wrap}
+.fr-pagination button{font-family:var(--body);font-size:13px;min-width:36px;height:36px;padding:0 8px;border-radius:8px;border:1px solid rgba(46,42,57,0.15);background:#fff;color:var(--ink);cursor:pointer;transition:all 0.15s}
+.fr-pagination button:hover:not(:disabled){border-color:var(--ink);background:rgba(46,42,57,0.04)}
+.fr-pagination button:disabled{opacity:0.35;cursor:default}
+.fr-pagination button.is-active{background:var(--ink);border-color:var(--ink);color:#fff}
+.fr-pagination-ellipsis{font-size:13px;color:rgba(46,42,57,0.4);padding:0 2px}
 .fr-pcard{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;text-align:center;position:relative;transition:transform 0.2s}
 .fr-pcard:hover{transform:translateY(-3px)}
 .fr-pimg{width:100%;overflow:hidden;position:relative;min-height:160px;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
@@ -2199,7 +2226,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     View All Products
                   </a>
                 )}
-                <select value={productSort} onChange={(e) => setProductSort(e.target.value)} className="fr-sort-select" aria-label="Sort products">
+                <select
+                  value={productSort}
+                  onChange={(e) => {
+                    // Collection view: sorting is done server-side against the
+                    // WHOLE collection, not just the 24 products currently on
+                    // screen -- so this re-navigates (resetting to page 1) rather
+                    // than reordering the current page in place client-side.
+                    if (isCollectionView) { setProductSort(e.target.value); navigate(buildCollectionHref(1, e.target.value)); }
+                    else setProductSort(e.target.value);
+                  }}
+                  className="fr-sort-select" aria-label="Sort products"
+                >
                   <option value="default">Sort: Default</option>
                   <option value="latest">Newest</option>
                   <option value="oldest">Oldest</option>
@@ -2216,6 +2254,48 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 {filtered.map((p) => <ProductCard key={p.id} p={p} />)}
               </div>
             </EditSection>
+            {isCollectionView && totalPages > 1 && (
+              <nav className="fr-pagination" aria-label="Collection pages">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => navigate(buildCollectionHref(currentPage - 1, productSort))}
+                  aria-label="Previous page"
+                >‹</button>
+                {(() => {
+                  // Windowed page numbers (current ±2, always first/last),
+                  // with an ellipsis standing in for any gap -- a large
+                  // collection can be dozens of pages, so listing every one
+                  // isn't practical.
+                  const nums: (number | "…")[] = [];
+                  const push = (n: number) => { if (nums[nums.length - 1] !== n) nums.push(n); };
+                  push(1);
+                  if (currentPage - 2 > 2) nums.push("…");
+                  for (let n = Math.max(2, currentPage - 2); n <= Math.min(totalPages - 1, currentPage + 2); n++) push(n);
+                  if (currentPage + 2 < totalPages - 1) nums.push("…");
+                  if (totalPages > 1) push(totalPages);
+                  return nums.map((n, i) =>
+                    n === "…"
+                      ? <span key={`e${i}`} className="fr-pagination-ellipsis" aria-hidden="true">…</span>
+                      : (
+                        <button
+                          key={n}
+                          type="button"
+                          className={n === currentPage ? "is-active" : undefined}
+                          aria-current={n === currentPage ? "page" : undefined}
+                          onClick={() => n !== currentPage && navigate(buildCollectionHref(n, productSort))}
+                        >{n}</button>
+                      )
+                  );
+                })()}
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => navigate(buildCollectionHref(currentPage + 1, productSort))}
+                  aria-label="Next page"
+                >›</button>
+              </nav>
+            )}
           </div>
         ) : (
           <div id="fr-products">

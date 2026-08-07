@@ -9,17 +9,16 @@ import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 
-// Widened from 60 -- see app/store/[slug]/page.tsx's own comment on this
-// same line for the full reasoning.
-export const revalidate = 3600;
-// See app/store/[slug]/page.tsx's own comment on this same line for the
-// full reasoning -- summary: without this, Vercel never registers a
-// dynamic-segment route (no generateStaticParams possible here, sellers/
-// collections are DB-driven) as ISR-eligible at all, so `revalidate = 60`
-// alone silently does nothing; confirmed via a live x-vercel-cache MISS on
-// a repeat request. force-static chosen over an empty-array
-// generateStaticParams to avoid its documented dynamicParams/404 footgun.
-export const dynamic = "force-static";
+// force-dynamic, not force-static -- this route now reads ?page/?sort off
+// searchParams (see the 4regn branch below) to paginate collections
+// server-side instead of shipping every matching product on one page.
+// force-static forces searchParams to always resolve empty regardless of
+// the real URL (per Next's own docs), which would make ?page=2 silently
+// render page 1 forever -- there's no static/ISR-cached way to do
+// per-request pagination, so this route trades that caching away
+// specifically (product pages and everything else keep it; see their own
+// revalidate comments).
+export const dynamic = "force-dynamic";
 
 // Heirloom, Soft Luxury and 4regn support dedicated collection pages today.
 // If a seller on another template ends up here (e.g. someone shared a deep
@@ -82,6 +81,30 @@ function activePromoBadges(rows: { label: string; scope: "product" | "collection
 const slugify = (s: string) =>
   s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
+// 4regn only, for now -- Heirloom/Soft Luxury still render this route's
+// full, unpaginated collectionProducts list exactly as before (their own
+// client components were never built to expect a partial page + page
+// controls, so leaving them alone rather than silently truncating what
+// they show). PAGE_SIZE matches what Shopify showed per page on the real
+// site this platform imports from.
+const PAGE_SIZE = 24;
+
+// Must stay in lockstep with FourRegnStore.tsx's own client-side
+// sortProducts() (same option values, same comparators) -- that one still
+// exists to sort the FIRST page's worth of already-server-sorted products
+// consistently, but changing sort now re-navigates to re-sort the whole
+// collection server-side, not just what's currently on screen.
+function sortCollectionProducts(list: any[], sort: string): any[] {
+  const out = [...list];
+  if (sort === "az") out.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sort === "za") out.sort((a, b) => b.name.localeCompare(a.name));
+  else if (sort === "latest") out.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  else if (sort === "oldest") out.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+  else if (sort === "price-low") out.sort((a, b) => a.price - b.price);
+  else if (sort === "price-high") out.sort((a, b) => b.price - a.price);
+  return out;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -114,10 +137,13 @@ export async function generateMetadata({
 
 export default async function CollectionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; collection: string }>;
+  searchParams: Promise<{ page?: string; sort?: string }>;
 }) {
   const { slug, collection } = await params;
+  const { page: pageParam, sort: sortParam } = await searchParams;
 
   const { data: seller } = await supabaseAdmin
     .from("sellers")
@@ -208,6 +234,18 @@ export default async function CollectionPage({
   };
 
   if (tpl === "soft-luxury") return <SoftLuxury {...props} />;
-  if (tpl === "4regn") return <FourRegn {...props} />;
+  if (tpl === "4regn") {
+    // Sort the WHOLE collection server-side, then slice to just the
+    // requested page, instead of shipping every matching product (a
+    // collection can run into the hundreds or thousands) on one page --
+    // see PAGE_SIZE's own comment above.
+    const sort = sortParam || "default";
+    const sortedProducts = sortCollectionProducts(collectionProducts, sort);
+    const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PAGE_SIZE));
+    const requestedPage = parseInt(pageParam || "1", 10);
+    const currentPage = Math.min(Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1), totalPages);
+    const pageProducts = sortedProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    return <FourRegn {...props} initialProducts={pageProducts} currentPage={currentPage} totalPages={totalPages} currentSort={sort} />;
+  }
   return <Heirloom {...props} />;
 }
