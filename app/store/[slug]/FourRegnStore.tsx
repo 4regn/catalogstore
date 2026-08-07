@@ -299,6 +299,9 @@ interface StorePageProps {
   currentPage?: number;
   totalPages?: number;
   currentSort?: string;
+  // Count of every product in the collection across all pages -- distinct
+  // from initialProducts.length, which is just the current page's slice.
+  totalProductCount?: number;
 }
 
 const buildInitialPromos = (dcs: any[] | undefined): { discounts: PromoDiscount[]; countdown: PromoDiscount | null } => {
@@ -335,7 +338,7 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
   return <>{children(timeLeft)}</>;
 }
 
-export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default" }: StorePageProps = {}) {
+export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
   const isProductView = mode === "product";
@@ -403,6 +406,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
   const [loading, setLoading] = useState(!initialSeller);
   const [notFound, setNotFound] = useState(false);
+  // useState(initialProducts) above only seeds `products` on the very
+  // first mount -- App Router does NOT remount this component just because
+  // search params changed (same route, same [collection] segment value),
+  // so navigating from page 1 to ?page=2 of the same collection re-renders
+  // with a new initialProducts prop but never actually applied it, and the
+  // grid kept showing page 1's products no matter which page was clicked.
+  // Re-sync whenever the server hands down a genuinely new array (a real
+  // navigation/sort/page change), without touching any client-side-only
+  // mutations of `products` elsewhere (e.g. the initialSeller-missing
+  // fallback fetch below, which calls setProducts itself).
+  useEffect(() => {
+    if (initialProducts) setProducts(initialProducts);
+  }, [initialProducts]);
 
   /* ─── LIVE EDIT ─── */
   const [liveTagline, setLiveTagline] = useState<string | null>(null);
@@ -2246,7 +2262,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <option value="price-low">Price: Low to High</option>
                   <option value="price-high">Price: High to Low</option>
                 </select>
-                <span className="fr-count">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</span>
+                <span className="fr-count">
+                  {/* Collection view: filtered.length is just the current page's
+                      count (up to PAGE_SIZE) -- show the whole collection's
+                      total instead, same as Shopify's own collection pages do. */}
+                  {(() => { const c = isCollectionView && totalProductCount != null ? totalProductCount : filtered.length; return <>{c} {c === 1 ? "piece" : "pieces"}</>; })()}
+                </span>
               </div>
             </div>
             <EditSection id="products">

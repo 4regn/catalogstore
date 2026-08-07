@@ -245,7 +245,7 @@ export default async function CollectionPage({
     const requestedPage = parseInt(pageParam || "1", 10);
     const currentPage = Math.min(Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1), totalPages);
     const pageProducts = sortedProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-    return <FourRegn {...props} initialProducts={pageProducts} currentPage={currentPage} totalPages={totalPages} currentSort={sort} />;
+    return <FourRegn {...props} initialProducts={pageProducts} currentPage={currentPage} totalPages={totalPages} currentSort={sort} totalProductCount={sortedProducts.length} />;
   }
   return <Heirloom {...props} />;
 }
