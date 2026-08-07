@@ -361,6 +361,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // means the old page is already at the top throughout the wait, so
   // there's nothing left to visibly jump when the new page takes over.
   const navigate = (path: string) => { window.scrollTo(0, 0); startNavigation(() => router.push(path)); };
+  // Same idea as navigate() above (reset the CURRENT page's scroll
+  // immediately, not just reactively once the next page has mounted --
+  // see that comment for why), but for collection pagination/sort
+  // specifically: brings the (still on-screen, about-to-be-replaced)
+  // product grid to the top of the viewport instead of the very top of
+  // the page. The header/hero above it looks identical on every page of
+  // the same collection, so scrolling all the way up hides the one thing
+  // that actually changes -- from the bottom of a long page that reads as
+  // "did my click even do anything," not as a page change in progress.
+  const navigateToProducts = (path: string) => {
+    document.getElementById("fr-products")?.scrollIntoView({ block: "start" });
+    startNavigation(() => router.push(path));
+  };
   // Warms a destination route's RSC payload ahead of an actual click --
   // wired to onMouseEnter (desktop hover) and onTouchStart (fires before
   // touchend/click on mobile) on the most-clicked in-app links below
@@ -653,10 +666,25 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // is exactly the visible "loads at the bottom, then jumps to the top"
   // flash this effect exists to prevent. useLayoutEffect runs synchronously
   // before paint, so the correction happens before anything is shown.
+  // currentPage/currentSort are in the deps too -- collection-page
+  // pagination/sorting changes neither pathname nor mode (same route,
+  // same mode="collection", only ?page/?sort differ), so without these
+  // this effect never re-fired for a page-to-page click at all, which is
+  // exactly why it looked inconsistent ("sometimes it scrolls, sometimes
+  // it doesn't") rather than reliably broken or reliably working.
   useLayoutEffect(() => {
     if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-    window.scrollTo(0, 0);
-  }, [pathname, mode]);
+    // Collection view: land at the top of the product grid, not the very
+    // top of the page. Scrolling all the way up re-shows the header/hero,
+    // which looks identical on every page of the same collection -- from
+    // the bottom of a long page, that reads as "nothing happened" until
+    // scrolling back down to notice the products actually changed. The
+    // grid is exactly the content that's different page to page, so
+    // that's what should be the first thing back in view.
+    const productsEl = isCollectionView ? document.getElementById("fr-products") : null;
+    if (productsEl) productsEl.scrollIntoView({ block: "start" });
+    else window.scrollTo(0, 0);
+  }, [pathname, mode, currentPage, currentSort]);
 
   /* ─── CART OPS ─── */
   const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
@@ -2249,7 +2277,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     // WHOLE collection, not just the 24 products currently on
                     // screen -- so this re-navigates (resetting to page 1) rather
                     // than reordering the current page in place client-side.
-                    if (isCollectionView) { setProductSort(e.target.value); navigate(buildCollectionHref(1, e.target.value)); }
+                    if (isCollectionView) { setProductSort(e.target.value); navigateToProducts(buildCollectionHref(1, e.target.value)); }
                     else setProductSort(e.target.value);
                   }}
                   className="fr-sort-select" aria-label="Sort products"
@@ -2280,7 +2308,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <button
                   type="button"
                   disabled={currentPage <= 1}
-                  onClick={() => navigate(buildCollectionHref(currentPage - 1, productSort))}
+                  onClick={() => navigateToProducts(buildCollectionHref(currentPage - 1, productSort))}
+                  onMouseEnter={() => currentPage > 1 && prefetchPath(buildCollectionHref(currentPage - 1, productSort))}
+                  onTouchStart={() => currentPage > 1 && prefetchPath(buildCollectionHref(currentPage - 1, productSort))}
                   aria-label="Previous page"
                 >‹</button>
                 {(() => {
@@ -2304,7 +2334,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                           type="button"
                           className={n === currentPage ? "is-active" : undefined}
                           aria-current={n === currentPage ? "page" : undefined}
-                          onClick={() => n !== currentPage && navigate(buildCollectionHref(n, productSort))}
+                          onClick={() => n !== currentPage && navigateToProducts(buildCollectionHref(n, productSort))}
+                          onMouseEnter={() => n !== currentPage && prefetchPath(buildCollectionHref(n, productSort))}
+                          onTouchStart={() => n !== currentPage && prefetchPath(buildCollectionHref(n, productSort))}
                         >{n}</button>
                       )
                   );
@@ -2312,7 +2344,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <button
                   type="button"
                   disabled={currentPage >= totalPages}
-                  onClick={() => navigate(buildCollectionHref(currentPage + 1, productSort))}
+                  onClick={() => navigateToProducts(buildCollectionHref(currentPage + 1, productSort))}
+                  onMouseEnter={() => currentPage < totalPages && prefetchPath(buildCollectionHref(currentPage + 1, productSort))}
+                  onTouchStart={() => currentPage < totalPages && prefetchPath(buildCollectionHref(currentPage + 1, productSort))}
                   aria-label="Next page"
                 >›</button>
               </nav>
