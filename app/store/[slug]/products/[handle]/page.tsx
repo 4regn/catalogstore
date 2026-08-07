@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import type { Metadata, Viewport } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
@@ -9,11 +9,19 @@ import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
+// See app/store/[slug]/page.tsx's own comment on this same line for the
+// full reasoning -- summary: without this, Vercel never registers a
+// dynamic-segment route (no generateStaticParams possible here, sellers/
+// products are DB-driven) as ISR-eligible at all, so `revalidate = 60`
+// alone silently does nothing; confirmed via a live x-vercel-cache MISS on
+// a repeat request. force-static chosen over an empty-array
+// generateStaticParams to avoid its documented dynamicParams/404 footgun.
+export const dynamic = "force-static";
 
 // 4regn-only route -- every other template's product pages still live at
 // /p/{uuid}; this handle-based route exists purely to match 4regn's real
 // (Shopify-era, already Google-indexed) /products/{handle} URL format.
-const FourRegn = dynamic(() => import("../../FourRegnStore"));
+const FourRegn = nextDynamic(() => import("../../FourRegnStore"));
 
 // Any seller who lands on this route but isn't actually on the 4regn
 // template gets redirect()'d out below before anything renders, so this

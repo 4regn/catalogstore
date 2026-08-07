@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
@@ -9,13 +9,21 @@ import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
+// See app/store/[slug]/page.tsx's own comment on this same line for the
+// full reasoning -- summary: without this, Vercel never registers a
+// dynamic-segment route (no generateStaticParams possible here, sellers/
+// collections are DB-driven) as ISR-eligible at all, so `revalidate = 60`
+// alone silently does nothing; confirmed via a live x-vercel-cache MISS on
+// a repeat request. force-static chosen over an empty-array
+// generateStaticParams to avoid its documented dynamicParams/404 footgun.
+export const dynamic = "force-static";
 
 // Heirloom, Soft Luxury and 4regn support dedicated collection pages today.
 // If a seller on another template ends up here (e.g. someone shared a deep
 // link), fall back to the main storefront so they don't see a broken page.
-const Heirloom = dynamic(() => import("../../HeirloomStore"));
-const SoftLuxury = dynamic(() => import("../../SoftLuxuryStore"));
-const FourRegn = dynamic(() => import("../../FourRegnStore"));
+const Heirloom = nextDynamic(() => import("../../HeirloomStore"));
+const SoftLuxury = nextDynamic(() => import("../../SoftLuxuryStore"));
+const FourRegn = nextDynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";

@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
@@ -8,10 +8,18 @@ import { resolveSellerTemplate } from "../../../../../lib/store-template-access"
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
+// See app/store/[slug]/page.tsx's own comment on this same line for the
+// full reasoning -- summary: without this, Vercel never registers a
+// dynamic-segment route (no generateStaticParams possible here, sellers/
+// policy keys are DB-driven) as ISR-eligible at all, so `revalidate = 60`
+// alone silently does nothing; confirmed via a live x-vercel-cache MISS on
+// a repeat request. force-static chosen over an empty-array
+// generateStaticParams to avoid its documented dynamicParams/404 footgun.
+export const dynamic = "force-static";
 
 // 4regn-only route -- every other template still shows these as in-page
 // modals, not dedicated pages.
-const FourRegn = dynamic(() => import("../../FourRegnStore"));
+const FourRegn = nextDynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";

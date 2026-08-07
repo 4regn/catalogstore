@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
@@ -10,15 +10,33 @@ import { fetchAllRows } from "../../../lib/fetch-all-rows";
 import StoreUnavailable from "./StoreUnavailable";
 
 export const revalidate = 60;
+// Marks this route as eligible for Vercel's ISR caching even though its
+// dynamic segment ([slug]) has no generateStaticParams -- impossible here,
+// sellers are DB-driven with no fixed list at build time. Confirmed via a
+// live x-vercel-cache check on the deployed site that `revalidate = 60`
+// alone wasn't enough: repeat requests to the exact same URL kept coming
+// back MISS. Per Next.js's own docs, a dynamic route needs
+// generateStaticParams (even an empty array) OR `dynamic = "force-static"`
+// to be registered as ISR-eligible on Vercel at all -- without one of
+// those, every request renders fully dynamically regardless of revalidate.
+// Chose force-static over an empty-array generateStaticParams: the latter
+// has a documented history of edge-case bugs around dynamicParams handling
+// (a route can silently start 404ing instead of rendering on demand);
+// force-static has no such footgun and doesn't require touching how params
+// are resolved. Safe here since nothing in this route calls a genuine
+// Next.js "dynamic function" (headers()/cookies()/searchParams) anymore --
+// normal data fetching (await supabaseAdmin...) isn't affected by this
+// setting, it only concerns those specific dynamic APIs.
+export const dynamic = "force-static";
 
-const SoftLuxury  = dynamic(() => import("./SoftLuxuryStore"));
-const GlassChrome = dynamic(() => import("./GlassChromeStore"));
-const Crown       = dynamic(() => import("./CrownStore"));
-const Heirloom    = dynamic(() => import("./HeirloomStore"));
-const Rosefields  = dynamic(() => import("./RosefieldsStore"));
-const FourRegn    = dynamic(() => import("./FourRegnStore"));
-const Velour      = dynamic(() => import("./VelourStore"));
-const UnikLabs    = dynamic(() => import("./UnikLabsStore"));
+const SoftLuxury  = nextDynamic(() => import("./SoftLuxuryStore"));
+const GlassChrome = nextDynamic(() => import("./GlassChromeStore"));
+const Crown       = nextDynamic(() => import("./CrownStore"));
+const Heirloom    = nextDynamic(() => import("./HeirloomStore"));
+const Rosefields  = nextDynamic(() => import("./RosefieldsStore"));
+const FourRegn    = nextDynamic(() => import("./FourRegnStore"));
+const Velour      = nextDynamic(() => import("./VelourStore"));
+const UnikLabs    = nextDynamic(() => import("./UnikLabsStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
