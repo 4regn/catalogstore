@@ -8,7 +8,11 @@ import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata, Viewport } from "next";
 
-export const revalidate = 60;
+// Widened from 60 -- see app/store/[slug]/page.tsx's own comment on this
+// same line for the full reasoning (confirmed cold-render latency on a
+// live page, on-demand revalidation + checkout's live stock check make a
+// long window safe).
+export const revalidate = 3600;
 // See app/store/[slug]/page.tsx's own comment on this same line for the
 // full reasoning -- summary: without this, Vercel never registers a
 // dynamic-segment route (no generateStaticParams possible here, sellers/

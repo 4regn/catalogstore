@@ -8,7 +8,11 @@ import { resolveSellerTemplate } from "../../../../../lib/store-template-access"
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import StoreUnavailable from "../../StoreUnavailable";
 
-export const revalidate = 60;
+// Widened from 60 -- see app/store/[slug]/page.tsx's own comment on this
+// same line for the full reasoning. This is the route real product-page
+// traffic actually hits (SEO slug URLs), so it's the one where the
+// cold-render latency was most visible.
+export const revalidate = 3600;
 // See app/store/[slug]/page.tsx's own comment on this same line for the
 // full reasoning -- summary: without this, Vercel never registers a
 // dynamic-segment route (no generateStaticParams possible here, sellers/

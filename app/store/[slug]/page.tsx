@@ -10,7 +10,18 @@ import { canonicalStoreUrl } from "../../../lib/store-url";
 import { fetchAllRows } from "../../../lib/fetch-all-rows";
 import StoreUnavailable from "./StoreUnavailable";
 
-export const revalidate = 60;
+// Was 60 -- confirmed in practice (a real page taking ~9s on the first hit
+// to a given URL after a deploy/cache-expiry, then <2s right after) that a
+// 1-minute window meant most real visits to a less-trafficked page kept
+// landing on the slow, uncached synchronous-render path instead of ever
+// finding a warm cache to serve instantly. Safe to widen: seller-driven
+// content changes (editor saves) already push an immediate refresh via
+// revalidateStore() below rather than waiting on this timer, and checkout
+// (place-order) independently re-reads live stock/price from the DB at
+// order time regardless of what a cached page displays -- so this number
+// only governs "how stale can an update NOT covered by on-demand
+// revalidation get," not correctness.
+export const revalidate = 3600;
 // Marks this route as eligible for Vercel's ISR caching even though its
 // dynamic segment ([slug]) has no generateStaticParams -- impossible here,
 // sellers are DB-driven with no fixed list at build time. Confirmed via a

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
 
-export const revalidate = 60;
+// Widened from 60 -- see app/store/[slug]/page.tsx's own comment on this
+// same line for the full reasoning.
+export const revalidate = 3600;
 // See app/store/[slug]/page.tsx's own comment on this same line for the
 // full reasoning -- summary: without this, Vercel never registers a
 // dynamic-segment route (no generateStaticParams possible here, sellers
