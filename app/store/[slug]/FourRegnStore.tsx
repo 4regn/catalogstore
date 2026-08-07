@@ -503,6 +503,27 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── NAV ─── */
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Home page only: nav is transparent (see .fr-nav--transparent) while
+  // still over the hero image, then switches back to its normal solid
+  // black bar once scrolled past it -- every other section on the page has
+  // a light background, and the nav's own text is light-on-dark, so
+  // staying transparent past the hero would make it unreadable. 500 is a
+  // deliberately simple fixed threshold rather than measuring the hero's
+  // actual rendered height (min-height:560px, but height:88vh grows past
+  // that on a tall viewport) -- close enough that the switch happens
+  // around the hero/next-section boundary without needing a ResizeObserver
+  // just for this. Starts true on the very first render (matches
+  // scrollY === 0 before any scroll event has fired) rather than false, so
+  // there's no flash of a solid nav over the hero before the first scroll
+  // listener callback runs.
+  const [navOverHero, setNavOverHero] = useState(isHomeView);
+  useEffect(() => {
+    if (!isHomeView) return;
+    const onScroll = () => setNavOverHero(window.scrollY < 500);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isHomeView]);
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -1187,6 +1208,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 @import url('https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 .fr-root *,.fr-root *::before,.fr-root *::after{box-sizing:border-box}
 .fr-root{
+  /* This storefront is a fixed light theme -- without this, a phone set to
+     system Dark Mode leads Safari/Chrome to auto-darken/invert the default
+     rendering of native form controls (<input>, <select>) and can wash out
+     otherwise-correctly-colored text nearby, since the browser assumes an
+     undeclared page might want dark-mode treatment. Reported as literally
+     unreadable near-white-on-white text in the search box and size-chart
+     modal on a real device. */
+  color-scheme: light;
   --ink:#2e2a39;--paper-grad:linear-gradient(178deg, rgba(255,255,255,1), rgba(249,249,249,1) 48.5%, rgba(245,245,245,1) 97%);
   --paper-solid:#e6e6e6;--head-bg:#000000;--head-text:#fdfbf7;
   --brown:#765341;--purple:linear-gradient(320deg, #86106a, #5e3653 100%);--cream:#fdfbf7;
@@ -1210,6 +1239,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 @keyframes fr-spin{to{transform:rotate(360deg)}}
 
 .fr-nav{position:sticky;top:0;z-index:100;background:var(--head-bg);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:24px;padding:0 40px;height:72px}
+/* Home page only: transparent nav floating over the hero image instead of
+   a solid black bar above it. .fr-hero pulls itself up by exactly the
+   nav's own height (kept in sync with the mobile height override below)
+   so the hero image starts at the very top of the viewport, behind the
+   now-see-through nav, instead of the nav pushing it down. Nav stays
+   position:sticky throughout (only background/border change) -- while
+   scrolled within the hero it's see-through (the nav's own text is
+   already light-on-dark per .fr-nav-link, so it stays legible against the
+   hero's dark overlay); past that point (navOverHero flips false, see the
+   scroll effect below) it switches back to solid, since every OTHER
+   section has a light background this same light text would disappear
+   into. */
+.fr-nav--transparent{background:transparent}
+.fr-hero{margin-top:-72px}
 .fr-nav-left{display:flex;align-items:center;gap:20px}
 .fr-burger{display:none;background:none;border:none;cursor:pointer;width:24px;height:24px;flex-direction:column;justify-content:space-between;padding:5px 0}
 .fr-burger span{display:block;width:100%;height:1px;background:var(--head-text)}
@@ -1231,7 +1274,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
 .fr-hero{position:relative;width:100%;min-height:560px;height:88vh;overflow:hidden;display:flex;align-items:flex-end;background:linear-gradient(160deg,#1a1715 0%,#000 100%)}
 .fr-hero-bgimg{position:absolute;inset:0;z-index:0}
-.fr-hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(0,0,0,0.82) 0%,rgba(0,0,0,0.38) 55%,rgba(0,0,0,0.12) 100%)}
+/* Top stop bumped from 0.12 -> 0.32 -- previously nearly clear, which
+   worked fine when the top of the hero only ever sat under a solid black
+   nav bar, but now the transparent nav (see .fr-nav--transparent) sits
+   directly over this same area with light text, and 0.12 wasn't reliably
+   dark enough for that text to stay legible against an arbitrary hero
+   photo's own brightness. */
+.fr-hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(0,0,0,0.82) 0%,rgba(0,0,0,0.38) 55%,rgba(0,0,0,0.32) 100%)}
 .fr-hero-inner{position:relative;z-index:2;width:100%;max-width:720px;padding:0 56px 72px;text-align:left}
 .fr-hero-pill{display:inline-block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cream);background:var(--purple);padding:7px 16px;border-radius:999px;margin-bottom:16px}
 .fr-hero-label{font-family:var(--body);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(253,251,247,0.65);margin-bottom:18px;display:flex;align-items:center;gap:12px}
@@ -1433,7 +1482,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-search-panel{background:#fff;border-radius:var(--card-radius);max-width:640px;width:100%;max-height:74vh;overflow:hidden;box-shadow:var(--card-shadow);display:flex;flex-direction:column}
 .fr-search-bar{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid rgba(0,0,0,0.08);flex-shrink:0}
 .fr-search-bar svg{flex-shrink:0;color:rgba(46,42,57,0.4)}
-.fr-search-input{flex:1;min-width:0;border:none;outline:none;background:none;font-family:var(--serif);font-size:19px;color:var(--ink)}
+.fr-search-input{flex:1;min-width:0;border:none;outline:none;background:none;font-family:var(--serif);font-size:19px;color:var(--ink);-webkit-text-fill-color:var(--ink)}
 .fr-search-close{background:none;border:none;font-size:20px;color:rgba(46,42,57,0.5);cursor:pointer;padding:4px 6px;flex-shrink:0}
 .fr-search-results{overflow-y:auto;padding:8px 12px}
 .fr-search-empty,.fr-search-hint{padding:36px 12px;text-align:center;color:rgba(46,42,57,0.5);font-size:13px}
@@ -1514,6 +1563,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-price{font-size:20px;font-weight:700;color:var(--ink)}
 .fr-pdp-was{font-size:14px;color:rgba(46,42,57,0.5);text-decoration:line-through}
 .fr-pdp-desc{font-size:14px;line-height:1.7;color:rgba(46,42,57,0.75);margin:0 0 28px;font-style:italic}
+.fr-pdp-desc-p{margin:0 0 14px}
+.fr-pdp-desc-p:last-child{margin-bottom:0}
+.fr-desc-table-wrap{overflow-x:auto;margin:0 0 20px;font-style:normal;border-radius:8px;border:1px solid rgba(0,0,0,0.08)}
+.fr-desc-table{width:100%;border-collapse:collapse;font-size:12px}
+.fr-desc-table th,.fr-desc-table td{padding:9px 12px;text-align:left;white-space:nowrap}
+.fr-desc-table thead tr{background:var(--ink);color:#fff}
+.fr-desc-table th{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.fr-desc-table tbody tr:nth-child(even){background:rgba(0,0,0,0.03)}
+.fr-desc-table tbody td{border-top:1px solid rgba(0,0,0,0.06);color:var(--ink)}
 .fr-pdp-section{border-top:1px solid rgba(0,0,0,0.07);padding:16px 0}
 .fr-pdp-section-lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:12px}
 .fr-size-row{display:flex;gap:8px;flex-wrap:wrap}
@@ -1595,13 +1653,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-lb-dot.active{background:#fff;transform:scale(1.3)}
 
 /* MOBILE BOTTOM DOCK — Home / Search / Cart / Account. Hidden on desktop;
-   shown as a floating pill fixed to the bottom of the viewport on mobile
-   (matches the real 4regn.com mobile nav). No Wishlist icon -- that's a
-   separate, not-yet-built feature. */
+   a light, semi-transparent "glass" pill fixed to the bottom of the
+   viewport on mobile, matching the real 4regn.com mobile nav (a light
+   gray backdrop behind a frosted near-white pill with dark text) -- the
+   previous version here was a solid dark/black pill with light text,
+   confirmed as a mismatch directly against the live reference site.
+   No Wishlist icon -- that's a separate, not-yet-built feature. */
 .fr-dock{display:none}
-.fr-dock-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:rgba(253,251,247,0.6);cursor:pointer;padding:8px 14px;font-family:var(--body);font-size:9px;letter-spacing:0.5px;text-transform:uppercase;line-height:1}
-.fr-dock-item.active{color:#fdfbf7}
-.fr-dock-count{position:absolute;top:2px;right:6px;min-width:14px;height:14px;padding:0 3px;border-radius:999px;background:var(--brown);color:var(--cream);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--body)}
+.fr-dock-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:none;border:none;color:rgba(46,42,57,0.5);cursor:pointer;padding:10px 18px;font-family:var(--body);font-size:9px;letter-spacing:0.5px;text-transform:uppercase;line-height:1}
+.fr-dock-item.active{color:var(--ink)}
+.fr-dock-count{position:absolute;top:4px;right:8px;min-width:14px;height:14px;padding:0 3px;border-radius:999px;background:var(--ink);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--body)}
 
 @media (max-width:900px){
   /* Keep the same 3-column "auto 1fr auto" track as desktop -- the middle
@@ -1612,6 +1673,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
      the logo and cart icon collapsed together in the top-left with a dead
      empty gap on the right. */
   .fr-nav{padding:0 18px;grid-template-columns:auto 1fr auto;height:60px}
+  .fr-hero{margin-top:-60px}
   .fr-burger{display:flex}
   .fr-logo{font-size:19px}
   /* Split the hamburger and logo apart on mobile: the burger stays alone in
@@ -1669,7 +1731,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-policy-page{padding:48px 20px 64px}
   .fr-cart{width:100vw}
   .fr-root{padding-bottom:78px}
-  .fr-dock{display:flex;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:150;background:rgba(0,0,0,0.92);backdrop-filter:blur(10px);border-radius:999px;padding:6px 4px;gap:2px;box-shadow:0 10px 30px rgba(0,0,0,0.35);align-items:center}
+  .fr-dock{display:flex;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:150;background:rgba(255,255,255,0.7);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,0.85);border-radius:28px;padding:8px 6px;gap:4px;box-shadow:0 10px 30px rgba(0,0,0,0.12);align-items:center}
   .fr-search-overlay{padding:24px 14px}
   .fr-search-panel{max-height:88vh}
   .fr-search-bar{padding:16px 18px}
@@ -1845,7 +1907,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         )}
 
         {/* NAV */}
-        <nav className="fr-nav">
+        <nav className={"fr-nav" + (navOverHero ? " fr-nav--transparent" : "")}>
           <div className="fr-nav-left">
             <button className="fr-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu">
               <span /><span /><span />
@@ -2684,27 +2746,60 @@ function parseInlineMarkup(text: string, keyPrefix: string): React.ReactNode[] {
   return nodes;
 }
 
+// A [[table]]/[[/table]]-wrapped paragraph (see htmlToDescriptionMarkup in
+// scripts/lib/migrate-shared.ts) -- real Shopify size-chart tables, most
+// commonly. First row is always the header (Shopify's own table exports are
+// consistently <thead><tr><th>...) -- there's no separate marker for it, so
+// this stays a fixed assumption rather than something the grammar needs to
+// carry. Cells were joined with " | " on the way in for the same reason a
+// tab character wasn't used there (see that function's comment); split back
+// out the same way here.
+function DescriptionTable({ rowsText, keyPrefix }: { rowsText: string; keyPrefix: string }) {
+  const rows = rowsText.split("\n").filter((l) => l.trim()).map((line) => line.split(" | ").map((c) => c.trim()));
+  if (!rows.length) return null;
+  const [headerRow, ...bodyRows] = rows;
+  return (
+    <div className="fr-desc-table-wrap">
+      <table className="fr-desc-table">
+        <thead>
+          <tr>{headerRow.map((cell, ci) => <th key={ci}>{parseInlineMarkup(cell, `${keyPrefix}-h-${ci}`)}</th>)}</tr>
+        </thead>
+        <tbody>
+          {bodyRows.map((row, ri) => (
+            <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{parseInlineMarkup(cell, `${keyPrefix}-${ri}-${ci}`)}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function DescriptionText({ text }: { text: string }) {
   const paragraphs = text.split(/\n\n+/);
   return (
-    <p className="fr-pdp-desc">
-      {paragraphs.map((para, pi) => (
-        <Fragment key={pi}>
-          {pi > 0 && (
-            <>
-              <br />
-              <br />
-            </>
-          )}
-          {para.split("\n").map((line, li) => (
-            <Fragment key={li}>
-              {li > 0 && <br />}
-              {parseInlineMarkup(line, `${pi}-${li}`)}
-            </Fragment>
-          ))}
-        </Fragment>
-      ))}
-    </p>
+    <div className="fr-pdp-desc">
+      {paragraphs.map((para, pi) => {
+        const trimmed = para.trim();
+        // <table> is invalid inside a <p> (browsers/React would silently
+        // break the DOM structure) -- table paragraphs render as a sibling
+        // <div> instead of the shared <p> path below, which is also why the
+        // outer wrapper here is a <div>, not a <p>, unlike before.
+        if (trimmed.startsWith("[[table]]") && trimmed.endsWith("[[/table]]")) {
+          const rowsText = trimmed.slice("[[table]]".length, -"[[/table]]".length);
+          return <DescriptionTable key={pi} rowsText={rowsText} keyPrefix={`${pi}`} />;
+        }
+        return (
+          <p key={pi} className="fr-pdp-desc-p">
+            {para.split("\n").map((line, li) => (
+              <Fragment key={li}>
+                {li > 0 && <br />}
+                {parseInlineMarkup(line, `${pi}-${li}`)}
+              </Fragment>
+            ))}
+          </p>
+        );
+      })}
+    </div>
   );
 }
 

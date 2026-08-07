@@ -646,7 +646,17 @@ export function htmlToDescriptionMarkup(html: string): string {
     // whitespace collapsing but leaves the markers already inserted intact.
     const lines = tableToRowLinesMarkup(tableHtml);
     if (!lines.length) return "";
-    return `\n\n${lines.join("\n")}\n\n`;
+    // [[table]]/[[/table]] wrapper lines tell DescriptionText (FourRegnStore.tsx)
+    // to render these pipe-separated rows as a real <table> (first row as the
+    // header) instead of plain text with visible "|" characters -- a size
+    // chart otherwise renders as an unstructured wall of numbers, exactly the
+    // "Shopify shows a real table, this platform doesn't" gap reported
+    // directly against a live product page. Can't use a tab character to
+    // separate cells instead of " | " -- htmlToParagraphs() below collapses
+    // all runs of spaces/tabs to a single space, which would silently erase
+    // tab-separated cell boundaries; " | " survives that pass unchanged since
+    // "|" isn't whitespace.
+    return `\n\n[[table]]\n${lines.join("\n")}\n[[/table]]\n\n`;
   });
   return htmlToParagraphs(withTablesConverted);
 }
