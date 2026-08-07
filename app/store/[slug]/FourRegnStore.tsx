@@ -341,6 +341,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const pathname = usePathname();
   const [isNavigating, startNavigation] = useTransition();
   const navigate = (path: string) => startNavigation(() => router.push(path));
+  // Warms a destination route's RSC payload ahead of an actual click --
+  // wired to onMouseEnter (desktop hover) and onTouchStart (fires before
+  // touchend/click on mobile) on the most-clicked in-app links below
+  // (product cards, category tiles, nav). None of these <a>/<button>
+  // elements are Next's own <Link> component (which auto-prefetches),
+  // they're plain elements + navigate()'s router.push(), so without this
+  // there was never any head start -- every click began the fetch from
+  // zero. With it, by the time navigate() actually runs, Next often
+  // already has the data cached and the transition resolves near-
+  // instantly instead of sitting in the pending/loading-fallback window.
+  // Fire-and-forget: a prefetch failure just means no head start, not a
+  // broken link (navigate() doesn't depend on this having succeeded).
+  const prefetchPath = (path: string) => { try { router.prefetch(path); } catch {} };
   const slug = params.slug as string;
   const isEditMode = searchParams.get("editMode") === "true";
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
@@ -623,6 +636,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const goToProduct = (p: Product) => {
     if (isEditMode) { openProduct(p); return; }
     navigate(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`));
+  };
+  const prefetchProduct = (p: Product) => {
+    if (isEditMode) return;
+    prefetchPath(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`));
   };
   // Shared broken-image fallback for grid thumbnails (product + collection
   // cards): if the stored image URL 404s/expires, swap in the initials
@@ -926,7 +943,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const renderCatTile = (cat: string) => {
     const img = catImage(cat);
     return (
-      <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))}>
+      <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))} onMouseEnter={() => prefetchPath(sp(`/c/${collectionSlug(cat)}`))} onTouchStart={() => prefetchPath(sp(`/c/${collectionSlug(cat)}`))}>
         <div className="fr-cat-img">
           {img ? (
             <>
@@ -951,7 +968,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const badge = getProductPromoBadge(p);
     const promo = getProductPromo(p.id);
     return (
-      <div className="fr-pcard" onClick={() => goToProduct(p)}>
+      <div className="fr-pcard" onClick={() => goToProduct(p)} onMouseEnter={() => prefetchProduct(p)} onTouchStart={() => prefetchProduct(p)}>
         {badge && <span className="fr-ptag sale">{badge.label}</span>}
         {!badge && promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
         {!badge && !promo && onSale && <span className="fr-ptag sale">Sale</span>}
@@ -1738,7 +1755,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             {menuCategories.slice(0, 6).map((cat) => {
               const target = sp(`/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
               return (
-                <a key={cat} href={target} className="fr-nav-link" onClick={(e) => { e.preventDefault(); navigate(target); }}>
+                <a key={cat} href={target} className="fr-nav-link" onClick={(e) => { e.preventDefault(); navigate(target); }} onMouseEnter={() => prefetchPath(target)} onTouchStart={() => prefetchPath(target)}>
                   {cat === "All" ? "All Products" : cat}
                 </a>
               );
