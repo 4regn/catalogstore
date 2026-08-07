@@ -390,6 +390,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [productSort, setProductSort] = useState("default");
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Home view's own `products` (see FOUR_REGN_HOME_PRODUCT_COLUMNS in
+  // ../page.tsx) is now id/category/image_url only -- name/price/handle
+  // (needed for the search overlay's filter/display/routing) are fetched
+  // lazily here, client-side, the first time a visitor actually opens
+  // search, instead of shipping the seller's entire catalog (real-world:
+  // ~1600 rows for 4regn) in every homepage's initial HTML just for a
+  // rarely-opened search box. null = not fetched yet. Collection/product
+  // views don't need this -- their own route fetches already include
+  // name/price/handle on `products` (see searchSource below).
+  const [searchProducts, setSearchProducts] = useState<Product[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
   const [lightbox, setLightbox] = useState<{ imgs: string[]; index: number } | null>(null);
@@ -462,6 +473,39 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   const getProductPromoBadge = (p: Product) =>
     promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
+
+  /* ─── SEARCH (lazy catalog fetch) ─── */
+  // Fires the first time a visitor on the home view opens search -- see
+  // searchProducts' own comment above for why this isn't just part of the
+  // page's initial data. Guarded so it only ever fetches once per page
+  // load (searchProducts stays non-null, including as an empty array, once
+  // resolved) rather than re-fetching every time the overlay reopens.
+  useEffect(() => {
+    if (!isHomeView || !showSearch || searchProducts !== null || searchLoading || !seller?.id) return;
+    setSearchLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, price, category, image_url, handle")
+        .eq("seller_id", seller.id)
+        .eq("in_stock", true)
+        .eq("status", "published")
+        .order("sort_order", { ascending: true });
+      // Deliberately partial (id/name/price/category/image_url/handle only,
+      // same set the search overlay actually reads -- see searched/goToProduct)
+      // -- Product's other fields (old_price, images, variants, etc.) are
+      // never touched for a search result, same trust boundary the
+      // server-side narrow-column fetches elsewhere in this app already
+      // rely on.
+      setSearchProducts((data || []) as unknown as Product[]);
+      setSearchLoading(false);
+    })();
+  }, [isHomeView, showSearch, searchProducts, searchLoading, seller?.id]);
+  // Collection/product views already have name/price/handle on `products`
+  // straight from their own route's fetch (see FOUR_REGN_PRODUCT_COLUMNS/
+  // RELATED_PRODUCT_COLUMNS in their page.tsx files) -- only the home view
+  // needs the separate lazily-fetched array above.
+  const searchSource = isHomeView ? (searchProducts ?? []) : products;
 
   /* ─── LIVE EDIT POSTMESSAGE ─── */
   useEffect(() => {
@@ -685,14 +729,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // it has 0 matching products.
   const menuCategories = ["All", ...sellerCollections.filter((cat) => catCount(cat) > 0)];
   const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
-  // Real product search -- same `products` source the category-filter grid
-  // above already uses, matched against a free-text query by name and
-  // category instead of a fixed active category. Null (not just an empty
-  // array) when the box is empty so the overlay can tell "no query yet"
-  // apart from "query matched nothing".
+  // Real product search -- searchSource (see above: lazily-fetched on home
+  // view, the same already-loaded `products` everywhere else), matched
+  // against a free-text query by name and category instead of a fixed
+  // active category. Null (not just an empty array) when the box is empty
+  // so the overlay can tell "no query yet" apart from "query matched
+  // nothing".
   const searchQueryTrimmed = searchQuery.trim().toLowerCase();
   const searched = searchQueryTrimmed
-    ? products.filter((p) =>
+    ? searchSource.filter((p) =>
         p.name.toLowerCase().includes(searchQueryTrimmed) ||
         (p.category || "").toLowerCase().includes(searchQueryTrimmed)
       )
@@ -2373,7 +2418,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <button type="button" className="fr-search-close" onClick={() => { setShowSearch(false); setSearchQuery(""); }} aria-label="Close search">✕</button>
             </div>
             <div className="fr-search-results">
-              {searched === null ? (
+              {isHomeView && searchLoading && searchProducts === null ? (
+                <div className="fr-search-hint">Loading products…</div>
+              ) : searched === null ? (
                 <div className="fr-search-hint">Start typing to search {seller.store_name}'s products.</div>
               ) : searched.length === 0 ? (
                 <div className="fr-search-empty">No products match "{searchQuery.trim()}".</div>

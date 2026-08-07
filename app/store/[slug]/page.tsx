@@ -40,19 +40,24 @@ const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at";
 // 4regn's homepage no longer renders a flat product grid (it was removed --
 // see the "PRODUCTS" section in FourRegnStore.tsx, now gated to collection
-// view only). Traced every remaining isHomeView code path there and the only
-// product fields it still reads are: id (React keys / goToProduct fallback
-// route), name (search overlay filter + display + A-Z/Z-A sort), price
-// (search overlay display + price sort), category (catCount/catImage behind
-// the "Shop by Collection" tiles and "Shop by Gender" panels, and the search
-// overlay filter/display), image_url (catImage, search overlay thumbnail),
-// and handle (goToProduct's /products/<handle> routing from search results).
-// old_price/images/variants/in_stock/description/sort_order/created_at are
-// never read on isHomeView now that the flat grid (the only place that used
-// them) is gone. This narrower set is 4regn-specific -- every other
+// view only). Traced every remaining isHomeView code path there: it only
+// reads id/category/image_url directly (catImage/catCount behind the "Shop
+// by Collection" tiles and "Shop by Gender" panels). name/price/handle used
+// to be included here purely for the search overlay's client-side filter --
+// but that meant every homepage load shipped the seller's ENTIRE catalog
+// (real-world: ~1600 rows for 4regn) just so the rarely-opened search box
+// could filter instantly, even for the ~vast majority of visitors who never
+// open it. Confirmed as a real, measurable chunk of an oversized HTML
+// payload (Chrome DevTools trace on the live 4regn homepage: ~2.3MB
+// uncompressed). Search now fetches its own (still narrow) name/price/
+// handle columns lazily, client-side, only once a visitor actually opens
+// the search box -- see FourRegnStore.tsx's searchProducts state/effect.
+// old_price/images/variants/in_stock/description/sort_order/created_at were
+// never read on isHomeView even before this change (the flat grid that used
+// them is gone). This narrower set is 4regn-specific -- every other
 // template's homepage still renders a full product grid and needs the full
 // PRODUCT_COLUMNS above, so this is only swapped in for tpl === "4regn".
-const FOUR_REGN_HOME_PRODUCT_COLUMNS = "id, name, price, category, image_url, handle";
+const FOUR_REGN_HOME_PRODUCT_COLUMNS = "id, category, image_url";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
