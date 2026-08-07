@@ -781,6 +781,17 @@ export default function StoreEditor() {
     // functionally identical to as if no new image had been selected yet.
     const heroImageIsUnresolvedPreview = heroImagePreview.startsWith("data:");
     const heroUrl = heroImageUrl || (heroImageIsUnresolvedPreview ? undefined : heroImagePreview) || undefined;
+    // Same bug class as heroImage above: the "Second Panel Image" file input
+    // sets heroSplitImage2 to a raw base64 preview immediately on selection,
+    // before the async Storage upload resolves into the real URL -- saving
+    // in that window previously would have persisted the base64 blob
+    // straight into template_configs. Fall back to whatever was already
+    // saved (same "as if no new image had been selected yet" behavior as
+    // heroImage/logoUrl) rather than ever writing an unresolved preview.
+    const heroSplitImage2IsUnresolvedPreview = heroSplitImage2.startsWith("data:");
+    const heroSplitImage2Url = heroSplitImage2IsUnresolvedPreview
+      ? (effectiveStoreConfig(seller)?.hero_split_image_2 || "")
+      : heroSplitImage2;
     const isBannerTemplate = seller.template === "soft-luxury" || seller.template === "glass-futuristic" || seller.template === "4regn";
 
     // Everything the editor manages, in one place. pickTemplateFields /
@@ -808,7 +819,7 @@ export default function StoreEditor() {
       hero_layout: heroLayout,
       hero_text_position: heroTextPosition,
       hero_image_fade: heroImageFade,
-      hero_split_image_2: heroSplitImage2,
+      hero_split_image_2: heroSplitImage2Url,
       brand_name: brandName || undefined,
       brand_subtitle: brandSubtitle,
       monogram_letters: monogramLetters,
