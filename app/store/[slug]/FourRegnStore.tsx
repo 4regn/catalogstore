@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useTransition, Fragment, type TouchEvent a
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 
@@ -336,7 +336,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const isCollectionsIndexView = mode === "collections-index";
   const isPolicyView = mode === "policy";
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const [isNavigating, startNavigation] = useTransition();
@@ -355,7 +354,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // broken link (navigate() doesn't depend on this having succeeded).
   const prefetchPath = (path: string) => { try { router.prefetch(path); } catch {} };
   const slug = params.slug as string;
-  const isEditMode = searchParams.get("editMode") === "true";
+  // Read via window.location instead of useSearchParams() -- that hook
+  // forces this whole (force-static) route to bail out to full
+  // client-side rendering with no Suspense boundary wrapping just this
+  // read, which was shipping real visitors and crawlers an empty shell +
+  // spinner instead of server-rendered HTML. editMode only matters inside
+  // the dashboard's live-preview iframe, never for a real shopper, so a
+  // client-only read after mount is functionally identical there.
+  const [isEditMode, setIsEditMode] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("editMode") === "true") setIsEditMode(true);
+  }, []);
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
 
   /* ─── DATA ─── */

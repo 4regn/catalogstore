@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 
@@ -69,9 +69,16 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
 export default function GlassChromeStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const isEditMode = searchParams.get("editMode") === "true";
+  // Read via window.location instead of useSearchParams() -- that hook
+  // forces this route to bail out to full client-side rendering (no
+  // Suspense boundary around just this read), shipping real visitors and
+  // crawlers an empty shell + spinner instead of server-rendered HTML.
+  // editMode only matters inside the dashboard's live-preview iframe.
+  const [isEditMode, setIsEditMode] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("editMode") === "true") setIsEditMode(true);
+  }, []);
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
 
   /* Live edit overrides from postMessage */

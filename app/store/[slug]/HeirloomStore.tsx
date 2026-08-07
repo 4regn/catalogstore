@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 
@@ -170,7 +170,6 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
 export default function HeirloomStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, mode = "home", collectionName, isSubdomain }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   // Wrap router.push so we can show a progress bar at the top of the page during the
   // server-rendered collection / home navigations (otherwise the page just silently
@@ -178,7 +177,15 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
   const [isNavigating, startNavigation] = useTransition();
   const navigate = (path: string) => startNavigation(() => router.push(path));
   const slug = params.slug as string;
-  const isEditMode = searchParams.get("editMode") === "true";
+  // Read via window.location instead of useSearchParams() -- that hook
+  // forces this route to bail out to full client-side rendering (no
+  // Suspense boundary around just this read), shipping real visitors and
+  // crawlers an empty shell + spinner instead of server-rendered HTML.
+  // editMode only matters inside the dashboard's live-preview iframe.
+  const [isEditMode, setIsEditMode] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("editMode") === "true") setIsEditMode(true);
+  }, []);
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
 
   /* ─── DATA ─── */

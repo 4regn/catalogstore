@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 
 /* ─── TYPES ─────────────────────────────────────────────── */
@@ -92,18 +92,27 @@ const slotsForRange = (range: [number, number] | null): string[] => {
 
 export default function VelourStore({ initialSeller, initialServices, initialBookings, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
-  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
-  const isEditMode = searchParams.get("editMode") === "true";
+  // Read via window.location instead of useSearchParams() -- that hook
+  // forces this route to bail out to full client-side rendering (no
+  // Suspense boundary around just these reads), shipping real visitors
+  // and crawlers an empty shell + spinner instead of server-rendered
+  // HTML. editMode only matters inside the dashboard's live-preview
+  // iframe, and the post-checkout-redirect banner only matters for the
+  // instant after a real booking payment redirect -- both are fine to
+  // resolve client-only, after mount.
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [paymentBanner, setPaymentBanner] = useState<"paid" | "cancelled" | null>(null);
+  useEffect(() => {
+    const usp = new URLSearchParams(window.location.search);
+    if (usp.get("editMode") === "true") setIsEditMode(true);
+    if (usp.get("bookingPaid")) setPaymentBanner("paid");
+    else if (usp.get("bookingCancelled")) setPaymentBanner("cancelled");
+  }, []);
 
   const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
   const [services, setServices] = useState<Service[]>(initialServices ?? []);
-  const [paymentBanner, setPaymentBanner] = useState<"paid" | "cancelled" | null>(() => {
-    if (searchParams.get("bookingPaid")) return "paid";
-    if (searchParams.get("bookingCancelled")) return "cancelled";
-    return null;
-  });
   const [bookedSlots, setBookedSlots] = useState<BookingSlot[]>(initialBookings ?? []);
   const [loading, setLoading] = useState(!initialSeller);
   const [notFound, setNotFound] = useState(false);

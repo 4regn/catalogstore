@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { FONT_PAIRS } from "../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
@@ -125,10 +125,17 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
 export default function StorePage({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain, mode = "home", collectionName }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const slug = params.slug as string;
-  const isEditMode = searchParams.get("editMode") === "true";
+  // Read via window.location instead of useSearchParams() -- that hook
+  // forces this route to bail out to full client-side rendering (no
+  // Suspense boundary around just this read), shipping real visitors and
+  // crawlers an empty shell + spinner instead of server-rendered HTML.
+  // editMode only matters inside the dashboard's live-preview iframe.
+  const [isEditMode, setIsEditMode] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("editMode") === "true") setIsEditMode(true);
+  }, []);
   // Builds an in-app link matching however this page is currently being
   // served -- clean subdomain (mystore.catalogstore.co.za/p/123) or the
   // legacy path form (catalogstore.co.za/store/mystore/p/123).
