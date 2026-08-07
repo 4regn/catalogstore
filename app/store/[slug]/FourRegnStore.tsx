@@ -1134,6 +1134,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:rgba(0,0,0,0.08);overflow:hidden;pointer-events:none}
 .fr-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:40%;background:#000;border-radius:0 2px 2px 0;animation:fr-progress 0.8s ease-in-out infinite}
 @keyframes fr-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}
+/* Scroll resets to the top the instant a navigation starts (see navigate()
+   above), well before the next page is actually ready -- on a slow
+   connection that otherwise reads as "the page jumped to the top and then
+   just sat there," since the thin top progress bar alone is easy to miss.
+   Dimming the current page for the duration makes that wait unmistakably
+   read as "loading," not stuck. Delayed by 150ms so an already-prefetched,
+   near-instant transition (the common case) never visibly dims at all. */
+.fr-root--navigating{opacity:0.5;pointer-events:none;transition:opacity 0.2s ease 150ms}
 @keyframes fr-spin{to{transform:rotate(360deg)}}
 
 .fr-nav{position:sticky;top:0;z-index:100;background:var(--head-bg);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:24px;padding:0 40px;height:72px}
@@ -1598,8 +1606,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 }
       `}</style>
 
-      <div className="fr-root">
-        {isNavigating && <div className="fr-progress" aria-hidden="true" />}
+      {isNavigating && <div className="fr-progress" aria-hidden="true" />}
+      <div className={"fr-root" + (isNavigating ? " fr-root--navigating" : "")}>
         {displayAnnouncement && (
           <div style={{ background: "#000", color: "#fdfbf7", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center", fontFamily: "'Amiri', serif" }}>
             {displayAnnouncement}
