@@ -5,7 +5,6 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
-import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
@@ -46,20 +45,23 @@ const SELLER_COLUMNS =
 // images array, variants (size/option picker), old_price (sale price row).
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
-// Second, separate fetch of the WHOLE catalog -- used only to compute
-// FourRegnStore's "You Might Also Like" row (relatedProducts: filters by
-// shared category, excludes the current product, caps at 8, renders each
-// via ProductCard) plus the header/mobile-dock search overlay, which is
-// rendered unconditionally on every page (not gated to mode="product") and
-// reads off this same `products` client state. Traced both consumers in
-// FourRegnStore.tsx: ProductCard's current render (its "Add to Bag" button
-// just navigates now, no client-side variant picker on the card) reads id,
-// name, price, old_price (sale badge), image_url, and handle (goToProduct);
-// the category match itself (pInCat) only needs `category`. The search
-// overlay reads id, name, price, category, image_url, and handle. Union of
-// both is exactly this set -- images/variants/in_stock/description/
-// sort_order/created_at are never read by either, those only apply to the
-// PDP's own `p = initialActiveProduct` render path above.
+// Second, separate fetch -- used to compute FourRegnStore's "You Might Also
+// Like" row (relatedProducts: filters by shared category, excludes the
+// current product, caps at 8, renders each via ProductCard). No longer the
+// WHOLE catalog: narrowed server-side below to just products sharing a
+// category token with the active product (see the .or()/ilike filter where
+// this is fetched), instead of fetching all ~1600 rows just to filter 8
+// out of them. The header/mobile-dock search overlay, rendered
+// unconditionally on every page, does NOT read this narrowed set on
+// product views anymore -- it now does its own separate, lazy, full-
+// catalog fetch client-side the first time a visitor opens it (see
+// searchProducts in FourRegnStore.tsx), same mechanism the home view
+// already uses for the same reason. Column set here still traced from
+// ProductCard's render (id/name/price/old_price/image_url/handle) plus the
+// category match itself (pInCat, needs `category`) -- images/variants/
+// in_stock/description/sort_order/created_at are never read by either,
+// those only apply to the PDP's own `p = initialActiveProduct` render path
+// above.
 const RELATED_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
@@ -148,7 +150,7 @@ export default async function ProductHandlePage({
   }
 
   const nowIso = new Date().toISOString();
-  const [productRes, initialProducts, discountsRes, promoBadgesRes] = await Promise.all([
+  const [productRes, discountsRes, promoBadgesRes] = await Promise.all([
     supabaseAdmin
       .from("products")
       .select(PRODUCT_COLUMNS)
@@ -157,13 +159,6 @@ export default async function ProductHandlePage({
       .eq("in_stock", true)
       .eq("status", "published")
       .maybeSingle(),
-    // Full product list -- same paginated pattern c/[collection]/page.tsx
-    // uses -- so "You Might Also Like" has real data to draw from. Narrow
-    // columns only (see RELATED_PRODUCT_COLUMNS above): this is ~1600 rows
-    // for a real seller, just to filter down to 8 cards.
-    fetchAllRows<any>(supabaseAdmin, "products", RELATED_PRODUCT_COLUMNS, (q) =>
-      q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
-    ),
     supabaseAdmin
       .from("discount_codes")
       .select(DISCOUNT_COLUMNS)
@@ -180,6 +175,37 @@ export default async function ProductHandlePage({
 
   const activeProduct = productRes.data;
   if (!activeProduct) notFound();
+
+  // "You Might Also Like" candidates -- narrowed server-side to products
+  // sharing at least one category token with the active product (same
+  // token split/trim FourRegnStore.tsx's own pInCat() uses), instead of
+  // fetching the WHOLE catalog (~1600 rows for a real seller) just to
+  // filter 8 cards out of it client-side. Confirmed as a real, meaningful
+  // chunk of an oversized page payload -- this fetch runs on every single
+  // product-page view. ilike-per-token is a broad (substring, not exact-
+  // token) match; pInCat() re-applies the precise check client-side
+  // afterward (see FourRegnStore.tsx's relatedProducts), so a slightly-
+  // loose candidate pool here is harmless, just not perfectly minimal.
+  // A product with no category at all would match nothing client-side
+  // either way, so skip the fetch entirely rather than pulling candidates
+  // that'd all get filtered out. Capped at 40 -- plenty of headroom for
+  // the client's slice(0, 8) after pInCat/self-exclusion narrows it
+  // further, without ever needing the full catalog. This can't run in the
+  // Promise.all above -- it depends on activeProduct.category, which isn't
+  // known until that fetch resolves.
+  const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean);
+  const { data: relatedCandidates } = catTokens.length === 0
+    ? { data: [] as any[] }
+    : await supabaseAdmin
+        .from("products")
+        .select(RELATED_PRODUCT_COLUMNS)
+        .eq("seller_id", seller.id)
+        .eq("in_stock", true)
+        .eq("status", "published")
+        .neq("id", activeProduct.id)
+        .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
+        .limit(40);
+  const initialProducts = relatedCandidates || [];
 
   const initialDiscountCodes = discountsRes.data ?? [];
 

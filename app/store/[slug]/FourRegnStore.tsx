@@ -488,13 +488,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
 
   /* ─── SEARCH (lazy catalog fetch) ─── */
-  // Fires the first time a visitor on the home view opens search -- see
-  // searchProducts' own comment above for why this isn't just part of the
-  // page's initial data. Guarded so it only ever fetches once per page
-  // load (searchProducts stays non-null, including as an empty array, once
+  // Fires the first time a visitor on the home or product view opens
+  // search -- see searchProducts' own comment above for why this isn't
+  // just part of the page's initial data. Product views need this too:
+  // their own `products` is now narrowed server-side to just "You Might
+  // Also Like" candidates (same category as the viewed product, see
+  // RELATED_PRODUCT_COLUMNS in p/[productId]/page.tsx and
+  // products/[handle]/page.tsx), not the whole catalog search needs to
+  // search across. Guarded so it only ever fetches once per page load
+  // (searchProducts stays non-null, including as an empty array, once
   // resolved) rather than re-fetching every time the overlay reopens.
   useEffect(() => {
-    if (!isHomeView || !showSearch || searchProducts !== null || searchLoading || !seller?.id) return;
+    if (!(isHomeView || isProductView) || !showSearch || searchProducts !== null || searchLoading || !seller?.id) return;
     setSearchLoading(true);
     (async () => {
       const { data } = await supabase
@@ -513,12 +518,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setSearchProducts((data || []) as unknown as Product[]);
       setSearchLoading(false);
     })();
-  }, [isHomeView, showSearch, searchProducts, searchLoading, seller?.id]);
-  // Collection/product views already have name/price/handle on `products`
-  // straight from their own route's fetch (see FOUR_REGN_PRODUCT_COLUMNS/
-  // RELATED_PRODUCT_COLUMNS in their page.tsx files) -- only the home view
-  // needs the separate lazily-fetched array above.
-  const searchSource = isHomeView ? (searchProducts ?? []) : products;
+  }, [isHomeView, isProductView, showSearch, searchProducts, searchLoading, seller?.id]);
+  // Collection view's `products` already has name/price/handle straight
+  // from its own route's fetch (see FOUR_REGN_PRODUCT_COLUMNS in
+  // c/[collection]/page.tsx -- the full collection's product list, not the
+  // whole catalog, so search there is scoped to the current collection,
+  // same as it's always been) -- only home and product views need the
+  // separate lazily-fetched full-catalog array above.
+  const searchSource = (isHomeView || isProductView) ? (searchProducts ?? []) : products;
 
   /* ─── LIVE EDIT POSTMESSAGE ─── */
   useEffect(() => {
@@ -2435,7 +2442,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <button type="button" className="fr-search-close" onClick={() => { setShowSearch(false); setSearchQuery(""); }} aria-label="Close search">✕</button>
             </div>
             <div className="fr-search-results">
-              {isHomeView && searchLoading && searchProducts === null ? (
+              {(isHomeView || isProductView) && searchLoading && searchProducts === null ? (
                 <div className="fr-search-hint">Loading products…</div>
               ) : searched === null ? (
                 <div className="fr-search-hint">Start typing to search {seller.store_name}'s products.</div>

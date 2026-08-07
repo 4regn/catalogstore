@@ -4,7 +4,6 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
-import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata, Viewport } from "next";
 
@@ -41,18 +40,19 @@ const SELLER_COLUMNS =
 // created_at stays for Heirloom/SoftLuxury's Newest/Oldest sort.
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
-// 4regn-only: a SEPARATE fetch of the whole catalog, used only for
-// FourRegnStore's "You Might Also Like" row (relatedProducts: category
-// match, excludes the current product, caps at 8, rendered via ProductCard)
-// plus the header/mobile-dock search overlay (unconditional on every page,
-// reads off this same `products` client state). Same trace/reasoning as
-// RELATED_PRODUCT_COLUMNS in ../../products/[handle]/page.tsx: ProductCard's
-// current render (no client-side variant picker on the card, just
-// goToProduct navigation) needs id/name/price/old_price(sale badge)/
-// image_url/handle; the category filter itself only needs `category`; the
-// search overlay needs id/name/price/category/image_url/handle. Union of
-// both is this set -- images/variants/in_stock/description/sort_order/
-// created_at are never read by either.
+// 4regn-only: a SEPARATE fetch used for FourRegnStore's "You Might Also
+// Like" row (relatedProducts: category match, excludes the current
+// product, caps at 8, rendered via ProductCard). No longer the whole
+// catalog -- narrowed server-side below to just products sharing a
+// category token with the active product, same as
+// ../../products/[handle]/page.tsx. The header/mobile-dock search overlay
+// does its own separate lazy full-catalog fetch client-side now instead of
+// reading this narrowed set (see searchProducts in FourRegnStore.tsx).
+// Column set traced from ProductCard's render (no client-side variant
+// picker on the card, just goToProduct navigation) -- needs id/name/price/
+// old_price(sale badge)/image_url/handle; the category filter itself only
+// needs `category`. images/variants/in_stock/description/sort_order/
+// created_at are never read.
 const RELATED_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
@@ -168,7 +168,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // single full-catalog-then-find query below.
   if (tpl === "4regn") {
     const nowIso = new Date().toISOString();
-    const [productRes, initialProducts, discountsRes, promoBadgesRes] = await Promise.all([
+    const [productRes, discountsRes, promoBadgesRes] = await Promise.all([
       supabaseAdmin
         .from("products")
         .select(PRODUCT_COLUMNS)
@@ -177,12 +177,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         .eq("in_stock", true)
         .eq("status", "published")
         .maybeSingle(),
-      // Full product list, narrow columns, paginated -- same pattern
-      // ../../products/[handle]/page.tsx uses for the identical "You Might
-      // Also Like" need.
-      fetchAllRows<any>(supabaseAdmin, "products", RELATED_PRODUCT_COLUMNS, (q) =>
-        q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
-      ),
       supabaseAdmin
         .from("discount_codes")
         .select(DISCOUNT_COLUMNS)
@@ -203,6 +197,28 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // slide-over on top of the homepage (which used to just silently fall
     // back to home with nothing open).
     if (!activeProduct) notFound();
+
+    // "You Might Also Like" candidates -- narrowed server-side to products
+    // sharing at least one category token with the active product, instead
+    // of fetching the WHOLE catalog just to filter 8 cards out of it
+    // client-side. Same reasoning/pattern as ../../products/[handle]/page.tsx
+    // (this route is 4regn's legacy fallback for products with no handle
+    // yet -- see the redirect below -- so lower-traffic, but should stay
+    // consistent). Can't run in the Promise.all above -- depends on
+    // activeProduct.category, not known until that fetch resolves.
+    const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean);
+    const { data: relatedCandidates } = catTokens.length === 0
+      ? { data: [] as any[] }
+      : await supabaseAdmin
+          .from("products")
+          .select(RELATED_PRODUCT_COLUMNS)
+          .eq("seller_id", seller.id)
+          .eq("in_stock", true)
+          .eq("status", "published")
+          .neq("id", activeProduct.id)
+          .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
+          .limit(40);
+    const initialProducts = relatedCandidates || [];
 
     const initialDiscountCodes = discountsRes.data ?? [];
 
