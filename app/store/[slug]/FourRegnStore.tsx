@@ -2786,6 +2786,12 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
             fill
             sizes="(max-width: 900px) 100vw, 50vw"
             style={{ objectFit: "contain" }}
+            // Only the image actually visible on first paint (index 0) --
+            // this is the real LCP (Largest Contentful Paint) element on a
+            // product page, so it should preload ahead of everything else
+            // instead of competing on the same priority as offscreen/
+            // not-yet-swiped-to images.
+            priority={activeIndex === 0}
             onError={onImgError}
             onLoad={() => setImgLoaded(true)}
           />

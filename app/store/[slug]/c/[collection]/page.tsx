@@ -105,6 +105,24 @@ function sortCollectionProducts(list: any[], sort: string): any[] {
   return out;
 }
 
+// This route is force-dynamic (see above), so with no caching at all,
+// every single pagination/sort click re-ran the full fetchAllRows +
+// category-token filter over the WHOLE collection (can be hundreds or
+// thousands of rows) just to slice out the 24 actually needed -- real,
+// noticeable added latency on every page-to-page click during a single
+// browsing session, reported directly against the live site. Same
+// well-precedented pattern already used in middleware.ts for exactly
+// this reason: Vercel reuses warm serverless instances across requests,
+// so a short-lived module-scope cache gives most real same-session
+// pagination clicks a same-instance cache hit instead of repeating the
+// full fetch+filter, without needing any external cache infrastructure.
+// Keyed on seller+collection only (not page/sort -- the matched product
+// SET is identical across every page/sort of the same collection; only
+// the order/slice differs, and that's cheap to redo in memory each time).
+type CachedCollection = { products: any[]; discounts: any[]; promoBadges: any[] };
+const collectionDataCache = new Map<string, { value: CachedCollection; expires: number }>();
+const COLLECTION_CACHE_TTL_MS = 60_000;
+
 export async function generateMetadata({
   params,
 }: {
@@ -196,38 +214,51 @@ export default async function CollectionPage({
 
   const productColumns = tpl === "4regn" ? FOUR_REGN_PRODUCT_COLUMNS : PRODUCT_COLUMNS;
   const nowIso = new Date().toISOString();
-  const [initialProductsRaw, discountsRes, promoBadgesRes] = await Promise.all([
-    fetchAllRows<any>(supabaseAdmin, "products", productColumns, (q) => {
-      const base = q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
-      return isAll ? base : base.like("category", `%${matched!}%`);
-    }),
-    supabaseAdmin
-      .from("discount_codes")
-      .select(DISCOUNT_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("active", true)
-      .eq("show_countdown", true)
-      .not("expires_at", "is", null),
-    tpl === "4regn"
-      ? supabaseAdmin
-          .from("product_promo_badges")
-          .select(PROMO_BADGE_COLUMNS)
-          .eq("seller_id", seller.id)
-          .eq("active", true)
-      : Promise.resolve({ data: null }),
-  ]);
 
-  const collectionProducts = isAll
-    ? initialProductsRaw
-    : initialProductsRaw.filter((p: any) =>
-        (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
-      );
+  const cacheKey = `${seller.id}:${collection.toLowerCase()}`;
+  const cached = collectionDataCache.get(cacheKey);
+  let collectionProducts: any[];
+  let discounts: any[];
+  let promoBadges: any[];
+  if (cached && cached.expires > Date.now()) {
+    ({ products: collectionProducts, discounts, promoBadges } = cached.value);
+  } else {
+    const [initialProductsRaw, discountsRes, promoBadgesRes] = await Promise.all([
+      fetchAllRows<any>(supabaseAdmin, "products", productColumns, (q) => {
+        const base = q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
+        return isAll ? base : base.like("category", `%${matched!}%`);
+      }),
+      supabaseAdmin
+        .from("discount_codes")
+        .select(DISCOUNT_COLUMNS)
+        .eq("seller_id", seller.id)
+        .eq("active", true)
+        .eq("show_countdown", true)
+        .not("expires_at", "is", null),
+      tpl === "4regn"
+        ? supabaseAdmin
+            .from("product_promo_badges")
+            .select(PROMO_BADGE_COLUMNS)
+            .eq("seller_id", seller.id)
+            .eq("active", true)
+        : Promise.resolve({ data: null }),
+    ]);
+
+    collectionProducts = isAll
+      ? initialProductsRaw
+      : initialProductsRaw.filter((p: any) =>
+          (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
+        );
+    discounts = discountsRes.data ?? [];
+    promoBadges = promoBadgesRes.data ?? [];
+    collectionDataCache.set(cacheKey, { value: { products: collectionProducts, discounts, promoBadges }, expires: Date.now() + COLLECTION_CACHE_TTL_MS });
+  }
 
   const props = {
     initialSeller: trimSellerTemplateConfigs(seller, tpl),
     initialProducts: collectionProducts,
-    initialDiscountCodes: discountsRes.data ?? [],
-    initialPromoBadges: activePromoBadges(promoBadgesRes.data, nowIso),
+    initialDiscountCodes: discounts,
+    initialPromoBadges: activePromoBadges(promoBadges, nowIso),
     mode: "collection" as const,
     collectionName: isAll ? "All Products" : matched!,
     isSubdomain,
