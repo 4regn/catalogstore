@@ -763,7 +763,24 @@ export default function StoreEditor() {
     } else if (!logoPreview && seller.logo_url) {
       logoUrl = null;
     }
-    const heroUrl = heroImageUrl || heroImagePreview || undefined;
+    // heroImagePreview is set IMMEDIATELY on file selection (for instant
+    // preview) to a raw base64 data: URL, well before the async Supabase
+    // Storage upload resolves into heroImageUrl -- so saving while that
+    // upload is still in flight (e.g. clicking Save right after picking a
+    // new hero image) previously fell through to heroImagePreview here and
+    // persisted the raw base64 string straight into the database. Confirmed
+    // as a real, live bug via a production DevTools trace: a seller's
+    // sellers.banner_url/store_config.hero_image ended up holding a multi-
+    // hundred-KB base64 blob instead of a real Storage URL, which then got
+    // embedded into every single storefront page load's HTML (SELLER_COLUMNS
+    // selects banner_url on every route) -- a huge, completely unnecessary
+    // and unintended chunk of every page's payload, on top of not even being
+    // a valid persistent image reference. Never persist a data: URL; fall
+    // back to the seller's existing value instead (same "only overwrite with
+    // a genuinely new upload" pattern logoUrl already uses safely above) --
+    // functionally identical to as if no new image had been selected yet.
+    const heroImageIsUnresolvedPreview = heroImagePreview.startsWith("data:");
+    const heroUrl = heroImageUrl || (heroImageIsUnresolvedPreview ? undefined : heroImagePreview) || undefined;
     const isBannerTemplate = seller.template === "soft-luxury" || seller.template === "glass-futuristic" || seller.template === "4regn";
 
     // Everything the editor manages, in one place. pickTemplateFields /
@@ -846,7 +863,7 @@ export default function StoreEditor() {
       sale_pill_color: salePillColor || null,
       percent_off_pill_color: percentOffPillColor || null,
       show_percent_off_pill: showPercentOffPill,
-      hero_image: heroImageUrl || heroImagePreview || undefined,
+      hero_image: heroUrl,
       hero_video_url: heroVideoUrl || undefined,
       promise_label: promiseLabel,
       promise_title: promiseTitle,
