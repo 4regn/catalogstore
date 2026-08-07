@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../lib/store-template-access";
+import { trimSellerTemplateConfigs } from "../../../lib/template-config";
 import { canonicalStoreUrl } from "../../../lib/store-url";
 import { fetchAllRows } from "../../../lib/fetch-all-rows";
 import StoreUnavailable from "./StoreUnavailable";
@@ -178,7 +179,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
       <>
         <OrgJsonLd seller={seller} slug={slug} />
         <Velour
-          initialSeller={seller}
+          initialSeller={trimSellerTemplateConfigs(seller, tpl)}
           initialServices={servicesRes.data ?? []}
           initialBookings={bookingsRes.data ?? []}
           isSubdomain={isSubdomain}
@@ -204,7 +205,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const initialProducts = initialProductsRaw;
   const initialDiscountCodes = discountsRes.data ?? [];
   const isSubdomain = await isStoreSubdomainRequest();
-  const props = { initialSeller: seller, initialProducts, initialDiscountCodes, isSubdomain };
+  const props = { initialSeller: trimSellerTemplateConfigs(seller, tpl), initialProducts, initialDiscountCodes, isSubdomain };
 
   const StoreComponent =
     tpl === "crown" ? Crown :

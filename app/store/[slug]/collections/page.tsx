@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../lib/store-template-access";
+import { trimSellerTemplateConfigs } from "../../../../lib/template-config";
 import { fetchAllRows } from "../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../StoreUnavailable";
 
@@ -113,7 +114,7 @@ export default async function CollectionsIndexPage({
 
   return (
     <FourRegn
-      initialSeller={seller}
+      initialSeller={trimSellerTemplateConfigs(seller, tpl)}
       initialProducts={initialProducts}
       initialDiscountCodes={[]}
       mode="collections-index"

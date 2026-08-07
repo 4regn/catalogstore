@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
+import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
@@ -231,7 +232,7 @@ export default async function ProductHandlePage({
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <FourRegn
-        initialSeller={seller}
+        initialSeller={trimSellerTemplateConfigs(seller, tpl)}
         initialProducts={initialProducts}
         initialDiscountCodes={initialDiscountCodes}
         initialPromoBadges={activePromoBadges(promoBadgesRes.data, nowIso)}

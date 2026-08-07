@@ -18,11 +18,39 @@ const WWW_ROOT_DOMAIN = `www.${STORE_ROOT_DOMAIN}`;
 const SUBDOMAIN_SUFFIX = `.${STORE_ROOT_DOMAIN}`;
 const SUBDOMAIN_SUFFIX_LENGTH = SUBDOMAIN_SUFFIX.length;
 
+// Edge Middleware runs in a separate runtime from Route Handlers/Server
+// Components, and confirmed in practice: the `next.revalidate` fetch option
+// below does NOT reliably hit Next's Data Cache there the way its comment
+// used to claim -- every request was paying a live Supabase round trip.
+// Vercel reuses warm Edge Function instances across many requests, so a
+// plain module-scope cache (kept small/short-lived; this is genuinely
+// near-static data -- a domain's owning seller and a legacy-URL's redirect
+// target essentially never change) gives most real traffic a same-isolate
+// cache hit instead, independent of whatever the Edge fetch cache does.
+// Confirmed as the dominant cause of a much-slower-than-expected page load
+// on a real seller's connected custom domain (4regn.com), specifically on
+// /products/* paths where this ran twice per request (see
+// resolveLegacyRedirect below).
+type CacheEntry<T> = { value: T; expires: number };
+const customDomainCache = new Map<string, CacheEntry<string | null>>();
+const legacyRedirectCache = new Map<string, CacheEntry<string | null>>();
+
+function getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
+  const entry = cache.get(key);
+  if (entry && entry.expires > Date.now()) return entry.value;
+  return undefined;
+}
+
+function setCached<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, ttlMs: number) {
+  cache.set(key, { value, expires: Date.now() + ttlMs });
+}
+
 // Looks up which seller (by subdomain slug) owns a verified custom domain.
-// Cached for 5 minutes via Next's fetch cache so most requests for the same
-// domain don't hit Supabase at all -- only genuine custom-domain traffic
-// (not catalogstore.co.za/*.catalogstore.co.za) ever reaches this.
+// Only genuine custom-domain traffic (not catalogstore.co.za/
+// *.catalogstore.co.za) ever reaches this.
 async function resolveCustomDomain(hostname: string): Promise<string | null> {
+  const cached = getCached(customDomainCache, hostname);
+  if (cached !== undefined) return cached;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
@@ -36,7 +64,9 @@ async function resolveCustomDomain(hostname: string): Promise<string | null> {
     );
     if (!res.ok) return null;
     const rows = await res.json();
-    return rows?.[0]?.subdomain || null;
+    const result = rows?.[0]?.subdomain || null;
+    setCached(customDomainCache, hostname, result, 5 * 60 * 1000);
+    return result;
   } catch {
     return null;
   }
@@ -57,6 +87,9 @@ const LEGACY_REDIRECT_PREFIXES = ["/products/", "/product/", "/collections/", "/
 
 async function resolveLegacyRedirect(slug: string, pathname: string): Promise<string | null> {
   if (!LEGACY_REDIRECT_PREFIXES.some((p) => pathname.startsWith(p))) return null;
+  const cacheKey = `${slug}:${pathname}`;
+  const cached = getCached(legacyRedirectCache, cacheKey);
+  if (cached !== undefined) return cached;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
@@ -71,7 +104,9 @@ async function resolveLegacyRedirect(slug: string, pathname: string): Promise<st
     );
     if (!res.ok) return null;
     const rows = await res.json();
-    return rows?.[0]?.destination_path || null;
+    const result = rows?.[0]?.destination_path || null;
+    setCached(legacyRedirectCache, cacheKey, result, 60 * 60 * 1000);
+    return result;
   } catch {
     return null;
   }

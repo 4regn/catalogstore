@@ -73,6 +73,24 @@ export function omitTemplateFields(config: Record<string, any> | null | undefine
    falling back to the legacy flat store_config's scoped subset for
    whichever template the seller was on before this migration shipped, so
    nobody's current look changes the moment this ships. */
+/* Server-only: narrows a fetched seller row's template_configs down to just
+   the template that's actually about to render, before handing the row to
+   a "use client" *Store.tsx component as a prop. Every such component only
+   ever reads its own template's slice (via effectiveStoreConfig below) --
+   shipping every OTHER template's config (colors, hero copy, marquee text,
+   image URLs, etc., for however many templates a seller could theoretically
+   switch to) to the browser on every single page view was pure unused
+   payload weight, confirmed as a real contributor to an oversized page
+   response on a live storefront. */
+export function trimSellerTemplateConfigs<T extends { template_configs?: Record<string, any> | null }>(
+  seller: T,
+  template: string
+): T {
+  if (!seller.template_configs) return seller;
+  const scoped = seller.template_configs[template];
+  return { ...seller, template_configs: scoped !== undefined ? { [template]: scoped } : {} };
+}
+
 export function effectiveStoreConfig(seller: {
   store_config?: Record<string, any> | null;
   template_configs?: Record<string, any> | null;

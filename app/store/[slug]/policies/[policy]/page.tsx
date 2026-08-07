@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
+import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const revalidate = 60;
@@ -98,7 +99,7 @@ export default async function PolicyPage({
   // Content-only page -- no product list needed.
   return (
     <FourRegn
-      initialSeller={seller}
+      initialSeller={trimSellerTemplateConfigs(seller, tpl)}
       initialProducts={[]}
       initialDiscountCodes={[]}
       mode="policy"

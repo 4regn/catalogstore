@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
+import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata, Viewport } from "next";
 
@@ -255,7 +256,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       <>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
         <FourRegn
-          initialSeller={seller}
+          initialSeller={trimSellerTemplateConfigs(seller, tpl)}
           initialProducts={initialProducts}
           initialDiscountCodes={initialDiscountCodes}
           initialPromoBadges={activePromoBadges(promoBadgesRes.data, nowIso)}
@@ -313,7 +314,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     },
   };
 
-  const props = { initialSeller: seller, initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
+  const props = { initialSeller: trimSellerTemplateConfigs(seller, tpl), initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
   const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : SoftLuxury;
 
   return (

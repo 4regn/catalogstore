@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
+import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import StoreUnavailable from "../../StoreUnavailable";
 
@@ -195,7 +196,7 @@ export default async function CollectionPage({
       );
 
   const props = {
-    initialSeller: seller,
+    initialSeller: trimSellerTemplateConfigs(seller, tpl),
     initialProducts: collectionProducts,
     initialDiscountCodes: discountsRes.data ?? [],
     initialPromoBadges: activePromoBadges(promoBadgesRes.data, nowIso),
