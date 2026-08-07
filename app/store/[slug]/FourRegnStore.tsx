@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition, Fragment, type TouchEvent as ReactTouchEvent } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useTransition, Fragment, type TouchEvent as ReactTouchEvent } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
@@ -599,7 +599,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
      ever fires on the very first load of a session; it needs pathname (and
      mode, since some navigations are query-param-driven and may not change
      the pathname) in its deps to re-run on every subsequent navigation too. */
-  useEffect(() => {
+  // useLayoutEffect, not useEffect: the latter fires after the browser has
+  // already painted the new page at its carried-over scroll offset, which
+  // is exactly the visible "loads at the bottom, then jumps to the top"
+  // flash this effect exists to prevent. useLayoutEffect runs synchronously
+  // before paint, so the correction happens before anything is shown.
+  useLayoutEffect(() => {
     if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
     window.scrollTo(0, 0);
   }, [pathname, mode]);
