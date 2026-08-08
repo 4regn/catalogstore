@@ -108,6 +108,9 @@ interface StoreConfig {
   // cover image) and saved here, but catImage() below never actually read
   // it -- the upload worked, the storefront just silently ignored it.
   collection_images?: Record<string, string>;
+  // Per-collection description, shown under the heading on that
+  // collection's page. Keyed the same way as collection_images.
+  collection_descriptions?: Record<string, string>;
   // Collections listed here are excluded from the nav menu, the "Shop by
   // Collection" grid, the /collections index, and Shop by Gender tiles --
   // but NOT from search, the homepage product grid, or any other
@@ -1186,7 +1189,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         </div>
         <div className="fr-cat-foot">
           <div className="fr-cat-name">{cat}</div>
-          <div className="fr-cat-count">{catCount(cat)} {catCount(cat) === 1 ? "piece" : "pieces"}</div>
         </div>
       </button>
     );
@@ -1514,6 +1516,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-section-title{font-family:var(--serif);font-weight:700;font-size:clamp(24px,3vw,34px);color:var(--ink)}
 .fr-sort-select{font-family:var(--body);font-size:12px;letter-spacing:0.5px;color:var(--ink);background:#fff;border:1px solid rgba(0,0,0,0.1);border-radius:8px;padding:8px 30px 8px 12px;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232e2a39'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 .fr-count{font-family:var(--body);font-size:12px;color:rgba(46,42,57,0.55)}
+.fr-coll-desc{font-family:var(--body);font-size:14px;line-height:1.7;color:rgba(46,42,57,0.7);max-width:720px;margin:-8px 0 24px}
 
 .fr-coll-header{max-width:1360px;margin:0 auto;padding:56px 40px 8px;text-align:center}
 .fr-coll-back{background:none;border:none;font-family:var(--body);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55);cursor:pointer;padding:0 0 18px;text-decoration:underline;text-underline-offset:3px}
@@ -2403,34 +2406,36 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             page's "sort" is a one-time merchant/theme-editor setting, so
             collectionsIndexList above is just fixed A-Z. */}
         {isCollectionsIndexView && (
-          <div className="fr-collgrid-page">
-            <h1 className="fr-collgrid-heading">Collections</h1>
-            <ul className="fr-collgrid" role="list">
-              {collectionsIndexList.map((cat) => {
-                const img = catImage(cat);
-                const target = sp(`/c/${collectionSlug(cat)}`);
-                return (
-                  <li key={cat} className="fr-collgrid-item">
-                    <a
-                      href={target}
-                      className="fr-collgrid-link"
-                      onClick={(e) => { e.preventDefault(); navigate(target); }}
-                    >
-                      {img ? (
-                        <>
-                          <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} className="fr-collgrid-img" />
-                          <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
-                          <div className="fr-collgrid-overlay">
-                            <span className="fr-collgrid-title">{cat}</span>
-                          </div>
-                        </>
-                      ) : <span className="fr-cat-mark">{cat}</span>}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+          <EditSection id="collections">
+            <div className="fr-collgrid-page">
+              <h1 className="fr-collgrid-heading">Collections</h1>
+              <ul className="fr-collgrid" role="list">
+                {collectionsIndexList.map((cat) => {
+                  const img = catImage(cat);
+                  const target = sp(`/c/${collectionSlug(cat)}`);
+                  return (
+                    <li key={cat} className="fr-collgrid-item">
+                      <a
+                        href={target}
+                        className="fr-collgrid-link"
+                        onClick={(e) => { e.preventDefault(); navigate(target); }}
+                      >
+                        {img ? (
+                          <>
+                            <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} className="fr-collgrid-img" />
+                            <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
+                            <div className="fr-collgrid-overlay">
+                              <span className="fr-collgrid-title">{cat}</span>
+                            </div>
+                          </>
+                        ) : <span className="fr-cat-mark">{cat}</span>}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </EditSection>
         )}
 
         {/* POLICY / CONTACT PAGE — dedicated /policies/<policy> page
@@ -2538,6 +2543,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 </span>
               </div>
             </div>
+            {isCollectionView && collectionName && config.collection_descriptions?.[collectionName] && (
+              <p className="fr-coll-desc">{config.collection_descriptions[collectionName]}</p>
+            )}
             <EditSection id="products">
               <div className="fr-pgrid">
                 {filtered.map((p) => <ProductCard key={p.id} p={p} />)}

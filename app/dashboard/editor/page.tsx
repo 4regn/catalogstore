@@ -414,6 +414,7 @@ export default function StoreEditor() {
   const [headerTransparentColor, setHeaderTransparentColor] = useState("#ffffff");
   const [headerBorder, setHeaderBorder]               = useState(true);
   const [collectionImages, setCollectionImages]       = useState<Record<string, string>>({});
+  const [collectionDescriptions, setCollectionDescriptions] = useState<Record<string, string>>({});
   // Lazily-fetched (only once, when the Collections panel is first opened)
   // so every other editor section doesn't pay for a products query it
   // never needs. Just enough columns to render a "pick a cover from one of
@@ -631,6 +632,7 @@ export default function StoreEditor() {
       setHeaderTransparentColor(cfg?.header_transparent_color || "#ffffff");
       setHeaderBorder(cfg?.header_border !== false);
       if (cfg?.collection_images) setCollectionImages(cfg.collection_images);
+      if (cfg?.collection_descriptions) setCollectionDescriptions(cfg.collection_descriptions);
       if (cfg?.hidden_collections) setHiddenCollections(cfg.hidden_collections);
       if (cfg?.footer_about) setFooterAbout(cfg.footer_about);
       setProductsCollapsed(cfg?.products_collapsed === true);
@@ -987,6 +989,7 @@ export default function StoreEditor() {
       header_transparent_color: headerTransparentColor,
       header_border: headerBorder,
       collection_images: collectionImages,
+      collection_descriptions: collectionDescriptions,
       hidden_collections: hiddenCollections,
       footer_about: footerAbout || undefined,
       products_collapsed: productsCollapsed || undefined,
@@ -2527,6 +2530,15 @@ export default function StoreEditor() {
                             })()}
                           </div>
                         )}
+                        <div style={{ padding: "0 12px 12px" }}>
+                          <textarea
+                            value={collectionDescriptions[col] ?? ""}
+                            onChange={e => setCollectionDescriptions(prev => ({ ...prev, [col]: e.target.value }))}
+                            placeholder="Optional collection description, shown under the heading on this collection's page..."
+                            rows={2}
+                            style={{ ...inputStyle, fontSize: 12, resize: "vertical", width: "100%" }}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>

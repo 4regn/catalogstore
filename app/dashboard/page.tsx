@@ -964,6 +964,30 @@ export default function Dashboard() {
     setProducts(products.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, sort_order: u.sort_order } : p; }));
     revalidateMyStore();
   };
+  // Same idea as moveProduct above, but scoped to a single collection's
+  // subset of products instead of the whole "All Products" filtered list.
+  // sort_order is one shared numeric space across every product a seller
+  // owns (not a separate column per collection), so naively reassigning
+  // 0..N to just this subset would collide with -- and corrupt the
+  // ordering of -- every product NOT in this collection. Reusing the
+  // subset's OWN existing sort_order values (sorted ascending) as the pool
+  // of slots to redistribute across the new order sidesteps that: every
+  // update stays inside the same set of numbers this subset already
+  // occupied, so products outside the collection are never touched.
+  const moveProductInCollection = async (list: typeof products, fromId: string, toIndex: number) => {
+    const arr = [...list];
+    const fromIndex = arr.findIndex((p) => p.id === fromId);
+    if (fromIndex < 0) return;
+    const clamped = Math.max(0, Math.min(arr.length - 1, toIndex));
+    if (fromIndex === clamped) return;
+    const [moved] = arr.splice(fromIndex, 1);
+    arr.splice(clamped, 0, moved);
+    const slots = list.map((p) => p.sort_order ?? 0).sort((a, b) => a - b);
+    const updates = arr.map((p, i) => ({ id: p.id, sort_order: slots[i] }));
+    await Promise.all(updates.map((u) => supabase.from("products").update({ sort_order: u.sort_order }).eq("id", u.id)));
+    setProducts(products.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, sort_order: u.sort_order } : p; }));
+    revalidateMyStore();
+  };
   const initSortOrders = async () => {
     const unordered = products.filter((p) => p.sort_order === null || p.sort_order === undefined);
     if (unordered.length > 0) {
@@ -2334,11 +2358,20 @@ export default function Dashboard() {
                   else if (productSort === "za") inCollection.sort((a, b) => b.name.localeCompare(a.name));
                   else if (productSort === "price-asc") inCollection.sort((a, b) => a.price - b.price);
                   else if (productSort === "price-desc") inCollection.sort((a, b) => b.price - a.price);
+                  const manual = productSort === "manual";
                   return inCollection.length === 0 ? <p style={{ fontSize: 13, color: "var(--muted-2)", padding: "20px 0" }}>No products in this collection yet.</p> : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-                      {inCollection.map((p) => (
-                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10 }}>
+                      {!manual && <p style={{ fontSize: 12, color: "var(--muted-2)" }}>Switch to &quot;Manual&quot; to drag and reorder.</p>}
+                      {inCollection.map((p, idx) => (
+                        <div key={p.id}
+                          draggable={manual}
+                          onDragStart={() => manual && setDragProductIdx(idx)}
+                          onDragOver={(e) => { if (manual) e.preventDefault(); }}
+                          onDrop={(e) => { e.preventDefault(); if (manual && dragProductIdx !== null && dragProductIdx !== idx) moveProductInCollection(inCollection, inCollection[dragProductIdx].id, idx); setDragProductIdx(null); }}
+                          onDragEnd={() => setDragProductIdx(null)}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10, opacity: dragProductIdx === idx ? 0.4 : 1, cursor: manual ? "grab" : undefined }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            {manual && <span style={{ color: "var(--muted-2)", fontSize: 14, cursor: "grab" }}>⠿</span>}
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--input-bg)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "var(--muted-2)" }}>R{p.price}</div></div>
                           </div>
