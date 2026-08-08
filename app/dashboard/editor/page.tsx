@@ -375,6 +375,7 @@ export default function StoreEditor() {
   // scripts/import-4regn-discounts.ts -- no dashboard UI for those yet).
   const [showHeroPill, setShowHeroPill] = useState(false);
   const [heroPillLabel, setHeroPillLabel] = useState("");
+  const [heroDisclaimer, setHeroDisclaimer] = useState("");
   // 4regn SETLA promo strip
   const [showSetlaBanner, setShowSetlaBanner] = useState(true);
   const [setlaEyebrow, setSetlaEyebrow]       = useState("");
@@ -567,6 +568,7 @@ export default function StoreEditor() {
       // 4regn hero pill
       setShowHeroPill((cfg as any)?.show_hero_pill ?? false);
       setHeroPillLabel((cfg as any)?.hero_pill_label ?? "");
+      setHeroDisclaimer((cfg as any)?.hero_disclaimer ?? "");
       // 4regn SETLA promo strip
       setShowSetlaBanner((cfg as any)?.show_setla_banner ?? true);
       setSetlaEyebrow((cfg as any)?.setla_eyebrow ?? "");
@@ -724,6 +726,7 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroSaleHeadline }); }, [heroSaleHeadline]);
   useEffect(() => { postUpdate({ showHeroPill }); }, [showHeroPill]);
   useEffect(() => { postUpdate({ heroPillLabel }); }, [heroPillLabel]);
+  useEffect(() => { postUpdate({ heroDisclaimer }); }, [heroDisclaimer]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
   useEffect(() => { postUpdate({ heroCta }); }, [heroCta]);
   useEffect(() => { postUpdate({ heroCtaTarget }); }, [heroCtaTarget]);
@@ -900,6 +903,7 @@ export default function StoreEditor() {
       hero_sale_headline: heroSaleHeadline,
       show_hero_pill: showHeroPill,
       hero_pill_label: heroPillLabel,
+      hero_disclaimer: heroDisclaimer,
       show_setla_banner: showSetlaBanner,
       setla_eyebrow: setlaEyebrow,
       setla_lead: setlaLead,
@@ -1760,6 +1764,13 @@ export default function StoreEditor() {
                     code with &quot;Show Countdown&quot; is active — manage codes
                     in <strong>Dashboard → Discounts</strong>.
                   </div>
+                </div>
+
+                <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <label style={labelStyle}>Promo Disclaimer</label>
+                  <input value={heroDisclaimer} onChange={e => setHeroDisclaimer(e.target.value)}
+                    placeholder="e.g. Choose any 3 eligible tees. Lowest-priced tee is free." style={inputStyle} />
+                  <div style={hintStyle}>Small fine-print line under the buttons, e.g. terms for the promo pill above. Leave empty to hide.</div>
                 </div>
               </div>
             )}

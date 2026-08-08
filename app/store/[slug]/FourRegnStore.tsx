@@ -77,6 +77,9 @@ interface StoreConfig {
   // product_promo_badges/getProductPromoBadge).
   show_hero_pill?: boolean;
   hero_pill_label?: string;
+  // Small fine-print line under the hero CTA, e.g. "CHOOSE ANY 3 ELIGIBLE
+  // TEES. LOWEST-PRICED TEE IS FREE" -- promo terms, not a headline.
+  hero_disclaimer?: string;
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -459,6 +462,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveShopByGenderHeading, setLiveShopByGenderHeading] = useState<string | null>(null);
   const [liveShowHeroPill, setLiveShowHeroPill] = useState<boolean | null>(null);
   const [liveHeroPillLabel, setLiveHeroPillLabel] = useState<string | null>(null);
+  const [liveHeroDisclaimer, setLiveHeroDisclaimer] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
@@ -649,6 +653,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.shopByGenderHeading !== undefined) setLiveShopByGenderHeading(e.data.shopByGenderHeading);
       if (e.data.showHeroPill !== undefined) setLiveShowHeroPill(e.data.showHeroPill);
       if (e.data.heroPillLabel !== undefined) setLiveHeroPillLabel(e.data.heroPillLabel);
+      if (e.data.heroDisclaimer !== undefined) setLiveHeroDisclaimer(e.data.heroDisclaimer);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -969,6 +974,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // before the seller has typed a dedicated headline.
   const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? seller.tagline ?? seller.store_name;
   const displayHeroBody = liveHeroBody ?? config.hero_body ?? seller.description ?? "";
+  const displayHeroDisclaimer = liveHeroDisclaimer ?? config.hero_disclaimer ?? "";
   const displayCtaPrimary = liveHeroCtaPrimary ?? config.hero_cta_primary ?? "Shop the Collection";
   const displayCtaSecondary = liveHeroCtaSecondary ?? config.hero_cta_secondary ?? "";
   const displayCtaPrimaryTarget: CtaTarget = liveHeroCtaPrimaryTarget ?? config.hero_cta_primary_target ?? { type: "products" };
@@ -1287,6 +1293,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-hero-label::before{content:'';display:block;width:26px;height:1px;background:rgba(253,251,247,0.4)}
 .fr-hero-h1{font-family:var(--serif);font-weight:700;font-size:clamp(38px,6vw,72px);line-height:1.05;color:#fdfbf7;margin-bottom:20px;white-space:pre-line}
 .fr-hero-body{font-family:var(--body);font-style:italic;font-size:16px;line-height:1.7;color:rgba(253,251,247,0.72);max-width:460px;margin-bottom:34px;white-space:pre-line}
+.fr-hero-disclaimer{font-family:var(--body);font-size:10px;letter-spacing:0.5px;line-height:1.5;color:rgba(253,251,247,0.55);max-width:420px;margin-top:14px}
 .fr-cta-row{display:flex;align-items:center;gap:22px;margin-bottom:36px;flex-wrap:wrap}
 .fr-btn{display:inline-flex;align-items:center;justify-content:center;background:var(--btn-bg);color:var(--btn-text);font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;padding:15px 30px;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);border:none;cursor:pointer;transition:opacity 0.2s}
 .fr-btn:hover{opacity:0.85}
@@ -1660,7 +1667,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    confirmed as a mismatch directly against the live reference site.
    No Wishlist icon -- that's a separate, not-yet-built feature. */
 .fr-dock{display:none}
-.fr-dock-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:none;border:none;color:rgba(46,42,57,0.5);cursor:pointer;padding:10px 18px;font-family:var(--body);font-size:9px;letter-spacing:0.5px;text-transform:uppercase;line-height:1}
+.fr-dock-item{position:relative;display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:none;border:none;color:rgba(46,42,57,0.5);cursor:pointer;padding:6px 4px;font-family:var(--body);font-size:9px;letter-spacing:0.5px;text-transform:uppercase;line-height:1}
 .fr-dock-item.active{color:var(--ink)}
 .fr-dock-count{position:absolute;top:4px;right:8px;min-width:14px;height:14px;padding:0 3px;border-radius:999px;background:var(--ink);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--body)}
 
@@ -1731,7 +1738,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-policy-page{padding:48px 20px 64px}
   .fr-cart{width:100vw}
   .fr-root{padding-bottom:78px}
-  .fr-dock{display:flex;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:150;background:rgba(255,255,255,0.7);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,0.85);border-radius:28px;padding:8px 6px;gap:4px;box-shadow:0 10px 30px rgba(0,0,0,0.12);align-items:center}
+  .fr-dock{display:flex;position:fixed;left:0;right:0;bottom:0;width:100%;z-index:150;background:rgba(255,255,255,0.85);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border-top:1px solid rgba(0,0,0,0.06);padding:10px 4px max(10px, env(safe-area-inset-bottom, 10px));box-shadow:0 -6px 24px rgba(0,0,0,0.08);align-items:center;justify-content:space-around}
   .fr-search-overlay{padding:24px 14px}
   .fr-search-panel{max-height:88vh}
   .fr-search-bar{padding:16px 18px}
@@ -1983,6 +1990,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     )}
                   </div>
                 )}
+                {displayHeroDisclaimer && <p className="fr-hero-disclaimer">{displayHeroDisclaimer}</p>}
                 {promoCountdown && (
                   <PromoCountdown expiresAt={promoCountdown.expires_at}>
                     {(timeLeft) => timeLeft && (
