@@ -1568,7 +1568,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pimg img{transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
-.fr-ptag{position:absolute;top:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:var(--brown)}
+.fr-ptag{position:absolute;top:12px;left:12px;right:12px;z-index:2;font-size:8px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;color:var(--cream);padding:4px 9px;border-radius:999px;background:var(--brown);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:fit-content;max-width:100%}
 .fr-ptag.sale{background:var(--accent)}
 .fr-ptag-anniv{position:absolute;bottom:12px;left:12px;right:12px;z-index:2;font-size:8px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;color:var(--cream);padding:4px 9px;border-radius:999px;background:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:fit-content;max-width:100%}
 .fr-pinfo{padding:18px 16px 22px}

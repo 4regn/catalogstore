@@ -198,19 +198,37 @@ export default async function ProductHandlePage({
   // further, without ever needing the full catalog. This can't run in the
   // Promise.all above -- it depends on activeProduct.category, which isn't
   // known until that fetch resolves.
+  // "You Might Also Like" is a nice-to-have row, not the reason anyone is
+  // on this page -- a product with many/long category tokens turns the
+  // .or(ilike) below into several full unindexed substring scans across
+  // the whole products table, and on a large catalog that can run long
+  // enough to hit the platform's function timeout and 500 the ENTIRE page
+  // (reported: a real product page failing after ~30s). Racing the query
+  // against a timeout and falling back to an empty related-products list
+  // means a slow/expensive lookup here can never take the actual product
+  // down with it.
   const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean);
-  const { data: relatedCandidates } = catTokens.length === 0
-    ? { data: [] as any[] }
-    : await supabaseAdmin
-        .from("products")
-        .select(RELATED_PRODUCT_COLUMNS)
-        .eq("seller_id", seller.id)
-        .eq("in_stock", true)
-        .eq("status", "published")
-        .neq("id", activeProduct.id)
-        .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
-        .limit(40);
-  const initialProducts = relatedCandidates || [];
+  let relatedCandidates: any[] = [];
+  if (catTokens.length > 0) {
+    try {
+      const result: any = await Promise.race([
+        supabaseAdmin
+          .from("products")
+          .select(RELATED_PRODUCT_COLUMNS)
+          .eq("seller_id", seller.id)
+          .eq("in_stock", true)
+          .eq("status", "published")
+          .neq("id", activeProduct.id)
+          .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
+          .limit(40),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("related products query timeout")), 5000)),
+      ]);
+      relatedCandidates = result?.data || [];
+    } catch {
+      relatedCandidates = [];
+    }
+  }
+  const initialProducts = relatedCandidates;
 
   const initialDiscountCodes = discountsRes.data ?? [];
 

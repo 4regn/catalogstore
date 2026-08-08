@@ -211,19 +211,31 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // yet -- see the redirect below -- so lower-traffic, but should stay
     // consistent). Can't run in the Promise.all above -- depends on
     // activeProduct.category, not known until that fetch resolves.
+    // Raced against a timeout -- see products/[handle]/page.tsx's own
+    // comment on this identical query for why: a slow/expensive related-
+    // products lookup should never be able to 500 the whole page.
     const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean);
-    const { data: relatedCandidates } = catTokens.length === 0
-      ? { data: [] as any[] }
-      : await supabaseAdmin
-          .from("products")
-          .select(RELATED_PRODUCT_COLUMNS)
-          .eq("seller_id", seller.id)
-          .eq("in_stock", true)
-          .eq("status", "published")
-          .neq("id", activeProduct.id)
-          .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
-          .limit(40);
-    const initialProducts = relatedCandidates || [];
+    let relatedCandidates: any[] = [];
+    if (catTokens.length > 0) {
+      try {
+        const result: any = await Promise.race([
+          supabaseAdmin
+            .from("products")
+            .select(RELATED_PRODUCT_COLUMNS)
+            .eq("seller_id", seller.id)
+            .eq("in_stock", true)
+            .eq("status", "published")
+            .neq("id", activeProduct.id)
+            .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
+            .limit(40),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("related products query timeout")), 5000)),
+        ]);
+        relatedCandidates = result?.data || [];
+      } catch {
+        relatedCandidates = [];
+      }
+    }
+    const initialProducts = relatedCandidates;
 
     const initialDiscountCodes = discountsRes.data ?? [];
 
