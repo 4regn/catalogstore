@@ -863,9 +863,31 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (isEditMode) { openProduct(p); return; }
     navigate(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`));
   };
+  // Debounced -- a plain onMouseEnter->prefetchPath fired a real cold ISR
+  // request (seller/product/discount/promo-badge queries, all uncached the
+  // first time any given product is hit) for every card the cursor swept
+  // past on the way across a grid, not just ones actually paused on. A
+  // 24-card collection grid could fire two dozen of those concurrently from
+  // ordinary mouse movement -- confirmed as the real cause of the product-
+  // page 500s reported on 4regn's storefront (both failure shapes: some
+  // requests queued behind Supabase connection contention until an eventual
+  // ~30-40s timeout, others got killed near-instantly by Vercel's own
+  // concurrency limit before a single query even started -- traced from
+  // Vercel's request logs, both marked Prefetch: Yes, fired seconds apart
+  // from the same hover session on a collection page). Delaying past a
+  // cursor's transit time across a card (a deliberate pause reads as real
+  // navigation intent) keeps the head-start prefetchPath exists for while
+  // cutting the burst down to roughly one request per card actually
+  // hovered, not one per card passed over.
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prefetchProduct = (p: Product) => {
     if (isEditMode) return;
-    prefetchPath(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`));
+    if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
+    const path = sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`);
+    prefetchTimerRef.current = setTimeout(() => prefetchPath(path), 150);
+  };
+  const cancelProductPrefetch = () => {
+    if (prefetchTimerRef.current) { clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = null; }
   };
   // Shared broken-image fallback for grid thumbnails (product + collection
   // cards): if the stored image URL 404s/expires, swap in the initials
@@ -1219,7 +1241,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const badge = getProductPromoBadge(p);
     const promo = getProductPromo(p.id);
     return (
-      <div className="fr-pcard" onClick={() => goToProduct(p)} onMouseEnter={() => prefetchProduct(p)} onTouchStart={() => prefetchProduct(p)}>
+      <div className="fr-pcard" onClick={() => goToProduct(p)} onMouseEnter={() => prefetchProduct(p)} onMouseLeave={cancelProductPrefetch} onTouchStart={() => prefetchProduct(p)}>
         <div className="fr-pimg">
           {badge && <span className="fr-ptag sale">{badge.label}</span>}
           {!badge && promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
@@ -2937,6 +2959,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     className="fr-search-item"
                     onClick={() => { setShowSearch(false); setSearchQuery(""); goToProduct(p); }}
                     onMouseEnter={() => prefetchProduct(p)}
+                    onMouseLeave={cancelProductPrefetch}
                     onTouchStart={() => prefetchProduct(p)}
                   >
                     {p.image_url ? (
