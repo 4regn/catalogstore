@@ -19,6 +19,12 @@ interface Seller {
     eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
     eft_branch_code: string; eft_account_type: string; eft_instructions: string;
     payfast_enabled: boolean;
+    // Card payments via Yoco -- unlike payfast_enabled, this is never a
+    // self-serve dashboard toggle (see /api/checkout/yoco-redirect's own
+    // comment for why: the underlying Yoco account is shared/global, not
+    // per-seller, so it's only ever set directly for a seller confirmed to
+    // actually share that account).
+    yoco_enabled?: boolean;
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     shipping_options: { name: string; price: number }[];
   };
@@ -54,7 +60,7 @@ export default function CheckoutPageClient() {
 
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [shippingOption, setShippingOption] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast">("eft");
+  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco">("eft");
   const [billingSame, setBillingSame] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -127,11 +133,19 @@ export default function CheckoutPageClient() {
         return;
       }
     }
-    // Handle cancelled PayFast payment - reload cart from order
+    // Handle cancelled PayFast/Yoco payment - reload cart from order
     const cancelledParam = p.get("cancelled");
     if (cancelledParam === "1") {
-      // Show a message that payment was cancelled
       alert("Payment was cancelled. You can try again.");
+    }
+    // Yoco reports a declined/failed card attempt separately from an
+    // outright cancel (see failureUrl in /api/checkout/yoco-redirect) --
+    // same "?cart=" re-hydration so the customer doesn't lose their cart,
+    // distinct message since the customer DID try to pay, it just didn't
+    // go through.
+    const failedParam = p.get("failed");
+    if (failedParam === "1") {
+      alert("Your payment could not be completed. Please try again or use a different payment method.");
     }
     /* Decode + validate cart from URL. Any malformed item would otherwise
        produce NaN totals and an unclickable "Pay Now RNaN" button. Prices
@@ -156,7 +170,8 @@ export default function CheckoutPageClient() {
       }
     } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
-    if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
+    if (sd?.checkout_config?.yoco_enabled) setPaymentMethod("yoco");
+    else if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
     else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");
     setLoading(false);
   };
@@ -362,13 +377,14 @@ export default function CheckoutPageClient() {
       setOrderNumber(json.orderNumber);
       setOrderPlaced(true);
 
-      // Notify seller (non-blocking) -- but not for PayFast orders yet: this
-      // row is still payment_status "pending" and the customer hasn't even
-      // reached PayFast's page. A PayFast order only gets notified once the
-      // ITN webhook (app/api/payfast/notify) confirms payment actually went
-      // through, so the seller never gets a "New Order!" email for a payment
-      // that failed or was abandoned.
-      if (paymentMethod !== "payfast") {
+      // Notify seller (non-blocking) -- but not for PayFast/Yoco orders yet:
+      // this row is still payment_status "pending" and the customer hasn't
+      // even reached the payment gateway's page. Those only get notified
+      // once their respective webhook (app/api/payfast/notify,
+      // app/api/unik/checkout/webhook) confirms payment actually went
+      // through, so the seller never gets a "New Order!" email for a
+      // payment that failed or was abandoned.
+      if (paymentMethod !== "payfast" && paymentMethod !== "yoco") {
         fetch("/api/notify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -388,6 +404,24 @@ export default function CheckoutPageClient() {
         }
         const html = await pfRes.text();
         document.open(); document.write(html); document.close();
+        return;
+      }
+
+      if (paymentMethod === "yoco" && cc.yoco_enabled) {
+        const ycRes = await fetch("/api/checkout/yoco-redirect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, slug, returnOrigin: window.location.origin }),
+        });
+        const ycJson = await ycRes.json().catch(() => ({}));
+        if (!ycRes.ok || !ycJson.redirectUrl) {
+          setOrderError(ycJson.error || "Could not start card payment. Your order was saved; please contact the seller.");
+          return;
+        }
+        // Yoco's Checkout API returns a hosted redirect URL directly (unlike
+        // PayFast, which needs an auto-submitting form) -- a plain
+        // navigation is all that's needed.
+        window.location.href = ycJson.redirectUrl;
         return;
       }
     } catch (e: any) {
@@ -624,6 +658,24 @@ export default function CheckoutPageClient() {
           <h2 style={{ fontFamily: T.headFont, fontSize: 24, fontWeight: 400, marginBottom: 8 }}>Payment</h2>
           <p style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>All transactions are secure and encrypted.</p>
           <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden", marginBottom: 32 }}>
+            {cc.yoco_enabled && (
+              <div>
+                <div onClick={() => setPaymentMethod("yoco")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "yoco" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "yoco" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
+                    <span style={{ fontSize: 14, fontWeight: paymentMethod === "yoco" ? 600 : 400 }}>Card (Yoco)</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, objectFit: "contain" }} /></span>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, objectFit: "contain" }} /></span>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 16, objectFit: "contain" }} /></span>
+                    </div>
+                  </div>
+                </div>
+                {paymentMethod === "yoco" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Yoco to complete your payment.</div>}
+              </div>
+            )}
             {cc.payfast_enabled && (
               <div>
                 <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "payfast" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
@@ -679,7 +731,7 @@ export default function CheckoutPageClient() {
                 moving off Shopify onto this same checkout system UNIK Labs
                 already runs on, and wants the two to look consistent) --
                 confirmed via that file directly rather than eyeballing it. */}
-            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "payfast" ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
+            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : (paymentMethod === "payfast" || paymentMethod === "yoco") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
           </div>
         </div>
 

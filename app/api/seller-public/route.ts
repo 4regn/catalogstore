@@ -23,6 +23,11 @@ export async function GET(req: NextRequest) {
     eft_instructions: cc.eft_instructions || "",
     payfast_enabled: !!cc.payfast_enabled,
     // merchant_id and merchant_key are NEVER sent to client
+    // yoco_enabled is safe to expose as-is -- unlike PayFast there's no
+    // per-seller merchant_id/merchant_key pair to strip (see
+    // /api/checkout/yoco-redirect's own comment: Yoco creds are one global
+    // platform-wide credential pair, not per-seller).
+    yoco_enabled: !!cc.yoco_enabled,
     delivery_enabled: cc.delivery_enabled !== false,
     pickup_enabled: !!cc.pickup_enabled,
     pickup_address: cc.pickup_address || "",
