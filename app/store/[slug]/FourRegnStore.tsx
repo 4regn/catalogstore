@@ -2522,7 +2522,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <a
                         href={target}
                         className="fr-collgrid-link"
-                        onClick={(e) => { e.preventDefault(); navigate(target); }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Edit mode: let the click bubble up to EditSection's
+                          // own handler (opens the Collections panel) instead of
+                          // navigating away to /c/<collection> -- same guard
+                          // goToProduct() already uses for product cards. Without
+                          // this, every tile click here fired BOTH handlers (this
+                          // one navigates first, since it's the innermost target;
+                          // EditSection's postMessage fires right after on the
+                          // same click) and the resulting navigation yanked the
+                          // whole page out from under the editor before its panel
+                          // could do anything useful -- reported as the "all
+                          // collections" screen not responding to any edits.
+                          if (isEditMode) return;
+                          navigate(target);
+                        }}
                       >
                         {img ? (
                           <>
