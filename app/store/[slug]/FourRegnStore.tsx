@@ -1260,7 +1260,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   color-scheme: light;
   --ink:#2e2a39;--paper-grad:linear-gradient(178deg, rgba(255,255,255,1), rgba(249,249,249,1) 48.5%, rgba(245,245,245,1) 97%);
   --paper-solid:#e6e6e6;--head-bg:#000000;--head-text:#fdfbf7;
-  --brown:#765341;--purple:linear-gradient(320deg, #86106a, #5e3653 100%);--cream:#fdfbf7;
+  --brown:#765341;--purple:linear-gradient(320deg, #86106a, #5e3653 100%);--cream:#fdfbf7;--accent:#d64735;
   --btn-bg:#000000;--btn-text:#ffffff;--btn-radius:10px;--btn-shadow:0 4px 5px rgba(0,0,0,0.08);
   --card-radius:12px;--card-shadow:10px 10px 35px rgba(0,0,0,0.05);
   --serif:'Quattrocento',Georgia,serif;--body:'Amiri',Georgia,serif;
@@ -1326,20 +1326,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    photo's own brightness. */
 .fr-hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(0,0,0,0.82) 0%,rgba(0,0,0,0.38) 55%,rgba(0,0,0,0.32) 100%)}
 .fr-hero-inner{position:relative;z-index:2;width:100%;max-width:720px;padding:0 56px 72px;text-align:left}
-.fr-hero-pill{display:inline-block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cream);background:var(--purple);padding:7px 16px;border-radius:999px;margin-bottom:16px}
+.fr-hero-pill{display:inline-block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cream);background:var(--accent);padding:7px 16px;border-radius:999px;margin-bottom:16px}
 .fr-hero-label{font-family:var(--body);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(253,251,247,0.65);margin-bottom:18px;display:flex;align-items:center;gap:12px}
 .fr-hero-label::before{content:'';display:block;width:26px;height:1px;background:rgba(253,251,247,0.4)}
-.fr-hero-h1{font-family:var(--serif);font-weight:700;font-size:clamp(38px,6vw,72px);line-height:1.05;color:#fdfbf7;margin-bottom:20px;white-space:pre-line}
+.fr-hero-h1{font-family:var(--serif);font-weight:500;font-style:italic;letter-spacing:-0.03em;font-size:clamp(40px,7.5vw,92px);line-height:0.92;color:#fdfbf7;margin-bottom:20px;white-space:pre-line;text-shadow:0 3px 30px rgba(0,0,0,0.33)}
 .fr-hero-body{font-family:var(--body);font-style:italic;font-size:16px;line-height:1.7;color:rgba(253,251,247,0.72);max-width:460px;margin-bottom:34px;white-space:pre-line}
 .fr-hero-disclaimer{font-family:var(--body);font-size:10px;letter-spacing:0.5px;line-height:1.5;color:rgba(253,251,247,0.55);max-width:420px;margin-top:14px}
 .fr-hero-offer{margin:0 0 18px;max-width:640px;font-family:var(--body);font-size:clamp(14px,1.8vw,20px);line-height:1.55;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fdfbf7;text-shadow:0 2px 18px rgba(0,0,0,0.45)}
-.fr-hero-offer-accent{color:#d64735}
-.fr-hero-offer-pulse{color:#d64735;display:inline-block;animation:fr-heartbeat 1.2s ease-in-out infinite;transform-origin:center}
+.fr-hero-offer-accent{color:var(--accent)}
+.fr-hero-offer-pulse{color:var(--accent);display:inline-block;animation:fr-heartbeat 1.2s ease-in-out infinite;transform-origin:center}
 .fr-hero-offer-note{display:block;margin-top:6px;font-size:0.72em;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:rgba(253,251,247,0.75)}
 @keyframes fr-heartbeat{0%{transform:scale(1)}14%{transform:scale(1.12)}28%{transform:scale(1)}42%{transform:scale(1.14)}70%{transform:scale(1)}100%{transform:scale(1)}}
 .fr-cta-row{display:flex;align-items:center;gap:22px;margin-bottom:36px;flex-wrap:wrap}
-.fr-btn{display:inline-flex;align-items:center;justify-content:center;background:var(--btn-bg);color:var(--btn-text);font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;padding:15px 30px;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);border:none;cursor:pointer;transition:opacity 0.2s}
-.fr-btn:hover{opacity:0.85}
+.fr-btn{display:inline-flex;align-items:center;justify-content:center;min-width:200px;min-height:56px;background:rgba(0,0,0,0.06);color:#fff;font-family:var(--body);font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;text-decoration:none;padding:0 28px;border-radius:2px;border:1.5px solid rgba(255,255,255,0.78);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);cursor:pointer;transition:background 0.25s ease,color 0.25s ease,border-color 0.25s ease}
+.fr-btn:hover{background:#fff;color:#111;border-color:#fff}
 .fr-btn-ghost{display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--head-text);font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;padding:14px 28px;border-radius:var(--btn-radius);border:1px solid rgba(253,251,247,0.4);cursor:pointer;transition:background 0.2s}
 .fr-btn-ghost:hover{background:rgba(253,251,247,0.08)}
 .fr-timer-row{display:flex;flex-direction:column;gap:6px}
@@ -1485,7 +1485,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:var(--brown)}
-.fr-ptag.sale{background:var(--purple)}
+.fr-ptag.sale{background:var(--accent)}
 .fr-pinfo{padding:18px 16px 22px}
 .fr-pname{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:8px;line-height:1.3;color:var(--ink)}
 .fr-pprice{font-family:var(--body);font-size:14px;font-weight:700;color:var(--ink)}
