@@ -396,6 +396,50 @@ function PromoCountdown({ expiresAt, children }: { expiresAt: string; children: 
   return <>{children(timeLeft)}</>;
 }
 
+// 4regn's real Shopify nav (Catalog mega-menu with grouped sub-categories,
+// Contact, Track Your Order), ported from the seller's own Shopify admin
+// menu list -- replaces the flat, capped category list every other part
+// of this file still uses (menuCategories). Static/hardcoded, not
+// seller-editable: this app's collections are a flat name array with no
+// parent/child grouping, so there's no data model this could read from
+// yet. A few literal duplicate entries in the source list (JACKETS,
+// SHOES, CAPS, Hoodies appearing twice, etc.) were deduped here rather
+// than reproduced as visibly broken duplicate links. Groups with no
+// `items` are themselves a direct collection link (their label doubles
+// as the collection name); groups with `items` render as a sub-list.
+// "Shop All Women"/"Shop All Men" point at this store's existing
+// "ALL WOMEN"/"ALL MEN" umbrella collections (see partitionGenderCollections
+// above) rather than a literal "Shop All Women" category, which wouldn't
+// exist. Every other WOMEN/MEN sub-item is transformed to "Women <item>"/
+// "Men <item>" when building its link -- matches the "Men <X>"/"Women <X>"
+// naming convention partitionGenderCollections' own comment documents for
+// this store's real per-gender collections; linking bare "Tops" instead of
+// "Women Tops" would 404/empty for most of these.
+const CATALOG_MENU: { label: string; items?: string[] }[] = [
+  { label: "WOMEN", items: ["Shop All Women", "Tops", "Bottoms", "Jackets", "Accessories", "Bags", "Caps", "Shoes", "2pc Set", "Sunglasses", "Sweaters", "Hoodies", "Dresses"] },
+  { label: "MEN", items: ["Shop All Men", "Tops", "Bottoms", "Jackets", "Hoodies", "2pc Sets", "Caps", "Accessories", "Shoes", "Knitwear", "Shirts", "Sunglasses", "Shorts", "Bags", "Sweaters"] },
+  { label: "TEES", items: ["4REGN DEXIGN OVERSIZED TEES", "GRAPHIC TEES NEW EDITION", "STANDARD GRAPHIC TEES", "Travis Scott Cactus Jack Tees Collection", "COTTON EATERS GRAPHIC TEE Riky Rick", "PLAIN OVERSIZED DROP SHOULDER TEES", "CUSTOM PRINTED TEES"] },
+  { label: "PANTS", items: ["4REGN CARGO PANTS", "CACTUS JACK SWEATPANTS", "PLAIN SWEATPANTS", "4REGN SKITZO PRINTED SWEATPANTS", "SHORTS"] },
+  { label: "HEADWEAR", items: ["Beanies", "PRINTED TRUCKER CAPS", "PLAIN TRUCKER CAPS", "CUSTOM TRUCKER CAPS"] },
+  { label: "JACKETS" },
+  { label: "SHOES" },
+  { label: "CAPS" },
+  { label: "PLAIN CLOTHING", items: ["PLAIN HOODIES", "Plain Sweatpants", "PLAIN TRUCKER CAPS", "BEANIES", "PLAIN OVERSIZED DROP SHOULDER TEES"] },
+  { label: "SPRING ESSENTIALS" },
+  { label: "DRESSES" },
+  { label: "SUNGLASSES" },
+  { label: "GRAPHIC HOODIES" },
+  { label: "SWEATERS" },
+  { label: "KNITWEAR" },
+  { label: "4REGN X LAVISH COLLECTION" },
+  { label: "2 PIECE SETS" },
+  { label: "BUTTONED SHIRTS" },
+  { label: "BAGS" },
+  { label: "ACCESSORIES" },
+  { label: "CUSTOM", items: ["CUSTOM PRINTED TEES", "CUSTOM PRINTED HOODIES", "CUSTOM PRINTED SWEATERS", "CUSTOM PRINTED CAPS", "CUSTOM PRINTED SIDE BAGS"] },
+  { label: "MFUDUMALO COMBOS COLLECTION" },
+];
+
 export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
@@ -595,6 +639,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── NAV ─── */
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Desktop: hover-open (mouseenter sets true, mouseleave sets false, see
+  // the Catalog trigger + mega-menu panel below). Mobile: tap-toggled
+  // accordion within the drawer (catalogAccordionOpen for the outer
+  // Catalog section, mobileGroupOpen for which single group's sub-items
+  // are expanded -- only one open at a time, closing the previous one
+  // when a new one opens, since all 22 groups' items expanded
+  // simultaneously would make the drawer unusably long).
+  const [catalogHoverOpen, setCatalogHoverOpen] = useState(false);
+  const [catalogAccordionOpen, setCatalogAccordionOpen] = useState(false);
+  const [mobileGroupOpen, setMobileGroupOpen] = useState<string | null>(null);
+  // "Women <item>"/"Men <item>" per this store's real per-gender collection
+  // naming (see CATALOG_MENU's own comment) -- "Shop All Women"/"Shop All
+  // Men" are the two special cases pointing at the umbrella collection
+  // instead.
+  const catalogItemHref = (group: string, item: string) => {
+    if (item === "Shop All Women") return sp(`/c/${collectionSlug("ALL WOMEN")}`);
+    if (item === "Shop All Men") return sp(`/c/${collectionSlug("ALL MEN")}`);
+    const name = group === "WOMEN" ? `Women ${item}` : group === "MEN" ? `Men ${item}` : item;
+    return sp(`/c/${collectionSlug(name)}`);
+  };
   // Home page only: nav is transparent (see .fr-nav--transparent) while
   // still over the hero image, then switches back to its normal solid
   // black bar once scrolled past it -- every other section on the page has
@@ -1420,6 +1484,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-nav-links .fr-logo{display:none}
 .fr-nav-link{font-family:var(--body);font-size:12px;font-weight:400;letter-spacing:1px;text-transform:uppercase;text-decoration:none;color:rgba(253,251,247,0.75);transition:color 0.2s;background:none;border:none;cursor:pointer;white-space:nowrap}
 .fr-nav-link:hover{color:var(--head-text)}
+/* CATALOG MEGA-MENU -- desktop hover-open only (mobile gets the drawer's
+   own tap accordion, see .fr-mm-group below); position:fixed rather than
+   absolute so the panel can span the full viewport width regardless of
+   .fr-nav-catalog's own narrow (just the "Catalog" link's) box -- an
+   absolutely-positioned child sizes against its nearest positioned
+   ancestor, which here would be this narrow wrapper, not the page. */
+.fr-nav-catalog{position:relative}
+.fr-catalog-menu{position:fixed;top:72px;left:0;right:0;background:#fff;border-top:1px solid rgba(0,0,0,0.08);box-shadow:0 24px 48px rgba(0,0,0,0.14);z-index:99;max-height:calc(100vh - 72px);overflow-y:auto}
+.fr-catalog-menu-inner{max-width:1360px;margin:0 auto;padding:32px 40px;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:28px 24px}
+.fr-catalog-group{display:flex;flex-direction:column;gap:10px;min-width:0}
+.fr-catalog-group-label{font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink)}
+.fr-catalog-group-link{text-decoration:none;cursor:pointer;width:fit-content}
+.fr-catalog-group-link:hover{text-decoration:underline;text-underline-offset:3px}
+.fr-catalog-group ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.fr-catalog-group ul a{font-family:var(--body);font-size:12.5px;line-height:1.4;color:rgba(46,42,57,0.65);text-decoration:none}
+.fr-catalog-group ul a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .fr-nav-right{display:flex;justify-content:flex-end;align-items:center;gap:18px}
 .fr-search-btn{background:none;border:none;cursor:pointer;color:var(--head-text);padding:4px;display:flex;align-items:center}
 .fr-cart-btn{position:relative;background:none;border:none;cursor:pointer;color:var(--head-text);padding:4px;display:flex;align-items:center}
@@ -1727,6 +1807,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-mm-close{background:none;border:none;font-size:22px;cursor:pointer;color:#fdfbf7}
 .fr-mm nav{display:flex;flex-direction:column}
 .fr-mm nav button{display:block;padding:15px 0;border-bottom:1px solid rgba(253,251,247,0.14);font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#fdfbf7;background:none;border-left:none;border-right:none;border-top:none;font-family:var(--body);text-align:left;cursor:pointer}
+/* Catalog accordion (mobile drawer) -- same button look as the top-level
+   nav items above, but Catalog/each group toggle instead of navigating
+   directly, revealing the next level nested and indented underneath. */
+.fr-mm nav button.fr-mm-catalog-toggle,.fr-mm nav button.fr-mm-group-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fr-mm-chevron{display:inline-block;font-size:16px;transition:transform 0.2s;flex-shrink:0}
+.fr-mm-chevron.open{transform:rotate(90deg)}
+.fr-mm-catalog-groups{display:flex;flex-direction:column;padding-left:14px;border-left:1px solid rgba(253,251,247,0.14);margin-left:2px}
+.fr-mm nav .fr-mm-catalog-groups button.fr-mm-group-toggle{font-size:12px;letter-spacing:1px;color:rgba(253,251,247,0.85)}
+.fr-mm-group-items{display:flex;flex-direction:column;padding-left:14px;border-left:1px solid rgba(253,251,247,0.1);margin-left:2px}
+.fr-mm nav .fr-mm-group-items button{padding:12px 0;font-size:11.5px;letter-spacing:0.8px;color:rgba(253,251,247,0.65);text-transform:none}
 .fr-mm-foot{margin-top:auto;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(253,251,247,0.5)}
 
 .fr-cart-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;opacity:0;pointer-events:none;transition:opacity 0.3s}
@@ -1906,6 +1996,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-nav-left .fr-logo{display:none}
   .fr-nav-links{display:flex}
   .fr-nav-link{display:none}
+  .fr-nav-catalog{display:none}
   .fr-nav-links .fr-logo{display:block}
   .fr-hero-inner{padding:0 24px 48px}
   /* The photo was absolutely positioned (out of flow) as a fixed 340px top
@@ -1980,17 +2071,62 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <button className="fr-mm-close" onClick={() => setMobileNavOpen(false)}>✕</button>
           </div>
           <nav>
-            {menuCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => {
-                  setMobileNavOpen(false);
-                  navigate(sp(`/c/${cat === "All" ? "all" : collectionSlug(cat)}`));
-                }}
-              >
-                {cat === "All" ? "All Products" : cat}
+            <button
+              className="fr-mm-catalog-toggle"
+              onClick={() => setCatalogAccordionOpen((v) => !v)}
+              aria-expanded={catalogAccordionOpen}
+            >
+              Catalog <span className={"fr-mm-chevron" + (catalogAccordionOpen ? " open" : "")}>›</span>
+            </button>
+            {catalogAccordionOpen && (
+              <div className="fr-mm-catalog-groups">
+                {CATALOG_MENU.map((group) => (
+                  <div key={group.label} className="fr-mm-group">
+                    {group.items ? (
+                      <>
+                        <button
+                          className="fr-mm-group-toggle"
+                          onClick={() => setMobileGroupOpen((g) => (g === group.label ? null : group.label))}
+                          aria-expanded={mobileGroupOpen === group.label}
+                        >
+                          {group.label} <span className={"fr-mm-chevron" + (mobileGroupOpen === group.label ? " open" : "")}>›</span>
+                        </button>
+                        {mobileGroupOpen === group.label && (
+                          <div className="fr-mm-group-items">
+                            {group.items.map((item) => {
+                              const href = catalogItemHref(group.label, item);
+                              return (
+                                <button key={item} onClick={() => { setMobileNavOpen(false); navigate(href); }}>
+                                  {item}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        className="fr-mm-group-toggle"
+                        onClick={() => { setMobileNavOpen(false); navigate(catalogItemHref(group.label, group.label)); }}
+                      >
+                        {group.label}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => { setMobileNavOpen(false); navigate(sp("/policies/contact")); }}>
+              Contact
+            </button>
+            {seller.whatsapp_number && (
+              <button onClick={() => {
+                setMobileNavOpen(false);
+                window.open(`https://wa.me/${seller.whatsapp_number!.replace(/\D/g, "")}?text=${encodeURIComponent("Hi! I'd like to track my order.")}`, "_blank");
+              }}>
+                Track Your Order
               </button>
-            ))}
+            )}
             <button onClick={() => { setMobileNavOpen(false); setCartOpen(true); }}>
               Cart ({cartCount})
             </button>
@@ -2151,14 +2287,67 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <a href={sp()} className="fr-logo">
               {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
             </a>
-            {menuCategories.slice(0, 6).map((cat) => {
-              const target = sp(`/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
-              return (
-                <a key={cat} href={target} className="fr-nav-link" onClick={(e) => { e.preventDefault(); navigate(target); }} onMouseEnter={() => prefetchPath(target)} onTouchStart={() => prefetchPath(target)}>
-                  {cat === "All" ? "All Products" : cat}
-                </a>
-              );
-            })}
+            <div
+              className="fr-nav-catalog"
+              onMouseEnter={() => setCatalogHoverOpen(true)}
+              onMouseLeave={() => setCatalogHoverOpen(false)}
+            >
+              <a
+                href={sp("/collections")}
+                className="fr-nav-link"
+                onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
+              >
+                Catalog
+              </a>
+              {catalogHoverOpen && (
+                <div className="fr-catalog-menu" onClick={() => setCatalogHoverOpen(false)}>
+                  <div className="fr-catalog-menu-inner">
+                    {CATALOG_MENU.map((group) => (
+                      <div key={group.label} className="fr-catalog-group">
+                        {group.items ? (
+                          <>
+                            <span className="fr-catalog-group-label">{group.label}</span>
+                            <ul>
+                              {group.items.map((item) => (
+                                <li key={item}>
+                                  <a
+                                    href={catalogItemHref(group.label, item)}
+                                    onClick={(e) => { e.preventDefault(); navigate(catalogItemHref(group.label, item)); }}
+                                  >
+                                    {item}
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        ) : (
+                          <a
+                            className="fr-catalog-group-label fr-catalog-group-link"
+                            href={catalogItemHref(group.label, group.label)}
+                            onClick={(e) => { e.preventDefault(); navigate(catalogItemHref(group.label, group.label)); }}
+                          >
+                            {group.label}
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <a href={sp("/policies/contact")} className="fr-nav-link" onClick={(e) => { e.preventDefault(); navigate(sp("/policies/contact")); }}>
+              Contact
+            </a>
+            {seller.whatsapp_number && (
+              <a
+                href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}?text=${encodeURIComponent("Hi! I'd like to track my order.")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="fr-nav-link"
+              >
+                Track Your Order
+              </a>
+            )}
           </div>
           <div className="fr-nav-right">
             <button className="fr-search-btn" onClick={() => setShowSearch(true)} aria-label="Search products" title="Search products">
