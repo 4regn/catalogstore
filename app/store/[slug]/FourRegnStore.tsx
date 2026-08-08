@@ -400,7 +400,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // that actually changes -- from the bottom of a long page that reads as
   // "did my click even do anything," not as a page change in progress.
   const navigateToProducts = (path: string) => {
-    document.getElementById("fr-products")?.scrollIntoView({ block: "start" });
+    // behavior: "instant" is load-bearing here, not cosmetic: globals.css
+    // sets html{scroll-behavior:smooth} site-wide, so scrollIntoView()
+    // without an explicit behavior animates instead of jumping. On a fast
+    // (cached/prefetched) navigation, this call and the useLayoutEffect
+    // below's correction can both fire within that animation's window,
+    // and the second one interrupting the first can leave the page stuck
+    // mid-scroll -- reported as "clicked page 2, it loaded, but I was
+    // still at the bottom." Forcing "instant" here and below removes the
+    // animation entirely, so there's nothing left to interrupt.
+    document.getElementById("fr-products")?.scrollIntoView({ block: "start", behavior: "instant" });
     startNavigation(() => router.push(path));
   };
   // Warms a destination route's RSC payload ahead of an actual click --
@@ -738,7 +747,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     // grid is exactly the content that's different page to page, so
     // that's what should be the first thing back in view.
     const productsEl = isCollectionView ? document.getElementById("fr-products") : null;
-    if (productsEl) productsEl.scrollIntoView({ block: "start" });
+    if (productsEl) productsEl.scrollIntoView({ block: "start", behavior: "instant" });
     else window.scrollTo(0, 0);
   }, [pathname, mode, currentPage, currentSort]);
 
