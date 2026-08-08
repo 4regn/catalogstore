@@ -162,7 +162,7 @@ interface DayHours {
 type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
-  | "setla" | "newsletter" | "shopbygender"
+  | "setla" | "newsletter" | "shopbygender" | "ticker-strip" | "winter-essentials"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -184,6 +184,8 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   setla:        { icon: "cta",          label: "SETLA Promo Strip" },
   newsletter:   { icon: "cta",          label: "Newsletter" },
   shopbygender: { icon: "circle",       label: "Shop by Gender" },
+  "ticker-strip":      { icon: "ticker", label: "4regn Ticker Strip" },
+  "winter-essentials": { icon: "image",  label: "Winter Essentials" },
 };
 
 // Compact icon+label inline component for the chrome.
@@ -438,6 +440,27 @@ export default function StoreEditor() {
     setPickerProducts(data || []);
     setPickerLoading(false);
   };
+  // Winter Essentials coverflow -- speed + an ordered slide list (product
+  // ids mixed with direct upload URLs, see StoreConfig.winter_essentials_slides'
+  // own comment). Shares pickerProducts with the Collections cover-image
+  // picker (see the effect below, which also covers resolving thumbnails
+  // for already-saved product-id slides -- not just the "add" picker).
+  const [winterSpeed, setWinterSpeed] = useState(0.6);
+  const [winterSlides, setWinterSlides] = useState<string[]>([]);
+  const [winterPickerOpen, setWinterPickerOpen] = useState(false);
+  const [winterDragIdx, setWinterDragIdx] = useState<number | null>(null);
+  // Loads pickerProducts as soon as this panel opens (not just when the
+  // "add" picker is clicked) -- already-saved product-id slides need it
+  // too, to resolve their thumbnails.
+  useEffect(() => {
+    if (activeSection !== "winter-essentials" || pickerProducts || !seller) return;
+    setPickerLoading(true);
+    supabase.from("products").select("id, name, image_url, category").eq("seller_id", seller.id).not("image_url", "is", null)
+      .then(({ data }) => { setPickerProducts(data || []); setPickerLoading(false); });
+  }, [activeSection, pickerProducts, seller]);
+  // pickerProducts is already ensured by the effect above whenever this
+  // panel is open -- this just needs to toggle the picker grid itself.
+  const loadWinterPicker = () => setWinterPickerOpen(v => !v);
   const [footerAbout, setFooterAbout]                 = useState("");
   const [productsCollapsed, setProductsCollapsed]     = useState(false);
   const [contactEmail, setContactEmail]               = useState("");
@@ -642,6 +665,8 @@ export default function StoreEditor() {
       if (cfg?.collection_images) setCollectionImages(cfg.collection_images);
       if (cfg?.collection_descriptions) setCollectionDescriptions(cfg.collection_descriptions);
       if (cfg?.hidden_collections) setHiddenCollections(cfg.hidden_collections);
+      if (cfg?.winter_essentials_speed !== undefined) setWinterSpeed(cfg.winter_essentials_speed);
+      if (cfg?.winter_essentials_slides) setWinterSlides(cfg.winter_essentials_slides);
       if (cfg?.footer_about) setFooterAbout(cfg.footer_about);
       setProductsCollapsed(cfg?.products_collapsed === true);
       setCollectionsCollapsed(cfg?.collections_collapsed === true);
@@ -1000,6 +1025,8 @@ export default function StoreEditor() {
       collection_images: collectionImages,
       collection_descriptions: collectionDescriptions,
       hidden_collections: hiddenCollections,
+      winter_essentials_speed: winterSpeed,
+      winter_essentials_slides: winterSlides,
       footer_about: footerAbout || undefined,
       products_collapsed: productsCollapsed || undefined,
       collections_collapsed: collectionsCollapsed || undefined,
@@ -1987,6 +2014,116 @@ export default function StoreEditor() {
                 </div>
               </div>
             )}
+
+            {/* WINTER ESSENTIALS COVERFLOW — 4regn only */}
+            {activeSection === "winter-essentials" && seller?.template === "4regn" && (() => {
+              const winterTagged = (pickerProducts || []).filter(p =>
+                (p.category || "").split(",").map(c => c.trim()).includes("WINTER ESSENTIALS")
+              );
+              const resolveThumb = (entry: string) => {
+                if (entry.startsWith("http") || entry.startsWith("/")) return entry;
+                return (pickerProducts || []).find(p => p.id === entry)?.image_url || null;
+              };
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div>
+                    <label style={labelStyle}>Scroll Speed</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="range" min={0.2} max={2} step={0.1} value={winterSpeed}
+                        onChange={e => setWinterSpeed(parseFloat(e.target.value))}
+                        style={{ flex: 1, accentColor: "#9c7c62" }} />
+                      <span style={{ fontSize: 12, color: "rgba(245,245,245,0.5)", width: 32, textAlign: "right" }}>{winterSpeed.toFixed(1)}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", marginTop: 4 }}>Higher is faster. Default 0.6.</div>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Slides</label>
+                    <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", marginBottom: 8 }}>
+                      Drag to reorder. Leave empty to automatically show every product tagged &quot;WINTER ESSENTIALS&quot;, in catalog order.
+                    </div>
+                    {winterSlides.length === 0 ? (
+                      <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)" }}>
+                        Using automatic order ({winterTagged.length} tagged product{winterTagged.length !== 1 ? "s" : ""}).
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {winterSlides.map((entry, i) => {
+                          const thumb = resolveThumb(entry);
+                          return (
+                            <div key={i}
+                              draggable
+                              onDragStart={() => setWinterDragIdx(i)}
+                              onDragOver={e => e.preventDefault()}
+                              onDrop={e => {
+                                e.preventDefault();
+                                if (winterDragIdx === null || winterDragIdx === i) return;
+                                const u = [...winterSlides];
+                                const [item] = u.splice(winterDragIdx, 1);
+                                u.splice(i, 0, item);
+                                setWinterSlides(u);
+                                setWinterDragIdx(null);
+                              }}
+                              onDragEnd={() => setWinterDragIdx(null)}
+                              style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "grab", opacity: winterDragIdx === i ? 0.4 : 1 }}>
+                              <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 13 }}>⠿</span>
+                              {thumb ? (
+                                <img src={thumb} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                              ) : (
+                                <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                              )}
+                              <span style={{ flex: 1, fontSize: 11, color: "rgba(245,245,245,0.4)" }}>
+                                {entry.startsWith("http") || entry.startsWith("/") ? "Uploaded image" : ((pickerProducts || []).find(p => p.id === entry)?.name || "Product")}
+                              </span>
+                              <button onClick={() => setWinterSlides(winterSlides.filter((_, j) => j !== i))}
+                                style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(255,107,53,0.08)", border: "none", color: "#ff6b35", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>×</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button type="button" onClick={loadWinterPicker}
+                      style={{ flex: 1, fontSize: 12, color: "rgba(245,245,245,0.6)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
+                      + Add from Winter Essentials products
+                    </button>
+                    <label style={{ flex: 1, textAlign: "center", fontSize: 12, color: "rgba(245,245,245,0.6)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
+                      + Upload custom image
+                      <input type="file" accept="image/*" style={{ display: "none" }} onChange={async e => {
+                        const f = e.target.files?.[0]; if (!f || !seller) return;
+                        const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
+                        const path = `${seller.id}/winter_essentials_${Date.now()}.${ext}`;
+                        const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                        if (!error) {
+                          const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                          setWinterSlides([...winterSlides, data.publicUrl]);
+                        }
+                      }} />
+                    </label>
+                  </div>
+
+                  {winterPickerOpen && (
+                    pickerLoading ? (
+                      <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>Loading your products…</div>
+                    ) : winterTagged.length === 0 ? (
+                      <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products tagged &quot;WINTER ESSENTIALS&quot; yet.</div>
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(52px, 1fr))", gap: 6, maxHeight: 200, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                        {winterTagged.map(p => (
+                          <button key={p.id} type="button" title={p.name}
+                            onClick={() => setWinterSlides([...winterSlides, p.id])}
+                            style={{ padding: 0, border: winterSlides.includes(p.id) ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "none", aspectRatio: "1", lineHeight: 0 }}>
+                            <img src={p.image_url!} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+              );
+            })()}
 
             {/* HERO — Crown (store_config.hero_image based) */}
             {activeSection === "hero" && seller?.template === "crown" && (

@@ -117,6 +117,19 @@ interface StoreConfig {
   // (non-hidden) collection the same products are also tagged with. See
   // hiddenCollectionsSet below.
   hidden_collections?: string[];
+  // Winter Essentials coverflow (see WinterCoverflow). Pixels-per-frame
+  // scroll speed, same range as the Liquid version's own setting
+  // (0.2-2, default 0.6).
+  winter_essentials_speed?: number;
+  // Ordered slide list -- each entry is EITHER a product id (its image_url
+  // is looked up live against this seller's current products, so it stays
+  // correct if that product's photo changes later) OR a direct image URL
+  // from a standalone upload (no matching product, e.g. a lifestyle/
+  // banner-style photo instead of a product shot). Distinguished by shape:
+  // a product id is a bare UUID, an upload is a URL (starts with "http"
+  // or "/"). Unset/empty falls back to every "WINTER ESSENTIALS"-tagged
+  // product in catalog order (see the isHomeView render call).
+  winter_essentials_slides?: string[];
 }
 
 // Auto-highlights a BOGO-style offer line the way the reference design
@@ -2312,16 +2325,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               onMouseEnter={() => setCatalogHoverOpen(true)}
               onMouseLeave={() => setCatalogHoverOpen(false)}
             >
-              <a
-                href={sp("/collections")}
+              <button
+                type="button"
                 className="fr-nav-link"
-                onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
+                onClick={() => setCatalogHoverOpen((v) => !v)}
+                aria-expanded={catalogHoverOpen}
               >
                 Catalog
-              </a>
+              </button>
               {catalogHoverOpen && (
                 <div className="fr-catalog-menu" onClick={() => setCatalogHoverOpen(false)}>
                   <div className="fr-catalog-menu-inner">
+                    <div className="fr-catalog-group">
+                      <a
+                        className="fr-catalog-group-label fr-catalog-group-link"
+                        href={sp("/collections")}
+                        onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
+                      >
+                        View All Collections
+                      </a>
+                    </div>
                     {CATALOG_MENU.map((group) => (
                       <div key={group.label} className="fr-catalog-group">
                         {group.items ? (
@@ -2491,7 +2514,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             banner and before the rest of the homepage content, matching
             templates/index.json's real section order on the live store. */}
         {isHomeView && (
-          <EditSection id="ticker">
+          <EditSection id="ticker-strip">
             <TickerStrip />
           </EditSection>
         )}
@@ -2506,13 +2529,25 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             real product rows -- most of this store's own category tags
             are stored upper-case, e.g. "JACKETS"/"GRAPHIC HOODIES"). */}
         {isHomeView && (() => {
-          const winterProducts = products.filter((p) => pInCat(p, "WINTER ESSENTIALS") && p.image_url);
-          if (winterProducts.length === 0) return null;
+          // Dashboard-curated order/selection (Editor -> Winter Essentials)
+          // wins if set -- each entry is either a product id (resolved
+          // against this seller's current products, live, so a later photo
+          // change stays correct) or a direct upload URL. Falls back to
+          // every WINTER ESSENTIALS-tagged product in catalog order when
+          // nothing's been curated yet.
+          const configuredSlides = config.winter_essentials_slides;
+          const images = configuredSlides && configuredSlides.length > 0
+            ? configuredSlides
+                .map((entry) => (entry.startsWith("http") || entry.startsWith("/")) ? entry : products.find((p) => p.id === entry)?.image_url)
+                .filter((url): url is string => !!url)
+            : products.filter((p) => pInCat(p, "WINTER ESSENTIALS") && p.image_url).map((p) => p.image_url!);
+          if (images.length === 0) return null;
           return (
             <EditSection id="winter-essentials">
               <WinterCoverflow
-                images={winterProducts.map((p) => p.image_url!)}
+                images={images}
                 href={sp(`/c/${collectionSlug("WINTER ESSENTIALS")}`)}
+                speed={config.winter_essentials_speed ?? 0.6}
               />
             </EditSection>
           );
@@ -3456,7 +3491,7 @@ function TickerStrip() {
 // animation loop here (the Liquid version only disabled a CSS transition
 // that its own per-frame inline `transform` writes never used in the
 // first place, so reduced-motion did nothing there).
-function WinterCoverflow({ images, href }: { images: string[]; href: string }) {
+function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href: string; speed?: number }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const slides = images.length > 0 ? [...images, ...images] : [];
@@ -3470,7 +3505,7 @@ function WinterCoverflow({ images, href }: { images: string[]; href: string }) {
     const cards = Array.from(track.children) as HTMLElement[];
     const CENTER_SCALE = 1.1;
     const EDGE_SCALE = 0.6;
-    const SPEED = 0.6;
+    const SPEED = speed;
 
     const sizeCards = () => {
       const vw = Math.min(window.innerWidth, 1200);
@@ -3509,7 +3544,7 @@ function WinterCoverflow({ images, href }: { images: string[]; href: string }) {
     const onResize = () => { sizeCards(); measure(); };
     window.addEventListener("resize", onResize);
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
-  }, [slides.length]);
+  }, [slides.length, speed]);
 
   if (images.length === 0) return null;
 
