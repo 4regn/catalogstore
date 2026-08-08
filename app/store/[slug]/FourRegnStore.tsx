@@ -1495,6 +1495,51 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-badge{position:absolute;z-index:3;right:28px;bottom:28px;padding:12px 14px;border:1px solid rgba(255,255,255,0.12);border-radius:15px;background:rgba(5,5,5,0.56);display:flex;align-items:center;gap:9px;color:#d8ddd9;font-family:var(--body);font-size:11px}
 .fr-setla-badge i{display:block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 16px #4ade80}
 
+/* TICKER STRIP — ported 1:1 from the real site's ticker-strip.liquid
+   section (same 5 default items, same infinite-marquee mechanics): black
+   full-bleed bar between the SETLA banner and the rest of the homepage
+   content, matching templates/index.json's actual section order. Repeats
+   the item list 4x (.fr-ticker-track renders TICKER_ITEMS four times) so
+   the strip has enough width to loop seamlessly at -50% regardless of
+   viewport width, then animates continuously; -50% (not -100%) is exactly
+   half of that 4x-repeated track, i.e. exactly 2 full item-list widths,
+   so the loop point is invisible. */
+.fr-ticker{background:#111111;overflow:hidden;padding:13px 0;white-space:nowrap}
+.fr-ticker-track{display:inline-flex;animation:fr-ticker-roll 30s linear infinite}
+.fr-ticker-item{display:inline-flex;align-items:center;gap:28px;padding:0 28px;font-size:9.5px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:rgba(255,255,255,0.85);font-family:var(--body)}
+.fr-ticker-gem{color:rgba(255,255,255,0.4);font-size:10px;margin-left:28px}
+@keyframes fr-ticker-roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* SETLA product-page widget — ported 1:1 from setla-product-widget.liquid
+   (same gradient, pill layout, and cents-based split math with the
+   remainder folded into the last instalment, matching setla.4regn.com's
+   own calculator). Fixed class names instead of the Liquid version's
+   {{ section.id }}-suffixed ones -- only one PDP is ever mounted client-
+   side at a time, so the uniqueness that guards against multiple Shopify
+   sections on one page isn't needed here. */
+.fr-setla-widget{margin-top:16px;padding:18px;border-radius:16px;background:linear-gradient(150deg,#068a1f,#045c14);font-family:var(--body);color:#fff}
+.fr-setla-widget-label{display:flex;align-items:center;gap:9px;font-size:10.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#fff;margin:0 0 14px}
+.fr-setla-widget-mark{background:#0a0a0a;border-radius:7px;padding:4px 6px;display:flex;align-items:center;flex:0 0 auto;line-height:0}
+.fr-setla-widget-mark img{height:12px;width:auto;display:block}
+.fr-setla-widget-plan{margin:0 0 15px}
+.fr-setla-widget-planrow{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 8px}
+.fr-setla-widget-planrow span{font-size:12px;color:rgba(255,255,255,0.78)}
+.fr-setla-widget-planrow b{font-size:12px;font-weight:600;color:#fff}
+.fr-setla-widget-pills{display:flex;gap:6px}
+.fr-setla-widget-pill{flex:1;text-align:center;border-radius:999px;padding:10px 4px;border:1px solid rgba(255,255,255,0.32);background:rgba(255,255,255,0.08);color:#fff;font-size:12px}
+.fr-setla-widget-pill.is-today{background:#fff;border-color:#fff;color:#045c14}
+.fr-setla-widget-pill b{display:block;font-family:Georgia,"Times New Roman",serif;font-size:13px;font-weight:500}
+.fr-setla-widget-pill small{display:block;font-size:8.6px;opacity:0.75;margin-top:2px;letter-spacing:0.03em}
+.fr-setla-widget-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.22);margin-top:4px;padding-top:14px;gap:10px}
+.fr-setla-widget-foot span{font-size:10.5px;color:rgba(255,255,255,0.72)}
+.fr-setla-widget-foot a{font-size:11.5px;font-weight:600;color:#fff;text-decoration:underline;text-underline-offset:3px}
+
+/* Float BNPL widget container -- the widget itself renders its own DOM
+   (see FloatWidget's own comment for why this is a plain imperative
+   script-injection instead of a declarative <script> tag), so this file
+   only owns the outer spacing, not the widget's internal styling. */
+.fr-float-widget{margin-top:12px}
+
 /* SHOP BY GENDER — ported 1:1 from the real 4regn.com "Shop by Gender"
    section (chrome-spinning glass panels, drag/arrow-scrollable circular
    category tiles). Class names prefixed .fr-sbg- (not the raw Shopify
@@ -2240,6 +2285,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </EditSection>
         )}
 
+        {/* TICKER STRIP — only on landing page, sits right after the SETLA
+            banner and before the rest of the homepage content, matching
+            templates/index.json's real section order on the live store. */}
+        {isHomeView && (
+          <EditSection id="ticker">
+            <TickerStrip />
+          </EditSection>
+        )}
+
         {/* SHOP BY GENDER — only on landing page. Ported from the real
             "4REGN - Shop by Gender" Liquid section: two glass panels (MEN /
             WOMEN) with a horizontally-scrollable row of circular category
@@ -2409,6 +2463,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         Buy Now
                       </button>
                     </div>
+                    <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
+                    <FloatWidget price={effectivePrice(p, selectedVariants)} />
                   </div>
                 </div>
               </div>
@@ -3078,6 +3134,131 @@ function DescriptionText({ text }: { text: string }) {
       })}
     </div>
   );
+}
+
+// Homepage ticker strip -- same 5 default items as the real site's
+// ticker-strip.liquid section (not seller-editable yet, same as that
+// section's own hardcoded settings defaults; wiring this into
+// store_config would be the natural next step if 4regn wants to change
+// the copy without a code change).
+const TICKER_ITEMS = [
+  "Trusted by 110,000+ Happy Customers",
+  "Free Standard Delivery Nationwide",
+  "Sale — Up to 50% Off",
+  "Pay in 4 with SETLA",
+  "Luxury Streetwear Brand",
+];
+
+function TickerStrip() {
+  return (
+    <div className="fr-ticker" aria-hidden="true">
+      <div className="fr-ticker-track">
+        {Array.from({ length: 4 }, (_, rep) =>
+          TICKER_ITEMS.map((item, i) => (
+            <span className="fr-ticker-item" key={`${rep}-${i}`}>
+              {item}
+              <span className="fr-ticker-gem">•</span>
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// SETLA "Pay in 4 / Pay half-half" product-page widget -- ported 1:1 from
+// setla-product-widget.liquid (see that file's own comment for the design
+// reasoning: solid SETLA-green so it reads as its own branded payment
+// option instead of blending into the store). Cents-based math avoids the
+// float-rounding drift plain Rand division would risk (e.g. an odd-cent
+// price splitting unevenly) -- the leftover cent(s) from the integer
+// division get folded into the LAST instalment, same as the Liquid
+// version's own remainder handling.
+function SetlaProductWidget({ price }: { price: number }) {
+  if (!(price > 0)) return null;
+  const cents = Math.round(price * 100);
+  const fourBase = Math.floor(cents / 4);
+  const fourRemainder = cents - fourBase * 4;
+  const four = [fourBase, fourBase, fourBase, fourBase + fourRemainder].map((c) => c / 100);
+  const halfBase = Math.floor(cents / 2);
+  const halfRemainder = cents - halfBase * 2;
+  const half = [halfBase, halfBase + halfRemainder].map((c) => c / 100);
+  const r = (n: number) => n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="fr-setla-widget">
+      <p className="fr-setla-widget-label">
+        <span className="fr-setla-widget-mark"><img src="/setla/assets/setla-payments-logo.png" alt="SETLA" /></span>
+        Pay later with SETLA · 0% interest
+      </p>
+      <div className="fr-setla-widget-plan">
+        <div className="fr-setla-widget-planrow"><span>Pay in 4</span><b>4 × R{r(four[0])}</b></div>
+        <div className="fr-setla-widget-pills">
+          <div className="fr-setla-widget-pill is-today"><b>R{r(four[0])}</b><small>TODAY</small></div>
+          <div className="fr-setla-widget-pill"><b>R{r(four[1])}</b><small>2 WKS</small></div>
+          <div className="fr-setla-widget-pill"><b>R{r(four[2])}</b><small>4 WKS</small></div>
+          <div className="fr-setla-widget-pill"><b>R{r(four[3])}</b><small>6 WKS</small></div>
+        </div>
+      </div>
+      <div className="fr-setla-widget-plan">
+        <div className="fr-setla-widget-planrow"><span>Pay half / half</span><b>2 × R{r(half[0])}</b></div>
+        <div className="fr-setla-widget-pills">
+          <div className="fr-setla-widget-pill is-today"><b>R{r(half[0])}</b><small>TODAY</small></div>
+          <div className="fr-setla-widget-pill"><b>R{r(half[1])}</b><small>30 DAYS</small></div>
+        </div>
+      </div>
+      <div className="fr-setla-widget-foot">
+        <span>Estimated for this item.</span>
+        <a href="https://setla.4regn.com" target="_blank" rel="noopener noreferrer">Learn more about SETLA →</a>
+      </div>
+    </div>
+  );
+}
+
+// Float (checkout.float.co.za) buy-now-pay-later widget -- same embed the
+// live Shopify store uses, price baked into the script URL the same way
+// (Shopify's version reads product.selected_or_first_available_variant.price
+// once at render; this mirrors that by re-injecting the script whenever
+// `price` changes instead of reacting to it declaratively). Plain
+// imperative script injection via a ref, not a declarative <script src>
+// JSX tag -- React doesn't reliably re-execute an external script when
+// only its src changes on re-render, and this widget's price genuinely
+// does change (variant selection), so the effect below removes and
+// recreates the script element itself on every price change. The
+// MutationObserver strips the widget's own "For orders over R0.01"
+// boilerplate line exactly like the live store's own embed does (that
+// text comes from Float's external script output, not something this
+// app renders, so it can only be edited after the fact once it exists in
+// the DOM).
+function FloatWidget({ price }: { price: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !(price > 0)) return;
+    container.innerHTML = "";
+    const script = document.createElement("script");
+    script.async = true;
+    script.type = "application/javascript";
+    script.src = `https://checkout.float.co.za/widgets/17bb89-2/float-details-widget?price=${price.toFixed(2)}`;
+    container.appendChild(script);
+
+    const stripBoilerplate = () => {
+      container.querySelectorAll(".float-product-details .text > span").forEach((line) => {
+        Array.from(line.childNodes).forEach((node) => {
+          if (node.nodeType === Node.TEXT_NODE && node.textContent?.includes("For orders over R0.01")) {
+            node.textContent = node.textContent.replace(/\s*For orders over R0\.01/g, "");
+          }
+        });
+      });
+    };
+    const observer = new MutationObserver(stripBoilerplate);
+    observer.observe(container, { childList: true, subtree: true });
+    stripBoilerplate();
+    return () => {
+      observer.disconnect();
+      container.innerHTML = "";
+    };
+  }, [price]);
+  return <div id="float-product-details-widget" className="fr-float-widget" ref={containerRef} />;
 }
 
 // PDP main image area, shared by the slide-over PDP and the dedicated
