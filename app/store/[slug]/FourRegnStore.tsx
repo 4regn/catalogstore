@@ -183,7 +183,7 @@ interface PromoBadge {
 /* ─── HELPERS ────────────────────────────────────────────── */
 const fmt = (n: number) => "R " + n.toLocaleString("en-ZA");
 const variantDelta = (product: Product, selected: { [key: string]: string }): number =>
-  (product.variants || []).reduce((sum, v) => {
+  (Array.isArray(product.variants) ? product.variants : []).reduce((sum, v) => {
     const chosen = selected[v.name];
     const d = chosen ? v.priceDelta?.[chosen] : undefined;
     return sum + (typeof d === "number" ? d : 0);
@@ -906,7 +906,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   }, [mode, initialActiveProduct?.id]);
   const handleAddToCart = () => {
     if (!selectedProduct) return;
-    const validVariants = (selectedProduct.variants || []).filter(v => v.options?.length > 0);
+    const validVariants = (Array.isArray(selectedProduct.variants) ? selectedProduct.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) {
       setVariantError(true);
@@ -921,7 +921,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // (mode="product", which never sets selectedProduct) can reuse it for its
   // own Add to Bag button.
   const addProductToCart = (product: Product) => {
-    const validVariants = (product.variants || []).filter(v => v.options?.length > 0);
+    const validVariants = (Array.isArray(product.variants) ? product.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) {
       setVariantError(true);
@@ -933,7 +933,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // Same Buy Now logic as the slide-over PDP's inline handler further below,
   // generalized the same way for the dedicated product page.
   const buyNowFor = (product: Product) => {
-    const validVariants = (product.variants || []).filter(v => v.options?.length > 0);
+    const validVariants = (Array.isArray(product.variants) ? product.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
     const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: product.image_url || "", selectedVariants }];
@@ -2011,7 +2011,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <aside className={"fr-pdp" + (selectedProduct ? " open" : "")}>
           {selectedProduct && (() => {
             const p = selectedProduct;
-            const allImgs = (p.images && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+            const allImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
             const onSale = p.old_price && p.old_price > p.price;
             return (
               <>
@@ -2037,7 +2037,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
                     {p.description && <DescriptionText text={p.description} />}
-                    {(p.variants || []).filter(v => v.options?.length > 0).map((v) => (
+                    {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
                         <div className="fr-size-row">
@@ -2059,7 +2059,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
                       </button>
                       <button className="fr-pdp-buynow" onClick={() => {
-                        const validVariants = (p.variants || []).filter(v => v.options?.length > 0);
+                        const validVariants = (Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
                         const allSelected = validVariants.every((v) => selectedVariants[v.name]);
                         if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
                         const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: p.image_url || "", selectedVariants }];
@@ -2316,7 +2316,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             Also Like" row the slide-over doesn't have. */}
         {isProductView && initialActiveProduct && (() => {
           const p = initialActiveProduct;
-          const allImgs = (p.images && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+          const allImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
           const onSale = p.old_price && p.old_price > p.price;
           const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
           const pdpBadge = getProductPromoBadge(p);
@@ -2375,7 +2375,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
                     {p.description && <DescriptionText text={p.description} />}
-                    {(p.variants || []).filter(v => v.options?.length > 0).map((v) => (
+                    {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
                         <div className="fr-size-row">
@@ -2991,10 +2991,23 @@ const INLINE_MARKUP_RE = /\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|\[\[color:([^\]]+)\]
 function parseInlineMarkup(text: string, keyPrefix: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
-  let match: RegExpExecArray | null;
   let i = 0;
-  INLINE_MARKUP_RE.lastIndex = 0;
-  while ((match = INLINE_MARKUP_RE.exec(text))) {
+  // matchAll(), not a shared exec()/lastIndex loop -- INLINE_MARKUP_RE is a
+  // single module-level regex, and this function recurses into each match's
+  // own captured content (the strong/em/span children below) to handle
+  // nested markup. A shared exec()/lastIndex loop breaks under that
+  // recursion: every recursive call re-zeroes the SAME regex object's
+  // lastIndex at its own top, so by the time it returns, the outer loop's
+  // position is gone and its next exec() re-finds the first match from
+  // scratch -- forever, for any description containing even one **bold**/
+  // __italic__/[[color:]] token (deterministic infinite loop, not a rare
+  // shape edge case -- confirmed as the real cause of this store's
+  // product-page 500s, previously misread as a query-timeout/concurrency
+  // issue because an infinite loop also runs out the platform's execution
+  // budget and shows up as a slow, eventual crash). matchAll() creates its
+  // own independent match iterator per call against the shared regex
+  // object's source/flags, so recursive calls can't stomp on each other.
+  for (const match of text.matchAll(INLINE_MARKUP_RE)) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
     const key = `${keyPrefix}-${i++}`;
     if (match[1] !== undefined) {
