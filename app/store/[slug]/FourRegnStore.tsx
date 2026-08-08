@@ -1213,14 +1213,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       <style>{`
 @import url('https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 .fr-root *,.fr-root *::before,.fr-root *::after{box-sizing:border-box}
-.fr-root{
-  /* This storefront is a fixed light theme -- without this, a phone set to
-     system Dark Mode leads Safari/Chrome to auto-darken/invert the default
-     rendering of native form controls (<input>, <select>) and can wash out
-     otherwise-correctly-colored text nearby, since the browser assumes an
-     undeclared page might want dark-mode treatment. Reported as literally
-     unreadable near-white-on-white text in the search box and size-chart
-     modal on a real device. */
+/* Search overlay, size-chart modal, cart drawer etc. render as SIBLINGS of
+   .fr-root (see the closing </div> right before "MOBILE BOTTOM DOCK"), not
+   descendants -- so every custom property (--ink, --card-radius, etc.) and
+   color-scheme declared only on .fr-root never reached them: var(--ink)
+   with no fallback is invalid there, so color fell back through the
+   inherited chain to globals.css's body{color:#f5f5f5}, reading as
+   near-invisible white-on-white text (search bar, size-chart values), and
+   --card-radius/--card-shadow silently dropped modal corners/shadow the
+   same way. Declaring everything on :root instead makes it available
+   anywhere in the document regardless of DOM nesting. Safe globally: only
+   one storefront template's <style> tag is ever mounted per page load. */
+:root{
   color-scheme: light;
   --ink:#2e2a39;--paper-grad:linear-gradient(178deg, rgba(255,255,255,1), rgba(249,249,249,1) 48.5%, rgba(245,245,245,1) 97%);
   --paper-solid:#e6e6e6;--head-bg:#000000;--head-text:#fdfbf7;
@@ -1228,6 +1232,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   --btn-bg:#000000;--btn-text:#ffffff;--btn-radius:10px;--btn-shadow:0 4px 5px rgba(0,0,0,0.08);
   --card-radius:12px;--card-shadow:10px 10px 35px rgba(0,0,0,0.05);
   --serif:'Quattrocento',Georgia,serif;--body:'Amiri',Georgia,serif;
+}
+.fr-root{
   font-family:var(--body);background:var(--paper-grad);color:var(--ink);
   -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
@@ -1490,6 +1496,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-search-bar{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid rgba(0,0,0,0.08);flex-shrink:0}
 .fr-search-bar svg{flex-shrink:0;color:rgba(46,42,57,0.4)}
 .fr-search-input{flex:1;min-width:0;border:none;outline:none;background:none;font-family:var(--serif);font-size:19px;color:var(--ink);-webkit-text-fill-color:var(--ink)}
+.fr-search-input::placeholder{color:rgba(46,42,57,0.4)}
 .fr-search-close{background:none;border:none;font-size:20px;color:rgba(46,42,57,0.5);cursor:pointer;padding:4px 6px;flex-shrink:0}
 .fr-search-results{overflow-y:auto;padding:8px 12px}
 .fr-search-empty,.fr-search-hint{padding:36px 12px;text-align:center;color:rgba(46,42,57,0.5);font-size:13px}
@@ -1613,11 +1620,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sc-tab.active{color:var(--ink);border-bottom-color:var(--ink)}
 .fr-sc-table-wrap{overflow-x:auto}
 .fr-sc-table{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--body)}
-.fr-sc-table th,.fr-sc-table td{padding:9px 12px;text-align:left;border-bottom:1px solid rgba(0,0,0,0.06);white-space:nowrap}
+.fr-sc-table th,.fr-sc-table td{padding:9px 12px;text-align:left;border-bottom:1px solid rgba(0,0,0,0.06);white-space:nowrap;color:var(--ink)}
 .fr-sc-table th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(46,42,57,0.5)}
 .fr-sc-tip{margin:14px 0 0;font-size:12px;font-style:italic;color:rgba(46,42,57,0.6)}
 .fr-sc-measure h4{font-family:var(--serif);font-weight:700;font-size:16px;margin:0 0 14px;color:var(--ink)}
 .fr-sc-measure ol{margin:0;padding-left:20px;font-size:13px;line-height:1.85;color:rgba(46,42,57,0.75)}
+.fr-sc-measure-diagrams{display:flex;gap:16px;margin-bottom:20px}
+.fr-sc-measure-diagram{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px}
+.fr-sc-measure-diagram img{width:100%;height:auto;border-radius:10px;border:1px solid rgba(0,0,0,0.06)}
+.fr-sc-measure-diagram span{font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(46,42,57,0.5)}
 
 /* COLLECTIONS INDEX (/collections) & POLICY PAGES (/policies/<policy>) */
 .fr-policy-page{max-width:760px;margin:0 auto;padding:64px 40px 96px}
@@ -2634,11 +2645,21 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               ) : (
                 <div className="fr-sc-measure">
                   <h4>How to Measure (cm)</h4>
+                  <div className="fr-sc-measure-diagrams">
+                    <div className="fr-sc-measure-diagram">
+                      <Image src="/size-chart-measure-female.svg" alt="Diagram showing where to measure arm length, waist, hips and height on a female body" width={300} height={560} />
+                      <span>Women</span>
+                    </div>
+                    <div className="fr-sc-measure-diagram">
+                      <Image src="/size-chart-measure-male.svg" alt="Diagram showing where to measure arm length, waist, hips and height on a male body" width={300} height={560} />
+                      <span>Men</span>
+                    </div>
+                  </div>
                   <ol>
-                    <li><strong>Bust</strong> — Measure the circumference of the fullest part of your bust.</li>
-                    <li><strong>Waist</strong> — Measure the thinnest part of your waist.</li>
-                    <li><strong>Hips</strong> — Measure the fullest part of your hips.</li>
-                    <li><strong>Height</strong> — Measure your height.</li>
+                    <li><strong>1. Arm Length</strong> — Measure from the top of your shoulder down to your wrist.</li>
+                    <li><strong>2. Waist</strong> — Measure the thinnest part of your waist.</li>
+                    <li><strong>3. Hips</strong> — Measure the fullest part of your hips.</li>
+                    <li><strong>4. Height</strong> — Measure your full height, standing straight.</li>
                   </ol>
                 </div>
               )}
