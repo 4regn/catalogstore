@@ -1521,7 +1521,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-coll-count{font-family:var(--body);font-size:12px;color:rgba(46,42,57,0.55)}
 
 .fr-cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
-.fr-cat-viewall{display:inline-block;margin-top:28px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.fr-cat-viewall{display:inline-flex;align-items:center;gap:8px;padding:16px 36px;border:1.5px solid var(--ink);border-radius:var(--btn-radius);font-family:var(--body);font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--ink);text-decoration:none;transition:background 0.2s,color 0.2s}
+.fr-cat-viewall:hover{background:var(--ink);color:#fff}
 .fr-cat-card{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;border:none;padding:0;text-align:center;display:block;width:100%;font-family:var(--body)}
 .fr-cat-img{width:100%;overflow:hidden;position:relative;min-height:160px;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
 .fr-cat-img img{transition:transform 0.5s ease}
@@ -2460,9 +2461,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           );
         })()}
 
-        {/* COLLECTIONS GRID — only on landing page */}
+        {/* COLLECTIONS GRID — only on landing page. id="collections" (not
+            "categories") is load-bearing: it's what makes clicking this
+            section in the dashboard preview open the Collections panel
+            (reorder + cover image picker) -- a mismatched id here silently
+            sends a section key the editor doesn't recognize, so nothing
+            opens at all, which is exactly what made this un-editable. */}
         {isHomeView && categoryList.length > 0 && (
-          <EditSection id="categories">
+          <EditSection id="collections">
             <div className="fr-section" style={{ paddingBottom: 0 }}>
               <div className="fr-section-head">
                 <h2 className="fr-section-title">Shop by Collection</h2>
@@ -2471,13 +2477,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 {categoryList.slice(0, 20).map(renderCatTile)}
               </div>
               {categoryList.length > 20 && (
-                <a
-                  href={sp("/collections")}
-                  className="fr-cat-viewall"
-                  onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
-                >
-                  View All Collections →
-                </a>
+                <div style={{ textAlign: "center", marginTop: 32 }}>
+                  <a
+                    href={sp("/collections")}
+                    className="fr-cat-viewall"
+                    onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
+                  >
+                    View All Collections →
+                  </a>
+                </div>
               )}
             </div>
           </EditSection>
