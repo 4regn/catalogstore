@@ -207,25 +207,40 @@ export default async function ProductHandlePage({
   // against a timeout and falling back to an empty related-products list
   // means a slow/expensive lookup here can never take the actual product
   // down with it.
-  const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean);
+  // Capped at 6 tokens -- a product tagged into many collections (this
+  // store has 72, several of them broad smart-collections like gender/
+  // discount-tier) turns each ADDITIONAL token into another full
+  // unindexed ilike scan ORed on top of the rest, so cost scales with
+  // however many collections a product happens to belong to, not with
+  // anything related to catalog size. 6 is already generous for an
+  // 8-card "you might also like" row.
+  const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean).slice(0, 6);
   let relatedCandidates: any[] = [];
   if (catTokens.length > 0) {
+    // AbortController, not Promise.race: race() lets our OWN code move on
+    // after the timeout, but the abandoned Supabase request keeps running
+    // against the database regardless -- still consuming the serverless
+    // function's execution time budget underneath us, which is exactly
+    // how the first attempt at this fix still 500'd. abortSignal() cancels
+    // the underlying fetch for real once the timeout fires.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     try {
-      const result: any = await Promise.race([
-        supabaseAdmin
-          .from("products")
-          .select(RELATED_PRODUCT_COLUMNS)
-          .eq("seller_id", seller.id)
-          .eq("in_stock", true)
-          .eq("status", "published")
-          .neq("id", activeProduct.id)
-          .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
-          .limit(40),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("related products query timeout")), 5000)),
-      ]);
-      relatedCandidates = result?.data || [];
+      const { data } = await supabaseAdmin
+        .from("products")
+        .select(RELATED_PRODUCT_COLUMNS)
+        .eq("seller_id", seller.id)
+        .eq("in_stock", true)
+        .eq("status", "published")
+        .neq("id", activeProduct.id)
+        .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
+        .abortSignal(controller.signal)
+        .limit(40);
+      relatedCandidates = data || [];
     } catch {
       relatedCandidates = [];
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
   const initialProducts = relatedCandidates;

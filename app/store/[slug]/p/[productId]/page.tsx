@@ -211,28 +211,32 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // yet -- see the redirect below -- so lower-traffic, but should stay
     // consistent). Can't run in the Promise.all above -- depends on
     // activeProduct.category, not known until that fetch resolves.
-    // Raced against a timeout -- see products/[handle]/page.tsx's own
-    // comment on this identical query for why: a slow/expensive related-
-    // products lookup should never be able to 500 the whole page.
-    const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean);
+    // Capped at 6 tokens + a real AbortController -- see
+    // products/[handle]/page.tsx's own comment on this identical query for
+    // why Promise.race alone wasn't enough (it lets our code move on, but
+    // doesn't cancel the underlying request, which can still run out the
+    // function's execution budget underneath us).
+    const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean).slice(0, 6);
     let relatedCandidates: any[] = [];
     if (catTokens.length > 0) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       try {
-        const result: any = await Promise.race([
-          supabaseAdmin
-            .from("products")
-            .select(RELATED_PRODUCT_COLUMNS)
-            .eq("seller_id", seller.id)
-            .eq("in_stock", true)
-            .eq("status", "published")
-            .neq("id", activeProduct.id)
-            .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
-            .limit(40),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("related products query timeout")), 5000)),
-        ]);
-        relatedCandidates = result?.data || [];
+        const { data } = await supabaseAdmin
+          .from("products")
+          .select(RELATED_PRODUCT_COLUMNS)
+          .eq("seller_id", seller.id)
+          .eq("in_stock", true)
+          .eq("status", "published")
+          .neq("id", activeProduct.id)
+          .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
+          .abortSignal(controller.signal)
+          .limit(40);
+        relatedCandidates = data || [];
       } catch {
         relatedCandidates = [];
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
     const initialProducts = relatedCandidates;
