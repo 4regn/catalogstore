@@ -2119,14 +2119,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <button onClick={() => { setMobileNavOpen(false); navigate(sp("/policies/contact")); }}>
               Contact
             </button>
-            {seller.whatsapp_number && (
-              <button onClick={() => {
-                setMobileNavOpen(false);
-                window.open(`https://wa.me/${seller.whatsapp_number!.replace(/\D/g, "")}?text=${encodeURIComponent("Hi! I'd like to track my order.")}`, "_blank");
-              }}>
-                Track Your Order
-              </button>
-            )}
+            <button onClick={() => {
+              setMobileNavOpen(false);
+              window.open("https://track.4regn.com/", "_blank");
+            }}>
+              Track Your Order
+            </button>
             <button onClick={() => { setMobileNavOpen(false); setCartOpen(true); }}>
               Cart ({cartCount})
             </button>
@@ -2338,16 +2336,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <a href={sp("/policies/contact")} className="fr-nav-link" onClick={(e) => { e.preventDefault(); navigate(sp("/policies/contact")); }}>
               Contact
             </a>
-            {seller.whatsapp_number && (
-              <a
-                href={`https://wa.me/${seller.whatsapp_number.replace(/\D/g, "")}?text=${encodeURIComponent("Hi! I'd like to track my order.")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="fr-nav-link"
-              >
-                Track Your Order
-              </a>
-            )}
+            <a href="https://track.4regn.com/" target="_blank" rel="noreferrer" className="fr-nav-link">
+              Track Your Order
+            </a>
           </div>
           <div className="fr-nav-right">
             <button className="fr-search-btn" onClick={() => setShowSearch(true)} aria-label="Search products" title="Search products">
