@@ -2110,12 +2110,21 @@ export default function StoreEditor() {
                     ) : winterTagged.length === 0 ? (
                       <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products tagged &quot;WINTER ESSENTIALS&quot; yet.</div>
                     ) : (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(52px, 1fr))", gap: 6, maxHeight: 200, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                      // Was minmax(52px, 1fr) with only a hover title -- unusable
+                      // for telling products apart when a collection is mostly
+                      // visually-similar generic tees/hoodies distinguished only
+                      // by a name (e.g. WINTER ESSENTIALS, real case reported:
+                      // "picking cover images...is almost visually impossible").
+                      // Wider tiles + an always-visible name caption (not just a
+                      // title="" tooltip that needs a hover to read) fixes that
+                      // without needing a search/filter box on top of it.
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, maxHeight: 320, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
                         {winterTagged.map(p => (
                           <button key={p.id} type="button" title={p.name}
                             onClick={() => setWinterSlides([...winterSlides, p.id])}
-                            style={{ padding: 0, border: winterSlides.includes(p.id) ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "none", aspectRatio: "1", lineHeight: 0 }}>
-                            <img src={p.image_url!} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                            style={{ padding: 0, display: "flex", flexDirection: "column", gap: 0, border: winterSlides.includes(p.id) ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}>
+                            <img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
+                            <span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{p.name}</span>
                           </button>
                         ))}
                       </div>
@@ -2693,12 +2702,18 @@ export default function StoreEditor() {
                                 return <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products with an image in this collection yet.</div>;
                               }
                               return (
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(52px, 1fr))", gap: 6, maxHeight: 180, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                                // Same widen-tiles-plus-visible-caption fix as the
+                                // Winter Essentials picker above (was minmax(52px,
+                                // 1fr) with only a hover title) -- same usability
+                                // problem, same collections-of-similar-looking-
+                                // products cause.
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, maxHeight: 280, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
                                   {matches.map(p => (
                                     <button key={p.id} type="button" title={p.name}
                                       onClick={() => { setCollectionImages(prev => ({ ...prev, [col]: p.image_url! })); setCoverPickerFor(null); }}
-                                      style={{ padding: 0, border: collectionImages[col] === p.image_url ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "none", aspectRatio: "1", lineHeight: 0 }}>
-                                      <img src={p.image_url!} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                                      style={{ padding: 0, display: "flex", flexDirection: "column", gap: 0, border: collectionImages[col] === p.image_url ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}>
+                                      <img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
+                                      <span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{p.name}</span>
                                     </button>
                                   ))}
                                 </div>

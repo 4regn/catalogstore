@@ -1457,7 +1457,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   return (
     <>
       <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 .fr-root *,.fr-root *::before,.fr-root *::after{box-sizing:border-box}
 /* Search overlay, size-chart modal, cart drawer etc. render as SIBLINGS of
    .fr-root (see the closing </div> right before "MOBILE BOTTOM DOCK"), not
@@ -1477,7 +1476,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   --brown:#765341;--purple:linear-gradient(320deg, #86106a, #5e3653 100%);--cream:#fdfbf7;--accent:#d64735;
   --btn-bg:#000000;--btn-text:#ffffff;--btn-radius:10px;--btn-shadow:0 4px 5px rgba(0,0,0,0.08);
   --card-radius:12px;--card-shadow:10px 10px 35px rgba(0,0,0,0.05);
-  --serif:'Quattrocento',Georgia,serif;--body:'Amiri',Georgia,serif;
+  // Site-wide typography now matches the hero section's own look exactly
+  // (was 'Quattrocento'/'Amiri', a Google Fonts pairing unrelated to it) --
+  // the seller specifically asked for the hero's typeface everywhere,
+  // headings and body copy (including product descriptions, which read
+  // font-family off --body with no override of their own) alike. Same
+  // literal font stack .fr-hero-h1/.fr-hero-pill/.fr-hero-offer already
+  // used, so nothing about the hero itself changes -- this brings every
+  // OTHER heading/body element in line with it instead. No system font
+  // needs a <link>/@import, so that Google Fonts request is gone too.
+  --serif:Arial,Helvetica,sans-serif;--body:Arial,Helvetica,sans-serif;
 }
 .fr-root{
   font-family:var(--body);background:var(--paper-grad);color:var(--ink);

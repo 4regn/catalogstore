@@ -244,13 +244,16 @@ export default function CheckoutPageClient() {
     stickyBg: `${slCfg.bg_color || "#0a0908"}f2`, emptyImg: "#1a1816", payCardBg: "#1a1816",
   } : isFourRegn ? {
     // 4regn: light neutral gradient paper + charcoal ink + solid-black CTAs,
-    // matching the storefront's Quattrocento/Amiri pairing and dark header.
+    // matching the storefront's dark header. Font pair matches the
+    // storefront's own --serif/--body (FourRegnStore.tsx) -- same Arial/
+    // Helvetica the hero section uses, not the old Quattrocento/Amiri
+    // Google Fonts pairing (dropped there too, so no @import needed here).
     bg: "#f5f5f5", card: "#fff", text: "#2e2a39", muted: "rgba(46,42,57,0.6)", border: "rgba(0,0,0,0.08)",
     inputBg: "#fff", inputBorder: "rgba(0,0,0,0.12)", inputText: "#2e2a39",
     btnBg: "#000000", btnText: "#ffffff", btnRadius: "10px",
-    headFont: "'Quattrocento', Georgia, serif", bodyFont: "'Amiri', Georgia, serif",
+    headFont: "Arial, Helvetica, sans-serif", bodyFont: "Arial, Helvetica, sans-serif",
     selectBg: "rgba(0,0,0,0.03)", eftBg: "#f5f5f5",
-    fonts: "@import url('https://fonts.googleapis.com/css2?family=Quattrocento:wght@400;700&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');",
+    fonts: "",
     summaryBg: "rgba(0,0,0,0.015)", summaryBorder: "rgba(0,0,0,0.06)",
     badgeBg: "#765341", badgeText: "#fdfbf7",
     stickyBg: "rgba(245,245,245,0.95)", emptyImg: "#eeeeee", payCardBg: "#fff",
