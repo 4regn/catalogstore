@@ -1122,14 +1122,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
      sync instead of drifting out of three copy-pasted blocks. */
   const ProductCard = ({ p }: { p: Product }) => {
     const onSale = p.old_price && p.old_price > p.price;
+    const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
     const badge = getProductPromoBadge(p);
     const promo = getProductPromo(p.id);
     return (
       <div className="fr-pcard" onClick={() => goToProduct(p)} onMouseEnter={() => prefetchProduct(p)} onTouchStart={() => prefetchProduct(p)}>
-        {badge && <span className="fr-ptag sale">{badge.label}</span>}
-        {!badge && promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
-        {!badge && !promo && onSale && <span className="fr-ptag sale">Sale</span>}
         <div className="fr-pimg">
+          {badge && <span className="fr-ptag sale">{badge.label}</span>}
+          {!badge && promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
+          {!badge && !promo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
+          {showHeroPill && (badge || promo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
           {p.image_url ? (
             <>
               <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
@@ -1326,19 +1328,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    photo's own brightness. */
 .fr-hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(0,0,0,0.82) 0%,rgba(0,0,0,0.38) 55%,rgba(0,0,0,0.32) 100%)}
 .fr-hero-inner{position:relative;z-index:2;width:100%;max-width:720px;padding:0 56px 72px;text-align:left}
-.fr-hero-pill{display:inline-block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cream);background:var(--accent);padding:7px 16px;border-radius:999px;margin-bottom:16px}
+.fr-hero-pill{display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.20em;text-transform:uppercase;color:var(--cream);background:var(--accent);padding:7px 16px;border-radius:999px;margin-bottom:16px}
 .fr-hero-label{font-family:var(--body);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(253,251,247,0.65);margin-bottom:18px;display:flex;align-items:center;gap:12px}
 .fr-hero-label::before{content:'';display:block;width:26px;height:1px;background:rgba(253,251,247,0.4)}
-.fr-hero-h1{font-family:var(--serif);font-weight:500;font-style:italic;letter-spacing:-0.03em;font-size:clamp(40px,7.5vw,92px);line-height:0.92;color:#fdfbf7;margin-bottom:20px;white-space:pre-line;text-shadow:0 3px 30px rgba(0,0,0,0.33)}
+.fr-hero-h1{font-family:Arial,Helvetica,sans-serif;font-weight:400;font-style:italic;letter-spacing:-0.06em;font-size:clamp(40px,7.5vw,92px);line-height:0.92;color:#fdfbf7;margin-bottom:20px;white-space:pre-line;text-shadow:0 3px 30px rgba(0,0,0,0.33)}
 .fr-hero-body{font-family:var(--body);font-style:italic;font-size:16px;line-height:1.7;color:rgba(253,251,247,0.72);max-width:460px;margin-bottom:34px;white-space:pre-line}
 .fr-hero-disclaimer{font-family:var(--body);font-size:10px;letter-spacing:0.5px;line-height:1.5;color:rgba(253,251,247,0.55);max-width:420px;margin-top:14px}
-.fr-hero-offer{margin:0 0 18px;max-width:640px;font-family:var(--body);font-size:clamp(14px,1.8vw,20px);line-height:1.55;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fdfbf7;text-shadow:0 2px 18px rgba(0,0,0,0.45)}
+.fr-hero-offer{margin:0 0 18px;max-width:640px;font-family:Arial,Helvetica,sans-serif;font-size:clamp(14px,1.8vw,20px);line-height:1.55;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:#fdfbf7;text-shadow:0 2px 18px rgba(0,0,0,0.45)}
 .fr-hero-offer-accent{color:var(--accent)}
 .fr-hero-offer-pulse{color:var(--accent);display:inline-block;animation:fr-heartbeat 1.2s ease-in-out infinite;transform-origin:center}
-.fr-hero-offer-note{display:block;margin-top:6px;font-size:0.72em;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:rgba(253,251,247,0.75)}
+.fr-hero-offer-note{display:block;margin-top:6px;font-family:Arial,Helvetica,sans-serif;font-size:0.72em;font-weight:400;letter-spacing:0.13em;text-transform:uppercase;color:rgba(253,251,247,0.75)}
 @keyframes fr-heartbeat{0%{transform:scale(1)}14%{transform:scale(1.12)}28%{transform:scale(1)}42%{transform:scale(1.14)}70%{transform:scale(1)}100%{transform:scale(1)}}
 .fr-cta-row{display:flex;align-items:center;gap:22px;margin-bottom:36px;flex-wrap:wrap}
-.fr-btn{display:inline-flex;align-items:center;justify-content:center;min-width:200px;min-height:56px;background:rgba(0,0,0,0.06);color:#fff;font-family:var(--body);font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;text-decoration:none;padding:0 28px;border-radius:2px;border:1.5px solid rgba(255,255,255,0.78);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);cursor:pointer;transition:background 0.25s ease,color 0.25s ease,border-color 0.25s ease}
+.fr-btn{display:inline-flex;align-items:center;justify-content:center;min-width:200px;min-height:56px;background:rgba(0,0,0,0.06);color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;text-decoration:none;padding:0 28px;border-radius:2px;border:1.5px solid rgba(255,255,255,0.78);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);cursor:pointer;transition:background 0.25s ease,color 0.25s ease,border-color 0.25s ease}
 .fr-btn:hover{background:#fff;color:#111;border-color:#fff}
 .fr-btn-ghost{display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--head-text);font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;padding:14px 28px;border-radius:var(--btn-radius);border:1px solid rgba(253,251,247,0.4);cursor:pointer;transition:background 0.2s}
 .fr-btn-ghost:hover{background:rgba(253,251,247,0.08)}
@@ -1486,6 +1488,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:var(--brown)}
 .fr-ptag.sale{background:var(--accent)}
+.fr-ptag-anniv{position:absolute;bottom:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:#000}
 .fr-pinfo{padding:18px 16px 22px}
 .fr-pname{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:8px;line-height:1.3;color:var(--ink)}
 .fr-pprice{font-family:var(--body);font-size:14px;font-weight:700;color:var(--ink)}
@@ -2185,6 +2188,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           const p = initialActiveProduct;
           const allImgs = (p.images && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
           const onSale = p.old_price && p.old_price > p.price;
+          const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
+          const pdpBadge = getProductPromoBadge(p);
+          const pdpPromo = getProductPromo(p.id);
           const catTokens = (p.category || "").split(",").map((c) => c.trim()).filter(Boolean);
           const firstRealCategory = catTokens[0] || null;
           const sizeChartType = getSizeChartType(p);
@@ -2219,6 +2225,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       onIndexChange={setActiveImg}
                       onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
                       onImgError={handleImgError}
+                      badges={<>
+                        {pdpBadge && <span className="fr-ptag sale">{pdpBadge.label}</span>}
+                        {!pdpBadge && pdpPromo && <span className="fr-ptag sale">{pdpPromo.type === "percentage" ? `-${pdpPromo.value}%` : "Sale"}</span>}
+                        {!pdpBadge && !pdpPromo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
+                        {showHeroPill && (pdpBadge || pdpPromo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
+                      </>}
                       alt={p.name}
                     />
                   </div>
@@ -2890,13 +2902,14 @@ function DescriptionText({ text }: { text: string }) {
 // touch-swipe pattern (./FourRegnLightbox.tsx, same ~40px threshold), just
 // against local touch state since this component doesn't own the active
 // index itself.
-function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onImgError, alt }: {
+function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onImgError, alt, badges }: {
   imgs: string[];
   activeIndex: number;
   onIndexChange: (i: number) => void;
   onOpenLightbox: () => void;
   onImgError: (e: React.SyntheticEvent<HTMLImageElement>) => void;
   alt: string;
+  badges?: React.ReactNode;
 }) {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -2951,6 +2964,7 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      {badges}
       {mainImg ? (
         <>
           <Image
