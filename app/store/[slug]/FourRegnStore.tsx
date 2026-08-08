@@ -694,9 +694,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   };
   // Home page only: nav is transparent (see .fr-nav--transparent) while
   // still over the hero image, then switches back to its normal solid
-  // black bar once scrolled past it -- every other section on the page has
-  // a light background, and the nav's own text is light-on-dark, so
-  // staying transparent past the hero would make it unreadable. 500 is a
+  // light/frosted bar (matching .fr-dock's own look) once scrolled past it
+  // -- every other section on the page has a light background, and the
+  // transparent nav's text/icons are light-on-dark for the hero specifically,
+  // so staying transparent past it would make them unreadable. 500 is a
   // deliberately simple fixed threshold rather than measuring the hero's
   // actual rendered height (min-height:560px, but height:88vh grows past
   // that on a tall viewport) -- close enough that the switch happens
@@ -1495,25 +1496,37 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-root--navigating{opacity:0.5;pointer-events:none;transition:opacity 0.2s ease 150ms}
 @keyframes fr-spin{to{transform:rotate(360deg)}}
 
-.fr-nav{position:sticky;top:0;z-index:100;background:var(--head-bg);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:24px;padding:0 40px;height:72px}
+/* Solid state (every page except the home hero, and the home page itself
+   once scrolled past it) now matches the mobile bottom dock's own look --
+   light frosted glass, dark ink icons/text -- instead of the old solid
+   black bar var(--head-bg)/var(--head-text) used to paint here. Colors
+   below (rgba(46,42,57,...) = --ink at various opacities, same literal
+   .fr-dock-item already uses) are chosen to be the SAME values as the
+   dock's, not just a similar dark tone, per the seller's own explicit ask
+   that the hamburger/search/cart icons match the bottom nav's icon color. */
+.fr-nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.85);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border-bottom:1px solid rgba(0,0,0,0.06);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:24px;padding:0 40px;height:72px}
 /* Home page only: transparent nav floating over the hero image instead of
-   a solid black bar above it. .fr-hero pulls itself up by exactly the
+   the solid frosted bar above. .fr-hero pulls itself up by exactly the
    nav's own height (kept in sync with the mobile height override below)
    so the hero image starts at the very top of the viewport, behind the
    now-see-through nav, instead of the nav pushing it down. Nav stays
-   position:sticky throughout (only background/border change) -- while
-   scrolled within the hero it's see-through (the nav's own text is
-   already light-on-dark per .fr-nav-link, so it stays legible against the
-   hero's dark overlay); past that point (navOverHero flips false, see the
-   scroll effect below) it switches back to solid, since every OTHER
-   section has a light background this same light text would disappear
-   into. */
-.fr-nav--transparent{background:transparent}
+   position:sticky throughout (only background/text-color change) -- while
+   scrolled within the hero it's see-through with light text/icons (still
+   legible against the hero's dark overlay, see .fr-nav--transparent's own
+   child overrides below); past that point (navOverHero flips false, see
+   the scroll effect below) it switches back to the solid light/dark-ink
+   look every other section already uses. */
+.fr-nav--transparent{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border-bottom:none}
+.fr-nav--transparent .fr-burger span{background:var(--head-text)}
+.fr-nav--transparent .fr-logo{color:var(--head-text)}
+.fr-nav--transparent .fr-nav-link{color:rgba(253,251,247,0.75)}
+.fr-nav--transparent .fr-nav-link:hover{color:var(--head-text)}
+.fr-nav--transparent .fr-search-btn,.fr-nav--transparent .fr-cart-btn{color:var(--head-text)}
 .fr-hero{margin-top:-72px}
 .fr-nav-left{display:flex;align-items:center;gap:20px}
 .fr-burger{display:none;background:none;border:none;cursor:pointer;width:24px;height:24px;flex-direction:column;justify-content:space-between;padding:5px 0}
-.fr-burger span{display:block;width:100%;height:1px;background:var(--head-text)}
-.fr-logo{font-family:var(--serif);font-weight:700;font-size:24px;letter-spacing:0.5px;color:var(--head-text);text-decoration:none;line-height:1;white-space:nowrap}
+.fr-burger span{display:block;width:100%;height:1px;background:var(--ink)}
+.fr-logo{font-family:var(--serif);font-weight:700;font-size:24px;letter-spacing:0.5px;color:var(--ink);text-decoration:none;line-height:1;white-space:nowrap}
 .fr-logo img{height:34px;width:auto;display:block;object-fit:contain}
 .fr-nav-links{display:flex;gap:28px;align-items:center;justify-content:center;overflow:hidden}
 /* Mobile-only duplicate of .fr-logo, rendered inside .fr-nav-links so it can
@@ -1522,8 +1535,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    which of the two logo copies (this one vs. the .fr-nav-left one) is
    visible. Hidden by default so it never doubles up the logo on desktop. */
 .fr-nav-links .fr-logo{display:none}
-.fr-nav-link{font-family:var(--body);font-size:12px;font-weight:400;letter-spacing:1px;text-transform:uppercase;text-decoration:none;color:rgba(253,251,247,0.75);transition:color 0.2s;background:none;border:none;cursor:pointer;white-space:nowrap}
-.fr-nav-link:hover{color:var(--head-text)}
+.fr-nav-link{font-family:var(--body);font-size:12px;font-weight:400;letter-spacing:1px;text-transform:uppercase;text-decoration:none;color:rgba(46,42,57,0.65);transition:color 0.2s;background:none;border:none;cursor:pointer;white-space:nowrap}
+.fr-nav-link:hover{color:var(--ink)}
 /* CATALOG MEGA-MENU -- desktop hover-open only (mobile gets the drawer's
    own tap accordion, see .fr-mm-group below); position:fixed rather than
    absolute so the panel can span the full viewport width regardless of
@@ -1541,8 +1554,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-catalog-group ul a{font-family:var(--body);font-size:12.5px;line-height:1.4;color:rgba(46,42,57,0.65);text-decoration:none}
 .fr-catalog-group ul a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .fr-nav-right{display:flex;justify-content:flex-end;align-items:center;gap:18px}
-.fr-search-btn{background:none;border:none;cursor:pointer;color:var(--head-text);padding:4px;display:flex;align-items:center}
-.fr-cart-btn{position:relative;background:none;border:none;cursor:pointer;color:var(--head-text);padding:4px;display:flex;align-items:center}
+.fr-search-btn{background:none;border:none;cursor:pointer;color:rgba(46,42,57,0.5);padding:4px;display:flex;align-items:center}
+.fr-cart-btn{position:relative;background:none;border:none;cursor:pointer;color:rgba(46,42,57,0.5);padding:4px;display:flex;align-items:center}
 .fr-cart-count{position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:999px;background:var(--brown);color:var(--cream);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--body)}
 
 .fr-hero{position:relative;width:100%;min-height:560px;height:88vh;overflow:hidden;display:flex;align-items:flex-end;background:linear-gradient(160deg,#1a1715 0%,#000 100%)}
