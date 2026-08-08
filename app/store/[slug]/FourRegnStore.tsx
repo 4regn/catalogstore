@@ -2877,10 +2877,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <span className="fr-pay-icon" title="Mastercard"><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                     <span className="fr-pay-icon" title="Apple Pay"><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
                     <span className="fr-pay-icon" title="Yoco"><img src="/checkout/yoco.png" alt="Yoco" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Capitec Pay"><img src="/checkout/capitecpay.png" alt="Capitec Pay" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   </>)}
                   {showSetlaBanner && (
                     <span className="fr-pay-icon" title="SETLA"><img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
                   )}
+                  {/* Float: shown here to match the live Shopify store's own footer
+                      (real accepted payment method there), even though the
+                      on-page Float widget is currently disabled for this domain
+                      -- see FloatWidget's own comment. The footer logo is just a
+                      "we accept this" mark, not the interactive widget, so it's
+                      unaffected by that domain-authorization issue. */}
+                  <span className="fr-pay-icon" title="Float"><img src="/checkout/float.png" alt="Float" style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
                   {seller.checkout_config?.eft_enabled && (
                     <button onClick={() => setPolicyModal({ title: "EFT / Direct Deposit", content: "Select EFT/Direct Deposit at checkout. You’ll receive payment instructions to complete your order via EFT." })} style={{ marginTop: 4, fontSize: 12 }}>EFT / Direct Deposit</button>
                   )}
