@@ -37,7 +37,19 @@ export async function generateMetadata({
   if (!seller) return {};
 
   const meta: Metadata = {
-    title: seller.store_name,
+    // template: null resets the root layout's title.template ("%s ·
+    // CatalogStore") for this WHOLE subtree, not just this one layout's
+    // own title -- every deeper seller page (home, products, collections,
+    // policies, ...) provides its own plain-string title via its own
+    // generateMetadata, and without this reset, Next still appends the
+    // parent template to every one of them individually. Confirmed this
+    // was live: every seller's storefront page, across the whole
+    // platform, showed up in search results as "4regn · CatalogStore"
+    // instead of just "4regn" -- platform branding diluting each seller's
+    // own brand in their own search traffic. The platform's own marketing
+    // pages (app/layout.tsx's routes, outside /store/[slug]) still want
+    // that suffix; this only opts seller storefronts out of it.
+    title: { absolute: seller.store_name, template: null },
     description: seller.tagline || `Shop ${seller.store_name} online`,
   };
 

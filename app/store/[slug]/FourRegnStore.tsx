@@ -2536,11 +2536,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // every WINTER ESSENTIALS-tagged product in catalog order when
           // nothing's been curated yet.
           const configuredSlides = config.winter_essentials_slides;
-          const images = configuredSlides && configuredSlides.length > 0
+          // Capped at 16 -- WinterCoverflow duplicates whatever it's given
+          // to build the seamless-loop track (see its own comment), so an
+          // uncapped list here doubles straight into <img> tag count. This
+          // store's WINTER ESSENTIALS tag alone matches 80+ products;
+          // rendering all of them (160+ <img> tags) on every single
+          // homepage load was a real, confirmed hit to page weight and
+          // Core Web Vitals, not just a theoretical one. 16 is already
+          // generous for a coverflow no one scrubs through end to end.
+          const images = (configuredSlides && configuredSlides.length > 0
             ? configuredSlides
                 .map((entry) => (entry.startsWith("http") || entry.startsWith("/")) ? entry : products.find((p) => p.id === entry)?.image_url)
                 .filter((url): url is string => !!url)
-            : products.filter((p) => pInCat(p, "WINTER ESSENTIALS") && p.image_url).map((p) => p.image_url!);
+            : products.filter((p) => pInCat(p, "WINTER ESSENTIALS") && p.image_url).map((p) => p.image_url!)
+          ).slice(0, 16);
           if (images.length === 0) return null;
           return (
             <EditSection id="winter-essentials">
