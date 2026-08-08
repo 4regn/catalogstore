@@ -376,6 +376,8 @@ export default function StoreEditor() {
   const [showHeroPill, setShowHeroPill] = useState(false);
   const [heroPillLabel, setHeroPillLabel] = useState("");
   const [heroDisclaimer, setHeroDisclaimer] = useState("");
+  const [heroOfferHeadline, setHeroOfferHeadline] = useState("");
+  const [heroOfferNote, setHeroOfferNote] = useState("");
   // 4regn SETLA promo strip
   const [showSetlaBanner, setShowSetlaBanner] = useState(true);
   const [setlaEyebrow, setSetlaEyebrow]       = useState("");
@@ -569,6 +571,8 @@ export default function StoreEditor() {
       setShowHeroPill((cfg as any)?.show_hero_pill ?? false);
       setHeroPillLabel((cfg as any)?.hero_pill_label ?? "");
       setHeroDisclaimer((cfg as any)?.hero_disclaimer ?? "");
+      setHeroOfferHeadline((cfg as any)?.hero_offer_headline ?? "");
+      setHeroOfferNote((cfg as any)?.hero_offer_note ?? "");
       // 4regn SETLA promo strip
       setShowSetlaBanner((cfg as any)?.show_setla_banner ?? true);
       setSetlaEyebrow((cfg as any)?.setla_eyebrow ?? "");
@@ -727,6 +731,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ showHeroPill }); }, [showHeroPill]);
   useEffect(() => { postUpdate({ heroPillLabel }); }, [heroPillLabel]);
   useEffect(() => { postUpdate({ heroDisclaimer }); }, [heroDisclaimer]);
+  useEffect(() => { postUpdate({ heroOfferHeadline }); }, [heroOfferHeadline]);
+  useEffect(() => { postUpdate({ heroOfferNote }); }, [heroOfferNote]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
   useEffect(() => { postUpdate({ heroCta }); }, [heroCta]);
   useEffect(() => { postUpdate({ heroCtaTarget }); }, [heroCtaTarget]);
@@ -904,6 +910,8 @@ export default function StoreEditor() {
       show_hero_pill: showHeroPill,
       hero_pill_label: heroPillLabel,
       hero_disclaimer: heroDisclaimer,
+      hero_offer_headline: heroOfferHeadline,
+      hero_offer_note: heroOfferNote,
       show_setla_banner: showSetlaBanner,
       setla_eyebrow: setlaEyebrow,
       setla_lead: setlaLead,
@@ -1720,6 +1728,18 @@ export default function StoreEditor() {
                   <input value={heroPillLabel} onChange={e => setHeroPillLabel(e.target.value)}
                     placeholder="e.g. 7 YEAR ANNIVERSARY SALE" style={{ ...inputStyle, marginTop: 8 }} disabled={!showHeroPill} />
                   <div style={hintStyle}>Small rounded label shown above the hero content -- a manual marketing callout you set yourself, separate from any per-product sale badges shown on individual products.</div>
+                </div>
+
+                <div style={{ paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <label style={labelStyle}>Offer Callout</label>
+                  <textarea value={heroOfferHeadline} onChange={e => setHeroOfferHeadline(e.target.value)} rows={2}
+                    placeholder={"Buy any 2 oversized graphic tees\nGet a 3rd tee free"} style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
+                  <div style={{ ...hintStyle, marginTop: 4, marginBottom: 10 }}>
+                    BOGO-style callout above the headline. Use a line break for the second line. Any number (2, 3rd) and a trailing &quot;free&quot; are automatically highlighted and pulse in red -- type it plainly, no special formatting needed. Leave empty to hide.
+                  </div>
+                  <input value={heroOfferNote} onChange={e => setHeroOfferNote(e.target.value)}
+                    placeholder="e.g. Discount applied automatically at checkout." style={inputStyle} />
+                  <div style={hintStyle}>Small fine-print line directly under the offer. Leave empty to hide.</div>
                 </div>
 
                 <div>

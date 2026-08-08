@@ -80,6 +80,32 @@ interface StoreConfig {
   // Small fine-print line under the hero CTA, e.g. "CHOOSE ANY 3 ELIGIBLE
   // TEES. LOWEST-PRICED TEE IS FREE" -- promo terms, not a headline.
   hero_disclaimer?: string;
+  // BOGO-style offer callout above the headline, e.g. "Buy any 2 oversized
+  // graphic tees\nGet a 3rd tee free" -- rendered by renderOfferLine() below
+  // with any digit-leading word (2, 3rd) and a trailing "free" auto-
+  // highlighted/pulsed in the accent color, matching the seller's own
+  // reference design. hero_offer_note is the smaller fine-print line
+  // directly under it, e.g. "Discount applied automatically at checkout."
+  hero_offer_headline?: string;
+  hero_offer_note?: string;
+}
+
+// Auto-highlights a BOGO-style offer line the way the reference design
+// does: any digit-leading token (e.g. "2", "3rd") in the accent color, and
+// a trailing "free" (optionally with trailing punctuation) in the accent
+// color with a pulsing heartbeat animation. Plain string in, mixed
+// string/element array out -- safe to render directly inside a <p>/<span>.
+function renderOfferLine(line: string, keyPrefix: string) {
+  return line.split(/(\s+)/).map((word, i) => {
+    if (/^\s+$/.test(word) || word === "") return word;
+    if (/^free[.,!]?$/i.test(word)) {
+      return <strong key={`${keyPrefix}-${i}`} className="fr-hero-offer-pulse">{word}</strong>;
+    }
+    if (/^\d/.test(word)) {
+      return <span key={`${keyPrefix}-${i}`} className="fr-hero-offer-accent">{word}</span>;
+    }
+    return word;
+  });
 }
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
@@ -463,6 +489,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveShowHeroPill, setLiveShowHeroPill] = useState<boolean | null>(null);
   const [liveHeroPillLabel, setLiveHeroPillLabel] = useState<string | null>(null);
   const [liveHeroDisclaimer, setLiveHeroDisclaimer] = useState<string | null>(null);
+  const [liveHeroOfferHeadline, setLiveHeroOfferHeadline] = useState<string | null>(null);
+  const [liveHeroOfferNote, setLiveHeroOfferNote] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
@@ -654,6 +682,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.showHeroPill !== undefined) setLiveShowHeroPill(e.data.showHeroPill);
       if (e.data.heroPillLabel !== undefined) setLiveHeroPillLabel(e.data.heroPillLabel);
       if (e.data.heroDisclaimer !== undefined) setLiveHeroDisclaimer(e.data.heroDisclaimer);
+      if (e.data.heroOfferHeadline !== undefined) setLiveHeroOfferHeadline(e.data.heroOfferHeadline);
+      if (e.data.heroOfferNote !== undefined) setLiveHeroOfferNote(e.data.heroOfferNote);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -975,6 +1005,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? seller.tagline ?? seller.store_name;
   const displayHeroBody = liveHeroBody ?? config.hero_body ?? seller.description ?? "";
   const displayHeroDisclaimer = liveHeroDisclaimer ?? config.hero_disclaimer ?? "";
+  const displayHeroOfferHeadline = liveHeroOfferHeadline ?? config.hero_offer_headline ?? "";
+  const displayHeroOfferNote = liveHeroOfferNote ?? config.hero_offer_note ?? "";
   const displayCtaPrimary = liveHeroCtaPrimary ?? config.hero_cta_primary ?? "Shop the Collection";
   const displayCtaSecondary = liveHeroCtaSecondary ?? config.hero_cta_secondary ?? "";
   const displayCtaPrimaryTarget: CtaTarget = liveHeroCtaPrimaryTarget ?? config.hero_cta_primary_target ?? { type: "products" };
@@ -1300,6 +1332,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-hero-h1{font-family:var(--serif);font-weight:700;font-size:clamp(38px,6vw,72px);line-height:1.05;color:#fdfbf7;margin-bottom:20px;white-space:pre-line}
 .fr-hero-body{font-family:var(--body);font-style:italic;font-size:16px;line-height:1.7;color:rgba(253,251,247,0.72);max-width:460px;margin-bottom:34px;white-space:pre-line}
 .fr-hero-disclaimer{font-family:var(--body);font-size:10px;letter-spacing:0.5px;line-height:1.5;color:rgba(253,251,247,0.55);max-width:420px;margin-top:14px}
+.fr-hero-offer{margin:0 0 18px;max-width:640px;font-family:var(--body);font-size:clamp(14px,1.8vw,20px);line-height:1.55;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fdfbf7;text-shadow:0 2px 18px rgba(0,0,0,0.45)}
+.fr-hero-offer-accent{color:#d64735}
+.fr-hero-offer-pulse{color:#d64735;display:inline-block;animation:fr-heartbeat 1.2s ease-in-out infinite;transform-origin:center}
+.fr-hero-offer-note{display:block;margin-top:6px;font-size:0.72em;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:rgba(253,251,247,0.75)}
+@keyframes fr-heartbeat{0%{transform:scale(1)}14%{transform:scale(1.12)}28%{transform:scale(1)}42%{transform:scale(1.14)}70%{transform:scale(1)}100%{transform:scale(1)}}
 .fr-cta-row{display:flex;align-items:center;gap:22px;margin-bottom:36px;flex-wrap:wrap}
 .fr-btn{display:inline-flex;align-items:center;justify-content:center;background:var(--btn-bg);color:var(--btn-text);font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;padding:15px 30px;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);border:none;cursor:pointer;transition:opacity 0.2s}
 .fr-btn:hover{opacity:0.85}
@@ -1985,6 +2022,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <div className="fr-hero-inner">
                 {showHeroPill && <div className="fr-hero-pill">{heroPillLabel}</div>}
                 {displayHeroLabel && <div className="fr-hero-label">{displayHeroLabel}</div>}
+                {displayHeroOfferHeadline && (
+                  <p className="fr-hero-offer">
+                    {displayHeroOfferHeadline.split("\n").map((line, i, arr) => (
+                      <Fragment key={i}>
+                        {renderOfferLine(line, `offer-${i}`)}
+                        {i < arr.length - 1 && <br />}
+                      </Fragment>
+                    ))}
+                    {displayHeroOfferNote && <span className="fr-hero-offer-note">{displayHeroOfferNote}</span>}
+                  </p>
+                )}
                 {displayHeroHeadline && <h1 className="fr-hero-h1">{displayHeroHeadline}</h1>}
                 {displayHeroBody && <p className="fr-hero-body">{displayHeroBody}</p>}
                 {(showCtaPrimary || showCtaSecondary) && (
