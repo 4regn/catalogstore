@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../lib/store-template-access";
-import { trimSellerTemplateConfigs } from "../../../lib/template-config";
+import { trimSellerTemplateConfigs, effectiveStoreConfig } from "../../../lib/template-config";
 import { canonicalStoreUrl } from "../../../lib/store-url";
 import { fetchAllRows } from "../../../lib/fetch-all-rows";
 import StoreUnavailable from "./StoreUnavailable";
@@ -107,24 +107,32 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const seller = await getSeller(slug);
   if (!seller) return {};
 
+  // seo_title is a homepage-only override, separate from store_name --
+  // store_name also serves as the header's text-logo fallback and shows
+  // up throughout the dashboard UI, so a long keyword-stuffed SEO title
+  // (the kind Shopify's own "Homepage title" preference is meant to hold)
+  // doesn't belong there. Falls back to store_name, matching the previous
+  // behavior for every seller who hasn't set one.
+  const config = effectiveStoreConfig(seller);
+  const title = config.seo_title || seller.store_name;
   const description =
     seller.tagline || seller.description || `Shop ${seller.store_name}'s online store.`;
   const image = seller.logo_url || seller.banner_url;
 
   return {
-    title: seller.store_name,
+    title,
     description,
     alternates: { canonical: canonicalStoreUrl(slug) },
     openGraph: {
       type: "website",
       siteName: seller.store_name,
-      title: seller.store_name,
+      title,
       description,
       images: image ? [{ url: image }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
-      title: seller.store_name,
+      title,
       description,
       images: image ? [image] : undefined,
     },
