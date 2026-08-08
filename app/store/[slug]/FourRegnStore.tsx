@@ -1590,6 +1590,28 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-ticker-gem{color:rgba(255,255,255,0.4);font-size:10px;margin-left:28px}
 @keyframes fr-ticker-roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 
+/* WINTER ESSENTIALS COVERFLOW — ported 1:1 from winter-essentials.liquid's
+   own styles (see WinterCoverflow's comment for the JS behavior it
+   drives). Fixed values instead of the Liquid version's per-section theme
+   settings (background photo/colors, heading copy, motion tuning) --
+   those were editable per-install there; here they're fixed to that
+   section's own schema defaults, since there's no settings panel for this
+   one yet. */
+.fr-cef{background:#e8e8e8;color:#0a0a0a;overflow:hidden;font-family:var(--body)}
+.fr-cef-head{text-align:center;padding:32px 20px 6px}
+.fr-cef-eyebrow{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:#8c8880;font-weight:700;margin-bottom:6px}
+.fr-cef-title{font-family:var(--serif);font-weight:700;font-size:clamp(34px,7vw,72px);line-height:0.9;letter-spacing:1px;margin:0}
+.fr-cef-sub{display:inline-block;margin-top:10px;color:#fff;font-family:var(--body);font-weight:700;font-size:clamp(14px,2.2vw,20px);letter-spacing:1px;padding:6px 22px;border-radius:40px;background:#e8503a;box-shadow:0 10px 28px -10px rgba(232,80,58,0.5)}
+.fr-cef-stage{position:relative;width:100%;height:clamp(360px,56vh,600px);margin-top:18px;overflow:hidden}
+.fr-cef-track{position:absolute;top:0;left:0;height:100%;display:flex;align-items:center;will-change:transform}
+.fr-cef-slide{flex:0 0 auto;width:var(--cw,300px);display:flex;align-items:center;justify-content:center;padding:0 10px}
+.fr-cef-card{width:100%;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 30px 60px -24px rgba(0,0,0,0.5);transform:scale(var(--s,0.7));display:block;will-change:transform}
+.fr-cef-card img{width:100%;display:block;aspect-ratio:3/4;object-fit:cover}
+.fr-cef-cta{text-align:center;padding:20px 20px 40px}
+.fr-cef-btn{display:inline-block;background:#0a0a0a;color:#fff;padding:15px 40px;font-family:var(--body);font-weight:700;font-size:15px;letter-spacing:2px;text-decoration:none;border-radius:8px;box-shadow:0 12px 28px -8px rgba(0,0,0,0.45);transition:transform 0.3s ease}
+.fr-cef-btn:hover{transform:translateY(-3px)}
+.fr-cef-note{margin-top:10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#8c8880;font-weight:600}
+
 /* SETLA product-page widget — ported 1:1 from setla-product-widget.liquid
    (same gradient, pill layout, and cents-based split math with the
    remainder folded into the last instalment, matching setla.4regn.com's
@@ -2473,6 +2495,25 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <TickerStrip />
           </EditSection>
         )}
+
+        {/* WINTER ESSENTIALS COVERFLOW — only on landing page, right after
+            the ticker strip. Images come from whatever products are
+            actually tagged "Winter Essentials" (see WinterCoverflow's own
+            comment for why) -- renders nothing at all if that collection
+            is currently empty, same "hide empty collections" precedent
+            the rest of this file already follows elsewhere. */}
+        {isHomeView && (() => {
+          const winterProducts = products.filter((p) => pInCat(p, "Winter Essentials") && p.image_url);
+          if (winterProducts.length === 0) return null;
+          return (
+            <EditSection id="winter-essentials">
+              <WinterCoverflow
+                images={winterProducts.map((p) => p.image_url!)}
+                href={sp(`/c/${collectionSlug("Winter Essentials")}`)}
+              />
+            </EditSection>
+          );
+        })()}
 
         {/* SHOP BY GENDER — only on landing page. Ported from the real
             "4REGN - Shop by Gender" Liquid section: two glass panels (MEN /
@@ -3383,6 +3424,113 @@ function TickerStrip() {
             </span>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+// "Winter Essentials" center-coverflow carousel -- ported from the real
+// site's winter-essentials.liquid section: a continuously auto-scrolling
+// strip of product cards where the one nearest the viewport's horizontal
+// center scales up and the rest shrink toward the edges, looping
+// seamlessly forever (no user interaction needed, though a click still
+// goes to the collection). The Liquid version sources its slides from
+// manually-picked "image block" uploads in the theme editor; this reads
+// real, current product photos from whichever products are actually
+// tagged into the "Winter Essentials" category instead (see the
+// isHomeView render call below) -- no separate image-upload panel to
+// build and keep in sync, and the carousel automatically reflects
+// whatever's actually in stock rather than needing re-curating each
+// season.
+//
+// Behavior ported 1:1 from the Liquid version's own <script>: the slide
+// list is duplicated (2x) and the track's translateX position wraps at
+// exactly half the duplicated track's width, so the loop point is
+// invisible; per frame, each card's distance from the stage's horizontal
+// center (as a 0-1 fraction of half the stage width) linearly interpolates
+// its scale between centerScale and edgeScale. Diverges from the Liquid
+// version in one place: prefers-reduced-motion actually freezes the
+// animation loop here (the Liquid version only disabled a CSS transition
+// that its own per-frame inline `transform` writes never used in the
+// first place, so reduced-motion did nothing there).
+function WinterCoverflow({ images, href }: { images: string[]; href: string }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const slides = images.length > 0 ? [...images, ...images] : [];
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    const track = trackRef.current;
+    if (!stage || !track || slides.length === 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const cards = Array.from(track.children) as HTMLElement[];
+    const CENTER_SCALE = 1.1;
+    const EDGE_SCALE = 0.6;
+    const SPEED = 0.6;
+
+    const sizeCards = () => {
+      const vw = Math.min(window.innerWidth, 1200);
+      const cw = Math.max(220, Math.min(360, vw * 0.42));
+      cards.forEach((c) => c.style.setProperty("--cw", `${cw}px`));
+    };
+    sizeCards();
+
+    let pos = 0;
+    let half = 0;
+    const measure = () => { half = cards[0].getBoundingClientRect().width * (cards.length / 2); };
+    measure();
+
+    let raf = 0;
+    const frame = () => {
+      pos += SPEED;
+      if (pos >= half) pos -= half;
+      track.style.transform = `translateX(${-pos}px)`;
+      const stageRect = stage.getBoundingClientRect();
+      const center = stageRect.left + stageRect.width / 2;
+      cards.forEach((slide) => {
+        const card = slide.firstElementChild as HTMLElement | null;
+        if (!card) return;
+        const r = slide.getBoundingClientRect();
+        const sc = r.left + r.width / 2;
+        let d = Math.abs(center - sc) / (stageRect.width / 2);
+        if (d > 1) d = 1;
+        const scale = Math.max(EDGE_SCALE, CENTER_SCALE - d * (CENTER_SCALE - EDGE_SCALE));
+        card.style.setProperty("--s", scale.toFixed(3));
+        card.style.zIndex = String(Math.round((1 - d) * 100));
+      });
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+
+    const onResize = () => { sizeCards(); measure(); };
+    window.addEventListener("resize", onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+  }, [slides.length]);
+
+  if (images.length === 0) return null;
+
+  return (
+    <div className="fr-cef">
+      <div className="fr-cef-head">
+        <div className="fr-cef-eyebrow">Winter Essentials</div>
+        <h2 className="fr-cef-title">BUNDLE UP.</h2>
+        <div className="fr-cef-sub">7 YEAR ANNIVERSARY SALE — UP TO 70% OFF!</div>
+      </div>
+      <div className="fr-cef-stage" ref={stageRef}>
+        <div className="fr-cef-track" ref={trackRef}>
+          {slides.map((src, i) => (
+            <div className="fr-cef-slide" key={i}>
+              <a className="fr-cef-card" href={href}>
+                <img src={src} alt="" loading="lazy" width={360} height={480} />
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="fr-cef-cta">
+        <a href={href} className="fr-cef-btn">SHOP WINTER ESSENTIALS</a>
+        <div className="fr-cef-note">Up to 70% Off · Anniversary Sale · Ships Nationwide</div>
       </div>
     </div>
   );
