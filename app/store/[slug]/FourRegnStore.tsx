@@ -108,6 +108,12 @@ interface StoreConfig {
   // cover image) and saved here, but catImage() below never actually read
   // it -- the upload worked, the storefront just silently ignored it.
   collection_images?: Record<string, string>;
+  // Collections listed here are excluded from the nav menu, the "Shop by
+  // Collection" grid, the /collections index, and Shop by Gender tiles --
+  // but NOT from search, the homepage product grid, or any other
+  // (non-hidden) collection the same products are also tagged with. See
+  // hiddenCollectionsSet below.
+  hidden_collections?: string[];
 }
 
 // Auto-highlights a BOGO-style offer line the way the reference design
@@ -941,7 +947,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // simply empty for them. Either way, a collection that currently matches 0
   // products is never a clickable tile -- filtered out here so it can never
   // slip into any browsable listing below.
-  const sellerCollections = (seller?.collections || []).filter(Boolean);
+  // hidden_collections: collections the seller wants to keep un-browsable
+  // (no nav link, no "Shop by Collection" tile, no /collections listing)
+  // while their products stay fully visible everywhere else (search, the
+  // homepage grid, any OTHER collection they're also tagged with, direct
+  // product links). Filtered right here, at the one place sellerCollections
+  // is built, so every downstream consumer (categoryList, menuCategories,
+  // collectionsIndexList, Shop by Gender) inherits it automatically --
+  // effectiveStoreConfig() is called directly rather than via the `config`
+  // const below since that's defined later in this component and only
+  // depends on `seller`, which is already in scope here.
+  const hiddenCollectionsSet = new Set(seller ? ((effectiveStoreConfig(seller) as StoreConfig).hidden_collections || []) : []);
+  const sellerCollections = (seller?.collections || []).filter(Boolean).filter((c) => !hiddenCollectionsSet.has(c));
   const categoryList = (sellerCollections.length > 0 ? sellerCollections : allCategories.filter((c) => c !== "All").slice(0, 8)).filter((cat) => catCount(cat) > 0);
   // Nav / menu links come straight from the seller's collections list -- no
   // fixed menu structure baked in here. "All" has no real per-collection
@@ -1428,10 +1445,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-inner{position:relative;z-index:2;max-width:1360px;min-height:560px;margin:0 auto;padding:64px 40px 96px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .fr-setla-eyebrow{display:flex;align-items:center;gap:10px;color:#4ade80;font-family:var(--body);font-size:12px;letter-spacing:0.25em;text-transform:uppercase;font-weight:700;margin-bottom:18px}
 .fr-setla-eyebrow::before{content:'';width:26px;height:1px;background:#4ade80}
-.fr-setla-h1{margin:0;max-width:100%;width:100%;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
-.fr-setla-ticker-track{display:flex;width:max-content;animation:fr-setla-marquee 12s linear infinite}
-.fr-setla-ticker-track span{font-family:var(--serif);font-size:clamp(40px,6vw,76px);line-height:0.92;letter-spacing:-0.02em;font-weight:700;color:#f7f7f7;white-space:nowrap;padding-right:56px}
-@keyframes fr-setla-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.fr-setla-h1{margin:0;font-family:var(--serif);font-size:clamp(40px,6vw,76px);line-height:0.92;letter-spacing:-0.02em;font-weight:700;color:#f7f7f7;max-width:560px}
+.fr-setla-beat{display:inline-block;transform-origin:center;animation:fr-setla-beat 2s ease-in-out infinite}
+@keyframes fr-setla-beat{0%,20%,100%{transform:scale(1)}8%{transform:scale(1.14)}16%{transform:scale(1)}}
 .fr-setla-lead{max-width:480px;color:#d1d6d2;font-family:var(--body);font-size:15px;line-height:1.65;margin:22px 0 0}
 .fr-setla .fr-cta-row{margin-top:28px}
 .fr-setla-btn{height:52px;padding:0 22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-family:var(--body);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;font-size:11px;transition:transform 0.2s ease}
@@ -1550,7 +1566,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:var(--brown)}
 .fr-ptag.sale{background:var(--accent)}
-.fr-ptag-anniv{position:absolute;bottom:12px;left:12px;z-index:2;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cream);padding:5px 11px;border-radius:999px;background:#000}
+.fr-ptag-anniv{position:absolute;bottom:12px;left:12px;right:12px;z-index:2;font-size:8px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;color:var(--cream);padding:4px 9px;border-radius:999px;background:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:fit-content;max-width:100%}
 .fr-pinfo{padding:18px 16px 22px}
 .fr-pname{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:8px;line-height:1.3;color:var(--ink)}
 .fr-pprice{font-family:var(--body);font-size:14px;font-weight:700;color:var(--ink)}
@@ -1832,7 +1848,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
      justify-content:flex-end above, which pins this whole block to the
      bottom of the section. */
   .fr-setla-inner{min-height:0;padding:28px 20px 16px;justify-content:flex-end;flex:0 0 auto}
-  .fr-setla-ticker-track span{font-size:clamp(38px,13vw,60px)}
+  .fr-setla-h1{font-size:clamp(38px,13vw,60px);max-width:100%}
   .fr-setla-plans{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .fr-setla-badge{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 18px;padding:4px 0 0;border:0;background:transparent}
   .fr-sbg-section{padding:28px 12px}
@@ -2166,9 +2182,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <div className="fr-setla-inner">
                 <div className="fr-setla-eyebrow">{setlaEyebrow}</div>
                 <h2 className="fr-setla-h1" aria-label="Buy now, pay later">
-                  <span className="fr-setla-ticker-track" aria-hidden="true">
-                    <span>Buy Now, Pay Later</span>
-                    <span>Buy Now, Pay Later</span>
+                  <span aria-hidden="true">
+                    <span className="fr-setla-beat" style={{ animationDelay: "0s" }}>Buy</span>{" "}
+                    <span className="fr-setla-beat" style={{ animationDelay: "0.5s" }}>now,</span>
+                    <br />
+                    <span className="fr-setla-beat" style={{ animationDelay: "1s" }}>Pay</span>{" "}
+                    <span className="fr-setla-beat" style={{ animationDelay: "1.5s" }}>Later</span>
                   </span>
                 </h2>
                 <p className="fr-setla-lead">{setlaLead}</p>

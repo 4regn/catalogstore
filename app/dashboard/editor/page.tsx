@@ -252,6 +252,7 @@ export default function StoreEditor() {
   const [collSubtitle, setCollSubtitle]       = useState("Find your signature look");
   const [collectionsLayout, setCollectionsLayout] = useState("lookbook");
   const [collOrder, setCollOrder]             = useState<string[]>([]);
+  const [hiddenCollections, setHiddenCollections] = useState<string[]>([]);
   // Named "marquee" (not "ticker") to match the field the storefronts
   // actually render (store_config.marquee_texts) -- this used to save to a
   // disconnected `ticker_texts` field that Soft Luxury and Glass Chrome
@@ -609,6 +610,7 @@ export default function StoreEditor() {
       setHeaderTransparentColor(cfg?.header_transparent_color || "#ffffff");
       setHeaderBorder(cfg?.header_border !== false);
       if (cfg?.collection_images) setCollectionImages(cfg.collection_images);
+      if (cfg?.hidden_collections) setHiddenCollections(cfg.hidden_collections);
       if (cfg?.footer_about) setFooterAbout(cfg.footer_about);
       setProductsCollapsed(cfg?.products_collapsed === true);
       setCollectionsCollapsed(cfg?.collections_collapsed === true);
@@ -946,6 +948,7 @@ export default function StoreEditor() {
       header_transparent_color: headerTransparentColor,
       header_border: headerBorder,
       collection_images: collectionImages,
+      hidden_collections: hiddenCollections,
       footer_about: footerAbout || undefined,
       products_collapsed: productsCollapsed || undefined,
       collections_collapsed: collectionsCollapsed || undefined,
@@ -2387,7 +2390,7 @@ export default function StoreEditor() {
                 )}
 
                 <label style={labelStyle}>Collection Order</label>
-                <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginBottom: 6 }}>Drag to reorder how collections appear on your store.</div>
+                <div style={{ fontSize: 13, color: "rgba(245,245,245,0.52)", marginBottom: 6 }}>Drag to reorder how collections appear on your store. Click a collection&apos;s Visible/Hidden tag to hide it from navigation, the collection grid and the Collections page -- its products stay visible everywhere else (search, other collections, direct links).</div>
                 {collOrder.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {collOrder.map((col, i) => (
@@ -2407,7 +2410,20 @@ export default function StoreEditor() {
                         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", cursor: "grab", userSelect: "none" }}>
                           <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 14 }}>⠿</span>
-                          <span style={{ flex: 1, fontSize: 13 }}>{col}</span>
+                          <span style={{ flex: 1, fontSize: 13, color: hiddenCollections.includes(col) ? "rgba(245,245,245,0.4)" : undefined }}>{col}</span>
+                          <button
+                            type="button"
+                            onClick={() => setHiddenCollections(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col])}
+                            title={hiddenCollections.includes(col) ? "Hidden from browsing -- click to unhide" : "Visible -- click to hide from browsing"}
+                            style={{
+                              fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", padding: "4px 8px", borderRadius: 6, cursor: "pointer",
+                              background: hiddenCollections.includes(col) ? "rgba(255,107,53,0.12)" : "rgba(255,255,255,0.06)",
+                              border: hiddenCollections.includes(col) ? "1px solid rgba(255,107,53,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                              color: hiddenCollections.includes(col) ? "#ff6b35" : "rgba(245,245,245,0.4)",
+                            }}
+                          >
+                            {hiddenCollections.includes(col) ? "Hidden" : "Visible"}
+                          </button>
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             <button onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i-1], u[i]] = [u[i], u[i-1]]; setCollOrder(u); }}
                               style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>▲</button>
