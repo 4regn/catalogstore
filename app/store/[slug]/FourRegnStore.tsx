@@ -2498,18 +2498,21 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {/* WINTER ESSENTIALS COVERFLOW — only on landing page, right after
             the ticker strip. Images come from whatever products are
-            actually tagged "Winter Essentials" (see WinterCoverflow's own
+            actually tagged "WINTER ESSENTIALS" (see WinterCoverflow's own
             comment for why) -- renders nothing at all if that collection
             is currently empty, same "hide empty collections" precedent
-            the rest of this file already follows elsewhere. */}
+            the rest of this file already follows elsewhere. All-caps to
+            match this store's actual category value (confirmed against
+            real product rows -- most of this store's own category tags
+            are stored upper-case, e.g. "JACKETS"/"GRAPHIC HOODIES"). */}
         {isHomeView && (() => {
-          const winterProducts = products.filter((p) => pInCat(p, "Winter Essentials") && p.image_url);
+          const winterProducts = products.filter((p) => pInCat(p, "WINTER ESSENTIALS") && p.image_url);
           if (winterProducts.length === 0) return null;
           return (
             <EditSection id="winter-essentials">
               <WinterCoverflow
                 images={winterProducts.map((p) => p.image_url!)}
-                href={sp(`/c/${collectionSlug("Winter Essentials")}`)}
+                href={sp(`/c/${collectionSlug("WINTER ESSENTIALS")}`)}
               />
             </EditSection>
           );
