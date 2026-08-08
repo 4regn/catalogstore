@@ -88,6 +88,26 @@ interface StoreConfig {
   // directly under it, e.g. "Discount applied automatically at checkout."
   hero_offer_headline?: string;
   hero_offer_note?: string;
+  // ABOUT section (landing page, above the newsletter) -- "Built for the
+  // Culture" style brand story block, matching the real Shopify site.
+  show_about?: boolean;
+  about_eyebrow?: string;
+  about_heading?: string;
+  about_body?: string;
+  about_stat1_value?: string;
+  about_stat1_label?: string;
+  about_stat2_value?: string;
+  about_stat2_label?: string;
+  about_cta_label?: string;
+  // Per-collection cover image override, keyed by the collection's exact
+  // name (same string as seller.collections entries / product.category
+  // tokens). Value is a real URL -- either copied from one of that
+  // collection's own products' image_url, or a fresh upload -- either way
+  // just a URL by the time it lands here, no separate "source" needed.
+  // Already editable in the dashboard (Dashboard -> Collections -> Set
+  // cover image) and saved here, but catImage() below never actually read
+  // it -- the upload worked, the storefront just silently ignored it.
+  collection_images?: Record<string, string>;
 }
 
 // Auto-highlights a BOGO-style offer line the way the reference design
@@ -500,6 +520,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveHeroDisclaimer, setLiveHeroDisclaimer] = useState<string | null>(null);
   const [liveHeroOfferHeadline, setLiveHeroOfferHeadline] = useState<string | null>(null);
   const [liveHeroOfferNote, setLiveHeroOfferNote] = useState<string | null>(null);
+  const [liveShowAbout, setLiveShowAbout] = useState<boolean | null>(null);
+  const [liveAboutEyebrow, setLiveAboutEyebrow] = useState<string | null>(null);
+  const [liveAboutHeading, setLiveAboutHeading] = useState<string | null>(null);
+  const [liveAboutBody, setLiveAboutBody] = useState<string | null>(null);
+  const [liveAboutStat1Value, setLiveAboutStat1Value] = useState<string | null>(null);
+  const [liveAboutStat1Label, setLiveAboutStat1Label] = useState<string | null>(null);
+  const [liveAboutStat2Value, setLiveAboutStat2Value] = useState<string | null>(null);
+  const [liveAboutStat2Label, setLiveAboutStat2Label] = useState<string | null>(null);
+  const [liveAboutCtaLabel, setLiveAboutCtaLabel] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
@@ -693,6 +722,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.heroDisclaimer !== undefined) setLiveHeroDisclaimer(e.data.heroDisclaimer);
       if (e.data.heroOfferHeadline !== undefined) setLiveHeroOfferHeadline(e.data.heroOfferHeadline);
       if (e.data.heroOfferNote !== undefined) setLiveHeroOfferNote(e.data.heroOfferNote);
+      if (e.data.showAbout !== undefined) setLiveShowAbout(e.data.showAbout);
+      if (e.data.aboutEyebrow !== undefined) setLiveAboutEyebrow(e.data.aboutEyebrow);
+      if (e.data.aboutHeading !== undefined) setLiveAboutHeading(e.data.aboutHeading);
+      if (e.data.aboutBody !== undefined) setLiveAboutBody(e.data.aboutBody);
+      if (e.data.aboutStat1Value !== undefined) setLiveAboutStat1Value(e.data.aboutStat1Value);
+      if (e.data.aboutStat1Label !== undefined) setLiveAboutStat1Label(e.data.aboutStat1Label);
+      if (e.data.aboutStat2Value !== undefined) setLiveAboutStat2Value(e.data.aboutStat2Value);
+      if (e.data.aboutStat2Label !== undefined) setLiveAboutStat2Label(e.data.aboutStat2Label);
+      if (e.data.aboutCtaLabel !== undefined) setLiveAboutCtaLabel(e.data.aboutCtaLabel);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -889,6 +927,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // can filter out collections that currently match 0 products (sold out,
   // unpublished, or just not tagged to anything) before anything renders.
   const catImage = (cat: string) => {
+    const override = config.collection_images?.[cat];
+    if (override) return override;
     const p = products.find((p) => pInCat(p, cat) && p.image_url);
     return p?.image_url || null;
   };
@@ -1016,6 +1056,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const displayHeroDisclaimer = liveHeroDisclaimer ?? config.hero_disclaimer ?? "";
   const displayHeroOfferHeadline = liveHeroOfferHeadline ?? config.hero_offer_headline ?? "";
   const displayHeroOfferNote = liveHeroOfferNote ?? config.hero_offer_note ?? "";
+  const showAbout = liveShowAbout ?? config.show_about ?? true;
+  const aboutEyebrow = liveAboutEyebrow ?? config.about_eyebrow ?? "Est. 2019 — South Africa";
+  const aboutHeading = liveAboutHeading ?? config.about_heading ?? "Built for the Culture";
+  const aboutBody = liveAboutBody ?? config.about_body ?? `Founded in 2019 by Nikless Mathonsi, ${seller.store_name} is South Africa's leading luxury streetwear brand. With over 110,000 successful deliveries nationwide, we've earned the trust of a growing community.\n\nWe don't just offer clothing — we create an experience. Join the ${seller.store_name} Family and let's shape the future of fashion together.`;
+  const aboutStat1Value = liveAboutStat1Value ?? config.about_stat1_value ?? "110K+";
+  const aboutStat1Label = liveAboutStat1Label ?? config.about_stat1_label ?? "Deliveries";
+  const aboutStat2Value = liveAboutStat2Value ?? config.about_stat2_value ?? "2019";
+  const aboutStat2Label = liveAboutStat2Label ?? config.about_stat2_label ?? "Est.";
+  const aboutCtaLabel = liveAboutCtaLabel ?? config.about_cta_label ?? "Our Story";
   const displayCtaPrimary = liveHeroCtaPrimary ?? config.hero_cta_primary ?? "Shop the Collection";
   const displayCtaSecondary = liveHeroCtaSecondary ?? config.hero_cta_secondary ?? "";
   const displayCtaPrimaryTarget: CtaTarget = liveHeroCtaPrimaryTarget ?? config.hero_cta_primary_target ?? { type: "products" };
@@ -1056,7 +1105,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const showNewsletter = liveShowNewsletter ?? config.show_newsletter ?? true;
   const nlLabel = liveNewsletterLabel ?? config.newsletter_label ?? "Join the Family";
   const nlTitle = liveNewsletterTitle ?? config.newsletter_title ?? `Join the ${seller.store_name} Family`;
-  const nlSub = liveNewsletterSub ?? config.newsletter_sub ?? "We'll email you about new arrivals and restocks. Nothing else.";
+  const nlSub = liveNewsletterSub ?? config.newsletter_sub ?? "Be the first to know about new collections and exclusive offers.";
 
   // Shop by Gender -- opt-out (default on), same "always show unless a
   // seller explicitly hides it" convention as SETLA/Newsletter above, since
@@ -1379,7 +1428,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-inner{position:relative;z-index:2;max-width:1360px;min-height:560px;margin:0 auto;padding:64px 40px 96px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .fr-setla-eyebrow{display:flex;align-items:center;gap:10px;color:#4ade80;font-family:var(--body);font-size:12px;letter-spacing:0.25em;text-transform:uppercase;font-weight:700;margin-bottom:18px}
 .fr-setla-eyebrow::before{content:'';width:26px;height:1px;background:#4ade80}
-.fr-setla-h1{margin:0;font-family:var(--serif);font-size:clamp(40px,6vw,76px);line-height:0.92;letter-spacing:-0.02em;font-weight:700;color:#f7f7f7;max-width:560px}
+.fr-setla-h1{margin:0;max-width:100%;width:100%;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.fr-setla-ticker-track{display:flex;width:max-content;animation:fr-setla-marquee 12s linear infinite}
+.fr-setla-ticker-track span{font-family:var(--serif);font-size:clamp(40px,6vw,76px);line-height:0.92;letter-spacing:-0.02em;font-weight:700;color:#f7f7f7;white-space:nowrap;padding-right:56px}
+@keyframes fr-setla-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .fr-setla-lead{max-width:480px;color:#d1d6d2;font-family:var(--body);font-size:15px;line-height:1.65;margin:22px 0 0}
 .fr-setla .fr-cta-row{margin-top:28px}
 .fr-setla-btn{height:52px;padding:0 22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-family:var(--body);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;font-size:11px;transition:transform 0.2s ease}
@@ -1453,6 +1505,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-coll-count{font-family:var(--body);font-size:12px;color:rgba(46,42,57,0.55)}
 
 .fr-cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.fr-cat-viewall{display:inline-block;margin-top:28px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink);text-decoration:underline;text-underline-offset:4px}
 .fr-cat-card{background:#fff;border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden;cursor:pointer;border:none;padding:0;text-align:center;display:block;width:100%;font-family:var(--body)}
 .fr-cat-img{width:100%;overflow:hidden;position:relative;min-height:160px;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
 .fr-cat-img img{transition:transform 0.5s ease}
@@ -1508,6 +1561,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    section (light body background, not the dark "Stay in the know" style
    the rest of this template deliberately avoids outside the header/footer
    bookends). */
+.fr-about{max-width:640px;margin:0 auto;padding:88px 40px 24px;text-align:left}
+.fr-about-eyebrow{font-family:var(--body);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:18px}
+.fr-about-heading{font-family:var(--serif);font-weight:700;font-size:clamp(32px,5vw,52px);color:var(--ink);margin-bottom:24px}
+.fr-about-p{font-family:var(--body);font-size:15px;line-height:1.75;color:rgba(46,42,57,0.75);margin-bottom:20px;max-width:560px}
+.fr-about-stats{display:flex;gap:48px;margin:32px 0 24px;padding-top:32px;border-top:1px solid rgba(0,0,0,0.1)}
+.fr-about-stat-value{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,40px);color:var(--ink);line-height:1}
+.fr-about-stat-label{font-family:var(--body);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-top:6px}
+.fr-about-cta{display:inline-block;background:none;border:none;padding:0;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink);text-decoration:underline;text-underline-offset:5px;cursor:pointer}
 .fr-newsletter{background:var(--cream);padding:88px 40px;text-align:center}
 .fr-nl-lbl{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(46,42,57,0.55);margin-bottom:16px}
 .fr-nl-title{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,44px);color:var(--ink);margin-bottom:16px}
@@ -1771,7 +1832,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
      justify-content:flex-end above, which pins this whole block to the
      bottom of the section. */
   .fr-setla-inner{min-height:0;padding:28px 20px 16px;justify-content:flex-end;flex:0 0 auto}
-  .fr-setla-h1{font-size:clamp(38px,13vw,60px);max-width:100%}
+  .fr-setla-ticker-track span{font-size:clamp(38px,13vw,60px)}
   .fr-setla-plans{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .fr-setla-badge{position:relative;left:auto;right:auto;bottom:auto;margin:0 20px 18px;padding:4px 0 0;border:0;background:transparent}
   .fr-sbg-section{padding:28px 12px}
@@ -1787,6 +1848,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
+  .fr-about{padding:56px 20px 16px}
+  .fr-about-stats{gap:32px}
   .fr-newsletter{padding:56px 20px}
   .fr-foot{padding:56px 20px 24px}
   .fr-foot-grid{grid-template-columns:1fr;gap:36px}
@@ -2102,7 +2165,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <div className="fr-setla-glow" />
               <div className="fr-setla-inner">
                 <div className="fr-setla-eyebrow">{setlaEyebrow}</div>
-                <h2 className="fr-setla-h1">Buy now,<br />Pay Later</h2>
+                <h2 className="fr-setla-h1" aria-label="Buy now, pay later">
+                  <span className="fr-setla-ticker-track" aria-hidden="true">
+                    <span>Buy Now, Pay Later</span>
+                    <span>Buy Now, Pay Later</span>
+                  </span>
+                </h2>
                 <p className="fr-setla-lead">{setlaLead}</p>
                 <div className="fr-cta-row">
                   <a className="fr-setla-btn fr-setla-btn-primary" href="https://setla.4regn.com/signup.html" target="_blank" rel="noopener noreferrer">{setlaCtaPrimary} →</a>
@@ -2382,21 +2450,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               </div>
               <div className="fr-cat-grid">
                 {categoryList.slice(0, 20).map(renderCatTile)}
-                {categoryList.length > 20 && (
-                  <a
-                    href={sp("/collections")}
-                    className="fr-cat-card"
-                    onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
-                  >
-                    <div className="fr-cat-img" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span className="fr-cat-mark">View All Collections</span>
-                    </div>
-                    <div className="fr-cat-foot">
-                      <div className="fr-cat-name">View More →</div>
-                    </div>
-                  </a>
-                )}
               </div>
+              {categoryList.length > 20 && (
+                <a
+                  href={sp("/collections")}
+                  className="fr-cat-viewall"
+                  onClick={(e) => { e.preventDefault(); navigate(sp("/collections")); }}
+                >
+                  View All Collections →
+                </a>
+              )}
             </div>
           </EditSection>
         )}
@@ -2534,6 +2597,40 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             </EditSection>
           </div>
         ))}
+
+        {/* ABOUT — "Built for the Culture" brand story, only on landing
+            page, directly above the newsletter (matches the real Shopify
+            site's section order). */}
+        {isHomeView && showAbout && (
+          <EditSection id="about">
+            <section className="fr-about">
+              <div className="fr-about-eyebrow">{aboutEyebrow}</div>
+              <h2 className="fr-about-heading">{aboutHeading}</h2>
+              {aboutBody.split("\n\n").map((para, i) => <p key={i} className="fr-about-p">{para}</p>)}
+              {(aboutStat1Value || aboutStat2Value) && (
+                <div className="fr-about-stats">
+                  {aboutStat1Value && (
+                    <div className="fr-about-stat">
+                      <div className="fr-about-stat-value">{aboutStat1Value}</div>
+                      <div className="fr-about-stat-label">{aboutStat1Label}</div>
+                    </div>
+                  )}
+                  {aboutStat2Value && (
+                    <div className="fr-about-stat">
+                      <div className="fr-about-stat-value">{aboutStat2Value}</div>
+                      <div className="fr-about-stat-label">{aboutStat2Label}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {aboutCtaLabel && (
+                <button type="button" className="fr-about-cta" onClick={() => setPolicyModal({ title: aboutHeading, content: aboutBody })}>
+                  {aboutCtaLabel}
+                </button>
+              )}
+            </section>
+          </EditSection>
+        )}
 
         {/* NEWSLETTER — only on landing page */}
         {isHomeView && showNewsletter && (

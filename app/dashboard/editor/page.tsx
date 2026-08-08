@@ -401,6 +401,21 @@ export default function StoreEditor() {
   const [headerTransparentColor, setHeaderTransparentColor] = useState("#ffffff");
   const [headerBorder, setHeaderBorder]               = useState(true);
   const [collectionImages, setCollectionImages]       = useState<Record<string, string>>({});
+  // Lazily-fetched (only once, when the Collections panel is first opened)
+  // so every other editor section doesn't pay for a products query it
+  // never needs. Just enough columns to render a "pick a cover from one of
+  // this collection's own products" thumbnail picker.
+  const [pickerProducts, setPickerProducts] = useState<{ id: string; name: string; image_url: string | null; category: string }[] | null>(null);
+  const [coverPickerFor, setCoverPickerFor] = useState<string | null>(null);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const openCoverPicker = async (col: string) => {
+    setCoverPickerFor(col);
+    if (pickerProducts || !seller) return;
+    setPickerLoading(true);
+    const { data } = await supabase.from("products").select("id, name, image_url, category").eq("seller_id", seller.id).not("image_url", "is", null);
+    setPickerProducts(data || []);
+    setPickerLoading(false);
+  };
   const [footerAbout, setFooterAbout]                 = useState("");
   const [productsCollapsed, setProductsCollapsed]     = useState(false);
   const [contactEmail, setContactEmail]               = useState("");
@@ -2407,25 +2422,56 @@ export default function StoreEditor() {
                             <div style={{ width: 48, height: 48, borderRadius: 6, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(245,245,245,0.35)" }}>+</div>
                           )}
                           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                            <label style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                              {collectionImages[col] ? "Change image" : "Set cover image"}
-                              <input type="file" accept="image/*" onChange={async (e) => {
-                                const f = e.target.files?.[0]; if (!f || !seller) return;
-                                const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
-                                const path = `${seller.id}/collection_${col.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.${ext}`;
-                                const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
-                                if (!error) {
-                                  const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                                  setCollectionImages(prev => ({ ...prev, [col]: data.publicUrl }));
-                                }
-                              }} style={{ display: "none" }} />
-                            </label>
+                            <div style={{ display: "flex", gap: 10 }}>
+                              <label style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                {collectionImages[col] ? "Change image" : "Upload image"}
+                                <input type="file" accept="image/*" onChange={async (e) => {
+                                  const f = e.target.files?.[0]; if (!f || !seller) return;
+                                  const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
+                                  const path = `${seller.id}/collection_${col.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.${ext}`;
+                                  const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                                  if (!error) {
+                                    const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                                    setCollectionImages(prev => ({ ...prev, [col]: data.publicUrl }));
+                                  }
+                                }} style={{ display: "none" }} />
+                              </label>
+                              <button type="button" onClick={() => openCoverPicker(coverPickerFor === col ? "" : col)}
+                                style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                Choose from product
+                              </button>
+                            </div>
                             {collectionImages[col] && (
                               <button onClick={() => setCollectionImages(prev => { const n = { ...prev }; delete n[col]; return n; })}
                                 style={{ fontSize: 9, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Remove</button>
                             )}
                           </div>
                         </div>
+                        {coverPickerFor === col && (
+                          <div style={{ padding: "0 12px 12px" }}>
+                            {pickerLoading ? (
+                              <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>Loading your products…</div>
+                            ) : (() => {
+                              const matches = (pickerProducts || []).filter(p =>
+                                (p.category || "").split(",").map(c => c.trim()).includes(col)
+                              );
+                              if (matches.length === 0) {
+                                return <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products with an image in this collection yet.</div>;
+                              }
+                              return (
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(52px, 1fr))", gap: 6, maxHeight: 180, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                                  {matches.map(p => (
+                                    <button key={p.id} type="button" title={p.name}
+                                      onClick={() => { setCollectionImages(prev => ({ ...prev, [col]: p.image_url! })); setCoverPickerFor(null); }}
+                                      style={{ padding: 0, border: collectionImages[col] === p.image_url ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "none", aspectRatio: "1", lineHeight: 0 }}>
+                                      <img src={p.image_url!} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
