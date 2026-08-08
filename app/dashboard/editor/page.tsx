@@ -208,6 +208,14 @@ export default function StoreEditor() {
   const [saved, setSaved]             = useState(false);
   const [activeSection, setActiveSection] = useState<ActiveSection>(null);
   const [panelVisible, setPanelVisible]   = useState(false);
+  // Some panels (Collections' per-item image/description/reorder list, for
+  // one) genuinely outgrow the default floating popup's 520px/60vh box.
+  // Lets a seller expand the panel to the full viewport instead of
+  // scrolling a cramped inner box, then shrink it back to the normal
+  // floating popup. Reset on every section switch -- expanding to edit one
+  // section shouldn't silently carry over and full-screen the next
+  // unrelated one someone clicks into.
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const [iframeReady, setIframeReady]     = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [deviceMode, setDeviceMode] = useState<"desktop" | "mobile">("desktop");
@@ -657,6 +665,7 @@ export default function StoreEditor() {
       if (e.data?.type === "SECTION_CLICK") {
         setActiveSection(e.data.section as ActiveSection);
         setPanelVisible(true);
+        setPanelExpanded(false);
       }
       if (e.data?.type === "IFRAME_READY") {
         setIframeReady(true);
@@ -1186,7 +1195,20 @@ export default function StoreEditor() {
         </div>
 
         {/* ── FLOATING EDIT PANEL ── */}
-        <div style={{
+        <div style={panelExpanded ? {
+          position: "absolute",
+          inset: panelVisible ? 0 : "100% 0 0 0",
+          background: "#0d0d11",
+          border: "none",
+          borderRadius: 0,
+          boxShadow: "none",
+          zIndex: 50,
+          transition: "inset 0.4s cubic-bezier(0.16,1,0.3,1)",
+          overflow: "hidden",
+          maxHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+        } : {
           position: "absolute",
           bottom: panelVisible ? 24 : -400,
           left: "50%", transform: "translateX(-50%)",
@@ -1214,19 +1236,36 @@ export default function StoreEditor() {
                 </>
               )}
             </div>
-            <button onClick={() => setPanelVisible(false)} aria-label="Close panel"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                color: "rgba(245,245,245,0.5)",
-                cursor: "pointer", borderRadius: 8,
-                padding: 6, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.15s ease",
-              }}>
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m5 5 10 10"/><path d="m15 5-10 10"/>
-              </svg>
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => setPanelExpanded(v => !v)} aria-label={panelExpanded ? "Shrink panel" : "Expand panel"} title={panelExpanded ? "Shrink panel" : "Expand panel"}
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  color: "rgba(245,245,245,0.5)",
+                  cursor: "pointer", borderRadius: 8,
+                  padding: 6, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s ease",
+                }}>
+                {panelExpanded ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                )}
+              </button>
+              <button onClick={() => setPanelVisible(false)} aria-label="Close panel"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  color: "rgba(245,245,245,0.5)",
+                  cursor: "pointer", borderRadius: 8,
+                  padding: 6, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s ease",
+                }}>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m5 5 10 10"/><path d="m15 5-10 10"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Panel body */}
