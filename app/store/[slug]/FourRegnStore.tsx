@@ -557,9 +557,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // lazily here, client-side, the first time a visitor actually opens
   // search, instead of shipping the seller's entire catalog (real-world:
   // ~1600 rows for 4regn) in every homepage's initial HTML just for a
-  // rarely-opened search box. null = not fetched yet. Collection/product
-  // views don't need this -- their own route fetches already include
-  // name/price/handle on `products` (see searchSource below).
+  // rarely-opened search box. null = not fetched yet. Collection views
+  // don't need this -- their own route fetch already includes name/price/
+  // handle on `products` (see searchSource below). Product views DO need
+  // this now too: it doubles as the source for "You Might Also Like" (see
+  // relatedProducts below) since that candidate list used to come from a
+  // server-side per-request ilike-OR scan across the whole catalog
+  // (products/[handle]/page.tsx and p/[productId]/page.tsx both had it) --
+  // on a product tagged into several of this store's broader collections
+  // that unindexed scan could run long enough to blow the serverless
+  // function's execution budget and 500 the entire page, and a 5s
+  // AbortController guard around it still left the fetch itself as the
+  // single most expensive thing this route did on every view. Reusing the
+  // same lazy client fetch search already needed removes that query from
+  // the server render path entirely -- worst case here is a "You Might
+  // Also Like" row that pops in a beat after the rest of the page, not a
+  // page that fails to load at all.
   const [searchProducts, setSearchProducts] = useState<Product[] | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -659,31 +672,34 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   /* ─── SEARCH (lazy catalog fetch) ─── */
   // Fires the first time a visitor on the home or product view opens
   // search -- see searchProducts' own comment above for why this isn't
-  // just part of the page's initial data. Product views need this too:
-  // their own `products` is now narrowed server-side to just "You Might
-  // Also Like" candidates (same category as the viewed product, see
-  // RELATED_PRODUCT_COLUMNS in p/[productId]/page.tsx and
-  // products/[handle]/page.tsx), not the whole catalog search needs to
-  // search across. Guarded so it only ever fetches once per page load
-  // (searchProducts stays non-null, including as an empty array, once
-  // resolved) rather than re-fetching every time the overlay reopens.
+  // just part of the page's initial data. Product views fire it
+  // immediately on mount instead (see the isProductView check below):
+  // this is also the data source for the "You Might Also Like" row now,
+  // which the route no longer fetches server-side at all. Guarded so it
+  // only ever fetches once per page load (searchProducts stays non-null,
+  // including as an empty array, once resolved) rather than re-fetching
+  // every time the overlay reopens.
   useEffect(() => {
-    if (!(isHomeView || isProductView || isCollectionView) || !showSearch || searchProducts !== null || searchLoading || !seller?.id) return;
+    // Product view fires this eagerly (not gated on showSearch) -- it's
+    // also the data source for the "You Might Also Like" row, which needs
+    // to show up without the visitor ever opening search.
+    if (!(isHomeView || isProductView || isCollectionView) || (!showSearch && !isProductView) || searchProducts !== null || searchLoading || !seller?.id) return;
     setSearchLoading(true);
     (async () => {
       const { data } = await supabase
         .from("products")
-        .select("id, name, price, category, image_url, handle")
+        .select("id, name, price, old_price, category, image_url, handle")
         .eq("seller_id", seller.id)
         .eq("in_stock", true)
         .eq("status", "published")
         .order("sort_order", { ascending: true });
-      // Deliberately partial (id/name/price/category/image_url/handle only,
-      // same set the search overlay actually reads -- see searched/goToProduct)
-      // -- Product's other fields (old_price, images, variants, etc.) are
-      // never touched for a search result, same trust boundary the
-      // server-side narrow-column fetches elsewhere in this app already
-      // rely on.
+      // id/name/price/old_price/category/image_url/handle -- the search
+      // overlay's own results only read id/name/price/image_url/handle
+      // (see searched/goToProduct), old_price is carried along for
+      // relatedProducts' sale-badge ProductCard render on product views.
+      // Product's remaining fields (images, variants, description, etc.)
+      // are never touched here, same trust boundary the server-side
+      // narrow-column fetches elsewhere in this app already rely on.
       setSearchProducts((data || []) as unknown as Product[]);
       setSearchLoading(false);
     })();
@@ -2294,8 +2310,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           const catTokens = (p.category || "").split(",").map((c) => c.trim()).filter(Boolean);
           const firstRealCategory = catTokens[0] || null;
           const sizeChartType = getSizeChartType(p);
+          // Sourced from searchProducts (the lazy client-side catalog fetch
+          // above), not `products` -- the server route no longer runs a
+          // per-request related-products query, see searchProducts' own
+          // comment for why.
           const relatedProducts = catTokens.length > 0
-            ? products.filter((rp) => rp.id !== p.id && catTokens.some((t) => pInCat(rp, t))).slice(0, 8)
+            ? (searchProducts ?? []).filter((rp) => rp.id !== p.id && catTokens.some((t) => pInCat(rp, t))).slice(0, 8)
             : [];
           return (
             <>

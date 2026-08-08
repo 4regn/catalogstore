@@ -50,24 +50,11 @@ const SELLER_COLUMNS =
 // images array, variants (size/option picker), old_price (sale price row).
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
-// Second, separate fetch -- used to compute FourRegnStore's "You Might Also
-// Like" row (relatedProducts: filters by shared category, excludes the
-// current product, caps at 8, renders each via ProductCard). No longer the
-// WHOLE catalog: narrowed server-side below to just products sharing a
-// category token with the active product (see the .or()/ilike filter where
-// this is fetched), instead of fetching all ~1600 rows just to filter 8
-// out of them. The header/mobile-dock search overlay, rendered
-// unconditionally on every page, does NOT read this narrowed set on
-// product views anymore -- it now does its own separate, lazy, full-
-// catalog fetch client-side the first time a visitor opens it (see
-// searchProducts in FourRegnStore.tsx), same mechanism the home view
-// already uses for the same reason. Column set here still traced from
-// ProductCard's render (id/name/price/old_price/image_url/handle) plus the
-// category match itself (pInCat, needs `category`) -- images/variants/
-// in_stock/description/sort_order/created_at are never read by either,
-// those only apply to the PDP's own `p = initialActiveProduct` render path
-// above.
-const RELATED_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle";
+// "You Might Also Like" (relatedProducts in FourRegnStore.tsx) no longer
+// has a server-side fetch here at all -- it now reads off the same lazy
+// client-side catalog fetch the header/mobile-dock search overlay already
+// does (see searchProducts in FourRegnStore.tsx), instead of a per-request
+// query on this route. See initialProducts below for why.
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 // Badges shown on the "You Might Also Like" ProductCard row (see
@@ -181,69 +168,18 @@ export default async function ProductHandlePage({
   const activeProduct = productRes.data;
   if (!activeProduct) notFound();
 
-  // "You Might Also Like" candidates -- narrowed server-side to products
-  // sharing at least one category token with the active product (same
-  // token split/trim FourRegnStore.tsx's own pInCat() uses), instead of
-  // fetching the WHOLE catalog (~1600 rows for a real seller) just to
-  // filter 8 cards out of it client-side. Confirmed as a real, meaningful
-  // chunk of an oversized page payload -- this fetch runs on every single
-  // product-page view. ilike-per-token is a broad (substring, not exact-
-  // token) match; pInCat() re-applies the precise check client-side
-  // afterward (see FourRegnStore.tsx's relatedProducts), so a slightly-
-  // loose candidate pool here is harmless, just not perfectly minimal.
-  // A product with no category at all would match nothing client-side
-  // either way, so skip the fetch entirely rather than pulling candidates
-  // that'd all get filtered out. Capped at 40 -- plenty of headroom for
-  // the client's slice(0, 8) after pInCat/self-exclusion narrows it
-  // further, without ever needing the full catalog. This can't run in the
-  // Promise.all above -- it depends on activeProduct.category, which isn't
-  // known until that fetch resolves.
-  // "You Might Also Like" is a nice-to-have row, not the reason anyone is
-  // on this page -- a product with many/long category tokens turns the
-  // .or(ilike) below into several full unindexed substring scans across
-  // the whole products table, and on a large catalog that can run long
-  // enough to hit the platform's function timeout and 500 the ENTIRE page
-  // (reported: a real product page failing after ~30s). Racing the query
-  // against a timeout and falling back to an empty related-products list
-  // means a slow/expensive lookup here can never take the actual product
-  // down with it.
-  // Capped at 6 tokens -- a product tagged into many collections (this
-  // store has 72, several of them broad smart-collections like gender/
-  // discount-tier) turns each ADDITIONAL token into another full
-  // unindexed ilike scan ORed on top of the rest, so cost scales with
-  // however many collections a product happens to belong to, not with
-  // anything related to catalog size. 6 is already generous for an
-  // 8-card "you might also like" row.
-  const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean).slice(0, 6);
-  let relatedCandidates: any[] = [];
-  if (catTokens.length > 0) {
-    // AbortController, not Promise.race: race() lets our OWN code move on
-    // after the timeout, but the abandoned Supabase request keeps running
-    // against the database regardless -- still consuming the serverless
-    // function's execution time budget underneath us, which is exactly
-    // how the first attempt at this fix still 500'd. abortSignal() cancels
-    // the underlying fetch for real once the timeout fires.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    try {
-      const { data } = await supabaseAdmin
-        .from("products")
-        .select(RELATED_PRODUCT_COLUMNS)
-        .eq("seller_id", seller.id)
-        .eq("in_stock", true)
-        .eq("status", "published")
-        .neq("id", activeProduct.id)
-        .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
-        .abortSignal(controller.signal)
-        .limit(40);
-      relatedCandidates = data || [];
-    } catch {
-      relatedCandidates = [];
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-  const initialProducts = relatedCandidates;
+  // "You Might Also Like" no longer runs a server-side query at all --
+  // two attempts at bounding it here (Promise.race, then a real
+  // AbortController) both still left an unindexed ilike-OR scan across the
+  // whole products table as the single most expensive thing this route
+  // did on every view, and on a product tagged into several of this
+  // store's broader collections that was still enough to blow the
+  // serverless function's execution budget and 500 the entire page (still
+  // reproducing after the AbortController fix deployed). FourRegnStore now
+  // sources this row from the same lazy client-side catalog fetch search
+  // already needed (see searchProducts' comment there) -- worst case is
+  // the row popping in a beat late, not the page failing to load.
+  const initialProducts: never[] = [];
 
   const initialDiscountCodes = discountsRes.data ?? [];
 

@@ -45,20 +45,11 @@ const SELLER_COLUMNS =
 // created_at stays for Heirloom/SoftLuxury's Newest/Oldest sort.
 const PRODUCT_COLUMNS =
   "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
-// 4regn-only: a SEPARATE fetch used for FourRegnStore's "You Might Also
-// Like" row (relatedProducts: category match, excludes the current
-// product, caps at 8, rendered via ProductCard). No longer the whole
-// catalog -- narrowed server-side below to just products sharing a
-// category token with the active product, same as
-// ../../products/[handle]/page.tsx. The header/mobile-dock search overlay
-// does its own separate lazy full-catalog fetch client-side now instead of
-// reading this narrowed set (see searchProducts in FourRegnStore.tsx).
-// Column set traced from ProductCard's render (no client-side variant
-// picker on the card, just goToProduct navigation) -- needs id/name/price/
-// old_price(sale badge)/image_url/handle; the category filter itself only
-// needs `category`. images/variants/in_stock/description/sort_order/
-// created_at are never read.
-const RELATED_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle";
+// 4regn-only: "You Might Also Like" (relatedProducts in FourRegnStore.tsx)
+// has no server-side fetch on this route either, same as
+// ../../products/[handle]/page.tsx -- it reads off the header/mobile-dock
+// search overlay's lazy client-side catalog fetch instead (see
+// searchProducts in FourRegnStore.tsx). See initialProducts below.
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 // 4regn only -- badges shown on the "You Might Also Like" ProductCard row
@@ -203,43 +194,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // back to home with nothing open).
     if (!activeProduct) notFound();
 
-    // "You Might Also Like" candidates -- narrowed server-side to products
-    // sharing at least one category token with the active product, instead
-    // of fetching the WHOLE catalog just to filter 8 cards out of it
-    // client-side. Same reasoning/pattern as ../../products/[handle]/page.tsx
-    // (this route is 4regn's legacy fallback for products with no handle
-    // yet -- see the redirect below -- so lower-traffic, but should stay
-    // consistent). Can't run in the Promise.all above -- depends on
-    // activeProduct.category, not known until that fetch resolves.
-    // Capped at 6 tokens + a real AbortController -- see
-    // products/[handle]/page.tsx's own comment on this identical query for
-    // why Promise.race alone wasn't enough (it lets our code move on, but
-    // doesn't cancel the underlying request, which can still run out the
-    // function's execution budget underneath us).
-    const catTokens = (activeProduct.category || "").split(",").map((c: string) => c.trim()).filter(Boolean).slice(0, 6);
-    let relatedCandidates: any[] = [];
-    if (catTokens.length > 0) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      try {
-        const { data } = await supabaseAdmin
-          .from("products")
-          .select(RELATED_PRODUCT_COLUMNS)
-          .eq("seller_id", seller.id)
-          .eq("in_stock", true)
-          .eq("status", "published")
-          .neq("id", activeProduct.id)
-          .or(catTokens.map((t: string) => `category.ilike.%${t.replace(/[,()]/g, "")}%`).join(","))
-          .abortSignal(controller.signal)
-          .limit(40);
-        relatedCandidates = data || [];
-      } catch {
-        relatedCandidates = [];
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    }
-    const initialProducts = relatedCandidates;
+    // See ../../products/[handle]/page.tsx's comment on this identical
+    // route: a server-side ilike-OR query here (even with a 6-token cap
+    // and a real AbortController around it, both tried before this) was
+    // still the most expensive thing this route did per request, and on a
+    // product tagged into several of this store's broader collections
+    // could still blow the serverless function's execution budget and 500
+    // the page. Left as an empty array now -- FourRegnStore fills it in
+    // client-side via searchProducts.
+    const initialProducts: never[] = [];
 
     const initialDiscountCodes = discountsRes.data ?? [];
 
