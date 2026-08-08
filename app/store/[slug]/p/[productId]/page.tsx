@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
@@ -58,6 +59,21 @@ const DISCOUNT_COLUMNS =
 // not passed down to the client.
 const PROMO_BADGE_COLUMNS = "label, scope, product_id, collection_name, starts_at, ends_at";
 
+// Wrapped in React's cache() -- this route calls into the seller row from
+// three separate places (generateMetadata, generateViewport, and the page
+// component itself). See ../../products/[handle]/page.tsx's identical
+// getSeller for why that's real, avoidable pressure on this store's
+// 15-connection Supabase pool: memoized per request, so only the first of
+// the three actually round-trips to the database.
+const getSeller = cache(async (slug: string) => {
+  const { data } = await supabaseAdmin
+    .from("sellers")
+    .select(SELLER_COLUMNS)
+    .eq("subdomain", slug)
+    .maybeSingle();
+  return data;
+});
+
 function activePromoBadges(rows: { label: string; scope: "product" | "collection"; product_id: string | null; collection_name: string | null; starts_at: string | null; ends_at: string | null }[] | null, nowIso: string) {
   return (rows || [])
     .filter((r) => (!r.starts_at || r.starts_at <= nowIso) && (!r.ends_at || r.ends_at >= nowIso))
@@ -67,11 +83,7 @@ function activePromoBadges(rows: { label: string; scope: "product" | "collection
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; productId: string }> }): Promise<Metadata> {
   const { slug, productId } = await params;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select("store_name, store_config")
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getSeller(slug);
 
   const { data: product } = await supabaseAdmin
     .from("products")
@@ -117,11 +129,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export async function generateViewport({ params }: { params: Promise<{ slug: string; productId: string }> }): Promise<Viewport> {
   const { slug } = await params;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select("template, subdomain")
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getSeller(slug);
 
   if (!seller) return {};
 
@@ -132,11 +140,7 @@ export async function generateViewport({ params }: { params: Promise<{ slug: str
 export default async function ProductPage({ params }: { params: Promise<{ slug: string; productId: string }> }) {
   const { slug, productId } = await params;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select(SELLER_COLUMNS)
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getSeller(slug);
 
   if (!seller) notFound();
 

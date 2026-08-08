@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import type { Metadata, Viewport } from "next";
@@ -63,6 +64,24 @@ const DISCOUNT_COLUMNS =
 // passed down to the client.
 const PROMO_BADGE_COLUMNS = "label, scope, product_id, collection_name, starts_at, ends_at";
 
+// Wrapped in React's cache() -- generateMetadata and the page component
+// both need the seller row, and on this store's Nano-tier Supabase project
+// (15 pooled DB connections total, confirmed against the dashboard) two
+// separate sellers queries per single product-page view is real, avoidable
+// pressure on an already tiny pool. cache() memoizes per request: whichever
+// of the two calls this first, the other gets the same result with no
+// second round trip. Selects the full SELLER_COLUMNS unconditionally (a
+// couple more columns than generateMetadata alone needs) since sharing one
+// query beats a byte-optimal one that can't be reused.
+const getSeller = cache(async (slug: string) => {
+  const { data } = await supabaseAdmin
+    .from("sellers")
+    .select(SELLER_COLUMNS)
+    .eq("subdomain", slug)
+    .maybeSingle();
+  return data;
+});
+
 function activePromoBadges(rows: { label: string; scope: "product" | "collection"; product_id: string | null; collection_name: string | null; starts_at: string | null; ends_at: string | null }[] | null, nowIso: string) {
   return (rows || [])
     .filter((r) => (!r.starts_at || r.starts_at <= nowIso) && (!r.ends_at || r.ends_at >= nowIso))
@@ -76,11 +95,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug, handle } = await params;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select("id, store_name")
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getSeller(slug);
 
   if (!seller) return { title: "Product not found" };
 
@@ -118,11 +133,7 @@ export default async function ProductHandlePage({
 }) {
   const { slug, handle } = await params;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select(SELLER_COLUMNS)
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getSeller(slug);
 
   if (!seller) notFound();
 
