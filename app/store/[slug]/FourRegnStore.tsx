@@ -354,9 +354,17 @@ interface StorePageProps {
   initialDiscountCodes?: any[];
   initialPromoBadges?: PromoBadge[];
   initialProductId?: string;
-  mode?: "home" | "collection" | "product" | "collections-index" | "policy";
+  mode?: "home" | "collection" | "product" | "collections-index" | "policy" | "search";
   collectionName?: string;
   isSubdomain?: boolean;
+  // mode="search" only -- the ?q= this page was server-rendered for
+  // (already used to filter initialProducts server-side, see
+  // app/store/[slug]/search/page.tsx). Kept separate from the header/mobile
+  // overlay's own `searchQuery` state below: that one drives the live-typing
+  // popup, this one is just for the page heading/on-page search box's
+  // starting value, and the two only ever meet at the moment either one
+  // navigates here.
+  initialSearchQuery?: string;
   // Server-resolved product for the dedicated /p/<id> page (mode="product").
   // Unlike initialProductId (which the slide-over preview looks up from
   // `products` client-side), this is passed down already-resolved so the
@@ -453,10 +461,11 @@ const CATALOG_MENU: { label: string; items?: string[] }[] = [
   { label: "MFUDUMALO COMBOS COLLECTION" },
 ];
 
-export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount }: StorePageProps = {}) {
+export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount, initialSearchQuery }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
   const isProductView = mode === "product";
+  const isSearchView = mode === "search";
   const isCollectionsIndexView = mode === "collections-index";
   const isPolicyView = mode === "policy";
   const params = useParams();
@@ -537,6 +546,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const q = qs.toString();
     return sp(`/c/${collectionParam}`) + (q ? `?${q}` : "");
   };
+  // Same shape as buildCollectionHref, for the dedicated /search results
+  // page (mode="search") -- q always included so a copy-pasted URL keeps
+  // working, page/sort only appended when non-default, matching the exact
+  // same "clean canonical URL" convention.
+  const buildSearchHref = (page: number, sort: string) => {
+    const qs = new URLSearchParams();
+    qs.set("q", initialSearchQuery || "");
+    if (page > 1) qs.set("page", String(page));
+    if (sort && sort !== "default") qs.set("sort", sort);
+    return sp(`/search`) + `?${qs.toString()}`;
+  };
 
   /* ─── DATA ─── */
   const [seller, setSeller] = useState<Seller | null>(initialSeller ?? null);
@@ -607,7 +627,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [activeCategory, setActiveCategory] = useState("All");
   const [productSort, setProductSort] = useState(currentSort);
   const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
   // Home view's own `products` (see FOUR_REGN_HOME_PRODUCT_COLUMNS in
   // ../page.tsx) is now id/category/image_url only -- name/price/handle
   // (needed for the search overlay's filter/display/routing) are fetched
@@ -886,7 +906,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     // scrolling back down to notice the products actually changed. The
     // grid is exactly the content that's different page to page, so
     // that's what should be the first thing back in view.
-    const productsEl = isCollectionView ? document.getElementById("fr-products") : null;
+    const productsEl = (isCollectionView || isSearchView) ? document.getElementById("fr-products") : null;
     if (productsEl) productsEl.scrollIntoView({ block: "start", behavior: "instant" });
     else window.scrollTo(0, 0);
   }, [pathname, mode, currentPage, currentSort]);
@@ -1075,7 +1095,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // count and always stays; every other (real, named) entry is dropped once
   // it has 0 matching products.
   const menuCategories = ["All", ...sellerCollections.filter((cat) => catCount(cat) > 0)];
-  const effectiveCategory = isCollectionView && collectionName ? collectionName : activeCategory;
+  const effectiveCategory = isSearchView
+    ? (initialSearchQuery?.trim() ? `Search results for "${initialSearchQuery}"` : "Search")
+    : isCollectionView && collectionName ? collectionName : activeCategory;
   // Real product search -- searchSource (see above: lazily-fetched on home
   // view, the same already-loaded `products` everywhere else), matched
   // against a free-text query by name and category instead of a fixed
@@ -1100,7 +1122,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     return out;
   };
   const filtered = (() => {
-    const list = isCollectionView
+    // Collection AND search views: `products` is already the server-matched
+    // set for this page (see app/store/[slug]/c/[collection]/page.tsx and
+    // .../search/page.tsx) -- just sort it, don't re-filter by activeCategory
+    // (which stays "All" on both of these routes; it's a home-view-only tile
+    // filter).
+    const list = (isCollectionView || isSearchView)
       ? [...products]
       : (activeCategory === "All" ? [...products] : products.filter((p) => pInCat(p, activeCategory)));
     return sortProducts(list);
@@ -1706,6 +1733,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-section-title{font-family:var(--serif);font-weight:700;font-size:clamp(24px,3vw,34px);color:var(--ink)}
 .fr-sort-select{font-family:var(--body);font-size:12px;letter-spacing:0.5px;color:var(--ink);background:#fff;border:1px solid rgba(0,0,0,0.1);border-radius:8px;padding:8px 30px 8px 12px;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232e2a39'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 .fr-count{font-family:var(--body);font-size:12px;color:rgba(46,42,57,0.55)}
+.fr-search-page-bar{display:flex;gap:10px;margin-bottom:24px;max-width:480px}
+.fr-search-page-input{flex:1;min-width:0;font-family:var(--body);font-size:14px;color:var(--ink);background:#fff;border:1px solid rgba(0,0,0,0.14);border-radius:8px;padding:11px 14px;outline:none}
+.fr-search-page-input:focus{border-color:rgba(0,0,0,0.35)}
+.fr-search-page-submit{font-family:var(--body);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#fdfbf7;background:var(--ink);border:none;border-radius:8px;padding:0 22px;cursor:pointer}
+.fr-search-page-empty{font-family:var(--body);font-size:14px;color:rgba(46,42,57,0.6);padding:40px 0}
 .fr-coll-desc{font-family:var(--body);font-size:14px;line-height:1.7;color:rgba(46,42,57,0.7);max-width:720px;margin:-8px 0 24px}
 
 .fr-coll-header{max-width:1360px;margin:0 auto;padding:56px 40px 8px;text-align:center}
@@ -1820,6 +1852,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-search-close{background:none;border:none;font-size:20px;color:rgba(46,42,57,0.5);cursor:pointer;padding:4px 6px;flex-shrink:0}
 .fr-search-results{overflow-y:auto;padding:8px 12px}
 .fr-search-empty,.fr-search-hint{padding:36px 12px;text-align:center;color:rgba(46,42,57,0.5);font-size:13px}
+.fr-search-viewall{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid rgba(0,0,0,0.08);padding:12px;margin-bottom:6px;font-family:var(--body);font-size:12px;letter-spacing:0.5px;color:var(--ink);font-weight:600;cursor:pointer}
 .fr-search-item{display:flex;align-items:center;gap:14px;padding:12px;border-radius:10px;cursor:pointer;text-align:left;background:none;border:none;width:100%}
 .fr-search-item:hover{background:rgba(0,0,0,0.04)}
 .fr-search-item-img{width:52px;height:64px;border-radius:6px;object-fit:cover;flex-shrink:0;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
@@ -2888,10 +2921,30 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             renders one titled row per collection instead of dumping every
             product into one undifferentiated wall. Not rendered at all for
             the dedicated product/collections-index/policy pages. */}
-        {isCollectionView && (isCollectionView || !productGroups ? (
-          <div id="fr-products" className="fr-section" style={{ paddingTop: isCollectionView ? 24 : undefined }}>
+        {(isCollectionView || isSearchView) && ((isCollectionView || isSearchView) || !productGroups ? (
+          <div id="fr-products" className="fr-section" style={{ paddingTop: (isCollectionView || isSearchView) ? 24 : undefined }}>
+            {isSearchView && (
+              <form
+                className="fr-search-page-bar"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = searchQuery.trim();
+                  if (q) navigate(sp(`/search?q=${encodeURIComponent(q)}`));
+                }}
+              >
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products..."
+                  aria-label="Search products"
+                  className="fr-search-page-input"
+                />
+                <button type="submit" className="fr-search-page-submit">Search</button>
+              </form>
+            )}
             <div className="fr-section-head">
-              <h2 className="fr-section-title">{effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "New Arrivals") : effectiveCategory}</h2>
+              <h2 className="fr-section-title">{isSearchView ? effectiveCategory : (effectiveCategory === "All" ? (liveProductsHeading ?? config.products_heading ?? "New Arrivals") : effectiveCategory)}</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
                 {isHomeView && (
                   <a
@@ -2905,11 +2958,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <select
                   value={productSort}
                   onChange={(e) => {
-                    // Collection view: sorting is done server-side against the
-                    // WHOLE collection, not just the 24 products currently on
-                    // screen -- so this re-navigates (resetting to page 1) rather
-                    // than reordering the current page in place client-side.
+                    // Collection/search view: sorting is done server-side
+                    // against the WHOLE matched set, not just the page
+                    // currently on screen -- so this re-navigates (resetting
+                    // to page 1) rather than reordering the current page in
+                    // place client-side.
                     if (isCollectionView) { setProductSort(e.target.value); navigateToProducts(buildCollectionHref(1, e.target.value)); }
+                    else if (isSearchView) { setProductSort(e.target.value); navigateToProducts(buildSearchHref(1, e.target.value)); }
                     else setProductSort(e.target.value);
                   }}
                   className="fr-sort-select" aria-label="Sort products"
@@ -2923,29 +2978,36 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <option value="price-high">Price: High to Low</option>
                 </select>
                 <span className="fr-count">
-                  {/* Collection view: filtered.length is just the current page's
-                      count (up to PAGE_SIZE) -- show the whole collection's
-                      total instead, same as Shopify's own collection pages do. */}
-                  {(() => { const c = isCollectionView && totalProductCount != null ? totalProductCount : filtered.length; return <>{c} {c === 1 ? "piece" : "pieces"}</>; })()}
+                  {/* Collection/search view: filtered.length is just the
+                      current page's count (up to PAGE_SIZE) -- show the
+                      whole matched set's total instead, same as Shopify's
+                      own collection/search pages do. */}
+                  {(() => { const c = (isCollectionView || isSearchView) && totalProductCount != null ? totalProductCount : filtered.length; return <>{c} {c === 1 ? "piece" : "pieces"}</>; })()}
                 </span>
               </div>
             </div>
             {isCollectionView && collectionName && config.collection_descriptions?.[collectionName] && (
               <p className="fr-coll-desc">{config.collection_descriptions[collectionName]}</p>
             )}
-            <EditSection id="products">
-              <div className="fr-pgrid">
-                {filtered.map((p) => <ProductCard key={p.id} p={p} />)}
-              </div>
-            </EditSection>
-            {isCollectionView && totalPages > 1 && (
-              <nav className="fr-pagination" aria-label="Collection pages">
+            {isSearchView && !initialSearchQuery?.trim() ? (
+              <div className="fr-search-page-empty">Type a search term above to find products.</div>
+            ) : isSearchView && filtered.length === 0 ? (
+              <div className="fr-search-page-empty">No products match "{initialSearchQuery}".</div>
+            ) : (
+              <EditSection id="products">
+                <div className="fr-pgrid">
+                  {filtered.map((p) => <ProductCard key={p.id} p={p} />)}
+                </div>
+              </EditSection>
+            )}
+            {(isCollectionView || isSearchView) && totalPages > 1 && (
+              <nav className="fr-pagination" aria-label={isSearchView ? "Search result pages" : "Collection pages"}>
                 <button
                   type="button"
                   disabled={currentPage <= 1}
-                  onClick={() => navigateToProducts(buildCollectionHref(currentPage - 1, productSort))}
-                  onMouseEnter={() => currentPage > 1 && prefetchPath(buildCollectionHref(currentPage - 1, productSort))}
-                  onTouchStart={() => currentPage > 1 && prefetchPath(buildCollectionHref(currentPage - 1, productSort))}
+                  onClick={() => navigateToProducts((isSearchView ? buildSearchHref : buildCollectionHref)(currentPage - 1, productSort))}
+                  onMouseEnter={() => currentPage > 1 && prefetchPath((isSearchView ? buildSearchHref : buildCollectionHref)(currentPage - 1, productSort))}
+                  onTouchStart={() => currentPage > 1 && prefetchPath((isSearchView ? buildSearchHref : buildCollectionHref)(currentPage - 1, productSort))}
                   aria-label="Previous page"
                 >‹</button>
                 {(() => {
@@ -2969,9 +3031,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                           type="button"
                           className={n === currentPage ? "is-active" : undefined}
                           aria-current={n === currentPage ? "page" : undefined}
-                          onClick={() => n !== currentPage && navigateToProducts(buildCollectionHref(n, productSort))}
-                          onMouseEnter={() => n !== currentPage && prefetchPath(buildCollectionHref(n, productSort))}
-                          onTouchStart={() => n !== currentPage && prefetchPath(buildCollectionHref(n, productSort))}
+                          onClick={() => n !== currentPage && navigateToProducts((isSearchView ? buildSearchHref : buildCollectionHref)(n, productSort))}
+                          onMouseEnter={() => n !== currentPage && prefetchPath((isSearchView ? buildSearchHref : buildCollectionHref)(n, productSort))}
+                          onTouchStart={() => n !== currentPage && prefetchPath((isSearchView ? buildSearchHref : buildCollectionHref)(n, productSort))}
                         >{n}</button>
                       )
                   );
@@ -2979,9 +3041,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <button
                   type="button"
                   disabled={currentPage >= totalPages}
-                  onClick={() => navigateToProducts(buildCollectionHref(currentPage + 1, productSort))}
-                  onMouseEnter={() => currentPage < totalPages && prefetchPath(buildCollectionHref(currentPage + 1, productSort))}
-                  onTouchStart={() => currentPage < totalPages && prefetchPath(buildCollectionHref(currentPage + 1, productSort))}
+                  onClick={() => navigateToProducts((isSearchView ? buildSearchHref : buildCollectionHref)(currentPage + 1, productSort))}
+                  onMouseEnter={() => currentPage < totalPages && prefetchPath((isSearchView ? buildSearchHref : buildCollectionHref)(currentPage + 1, productSort))}
+                  onTouchStart={() => currentPage < totalPages && prefetchPath((isSearchView ? buildSearchHref : buildCollectionHref)(currentPage + 1, productSort))}
                   aria-label="Next page"
                 >›</button>
               </nav>
@@ -3289,7 +3351,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       {showSearch && (
         <div className="fr-search-overlay" onClick={() => { setShowSearch(false); setSearchQuery(""); }}>
           <div className="fr-search-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="fr-search-bar">
+            <form
+              className="fr-search-bar"
+              onSubmit={(e) => {
+                e.preventDefault();
+                // Enter (or the header search icon on mobile, which submits
+                // this same form): jump straight to the real, shareable
+                // /search page instead of just filtering the popup -- lets
+                // a seller type a query, copy the resulting URL, and send it
+                // to a customer asking "do you have X," which the popup
+                // alone (no URL of its own) couldn't do.
+                const q = searchQuery.trim();
+                if (!q) return;
+                setShowSearch(false);
+                navigate(sp(`/search?q=${encodeURIComponent(q)}`));
+              }}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
               <input
                 type="text"
@@ -3301,7 +3378,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 aria-label="Search products"
               />
               <button type="button" className="fr-search-close" onClick={() => { setShowSearch(false); setSearchQuery(""); }} aria-label="Close search">✕</button>
-            </div>
+            </form>
             <div className="fr-search-results">
               {(isHomeView || isProductView) && searchLoading && searchProducts === null ? (
                 <div className="fr-search-hint">Loading products…</div>
@@ -3310,7 +3387,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               ) : searched.length === 0 ? (
                 <div className="fr-search-empty">No products match "{searchQuery.trim()}".</div>
               ) : (
-                searched.slice(0, 12).map((p) => (
+                <>
+                {searched.length > 12 && (
+                  <button
+                    type="button"
+                    className="fr-search-viewall"
+                    onClick={() => { setShowSearch(false); navigate(sp(`/search?q=${encodeURIComponent(searchQuery.trim())}`)); }}
+                  >
+                    View all {searched.length} results for "{searchQuery.trim()}" →
+                  </button>
+                )}
+                {searched.slice(0, 12).map((p) => (
                   <button
                     key={p.id}
                     type="button"
@@ -3328,7 +3415,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     </div>
                     <div className="fr-search-item-price">{fmt(p.price)}</div>
                   </button>
-                ))
+                ))}
+                </>
               )}
             </div>
           </div>
