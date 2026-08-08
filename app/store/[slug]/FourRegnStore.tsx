@@ -2464,7 +2464,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </button>
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
-                    <FloatWidget price={effectivePrice(p, selectedVariants)} />
+                    {/* FloatWidget temporarily disabled -- confirmed live that Float's
+                        script renders its full onboarding/FAQ splash page instead of
+                        the compact price-plan widget on this domain, taking over the
+                        whole viewport. Almost certainly because merchant 17bb89-2 isn't
+                        authorized for 4regn.catalogstore.co.za yet (it was presumably
+                        set up against the original Shopify domain) -- needs whitelisting
+                        in Float's own merchant dashboard before this can go back in.
+                        The component itself is unchanged and ready; just re-add the
+                        line below once that's sorted. */}
+                    {/* <FloatWidget price={effectivePrice(p, selectedVariants)} /> */}
                   </div>
                 </div>
               </div>
