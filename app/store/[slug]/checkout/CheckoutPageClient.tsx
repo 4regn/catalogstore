@@ -672,7 +672,14 @@ export default function CheckoutPageClient() {
           )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <a href={sp()} style={{ fontSize: 13, color: accent, textDecoration: "none" }}>&larr; Return to store</a>
-            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#22c55e", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "payfast" ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
+            {/* #007517 -- the exact green UNIK Labs' own checkout.html uses
+                on its .place-order button (public/private-templates/unik-labs/
+                checkout.html), not Tailwind's #22c55e this used to be. The
+                seller explicitly asked for this specific green (4regn is
+                moving off Shopify onto this same checkout system UNIK Labs
+                already runs on, and wants the two to look consistent) --
+                confirmed via that file directly rather than eyeballing it. */}
+            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "payfast" ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
           </div>
         </div>
 
