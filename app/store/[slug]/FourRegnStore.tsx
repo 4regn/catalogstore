@@ -2376,7 +2376,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           const pdpBadge = getProductPromoBadge(p);
           const pdpPromo = getProductPromo(p.id);
           const catTokens = (p.category || "").split(",").map((c) => c.trim()).filter(Boolean);
-          const firstRealCategory = catTokens[0] || null;
+          // Skips a hidden collection (Dashboard -> Editor -> Collections'
+          // Visible/Hidden toggle, hiddenCollectionsSet above) instead of
+          // always taking catTokens[0] -- hiding a collection from
+          // navigation/browsing but leaving every affected product's own
+          // breadcrumb still announcing it defeats the point of hiding it.
+          const firstRealCategory = catTokens.find((t) => !hiddenCollectionsSet.has(t)) || null;
           const sizeChartType = getSizeChartType(p);
           // Sourced from searchProducts (the lazy client-side catalog fetch
           // above), not `products` -- the server route no longer runs a
