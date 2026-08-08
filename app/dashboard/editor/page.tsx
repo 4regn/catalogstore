@@ -379,6 +379,18 @@ export default function StoreEditor() {
   const [heroDisclaimer, setHeroDisclaimer] = useState("");
   const [heroOfferHeadline, setHeroOfferHeadline] = useState("");
   const [heroOfferNote, setHeroOfferNote] = useState("");
+  // 4regn About section ("Built for the Culture") -- separate state from
+  // aboutLabel/aboutTitle/description below, which belong to the OTHER
+  // templates' generic About panel and don't apply here.
+  const [showAbout4regn, setShowAbout4regn] = useState(true);
+  const [about4regnEyebrow, setAbout4regnEyebrow] = useState("");
+  const [about4regnHeading, setAbout4regnHeading] = useState("");
+  const [about4regnBody, setAbout4regnBody] = useState("");
+  const [about4regnStat1Value, setAbout4regnStat1Value] = useState("");
+  const [about4regnStat1Label, setAbout4regnStat1Label] = useState("");
+  const [about4regnStat2Value, setAbout4regnStat2Value] = useState("");
+  const [about4regnStat2Label, setAbout4regnStat2Label] = useState("");
+  const [about4regnCtaLabel, setAbout4regnCtaLabel] = useState("");
   // 4regn SETLA promo strip
   const [showSetlaBanner, setShowSetlaBanner] = useState(true);
   const [setlaEyebrow, setSetlaEyebrow]       = useState("");
@@ -589,6 +601,15 @@ export default function StoreEditor() {
       setHeroDisclaimer((cfg as any)?.hero_disclaimer ?? "");
       setHeroOfferHeadline((cfg as any)?.hero_offer_headline ?? "");
       setHeroOfferNote((cfg as any)?.hero_offer_note ?? "");
+      setShowAbout4regn((cfg as any)?.show_about ?? true);
+      setAbout4regnEyebrow((cfg as any)?.about_eyebrow ?? "");
+      setAbout4regnHeading((cfg as any)?.about_heading ?? "");
+      setAbout4regnBody((cfg as any)?.about_body ?? "");
+      setAbout4regnStat1Value((cfg as any)?.about_stat1_value ?? "");
+      setAbout4regnStat1Label((cfg as any)?.about_stat1_label ?? "");
+      setAbout4regnStat2Value((cfg as any)?.about_stat2_value ?? "");
+      setAbout4regnStat2Label((cfg as any)?.about_stat2_label ?? "");
+      setAbout4regnCtaLabel((cfg as any)?.about_cta_label ?? "");
       // 4regn SETLA promo strip
       setShowSetlaBanner((cfg as any)?.show_setla_banner ?? true);
       setSetlaEyebrow((cfg as any)?.setla_eyebrow ?? "");
@@ -750,6 +771,15 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ heroDisclaimer }); }, [heroDisclaimer]);
   useEffect(() => { postUpdate({ heroOfferHeadline }); }, [heroOfferHeadline]);
   useEffect(() => { postUpdate({ heroOfferNote }); }, [heroOfferNote]);
+  useEffect(() => { postUpdate({ showAbout: showAbout4regn }); }, [showAbout4regn]);
+  useEffect(() => { postUpdate({ aboutEyebrow: about4regnEyebrow }); }, [about4regnEyebrow]);
+  useEffect(() => { postUpdate({ aboutHeading: about4regnHeading }); }, [about4regnHeading]);
+  useEffect(() => { postUpdate({ aboutBody: about4regnBody }); }, [about4regnBody]);
+  useEffect(() => { postUpdate({ aboutStat1Value: about4regnStat1Value }); }, [about4regnStat1Value]);
+  useEffect(() => { postUpdate({ aboutStat1Label: about4regnStat1Label }); }, [about4regnStat1Label]);
+  useEffect(() => { postUpdate({ aboutStat2Value: about4regnStat2Value }); }, [about4regnStat2Value]);
+  useEffect(() => { postUpdate({ aboutStat2Label: about4regnStat2Label }); }, [about4regnStat2Label]);
+  useEffect(() => { postUpdate({ aboutCtaLabel: about4regnCtaLabel }); }, [about4regnCtaLabel]);
   useEffect(() => { postUpdate({ heroTitle }); }, [heroTitle]);
   useEffect(() => { postUpdate({ heroCta }); }, [heroCta]);
   useEffect(() => { postUpdate({ heroCtaTarget }); }, [heroCtaTarget]);
@@ -929,6 +959,15 @@ export default function StoreEditor() {
       hero_disclaimer: heroDisclaimer,
       hero_offer_headline: heroOfferHeadline,
       hero_offer_note: heroOfferNote,
+      show_about: showAbout4regn,
+      about_eyebrow: about4regnEyebrow,
+      about_heading: about4regnHeading,
+      about_body: about4regnBody,
+      about_stat1_value: about4regnStat1Value,
+      about_stat1_label: about4regnStat1Label,
+      about_stat2_value: about4regnStat2Value,
+      about_stat2_label: about4regnStat2Label,
+      about_cta_label: about4regnCtaLabel,
       show_setla_banner: showSetlaBanner,
       setla_eyebrow: setlaEyebrow,
       setla_lead: setlaLead,
@@ -2536,8 +2575,55 @@ export default function StoreEditor() {
               </div>
             )}
 
-            {/* ABOUT */}
-            {activeSection === "about" && (
+            {/* ABOUT — 4regn's "Built for the Culture" brand-story block.
+                Separate panel/fields from the generic About section below
+                (which other templates use) -- different config keys
+                entirely (about_eyebrow, about_heading, about_body,
+                about_stat1/2_value/label, about_cta_label vs aboutLabel,
+                aboutTitle, description here). */}
+            {activeSection === "about" && seller?.template === "4regn" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "pointer" }}>
+                  <input type="checkbox" checked={showAbout4regn} onChange={e => setShowAbout4regn(e.target.checked)} style={{ accentColor: "#9c7c62" }} />
+                  <span style={{ fontSize: 13, color: "rgba(245,245,245,0.58)" }}>Show this section on my store</span>
+                </label>
+                <div>
+                  <label style={labelStyle}>Eyebrow</label>
+                  <input value={about4regnEyebrow} onChange={e => setAbout4regnEyebrow(e.target.value)} placeholder="e.g. Est. 2019 — South Africa" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Heading</label>
+                  <input value={about4regnHeading} onChange={e => setAbout4regnHeading(e.target.value)} placeholder="e.g. Built for the Culture" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Brand Story</label>
+                  <textarea value={about4regnBody} onChange={e => setAbout4regnBody(e.target.value)} rows={6}
+                    placeholder={"Founded in 2019 by...\n\nWe don't just offer clothing — we create an experience..."}
+                    style={{ ...inputStyle, resize: "vertical" }} />
+                  <div style={hintStyle}>Use a blank line between paragraphs. Leave empty to use the default story text.</div>
+                </div>
+                <div style={ctaCardStyle}>
+                  <div style={ctaCardTitle}>Stats Row</div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <input value={about4regnStat1Value} onChange={e => setAbout4regnStat1Value(e.target.value)} placeholder="110K+" style={{ ...inputStyle, flex: 1 }} />
+                    <input value={about4regnStat1Label} onChange={e => setAbout4regnStat1Label(e.target.value)} placeholder="Deliveries" style={{ ...inputStyle, flex: 1 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                    <input value={about4regnStat2Value} onChange={e => setAbout4regnStat2Value(e.target.value)} placeholder="2019" style={{ ...inputStyle, flex: 1 }} />
+                    <input value={about4regnStat2Label} onChange={e => setAbout4regnStat2Label(e.target.value)} placeholder="Est." style={{ ...inputStyle, flex: 1 }} />
+                  </div>
+                  <div style={{ ...hintStyle, marginTop: 8 }}>Leave a value empty to hide that stat.</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Link Label</label>
+                  <input value={about4regnCtaLabel} onChange={e => setAbout4regnCtaLabel(e.target.value)} placeholder="Our Story" style={inputStyle} />
+                  <div style={hintStyle}>Opens the full story text in a popup. Leave empty to hide the link.</div>
+                </div>
+              </div>
+            )}
+
+            {/* ABOUT — generic (Heirloom etc.) */}
+            {activeSection === "about" && seller?.template !== "4regn" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <label style={labelStyle}>Section Label</label>
                 <input value={aboutLabel} onChange={e => setAboutLabel(e.target.value)}
