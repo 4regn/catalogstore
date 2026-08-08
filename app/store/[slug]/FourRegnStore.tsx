@@ -2763,6 +2763,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     type="button"
                     className="fr-search-item"
                     onClick={() => { setShowSearch(false); setSearchQuery(""); goToProduct(p); }}
+                    onMouseEnter={() => prefetchProduct(p)}
+                    onTouchStart={() => prefetchProduct(p)}
                   >
                     {p.image_url ? (
                       <img src={p.image_url} alt="" loading="lazy" decoding="async" className="fr-search-item-img" onError={(e) => { e.currentTarget.style.display = "none"; }} />
