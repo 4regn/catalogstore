@@ -2873,9 +2873,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <h4>Payment Methods</h4>
                 <div className="fr-pay-grid">
                   {seller.checkout_config?.payfast_enabled && (<>
-                    <span className="fr-pay-icon" title="Visa">VISA</span>
-                    <span className="fr-pay-icon" title="Mastercard">MC</span>
+                    <span className="fr-pay-icon" title="Visa"><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Mastercard"><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Apple Pay"><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Yoco"><img src="/checkout/yoco.png" alt="Yoco" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   </>)}
+                  {showSetlaBanner && (
+                    <span className="fr-pay-icon" title="SETLA"><img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
+                  )}
                   {seller.checkout_config?.eft_enabled && (
                     <button onClick={() => setPolicyModal({ title: "EFT / Direct Deposit", content: "Select EFT/Direct Deposit at checkout. You’ll receive payment instructions to complete your order via EFT." })} style={{ marginTop: 4, fontSize: 12 }}>EFT / Direct Deposit</button>
                   )}
