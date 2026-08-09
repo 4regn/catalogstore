@@ -104,8 +104,6 @@ async function main() {
 
   console.log("\nReleasing...");
   for (const { plan, setlaOrder, order } of stuck) {
-    const customer = customerById.get(plan.customer_id);
-
     const { data: voided } = await admin
       .from("setla_payment_plans")
       .update({ status: "cancelled" })
@@ -118,12 +116,24 @@ async function main() {
       continue;
     }
 
-    if (customer) {
-      await admin
+    // Re-read the customer's CURRENT available_limit right before this
+    // specific release, not the batch snapshot from earlier -- two stuck
+    // orders belonging to the same customer (a real case this surfaced)
+    // would otherwise both optimistic-lock against the same stale
+    // pre-loop value, so the second release silently loses the race and
+    // matches 0 rows the moment the first one has already applied.
+    const { data: freshCustomer } = await admin.from("setla_customers").select("id, email, available_limit").eq("id", plan.customer_id).maybeSingle();
+    if (freshCustomer) {
+      const { data: released } = await admin
         .from("setla_customers")
-        .update({ available_limit: Number(customer.available_limit) + Number(plan.principal_amount) })
-        .eq("id", customer.id)
-        .eq("available_limit", customer.available_limit);
+        .update({ available_limit: Number(freshCustomer.available_limit) + Number(plan.principal_amount) })
+        .eq("id", freshCustomer.id)
+        .eq("available_limit", freshCustomer.available_limit)
+        .select("id")
+        .maybeSingle();
+      if (!released) {
+        console.error(`  WARNING: plan ${plan.id} cancelled but the limit release lost a race for ${freshCustomer.email} -- re-run this script to catch it (it only checks plan status, so a cancelled-but-unreleased plan won't show up again; ping for a targeted fix if that happens).`);
+      }
     }
 
     if (setlaOrder) {
@@ -133,7 +143,7 @@ async function main() {
       await admin.from("orders").update({ payment_status: "failed", status: "failed" }).eq("id", order.id).eq("payment_status", "pending");
     }
 
-    console.log(`  Released R${plan.principal_amount} back to ${customer?.email ?? plan.customer_id} (order #${order?.order_number ?? order?.id})`);
+    console.log(`  Released R${plan.principal_amount} back to ${freshCustomer?.email ?? plan.customer_id} (order #${order?.order_number ?? order?.id})`);
   }
   console.log("\nDone.");
 }
