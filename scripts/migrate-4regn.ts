@@ -283,7 +283,7 @@ async function main() {
   let redirectTargets: any[];
   let redirectHandles: string[];
   if (args.resumeImages) {
-    console.log("\n--resume-images: skipping product insert, matching existing products by source_url instead...");
+    console.log("\n--resume-images: skipping product insert, matching existing products by handle (falling back to source_url)...");
     let existing: { id: string; source_url: string | null; images: string[] | null; handle: string | null }[];
     try {
       existing = await fetchAllRows(admin, "products", "id, source_url, images, handle", (q) => q.eq("seller_id", sellerId));
@@ -292,6 +292,18 @@ async function main() {
       process.exit(1);
     }
     console.log(`Fetched ${existing.length} existing product(s) for this seller.`);
+    // Prefer handle: backfill-4regn-handles.ts already set products.handle
+    // from product_redirects.old_path, itself built at ORIGINAL import time
+    // from this exact CSV's own "Handle" column -- so it's a stable,
+    // format-independent match key. source_url is a fallback only, kept
+    // for the rare product with no handle (shouldn't exist post-backfill,
+    // but cheap to keep): it's reconstructed fresh from this CSV run
+    // (recordedSourceUrl-from-metafield-if-present, else --source-domain +
+    // handle), which drifts across runs whenever the metafield column's
+    // presence/content differs from the original import's CSV -- confirmed
+    // in practice: a resume run against the same file left 428/2023 rows
+    // unmatched by source_url alone, silently retrying nothing for them.
+    const byHandle = new Map(existing.filter((p) => p.handle).map((p) => [p.handle, p]));
     const existingWithUrl = existing.filter((p) => p.source_url);
     const bySourceUrl = new Map(existingWithUrl.map((p) => [p.source_url, p]));
     // If this is smaller than existingWithUrl.length, multiple existing
@@ -307,8 +319,15 @@ async function main() {
     const needingImagesHandles: string[] = [];
     const unmatchedSample: { handle: string; source_url: string | null }[] = [];
     let notFound = 0;
+    let matchedByHandle = 0;
+    let matchedBySourceUrl = 0;
     for (let i = 0; i < rows.length; i++) {
-      const p = rows[i].source_url ? bySourceUrl.get(rows[i].source_url!) : undefined;
+      let p = byHandle.get(allHandles[i]);
+      if (p) matchedByHandle++;
+      else {
+        p = rows[i].source_url ? bySourceUrl.get(rows[i].source_url!) : undefined;
+        if (p) matchedBySourceUrl++;
+      }
       if (!p) {
         notFound++;
         if (unmatchedSample.length < 25) unmatchedSample.push({ handle: allHandles[i], source_url: rows[i].source_url });
@@ -326,7 +345,7 @@ async function main() {
         needingImagesHandles.push(allHandles[i]);
       }
     }
-    console.log(`Matched ${matched.length} existing product(s) by source_url (${notFound} not found -- run the normal import first if this is unexpectedly high). ${needingImages.length} still need images (including partially-completed ones).`);
+    console.log(`Matched ${matched.length} existing product(s) (${matchedByHandle} by handle, ${matchedBySourceUrl} by source_url fallback; ${notFound} not found -- run the normal import first if this is unexpectedly high). ${needingImages.length} still need images (including partially-completed ones).`);
     if (duplicateSourceUrls > 0) {
       console.log(`Note: ${existingWithUrl.length} existing product(s) have a source_url set, but only ${bySourceUrl.size} unique values among them (${duplicateSourceUrls} duplicate(s)) -- some existing products share the same source_url, which silently caps how many can ever be matched this way.`);
     }
