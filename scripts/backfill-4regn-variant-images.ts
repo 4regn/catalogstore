@@ -65,20 +65,12 @@ async function main() {
     if (!product.variants || !product.variants.length) { skippedNoVariants++; continue; }
 
     const first = variantRows[0];
+    // Must come from the first row -- Shopify's export only populates
+    // "OptionN Name" there, see computeVariantImageMaps' own comment.
     const opt1Name = col(first, "option1 name");
     const opt2Name = col(first, "option2 name");
     const opt3Name = col(first, "option3 name");
-    const optGroups: Record<string, Set<string>> = {};
-    for (const vRow of variantRows) {
-      for (const [optName, colName] of [[opt1Name, "option1 value"], [opt2Name, "option2 value"], [opt3Name, "option3 value"]] as const) {
-        if (!optName) continue;
-        if (!optGroups[optName]) optGroups[optName] = new Set();
-        const v = col(vRow, colName);
-        if (v) optGroups[optName].add(v);
-      }
-    }
-    const optionNamesInUse = Object.entries(optGroups).filter(([, opts]) => opts.size > 0);
-    const imagesByDimension = computeVariantImageMaps(variantRows, col, optionNamesInUse);
+    const imagesByDimension = computeVariantImageMaps(variantRows, col, opt1Name, opt2Name, opt3Name);
     if (!Object.keys(imagesByDimension).length) continue;
 
     let changed = false;

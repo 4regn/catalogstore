@@ -241,25 +241,34 @@ export function makeCol(header: string[]) {
 // value maps to two different images) AND more than one distinct image
 // actually shows up across its values -- otherwise it's left out, and
 // that dimension just falls back to the product's plain images[] gallery.
+//
+// opt1Name/opt2Name/opt3Name must come from the product's FIRST row --
+// Shopify's export only populates "OptionN Name" there, leaving it blank
+// on every subsequent variant row (only "OptionN Value" is repeated per
+// row). Confirmed live: comparing each row's OWN option-name column
+// against the target dimension (instead of using a fixed column position
+// for the whole product) silently matched only the first row every time,
+// which is why an earlier version of this function found zero variant-
+// image mappings across an entire real catalog.
 export function computeVariantImageMaps(
   variantRows: string[][],
   col: (row: string[], name: string) => string,
-  optionNamesInUse: Array<[string, Set<string>]>
+  opt1Name: string,
+  opt2Name: string,
+  opt3Name: string
 ): Record<string, Record<string, string>> {
-  const rowOptionPairs = (vRow: string[]) =>
-    [
-      [col(vRow, "option1 name"), col(vRow, "option1 value")],
-      [col(vRow, "option2 name"), col(vRow, "option2 value")],
-      [col(vRow, "option3 name"), col(vRow, "option3 value")],
-    ] as const;
+  const dimensions = [
+    opt1Name ? { name: opt1Name, valueCol: "option1 value" } : null,
+    opt2Name ? { name: opt2Name, valueCol: "option2 value" } : null,
+    opt3Name ? { name: opt3Name, valueCol: "option3 value" } : null,
+  ].filter((d): d is { name: string; valueCol: string } => d !== null);
 
   const imagesByDimension: Record<string, Record<string, string>> = {};
-  for (const [name] of optionNamesInUse) {
+  for (const { name, valueCol } of dimensions) {
     const valueToImage: Record<string, string> = {};
     let consistent = true;
     for (const vRow of variantRows) {
-      const pair = rowOptionPairs(vRow).find(([n]) => n === name);
-      const optValue = pair?.[1];
+      const optValue = col(vRow, valueCol);
       const img = col(vRow, "image src");
       if (!optValue || !img) continue;
       if (valueToImage[optValue] && valueToImage[optValue] !== img) { consistent = false; break; }

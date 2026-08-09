@@ -48,15 +48,15 @@ function classify(rows: string[][], col: (r: string[], name: string) => string):
 
   // Genuine variation exists -- does it cleanly line up with ONE option
   // dimension (every row sharing a value for that dimension shares the
-  // same image, no value maps to two different images)?
-  for (const name of [opt1Name, opt2Name, opt3Name].filter(Boolean)) {
+  // same image, no value maps to two different images)? Column position
+  // is fixed per dimension (option1/2/3 value), NOT re-derived from each
+  // row's own option-name cell -- Shopify only populates that on the
+  // first row, so re-checking it per row silently drops every other row.
+  for (const [name, valueCol] of ([[opt1Name, "option1 value"], [opt2Name, "option2 value"], [opt3Name, "option3 value"]] as const).filter(([n]) => n)) {
     const valueToImage: Record<string, string> = {};
     let consistent = true;
     for (const r of variantRows) {
-      const value =
-        col(r, "option1 name") === name ? col(r, "option1 value") :
-        col(r, "option2 name") === name ? col(r, "option2 value") :
-        col(r, "option3 name") === name ? col(r, "option3 value") : "";
+      const value = col(r, valueCol);
       const img = col(r, "image src");
       if (!value || !img) continue;
       if (valueToImage[value] && valueToImage[value] !== img) { consistent = false; break; }
@@ -84,13 +84,10 @@ function majorityStats(rows: string[][], col: (r: string[], name: string) => str
   const variantRows = rows.filter((r) => col(r, "option1 value"));
   let best: { name: string; distinctMajority: number; purity: number } | null = null;
 
-  for (const name of [opt1Name, opt2Name, opt3Name].filter(Boolean)) {
+  for (const [name, valueCol] of ([[opt1Name, "option1 value"], [opt2Name, "option2 value"], [opt3Name, "option3 value"]] as const).filter(([n]) => n)) {
     const rowsByValue: Record<string, string[]> = {};
     for (const r of variantRows) {
-      const value =
-        col(r, "option1 name") === name ? col(r, "option1 value") :
-        col(r, "option2 name") === name ? col(r, "option2 value") :
-        col(r, "option3 name") === name ? col(r, "option3 value") : "";
+      const value = col(r, valueCol);
       const img = col(r, "image src");
       if (!value || !img) continue;
       (rowsByValue[value] ||= []).push(img);

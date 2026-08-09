@@ -189,7 +189,7 @@ async function main() {
       // gallery/variant picker already expects (declared on the frontend
       // type, never previously populated here) -- see
       // computeVariantImageMaps' own comment for how it's derived.
-      const imagesByDimension = computeVariantImageMaps(variantRows, col, optionNamesInUse);
+      const imagesByDimension = computeVariantImageMaps(variantRows, col, opt1Name, opt2Name, opt3Name);
       // Per-variant price only maps cleanly onto priceDelta when a product
       // varies on exactly one option (e.g. Size alone) -- a true
       // multi-dimensional combo (Size x Color where price varies per exact
