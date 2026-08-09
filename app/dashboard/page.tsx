@@ -3276,7 +3276,27 @@ export default function Dashboard() {
             </div>
             </>)}
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={async () => { if (!seller) return; setCheckoutSaving(true); setCheckoutSaved(false); await supabase.from("sellers").update({ checkout_config: checkoutConfig }).eq("id", seller.id); setSeller({ ...seller, checkout_config: checkoutConfig }); setCheckoutSaving(false); setCheckoutSaved(true); setTimeout(() => setCheckoutSaved(false), 3000); revalidateMyStore(); }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
+              <button onClick={async () => {
+                if (!seller) return;
+                setCheckoutSaving(true); setCheckoutSaved(false);
+                // Merge onto whatever's actually in the DB right now, not a
+                // blind overwrite with just this form's own fields -- this
+                // form's own CheckoutConfig type deliberately doesn't include
+                // yoco_enabled/setla_enabled (non-self-serve, only ever set
+                // directly via SQL, see those fields' own comments in
+                // CheckoutPageClient.tsx), so a plain overwrite here was
+                // silently wiping them back out on every save from this page
+                // -- confirmed as a real regression (Yoco stopped working
+                // for a seller after they saved a shipping-option change
+                // here). Re-fetches the current row instead of trusting
+                // client-side `seller` state, in case it's gone stale since
+                // this page loaded.
+                const { data: current } = await supabase.from("sellers").select("checkout_config").eq("id", seller.id).single();
+                const merged = { ...(current?.checkout_config || {}), ...checkoutConfig };
+                await supabase.from("sellers").update({ checkout_config: merged }).eq("id", seller.id);
+                setSeller({ ...seller, checkout_config: merged });
+                setCheckoutSaving(false); setCheckoutSaved(true); setTimeout(() => setCheckoutSaved(false), 3000); revalidateMyStore();
+              }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
               {checkoutSaved && <span style={{ color: N, fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const }}>Saved!</span>}
             </div>
           </div>)}
