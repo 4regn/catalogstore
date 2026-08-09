@@ -128,12 +128,22 @@ export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: stri
   // nothing claimed at all, so there's nothing for a NEW abandoned order
   // to release. This block only still matters for any order created
   // before that change that's still stuck with a live claim.
+  //
+  // payment_method must include "setla" (the generic storefront's
+  // pre-fix label -- setla-create never updated it) alongside
+  // "setla_pay_later" (what a pre-fix UNIK order was written with
+  // directly, since that route always knew the plan type at insert time).
+  // payment_status must include "abandoned" too: the blanket update below
+  // already ran on an earlier sweep call for these exact rows (before
+  // this payment_method fix existed) and flipped them straight to
+  // "abandoned" -- past "pending" is exactly where a genuinely stuck
+  // claim needs releasing, not disqualifying.
   const { data: candidates } = await admin
     .from("orders")
     .select("id")
     .eq("seller_id", sellerId)
-    .eq("payment_method", "setla_pay_later")
-    .eq("payment_status", "pending")
+    .in("payment_method", ["setla", "setla_pay_later"])
+    .in("payment_status", ["pending", "abandoned"])
     .lt("created_at", cutoff);
   if (candidates && candidates.length) {
     const { data: setlaOrders } = await admin
