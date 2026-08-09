@@ -300,6 +300,15 @@ const TAG_SIZE_CHART_MAP: Record<string, SizeChartType> = {
   ukmensizelabel: "ukmensizelabel",
   menxsmallto3xlpants: "menxsmallto3xlpants",
   womenxsmalltoxlpants: "womenxsmalltoxlpants",
+  // The single most common real tag across this catalog for exactly this
+  // chart (confirmed via scripts/check-4regn-size-chart-coverage.ts's
+  // output: e.g. "Frank Ocean Graphic Tee" carries this tag but its NAME
+  // doesn't contain any OVERSIZED_TEE_NAME_MATCHES phrase) was missing
+  // entirely -- this key normalizes the same way the matching loop below
+  // normalizes every tag (lowercase, whitespace stripped; a hyphen is
+  // untouched by that, hence the literal "oversized-tee" key here rather
+  // than "oversizedtee").
+  "oversized-tee": "oversized_tee",
 };
 
 // Selection order matches the theme exactly: name-keyword match first (any

@@ -45,6 +45,7 @@ const TAG_SIZE_CHART_MAP: Record<string, string> = {
   ukmensizelabel: "ukmensizelabel",
   menxsmallto3xlpants: "menxsmallto3xlpants",
   womenxsmalltoxlpants: "womenxsmalltoxlpants",
+  "oversized-tee": "oversized_tee",
 };
 function getSizeChartType(product: { name: string; tags?: string[] | null }): string | null {
   const name = (product.name || "").toLowerCase();
