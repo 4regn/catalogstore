@@ -3383,7 +3383,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <div className="fr-foot-grid">
               <div>
                 {displayLogo
-                  ? <img src={displayLogo} alt={seller.store_name} className="fr-foot-logo" />
+                  // Real PageSpeed trace flagged this as the single biggest
+                  // image-payload offender on the whole homepage: a plain
+                  // <img> shipping the raw uploaded logo (2885x1509, ~2.8MB)
+                  // for a box rendered at 120x63 (.fr-foot-logo's own
+                  // height:36px/max-width:180px). next/image resizes to
+                  // what's actually displayed and serves WebP/AVIF instead.
+                  ? <Image src={displayLogo} alt={seller.store_name} className="fr-foot-logo" width={180} height={36} style={{ width: "auto" }} />
                   : <div className="fr-foot-brand">{seller.store_name}</div>}
                 <p className="fr-foot-tag">{displayFooterTagline}</p>
                 <div className="fr-foot-soc">
@@ -3918,8 +3924,17 @@ function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href
                   per-slide label in `images` (just raw URLs), so this falls
                   back to the section's own heading context rather than
                   leaving it blank. */}
+              {/* Real PageSpeed trace flagged this whole carousel as the
+                  next-biggest image-payload offender after the footer logo
+                  above -- 14 unique plain <img> slides (doubled for the
+                  seamless-loop track, see slides below), each shipping the
+                  raw ~828-2885px-wide uploaded photo for a card that only
+                  ever renders 220-360px wide (sizeCards() below). next/image
+                  resizes to what's actually on screen and serves WebP/AVIF;
+                  `sizes` mirrors sizeCards()'s own `vw*0.42` clamp(220,360)
+                  so the generated srcset matches the real rendered width. */}
               <a className="fr-cef-card" href={href}>
-                <img src={src} alt={`Winter Essentials look ${i + 1}`} loading="lazy" width={360} height={480} />
+                <Image src={src} alt={`Winter Essentials look ${i + 1}`} width={360} height={480} sizes="(max-width: 524px) 42vw, (max-width: 857px) 220px, 360px" />
               </a>
             </div>
           ))}
