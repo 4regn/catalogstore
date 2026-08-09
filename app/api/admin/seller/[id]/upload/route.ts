@@ -62,7 +62,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const arrayBuf = await file.arrayBuffer();
   const { error: upErr } = await getAdmin().storage
     .from("store-assets")
-    .upload(path, arrayBuf, { upsert: true, contentType: file.type });
+    .upload(path, arrayBuf, {
+      upsert: true,
+      contentType: file.type,
+      // Real PageSpeed trace showed this bucket's default 1h Cache-Control
+      // on a live logo -- only safe to lengthen for "logo" here, since its
+      // path is already Date.now()-suffixed (every upload gets a brand new
+      // URL, so a long cache can never serve stale bytes). "banner" reuses
+      // a stable `${id}/${kind}.${ext}` path across re-uploads (upsert
+      // overwrites in place) -- caching that long would show visitors an
+      // old banner for up to a year after a seller changes it, so it's left
+      // on the bucket default until that path scheme also gets a
+      // per-upload-unique suffix.
+      ...(kind === "logo" ? { cacheControl: "31536000" } : {}),
+    });
 
   if (upErr) {
     return NextResponse.json({ error: upErr.message }, { status: 500 });
