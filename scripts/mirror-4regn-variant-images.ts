@@ -81,6 +81,32 @@ async function main() {
     console.log("\nDry run -- re-run without --dry-run to actually fetch and mirror these.");
     for (const t of tasks.slice(0, 10)) console.log(`  ${productsWithVariants[t.productIdx].name} -- ${t.value}: ${t.url}`);
     if (tasks.length > 10) console.log(`  ...and ${tasks.length - 10} more`);
+
+    // Real fetches are deduped by distinct URL (a photo reused across
+    // products/dimensions is only ever downloaded once) -- the size
+    // estimate follows the same dedup so it matches what would actually
+    // get uploaded, not an inflated per-task count. HEAD-only: no image
+    // body is downloaded here, just Content-Length off the response
+    // headers, so this stays fast even across thousands of URLs.
+    const distinctUrls = Array.from(new Set(tasks.map((t) => t.url)));
+    console.log(`\nEstimating size of ${distinctUrls.length} distinct image(s) (HEAD requests only, nothing downloaded)...`);
+    let totalBytes = 0, known = 0, unknown = 0;
+    let cursor = 0;
+    async function sizeWorker() {
+      while (cursor < distinctUrls.length) {
+        const url = distinctUrls[cursor++];
+        try {
+          const resp = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(10000) });
+          const len = resp.ok ? Number(resp.headers.get("content-length")) : NaN;
+          if (Number.isFinite(len) && len > 0) { totalBytes += len; known++; } else unknown++;
+        } catch {
+          unknown++;
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: args.concurrency }, sizeWorker));
+    const mb = totalBytes / (1024 * 1024);
+    console.log(`Estimated size: ~${mb.toFixed(1)} MB across ${known} image(s) with a known size` + (unknown ? ` (${unknown} didn't report a size -- likely similar, not counted above)` : "") + ".");
     return;
   }
 
