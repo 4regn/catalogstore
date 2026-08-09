@@ -33,6 +33,25 @@ export function buildInstalmentSchedule(total: number): Array<{ sequenceNumber: 
   }));
 }
 
+// "Half and Half" -- a second Pay Later schedule variant, same credit
+// mechanism as buildInstalmentSchedule above (financed against the
+// customer's approved SETLA limit, instalment #1 collected inline at
+// checkout), just 2 instalments instead of 4: 50% today, 50% in 30 days.
+// Still stored as plan_type='pay_later' in setla_payment_plans (no new
+// DB enum value) -- callers pick this vs buildInstalmentSchedule off the
+// request's own scheduleVariant field, see app/api/setla/checkout/create
+// and app/api/checkout/setla-create. NOT related to SETLA Laybuy, which
+// is a genuinely separate, no-credit-check, flexible-deposit product.
+export function buildHalfAndHalfSchedule(total: number): Array<{ sequenceNumber: number; amount: number; dueAt: Date }> {
+  const cents = Math.round(Number(total) * 100);
+  const first = Math.round(cents / 2);
+  const now = new Date();
+  return [
+    { sequenceNumber: 1, amount: first / 100, dueAt: now },
+    { sequenceNumber: 2, amount: (cents - first) / 100, dueAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) },
+  ];
+}
+
 // SETLA Laybuy: no fixed instalment count or due dates -- a minimum 30%
 // deposit at checkout, then the customer pays off the remaining balance
 // with whatever amount they choose, whenever they choose (see

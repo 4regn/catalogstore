@@ -4,7 +4,7 @@ import { requireSetlaCustomer } from "../../../../lib/setla-customer";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { createYocoCheckout } from "../../../../lib/yoco";
 import { storePath } from "../../../../lib/store-url";
-import { buildInstalmentSchedule, minLaybuyDeposit, type SetlaPlanType } from "../../../../lib/setla-instalments";
+import { buildInstalmentSchedule, buildHalfAndHalfSchedule, minLaybuyDeposit, type SetlaPlanType } from "../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +62,11 @@ export async function POST(req: NextRequest) {
   }
   const planType = String(body?.plan || "");
   if (!PLAN_TYPES.has(planType as SetlaPlanType)) return NextResponse.json({ error: "Invalid payment plan" }, { status: 400 });
+  // Half and Half is a second Pay Later schedule (2 instalments instead of
+  // 4, see buildHalfAndHalfSchedule) -- same credit mechanism, same
+  // eligibility rules, just a different schedule shape. Not a separate
+  // plan_type. Ignored for planType==='laybuy'.
+  const scheduleVariant = body?.scheduleVariant === "half" ? "half" : "default";
 
   const admin = getAdmin();
 
@@ -73,6 +78,20 @@ export async function POST(req: NextRequest) {
   const { data: order } = await admin.from("orders").select("*").eq("id", orderId).single();
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (order.seller_id !== seller.id) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  // This order was placed anonymously by /api/checkout/place-order (no
+  // auth binding at all -- the generic storefront checkout doesn't require
+  // a SETLA login to add items to cart) -- unlike UNIK's own route, where
+  // the order is created fresh in THIS same request against the
+  // authenticated customer, so there's nothing to cross-check. Here, an
+  // already-logged-in SETLA session (a shared device, a stale login) must
+  // not be able to silently attach a payment plan to a DIFFERENT
+  // customer's order just because it knows/guesses the orderId -- the
+  // client already refuses to reach this point on a mismatch (see
+  // setla.js's initCheckout), this is the server-side backstop for that,
+  // not a display nicety.
+  if (String(order.customer_email || "").trim().toLowerCase() !== String(customer.email || "").trim().toLowerCase()) {
+    return NextResponse.json({ error: "This order doesn't belong to the signed-in SETLA account" }, { status: 403 });
+  }
   // Same replay guard as /api/payfast-redirect and /api/checkout/yoco-redirect
   // -- refuse a fresh payment plan for an order that's already resolved.
   if (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered" || order.status === "cancelled") {
@@ -153,7 +172,7 @@ export async function POST(req: NextRequest) {
   let instalmentCount = 1;
 
   if (planType === "pay_later") {
-    const schedule = buildInstalmentSchedule(financedAmount);
+    const schedule = scheduleVariant === "half" ? buildHalfAndHalfSchedule(financedAmount) : buildInstalmentSchedule(financedAmount);
     if (excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
     const { data: instalments, error: instalErr } = await admin
       .from("setla_instalments")

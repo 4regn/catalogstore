@@ -257,7 +257,12 @@ const DISCOUNTS_LIMIT = 100;
 // UNIK's print-on-demand fulfillment involves a courier handoff a generic
 // e-commerce order doesn't -- a more granular status set than the default.
 const UNIK_ORDER_STATUSES = ["pending", "fulfilled", "awaiting_pickup", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
-const GENERIC_ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"];
+// Matches GENERIC_TRACK_STAGES in public/setla/setla.js -- a generic
+// seller's SETLA customer-facing order tracker maps 1:1 off these same
+// status values, so the courier granularity needs to exist here too, not
+// just the coarser confirmed/processing/shipped/delivered set this used
+// to stop at.
+const GENERIC_ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
 function orderStatusColors(status: string): { bg: string; fg: string } {
   if (status === "delivered") return { bg: "rgba(34,197,94,0.15)", fg: "#22c55e" };
   if (status === "cancelled") return { bg: "rgba(255,107,53,0.1)", fg: "#ff6b35" };
@@ -1103,8 +1108,22 @@ export default function Dashboard() {
     return true;
   });
   const financeRevenue = financeOrders.reduce((s, o) => s + o.total, 0);
-  const visibleOrders = orders.filter((o) => !(o.payment_method === "payfast" && o.payment_status === "pending"));
-  const abandonedOrders = orders.filter((o) => o.payment_method === "payfast" && o.payment_status === "pending");
+  // Only gateways with a real-time payment-confirmation lifecycle can ever
+  // sit "pending"/"abandoned" with no seller action needed -- EFT
+  // deliberately excluded, its "awaiting_payment" status is a normal state
+  // the seller manually resolves once they see the bank transfer, not an
+  // abandoned checkout (see sweepAbandonedOrders' own comment in
+  // lib/unik-orders.ts, which scopes the same way). An order on one of
+  // these methods that hasn't actually been paid for was never a real
+  // sale -- it shouldn't sit in the main Orders list looking like one
+  // (reported directly: a SETLA checkout the customer never completed
+  // showed up under Orders as "pending"). It belongs in Abandoned Carts
+  // instead, whether or not sweepAbandonedOrders has relabelled it
+  // "abandoned" yet -- both states mean the same thing here: no payment.
+  const UNRESOLVED_PAYMENT_METHODS = ["payfast", "yoco", "setla_pay_later", "setla_laybuy"];
+  const isUnpaidGatewayOrder = (o: Order) => UNRESOLVED_PAYMENT_METHODS.includes(o.payment_method) && (o.payment_status === "pending" || o.payment_status === "abandoned");
+  const visibleOrders = orders.filter((o) => !isUnpaidGatewayOrder(o));
+  const abandonedOrders = orders.filter(isUnpaidGatewayOrder);
   const totalImageSlots = existingImages.length + formImages.length;
   const filteredProducts = products.filter((p) => { const status = p.status || "published"; if (status !== productFilter) return false; if (searchQuery) { const q = searchQuery.toLowerCase(); return p.name.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q); } return true; }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   // Rendering thousands of product rows in one page was the actual
@@ -2628,7 +2647,7 @@ export default function Dashboard() {
 
           {tab === "abandoned" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Abandoned Checkouts</h1>
-            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Customers who started PayFast checkout but didn't complete payment.</p>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Customers who started checkout (card, Yoco or SETLA) but didn't complete payment.</p>
             {abandonedOrders.length === 0 ? (
               <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No abandoned checkouts</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>When customers leave without paying, they'll show up here.</p></div>
             ) : (

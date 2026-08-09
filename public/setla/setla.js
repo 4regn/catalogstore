@@ -578,7 +578,28 @@
   });
   const profile=currentAccount();
   const emptyView=(eyebrow,title,copy)=>`<div class="view-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${copy}</p></div></div><section class="card empty-state"><h2>Nothing here yet</h2><p>Your own SETLA activity will appear here automatically.</p></section>`;
-  const orderStatus=order=>order.methodCode==='laybuy'?'Paying':'Confirmed';
+  // Real per-order state, not a hardcoded label -- reported directly: a
+  // 4regn order whose first instalment was never actually paid (declined
+  // at Yoco, or just abandoned) still showed a green "Confirmed" badge on
+  // the dashboard, because this used to ignore payment state entirely.
+  // planStatus/schedule[].status come straight from /api/setla/dashboard,
+  // which itself reflects voidStillbornPayLaterPlan() the moment a plan
+  // is voided (see lib/setla-instalments.ts).
+  const orderStatus=order=>{
+    if(order.methodCode==='laybuy')return order.laybuy?.complete?'Fully paid':((order.laybuy?.paid||0)>0?'Paying':'Awaiting deposit');
+    if(order.planStatus==='cancelled')return 'Payment failed';
+    const firstRow=(order.schedule||[])[0];
+    if(firstRow?.status==='failed')return 'Payment failed';
+    if(firstRow?.status!=='paid')return 'Payment due';
+    return (order.schedule||[]).every(r=>r.status==='paid'||r.status==='waived')?'Fully paid':'Confirmed';
+  };
+  const orderStatusBadgeClass=order=>{
+    if(order.methodCode==='laybuy')return order.laybuy?.complete?'good':'pending';
+    if(order.planStatus==='cancelled')return 'failed';
+    const firstRow=(order.schedule||[])[0];
+    if(firstRow?.status==='failed')return 'failed';
+    return firstRow?.status==='paid'?'good':'pending';
+  };
   // Which instalment is "next" is driven by real per-instalment status
   // (schedule[].isNext, computed server-side in /api/setla/dashboard) --
   // not array position 0, since instalment #1 is normally already paid at
@@ -591,11 +612,67 @@
     if(!lb)return '';
     return `<div class="laybuy-balance"><div><small>Paid so far</small><strong>${money(lb.paid)}</strong></div><div><small>Remaining balance</small><strong>${money(lb.remaining)}</strong></div></div><p class="laybuy-note">Pay any amount, any time, until your balance reaches R0 -- production begins the moment you're fully paid.</p>${lb.complete?'':`<div class="laybuy-pay-row"><input type="number" min="1" max="${lb.remaining}" step="0.01" class="laybuy-amount-input" placeholder="Amount to pay" data-plan-id="${escapeHTML(lb.planId)}"><button class="button primary laybuy-pay-btn" type="button" data-plan-id="${escapeHTML(lb.planId)}" data-remaining="${lb.remaining}">Make a payment</button></div>`}`;
   }
+  // Non-UNIK (generic) sellers -- e.g. 4regn -- fulfil plain ready-made
+  // products, not UNIK's print-on-demand production step, so the tracker
+  // shows real courier-style stages instead, driven by the actual
+  // orders.status the seller sets from their own dashboard
+  // (GENERIC_ORDER_STATUSES in app/dashboard/page.tsx -- keep in sync).
+  // 'cancelled' never appears as a checkable step in this list -- a
+  // genuinely cancelled order replaces the whole stepper with a single
+  // cancelled notice below instead of being squeezed in as a stage.
+  const GENERIC_TRACK_STAGES=[
+    { key: 'confirmed', label: 'Confirmed', copy: 'Your order is confirmed.' },
+    { key: 'processing', label: 'Processing', copy: 'Your order is being prepared.' },
+    { key: 'shipped', label: 'Shipped', copy: 'Your order has left the seller.' },
+    { key: 'picked_up', label: 'Picked up by courier', copy: 'A courier has collected your order.' },
+    { key: 'in_transit', label: 'In transit', copy: 'Your order is on its way to you.' },
+    { key: 'out_for_delivery', label: 'Out for delivery', copy: 'Your order is out for delivery today.' },
+    { key: 'delivered', label: 'Delivered', copy: 'Your order has been delivered.' },
+  ];
+  // The "payment" step's real state -- reported directly: this used to be
+  // hardcoded class="track-step current" regardless of whether the first
+  // payment actually went through, so a failed/never-completed payment
+  // still looked "in progress" (and, since .current and .done shared
+  // identical styling, effectively looked DONE). Now reflects
+  // schedule[0]/laybuy deposit status for real.
+  function paymentTrackStep(order){
+    const isLaybuy=order.methodCode==='laybuy';
+    const failed=!isLaybuy&&order.planStatus==='cancelled';
+    const done=isLaybuy?(order.laybuy?.paid||0)>0:(order.schedule||[])[0]?.status==='paid';
+    const state=failed?'failed':done?'done':'current';
+    const title=isLaybuy?(done?'Deposit received':'Complete your deposit'):(failed?'Payment failed':done?'First payment received':'Complete first payment');
+    const copy=isLaybuy
+      ?(done?'Your Laybuy schedule is underway -- pay it off any time from your dashboard.':'Pay your deposit to get your order moving.')
+      :(failed?'Your first payment did not go through. Start a fresh checkout to try again.':done?'Payment received -- your order is confirmed.':'Fulfilment begins once your first payment is confirmed.');
+    return `<div class="track-step ${state}"><i>2</i><div><strong>${title}</strong><p>${copy}</p></div></div>`;
+  }
+  function trackSteps(order){
+    const step1=`<div class="track-step done"><i>1</i><div><strong>Order received</strong><p>Your SETLA order has been recorded.</p></div></div>`;
+    const step2=paymentTrackStep(order);
+    if(!order.isGeneric){
+      return `${step1}${step2}<div class="track-step"><i>3</i><div><strong>UNIK Labs production</strong><p>Your personalised garment is created and quality checked.</p></div></div><div class="track-step"><i>4</i><div><strong>Delivery</strong><p>Courier details appear when the order is dispatched.</p></div></div>`;
+    }
+    if(order.fulfillmentStatus==='cancelled'){
+      return `${step1}${step2}<div class="track-step failed"><i>3</i><div><strong>Order cancelled</strong><p>This order was cancelled by the seller.</p></div></div>`;
+    }
+    const idx=Math.max(0,GENERIC_TRACK_STAGES.findIndex(stage=>stage.key===order.fulfillmentStatus));
+    const courierSteps=GENERIC_TRACK_STAGES.map((stage,i)=>`<div class="track-step ${i<=idx?'done':''}"><i>${i+3}</i><div><strong>${stage.label}</strong><p>${stage.copy}</p></div></div>`).join('');
+    return `${step1}${step2}${courierSteps}`;
+  }
   function scheduleCard(order){
     const nextRow=(order.schedule||[]).find(row=>row.isNext);
     const isLaybuy=order.methodCode==='laybuy';
-    const statusLabel=isLaybuy?(order.laybuy?.complete?'Fully paid':'Production locked'):'First payment due';
-    return `<article class="card plan-card"><div class="plan-top"><div><small>UNIK Labs · ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(order.items?.[0]||{}))}</h2></div><span class="status-badge ${isLaybuy&&!order.laybuy?.complete?'pending':'good'}">${orderStatus(order)}</span></div><div class="plan-numbers"><div><small>Order total</small><strong>${money(order.total)}</strong></div><div><small>Payment route</small><strong>${escapeHTML(order.method)}</strong></div><div><small>Status</small><strong>${statusLabel}</strong></div></div>${isLaybuy?laybuyCardBody(order):`<div class="instalments">${(order.schedule||[]).map((row,index)=>`<div class="${row.isNext?'next':''}${row.status==='paid'?' paid':''}"><i>${row.status==='paid'?'✓':index+1}</i><span><strong>${row.status==='paid'?'Paid':row.isNext?'Due now':row.status==='overdue'?'Overdue':'Scheduled'}</strong><small>${escapeHTML(row.date)}</small></span><b>${money(row.amount)}</b></div>`).join('')}</div>${nextRow?`<button class="button primary pay-instalment" data-instalment-id="${escapeHTML(nextRow.instalmentId)}" type="button">Pay ${money(nextRow.amount)} now</button>`:''}`}</article>`;
+    const firstRow=(order.schedule||[])[0];
+    const statusLabel=isLaybuy
+      ?(order.laybuy?.complete?'Fully paid':'Production locked')
+      :order.planStatus==='cancelled'?'Payment failed'
+      :firstRow?.status==='paid'?'In production'
+      :'First payment due';
+    // sellerName comes from /api/setla/dashboard (real seller behind this
+    // order) -- "UNIK Labs" was hardcoded here regardless of who the
+    // order actually belonged to, reported directly on a 4regn order.
+    const brand=escapeHTML(order.sellerName||'Order');
+    return `<article class="card plan-card"><div class="plan-top"><div><small>${brand} · ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(order.items?.[0]||{}))}</h2></div><span class="status-badge ${orderStatusBadgeClass(order)}">${orderStatus(order)}</span></div><div class="plan-numbers"><div><small>Order total</small><strong>${money(order.total)}</strong></div><div><small>Payment route</small><strong>${escapeHTML(order.method)}</strong></div><div><small>Status</small><strong>${statusLabel}</strong></div></div>${isLaybuy?laybuyCardBody(order):`<div class="instalments">${(order.schedule||[]).map((row,index)=>`<div class="${row.isNext?'next':''}${row.status==='paid'?' paid':''}"><i>${row.status==='paid'?'✓':index+1}</i><span><strong>${row.status==='paid'?'Paid':row.status==='failed'?'Failed':row.isNext?'Due now':row.status==='overdue'?'Overdue':'Scheduled'}</strong><small>${escapeHTML(row.date)}</small></span><b>${money(row.amount)}</b></div>`).join('')}</div>${nextRow?`<button class="button primary pay-instalment" data-instalment-id="${escapeHTML(nextRow.instalmentId)}" type="button">Pay ${money(nextRow.amount)} now</button>`:''}`}</article>`;
   }
   // Delegated so it works regardless of when a plan card gets injected by
   // renderDashboard() below.
@@ -721,12 +798,17 @@
     const shopLogos={fourRegn:'assets/footer-4regn-logo.png',unik:'assets/unik-labs-logo.png'};
     document.getElementById('accountState').innerHTML=approved?`<div class="starter-banner"><section class="starter-card"><span class="starter-label">You're approved</span><span class="completion-chip">✓ Application complete · 100%</span><strong class="starter-amount">${money(approvedLimit)}</strong><h2>Your SETLA limit is ready.</h2><p>This is your starting spending limit. Use SETLA responsibly and your account will be eligible for future limit increases.</p><div class="merchant-shop-grid" aria-label="Shop with SETLA"><a class="merchant-shop-link" href="https://www.4regn.com" target="_blank" rel="noopener" data-analytics="shop_4regn_clicked"><img class="merchant-shop-logo" src="${shopLogos.fourRegn}" alt="4REGN logo"><span class="merchant-shop-copy"><small>Shop now</small><strong>www.4regn.com</strong></span></a><a class="merchant-shop-link" href="https://www.uniklabs.co.za" target="_blank" rel="noopener" data-analytics="shop_uniklabs_clicked"><img class="merchant-shop-logo" src="${shopLogos.unik}" alt="UNIK Labs logo"><span class="merchant-shop-copy"><small>Shop now</small><strong>www.uniklabs.co.za</strong></span></a></div></section><section class="build-history"><div class="card-kicker">Your SETLA history</div><h3>Build your SETLA history.</h3><p>Your account setup and application are complete. Responsible use and on-time repayments help build your SETLA account history over time.</p><div class="history-steps"><div class="history-step"><span class="bubble">1</span><div><strong>Current limit</strong><small>${money(approvedLimit)} available now</small></div><span class="tag">Current</span></div><div class="history-step"><span class="bubble">2</span><div><strong>Use it responsibly</strong><small>Keep repayments on time and your account in good standing</small></div><span class="tag">Next</span></div><div class="history-step"><span class="bubble">3</span><div><strong>Future review</strong><small>Eligible accounts may be reviewed for a different limit</small></div><span class="tag">Later</span></div></div></section></div><div class="reassurance-strip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.7 2.9 8 7 10 4.1-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg><div><strong>Your account, still growing.</strong><p>SETLA may review limits over time based on eligibility, account behaviour and responsible use. A higher future limit is not guaranteed.</p></div></div>`:pending?`<section class="card account-state-card"><div><div class="card-kicker">Application received</div><h2>We are reviewing your application.</h2><p>We will email you when a decision and personal limit are ready. SETLA Laybuy remains available at checkout.</p></div><a class="button outline" href="#support" data-view="support">Speak to support</a></section>`:`<section class="pilot-hero"><div class="pilot-hero-grid"><div><div class="pilot-kicker">You're already ${progress.percent}% there</div><h2 class="pilot-title">Let's find your SETLA limit.</h2><p class="pilot-copy">${inProgress?'Your SETLA account and basic details are already saved. Continue your eligibility application so we can review your identity, affordability and determine whether you qualify for a spending limit.':'Your SETLA account and basic details are already saved. Start your eligibility application so we can review your identity, affordability and determine whether you qualify for a spending limit.'}</p><div class="pilot-actions"><a class="button primary pilot-primary" href="apply.html" data-analytics="application_start_clicked">${inProgress?'Continue my application':'Start my application'}</a><span class="apply-trust-pill">No credit history? You can still apply.</span></div><div class="pilot-subnote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.7 2.9 8 7 10 4.1-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg><span>Having little or no credit history does not automatically disqualify you. Eligibility and limits depend on your individual application.</span></div></div><div class="limit-orbit" aria-label="Application status"><small>Application status</small><strong>${progress.percent}%</strong><p><b>Account created ✓</b><br>Your name, surname, email and mobile number are already saved.</p><div class="orbit-track"><span style="width:${progress.percent}%"></span></div><p>Possible outcome: a personal SETLA limit, including a smaller Starter Limit for some eligible new customers.</p></div></div></section><div class="reassurance-strip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><div><strong>New to credit? That's okay.</strong><p>SETLA considers more than a credit score. A thin or missing credit history is not an automatic rejection, but approval is never guaranteed.</p></div></div>`;
     const next=(latest?.schedule||[])[0];document.getElementById('nextPaymentCard').innerHTML=next?`<div class="card-kicker">Coming up</div><h2>Next payment</h2><div class="due-amount">${money(next.amount)}</div><p>${escapeHTML(next.date)} · Order ${escapeHTML(latest.id)}</p><button class="button primary" data-view="${latest.methodCode==='laybuy'?'laybuy':'plans'}">Manage payment plan</button>`:`<div class="card-kicker">Coming up</div><h2>No payment due</h2><p>Your next confirmed payment will appear here.</p>`;
-    document.getElementById('latestOrderCard').innerHTML=latest?`<div class="section-heading"><div><div class="card-kicker">Latest purchase</div><h2>Order ${escapeHTML(latest.id)}</h2></div><span class="status-badge ${latest.methodCode==='laybuy'?'pending':'good'}">${orderStatus(latest)}</span></div><div class="order-preview"><div class="product-thumb"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div><div><strong>${escapeHTML(itemTitle(latest.items?.[0]||{}))}</strong><p>${Number(latest.items?.length||0)} item${latest.items?.length===1?'':'s'}</p></div><div class="order-price"><small>Order total</small><strong>${money(latest.total)}</strong></div></div><button class="text-action" data-view="track">Track this order</button>`:`<div class="card-kicker">Latest purchase</div><h2>No orders yet</h2><p>Your first 4REGN x SETLA x UNIK Labs order will appear here.</p>`;
+    // Real product photo when the order has one (itemImage() already
+    // checks item.image, which is exactly what a plain product order
+    // carries -- see app/api/checkout/place-order/route.ts) instead of
+    // always showing the generic garment SVG regardless of what was
+    // actually bought, reported directly.
+    document.getElementById('latestOrderCard').innerHTML=latest?(()=>{const firstItem=latest.items?.[0]||{},thumb=itemImage(firstItem);return `<div class="section-heading"><div><div class="card-kicker">Latest purchase</div><h2>Order ${escapeHTML(latest.id)}</h2></div><span class="status-badge ${orderStatusBadgeClass(latest)}">${orderStatus(latest)}</span></div><div class="order-preview"><div class="product-thumb">${thumb?`<img src="${escapeHTML(thumb)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:'<svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg>'}</div><div><strong>${escapeHTML(itemTitle(firstItem))}</strong><p>${Number(latest.items?.length||0)} item${latest.items?.length===1?'':'s'}</p></div><div class="order-price"><small>Order total</small><strong>${money(latest.total)}</strong></div></div><button class="text-action" data-view="track">Track this order</button>`})():`<div class="card-kicker">Latest purchase</div><h2>No orders yet</h2><p>Your first SETLA purchase will appear here.</p>`;
     document.getElementById('notificationPreview').innerHTML=pending?`<div class="notice-icon"></div><div><small>Application update</small><strong>Your application is being reviewed</strong><p>We will notify ${escapeHTML(account.email||'you')} when a decision is ready.</p></div><button class="text-action" data-view="notifications">View all</button>`:`<div class="notice-icon"></div><div><small>SETLA updates</small><strong>${latest?'Your order is connected':'No new notifications'}</strong><p>${latest?`Order ${escapeHTML(latest.id)} is now visible in your dashboard.`:'Account, payment and order updates will appear here.'}</p></div>`;
     document.getElementById('view-plans').innerHTML=payLater.length?`<div class="view-head"><div><div class="eyebrow">Payments</div><h1>Active plans.</h1><p>Your SETLA Pay Later schedules.</p></div><span class="account-pill">${payLater.length} active</span></div>${payLater.map(scheduleCard).join('')}`:emptyView('Payments','Active plans.','Your Pay Later schedules will appear after an eligible checkout.');
     document.getElementById('view-laybuy').innerHTML=laybuy.length?`<div class="view-head"><div><div class="eyebrow">SETLA Laybuy</div><h1>Pay first.<br>We create next.</h1><p>Complete your schedule to unlock production.</p></div></div>${laybuy.map(scheduleCard).join('')}`:emptyView('SETLA Laybuy','Pay first. We create next.','Your Laybuy orders will appear here.');
-    document.getElementById('view-history').innerHTML=orders.length?`<div class="view-head"><div><div class="eyebrow">Purchases</div><h1>Order history.</h1><p>Every SETLA order connected to your account.</p></div></div><section class="card history-card"><div class="history-table"><div class="history-row history-head"><span>Order</span><span>Date</span><span>Total</span><span>Status</span><span></span></div>${orders.map(order=>`<div class="history-row"><span><strong>${escapeHTML(order.id)}</strong><small>${escapeHTML(itemTitle(order.items?.[0]||{}))}</small></span><span>${new Date(order.createdAt).toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}</span><span>${money(order.total)}</span><span><b class="status-badge ${order.methodCode==='laybuy'?'pending':'good'}">${orderStatus(order)}</b></span><span><button data-view="${order.methodCode==='laybuy'?'laybuy':'plans'}">View</button></span></div>`).join('')}</div></section>`:emptyView('Purchases','Order history.','Your completed and active orders will appear here.');
-    document.getElementById('view-track').innerHTML=latest?`<div class="view-head"><div><div class="eyebrow">Order tracking</div><h1>Made for you.</h1><p>Follow your latest personalised order.</p></div><span class="status-badge ${latest.methodCode==='laybuy'?'pending':'good'}">${latest.methodCode==='laybuy'?'Awaiting full payment':'Confirmed'}</span></div><section class="card tracking-card"><div class="track-order-head"><div><small>Order ${escapeHTML(latest.id)}</small><h2>${escapeHTML(itemTitle(latest.items?.[0]||{}))}</h2></div></div><div class="track-line"><div class="track-step done"><i>1</i><div><strong>Order received</strong><p>Your SETLA order has been recorded.</p></div></div><div class="track-step current"><i>2</i><div><strong>${latest.methodCode==='laybuy'?'Complete payment schedule':'Complete first payment'}</strong><p>${latest.methodCode==='laybuy'?'Production unlocks after full payment.':'Production begins after payment confirmation.'}</p></div></div><div class="track-step"><i>3</i><div><strong>UNIK Labs production</strong><p>Your personalised garment is created and quality checked.</p></div></div><div class="track-step"><i>4</i><div><strong>Delivery</strong><p>Courier details appear when the order is dispatched.</p></div></div></div></section>`:emptyView('Order tracking','Made for you.','Your latest order journey will appear here.');
+    document.getElementById('view-history').innerHTML=orders.length?`<div class="view-head"><div><div class="eyebrow">Purchases</div><h1>Order history.</h1><p>Every SETLA order connected to your account.</p></div></div><section class="card history-card"><div class="history-table"><div class="history-row history-head"><span>Order</span><span>Date</span><span>Total</span><span>Status</span><span></span></div>${orders.map(order=>`<div class="history-row"><span><strong>${escapeHTML(order.id)}</strong><small>${escapeHTML(itemTitle(order.items?.[0]||{}))}</small></span><span>${new Date(order.createdAt).toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}</span><span>${money(order.total)}</span><span><b class="status-badge ${orderStatusBadgeClass(order)}">${orderStatus(order)}</b></span><span><button data-view="${order.methodCode==='laybuy'?'laybuy':'plans'}">View</button></span></div>`).join('')}</div></section>`:emptyView('Purchases','Order history.','Your completed and active orders will appear here.');
+    document.getElementById('view-track').innerHTML=latest?`<div class="view-head"><div><div class="eyebrow">Order tracking</div><h1>Made for you.</h1><p>Follow your latest order.</p></div><span class="status-badge ${orderStatusBadgeClass(latest)}">${orderStatus(latest)}</span></div><section class="card tracking-card"><div class="track-order-head"><div><small>Order ${escapeHTML(latest.id)}</small><h2>${escapeHTML(itemTitle(latest.items?.[0]||{}))}</h2></div></div><div class="track-line">${trackSteps(latest)}</div></section>`:emptyView('Order tracking','Made for you.','Your latest order journey will appear here.');
     document.getElementById('view-notifications').innerHTML=`<div class="view-head"><div><div class="eyebrow">Updates</div><h1>Notifications.</h1><p>Account, payment and order updates from SETLA and UNIK Labs.</p></div></div>${pending?'<article class="card notification unread"><div><strong>Application received</strong><p>Your SETLA application is being reviewed. We will email you when a decision is ready.</p></div></article>':latest?`<article class="card notification unread"><div><strong>Order connected</strong><p>Order ${escapeHTML(latest.id)} is now available in your SETLA dashboard.</p></div></article>`:'<section class="card empty-state"><h2>No notifications</h2><p>Your account updates will appear here.</p></section>'}`;
     const initials=fullName.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();document.getElementById('profileInitials').textContent=initials||'—';document.getElementById('profileName').textContent=fullName;document.getElementById('profileContact').textContent=[account.email,account.phone].filter(Boolean).join(' · ');document.getElementById('profileLimit').textContent=money(approvedLimit);document.getElementById('profileMemberSince').textContent=new Date(account.createdAt||Date.now()).toLocaleDateString('en-ZA',{month:'long',year:'numeric'});document.getElementById('profilePaymentStatus').textContent=orders.length?'Plan active':'No active plan';document.getElementById('detailName').textContent=fullName;document.getElementById('detailEmail').textContent=account.email||'—';document.getElementById('detailPhone').textContent=account.phone||'—';document.getElementById('detailAddress').textContent=account.address||'Not supplied';document.getElementById('profileBadge').textContent=approved?'Verified customer':pending?'Verification in review':'Application required';document.getElementById('identityStatus').textContent=approved?'Identity verified':pending?'Verification in review':'Verification required';
     const bank=account.application?.bank,last4=account.application?.accountLast4;document.getElementById('bankType').textContent=bank?`${bank} · Verification ${approved?'approved':'pending'}`:'No verified bank account';document.getElementById('bankAccount').textContent=bank&&last4?`${fullName} · •••• ${last4}`:'Add your banking details during your application.';document.getElementById('bankStatus').textContent=bank?(approved?'Approved':'Under review'):'Not verified';
@@ -1138,15 +1220,19 @@
   // so the client-shown minimum never disagrees with what the server
   // actually enforces.
   function minDeposit(total){const totalCents=Math.round(Number(total)*100);return Math.ceil(totalCents*0.3)/100}
-  // Half and Half is a fixed 50%-today/50%-whenever preset on top of the
-  // same Laybuy mechanism (plan submits as 'laybuy' with depositAmount
-  // locked to exactly half the total, see confirmSETLA below) -- not a
-  // separate database plan_type. Kept in exact cent-splitting sync with
-  // CheckoutPageClient.tsx's own setlaHalfHalfSchedule preview so the
-  // marketing calculator and this real checkout never disagree.
+  // Half and Half is a genuine SETLA Pay Later variant -- the SAME credit
+  // mechanism as Pay in 4 (financed against the customer's approved SETLA
+  // limit, first payment collected inline here), just a 2-instalment
+  // schedule instead of 4: 50% today, 50% in 30 days. It submits as
+  // plan='pay_later' with scheduleVariant='half' (see confirmSETLA below),
+  // NOT as 'laybuy' -- Laybuy is the separate, genuinely no-credit-check
+  // option with a flexible customer-chosen deposit. Kept in exact
+  // cent-splitting sync with lib/setla-instalments.ts's own
+  // buildHalfAndHalfSchedule and CheckoutPageClient.tsx's preview so the
+  // marketing calculator, this real checkout, and the server never disagree.
   function halfHalfSchedule(total){
     const cents=Math.round(Number(total)*100),first=Math.round(cents/2);
-    return [{number:1,amount:first/100,date:'Today',status:'Due now'},{number:2,amount:(cents-first)/100,date:'In ~30 days',status:'Suggested'}];
+    return [{number:1,amount:first/100,date:'Today',status:'Due now'},{number:2,amount:(cents-first)/100,date:'In 30 days',status:'Scheduled'}];
   }
   function renderSchedule(total,plan){
     const schedule=document.getElementById('paymentSchedule');if(!schedule)return [];
@@ -1156,7 +1242,7 @@
       const rows=halfHalfSchedule(total);
       schedule.innerHTML=rows.map(row=>`<div class="schedule-row"><i>${row.number}</i><span><small>${row.status}</small><strong>${row.date}</strong></span><b>${money(row.amount)}</b></div>`).join('');
       document.getElementById('scheduleTotal').textContent=money(total);
-      document.getElementById('scheduleNote').textContent='Pay 50% today and 50% within about a month. There\'s no fixed due date on the remainder -- pay it early or a little later with no penalty, any time over up to 3 months.';
+      document.getElementById('scheduleNote').textContent='Your first payment is due today, drawn from your SETLA limit. The remaining 50% is due in 30 days and can be managed from your dashboard.';
       return rows;
     }
     if(plan==='laybuy'){
@@ -1234,6 +1320,27 @@
       return;
     }
     applySellerBranding(draft);
+    // Security: draft.customer.email is whatever the customer typed into
+    // the STORE's own checkout form -- entirely separate from SETLA login.
+    // If a DIFFERENT SETLA account already has a valid session on this
+    // browser (a shared device, a family member, a staff-assisted till),
+    // silently proceeding into checkout would let that stale session's
+    // real credit limit drive payment for an order placed under someone
+    // else's name/email, with nothing forcing a fresh login first. Refuse
+    // to show eligibility/limit/schedule info until the logged-in
+    // account's email actually matches what was typed at checkout.
+    const draftEmail=String(draft.customer?.email||'').trim().toLowerCase();
+    const accountEmail=String(account.email||'').trim().toLowerCase();
+    if(draftEmail&&accountEmail&&draftEmail!==accountEmail){
+      document.querySelector('.checkout-layout').innerHTML=`<section class="card empty-state"><div class="eligibility-icon"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8 7 10 4.1-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg></div><h2>Confirm it's you.</h2><p>You're signed into SETLA as <strong>${escapeHTML(account.email||'')}</strong>, but this order was placed with <strong>${escapeHTML(draft.customer?.email||'')}</strong>. Log out and sign in with the matching email to continue.</p><a class="button primary" href="#" id="mismatchLogout">Log out &amp; sign in again</a></section>`;
+      document.getElementById('mismatchLogout')?.addEventListener('click',async(event)=>{
+        event.preventDefault();
+        await fetch('/api/setla/auth/session',{method:'DELETE',credentials:'include'}).catch(()=>{});
+        clearRefreshToken();
+        location.href=`login.html?next=${encodeURIComponent('checkout.html')}`;
+      });
+      return;
+    }
     // The handoff only carries form fields (no cart items, no precomputed
     // totals) -- this is purely a display estimate; the real total is
     // always recomputed server-side from scratch at submit time
@@ -1247,7 +1354,7 @@
     const customerInfo=draft.customer||{},method=draft.deliveryMethod||{};
     const pickupCopy=isGenericDraft?'Collection details will be confirmed by the store.':'Collection details will be confirmed by UNIK Labs.';
     document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?pickupCopy:escapeHTML([customerInfo.streetAddress,customerInfo.suburb,customerInfo.townCity,customerInfo.province,customerInfo.postal].filter(Boolean).join(', '))}`;
-    const payLater=document.getElementById('payLaterChoice'),title=document.getElementById('eligibilityTitle'),copy=document.getElementById('eligibilityCopy'),hint=document.getElementById('limitHint'),action=document.getElementById('eligibilityAction'),card=document.getElementById('eligibilityCard');
+    const payLater=document.getElementById('payLaterChoice'),halfHalf=document.getElementById('halfHalfChoice'),title=document.getElementById('eligibilityTitle'),copy=document.getElementById('eligibilityCopy'),hint=document.getElementById('limitHint'),action=document.getElementById('eligibilityAction'),card=document.getElementById('eligibilityCard');
     // Checkout can silently run against whichever SETLA session already
     // exists in the browser (e.g. left over from earlier testing) --
     // eligibility/limit math is already correctly tied to that real
@@ -1272,22 +1379,27 @@
     if(status==='approved'){title.textContent=allowed?'Pay Later is available for this order.':'This order is above your available limit.';copy.textContent=`Available now: ${money(available)} · Order total: ${money(total)}`;hint.textContent=`${money(available)} available`;action.href='dashboard.html';action.textContent='View limit';if(!allowed)card.classList.add('needs-action')}
     else if(status==='pending'){title.textContent='Your Pay Later application is in review.';copy.textContent='SETLA Laybuy remains available while you wait for your decision.';action.href='dashboard.html';action.textContent='View status';card.classList.add('pending-state')}
     else{title.textContent='Apply to unlock a SETLA spending limit.';copy.textContent='You can apply now or continue with SETLA Laybuy without using credit.';action.href='apply.html';action.textContent='Apply now';card.classList.add('needs-action')}
-    if(!allowed){payLater.classList.add('disabled');payLater.querySelector('input').disabled=true;document.querySelector('input[value="laybuy"]').checked=true;document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input')?.checked))}
+    // Half and Half is genuinely credit -- same SETLA limit as Pay in 4,
+    // just a 2-instalment schedule instead of 4 (see buildHalfAndHalfSchedule
+    // in lib/setla-instalments.ts) -- so it's gated exactly like Pay Later,
+    // not treated as a no-credit option the way SETLA Laybuy is.
+    if(!allowed){[payLater,halfHalf].forEach(choice=>{choice.classList.add('disabled');choice.querySelector('input').disabled=true});document.querySelector('input[value="laybuy"]').checked=true;document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input')?.checked))}
     const requested=new URLSearchParams(location.search).get('plan');if(requested==='laybuy')document.querySelector('input[value="laybuy"]').click();
     renderSchedule(total,selectedPlan());
     document.querySelectorAll('input[name="plan"]').forEach(input=>input.addEventListener('change',()=>renderSchedule(total,input.value)));
     document.getElementById('confirmSETLA').addEventListener('click',async()=>{
       const btn=document.getElementById('confirmSETLA');
       const error=document.getElementById('checkoutError');error.classList.remove('show');
-      const rawPlan=selectedPlan(),plan=(rawPlan==='laybuy'||rawPlan==='half')?'laybuy':'pay_later';
+      // rawPlan is the literal radio value: 'limit' (Pay in 4), 'half'
+      // (Half and Half), or 'laybuy'. Both credit variants submit as
+      // plan='pay_later' -- scheduleVariant tells the server which of
+      // buildInstalmentSchedule/buildHalfAndHalfSchedule to build (see
+      // lib/setla-instalments.ts).
+      const rawPlan=selectedPlan(),plan=rawPlan==='laybuy'?'laybuy':'pay_later',scheduleVariant=rawPlan==='half'?'half':'default';
       if(!document.getElementById('checkoutTerms').checked){error.textContent='Review the schedule and accept the SETLA terms before continuing.';error.classList.add('show');return}
-      if(plan==='pay_later'&&!allowed){error.textContent='Pay Later is not available for this order. Select SETLA Laybuy to continue.';error.classList.add('show');return}
+      if(plan==='pay_later'&&!allowed){error.textContent='This option is not available for this order. Select SETLA Laybuy to continue.';error.classList.add('show');return}
       let depositAmount;
-      if(rawPlan==='half'){
-        // Locked to exactly half -- no freeform input for this preset,
-        // see halfHalfSchedule above.
-        depositAmount=halfHalfSchedule(total)[0].amount;
-      }else if(plan==='laybuy'){
+      if(plan==='laybuy'){
         depositAmount=Number(document.getElementById('laybuyDepositInput')?.value||0);
         const min=minDeposit(total);
         if(!depositAmount||depositAmount<min){error.textContent=`Minimum Laybuy deposit is ${money(min)} (30% of your order).`;error.classList.add('show');return}
@@ -1304,11 +1416,13 @@
             orderId:draft.orderId,
             slug:draft.sellerSlug,
             plan,
+            scheduleVariant,
             depositAmount,
             returnOrigin:location.origin,
           })})
           :await fetch('/api/setla/checkout/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
             plan,
+            scheduleVariant,
             depositAmount,
             items:cartItems.map(item=>item.options?.customUpload?{customUpload:item.options.customUpload,qty:item.qty||1,preview:item.preview}:{designId:item.options?.designId,qty:item.qty||1}),
             customer:draft.customer,

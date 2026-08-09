@@ -5,7 +5,7 @@ import { getUnikSeller } from "../../../../../lib/unik-customer";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 import { createYocoCheckout } from "../../../../../lib/yoco";
 import { resolveUnikCart, runDeferredUnikUploads, type RawCartItem } from "../../../../../lib/unik-cart-resolve";
-import { buildInstalmentSchedule, minLaybuyDeposit, type SetlaPlanType } from "../../../../../lib/setla-instalments";
+import { buildInstalmentSchedule, buildHalfAndHalfSchedule, minLaybuyDeposit, type SetlaPlanType } from "../../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,9 @@ export async function POST(req: NextRequest) {
 
   const planType = String(body?.plan || "");
   if (!PLAN_TYPES.has(planType as SetlaPlanType)) return NextResponse.json({ error: "Invalid payment plan" }, { status: 400 });
+  // Half and Half: same Pay Later credit mechanism, 2 instalments instead
+  // of 4 -- see lib/setla-instalments.ts's buildHalfAndHalfSchedule.
+  const scheduleVariant = body?.scheduleVariant === "half" ? "half" : "default";
 
   const items: RawCartItem[] = Array.isArray(body?.items) ? body.items : [];
   const custBody = body?.customer || {};
@@ -192,7 +195,7 @@ export async function POST(req: NextRequest) {
   let instalmentCount = 1;
 
   if (planType === "pay_later") {
-    const schedule = buildInstalmentSchedule(financedAmount);
+    const schedule = scheduleVariant === "half" ? buildHalfAndHalfSchedule(financedAmount) : buildInstalmentSchedule(financedAmount);
     if (excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
     const { data: instalments, error: instalErr } = await admin
       .from("setla_instalments")

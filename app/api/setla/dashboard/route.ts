@@ -38,7 +38,14 @@ export async function GET(req: NextRequest) {
     const unikOrderIds = setlaOrders.map((o) => o.unik_order_id);
     const planIds = setlaOrders.map((o) => (Array.isArray(o.setla_payment_plans) ? o.setla_payment_plans[0]?.id : (o.setla_payment_plans as any)?.id)).filter(Boolean);
     const [{ data: unikOrders }, { data: instalments }, { data: laybuyPayments }] = await Promise.all([
-      admin.from("orders").select("id, order_number, items").in("id", unikOrderIds),
+      // seller_id/status/payment_status added so the dashboard can show
+      // the REAL seller and REAL fulfillment/payment state instead of the
+      // hardcoded "UNIK Labs" branding and hardcoded "Confirmed" badge
+      // this route used to leave setla.js no way to avoid (see that
+      // file's orderStatus()/scheduleCard() -- both directly reported as
+      // showing "Confirmed"/UNIK branding on a 4regn order that hadn't
+      // even been paid yet).
+      admin.from("orders").select("id, order_number, items, seller_id, status, payment_status").in("id", unikOrderIds),
       planIds.length ? admin.from("setla_instalments").select("id, plan_id, sequence_number, amount, due_at, status").in("plan_id", planIds).order("sequence_number", { ascending: true }) : Promise.resolve({ data: [] }),
       // Laybuy has no fixed schedule -- this is the ledger of actual
       // payments made against the plan instead (paid: what's been
@@ -47,6 +54,11 @@ export async function GET(req: NextRequest) {
       planIds.length ? admin.from("setla_laybuy_payments").select("id, plan_id, amount, is_deposit, status, paid_at").in("plan_id", planIds).order("created_at", { ascending: true }) : Promise.resolve({ data: [] }),
     ]);
     const unikOrderById = new Map((unikOrders || []).map((o) => [o.id, o]));
+    const sellerIds = Array.from(new Set((unikOrders || []).map((o: any) => o.seller_id).filter(Boolean)));
+    const { data: sellerRows } = sellerIds.length
+      ? await admin.from("sellers").select("id, store_name, template").in("id", sellerIds)
+      : { data: [] as any[] };
+    const sellerById = new Map((sellerRows || []).map((s: any) => [s.id, s]));
     const instalmentsByPlan = new Map<string, typeof instalments>();
     for (const row of instalments || []) {
       const list = instalmentsByPlan.get(row.plan_id) || [];
@@ -62,7 +74,12 @@ export async function GET(req: NextRequest) {
 
     orders = setlaOrders.map((row) => {
       const plan = Array.isArray(row.setla_payment_plans) ? row.setla_payment_plans[0] : row.setla_payment_plans;
-      const unikOrder = unikOrderById.get(row.unik_order_id);
+      const unikOrder: any = unikOrderById.get(row.unik_order_id);
+      const seller = unikOrder ? sellerById.get(unikOrder.seller_id) : null;
+      // template !== 'unik-labs' covers every other seller, not just
+      // 4regn -- defaults to false (today's UNIK-branded behavior) when
+      // the seller can't be resolved at all, the safest fallback.
+      const isGeneric = !!seller && seller.template !== "unik-labs";
       const isLaybuy = row.payment_method === "laybuy";
 
       let schedule: any[] = [];
@@ -105,6 +122,15 @@ export async function GET(req: NextRequest) {
         schedule,
         laybuy,
         createdAt: row.created_at,
+        sellerName: seller?.store_name || null,
+        isGeneric,
+        // The real generic-order fulfillment/payment state -- lets the
+        // client show what actually happened (still pending, paid,
+        // voided/failed by voidStillbornPayLaterPlan, etc.) instead of a
+        // badge that always said "Confirmed" regardless of reality.
+        fulfillmentStatus: unikOrder?.status || "pending",
+        paymentStatus: unikOrder?.payment_status || "pending",
+        planStatus: plan?.status || null,
       };
     });
   }
