@@ -32,9 +32,13 @@ export default function LightboxGallery({ imgs, index, onClose, onIndex }: {
 
   return (
     <div className="fr-lb" onClick={onClose} role="dialog" aria-modal="true" aria-label="Product images">
-      <button className="fr-lb-close" type="button" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close">✕</button>
       <div className="fr-lb-stage" onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <img src={imgs[index]} alt="" className="fr-lb-img" draggable={false} />
+        {/* Lives inside .fr-lb-stage (position:absolute against it), not
+            position:fixed against the raw viewport like before -- see the
+            .fr-lb-close CSS comment for why iOS Safari pinch-zoom made a
+            fixed close button an unreliable, sometimes-unreachable target. */}
+        <button className="fr-lb-close" type="button" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close">✕</button>
       </div>
       {imgs.length > 1 && (
         <>

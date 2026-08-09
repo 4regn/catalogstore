@@ -2168,18 +2168,35 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       since the buggy auto-height from inset:0 was already >= 100dvh, so a
       floor never kicks in; only clamping the actual height with "height"
       does.
-   2) .fr-lb-close/.fr-lb-nav/.fr-lb-dots were positioned with plain pixel
-      offsets from the raw screen edge, which on a notch/Dynamic Island
-      iPhone can land under the status bar / home-indicator area.
-      "max(18px, env(safe-area-inset-*, 18px))" keeps the normal 18/24px
-      gap on ordinary screens but grows to clear the safe area on notched
-      ones. (Requires viewport-fit=cover on the page's viewport meta for
-      the env() values to report non-zero -- see the 4regn PDP routes'
-      viewport/generateViewport exports.) */
+   2) .fr-lb-nav/.fr-lb-dots were positioned with plain pixel offsets from
+      the raw screen edge, which on a notch/Dynamic Island iPhone can land
+      under the status bar / home-indicator area. "max(18px,
+      env(safe-area-inset-*, 18px))" keeps the normal 18/24px gap on
+      ordinary screens but grows to clear the safe area on notched ones.
+      (Requires viewport-fit=cover on the page's viewport meta for the
+      env() values to report non-zero -- see the 4regn PDP routes'
+      viewport/generateViewport exports.)
+   3) .fr-lb-close used to be position:fixed against the raw viewport too,
+      which turned out to be a THIRD, worse iOS Safari bug on top of the
+      other two: native pinch-zoom (touch-action:pinch-zoom on
+      .fr-lb-stage, kept so visitors can zoom into a product photo) scales
+      the VISUAL viewport, but a position:fixed element stays pinned to the
+      LAYOUT viewport underneath it -- so once zoomed, the close button's
+      on-screen position no longer matches where the CSS placed it, landing
+      off-screen (reported directly: has to pinch back out repeatedly just
+      to find it again) or letting scroll gestures fall through to the
+      product page behind the fixed .fr-lb box instead of the lightbox
+      (also reported: "stuck", scrolling the page while still looking at
+      the image). Moved inside .fr-lb-stage as position:absolute instead --
+      .fr-lb-stage isn't fixed, so it's ordinary zoomable layout content
+      that pans/scales together with the image itself under pinch-zoom
+      (same as every other non-fixed element on the page), staying
+      reachable at any zoom level instead of independently pinned to a
+      stale viewport. */
 .fr-lb{position:fixed;inset:0;height:100dvh;z-index:1100;background:rgba(0,0,0,0.94);display:flex;align-items:center;justify-content:center;padding:16px}
 .fr-lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:pinch-zoom}
 .fr-lb-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;-webkit-user-select:none;user-select:none;pointer-events:none}
-.fr-lb-close{position:fixed;top:max(18px, env(safe-area-inset-top, 18px));right:max(18px, env(safe-area-inset-right, 18px));width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.18);backdrop-filter:blur(12px) saturate(180%);-webkit-backdrop-filter:blur(12px) saturate(180%);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.fr-lb-close{position:absolute;top:max(12px, env(safe-area-inset-top, 12px));right:max(12px, env(safe-area-inset-right, 12px));width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.18);backdrop-filter:blur(12px) saturate(180%);-webkit-backdrop-filter:blur(12px) saturate(180%);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .fr-lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.18);backdrop-filter:blur(12px) saturate(180%);-webkit-backdrop-filter:blur(12px) saturate(180%);color:#fff;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:4px;z-index:2}
 .fr-lb-prev{left:max(18px, env(safe-area-inset-left, 18px))}
 .fr-lb-next{right:max(18px, env(safe-area-inset-right, 18px))}
