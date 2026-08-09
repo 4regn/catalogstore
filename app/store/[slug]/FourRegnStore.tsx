@@ -2031,7 +2031,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp2-bread a:hover{color:var(--ink);text-decoration:underline}
 .fr-pdp2-bread .sep{color:rgba(46,42,57,0.3)}
 .fr-pdp2-bread .current{color:var(--ink)}
-.fr-pdp2-sizechart-btn{align-self:flex-start;background:none;border:none;padding:0;margin:-6px 0 20px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px;color:var(--ink);cursor:pointer}
+.fr-pdp2-sizechart-btn{display:flex;align-items:center;gap:10px;width:100%;background:none;border:1.5px solid var(--ink);border-radius:var(--btn-radius);padding:15px 18px;margin:2px 0 20px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink);cursor:pointer;transition:background 0.2s}
+.fr-pdp2-sizechart-btn:hover{background:rgba(0,0,0,0.03)}
+.fr-pdp2-sizechart-btn span{flex:1;text-align:left}
+.fr-pdp2-sizechart-chevron{flex-shrink:0;color:rgba(46,42,57,0.4)}
 
 /* SIZE CHART MODAL content -- reuses fr-modal-overlay/fr-modal from the
    policy modal below for the overlay/close chrome. */
@@ -2809,12 +2812,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </div>
                     ))}
                     {sizeChartType && (
+                      // Was a small underlined text link, easy to miss --
+                      // matches the real site's own bordered, icon+chevron
+                      // "SIZE CHART" button now (reported directly: "you can
+                      // barely notice it on catalogstore" next to how
+                      // prominent the same control is on 4regn.com).
                       <button
                         type="button"
                         className="fr-pdp2-sizechart-btn"
                         onClick={() => { setSizeChartTab("chart"); setSizeChartOpen(true); }}
                       >
-                        Size Chart
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="18" height="10" rx="1"/><path d="M7 7v3M11 7v3M15 7v3"/></svg>
+                        <span>Size Chart</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="fr-pdp2-sizechart-chevron"><path d="m9 6 6 6-6 6"/></svg>
                       </button>
                     )}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
@@ -3367,11 +3377,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <h4>How to Measure (cm)</h4>
                   <div className="fr-sc-measure-diagrams">
                     <div className="fr-sc-measure-diagram">
-                      <Image src="/size-chart-measure-female.svg" alt="Diagram showing where to measure arm length, waist, hips and height on a female body" width={300} height={560} />
+                      <Image src="/size-chart-measure-female.jpg" alt="Photo showing where to measure arm length, waist, hips and height on a female model" width={828} height={1530} />
                       <span>Women</span>
                     </div>
                     <div className="fr-sc-measure-diagram">
-                      <Image src="/size-chart-measure-male.svg" alt="Diagram showing where to measure arm length, waist, hips and height on a male body" width={300} height={560} />
+                      <Image src="/size-chart-measure-male.jpg" alt="Photo showing where to measure arm length, waist, hips and height on a male model" width={828} height={1530} />
                       <span>Men</span>
                     </div>
                   </div>
