@@ -70,6 +70,19 @@ function setlaMinDeposit(total: number): number {
   const cents = Math.round(total * 100);
   return Math.ceil(cents * 0.3) / 100;
 }
+// "Half and Half" isn't a separate SETLA plan/database plan_type -- it's a
+// 50%-deposit preset shown on top of the existing Laybuy mechanism (which
+// already allows any deposit >=30% and paying the rest whenever, whatever
+// amount). Same cent-splitting convention as setlaPayIn4Schedule above so
+// an odd total never loses/gains a cent between the two rows.
+function setlaHalfHalfSchedule(total: number): { amount: number; label: string }[] {
+  const cents = Math.round(total * 100);
+  const first = Math.round(cents / 2);
+  return [
+    { amount: first / 100, label: "Today" },
+    { amount: (cents - first) / 100, label: "In 1 month" },
+  ];
+}
 
 export default function CheckoutPageClient() {
   const params = useParams();
@@ -809,18 +822,40 @@ export default function CheckoutPageClient() {
                     own comment. */}
                 {paymentMethod === "setla" && (
                   <div style={{ padding: "18px 20px", background: T.selectBg, borderBottom: "1px solid " + T.summaryBorder }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Pay in 4 &mdash; SETLA Pay Later, 0% interest</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
-                      {setlaPayIn4Schedule(total).map((row, i) => (
-                        <div key={i}>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>R{row.amount.toFixed(0)}</div>
-                          <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>{row.label}</div>
-                          <div style={{ height: 4, borderRadius: 2, background: i === 0 ? "#068a1f" : "rgba(6,138,31,0.15)" }} />
-                        </div>
-                      ))}
+                    <div style={{ marginBottom: 18 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Pay in 4 &mdash; SETLA Pay Later, 0% interest</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                        {setlaPayIn4Schedule(total).map((row, i) => (
+                          <div key={i}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>R{row.amount.toFixed(0)}</div>
+                            <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>{row.label}</div>
+                            <div style={{ height: 4, borderRadius: 2, background: i === 0 ? "#068a1f" : "rgba(6,138,31,0.15)" }} />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: T.muted, paddingTop: 14, borderTop: "1px solid " + T.summaryBorder }}>
-                      Prefer no credit check? <strong style={{ color: T.text }}>SETLA Laybuy</strong>: pay a R{setlaMinDeposit(total).toFixed(0)} deposit today (min. 30%), then clear the rest -- any amount, any time -- over up to 3 months.
+                    {/* Half and Half: a 50%-today/50%-in-1-month preset on
+                        top of the existing Laybuy mechanism (min. 30%
+                        deposit, pay the rest whenever) -- not a separate
+                        SETLA plan type in the database, see
+                        setlaHalfHalfSchedule's own comment. Shown as its
+                        own block so it matches the Pay in 4 block visually,
+                        same as PayFlex shows its "Pay in 4" and "Pay in 3"
+                        options side by side. */}
+                    <div style={{ paddingTop: 16, borderTop: "1px solid " + T.summaryBorder }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Half and Half &mdash; SETLA Laybuy, no credit check</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+                        {setlaHalfHalfSchedule(total).map((row, i) => (
+                          <div key={i}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>R{row.amount.toFixed(0)}</div>
+                            <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>{row.label}</div>
+                            <div style={{ height: 4, borderRadius: 2, background: i === 0 ? "#068a1f" : "rgba(6,138,31,0.15)" }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: T.muted, marginTop: 16, paddingTop: 14, borderTop: "1px solid " + T.summaryBorder }}>
+                      Laybuy is flexible &mdash; the R{setlaMinDeposit(total).toFixed(0)} minimum deposit (30%) can be higher, and the rest can be paid off in any amount, any time, over up to 3 months.
                     </div>
                     <div style={{ fontSize: 11, color: T.muted, marginTop: 10 }}>Choose Pay Later or Laybuy and see the exact schedule confirmed on the next step.</div>
                   </div>
