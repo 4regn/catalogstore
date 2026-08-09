@@ -226,6 +226,26 @@ export function makeCol(header: string[]) {
   };
 }
 
+// The exact ordered, deduped "Image Src" list migrate-4regn.ts builds a
+// product's images[] gallery from (one upload per entry, in this order,
+// becoming images[0], images[1], ...). Re-exposed so
+// mirror-4regn-variant-images.ts can recompute the same list and match a
+// raw Shopify CDN URL against the Storage URL it already became, instead
+// of fetching and uploading a second copy of a photo this project already
+// has mirrored.
+export function collectImageSrcs(variantRows: string[][], col: (row: string[], name: string) => string): string[] {
+  const imageSrcs: string[] = [];
+  const seenUrls = new Set<string>();
+  for (const vRow of variantRows) {
+    const img = col(vRow, "image src");
+    if (img && !seenUrls.has(img)) {
+      seenUrls.add(img);
+      imageSrcs.push(img);
+    }
+  }
+  return imageSrcs;
+}
+
 // Shared by migrate-4regn.ts (fresh imports) and
 // backfill-4regn-variant-images.ts (retrofitting products already
 // imported before this existed) -- kept in one place so the two can never

@@ -22,7 +22,7 @@
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
 
 import { writeFileSync } from "fs";
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionMarkup, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows, computeVariantImageMaps } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionMarkup, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows, computeVariantImageMaps, collectImageSrcs } from "./lib/migrate-shared";
 
 type ProductRow = {
   seller_id: string;
@@ -149,15 +149,7 @@ async function main() {
     const recordedSourceUrl = sourceUrlHeader ? col(first, sourceUrlHeader) : "";
     const source_url = recordedSourceUrl || (args.sourceDomain ? `${args.sourceDomain}/products/${handle}` : null);
 
-    const imageSrcs: string[] = [];
-    const seenUrls = new Set<string>();
-    for (const vRow of variantRows) {
-      const img = col(vRow, "image src");
-      if (img && !seenUrls.has(img)) {
-        seenUrls.add(img);
-        imageSrcs.push(img);
-      }
-    }
+    const imageSrcs = collectImageSrcs(variantRows, col);
 
     const opt1Name = col(first, "option1 name");
     const opt2Name = col(first, "option2 name");

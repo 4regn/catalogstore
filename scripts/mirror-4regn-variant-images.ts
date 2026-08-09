@@ -8,34 +8,42 @@
 // cdn.shopify.com on every page view, with no CDN caching or
 // optimization, instead of this project's own already-fast Storage URLs.
 //
-// This mirrors every variant image the same way the main import does:
-// fetch (20s timeout, a couple of retries), upload to the SAME
-// product-images bucket, and rewrite variants[].images to the new
-// Storage URL. Idempotent -- an image whose URL already points at this
-// project's Storage (not cdn.shopify.com) is left alone, so re-running
-// this after a partial failure only retries what's still raw.
+// Every variant photo came from the exact same "Image Src" CSV column
+// migrate-4regn.ts already read to build each product's images[] gallery
+// (collectImageSrcs, in lib/migrate-shared.ts) -- so in the common case
+// the variant's raw Shopify URL is ALREADY sitting in this project's
+// Storage under a different array position, just never recorded which
+// raw URL became which. This recomputes that same deduped, ordered list
+// from the CSV and -- only when its length still matches the product's
+// current images[] length (i.e. nothing was pruned by
+// clear-4regn-broken-images.ts since import) -- matches positionally to
+// reuse the ALREADY-mirrored Storage URL directly, at zero extra Storage
+// cost and zero network fetch. Only a genuine miss (length mismatch, or
+// the URL isn't in that list at all) falls back to actually fetching and
+// uploading a new copy, same as before.
 //
 // Usage:
-//   npx tsx scripts/mirror-4regn-variant-images.ts --seller=owner@4regn.com [--dry-run] [--concurrency=8]
+//   npx tsx scripts/mirror-4regn-variant-images.ts --csv=products_export_1.csv --seller=owner@4regn.com [--dry-run] [--concurrency=8]
 
-import { getAdminClient, fetchAllRows } from "./lib/migrate-shared";
+import { getAdminClient, fetchAllRows, readCsv, parseCsvLine, makeCol, collectImageSrcs } from "./lib/migrate-shared";
 
 function parseArgs() {
-  const out: { seller?: string; dryRun: boolean; concurrency: number } = { dryRun: false, concurrency: 8 };
+  const out: { csv?: string; seller?: string; dryRun: boolean; concurrency: number } = { dryRun: false, concurrency: 8 };
   for (const arg of process.argv.slice(2)) {
-    if (arg.startsWith("--seller=")) out.seller = arg.slice("--seller=".length);
+    if (arg.startsWith("--csv=")) out.csv = arg.slice("--csv=".length);
+    else if (arg.startsWith("--seller=")) out.seller = arg.slice("--seller=".length);
     else if (arg === "--dry-run") out.dryRun = true;
     else if (arg.startsWith("--concurrency=")) out.concurrency = parseInt(arg.slice("--concurrency=".length), 10) || 8;
   }
-  if (!out.seller) {
-    console.error("Usage: npx tsx scripts/mirror-4regn-variant-images.ts --seller=owner@4regn.com [--dry-run] [--concurrency=8]");
+  if (!out.csv || !out.seller) {
+    console.error("Usage: npx tsx scripts/mirror-4regn-variant-images.ts --csv=products_export_1.csv --seller=owner@4regn.com [--dry-run] [--concurrency=8]");
     process.exit(1);
   }
-  return out as { seller: string; dryRun: boolean; concurrency: number };
+  return out as { csv: string; seller: string; dryRun: boolean; concurrency: number };
 }
 
 type ProductVariant = { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string> };
-type ProductRow = { id: string; name: string; variants: ProductVariant[] | null };
+type ProductRow = { id: string; name: string; handle: string | null; images: string[] | null; variants: ProductVariant[] | null };
 
 function needsMirroring(url: string): boolean {
   try {
@@ -57,65 +65,89 @@ async function main() {
   console.log(`Seller: ${seller.email} (${seller.subdomain})`);
   const sellerId = seller.id;
 
-  const products = await fetchAllRows<ProductRow>(admin, "products", "id, name, variants", (q) => q.eq("seller_id", sellerId));
+  const { lines, header } = readCsv(args.csv);
+  const col = makeCol(header);
+  const handleMap = new Map<string, string[][]>();
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCsvLine(lines[i]);
+    const handle = col(cols, "handle");
+    if (!handle) continue;
+    if (!handleMap.has(handle)) handleMap.set(handle, []);
+    handleMap.get(handle)!.push(cols);
+  }
 
-  type Task = { productIdx: number; variantIdx: number; value: string; url: string };
-  const tasks: Task[] = [];
+  const products = await fetchAllRows<ProductRow>(admin, "products", "id, name, handle, images, variants", (q) => q.eq("seller_id", sellerId));
   const productsWithVariants = products.filter((p) => Array.isArray(p.variants) && p.variants.length > 0);
 
+  type Task = { productIdx: number; variantIdx: number; value: string; url: string };
+  const freeResolved = new Map<string, string>(); // raw url -> already-mirrored Storage url, no fetch needed
+  const tasks: Task[] = []; // genuinely needs a real fetch+upload
+
   for (let pi = 0; pi < productsWithVariants.length; pi++) {
-    const variants = productsWithVariants[pi].variants || [];
+    const product = productsWithVariants[pi];
+    const variants = product.variants || [];
+
+    // Reconstruct the raw-url -> already-mirrored-url mapping for this
+    // product, if its current images[] still has the same length as what
+    // the CSV's own dedup would produce (i.e. positionally unchanged
+    // since import).
+    let rawToExisting: Map<string, string> | null = null;
+    const csvRows = product.handle ? handleMap.get(product.handle) : undefined;
+    if (csvRows && Array.isArray(product.images)) {
+      const imageSrcs = collectImageSrcs(csvRows, col);
+      if (imageSrcs.length === product.images.length) {
+        rawToExisting = new Map(imageSrcs.map((url, i) => [url, product.images![i]]));
+      }
+    }
+
     for (let vi = 0; vi < variants.length; vi++) {
       const images = variants[vi].images;
       if (!images) continue;
       for (const [value, url] of Object.entries(images)) {
-        if (needsMirroring(url)) tasks.push({ productIdx: pi, variantIdx: vi, value, url });
+        if (!needsMirroring(url)) continue;
+        const existing = rawToExisting?.get(url);
+        if (existing) freeResolved.set(url, existing);
+        else tasks.push({ productIdx: pi, variantIdx: vi, value, url });
       }
     }
   }
 
-  console.log(`${tasks.length} variant image(s) across ${productsWithVariants.length} product(s) still point at cdn.shopify.com and need mirroring.`);
-  if (!tasks.length) return;
+  console.log(`${freeResolved.size + tasks.length} variant image(s) across ${productsWithVariants.length} product(s) still point at cdn.shopify.com.`);
+  console.log(`  ${freeResolved.size} already exist in this project's Storage (reused, zero new upload) -- e.g. the same photo appears in the product's own gallery.`);
+  console.log(`  ${tasks.length} are genuinely new and need fetching + uploading.`);
 
   if (args.dryRun) {
-    console.log("\nDry run -- re-run without --dry-run to actually fetch and mirror these.");
-    for (const t of tasks.slice(0, 10)) console.log(`  ${productsWithVariants[t.productIdx].name} -- ${t.value}: ${t.url}`);
-    if (tasks.length > 10) console.log(`  ...and ${tasks.length - 10} more`);
+    if (tasks.length) {
+      console.log("\nStill-needed examples:");
+      for (const t of tasks.slice(0, 10)) console.log(`  ${productsWithVariants[t.productIdx].name} -- ${t.value}: ${t.url}`);
+      if (tasks.length > 10) console.log(`  ...and ${tasks.length - 10} more`);
 
-    // Real fetches are deduped by distinct URL (a photo reused across
-    // products/dimensions is only ever downloaded once) -- the size
-    // estimate follows the same dedup so it matches what would actually
-    // get uploaded, not an inflated per-task count. HEAD-only: no image
-    // body is downloaded here, just Content-Length off the response
-    // headers, so this stays fast even across thousands of URLs.
-    const distinctUrls = Array.from(new Set(tasks.map((t) => t.url)));
-    console.log(`\nEstimating size of ${distinctUrls.length} distinct image(s) (HEAD requests only, nothing downloaded)...`);
-    let totalBytes = 0, known = 0, unknown = 0;
-    let cursor = 0;
-    async function sizeWorker() {
-      while (cursor < distinctUrls.length) {
-        const url = distinctUrls[cursor++];
-        try {
-          const resp = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(10000) });
-          const len = resp.ok ? Number(resp.headers.get("content-length")) : NaN;
-          if (Number.isFinite(len) && len > 0) { totalBytes += len; known++; } else unknown++;
-        } catch {
-          unknown++;
+      const distinctUrls = Array.from(new Set(tasks.map((t) => t.url)));
+      console.log(`\nEstimating size of ${distinctUrls.length} distinct image(s) that would actually be uploaded (HEAD requests only, nothing downloaded)...`);
+      let totalBytes = 0, known = 0, unknown = 0;
+      let cursor = 0;
+      async function sizeWorker() {
+        while (cursor < distinctUrls.length) {
+          const url = distinctUrls[cursor++];
+          try {
+            const resp = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(10000) });
+            const len = resp.ok ? Number(resp.headers.get("content-length")) : NaN;
+            if (Number.isFinite(len) && len > 0) { totalBytes += len; known++; } else unknown++;
+          } catch {
+            unknown++;
+          }
         }
       }
+      await Promise.all(Array.from({ length: args.concurrency }, sizeWorker));
+      const mb = totalBytes / (1024 * 1024);
+      console.log(`Estimated NEW storage: ~${mb.toFixed(1)} MB across ${known} image(s) with a known size` + (unknown ? ` (${unknown} didn't report a size -- likely similar, not counted above)` : "") + ".");
     }
-    await Promise.all(Array.from({ length: args.concurrency }, sizeWorker));
-    const mb = totalBytes / (1024 * 1024);
-    console.log(`Estimated size: ~${mb.toFixed(1)} MB across ${known} image(s) with a known size` + (unknown ? ` (${unknown} didn't report a size -- likely similar, not counted above)` : "") + ".");
+    console.log("\nDry run -- re-run without --dry-run to write the free reuses and mirror whatever's still genuinely new.");
     return;
   }
 
   const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-  // Same URL can legitimately appear more than once (e.g. reused across
-  // sibling products, or across dimensions on the same product) -- fetch
-  // and upload each distinct URL only once, then fan the resulting
-  // Storage URL back out to every task that shared it.
-  const resolvedByUrl = new Map<string, string>();
+  const resolvedByUrl = new Map<string, string>(freeResolved);
   const IMAGE_RETRY_DELAYS_MS = [1000, 3000];
 
   async function mirrorOnce(task: Task): Promise<string | null> {
@@ -145,22 +177,23 @@ async function main() {
     }
   }
 
-  console.log(`Mirroring (${args.concurrency} at a time -- tune with --concurrency=N)...`);
-  let cursor = 0, done = 0;
-  async function worker() {
-    while (cursor < tasks.length) {
-      const idx = cursor++;
-      await mirrorWithRetry(tasks[idx]);
-      done++;
-      if (done % 50 === 0 || done === tasks.length) console.log(`  ${done}/${tasks.length}`);
+  if (tasks.length) {
+    console.log(`\nMirroring ${tasks.length} genuinely new image(s) (${args.concurrency} at a time -- tune with --concurrency=N)...`);
+    let cursor = 0, done = 0;
+    async function worker() {
+      while (cursor < tasks.length) {
+        const idx = cursor++;
+        await mirrorWithRetry(tasks[idx]);
+        done++;
+        if (done % 50 === 0 || done === tasks.length) console.log(`  ${done}/${tasks.length}`);
+      }
     }
+    await Promise.all(Array.from({ length: args.concurrency }, worker));
+    const failedUrls = new Set(tasks.map((t) => t.url).filter((u) => !resolvedByUrl.has(u)));
+    console.log(`Mirrored ${resolvedByUrl.size - freeResolved.size} new distinct image(s), ${failedUrls.size} failed after retries.`);
   }
-  await Promise.all(Array.from({ length: args.concurrency }, worker));
 
-  const failedUrls = new Set(tasks.map((t) => t.url).filter((u) => !resolvedByUrl.has(u)));
-  console.log(`\nMirrored ${resolvedByUrl.size} distinct image(s), ${failedUrls.size} failed after retries.`);
-
-  console.log("Writing updated variants back to each product...");
+  console.log("\nWriting updated variants back to each product...");
   let updated = 0;
   for (let pi = 0; pi < productsWithVariants.length; pi++) {
     const variants = productsWithVariants[pi].variants || [];
