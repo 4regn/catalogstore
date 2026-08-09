@@ -1425,7 +1425,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className="fr-cat-img">
           {img ? (
             <>
-              <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
+              {/* Same real-PageSpeed-trace fix as .fr-foot-logo/.fr-logo
+                  above -- this tile flagged as oversized too (828x1242
+                  source for a ~180x270 rendered tile). next/image instead
+                  of a plain <img>; width/height are just an aspect-ratio
+                  hint (kept 100%/auto via style so the tile's height still
+                  grows to match the image the same way the plain <img> did,
+                  not the fixed box `fill` would force), and `sizes` mirrors
+                  .fr-cat-grid's own 4-col desktop / 2-col mobile layout. */}
+              <Image src={img} alt={cat} width={600} height={800} sizes="(max-width: 900px) 45vw, 22vw" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
             </>
           ) : <span className="fr-cat-mark">{cat}</span>}
@@ -2533,8 +2541,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <button className="fr-burger" onClick={() => setMobileNavOpen(true)} aria-label="Menu">
               <span /><span /><span />
             </button>
+            {/* A re-run of the same real PageSpeed trace that flagged
+                .fr-foot-logo (see that comment) showed this exact same
+                logo file -- via this separate <img> instance in the nav --
+                as the #1 offender all over again once the footer copy was
+                fixed. Same treatment: next/image instead of a plain <img>.
+                (.fr-logo img's own height:34px/width:auto CSS still governs
+                final on-screen size either way.) */}
             <a href={sp()} className="fr-logo">
-              {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
+              {displayLogo ? <Image src={displayLogo} alt={seller.store_name} width={120} height={34} style={{ width: "auto" }} /> : seller.store_name}
             </a>
           </div>
           <div className="fr-nav-links">
@@ -2545,7 +2560,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 crammed next to the hamburger. Same markup/click-to-home
                 behavior as the original. */}
             <a href={sp()} className="fr-logo">
-              {displayLogo ? <img src={displayLogo} alt={seller.store_name} /> : seller.store_name}
+              {displayLogo ? <Image src={displayLogo} alt={seller.store_name} width={120} height={34} style={{ width: "auto" }} /> : seller.store_name}
             </a>
             <div
               className="fr-nav-catalog"
@@ -3462,15 +3477,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       without PayFast (reported directly: "only have setla
                       and float now" once 4regn's Yoco went live). Shows
                       whenever either card gateway is enabled. */}
+                  {/* Real PageSpeed trace flagged every one of these --
+                      up to 299KB PNGs (visa.png alone) for a badge
+                      rendered at ~16px tall. next/image with each file's
+                      real intrinsic dimensions (checked directly against
+                      the files on disk) instead of a plain <img>; the same
+                      height/width:auto/objectFit sizing as before is kept
+                      via style so on-screen size is unchanged. */}
                   {(seller.checkout_config?.payfast_enabled || seller.checkout_config?.yoco_enabled) && (<>
-                    <span className="fr-pay-icon" title="Visa"><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
-                    <span className="fr-pay-icon" title="Mastercard"><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
-                    <span className="fr-pay-icon" title="Apple Pay"><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
-                    <span className="fr-pay-icon" title="Yoco"><img src="/checkout/yoco.png" alt="Yoco" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
-                    <span className="fr-pay-icon" title="Capitec Pay"><img src="/checkout/capitecpay.png" alt="Capitec Pay" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Visa"><Image src="/checkout/visa.png" alt="Visa" width={1568} height={585} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Mastercard"><Image src="/checkout/mastercard.png" alt="Mastercard" width={1218} height={945} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Apple Pay"><Image src="/checkout/applepay.png" alt="Apple Pay" width={1568} height={677} style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Yoco"><Image src="/checkout/yoco.png" alt="Yoco" width={484} height={200} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon" title="Capitec Pay"><Image src="/checkout/capitecpay.png" alt="Capitec Pay" width={1441} height={585} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   </>)}
                   {showSetlaBanner && (
-                    <span className="fr-pay-icon fr-pay-icon--setla" title="SETLA"><img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon fr-pay-icon--setla" title="SETLA"><Image src="/setla/assets/setla-payments-logo.png" alt="SETLA" width={964} height={265} style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
                   )}
                   {/* Float: shown here to match the live Shopify store's own footer
                       (real accepted payment method there), even though the
@@ -3478,7 +3500,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       -- see FloatWidget's own comment. The footer logo is just a
                       "we accept this" mark, not the interactive widget, so it's
                       unaffected by that domain-authorization issue. */}
-                  <span className="fr-pay-icon" title="Float"><img src="/checkout/float.png" alt="Float" style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
+                  <span className="fr-pay-icon" title="Float"><Image src="/checkout/float.png" alt="Float" width={360} height={188} style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
                   {seller.checkout_config?.eft_enabled && (
                     <button onClick={() => setPolicyModal({ title: "EFT / Direct Deposit", content: "Select EFT/Direct Deposit at checkout. You’ll receive payment instructions to complete your order via EFT." })} style={{ marginTop: 4, fontSize: 12 }}>EFT / Direct Deposit</button>
                   )}
