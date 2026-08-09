@@ -204,20 +204,78 @@ export function formatInstalmentDueDate(dueAt: string): string {
 /* Mirrors markUnikOrderFailed's shape -- a failed Yoco payment.failed event
    just leaves the instalment marked "failed" so it shows up distinctly
    from a still-upcoming "scheduled" one; the customer can retry it from
-   their dashboard the same way any scheduled/overdue instalment is paid. */
+   their dashboard the same way any scheduled/overdue instalment is paid
+   (app/api/setla/instalments/[id]/pay) -- EXCEPT instalment #1, which is
+   special: its claim against the customer's available_limit (see the
+   optimistic-lock claim in app/api/setla/checkout/create/route.ts and
+   app/api/checkout/setla-create/route.ts) happens the moment the plan is
+   created, before the first Yoco charge is even attempted. If that first
+   charge then genuinely fails, the plan never actually activated -- no
+   credit was really extended -- so the claimed principal_amount is given
+   back and the plan/order are voided, instead of leaving the customer
+   permanently down that amount of limit for a purchase that never
+   happened. A later instalment (#2+) failing is real delinquency against
+   credit already used, not a stillborn plan -- left untouched here. */
 export async function markSetlaInstalmentFailed(admin: SupabaseClient, instalmentId: string): Promise<"failed" | "no_change"> {
   const { data: updated, error } = await admin
     .from("setla_instalments")
     .update({ status: "failed" })
     .eq("id", instalmentId)
     .in("status", ["scheduled", "processing"])
-    .select("id")
+    .select("id, plan_id, sequence_number")
     .maybeSingle();
   if (error) {
     console.error("markSetlaInstalmentFailed: update failed", error);
     return "no_change";
   }
-  return updated ? "failed" : "no_change";
+  if (!updated) return "no_change";
+
+  if (updated.sequence_number === 1) {
+    await voidStillbornPayLaterPlan(admin, updated.plan_id);
+  }
+
+  return "failed";
+}
+
+/* Shared by markSetlaInstalmentFailed (an explicit Yoco payment.failed
+   event) and the abandoned-order sweep (no webhook ever arrived at all) --
+   both cases mean instalment #1 never actually got paid, so the plan never
+   activated. Gives back the claimed available_limit, voids the plan and
+   its setla_orders row, and marks the underlying generic order "failed" so
+   it stops sitting at payment_status "pending" forever. Scoped to plans
+   still "active" (eq below) so a retried webhook or a sweep running twice
+   can't double-refund the same limit. */
+export async function voidStillbornPayLaterPlan(admin: SupabaseClient, planId: string): Promise<void> {
+  const { data: plan } = await admin
+    .from("setla_payment_plans")
+    .select("id, customer_id, order_id, principal_amount, status")
+    .eq("id", planId)
+    .single();
+  if (!plan || plan.status !== "active") return;
+
+  const { data: voided } = await admin
+    .from("setla_payment_plans")
+    .update({ status: "cancelled" })
+    .eq("id", plan.id)
+    .eq("status", "active")
+    .select("id")
+    .maybeSingle();
+  if (!voided) return; // lost the race (already voided by a concurrent call)
+
+  const { data: customer } = await admin.from("setla_customers").select("available_limit").eq("id", plan.customer_id).single();
+  if (customer) {
+    await admin
+      .from("setla_customers")
+      .update({ available_limit: Number(customer.available_limit) + Number(plan.principal_amount) })
+      .eq("id", plan.customer_id)
+      .eq("available_limit", customer.available_limit);
+  }
+
+  const { data: setlaOrder } = await admin.from("setla_orders").select("id, unik_order_id").eq("id", plan.order_id).single();
+  if (setlaOrder) {
+    await admin.from("setla_orders").update({ status: "cancelled" }).eq("id", setlaOrder.id);
+    await admin.from("orders").update({ payment_status: "failed", status: "failed" }).eq("id", setlaOrder.unik_order_id).eq("payment_status", "pending");
+  }
 }
 
 /* Laybuy equivalent of markSetlaInstalmentFailed -- a failed payment

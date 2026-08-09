@@ -1138,9 +1138,27 @@
   // so the client-shown minimum never disagrees with what the server
   // actually enforces.
   function minDeposit(total){const totalCents=Math.round(Number(total)*100);return Math.ceil(totalCents*0.3)/100}
+  // Half and Half is a fixed 50%-today/50%-whenever preset on top of the
+  // same Laybuy mechanism (plan submits as 'laybuy' with depositAmount
+  // locked to exactly half the total, see confirmSETLA below) -- not a
+  // separate database plan_type. Kept in exact cent-splitting sync with
+  // CheckoutPageClient.tsx's own setlaHalfHalfSchedule preview so the
+  // marketing calculator and this real checkout never disagree.
+  function halfHalfSchedule(total){
+    const cents=Math.round(Number(total)*100),first=Math.round(cents/2);
+    return [{number:1,amount:first/100,date:'Today',status:'Due now'},{number:2,amount:(cents-first)/100,date:'In ~30 days',status:'Suggested'}];
+  }
   function renderSchedule(total,plan){
     const schedule=document.getElementById('paymentSchedule');if(!schedule)return [];
     const depositPicker=document.getElementById('laybuyDepositPicker');
+    if(plan==='half'){
+      if(depositPicker)depositPicker.hidden=true;
+      const rows=halfHalfSchedule(total);
+      schedule.innerHTML=rows.map(row=>`<div class="schedule-row"><i>${row.number}</i><span><small>${row.status}</small><strong>${row.date}</strong></span><b>${money(row.amount)}</b></div>`).join('');
+      document.getElementById('scheduleTotal').textContent=money(total);
+      document.getElementById('scheduleNote').textContent='Pay 50% today and 50% within about a month. There\'s no fixed due date on the remainder -- pay it early or a little later with no penalty, any time over up to 3 months.';
+      return rows;
+    }
     if(plan==='laybuy'){
       schedule.innerHTML='';
       document.getElementById('scheduleTotal').textContent=money(total);
@@ -1261,11 +1279,15 @@
     document.getElementById('confirmSETLA').addEventListener('click',async()=>{
       const btn=document.getElementById('confirmSETLA');
       const error=document.getElementById('checkoutError');error.classList.remove('show');
-      const rawPlan=selectedPlan(),plan=rawPlan==='laybuy'?'laybuy':'pay_later';
+      const rawPlan=selectedPlan(),plan=(rawPlan==='laybuy'||rawPlan==='half')?'laybuy':'pay_later';
       if(!document.getElementById('checkoutTerms').checked){error.textContent='Review the schedule and accept the SETLA terms before continuing.';error.classList.add('show');return}
       if(plan==='pay_later'&&!allowed){error.textContent='Pay Later is not available for this order. Select SETLA Laybuy to continue.';error.classList.add('show');return}
       let depositAmount;
-      if(plan==='laybuy'){
+      if(rawPlan==='half'){
+        // Locked to exactly half -- no freeform input for this preset,
+        // see halfHalfSchedule above.
+        depositAmount=halfHalfSchedule(total)[0].amount;
+      }else if(plan==='laybuy'){
         depositAmount=Number(document.getElementById('laybuyDepositInput')?.value||0);
         const min=minDeposit(total);
         if(!depositAmount||depositAmount<min){error.textContent=`Minimum Laybuy deposit is ${money(min)} (30% of your order).`;error.classList.add('show');return}
@@ -1296,7 +1318,25 @@
             returnOrigin:location.origin,
           })});
         const payload=await res.json().catch(()=>({}));
-        if(!res.ok){error.textContent=payload.error||'Could not start payment. Please try again.';error.classList.add('show');btn.disabled=false;btn.textContent='Confirm SETLA plan';return}
+        if(!res.ok){
+          const msg=payload.error||'Could not start payment. Please try again.';
+          btn.disabled=false;btn.textContent='Confirm SETLA plan';
+          // 404 ("Order not found") / 409 ("already has a plan" / "not
+          // eligible for payment") mean this specific handoff can never be
+          // confirmed from this page again -- clicking Confirm a second
+          // time would just repeat the same dead end. Clear the stale
+          // handoff and point the customer somewhere that actually works:
+          // their dashboard already surfaces any real pending instalment
+          // with a working retry (app/api/setla/instalments/[id]/pay).
+          if(res.status===404||res.status===409){
+            try{localStorage.removeItem('unik-setla-handoff-v1')}catch(_){}
+            error.innerHTML=`${escapeHTML(msg)} <a href="dashboard.html">Check your dashboard</a> for any order awaiting payment, or return to the store to start a fresh checkout.`;
+          }else{
+            error.textContent=msg;
+          }
+          error.classList.add('show');
+          return;
+        }
         localStorage.removeItem('unik-setla-handoff-v1');localStorage.removeItem('unik-labs-cart-v1');
         location.href=payload.redirectUrl;
       }catch(_){
