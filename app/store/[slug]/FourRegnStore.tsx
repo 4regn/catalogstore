@@ -842,15 +842,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     (async () => {
       const { data } = await supabase
         .from("products")
-        .select("id, name, price, old_price, category, image_url, handle")
+        .select("id, name, price, old_price, category, image_url, handle, tags")
         .eq("seller_id", seller.id)
         .eq("in_stock", true)
         .eq("status", "published")
         .order("sort_order", { ascending: true });
-      // id/name/price/old_price/category/image_url/handle -- the search
-      // overlay's own results only read id/name/price/image_url/handle
-      // (see searched/goToProduct), old_price is carried along for
-      // relatedProducts' sale-badge ProductCard render on product views.
+      // id/name/price/old_price/category/image_url/handle/tags -- the
+      // search overlay's own results only read id/name/price/image_url/
+      // handle (see searched/goToProduct); old_price is carried along for
+      // relatedProducts' sale-badge ProductCard render, and tags for that
+      // same relatedProducts' relevance scoring (see its own comment).
       // Product's remaining fields (images, variants, description, etc.)
       // are never touched here, same trust boundary the server-side
       // narrow-column fetches elsewhere in this app already rely on.
@@ -2806,9 +2807,38 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // above), not `products` -- the server route no longer runs a
           // per-request related-products query, see searchProducts' own
           // comment for why.
-          const relatedProducts = catTokens.length > 0
-            ? (searchProducts ?? []).filter((rp) => rp.id !== p.id && catTokens.some((t) => pInCat(rp, t))).slice(0, 8)
-            : [];
+          //
+          // Ranked, not just "any shared category token, first 8 in
+          // catalog order" (the old behaviour -- reported directly as
+          // "awful": every product sharing even one broad token like
+          // "Men" ranked identically to one sharing the exact same
+          // sub-category, and since searchProducts never reorders, the
+          // same 8 items showed up every single time regardless of fit).
+          // Scored on: how many category tokens are shared (a product
+          // matching 2 of 3 tokens is a better fit than one matching 1),
+          // an extra bump for sharing the PRIMARY category specifically
+          // (the strongest single signal), and shared tags (often a more
+          // precise similarity signal than category alone, e.g. two
+          // products both tagged "oversized-tee"). Ties are broken by
+          // catalog order, same as before.
+          const catTokenSet = new Set(catTokens);
+          const pTagSet = new Set((p.tags || []).map((t) => t.toLowerCase()));
+          const relatedProducts = (catTokens.length === 0 && pTagSet.size === 0)
+            ? []
+            : (searchProducts ?? [])
+                .filter((rp) => rp.id !== p.id)
+                .map((rp) => {
+                  const rpCatTokens = (rp.category || "").split(",").map((c) => c.trim()).filter(Boolean);
+                  const sharedCatCount = rpCatTokens.filter((t) => catTokenSet.has(t)).length;
+                  const sharedTagCount = (rp.tags || []).filter((t) => pTagSet.has((t || "").toLowerCase())).length;
+                  const primaryMatch = firstRealCategory && rpCatTokens.includes(firstRealCategory) ? 3 : 0;
+                  const score = sharedCatCount + sharedTagCount * 2 + primaryMatch;
+                  return { rp, score };
+                })
+                .filter((x) => x.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 8)
+                .map((x) => x.rp);
           return (
             <>
               <div className="fr-pdp2-page">
