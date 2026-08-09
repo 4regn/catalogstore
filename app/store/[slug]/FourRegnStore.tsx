@@ -1832,7 +1832,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-about-stat-value{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,40px);color:var(--ink);line-height:1}
 .fr-about-stat-label{font-family:var(--body);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-top:6px}
 .fr-about-cta{display:inline-block;background:none;border:none;padding:0;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink);text-decoration:underline;text-underline-offset:5px;cursor:pointer}
-.fr-newsletter{background:var(--cream);padding:88px 40px;text-align:center}
+/* No background override -- every other section (.fr-section, .fr-about)
+   is transparent and just shows .fr-root's own --paper-grad through, this
+   was the one exception explicitly painted a flat --cream, which read as
+   a visibly different-colored block instead of a continuous page. */
+.fr-newsletter{padding:88px 40px;text-align:center}
 .fr-nl-lbl{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(46,42,57,0.55);margin-bottom:16px}
 .fr-nl-title{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,44px);color:var(--ink);margin-bottom:16px}
 .fr-nl-sub{font-size:14px;color:rgba(46,42,57,0.65);max-width:460px;margin:0 auto 28px;line-height:1.6}
