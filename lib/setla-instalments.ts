@@ -68,6 +68,237 @@ export function minLaybuyDeposit(total: number): number {
   return minCents / 100;
 }
 
+/* Everything app/api/checkout/setla-create/route.ts and
+   app/api/setla/checkout/create/route.ts need to reconstruct a SETLA plan
+   from scratch once Yoco confirms the first charge -- see
+   activateSetlaPlanAfterPayment's own comment for why creation moved here
+   instead of happening before the Yoco redirect. Yoco checkout metadata
+   values must all be strings, so every number is carried as a string and
+   parsed back out in activateSetlaPlanAfterPayment. */
+export type SetlaFirstChargeMeta = {
+  kind: "setla_first_charge";
+  orderId: string;
+  customerId: string;
+  planType: SetlaPlanType;
+  scheduleVariant: "default" | "half"; // pay_later only, ignored for laybuy
+  financedAmount: string; // pay_later only
+  excessUpfront: string; // pay_later only
+  depositAmount: string; // laybuy only
+  subtotal: string;
+  shippingCost: string;
+  total: string;
+};
+
+export function buildSetlaFirstChargeMetadata(meta: Omit<SetlaFirstChargeMeta, "kind" | "financedAmount" | "excessUpfront" | "depositAmount" | "subtotal" | "shippingCost" | "total"> & {
+  financedAmount: number;
+  excessUpfront: number;
+  depositAmount: number;
+  subtotal: number;
+  shippingCost: number;
+  total: number;
+}): Record<string, string> {
+  return {
+    kind: "setla_first_charge",
+    orderId: meta.orderId,
+    customerId: meta.customerId,
+    planType: meta.planType,
+    scheduleVariant: meta.scheduleVariant,
+    financedAmount: String(meta.financedAmount),
+    excessUpfront: String(meta.excessUpfront),
+    depositAmount: String(meta.depositAmount),
+    subtotal: String(meta.subtotal),
+    shippingCost: String(meta.shippingCost),
+    total: String(meta.total),
+  };
+}
+
+/* The real creation point for a SETLA plan -- called from the Yoco
+   webhook's payment.succeeded handler, NOT from the checkout-create
+   routes anymore. Those routes used to insert setla_orders/
+   setla_payment_plans/setla_instalments (or setla_laybuy_payments) and
+   claim the customer's available_limit BEFORE redirecting to Yoco, on the
+   optimistic assumption the first charge would go through -- reported
+   directly as the actual root cause of a real money bug: an abandoned or
+   declined first charge still left the limit claimed and a "payment due"
+   schedule sitting on the customer's dashboard, because both were created
+   before payment was ever confirmed, with only a best-effort release path
+   (voidStillbornPayLaterPlan) to undo it after the fact. Moving creation
+   to here means a first charge that never succeeds leaves genuinely
+   nothing behind -- no plan, no instalments, no claim -- matching the
+   explicit product requirement: an order is only ever "recorded" once its
+   payment actually went through (EFT is the sole exception, since it has
+   no real-time gateway confirmation to defer to). Idempotent: a retried
+   webhook for an order that already has a setla_orders row is a no-op. */
+export async function activateSetlaPlanAfterPayment(
+  admin: SupabaseClient,
+  meta: SetlaFirstChargeMeta,
+  paymentId: string,
+  amountCents: number,
+  eventId: string | null
+): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; error: string }> {
+  const { data: existing } = await admin.from("setla_orders").select("id").eq("unik_order_id", meta.orderId).maybeSingle();
+  if (existing) return { ok: true, alreadyProcessed: true };
+
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, seller_id, payment_status, items, shipping_option, fulfillment_method, customer_name, customer_email")
+    .eq("id", meta.orderId)
+    .single();
+  if (!order) return { ok: false, error: "Order not found" };
+  if (order.payment_status === "paid") return { ok: true, alreadyProcessed: true };
+
+  const financedAmount = Number(meta.financedAmount) || 0;
+  const excessUpfront = Number(meta.excessUpfront) || 0;
+  const depositAmount = Number(meta.depositAmount) || 0;
+  const subtotal = Number(meta.subtotal) || 0;
+  const shippingCost = Number(meta.shippingCost) || 0;
+  const total = Number(meta.total) || 0;
+  const isLaybuy = meta.planType === "laybuy";
+
+  // Same amount-mismatch guard the plain-order webhook branch already
+  // does -- the charge Yoco actually collected must match what this
+  // specific first charge was supposed to be, not just the order total
+  // (which, for pay_later, can differ from the first instalment amount
+  // whenever excessUpfront applies). The exact first-instalment amount
+  // depends on the same cent-splitting buildInstalmentSchedule/
+  // buildHalfAndHalfSchedule do -- simplest to just build the real
+  // schedule once, up front, and use its own row 0 amount as the
+  // expectation, rather than re-deriving the split by hand.
+  const schedule = isLaybuy
+    ? null
+    : meta.scheduleVariant === "half"
+    ? buildHalfAndHalfSchedule(financedAmount)
+    : buildInstalmentSchedule(financedAmount);
+  if (schedule && excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
+  const firstChargeAmount = isLaybuy ? depositAmount : (schedule as NonNullable<typeof schedule>)[0].amount;
+  const firstChargeExpectedCents = Math.round(firstChargeAmount * 100);
+  if (Math.abs(firstChargeExpectedCents - amountCents) > 1) {
+    console.error("activateSetlaPlanAfterPayment: amount mismatch", { orderId: meta.orderId, firstChargeExpectedCents, amountCents });
+    return { ok: false, error: "Amount mismatch" };
+  }
+
+  const { data: setlaOrder, error: setlaOrderErr } = await admin
+    .from("setla_orders")
+    .insert({
+      customer_id: meta.customerId,
+      unik_order_id: order.id,
+      payment_method: meta.planType,
+      subtotal,
+      delivery_amount: shippingCost,
+      total,
+      order_snapshot: { items: order.items, shippingLabel: order.shipping_option, fulfillmentMethod: order.fulfillment_method },
+      production_locked: true,
+    })
+    .select("id")
+    .single();
+  if (setlaOrderErr || !setlaOrder) {
+    if (setlaOrderErr?.code === "23505") return { ok: true, alreadyProcessed: true };
+    console.error("activateSetlaPlanAfterPayment: setla_orders insert failed", setlaOrderErr);
+    return { ok: false, error: setlaOrderErr?.message || "Could not create SETLA order" };
+  }
+
+  const { data: plan, error: planErr } = await admin
+    .from("setla_payment_plans")
+    .insert({
+      customer_id: meta.customerId,
+      order_id: setlaOrder.id,
+      plan_type: meta.planType,
+      principal_amount: isLaybuy ? total : financedAmount,
+      min_deposit_amount: isLaybuy ? minLaybuyDeposit(total) : null,
+      paid_amount: firstChargeAmount,
+    })
+    .select("id")
+    .single();
+  if (planErr || !plan) {
+    console.error("activateSetlaPlanAfterPayment: setla_payment_plans insert failed", planErr);
+    return { ok: false, error: planErr?.message || "Could not create SETLA plan" };
+  }
+
+  const now = new Date().toISOString();
+  let productionUnlocked = false;
+  let newSetlaOrderStatus: string;
+
+  if (isLaybuy) {
+    const { error: paymentErr } = await admin.from("setla_laybuy_payments").insert({
+      plan_id: plan.id,
+      amount: depositAmount,
+      is_deposit: true,
+      status: "paid",
+      paid_at: now,
+      payment_provider_reference: paymentId,
+      yoco_event_id: eventId,
+    });
+    if (paymentErr) {
+      console.error("activateSetlaPlanAfterPayment: setla_laybuy_payments insert failed", paymentErr);
+      return { ok: false, error: paymentErr.message || "Could not record Laybuy deposit" };
+    }
+    // Laybuy never unlocks on a deposit alone -- matches
+    // markLaybuyPaymentPaid's own reasoning (production begins only once
+    // the full balance is paid).
+    newSetlaOrderStatus = "partially_paid";
+  } else {
+    const { error: instalErr } = await admin.from("setla_instalments").insert(
+      (schedule as NonNullable<typeof schedule>).map((row, i) => ({
+        plan_id: plan.id,
+        sequence_number: row.sequenceNumber,
+        amount: row.amount,
+        due_at: row.dueAt.toISOString(),
+        ...(i === 0 ? { status: "paid", paid_at: now, payment_provider_reference: paymentId, yoco_event_id: eventId } : {}),
+      }))
+    );
+    if (instalErr) {
+      console.error("activateSetlaPlanAfterPayment: setla_instalments insert failed", instalErr);
+      return { ok: false, error: instalErr.message || "Could not create instalment schedule" };
+    }
+    // Not an optimistic-locked claim (unlike the old pre-payment claim) --
+    // the customer has already genuinely paid by this point, so a
+    // concurrent limit adjustment landing in this narrow window shouldn't
+    // ever cause a paid order to be treated as failed. Simple deduction.
+    const { data: customer } = await admin.from("setla_customers").select("available_limit").eq("id", meta.customerId).single();
+    if (customer) {
+      await admin.from("setla_customers").update({ available_limit: Number(customer.available_limit) - financedAmount }).eq("id", meta.customerId);
+    }
+    // Pay Later unlocks the moment instalment #1 clears -- same reasoning
+    // as markSetlaInstalmentPaid's shouldUnlock for sequence_number===1.
+    productionUnlocked = true;
+    newSetlaOrderStatus = "production";
+  }
+
+  await admin.from("setla_orders").update({ status: newSetlaOrderStatus, production_locked: !productionUnlocked }).eq("id", setlaOrder.id);
+  // orders.payment_method gets its real plan-specific value here for the
+  // first time -- place-order can only ever write the generic "setla" (it
+  // runs before the customer has even chosen Pay Later vs Laybuy), which
+  // is also why every "unresolved" filter (seller dashboard's Orders/
+  // Abandoned split, sweepAbandonedOrders) has to check for "setla" too,
+  // not just "setla_pay_later"/"setla_laybuy".
+  await admin
+    .from("orders")
+    .update({ status: "confirmed", payment_status: "paid", payment_method: meta.planType === "pay_later" ? "setla_pay_later" : "setla_laybuy", yoco_payment_id: paymentId })
+    .eq("id", order.id)
+    .eq("payment_status", "pending");
+
+  const { data: customerRow } = await admin.from("setla_customers").select("id, first_name, email").eq("id", meta.customerId).maybeSingle();
+  if (customerRow) {
+    const title = isLaybuy ? "Laybuy deposit received" : "Payment received -- your order is in production";
+    const body = isLaybuy
+      ? `We've received your deposit of R${depositAmount.toFixed(2)}. Pay off the rest -- any amount, any time -- from your dashboard.`
+      : `We've received your payment of R${firstChargeAmount.toFixed(2)}. Your order is now confirmed and being prepared.`;
+    await admin.from("setla_notifications").insert({ customer_id: customerRow.id, notification_type: isLaybuy ? "laybuy_payment_received" : "instalment_paid", title, body });
+    await sendEmail({ to: customerRow.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customerRow.first_name},</p><p>${body}</p>` });
+  }
+
+  const { data: seller } = await admin.from("sellers").select("email, store_name").eq("id", order.seller_id).maybeSingle();
+  if (seller?.email) {
+    await sendEmail({
+      to: seller.email,
+      subject: `New paid order (SETLA) -- ${order.customer_name}`,
+      html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111"><h2 style="margin:0 0 12px">New Order -- Paid via SETLA</h2><p style="margin:0 0 4px"><strong>${order.customer_name}</strong> (${order.customer_email})</p><p style="margin:12px 0 0;font-size:15px;font-weight:600">Total: R${Math.round(total)}</p></div>`,
+    });
+  }
+
+  return { ok: true };
+}
+
 /* Idempotently marks one Pay Later instalment paid, then cascades: updates
    the plan's paid_amount, unlocks production (Pay Later unlocks the moment
    instalment #1 clears, since it's a credit product and the customer is

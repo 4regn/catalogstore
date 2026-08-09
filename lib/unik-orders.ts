@@ -120,17 +120,14 @@ export async function markUnikOrderFailed(
 export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: string): Promise<void> {
   const cutoff = new Date(Date.now() - ORDER_ABANDON_MS).toISOString();
 
-  // A "setla_pay_later" order about to be swept below claimed a chunk of
-  // the customer's available_limit the moment its plan was created (see
-  // the optimistic-lock claim in app/api/setla/checkout/create/route.ts
-  // and app/api/checkout/setla-create/route.ts) -- if instalment #1 never
-  // got a webhook at all (customer just closed the tab at Yoco, no
-  // payment.failed event ever fires), that claimed limit would otherwise
-  // sit gone forever. Same voidStillbornPayLaterPlan() this abandonment
-  // maps to as an explicit payment.failed webhook does -- release the
-  // limit and void the plan before relabelling the order below. SETLA
-  // Laybuy never claims against available_limit at all (see that route's
-  // own comment), so it has nothing to release here.
+  // Historical cleanup only: app/api/checkout/setla-create/route.ts and
+  // app/api/setla/checkout/create/route.ts no longer claim available_limit
+  // or write payment_method="setla_pay_later" before Yoco confirms payment
+  // (see activateSetlaPlanAfterPayment in lib/setla-instalments.ts) -- a
+  // brand-new pending SETLA order sits at payment_method="setla" with
+  // nothing claimed at all, so there's nothing for a NEW abandoned order
+  // to release. This block only still matters for any order created
+  // before that change that's still stuck with a live claim.
   const { data: candidates } = await admin
     .from("orders")
     .select("id")
@@ -160,7 +157,7 @@ export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: stri
     .from("orders")
     .update({ payment_status: "abandoned", status: "abandoned" })
     .eq("seller_id", sellerId)
-    .in("payment_method", ["yoco", "setla_pay_later", "setla_laybuy"])
+    .in("payment_method", ["yoco", "setla", "setla_pay_later", "setla_laybuy"])
     .eq("payment_status", "pending")
     .lt("created_at", cutoff);
   if (error) console.error("sweepAbandonedOrders: update failed", error);

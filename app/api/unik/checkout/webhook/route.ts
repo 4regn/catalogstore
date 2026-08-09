@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { verifyYocoWebhookSignature } from "../../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../../lib/unik-orders";
-import { markSetlaInstalmentPaid, markSetlaInstalmentFailed, markLaybuyPaymentPaid, markLaybuyPaymentFailed } from "../../../../../lib/setla-instalments";
+import { markSetlaInstalmentPaid, markSetlaInstalmentFailed, markLaybuyPaymentPaid, markLaybuyPaymentFailed, activateSetlaPlanAfterPayment, type SetlaFirstChargeMeta } from "../../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,19 @@ export async function POST(req: NextRequest) {
   // webhook convention.
   if (event?.type === "payment.failed") {
     const failedPayload = event.payload || {};
+    // A SETLA first-charge checkout (Pay Later instalment #1 or a Laybuy
+    // deposit) never created anything before this point -- see
+    // activateSetlaPlanAfterPayment's own comment -- so there's nothing to
+    // void here, unlike the instalmentId/laybuyPaymentId branches below
+    // (those are for instalments #2+ / later Laybuy top-ups, which DO
+    // already exist by the time they're retried). Just relabel the
+    // underlying order "failed" so it doesn't sit "pending" for the full
+    // hour until sweepAbandonedOrders would otherwise catch it.
+    if (failedPayload.metadata?.kind === "setla_first_charge") {
+      const orderId: string | undefined = failedPayload.metadata?.orderId;
+      if (orderId) await markUnikOrderFailed(getAdmin(), orderId);
+      return NextResponse.json({ status: "ok" });
+    }
     // A SETLA instalment checkout is a separate one-off Yoco checkout from
     // an order's own -- checked first so a failed instalment payment never
     // falls through to the order-lookup logic below.
@@ -79,11 +92,36 @@ export async function POST(req: NextRequest) {
 
   const payload = event.payload || {};
 
-  // A SETLA instalment payment (including the very first one, paid at
-  // SETLA checkout) is its own one-off Yoco checkout, distinct from a
-  // whole-order checkout -- branching on it here, before the order lookup
-  // even begins, means that lookup is never reached for an instalment
-  // event and the existing order path below is provably untouched by this.
+  // The first charge of a NEW SETLA plan (Pay Later instalment #1, either
+  // schedule variant, or a Laybuy deposit) -- see
+  // activateSetlaPlanAfterPayment's own comment for why this creates the
+  // setla_orders/setla_payment_plans/setla_instalments (or
+  // setla_laybuy_payments) rows and claims the credit limit here, on
+  // confirmed payment, instead of app/api/checkout/setla-create or
+  // app/api/setla/checkout/create doing it beforehand. Checked before the
+  // instalmentId/laybuyPaymentId branches below (those are for
+  // instalments #2+ / later top-ups against an ALREADY-existing plan).
+  if (payload.metadata?.kind === "setla_first_charge") {
+    const paymentId: string | undefined = payload.id;
+    const amountCents = Number(payload.amount) || 0;
+    const meta = payload.metadata as SetlaFirstChargeMeta;
+    if (!paymentId || !meta.orderId || !meta.customerId) {
+      console.error("SETLA Yoco webhook: first-charge payment.succeeded missing identifiers", { metadata: payload.metadata });
+      return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
+    }
+    const result = await activateSetlaPlanAfterPayment(getAdmin(), meta, paymentId, amountCents, event.id || null);
+    if (!result.ok) {
+      console.error("SETLA Yoco webhook: activateSetlaPlanAfterPayment failed", { orderId: meta.orderId, error: result.error });
+      return NextResponse.json({ status: "error" }, { status: 500 });
+    }
+    return NextResponse.json({ status: "ok" });
+  }
+
+  // A SETLA instalment payment (#2+, an already-existing instalment) is
+  // its own one-off Yoco checkout, distinct from a whole-order checkout --
+  // branching on it here, before the order lookup even begins, means that
+  // lookup is never reached for an instalment event and the existing
+  // order path below is provably untouched by this.
   const instalmentId: string | undefined = payload.metadata?.instalmentId;
   if (instalmentId) {
     const instalmentPaymentId: string | undefined = payload.id;

@@ -1120,7 +1120,14 @@ export default function Dashboard() {
   // showed up under Orders as "pending"). It belongs in Abandoned Carts
   // instead, whether or not sweepAbandonedOrders has relabelled it
   // "abandoned" yet -- both states mean the same thing here: no payment.
-  const UNRESOLVED_PAYMENT_METHODS = ["payfast", "yoco", "setla_pay_later", "setla_laybuy"];
+  // "setla" (not yet "setla_pay_later"/"setla_laybuy") is what a SETLA
+  // checkout attempt is actually labelled while it's still pending --
+  // place-order writes that generic value before the customer has even
+  // chosen a plan, and it only ever becomes plan-specific once
+  // activateSetlaPlanAfterPayment runs on confirmed payment (see
+  // lib/setla-instalments.ts). Both plan-specific values are kept here
+  // too, for any order created before that change.
+  const UNRESOLVED_PAYMENT_METHODS = ["payfast", "yoco", "setla", "setla_pay_later", "setla_laybuy"];
   const isUnpaidGatewayOrder = (o: Order) => UNRESOLVED_PAYMENT_METHODS.includes(o.payment_method) && (o.payment_status === "pending" || o.payment_status === "abandoned");
   const visibleOrders = orders.filter((o) => !isUnpaidGatewayOrder(o));
   const abandonedOrders = orders.filter(isUnpaidGatewayOrder);
