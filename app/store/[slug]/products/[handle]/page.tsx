@@ -7,6 +7,7 @@ import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
+import { descriptionToPlainText } from "../../../../../lib/description-plain-text";
 import StoreUnavailable from "../../StoreUnavailable";
 
 // Widened from 60 -- see app/store/[slug]/page.tsx's own comment on this
@@ -111,7 +112,7 @@ export async function generateMetadata({
   const storeName = seller.store_name || slug;
   const title = `${product.name} | ${storeName}`;
   const description = product.description
-    ? product.description.substring(0, 160)
+    ? descriptionToPlainText(product.description).substring(0, 160)
     : `Shop ${product.name} at ${storeName}`;
 
   return {
@@ -200,8 +201,9 @@ export default async function ProductHandlePage({
     "@context": "https://schema.org",
     "@type": "Product",
     name: activeProduct.name,
-    description: activeProduct.description || undefined,
+    description: activeProduct.description ? descriptionToPlainText(activeProduct.description) : undefined,
     image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
+    brand: { "@type": "Brand", name: seller.store_name },
     url: canonicalStoreUrl(slug, `/products/${handle}`),
     offers: {
       "@type": "Offer",

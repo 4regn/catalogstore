@@ -1,11 +1,12 @@
 import { cache } from "react";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
+import { descriptionToPlainText } from "../../../../../lib/description-plain-text";
 import StoreUnavailable from "../../StoreUnavailable";
 import type { Metadata, Viewport } from "next";
 
@@ -96,7 +97,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const storeName = seller.store_name || slug;
   const title = `${product.name} | ${storeName}`;
   const description = product.description
-    ? product.description.substring(0, 160)
+    ? descriptionToPlainText(product.description).substring(0, 160)
     : `Shop ${product.name} at ${storeName}`;
 
   return {
@@ -217,8 +218,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       "@context": "https://schema.org",
       "@type": "Product",
       name: activeProduct.name,
-      description: activeProduct.description || undefined,
+      description: activeProduct.description ? descriptionToPlainText(activeProduct.description) : undefined,
       image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
+      brand: { "@type": "Brand", name: seller.store_name },
       url: canonicalStoreUrl(slug, `/p/${productId}`),
       offers: {
         "@type": "Offer",
@@ -237,7 +239,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // backfill run) falls through to the direct render below exactly as it
     // works today -- this is a defensive fallback, not a new page.
     if (activeProduct.handle) {
-      redirect(isSubdomain ? `/products/${activeProduct.handle}` : `/store/${slug}/products/${activeProduct.handle}`);
+      permanentRedirect(isSubdomain ? `/products/${activeProduct.handle}` : `/store/${slug}/products/${activeProduct.handle}`);
     }
     return (
       <>
