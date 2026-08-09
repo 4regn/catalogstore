@@ -25,6 +25,11 @@ interface Seller {
     // per-seller, so it's only ever set directly for a seller confirmed to
     // actually share that account).
     yoco_enabled?: boolean;
+    // Same non-self-serve reasoning as yoco_enabled -- SETLA is one shared
+    // credit facility across every participating seller (confirmed by the
+    // seller directly), not a per-seller account. See
+    // /api/checkout/setla-create's own comment.
+    setla_enabled?: boolean;
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
@@ -71,7 +76,7 @@ export default function CheckoutPageClient() {
 
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [shippingOption, setShippingOption] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco">("eft");
+  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco" | "setla">("eft");
   const [billingSame, setBillingSame] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -418,14 +423,16 @@ export default function CheckoutPageClient() {
       setOrderNumber(json.orderNumber);
       setOrderPlaced(true);
 
-      // Notify seller (non-blocking) -- but not for PayFast/Yoco orders yet:
-      // this row is still payment_status "pending" and the customer hasn't
-      // even reached the payment gateway's page. Those only get notified
-      // once their respective webhook (app/api/payfast/notify,
-      // app/api/unik/checkout/webhook) confirms payment actually went
+      // Notify seller (non-blocking) -- but not for PayFast/Yoco/SETLA
+      // orders yet: this row is still payment_status "pending" and the
+      // customer hasn't even reached the payment gateway's page (or, for
+      // SETLA, hasn't chosen a plan yet). Those only get notified once
+      // their respective webhook (app/api/payfast/notify,
+      // app/api/unik/checkout/webhook, which already handles SETLA
+      // instalment/laybuy events too) confirms payment actually went
       // through, so the seller never gets a "New Order!" email for a
       // payment that failed or was abandoned.
-      if (paymentMethod !== "payfast" && paymentMethod !== "yoco") {
+      if (paymentMethod !== "payfast" && paymentMethod !== "yoco" && paymentMethod !== "setla") {
         fetch("/api/notify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -463,6 +470,49 @@ export default function CheckoutPageClient() {
         // PayFast, which needs an auto-submitting form) -- a plain
         // navigation is all that's needed.
         window.location.href = ycJson.redirectUrl;
+        return;
+      }
+
+      if (paymentMethod === "setla" && cc.setla_enabled) {
+        // SETLA's own checkout.html (shared with UNIK Labs, see
+        // app/api/checkout/setla-create/route.ts's own comment) picks
+        // Pay Later vs Laybuy and shows the instalment schedule itself --
+        // this just hands off the already-placed order and cart details,
+        // same handoff key UNIK's real checkout.html writes
+        // ('unik-setla-handoff-v1'), distinguished by kind: 'generic-product'
+        // so setla.js's shared logic knows this isn't a design-based UNIK
+        // cart and skips every check that assumes one.
+        try {
+          localStorage.setItem("unik-setla-handoff-v1", JSON.stringify({
+            kind: "generic-product",
+            ts: Date.now(),
+            orderId,
+            sellerSlug: slug,
+            cartItems: cart.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, image: i.image, variant: i.variant })),
+            // Field names (streetAddress/suburb/townCity/province/postal)
+            // match what setla.js's deliverySummary already reads off
+            // UNIK's own handoff shape -- reused as-is so that rendering
+            // needs no branching, just real data in the same slots.
+            customer: {
+              firstName, lastName, email, phone,
+              streetAddress: fulfillment === "delivery" ? address : undefined,
+              suburb: fulfillment === "delivery" ? apartment : undefined,
+              townCity: fulfillment === "delivery" ? city : undefined,
+              province: fulfillment === "delivery" ? province : undefined,
+              postal: fulfillment === "delivery" ? postalCode : undefined,
+            },
+            deliveryMethod: fulfillment === "delivery" ? { name: cc.shipping_options?.[shippingOption]?.name, price: shipping } : { name: "Pickup", price: 0, isPickup: true },
+            discountCode: discountApplied?.code || undefined,
+            total,
+            returnOrigin: window.location.origin,
+            storeName: seller?.store_name || "",
+            storeUrl: window.location.origin + sp(),
+          }));
+        } catch {
+          setOrderError("Could not start SETLA checkout. Please try again.");
+          return;
+        }
+        window.location.href = "/setla/checkout.html";
         return;
       }
     } catch (e: any) {
@@ -710,6 +760,18 @@ export default function CheckoutPageClient() {
           <h2 style={{ fontFamily: T.headFont, fontSize: 24, fontWeight: 400, marginBottom: 8 }}>Payment</h2>
           <p style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>All transactions are secure and encrypted.</p>
           <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden", marginBottom: 32 }}>
+            {cc.setla_enabled && (
+              <div>
+                <div onClick={() => setPaymentMethod("setla")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "setla" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "setla" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
+                    <span style={{ fontSize: 14, fontWeight: paymentMethod === "setla" ? 600 : 400 }}>Pay with SETLA</span>
+                  </div>
+                  <img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 18, objectFit: "contain" }} />
+                </div>
+                {paymentMethod === "setla" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>Buy now, pay later or lay-buy -- choose your plan and see the payment schedule on the next step.</div>}
+              </div>
+            )}
             {cc.yoco_enabled && (
               <div>
                 <div onClick={() => setPaymentMethod("yoco")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "yoco" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
@@ -783,7 +845,7 @@ export default function CheckoutPageClient() {
                 moving off Shopify onto this same checkout system UNIK Labs
                 already runs on, and wants the two to look consistent) --
                 confirmed via that file directly rather than eyeballing it. */}
-            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : (paymentMethod === "payfast" || paymentMethod === "yoco") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
+            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA" : (paymentMethod === "payfast" || paymentMethod === "yoco") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
           </div>
         </div>
 

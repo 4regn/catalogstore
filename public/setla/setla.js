@@ -1116,6 +1116,18 @@
   // read straight from the same cart key store.js itself writes to
   // (CART_KEY = 'unik-labs-cart-v1'), same origin, no duplication needed.
   function unikCartItems(){try{return JSON.parse(localStorage.getItem('unik-labs-cart-v1')||'[]')}catch{return []}}
+  // Generic (non-UNIK) storefronts -- e.g. 4regn -- have nothing at
+  // 'unik-labs-cart-v1' to read at all (their cart never touches
+  // localStorage; see CheckoutPageClient.tsx's own placeOrder()). Those
+  // carts are plain products with no giant base64 design blob to worry
+  // about, so they're embedded directly in the handoff draft itself
+  // (draft.cartItems) instead of needing a second key. kind:'generic-product'
+  // on the draft is the ONLY thing that distinguishes this path -- its
+  // absence is exactly today's UNIK behavior, unchanged.
+  function cartItemsForDraft(draft){
+    if(draft&&draft.kind==='generic-product')return Array.isArray(draft.cartItems)?draft.cartItems:[];
+    return unikCartItems();
+  }
   // Pay Later = "Pay in 4" -- a genuine fixed schedule (4 instalments, 14
   // days apart, 6 weeks total), matches lib/setla-instalments.ts exactly.
   // Laybuy has NO fixed schedule: a minimum 30% deposit today, then the
@@ -1147,7 +1159,10 @@
         }
       }
       document.getElementById('laybuyDepositHint').textContent=`Minimum deposit: ${money(min)} (30% of your order). Pay the rest -- any amount, any time -- over up to 3 months from your dashboard.`;
-      document.getElementById('scheduleNote').textContent='UNIK Labs production stays locked until your full balance is paid. There are no fixed due dates for the remainder -- pay whatever you like, whenever you like.';
+      const isGeneric=checkoutDraft()?.kind==='generic-product';
+      document.getElementById('scheduleNote').textContent=isGeneric
+        ?'Your balance stays outstanding until fully paid. There are no fixed due dates for the remainder -- pay whatever you like, whenever you like.'
+        :'UNIK Labs production stays locked until your full balance is paid. There are no fixed due dates for the remainder -- pay whatever you like, whenever you like.';
       return [];
     }
     if(depositPicker)depositPicker.hidden=true;
@@ -1160,10 +1175,47 @@
   }
   function itemTitle(item){return item?.name||item?.title||item?.productName||item?.options?.name||`${item?.options?.garment||'Custom'} ${item?.options?.type||'garment'}`}
   function itemImage(item){const value=item?.preview||item?.image||item?.options?.preview;return typeof value==='string'&&value?value:''}
+  // Rewrites every UNIK-branded static string on the page (header logo,
+  // back link, order-summary heading, trust line, Laybuy choice copy,
+  // footer) ONLY when the draft is a generic-product order -- a plain
+  // UNIK draft (or no draft at all) leaves every one of these exactly as
+  // the static HTML already has them, zero visual change to that path.
+  function applySellerBranding(draft){
+    const isGeneric=!!(draft&&draft.kind==='generic-product');
+    const poweredBy=document.getElementById('poweredByLogo'),divider=document.getElementById('brandDivider');
+    if(poweredBy)poweredBy.style.display=isGeneric?'none':'';
+    if(divider)divider.style.display=isGeneric?'none':'';
+    const backLink=document.getElementById('backLink');
+    if(backLink){
+      if(isGeneric){backLink.href=draft.storeUrl||'/';backLink.textContent=`← Back to ${draft.storeName||'store'}`}
+      else{backLink.href='/private-templates/unik-labs/checkout.html';backLink.textContent='← UNIK checkout'}
+    }
+    const kicker=document.getElementById('orderSummaryKicker');
+    if(kicker)kicker.textContent=isGeneric?'Your order':'Your UNIK Labs order';
+    const trust=document.getElementById('trustLineText');
+    if(trust)trust.textContent=isGeneric
+      ?'Connected securely to your SETLA account. Your order and delivery details remain attached to this checkout.'
+      :'Connected securely to your SETLA account. Your UNIK design and delivery details remain attached to this order.';
+    const laybuyCopy=document.getElementById('laybuyChoiceCopy');
+    if(laybuyCopy)laybuyCopy.textContent=isGeneric
+      ?'Pay a minimum 30% deposit today, then top up any amount, any time, over up to 3 months. Your order ships once fully paid.'
+      :'Pay a minimum 30% deposit today, then top up any amount, any time, over up to 3 months. UNIK production begins once fully paid.';
+    const footer=document.getElementById('footerBrand');
+    if(footer)footer.textContent=isGeneric?'© SETLA Payments':'© SETLA Payments · Powered by UNIK Labs';
+  }
   function initCheckout(){
     const draft=checkoutDraft(),account=currentAccount(),container=document.getElementById('checkoutItems');if(!container)return;
-    const cartItems=unikCartItems();
-    if(!draft||!cartItems.length){document.querySelector('.checkout-layout').innerHTML='<section class="card empty-state"><div class="eligibility-icon"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8Z"/></svg></div><h2>No UNIK order found.</h2><p>Return to UNIK Labs, add your personalised garment to cart and choose SETLA at checkout.</p><a class="button primary" href="/private-templates/unik-labs/checkout.html">Return to UNIK checkout</a></section>';return}
+    const isGenericDraft=!!(draft&&draft.kind==='generic-product');
+    const cartItems=cartItemsForDraft(draft);
+    if(!draft||!cartItems.length){
+      const backHref=isGenericDraft?(draft.storeUrl||'/'):'/private-templates/unik-labs/checkout.html';
+      const backLabel=isGenericDraft?`Return to ${escapeHTML(draft.storeName||'store')}`:'Return to UNIK checkout';
+      const heading=isGenericDraft?'No order found.':'No UNIK order found.';
+      const body=isGenericDraft?'Return to the store and choose SETLA at checkout.':'Return to UNIK Labs, add your personalised garment to cart and choose SETLA at checkout.';
+      document.querySelector('.checkout-layout').innerHTML=`<section class="card empty-state"><div class="eligibility-icon"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8Z"/></svg></div><h2>${heading}</h2><p>${body}</p><a class="button primary" href="${backHref}">${backLabel}</a></section>`;
+      return;
+    }
+    applySellerBranding(draft);
     // The handoff only carries form fields (no cart items, no precomputed
     // totals) -- this is purely a display estimate; the real total is
     // always recomputed server-side from scratch at submit time
@@ -1172,9 +1224,11 @@
     const subtotal=cartItems.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||1),0);
     const delivery=Number(draft.deliveryMethod?.price||0);
     const total=subtotal+delivery;
-    container.innerHTML=cartItems.map(item=>{const image=itemImage(item);return `<article class="checkout-item">${image?`<img src="${escapeHTML(image)}" alt="${escapeHTML(itemTitle(item))}">`:'<div class="item-placeholder"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div>'}<span><strong>${escapeHTML(itemTitle(item))}</strong><small>Quantity ${Number(item.qty||1)}${item?.options?.size?` · ${escapeHTML(item.options.size)}`:''}</small></span><b>${money(Number(item.price||0)*Number(item.qty||1))}</b></article>`}).join('');
+    container.innerHTML=cartItems.map(item=>{const image=itemImage(item),variantLabel=item?.options?.size||item?.variant;return `<article class="checkout-item">${image?`<img src="${escapeHTML(image)}" alt="${escapeHTML(itemTitle(item))}">`:'<div class="item-placeholder"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div>'}<span><strong>${escapeHTML(itemTitle(item))}</strong><small>Quantity ${Number(item.qty||1)}${variantLabel?` · ${escapeHTML(variantLabel)}`:''}</small></span><b>${money(Number(item.price||0)*Number(item.qty||1))}</b></article>`}).join('');
     document.getElementById('summarySubtotal').textContent=money(subtotal);document.getElementById('summaryDelivery').textContent=money(delivery);document.getElementById('orderTotal').textContent=money(total);
-    const customerInfo=draft.customer||{},method=draft.deliveryMethod||{};document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?'Collection details will be confirmed by UNIK Labs.':escapeHTML([customerInfo.streetAddress,customerInfo.suburb,customerInfo.townCity,customerInfo.province,customerInfo.postal].filter(Boolean).join(', '))}`;
+    const customerInfo=draft.customer||{},method=draft.deliveryMethod||{};
+    const pickupCopy=isGenericDraft?'Collection details will be confirmed by the store.':'Collection details will be confirmed by UNIK Labs.';
+    document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?pickupCopy:escapeHTML([customerInfo.streetAddress,customerInfo.suburb,customerInfo.townCity,customerInfo.province,customerInfo.postal].filter(Boolean).join(', '))}`;
     const payLater=document.getElementById('payLaterChoice'),title=document.getElementById('eligibilityTitle'),copy=document.getElementById('eligibilityCopy'),hint=document.getElementById('limitHint'),action=document.getElementById('eligibilityAction'),card=document.getElementById('eligibilityCard');
     // Checkout can silently run against whichever SETLA session already
     // exists in the browser (e.g. left over from earlier testing) --
@@ -1218,16 +1272,29 @@
       }
       btn.disabled=true;btn.textContent='Starting secure payment…';
       try{
-        const res=await fetch('/api/setla/checkout/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-          plan,
-          depositAmount,
-          items:cartItems.map(item=>item.options?.customUpload?{customUpload:item.options.customUpload,qty:item.qty||1,preview:item.preview}:{designId:item.options?.designId,qty:item.qty||1}),
-          customer:draft.customer,
-          notes:draft.notes,
-          deliveryMethod:draft.deliveryMethod,
-          discountCode:draft.discountCode,
-          returnOrigin:location.origin,
-        })});
+        // Generic-product orders were already created (and priced/
+        // validated server-side) by the store's own checkout -- this just
+        // attaches a SETLA payment plan to that existing orderId, see
+        // app/api/checkout/setla-create/route.ts's own comment for why
+        // that's a different endpoint from UNIK's design-cart one below.
+        const res=isGenericDraft
+          ?await fetch('/api/checkout/setla-create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+            orderId:draft.orderId,
+            slug:draft.sellerSlug,
+            plan,
+            depositAmount,
+            returnOrigin:location.origin,
+          })})
+          :await fetch('/api/setla/checkout/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+            plan,
+            depositAmount,
+            items:cartItems.map(item=>item.options?.customUpload?{customUpload:item.options.customUpload,qty:item.qty||1,preview:item.preview}:{designId:item.options?.designId,qty:item.qty||1}),
+            customer:draft.customer,
+            notes:draft.notes,
+            deliveryMethod:draft.deliveryMethod,
+            discountCode:draft.discountCode,
+            returnOrigin:location.origin,
+          })});
         const payload=await res.json().catch(()=>({}));
         if(!res.ok){error.textContent=payload.error||'Could not start payment. Please try again.';error.classList.add('show');btn.disabled=false;btn.textContent='Confirm SETLA plan';return}
         localStorage.removeItem('unik-setla-handoff-v1');localStorage.removeItem('unik-labs-cart-v1');

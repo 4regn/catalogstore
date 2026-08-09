@@ -28,6 +28,11 @@ export async function GET(req: NextRequest) {
     // /api/checkout/yoco-redirect's own comment: Yoco creds are one global
     // platform-wide credential pair, not per-seller).
     yoco_enabled: !!cc.yoco_enabled,
+    // Same non-self-serve reasoning as yoco_enabled -- SETLA is a shared
+    // credit facility across sellers, not something a seller can safely
+    // self-enable via a generic toggle. See /api/checkout/setla-create's
+    // own comment.
+    setla_enabled: !!cc.setla_enabled,
     delivery_enabled: cc.delivery_enabled !== false,
     pickup_enabled: !!cc.pickup_enabled,
     pickup_address: cc.pickup_address || "",

@@ -118,7 +118,7 @@ export async function markSetlaInstalmentPaid(
     const body = planComplete
       ? "Your final instalment has been received and your SETLA payment plan is now fully paid. Thank you!"
       : shouldUnlock
-      ? `We've received your payment of R${updated.amount.toFixed(2)}. Your order is now with UNIK Labs for production.`
+      ? `We've received your payment of R${updated.amount.toFixed(2)}. Your order is now confirmed and being prepared.`
       : `We've received your instalment payment of R${updated.amount.toFixed(2)}.`;
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "instalment_paid", title, body });
     await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
@@ -181,7 +181,7 @@ export async function markLaybuyPaymentPaid(
     const remaining = Math.max(0, Number(plan.principal_amount) - newPaidAmount);
     const title = planComplete ? "Your SETLA Laybuy is fully paid" : "Laybuy payment received";
     const body = planComplete
-      ? "Your final Laybuy payment has been received and your order is now with UNIK Labs for production."
+      ? "Your final Laybuy payment has been received and your order is now confirmed and being prepared."
       : `We've received your payment of R${updated.amount.toFixed(2)}. R${remaining.toFixed(2)} remains -- pay it off in any amount, any time, from your dashboard.`;
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "laybuy_payment_received", title, body });
     await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
