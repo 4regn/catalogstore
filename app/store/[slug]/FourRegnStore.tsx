@@ -166,6 +166,7 @@ interface Seller {
   checkout_config?: {
     eft_enabled?: boolean;
     payfast_enabled?: boolean;
+    yoco_enabled?: boolean;
     whatsapp_checkout_enabled?: boolean;
   };
 }
@@ -3299,7 +3300,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <div className="fr-foot-col">
                 <h4>Payment Methods</h4>
                 <div className="fr-pay-grid">
-                  {seller.checkout_config?.payfast_enabled && (<>
+                  {/* Was gated on payfast_enabled alone -- Visa/Mastercard/
+                      Apple Pay/Capitec Pay are accepted by Yoco too (and
+                      the "Yoco" logo itself makes no sense hidden behind a
+                      DIFFERENT gateway's flag), so this whole card-brand
+                      group vanished the moment a seller had Yoco on
+                      without PayFast (reported directly: "only have setla
+                      and float now" once 4regn's Yoco went live). Shows
+                      whenever either card gateway is enabled. */}
+                  {(seller.checkout_config?.payfast_enabled || seller.checkout_config?.yoco_enabled) && (<>
                     <span className="fr-pay-icon" title="Visa"><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                     <span className="fr-pay-icon" title="Mastercard"><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                     <span className="fr-pay-icon" title="Apple Pay"><img src="/checkout/applepay.png" alt="Apple Pay" style={{ height: 14, width: "auto", objectFit: "contain" }} /></span>
