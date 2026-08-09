@@ -38,6 +38,12 @@ async function main() {
     process.exit(1);
   }
   const col = makeCol(header);
+  const hasVariantImageColumn = header.includes("variant image");
+  console.log(
+    hasVariantImageColumn
+      ? "Found a 'Variant Image' column -- using it for variant photo matching (accurate)."
+      : "No 'Variant Image' column in this export -- falling back to 'Image Src', which can misattribute photos across variant values."
+  );
 
   const handleMap = new Map<string, string[][]>();
   for (let i = 1; i < lines.length; i++) {
@@ -70,7 +76,7 @@ async function main() {
     const opt1Name = col(first, "option1 name");
     const opt2Name = col(first, "option2 name");
     const opt3Name = col(first, "option3 name");
-    const imagesByDimension = computeVariantImageMaps(variantRows, col, opt1Name, opt2Name, opt3Name);
+    const imagesByDimension = computeVariantImageMaps(variantRows, col, opt1Name, opt2Name, opt3Name, hasVariantImageColumn);
     if (!Object.keys(imagesByDimension).length) continue;
 
     let changed = false;

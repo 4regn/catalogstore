@@ -251,16 +251,31 @@ export function collectImageSrcs(variantRows: string[][], col: (row: string[], n
 // imported before this existed) -- kept in one place so the two can never
 // silently drift apart on what counts as a valid variant-image mapping.
 //
-// Shopify's CSV has one row per variant, each carrying its own "Image
-// Src". An earlier version of this function assumed each option value
-// (e.g. Color=Grey) maps to exactly ONE photo, and refused to guess when
-// that wasn't a clean 1:1 function -- but confirmed against a real
-// product (a pullover sweater): a single color can legitimately have a
-// whole SET of its own photos (front/back/close-up, ~8 for Grey alone),
-// not one canonical image. There's no single "right" photo to pick there,
-// so this groups every image seen under each option value into an
-// ordered, deduped array instead of trying to pick one -- the PDP swaps
-// its gallery to that whole set when the value is selected, same as
+// Shopify's CSV has one row per variant. It carries TWO different image
+// columns that are easy to conflate: "Image Src" (which rows add a photo
+// to the product's overall gallery -- populated wherever a new photo
+// happens to be declared, with no guarantee it's related to that row's
+// own option value) and "Variant Image" (Shopify's actual, authoritative
+// "this exact variant uses this photo" assignment, reusing one of the
+// same URLs already seen in Image Src elsewhere for the product).
+// Grouping by "Image Src" was confirmed wrong against real data (Color=
+// Apricot showing Color=Brown's photos, and similar for most colors) --
+// Image Src just happens to land on whichever row Shopify used to declare
+// that photo, not necessarily the row for the variant it visually
+// belongs to. "Variant Image" is the column actually meant for this.
+// Falls back to "Image Src" only when a CSV has no "Variant Image" column
+// at all (hasVariantImageColumn=false), so older/non-Shopify exports
+// still get a best-effort mapping instead of none.
+//
+// An earlier version of this function assumed each option value (e.g.
+// Color=Grey) maps to exactly ONE photo, and refused to guess when that
+// wasn't a clean 1:1 function -- but confirmed against a real product (a
+// pullover sweater): a single color can legitimately have a whole SET of
+// its own photos (front/back/close-up, ~8 for Grey alone), not one
+// canonical image. There's no single "right" photo to pick there, so this
+// groups every image seen under each option value into an ordered,
+// deduped array instead of trying to pick one -- the PDP swaps its
+// gallery to that whole set when the value is selected, same as
 // Shopify's own storefront does for this exact product.
 //
 // A dimension only gets an images map if it shows genuine
@@ -282,7 +297,8 @@ export function computeVariantImageMaps(
   col: (row: string[], name: string) => string,
   opt1Name: string,
   opt2Name: string,
-  opt3Name: string
+  opt3Name: string,
+  hasVariantImageColumn: boolean
 ): Record<string, Record<string, string[]>> {
   const dimensions = [
     opt1Name ? { name: opt1Name, valueCol: "option1 value" } : null,
@@ -290,13 +306,14 @@ export function computeVariantImageMaps(
     opt3Name ? { name: opt3Name, valueCol: "option3 value" } : null,
   ].filter((d): d is { name: string; valueCol: string } => d !== null);
 
+  const imageCol = hasVariantImageColumn ? "variant image" : "image src";
   const imagesByDimension: Record<string, Record<string, string[]>> = {};
   for (const { name, valueCol } of dimensions) {
     const valueToImages: Record<string, string[]> = {};
     const seenPerValue: Record<string, Set<string>> = {};
     for (const vRow of variantRows) {
       const optValue = col(vRow, valueCol);
-      const img = col(vRow, "image src");
+      const img = col(vRow, imageCol);
       if (!optValue || !img) continue;
       if (!valueToImages[optValue]) { valueToImages[optValue] = []; seenPerValue[optValue] = new Set(); }
       if (!seenPerValue[optValue].has(img)) { seenPerValue[optValue].add(img); valueToImages[optValue].push(img); }

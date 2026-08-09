@@ -64,6 +64,12 @@ async function main() {
     process.exit(1);
   }
   const col = makeCol(header);
+  const hasVariantImageColumn = header.includes("variant image");
+  console.log(
+    hasVariantImageColumn
+      ? "Found a 'Variant Image' column -- using it for variant photo matching (accurate)."
+      : "No 'Variant Image' column in this export -- falling back to 'Image Src', which can misattribute photos across variant values."
+  );
   // Two Shopify export header shapes carry metafields:
   //   older:  "metafield: custom.material [single_line_text_field]"
   //   newer:  "material (product.metafields.custom.material)"
@@ -181,7 +187,7 @@ async function main() {
       // gallery/variant picker already expects (declared on the frontend
       // type, never previously populated here) -- see
       // computeVariantImageMaps' own comment for how it's derived.
-      const imagesByDimension = computeVariantImageMaps(variantRows, col, opt1Name, opt2Name, opt3Name);
+      const imagesByDimension = computeVariantImageMaps(variantRows, col, opt1Name, opt2Name, opt3Name, hasVariantImageColumn);
       // Per-variant price only maps cleanly onto priceDelta when a product
       // varies on exactly one option (e.g. Size alone) -- a true
       // multi-dimensional combo (Size x Color where price varies per exact
