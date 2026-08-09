@@ -110,8 +110,13 @@ export default async function CollectionsIndexPage({
   // scan the `products` array, so an empty list here silently zeroed out
   // every tile's count and image. Paginated via fetchAllRows since a seller
   // can have well over PostgREST's default 1000-row cap.
+  // Not gated on in_stock -- see products/[handle]/page.tsx's identical
+  // comment; this route is 4regn-only, so the exemption applies
+  // unconditionally. A sold-out product still counting toward its
+  // collection's tile count/cover image here is consistent with it still
+  // being browsable on that collection's own page.
   const initialProducts = await fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q) =>
-    q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published")
+    q.eq("seller_id", seller.id).eq("status", "published")
   );
 
   return (

@@ -175,7 +175,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         .select(PRODUCT_COLUMNS)
         .eq("seller_id", seller.id)
         .eq("id", productId)
-        .eq("in_stock", true)
+        // Not gated on in_stock -- see products/[handle]/page.tsx's own
+        // identical comment; same reasoning applies to this legacy route.
         .eq("status", "published")
         .maybeSingle(),
       supabaseAdmin

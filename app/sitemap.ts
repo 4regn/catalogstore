@@ -85,9 +85,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // backfill), but selecting it for every template here is harmless --
     // it's simply null/undefined for everyone else, and the per-product
     // fallback below already handles that.
+    // 4regn is exempt from the in_stock filter here -- its PDP no longer
+    // 404s a sold-out product (see products/[handle]/page.tsx's own
+    // comment), so keeping the sitemap in sync means not dropping the URL
+    // out of it either. Hiding a page from Google every time it sells out,
+    // then re-adding it on restock, throws away its accumulated ranking on
+    // every cycle -- a real, avoidable cost for a resale catalog where
+    // restocks are routine. Every other template still 404s on sold-out
+    // (no Sold Out UI of its own yet), so it keeps the filter.
     const products = await fetchAllRows<{ id: string; created_at: string | null; handle: string | null }>(
-      supabaseAdmin, "products", "id, created_at, handle", (q) =>
-      q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published")
+      supabaseAdmin, "products", "id, created_at, handle", (q) => {
+        let base = q.eq("seller_id", seller.id).eq("status", "published");
+        if (seller.template !== "4regn") base = base.eq("in_stock", true);
+        return base;
+      }
     );
 
     for (const p of products) {

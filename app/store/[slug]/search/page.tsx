@@ -25,8 +25,9 @@ const FourRegn = nextDynamic(() => import("../FourRegnStore"));
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 // Same column set c/[collection]/page.tsx selects for tpl === "4regn" --
-// see that file's own PRODUCT_COLUMNS comment for why each field is here.
-const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle, created_at";
+// see that file's own PRODUCT_COLUMNS comment for why each field is here,
+// including in_stock (ProductCard's Sold Out badge/disabled button).
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle, created_at, in_stock";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 const PROMO_BADGE_COLUMNS = "label, scope, product_id, collection_name, starts_at, ends_at";
@@ -128,8 +129,11 @@ export default async function SearchPage({
   if (query) {
     const qLower = query.toLowerCase();
     const [allProducts, discountsRes, promoBadgesRes] = await Promise.all([
+      // Not gated on in_stock -- see products/[handle]/page.tsx's identical
+      // comment; this route is 4regn-only, so the exemption applies
+      // unconditionally.
       fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q2) =>
-        q2.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
+        q2.eq("seller_id", seller.id).eq("status", "published").order("sort_order", { ascending: true })
       ),
       supabaseAdmin
         .from("discount_codes")

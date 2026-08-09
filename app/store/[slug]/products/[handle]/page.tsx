@@ -160,7 +160,16 @@ export default async function ProductHandlePage({
       .select(PRODUCT_COLUMNS)
       .eq("seller_id", seller.id)
       .eq("handle", handle)
-      .eq("in_stock", true)
+      // Not gated on in_stock -- a product stays live and browsable while
+      // sold out (ProductCard/PDP show a "Sold Out" state instead, see
+      // FourRegnStore.tsx), same reasoning as sitemap.ts's own seller-scoped
+      // exemption for this template: hiding/404ing a page the moment it
+      // sells out (then un-404ing it again on restock) throws away its
+      // search ranking every cycle, for a resale catalog where restocks are
+      // routine. Checkout independently still refuses to actually sell an
+      // in_stock=false item (see place-order's own check) -- this only
+      // controls page visibility, not purchasability. The only way to take
+      // a product down entirely is status (draft) or deleting it.
       .eq("status", "published")
       .maybeSingle(),
     supabaseAdmin

@@ -816,7 +816,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setSeller(s);
       const { data: p } = await supabase
         .from("products").select("*")
-        .eq("seller_id", s.id).eq("in_stock", true)
+        .eq("seller_id", s.id)
         .order("sort_order", { ascending: true });
       setProducts(p || []);
       const { data: dcs } = await supabase
@@ -874,9 +874,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     (async () => {
       const { data } = await supabase
         .from("products")
-        .select("id, name, price, old_price, category, image_url, handle, tags")
+        .select("id, name, price, old_price, category, image_url, handle, tags, in_stock")
         .eq("seller_id", seller.id)
-        .eq("in_stock", true)
         .eq("status", "published")
         .order("sort_order", { ascending: true });
       // id/name/price/old_price/category/image_url/handle/tags -- the
@@ -884,6 +883,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       // handle (see searched/goToProduct); old_price is carried along for
       // relatedProducts' sale-badge ProductCard render, and tags for that
       // same relatedProducts' relevance scoring (see its own comment).
+      // in_stock is carried along too, purely so ProductCard's Sold Out
+      // badge/disabled-button state (see its own comment) is accurate here --
+      // sold-out products are no longer hidden from the storefront (only a
+      // draft/deleted product is), so this list needs to know which ones
+      // to mark rather than silently omitting them like before.
       // Product's remaining fields (images, variants, description, etc.)
       // are never touched here, same trust boundary the server-side
       // narrow-column fetches elsewhere in this app already rely on.
@@ -1094,7 +1098,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     }
   }, [mode, initialActiveProduct?.id]);
   const handleAddToCart = () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || selectedProduct.in_stock === false) return;
     const validVariants = (Array.isArray(selectedProduct.variants) ? selectedProduct.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) {
@@ -1110,6 +1114,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // (mode="product", which never sets selectedProduct) can reuse it for its
   // own Add to Bag button.
   const addProductToCart = (product: Product) => {
+    if (product.in_stock === false) return;
     const validVariants = (Array.isArray(product.variants) ? product.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) {
@@ -1122,6 +1127,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // Same Buy Now logic as the slide-over PDP's inline handler further below,
   // generalized the same way for the dedicated product page.
   const buyNowFor = (product: Product) => {
+    if (product.in_stock === false) return;
     const validVariants = (Array.isArray(product.variants) ? product.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
@@ -1439,10 +1445,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     return (
       <div className="fr-pcard" onClick={() => goToProduct(p)}>
         <div className="fr-pimg">
-          {badge && <span className="fr-ptag sale">{badge.label}</span>}
-          {!badge && promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
-          {!badge && !promo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
-          {showHeroPill && (badge || promo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
+          {p.in_stock === false ? (
+            <span className="fr-ptag soldout">Sold Out</span>
+          ) : (
+            <>
+              {badge && <span className="fr-ptag sale">{badge.label}</span>}
+              {!badge && promo && <span className="fr-ptag sale">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
+              {!badge && !promo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
+              {showHeroPill && (badge || promo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
+            </>
+          )}
           {p.image_url ? (
             <>
               <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
@@ -1458,8 +1470,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             {onSale && <span className="was">{fmt(p.old_price!)}</span>}
             {fmt(p.price)}
           </div>
-          <button className="fr-pwa" type="button" onClick={(e) => { e.stopPropagation(); goToProduct(p); }}>
-            Add to Cart
+          <button
+            className="fr-pwa"
+            type="button"
+            disabled={p.in_stock === false}
+            onClick={(e) => { e.stopPropagation(); if (p.in_stock === false) return; goToProduct(p); }}
+          >
+            {p.in_stock === false ? "Sold Out" : "Add to Cart"}
           </button>
         </div>
       </div>
@@ -1912,12 +1929,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;right:12px;z-index:2;font-size:8px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;color:var(--cream);padding:4px 9px;border-radius:999px;background:var(--brown);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:fit-content;max-width:100%}
 .fr-ptag.sale{background:var(--accent)}
+.fr-ptag.soldout{background:#3a3a3a}
 .fr-ptag-anniv{position:absolute;bottom:12px;left:12px;right:12px;z-index:2;font-size:8px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;color:var(--cream);padding:4px 9px;border-radius:999px;background:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:fit-content;max-width:100%}
 .fr-pinfo{padding:18px 16px 22px}
 .fr-pname{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:8px;line-height:1.3;color:var(--ink)}
 .fr-pprice{font-family:var(--body);font-size:14px;font-weight:700;color:var(--ink)}
 .fr-pprice .was{font-size:12px;color:rgba(46,42,57,0.5);text-decoration:line-through;margin-right:6px;font-weight:400}
 .fr-pwa{margin-top:12px;width:100%;background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);padding:10px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+.fr-pwa:disabled,.fr-pdp-add:disabled,.fr-pdp-buynow:disabled{opacity:0.4;cursor:default;box-shadow:none}
 
 /* Light/cream treatment -- matches 4regn's real "Join the 4REGN Family"
    section (light body background, not the dark "Stay in the know" style
@@ -2451,19 +2470,25 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     ))}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
                     <div className="fr-pdp-actions">
-                      <button className="fr-pdp-add" onClick={handleAddToCart}>
-                        Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
-                      </button>
-                      <button className="fr-pdp-buynow" onClick={() => {
-                        const validVariants = (Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
-                        const allSelected = validVariants.every((v) => selectedVariants[v.name]);
-                        if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
-                        const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(p, selectedVariants) || p.image_url || "", selectedVariants, tags: p.tags || [] }];
-                        const encoded = btoa(JSON.stringify(payload));
-                        window.location.href = sp(`/checkout?cart=${encoded}`);
-                      }}>
-                        Buy Now
-                      </button>
+                      {p.in_stock === false ? (
+                        <button className="fr-pdp-add" disabled>Sold Out</button>
+                      ) : (
+                        <>
+                          <button className="fr-pdp-add" onClick={handleAddToCart}>
+                            Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                          </button>
+                          <button className="fr-pdp-buynow" onClick={() => {
+                            const validVariants = (Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
+                            const allSelected = validVariants.every((v) => selectedVariants[v.name]);
+                            if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
+                            const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(p, selectedVariants) || p.image_url || "", selectedVariants, tags: p.tags || [] }];
+                            const encoded = btoa(JSON.stringify(payload));
+                            window.location.href = sp(`/checkout?cart=${encoded}`);
+                          }}>
+                            Buy Now
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2902,10 +2927,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
                       onImgError={handleImgError}
                       badges={<>
-                        {pdpBadge && <span className="fr-ptag sale">{pdpBadge.label}</span>}
-                        {!pdpBadge && pdpPromo && <span className="fr-ptag sale">{pdpPromo.type === "percentage" ? `-${pdpPromo.value}%` : "Sale"}</span>}
-                        {!pdpBadge && !pdpPromo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
-                        {showHeroPill && (pdpBadge || pdpPromo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
+                        {p.in_stock === false ? (
+                          <span className="fr-ptag soldout">Sold Out</span>
+                        ) : (
+                          <>
+                            {pdpBadge && <span className="fr-ptag sale">{pdpBadge.label}</span>}
+                            {!pdpBadge && pdpPromo && <span className="fr-ptag sale">{pdpPromo.type === "percentage" ? `-${pdpPromo.value}%` : "Sale"}</span>}
+                            {!pdpBadge && !pdpPromo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
+                            {showHeroPill && (pdpBadge || pdpPromo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
+                          </>
+                        )}
                       </>}
                       alt={p.name}
                     />
@@ -2951,12 +2982,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     )}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
                     <div className="fr-pdp-actions">
-                      <button className="fr-pdp-add" onClick={() => addProductToCart(p)}>
-                        Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
-                      </button>
-                      <button className="fr-pdp-buynow" onClick={() => buyNowFor(p)}>
-                        Buy Now
-                      </button>
+                      {p.in_stock === false ? (
+                        <button className="fr-pdp-add" disabled>Sold Out</button>
+                      ) : (
+                        <>
+                          <button className="fr-pdp-add" onClick={() => addProductToCart(p)}>
+                            Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                          </button>
+                          <button className="fr-pdp-buynow" onClick={() => buyNowFor(p)}>
+                            Buy Now
+                          </button>
+                        </>
+                      )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
                     {/* FloatWidget temporarily disabled -- confirmed live that Float's

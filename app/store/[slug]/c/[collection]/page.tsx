@@ -59,10 +59,14 @@ const PRODUCT_COLUMNS =
 // (sale badge), image_url, and handle (goToProduct). sort_order is used only
 // in the server query's .order() clause below -- PostgREST orders on that
 // independent of the SELECT list, so it doesn't need to be a selected column
-// for the client. images (full array)/variants/in_stock/description are
-// never read for a related/grid card -- those only apply to the actual PDP's
-// own selectedProduct/initialActiveProduct render path, not this one.
-const FOUR_REGN_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle, created_at";
+// for the client. images (full array)/variants/description are never read
+// for a related/grid card -- those only apply to the actual PDP's own
+// selectedProduct/initialActiveProduct render path, not this one. in_stock
+// DOES get selected (unlike the others just named) -- this route no longer
+// filters sold-out products out (see the query below), so ProductCard needs
+// it to render its Sold Out badge/disabled button instead of silently
+// treating every card as available.
+const FOUR_REGN_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle, created_at, in_stock";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 // 4regn only -- ProductCard's .fr-ptag badge (ahead of the discount_codes-
@@ -225,7 +229,12 @@ export default async function CollectionPage({
   } else {
     const [initialProductsRaw, discountsRes, promoBadgesRes] = await Promise.all([
       fetchAllRows<any>(supabaseAdmin, "products", productColumns, (q) => {
-        const base = q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true });
+        // 4regn doesn't filter on in_stock -- see products/[handle]/page.tsx's
+        // comment on the same exemption; Heirloom/SoftLuxury have no Sold Out
+        // UI of their own yet, so they keep hiding sold-out products here.
+        let base = q.eq("seller_id", seller.id).eq("status", "published");
+        if (tpl !== "4regn") base = base.eq("in_stock", true);
+        base = base.order("sort_order", { ascending: true });
         return isAll ? base : base.like("category", `%${matched!}%`);
       }),
       supabaseAdmin

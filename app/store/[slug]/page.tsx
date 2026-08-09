@@ -209,9 +209,18 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
   const productColumns = tpl === "4regn" ? FOUR_REGN_HOME_PRODUCT_COLUMNS : PRODUCT_COLUMNS;
   const [initialProductsRaw, discountsRes] = await Promise.all([
-    fetchAllRows<any>(supabaseAdmin, "products", productColumns, (q) =>
-      q.eq("seller_id", seller.id).eq("in_stock", true).eq("status", "published").order("sort_order", { ascending: true })
-    ),
+    // 4regn doesn't filter on in_stock here -- see products/[handle]/page.tsx's
+    // comment on the same exemption. This only feeds "Shop by Collection"/
+    // "Shop by Gender" tile counts and cover images for 4regn (its homepage
+    // renders no flat product grid, see FOUR_REGN_HOME_PRODUCT_COLUMNS above),
+    // so a sold-out product still counting toward its category is the right
+    // call, not a bug. Every other template keeps the filter -- they have no
+    // Sold Out UI of their own yet.
+    fetchAllRows<any>(supabaseAdmin, "products", productColumns, (q) => {
+      let base = q.eq("seller_id", seller.id).eq("status", "published");
+      if (tpl !== "4regn") base = base.eq("in_stock", true);
+      return base.order("sort_order", { ascending: true });
+    }),
     supabaseAdmin
       .from("discount_codes")
       .select(DISCOUNT_COLUMNS)
