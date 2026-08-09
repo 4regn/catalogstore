@@ -221,8 +221,24 @@ const effectivePrice = (product: Product, selected: { [key: string]: string }): 
 // selected yet, or the selected product/variant has no per-value images
 // (falls back to the product's plain image_url/images gallery everywhere
 // this is used).
-const resolveVariantImages = (product: Product, selected: { [key: string]: string }): string[] | null => {
-  for (const v of Array.isArray(product.variants) ? product.variants : []) {
+//
+// preferredDim (the variant dimension the customer most recently
+// clicked, see activeImageDim's own comment) is checked FIRST when
+// present -- a product can have more than one dimension with real
+// per-value photo sets (grouping by Size across every colour can also
+// look like genuine differentiation), and blindly taking whichever
+// dimension happens to come first in the array showed the wrong colour's
+// photos whenever a different dimension's map won that race. Falls back
+// to plain array order when preferredDim isn't set or doesn't resolve
+// (e.g. a frozen cart item, which has no "currently active" dimension).
+const resolveVariantImages = (product: Product, selected: { [key: string]: string }, preferredDim?: string | null): string[] | null => {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  if (preferredDim) {
+    const v = variants.find((v) => v.name === preferredDim);
+    const chosen = v && selected[v.name];
+    if (v?.images && chosen && v.images[chosen]?.length) return v.images[chosen];
+  }
+  for (const v of variants) {
     if (!v.images) continue;
     const chosen = selected[v.name];
     if (chosen && v.images[chosen]?.length) return v.images[chosen];
@@ -719,6 +735,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [activeImg, setActiveImg] = useState(0);
   const [lightbox, setLightbox] = useState<{ imgs: string[]; index: number } | null>(null);
   const [selectedVariants, setSelectedVariants] = useState<{ [k: string]: string }>({});
+  // Which variant dimension (e.g. "Colour" vs "Size") the customer most
+  // recently clicked -- a product can have MORE THAN ONE dimension with
+  // real per-value photo sets (e.g. grouping by Size across every colour
+  // can also look like genuine differentiation), and resolveVariantImages
+  // used to just take whichever dimension came first in the array
+  // regardless of what was actually just clicked. Reported directly: an
+  // Apricot selection showing a Black photo. Reset alongside
+  // selectedVariants whenever a different product opens.
+  const [activeImageDim, setActiveImageDim] = useState<string | null>(null);
   const [localQty, setLocalQty] = useState(1);
   const [variantError, setVariantError] = useState(false);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
@@ -1010,6 +1035,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     setSelectedProduct(p);
     setActiveImg(0);
     setSelectedVariants({});
+    setActiveImageDim(null);
     setLocalQty(1);
     setVariantError(false);
   };
@@ -1062,6 +1088,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (mode === "product" && initialActiveProduct) {
       setActiveImg(0);
       setSelectedVariants({});
+      setActiveImageDim(null);
       setLocalQty(1);
       setVariantError(false);
     }
@@ -2379,7 +2406,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             // resolveVariantImages' own comment. Falls back to the plain
             // product gallery unchanged when nothing's selected yet or the
             // product has no per-value images at all.
-            const variantImgs = resolveVariantImages(p, selectedVariants);
+            const variantImgs = resolveVariantImages(p, selectedVariants, activeImageDim);
             const allImgs = variantImgs?.length ? [...variantImgs, ...baseImgs.filter((img) => !variantImgs.includes(img))] : baseImgs;
             const onSale = p.old_price && p.old_price > p.price;
             return (
@@ -2414,7 +2441,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                             <button
                               key={opt}
                               className={"fr-size-btn" + (selectedVariants[v.name] === opt ? " active" : "")}
-                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setVariantError(false); setActiveImg(0); }}
+                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setActiveImageDim(v.name); setVariantError(false); setActiveImg(0); }}
                             >
                               {opt}
                             </button>
@@ -2796,7 +2823,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
           // Same variant-leads-the-gallery logic as the slide-over PDP --
           // see resolveVariantImages' own comment.
-          const variantImgs = resolveVariantImages(p, selectedVariants);
+          const variantImgs = resolveVariantImages(p, selectedVariants, activeImageDim);
           const allImgs = variantImgs?.length ? [...variantImgs, ...baseImgs.filter((img) => !variantImgs.includes(img))] : baseImgs;
           const onSale = p.old_price && p.old_price > p.price;
           const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
@@ -2898,7 +2925,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                             <button
                               key={opt}
                               className={"fr-size-btn" + (selectedVariants[v.name] === opt ? " active" : "")}
-                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setVariantError(false); setActiveImg(0); }}
+                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setActiveImageDim(v.name); setVariantError(false); setActiveImg(0); }}
                             >
                               {opt}
                             </button>
