@@ -111,11 +111,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   if (COLLECTION_PAGE_TEMPLATES.has(seller.template)) {
+    // 4regn's collection pages live at /collections/{slug}, matching
+    // Shopify's own URL shape (see app/store/[slug]/collections/[collection]/page.tsx's
+    // own comment) -- every other template still uses /c/{slug}.
+    const collectionPrefix = seller.template === "4regn" ? "/collections" : "/c";
     const collections = Array.isArray(seller.collections) ? (seller.collections as string[]) : [];
-    entries.push({ url: `${origin}/c/all`, changeFrequency: "daily", priority: 0.7 });
+    entries.push({ url: `${origin}${collectionPrefix}/all`, changeFrequency: "daily", priority: 0.7 });
     for (const c of collections) {
       const slug = slugify(c);
-      if (slug) entries.push({ url: `${origin}/c/${slug}`, changeFrequency: "weekly", priority: 0.6 });
+      if (slug) entries.push({ url: `${origin}${collectionPrefix}/${slug}`, changeFrequency: "weekly", priority: 0.6 });
     }
   }
 

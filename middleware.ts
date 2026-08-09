@@ -77,12 +77,18 @@ async function resolveCustomDomain(hostname: string): Promise<string | null> {
 // product_redirects migration + app/api/csv-import/route.ts, which
 // populates this table for free off the same CSV a migrating seller
 // already has to upload to import their products. Gated behind a prefix
-// check first: this app never serves anything under /products/, /product/,
-// /collections/, /shop/, or /item/ (real routes are /p/, /c/, /account,
-// etc.), so on every normal request this is a zero-cost no-op -- the one
-// Supabase round trip only happens for paths shaped like a legacy
-// platform's URLs, and even those are cached an hour once resolved, since
-// this data is effectively immutable once seeded.
+// check first: on most sellers/templates this app never serves anything
+// under /products/, /product/, /collections/, /shop/, or /item/ (real
+// routes are /p/, /c/, /account, etc.), so on most normal requests this is
+// a zero-cost no-op. 4regn is the one exception -- /products/{handle} and
+// /collections/{handle} ARE real, serving routes for it (chosen specifically
+// to match Shopify's own URL shape, see those routes' own comments), so
+// every 4regn product/collection page view pays this lookup too -- same
+// accepted tradeoff as any other legacy-prefix path, just guaranteed to
+// always resolve null (product_redirects has no row for it) rather than an
+// occasional hit. Either way, the one Supabase round trip only happens for
+// paths shaped like a legacy platform's URLs, and even those are cached an
+// hour once resolved, since this data is effectively immutable once seeded.
 const LEGACY_REDIRECT_PREFIXES = ["/products/", "/product/", "/collections/", "/shop/", "/item/"];
 
 async function resolveLegacyRedirect(slug: string, pathname: string): Promise<string | null> {

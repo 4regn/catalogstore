@@ -254,7 +254,10 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const initials = (s: string) => (s || "").trim().slice(0, 1).toUpperCase();
 
 // URL-safe slug for collection names, matching the same convention every
-// other template uses for /store/<slug>/c/<collection-slug> links.
+// other template uses for /store/<slug>/c/<collection-slug> links (4regn's
+// own /collections/<collection-slug> links use the identical slug format,
+// just a different path prefix -- see the route comment in
+// app/store/[slug]/collections/[collection]/page.tsx for why).
 export const collectionSlug = (name: string) =>
   name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
@@ -453,7 +456,7 @@ interface StorePageProps {
   policyKey?: "shipping" | "returns" | "privacy" | "terms" | "contact";
   // Collection-page pagination (mode="collection" only) -- initialProducts
   // is already just the current page's slice (server-sorted+sliced, see
-  // app/store/[slug]/c/[collection]/page.tsx), not the whole collection.
+  // app/store/[slug]/collections/[collection]/page.tsx), not the whole collection.
   currentPage?: number;
   totalPages?: number;
   currentSort?: string;
@@ -623,7 +626,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (page > 1) qs.set("page", String(page));
     if (sort && sort !== "default") qs.set("sort", sort);
     const q = qs.toString();
-    return sp(`/c/${collectionParam}`) + (q ? `?${q}` : "");
+    return sp(`/collections/${collectionParam}`) + (q ? `?${q}` : "");
   };
   // Same shape as buildCollectionHref, for the dedicated /search results
   // page (mode="search") -- q always included so a copy-pasted URL keeps
@@ -775,10 +778,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // Men" are the two special cases pointing at the umbrella collection
   // instead.
   const catalogItemHref = (group: string, item: string) => {
-    if (item === "Shop All Women") return sp(`/c/${collectionSlug("ALL WOMEN")}`);
-    if (item === "Shop All Men") return sp(`/c/${collectionSlug("ALL MEN")}`);
+    if (item === "Shop All Women") return sp(`/collections/${collectionSlug("ALL WOMEN")}`);
+    if (item === "Shop All Men") return sp(`/collections/${collectionSlug("ALL MEN")}`);
     const name = group === "WOMEN" ? `Women ${item}` : group === "MEN" ? `Men ${item}` : item;
-    return sp(`/c/${collectionSlug(name)}`);
+    return sp(`/collections/${collectionSlug(name)}`);
   };
   // Home page only: nav is transparent (see .fr-nav--transparent) while
   // still over the hero image, then switches back to its normal solid
@@ -1222,8 +1225,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   };
   const filtered = (() => {
     // Collection AND search views: `products` is already the server-matched
-    // set for this page (see app/store/[slug]/c/[collection]/page.tsx and
-    // .../search/page.tsx) -- just sort it, don't re-filter by activeCategory
+    // set for this page (see app/store/[slug]/collections/[collection]/page.tsx
+    // and .../search/page.tsx) -- just sort it, don't re-filter by activeCategory
     // (which stays "All" on both of these routes; it's a home-view-only tile
     // filter).
     const list = (isCollectionView || isSearchView)
@@ -1233,7 +1236,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   })();
   // Per-collection product-preview rows used to render on the homepage
   // (one titled row per collection). Removed: the homepage already has a
-  // "Shop by Collection" tile grid, a dedicated /c/<collection> page per
+  // "Shop by Collection" tile grid, a dedicated /collections/<collection> page per
   // collection, and a "View All Products" link, so repeating every
   // collection's products again here was redundant. The grouping logic is
   // kept (and still selectable below) in case a future view wants it, but
@@ -1334,7 +1337,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (target.type === "products") {
       document.getElementById("fr-products")?.scrollIntoView({ behavior: "smooth" });
     } else if (target.type === "collection") {
-      navigate(sp(`/c/${target.collection}`));
+      navigate(sp(`/collections/${target.collection}`));
     } else if (target.type === "url") {
       if (target.url) window.open(target.url, "_blank", "noopener");
     }
@@ -1418,7 +1421,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const renderCatTile = (cat: string) => {
     const img = catImage(cat);
     return (
-      <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/c/${collectionSlug(cat)}`))} onMouseEnter={() => prefetchPath(sp(`/c/${collectionSlug(cat)}`))} onTouchStart={() => prefetchPath(sp(`/c/${collectionSlug(cat)}`))}>
+      <button key={cat} className="fr-cat-card" onClick={() => navigate(sp(`/collections/${collectionSlug(cat)}`))} onMouseEnter={() => prefetchPath(sp(`/collections/${collectionSlug(cat)}`))} onTouchStart={() => prefetchPath(sp(`/collections/${collectionSlug(cat)}`))}>
         <div className="fr-cat-img">
           {img ? (
             <>
@@ -2779,7 +2782,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <EditSection id="winter-essentials">
               <WinterCoverflow
                 images={images}
-                href={sp(`/c/${collectionSlug("WINTER ESSENTIALS")}`)}
+                href={sp(`/collections/${collectionSlug("WINTER ESSENTIALS")}`)}
                 speed={config.winter_essentials_speed ?? 0.6}
               />
             </EditSection>
@@ -2812,8 +2815,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       bucket={sbgMen}
                       catImage={catImage}
                       handleImgError={handleImgError}
-                      hrefFor={(name) => sp(`/c/${collectionSlug(name)}`)}
-                      onNavigate={(name) => navigate(sp(`/c/${collectionSlug(name)}`))}
+                      hrefFor={(name) => sp(`/collections/${collectionSlug(name)}`)}
+                      onNavigate={(name) => navigate(sp(`/collections/${collectionSlug(name)}`))}
                     />
                   )}
                   {sbgHasMen && sbgHasWomen && (
@@ -2826,8 +2829,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       bucket={sbgWomen}
                       catImage={catImage}
                       handleImgError={handleImgError}
-                      hrefFor={(name) => sp(`/c/${collectionSlug(name)}`)}
-                      onNavigate={(name) => navigate(sp(`/c/${collectionSlug(name)}`))}
+                      hrefFor={(name) => sp(`/collections/${collectionSlug(name)}`)}
+                      onNavigate={(name) => navigate(sp(`/collections/${collectionSlug(name)}`))}
                     />
                   )}
                 </div>
@@ -2926,8 +2929,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   {firstRealCategory && (<>
                     <span className="sep">/</span>
                     <a
-                      href={sp(`/c/${collectionSlug(firstRealCategory)}`)}
-                      onClick={(e) => { e.preventDefault(); navigate(sp(`/c/${collectionSlug(firstRealCategory)}`)); }}
+                      href={sp(`/collections/${collectionSlug(firstRealCategory)}`)}
+                      onClick={(e) => { e.preventDefault(); navigate(sp(`/collections/${collectionSlug(firstRealCategory)}`)); }}
                     >
                       {firstRealCategory}
                     </a>
@@ -3060,7 +3063,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <ul className="fr-collgrid" role="list">
                 {collectionsIndexList.map((cat) => {
                   const img = catImage(cat);
-                  const target = sp(`/c/${collectionSlug(cat)}`);
+                  const target = sp(`/collections/${collectionSlug(cat)}`);
                   return (
                     <li key={cat} className="fr-collgrid-item">
                       <a
@@ -3070,7 +3073,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                           e.preventDefault();
                           // Edit mode: let the click bubble up to EditSection's
                           // own handler (opens the Collections panel) instead of
-                          // navigating away to /c/<collection> -- same guard
+                          // navigating away to /collections/<collection> -- same guard
                           // goToProduct() already uses for product cards. Without
                           // this, every tile click here fired BOTH handlers (this
                           // one navigates first, since it's the innermost target;
@@ -3191,8 +3194,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
                 {isHomeView && (
                   <a
-                    href={sp("/c/all")}
-                    onClick={(e) => { e.preventDefault(); navigate(sp("/c/all")); }}
+                    href={sp("/collections/all")}
+                    onClick={(e) => { e.preventDefault(); navigate(sp("/collections/all")); }}
                     style={{ fontFamily: "var(--body)", fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}
                   >
                     View All Products
@@ -3305,8 +3308,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
                         {isNamedCollection && (
                           <a
-                            href={sp(`/c/${collectionSlug(group.name!)}`)}
-                            onClick={(e) => { e.preventDefault(); navigate(sp(`/c/${collectionSlug(group.name!)}`)); }}
+                            href={sp(`/collections/${collectionSlug(group.name!)}`)}
+                            onClick={(e) => { e.preventDefault(); navigate(sp(`/collections/${collectionSlug(group.name!)}`)); }}
                             style={{ fontFamily: "var(--body)", fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}
                           >
                             View All
@@ -3421,7 +3424,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <h4>{displayFooterCol1}</h4>
                 <ul>
                   {menuCategories.slice(0, 5).map((cat) => {
-                    const target = sp(`/c/${cat === "All" ? "all" : collectionSlug(cat)}`);
+                    const target = sp(`/collections/${cat === "All" ? "all" : collectionSlug(cat)}`);
                     return (
                       <li key={cat}>
                         <a href={target} onClick={(e) => { e.preventDefault(); navigate(target); }}>
@@ -3907,8 +3910,16 @@ function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href
         <div className="fr-cef-track" ref={trackRef}>
           {slides.map((src, i) => (
             <div className="fr-cef-slide" key={i}>
+              {/* Unlike the hero background/PDP badge images elsewhere in
+                  this file, this one isn't decorative -- it's the only
+                  content inside its own <a>, so an empty alt would leave
+                  the link with no accessible name at all for screen readers
+                  (and nothing for Google Image Search to index). There's no
+                  per-slide label in `images` (just raw URLs), so this falls
+                  back to the section's own heading context rather than
+                  leaving it blank. */}
               <a className="fr-cef-card" href={href}>
-                <img src={src} alt="" loading="lazy" width={360} height={480} />
+                <img src={src} alt={`Winter Essentials look ${i + 1}`} loading="lazy" width={360} height={480} />
               </a>
             </div>
           ))}
