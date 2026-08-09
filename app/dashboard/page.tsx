@@ -499,6 +499,15 @@ export default function Dashboard() {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) { router.push("/login"); return; }
+    // Relabels any order past ORDER_ABANDON_MS with no payment confirmation
+    // as "abandoned" instead of leaving it "pending" forever -- awaited
+    // before the orders query below so this load already reflects it,
+    // not just the next one. Fire-and-forget-safe (a plain conditional
+    // UPDATE, see sweepAbandonedOrders' own comment) -- a failure here
+    // shouldn't block the rest of the dashboard from loading.
+    if (session?.access_token) {
+      await fetch("/api/orders/sweep-abandoned", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: session.access_token }) }).catch(() => {});
+    }
     // Fetch seller + products + orders + discounts in a single parallel batch
     const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult, ordersCountRes, orderStats] = await Promise.all([
       supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single(),

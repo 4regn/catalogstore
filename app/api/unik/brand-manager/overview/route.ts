@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../lib/unik-brand-manager";
-import { sweepAbandonedUnikOrders } from "../../../../../lib/unik-orders";
+import { sweepAbandonedOrders } from "../../../../../lib/unik-orders";
 import { sastToday, sastDayStartUtc, sastMonthStartUtc } from "../../../../../lib/sast-time";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   // page ever triggered this, so an order the seller looks at here could
   // still read "pending" (a stale, no-longer-accurate label) well past
   // the point a customer would actually see it as abandoned.
-  await sweepAbandonedUnikOrders(admin, seller.id);
+  await sweepAbandonedOrders(admin, seller.id);
 
   // "Today"/"this month" mean the seller's actual South African calendar
   // day/month (see lib/sast-time.ts) -- this ran on Date.now()'s server-

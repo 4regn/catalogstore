@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { requireUnikCustomer } from "../../../../lib/unik-customer";
-import { sweepAbandonedUnikOrders } from "../../../../lib/unik-orders";
+import { sweepAbandonedOrders } from "../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
 // Must match reserve_unik_generation()'s v_limit -- see
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   // Relabel any order that's sat unpaid past ORDER_ABANDON_MS before
   // reading the order list below, so a cart the customer walked away from
   // shows as "abandoned" instead of an indefinite, misleading "pending".
-  await sweepAbandonedUnikOrders(admin, seller.id);
+  await sweepAbandonedOrders(admin, seller.id);
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const [designsResult, ordersResult, usageResult] = await Promise.all([

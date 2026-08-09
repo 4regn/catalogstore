@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../../lib/unik-brand-manager";
-import { sweepAbandonedUnikOrders } from "../../../../../../lib/unik-orders";
+import { sweepAbandonedOrders } from "../../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   if (!id) return NextResponse.json({ error: "Missing customer id" }, { status: 400 });
 
   const admin = getAdmin();
-  await sweepAbandonedUnikOrders(admin, seller.id);
+  await sweepAbandonedOrders(admin, seller.id);
 
   const [profileResult, ordersResult, designsResult] = await Promise.all([
     admin.from("unik_customer_profiles").select("id, email, full_name, avatar_url, created_at").eq("seller_id", seller.id).eq("auth_user_id", id).maybeSingle(),

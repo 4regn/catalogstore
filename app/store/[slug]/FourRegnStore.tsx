@@ -1909,6 +1909,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-foot-bot{max-width:1360px;margin:0 auto;padding-top:28px;border-top:1px solid rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;font-size:11px;color:rgba(46,42,57,0.5)}
 .fr-pay-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .fr-pay-icon{width:42px;height:26px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;display:flex;align-items:center;justify-content:center;background:#fff}
+/* SETLA's logo mark is white -- invisible on the shared white card every
+   other payment icon uses (reported directly: "makes the SETLA logo
+   invisible"). Same card, just a black background for this one. */
+.fr-pay-icon--setla{background:#000;border-color:#000}
 
 .fr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px}
 .fr-modal{background:#fff;border-radius:var(--card-radius);max-width:520px;width:100%;max-height:80vh;overflow-y:auto;padding:36px;position:relative;box-shadow:var(--card-shadow)}
@@ -3303,7 +3307,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <span className="fr-pay-icon" title="Capitec Pay"><img src="/checkout/capitecpay.png" alt="Capitec Pay" style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   </>)}
                   {showSetlaBanner && (
-                    <span className="fr-pay-icon" title="SETLA"><img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
+                    <span className="fr-pay-icon fr-pay-icon--setla" title="SETLA"><img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
                   )}
                   {/* Float: shown here to match the live Shopify store's own footer
                       (real accepted payment method there), even though the

@@ -106,19 +106,24 @@ export async function markUnikOrderFailed(
    self-heal match) sit at payment_status = "pending" forever otherwise --
    indistinguishable from "still checking out right now" to the customer
    and seller. Anything past ORDER_ABANDON_MS with no resolution gets
-   relabelled "abandoned". Scoped to this seller and to Yoco-paid orders
-   only (payment_method = "yoco") so it never touches PayFast marketplace
-   orders, which have their own ITN-driven lifecycle. Safe to call on
-   every account/order read -- it's a plain conditional UPDATE, a no-op
-   when nothing qualifies. */
-export async function sweepAbandonedUnikOrders(admin: SupabaseClient, sellerId: string): Promise<void> {
+   relabelled "abandoned". Scoped to this seller and to gateways with no
+   separate real-time notification lifecycle of their own -- Yoco (direct
+   card) and both SETLA plan types (their first charge is a Yoco checkout
+   too, same webhook, see lib/setla-instalments.ts) -- so it never touches
+   EFT (never reaches "pending" in the first place, see place-order's own
+   "awaiting_payment" status for that method) or PayFast, which has its own
+   ITN-driven lifecycle. Despite the name, this was never actually UNIK-
+   specific (sellerId-scoped from the start) -- now genuinely used by any
+   seller's checkout, not just UNIK's. Safe to call on every account/order
+   read -- it's a plain conditional UPDATE, a no-op when nothing qualifies. */
+export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: string): Promise<void> {
   const cutoff = new Date(Date.now() - ORDER_ABANDON_MS).toISOString();
   const { error } = await admin
     .from("orders")
     .update({ payment_status: "abandoned", status: "abandoned" })
     .eq("seller_id", sellerId)
-    .eq("payment_method", "yoco")
+    .in("payment_method", ["yoco", "setla_pay_later", "setla_laybuy"])
     .eq("payment_status", "pending")
     .lt("created_at", cutoff);
-  if (error) console.error("sweepAbandonedUnikOrders: update failed", error);
+  if (error) console.error("sweepAbandonedOrders: update failed", error);
 }

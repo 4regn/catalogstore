@@ -50,6 +50,27 @@ const hasImportTag = (tags?: string[] | null) => (tags || []).some((t) => IMPORT
 
 const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo", "Mpumalanga", "North West", "Northern Cape", "Western Cape"];
 
+// Pure re-implementation of lib/setla-instalments.ts's buildInstalmentSchedule/
+// minLaybuyDeposit -- that module also imports lib/email.ts (server-only,
+// real API-key env vars), so it can't be imported directly into this client
+// component; duplicated here instead, same convention as hasImportTag above.
+// MUST stay in exact sync with that file's own math (cent-splitting,
+// 14-day interval, 30%-ceiling rounding) -- this is a live preview shown
+// to the customer before they've even reached the SETLA page, so a
+// mismatch here would show them a number the real checkout doesn't honor.
+function setlaPayIn4Schedule(total: number): { amount: number; label: string }[] {
+  const cents = Math.round(total * 100);
+  const base = Math.floor(cents / 4);
+  const parts = [base, base, base, base];
+  for (let i = 0; i < cents - base * 4; i++) parts[i]++;
+  const labels = ["Today", "In 2 weeks", "In 4 weeks", "In 6 weeks"];
+  return parts.map((c, i) => ({ amount: c / 100, label: labels[i] }));
+}
+function setlaMinDeposit(total: number): number {
+  const cents = Math.round(total * 100);
+  return Math.ceil(cents * 0.3) / 100;
+}
+
 export default function CheckoutPageClient() {
   const params = useParams();
   const slug = params.slug as string;
@@ -767,9 +788,43 @@ export default function CheckoutPageClient() {
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "setla" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                     <span style={{ fontSize: 14, fontWeight: paymentMethod === "setla" ? 600 : 400 }}>Pay with SETLA</span>
                   </div>
-                  <img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 18, objectFit: "contain" }} />
+                  {/* SETLA's logo mark is white -- invisible directly on a
+                      light checkout theme (reported directly), unlike
+                      Visa/Mastercard/Apple Pay above which already sit in
+                      their own bordered T.payCardBg boxes. A plain black
+                      card here, not tied to the seller's theme colors,
+                      since white-on-white is the actual problem regardless
+                      of which template this renders under. */}
+                  <span style={{ padding: "3px 8px", background: "#000", borderRadius: 4, display: "flex", alignItems: "center" }}>
+                    <img src="/setla/assets/setla-payments-logo.png" alt="SETLA" style={{ height: 14, objectFit: "contain" }} />
+                  </span>
                 </div>
-                {paymentMethod === "setla" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>Buy now, pay later or lay-buy -- choose your plan and see the payment schedule on the next step.</div>}
+                {/* PayFlex-style live breakdown, shown the moment SETLA is
+                    selected -- before the customer even reaches the SETLA
+                    page. Real conversion driver, not just informational:
+                    seeing the exact 4 amounts/dates up front is what makes
+                    a shopper trust the "buy now, pay later" pitch enough to
+                    actually apply. Math must stay in sync with
+                    lib/setla-instalments.ts -- see setlaPayIn4Schedule's
+                    own comment. */}
+                {paymentMethod === "setla" && (
+                  <div style={{ padding: "18px 20px", background: T.selectBg, borderBottom: "1px solid " + T.summaryBorder }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Pay in 4 &mdash; SETLA Pay Later, 0% interest</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+                      {setlaPayIn4Schedule(total).map((row, i) => (
+                        <div key={i}>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>R{row.amount.toFixed(0)}</div>
+                          <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>{row.label}</div>
+                          <div style={{ height: 4, borderRadius: 2, background: i === 0 ? "#068a1f" : "rgba(6,138,31,0.15)" }} />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 12, color: T.muted, paddingTop: 14, borderTop: "1px solid " + T.summaryBorder }}>
+                      Prefer no credit check? <strong style={{ color: T.text }}>SETLA Laybuy</strong>: pay a R{setlaMinDeposit(total).toFixed(0)} deposit today (min. 30%), then clear the rest -- any amount, any time -- over up to 3 months.
+                    </div>
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 10 }}>Choose Pay Later or Laybuy and see the exact schedule confirmed on the next step.</div>
+                  </div>
+                )}
               </div>
             )}
             {cc.yoco_enabled && (

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikBrandManager } from "../../../../../lib/unik-brand-manager";
-import { sweepAbandonedUnikOrders } from "../../../../../lib/unik-orders";
+import { sweepAbandonedOrders } from "../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   const { seller } = auth;
 
   const admin = getAdmin();
-  await sweepAbandonedUnikOrders(admin, seller.id);
+  await sweepAbandonedOrders(admin, seller.id);
 
   const staleBefore = new Date(Date.now() - GENERATION_STALE_MS).toISOString();
   const [designsResult, ordersResult] = await Promise.all([
