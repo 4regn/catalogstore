@@ -20,6 +20,17 @@
 //
 // Usage:
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
+//
+// --resume-images: recovers a run that inserted products but hung/crashed
+// during image upload -- matches existing products (by handle, falling
+// back to source_url) and retries only their missing images. Never
+// inserts new products.
+//
+// --insert-missing: recovers a run that never finished inserting every
+// CSV product in the first place -- matches the same way, but inserts
+// ONLY the CSV rows with no existing match at all (plus their images),
+// so it can't duplicate anything already there. Mutually exclusive with
+// --resume-images.
 
 import { writeFileSync } from "fs";
 import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionMarkup, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows, computeVariantImageMaps, collectImageSrcs } from "./lib/migrate-shared";
@@ -42,7 +53,7 @@ type ProductRow = {
 
 async function main() {
   const args = parseArgs(
-    "Usage: npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@example.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20] [--resume-images] [--concurrency=4]"
+    "Usage: npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@example.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20] [--resume-images | --insert-missing] [--concurrency=4]"
   );
   const admin = getAdminClient();
   const seller = await resolveSeller(admin, args.seller);
@@ -248,9 +259,16 @@ async function main() {
   const productCap = seller.subscription_status === "free" ? 15 : Infinity;
   const finalCount = existingCount + rows.length;
   console.log(`\nParsed ${rows.length} product(s) from ${handleMap.size} handle group(s), ${errors} skipped for missing title/price.`);
+  // --insert-missing is its own mode, not part of parseArgs' shared CliArgs
+  // shape (only migrate-4regn.ts needs it) -- checked directly against argv.
+  const insertMissing = process.argv.includes("--insert-missing");
+  if (insertMissing && args.resumeImages) {
+    console.error("--insert-missing and --resume-images are mutually exclusive -- run them separately.");
+    process.exit(1);
+  }
   if (args.resumeImages) {
     console.log(`Seller currently has ${existingCount} product(s) (--resume-images: no new products will be inserted, only matched and re-processed for images/redirects).`);
-  } else {
+  } else if (!insertMissing) {
     console.log(`Seller currently has ${existingCount} product(s); this run would bring it to ${finalCount} (plan cap: ${productCap}).`);
   }
   if (priceDeltaWarnings.length) {
@@ -258,7 +276,7 @@ async function main() {
     for (const w of priceDeltaWarnings) console.log(`  - ${w}`);
   }
 
-  if (!args.resumeImages && finalCount > productCap && !args.force) {
+  if (!args.resumeImages && !insertMissing && finalCount > productCap && !args.force) {
     console.error(
       `\nThis would exceed the seller's plan cap of ${productCap} products. ` +
         `Either upgrade the seller's plan first, or re-run with --force to import anyway.`
@@ -266,23 +284,90 @@ async function main() {
     process.exit(1);
   }
 
-  if (args.dryRun) {
-    console.log("\n--dry-run: no products were inserted, no images were uploaded, no redirects were written.");
-    return;
-  }
-
-  // --resume-images skips inserting products entirely and instead looks up
-  // already-inserted products by source_url -- for recovering from a run
-  // that got through the product insert but hung or crashed during image
-  // upload (the insert has no dedupe key, so blindly re-running the whole
-  // script would duplicate every product). Redirects still get (re-)seeded
-  // for every matched product regardless of image state, since a prior run
-  // hanging during image upload means it never reached the redirect step
-  // either.
   let inserted: any[];
   let redirectTargets: any[];
   let redirectHandles: string[];
-  if (args.resumeImages) {
+
+  // --insert-missing recovers from an original import that never finished
+  // inserting every CSV product (e.g. a run that crashed partway through --
+  // insertInBatchesReturning() has no dedupe key, so blindly re-running a
+  // plain import would duplicate every product that DID make it in).
+  // Confirmed as a real gap in practice: a --resume-images run against
+  // 4regn's catalog reported "2023 product(s) parsed... seller currently
+  // has 1594 product(s)" -- 429 CSV products that were simply never
+  // inserted in the first place, not a matching bug (--resume-images
+  // deliberately never inserts, by design, so it always reports these as
+  // "not found"). This mode does the opposite: match existing products by
+  // handle (falling back to source_url, same logic as --resume-images) and
+  // insert ONLY the CSV rows with no match at all, so it's safe to re-run
+  // without ever duplicating a product that already exists. Handled here,
+  // before the generic --dry-run early-return below, so a dry run actually
+  // previews what --insert-missing would do instead of just the top-line
+  // parse stats. On success it sets inserted/redirectTargets/
+  // redirectHandles/allImageSrcs and falls through into the same
+  // image-upload + redirect-seeding code every other path already shares.
+  if (insertMissing) {
+    console.log(`\n--insert-missing: matching existing products by handle (falling back to source_url) to find CSV rows with no existing match...`);
+    let existingForMissingCheck: { id: string; source_url: string | null; handle: string | null }[];
+    try {
+      existingForMissingCheck = await fetchAllRows(admin, "products", "id, source_url, handle", (q) => q.eq("seller_id", sellerId));
+    } catch (e) {
+      console.error("Failed to fetch existing products:", e instanceof Error ? e.message : String(e));
+      process.exit(1);
+    }
+    const byHandleForMissingCheck = new Map(existingForMissingCheck.filter((p) => p.handle).map((p) => [p.handle, p]));
+    const bySourceUrlForMissingCheck = new Map(existingForMissingCheck.filter((p) => p.source_url).map((p) => [p.source_url, p]));
+
+    const missingRows: ProductRow[] = [];
+    const missingImageSrcs: string[][] = [];
+    const missingHandles: string[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const p = byHandleForMissingCheck.get(allHandles[i]) ?? (rows[i].source_url ? bySourceUrlForMissingCheck.get(rows[i].source_url!) : undefined);
+      if (p) continue;
+      missingRows.push(rows[i]);
+      missingImageSrcs.push(allImageSrcs[i]);
+      missingHandles.push(allHandles[i]);
+    }
+    console.log(`${missingRows.length}/${rows.length} CSV product(s) have no existing match -- these would be inserted as new.`);
+    console.log("Sample (first 15):");
+    for (const h of missingHandles.slice(0, 15)) console.log(`  ${h}`);
+    if (missingHandles.length > 15) console.log(`  ...and ${missingHandles.length - 15} more`);
+
+    const missingFinalCount = existingCount + missingRows.length;
+    if (!args.force && missingFinalCount > productCap) {
+      console.error(
+        `\nThis would exceed the seller's plan cap of ${productCap} products (${existingCount} existing + ${missingRows.length} missing = ${missingFinalCount}). ` +
+          `Either upgrade the seller's plan first, or re-run with --force to import anyway.`
+      );
+      process.exit(1);
+    }
+
+    if (args.dryRun) {
+      console.log("\n--dry-run: no products were inserted, no images were uploaded, no redirects were written.");
+      return;
+    }
+
+    if (missingRows.length === 0) {
+      console.log("\nNothing to insert -- every CSV product already has a matching existing product.");
+      return;
+    }
+
+    try {
+      inserted = await insertInBatchesReturning(admin, "products", missingRows);
+    } catch (e) {
+      console.error(`\n${e instanceof Error ? e.message : String(e)}`);
+      process.exit(1);
+    }
+    console.log(`\nInserted ${inserted.length} new product(s).`);
+    redirectTargets = inserted;
+    redirectHandles = missingHandles;
+    allImageSrcs.length = 0;
+    allImageSrcs.push(...missingImageSrcs);
+  } else if (args.resumeImages) {
+    if (args.dryRun) {
+      console.log("\n--dry-run: no products were inserted, no images were uploaded, no redirects were written.");
+      return;
+    }
     console.log("\n--resume-images: skipping product insert, matching existing products by handle (falling back to source_url)...");
     let existing: { id: string; source_url: string | null; images: string[] | null; handle: string | null }[];
     try {
@@ -360,6 +445,10 @@ async function main() {
     allImageSrcs.length = 0;
     allImageSrcs.push(...needingImagesSrcs);
   } else {
+    if (args.dryRun) {
+      console.log("\n--dry-run: no products were inserted, no images were uploaded, no redirects were written.");
+      return;
+    }
     try {
       inserted = await insertInBatchesReturning(admin, "products", rows);
     } catch (e) {
