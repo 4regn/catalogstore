@@ -314,14 +314,37 @@ const TAG_SIZE_CHART_MAP: Record<string, SizeChartType> = {
 // Selection order matches the theme exactly: name-keyword match first (any
 // hit wins, always oversized_tee), then the first matching tag (in the
 // product's own tag order) wins. No match -> no chart at all, no fallback.
-export function getSizeChartType(product: { name: string; tags?: string[] }): SizeChartType | null {
+// Category (this store's collection membership -- comma-joined, same
+// string pInCat's callers elsewhere in this file already match against)
+// fallback for pants and jackets specifically, once no name/tag match is
+// found. Confirmed necessary against the real site: a screenshot of
+// 4regn.com's "Men's Classic Black A-Line Dress Pants" shows the exact
+// ukmensizelabel table (UK 28/30/31/32/34/36, same waist/hips/height
+// numbers already in SIZE_CHARTS), but that product -- like the vast
+// majority of pants/jackets in this catalog -- isn't tagged with any
+// TAG_SIZE_CHART_MAP key, even though a real, verified-accurate chart
+// exists for it. Jackets get the same fallback by the same reasoning (an
+// identical tag gap was visible in the coverage diagnostic's output for
+// "Men/Women Jackets" category products), though that one's via analogy,
+// not its own separate live screenshot -- flag it if a jacket turns out
+// to need the other chart.
+function getCategorySizeChartType(category: string | undefined): SizeChartType | null {
+  const tokens = (category || "").split(",").map((c) => c.trim().toLowerCase());
+  if (tokens.includes("women bottoms")) return "womenxsmalltoxlpants";
+  if (tokens.includes("men bottoms")) return "ukmensizelabel";
+  if (tokens.includes("women jackets")) return "womenjackets";
+  if (tokens.includes("men jackets")) return "menjackets";
+  return null;
+}
+
+export function getSizeChartType(product: { name: string; tags?: string[]; category?: string }): SizeChartType | null {
   const name = (product.name || "").toLowerCase();
   if (OVERSIZED_TEE_NAME_MATCHES.some((m) => name.includes(m))) return "oversized_tee";
   for (const tag of product.tags || []) {
     const key = (tag || "").toLowerCase().replace(/\s+/g, "");
     if (TAG_SIZE_CHART_MAP[key]) return TAG_SIZE_CHART_MAP[key];
   }
-  return null;
+  return getCategorySizeChartType(product.category);
 }
 
 /* ─── SHOP BY GENDER ────────────────────────────────────────

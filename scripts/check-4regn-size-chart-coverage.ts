@@ -47,14 +47,23 @@ const TAG_SIZE_CHART_MAP: Record<string, string> = {
   womenxsmalltoxlpants: "womenxsmalltoxlpants",
   "oversized-tee": "oversized_tee",
 };
-function getSizeChartType(product: { name: string; tags?: string[] | null }): string | null {
+function getCategorySizeChartType(category: string | null | undefined): string | null {
+  const tokens = (category || "").split(",").map((c) => c.trim().toLowerCase());
+  if (tokens.includes("women bottoms")) return "womenxsmalltoxlpants";
+  if (tokens.includes("men bottoms")) return "ukmensizelabel";
+  if (tokens.includes("women jackets")) return "womenjackets";
+  if (tokens.includes("men jackets")) return "menjackets";
+  return null;
+}
+
+function getSizeChartType(product: { name: string; tags?: string[] | null; category?: string | null }): string | null {
   const name = (product.name || "").toLowerCase();
   if (OVERSIZED_TEE_NAME_MATCHES.some((m) => name.includes(m))) return "oversized_tee";
   for (const tag of product.tags || []) {
     const key = (tag || "").toLowerCase().replace(/\s+/g, "");
     if (TAG_SIZE_CHART_MAP[key]) return TAG_SIZE_CHART_MAP[key];
   }
-  return null;
+  return getCategorySizeChartType(product.category);
 }
 
 type ProductRow = { id: string; name: string; handle: string | null; category: string | null; tags: string[] | null };
