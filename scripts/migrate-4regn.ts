@@ -22,7 +22,7 @@
 //   npx tsx scripts/migrate-4regn.ts --csv=products.csv --seller=owner@4regn.com --source-domain=https://4regn.com [--dry-run] [--force] [--limit=20]
 
 import { writeFileSync } from "fs";
-import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionMarkup, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows } from "./lib/migrate-shared";
+import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCol, htmlToDescriptionMarkup, insertInBatchesReturning, writeInBatches, withTimeout, fetchAllRows, computeVariantImageMaps } from "./lib/migrate-shared";
 
 type ProductRow = {
   seller_id: string;
@@ -33,7 +33,7 @@ type ProductRow = {
   description: string;
   in_stock: boolean;
   status: string;
-  variants: { name: string; options: string[]; priceDelta?: Record<string, number> }[];
+  variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string> }[];
   tags: string[];
   metafields: Record<string, string>;
   source_url: string | null;
@@ -163,7 +163,7 @@ async function main() {
     const opt2Name = col(first, "option2 name");
     const opt3Name = col(first, "option3 name");
     const hasVariants = opt1Name && opt1Name.toLowerCase() !== "title";
-    const variants: { name: string; options: string[]; priceDelta?: Record<string, number> }[] = [];
+    const variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string> }[] = [];
 
     if (hasVariants) {
       const optGroups: Record<string, Set<string>> = {};
@@ -185,6 +185,11 @@ async function main() {
         }
       }
       const optionNamesInUse = Object.entries(optGroups).filter(([, opts]) => opts.size > 0);
+      // Populates the Variant.images shape FourRegnStore.tsx's PDP
+      // gallery/variant picker already expects (declared on the frontend
+      // type, never previously populated here) -- see
+      // computeVariantImageMaps' own comment for how it's derived.
+      const imagesByDimension = computeVariantImageMaps(variantRows, col, optionNamesInUse);
       // Per-variant price only maps cleanly onto priceDelta when a product
       // varies on exactly one option (e.g. Size alone) -- a true
       // multi-dimensional combo (Size x Color where price varies per exact
@@ -192,7 +197,10 @@ async function main() {
       // option value, so those are flagged for manual review instead of
       // silently mispriced.
       const singleDimension = optionNamesInUse.length === 1;
-      for (const [name, opts] of optionNamesInUse) variants.push({ name, options: Array.from(opts) });
+      for (const [name, opts] of optionNamesInUse) {
+        const images = imagesByDimension[name];
+        variants.push(images ? { name, options: Array.from(opts), images } : { name, options: Array.from(opts) });
+      }
       if (singleDimension && variantRows.length > 1) {
         const [optName] = optionNamesInUse[0];
         const delta: Record<string, number> = {};

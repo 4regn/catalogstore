@@ -212,6 +212,21 @@ const variantDelta = (product: Product, selected: { [key: string]: string }): nu
   }, 0);
 const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
   Math.max(0, product.price + variantDelta(product, selected));
+// The specific photo for whichever option value is currently selected
+// (e.g. the White option under a "Colour" variant group) -- populated on
+// import by scripts/migrate-4regn.ts's computeVariantImageMaps, only for
+// option dimensions where Shopify's export actually had a distinct image
+// per value. Returns null when nothing's selected yet, or the selected
+// product/variant simply has no per-value images (falls back to the
+// product's plain image_url/images gallery everywhere this is used).
+const resolveVariantImage = (product: Product, selected: { [key: string]: string }): string | null => {
+  for (const v of Array.isArray(product.variants) ? product.variants : []) {
+    if (!v.images) continue;
+    const chosen = selected[v.name];
+    if (chosen && v.images[chosen]) return v.images[chosen];
+  }
+  return null;
+};
 const pad = (n: number) => String(n).padStart(2, "0");
 const initials = (s: string) => (s || "").trim().slice(0, 1).toUpperCase();
 
@@ -1075,7 +1090,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const validVariants = (Array.isArray(product.variants) ? product.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
-    const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: product.image_url || "", selectedVariants, tags: product.tags || [] }];
+    const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(product, selectedVariants) || product.image_url || "", selectedVariants, tags: product.tags || [] }];
     const encoded = btoa(JSON.stringify(payload));
     window.location.href = sp(`/checkout?cart=${encoded}`);
   };
@@ -1090,7 +1105,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       price: effectivePrice(i.product, i.selectedVariants),
       qty: i.qty,
       variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
-      image: i.product.image_url || "",
+      image: resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url || "",
       selectedVariants: i.selectedVariants,
       tags: i.product.tags || [],
     }));
@@ -2300,9 +2315,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             ) : (
               cart.map((i, idx) => {
                 const varStr = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(" · ");
+                const cartImg = resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url;
                 return (
                   <div key={idx} className="fr-cart-item">
-                    <div className="fr-cart-item-img" style={i.product.image_url ? { backgroundImage: `url("${i.product.image_url}")` } : {}} />
+                    <div className="fr-cart-item-img" style={cartImg ? { backgroundImage: `url("${cartImg}")` } : {}} />
                     <div>
                       <div className="fr-cart-item-cat">{i.product.category}</div>
                       <div className="fr-cart-item-name">{i.product.name}</div>
@@ -2349,7 +2365,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <aside className={"fr-pdp" + (selectedProduct ? " open" : "")}>
           {selectedProduct && (() => {
             const p = selectedProduct;
-            const allImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+            const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+            // Whichever photo matches the currently-selected option (e.g.
+            // White) leads the gallery -- see resolveVariantImage's own
+            // comment. Falls back to the plain product gallery unchanged
+            // when nothing's selected yet or the product has no per-value
+            // images at all.
+            const variantImg = resolveVariantImage(p, selectedVariants);
+            const allImgs = variantImg ? [variantImg, ...baseImgs.filter((img) => img !== variantImg)] : baseImgs;
             const onSale = p.old_price && p.old_price > p.price;
             return (
               <>
@@ -2383,7 +2406,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                             <button
                               key={opt}
                               className={"fr-size-btn" + (selectedVariants[v.name] === opt ? " active" : "")}
-                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setVariantError(false); }}
+                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setVariantError(false); setActiveImg(0); }}
                             >
                               {opt}
                             </button>
@@ -2400,7 +2423,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         const validVariants = (Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
                         const allSelected = validVariants.every((v) => selectedVariants[v.name]);
                         if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
-                        const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: p.image_url || "", selectedVariants, tags: p.tags || [] }];
+                        const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(p, selectedVariants) || p.image_url || "", selectedVariants, tags: p.tags || [] }];
                         const encoded = btoa(JSON.stringify(payload));
                         window.location.href = sp(`/checkout?cart=${encoded}`);
                       }}>
@@ -2762,7 +2785,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             Also Like" row the slide-over doesn't have. */}
         {isProductView && initialActiveProduct && (() => {
           const p = initialActiveProduct;
-          const allImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+          const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+          // Same variant-leads-the-gallery logic as the slide-over PDP --
+          // see resolveVariantImage's own comment.
+          const variantImg = resolveVariantImage(p, selectedVariants);
+          const allImgs = variantImg ? [variantImg, ...baseImgs.filter((img) => img !== variantImg)] : baseImgs;
           const onSale = p.old_price && p.old_price > p.price;
           const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
           const pdpBadge = getProductPromoBadge(p);
@@ -2834,7 +2861,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                             <button
                               key={opt}
                               className={"fr-size-btn" + (selectedVariants[v.name] === opt ? " active" : "")}
-                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setVariantError(false); }}
+                              onClick={() => { setSelectedVariants((prev) => ({ ...prev, [v.name]: opt })); setVariantError(false); setActiveImg(0); }}
                             >
                               {opt}
                             </button>

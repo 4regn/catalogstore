@@ -226,6 +226,51 @@ export function makeCol(header: string[]) {
   };
 }
 
+// Shared by migrate-4regn.ts (fresh imports) and
+// backfill-4regn-variant-images.ts (retrofitting products already
+// imported before this existed) -- kept in one place so the two can never
+// silently drift apart on what counts as a valid variant-image mapping.
+//
+// Shopify's CSV has one row per variant, each carrying its own "Image
+// Src" -- when a product's photos genuinely differ per option value (the
+// common case is a Color option), every row sharing that value shares the
+// exact same image, while rows with a different value have a different
+// one. Detected per-dimension rather than hardcoding "Color" as the
+// option name, since real catalogs use "Colour", "Style", etc. A
+// dimension only gets an images map if it's a genuine function (no option
+// value maps to two different images) AND more than one distinct image
+// actually shows up across its values -- otherwise it's left out, and
+// that dimension just falls back to the product's plain images[] gallery.
+export function computeVariantImageMaps(
+  variantRows: string[][],
+  col: (row: string[], name: string) => string,
+  optionNamesInUse: Array<[string, Set<string>]>
+): Record<string, Record<string, string>> {
+  const rowOptionPairs = (vRow: string[]) =>
+    [
+      [col(vRow, "option1 name"), col(vRow, "option1 value")],
+      [col(vRow, "option2 name"), col(vRow, "option2 value")],
+      [col(vRow, "option3 name"), col(vRow, "option3 value")],
+    ] as const;
+
+  const imagesByDimension: Record<string, Record<string, string>> = {};
+  for (const [name] of optionNamesInUse) {
+    const valueToImage: Record<string, string> = {};
+    let consistent = true;
+    for (const vRow of variantRows) {
+      const pair = rowOptionPairs(vRow).find(([n]) => n === name);
+      const optValue = pair?.[1];
+      const img = col(vRow, "image src");
+      if (!optValue || !img) continue;
+      if (valueToImage[optValue] && valueToImage[optValue] !== img) { consistent = false; break; }
+      valueToImage[optValue] = img;
+    }
+    const distinctImages = new Set(Object.values(valueToImage));
+    if (consistent && distinctImages.size > 1) imagesByDimension[name] = valueToImage;
+  }
+  return imagesByDimension;
+}
+
 // Thrown by writeInBatches/insertInBatchesReturning so each call site can
 // decide whether a failed batch is fatal (most writes -- exit and tell the
 // operator what's safe to re-run) or soft (e.g. redirect rows, where the
