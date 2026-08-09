@@ -16,15 +16,16 @@
 import { readCsv, parseCsvLine, makeCol } from "./lib/migrate-shared";
 
 function parseArgs() {
-  const out: { csv?: string } = {};
+  const out: { csv?: string; handle?: string } = {};
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith("--csv=")) out.csv = arg.slice("--csv=".length);
+    else if (arg.startsWith("--handle=")) out.handle = arg.slice("--handle=".length);
   }
   if (!out.csv) {
-    console.error("Usage: npx tsx scripts/diagnose-4regn-variant-images.ts --csv=products_export_1.csv");
+    console.error("Usage: npx tsx scripts/diagnose-4regn-variant-images.ts --csv=products_export_1.csv [--handle=some-product-handle]");
     process.exit(1);
   }
-  return out as { csv: string };
+  return out as { csv: string; handle?: string };
 }
 
 type Bucket = "single-row" | "all-blank" | "same-image" | "clean-match" | "inconsistent";
@@ -106,7 +107,18 @@ function majorityStats(rows: string[][], col: (r: string[], name: string) => str
     }
     if (total === 0) continue;
     const stats = { name, distinctMajority: majorityImages.size, purity: agree / total };
-    if (!best || stats.purity > best.purity) best = stats;
+    // A dimension with barely any real variation is trivially "pure" (not
+    // much to disagree about) -- picking purely by highest purity
+    // systematically favours that boring dimension over one that's
+    // noisier but actually has real per-value photos. Real variation
+    // (distinctMajority > 1) always wins first; purity only breaks ties
+    // among dimensions that already have real variation.
+    const better =
+      !best ||
+      (stats.distinctMajority > 1 && best.distinctMajority <= 1) ||
+      (stats.distinctMajority > 1 && best.distinctMajority > 1 && stats.purity > best.purity) ||
+      (stats.distinctMajority <= 1 && best.distinctMajority <= 1 && stats.purity > best.purity);
+    if (better) best = stats;
   }
   return best;
 }
@@ -123,6 +135,22 @@ function main() {
     if (!handle) continue;
     if (!handleMap.has(handle)) handleMap.set(handle, []);
     handleMap.get(handle)!.push(cols);
+  }
+
+  if (args.handle) {
+    const rows = handleMap.get(args.handle);
+    if (!rows) { console.log(`No product found with handle "${args.handle}"`); return; }
+    console.log(`--- ${col(rows[0], "title")} (${args.handle}) -- ${rows.length} rows ---`);
+    for (const r of rows) {
+      const o1n = col(r, "option1 name"), o1v = col(r, "option1 value");
+      const o2n = col(r, "option2 name"), o2v = col(r, "option2 value");
+      const o3n = col(r, "option3 name"), o3v = col(r, "option3 value");
+      const img = col(r, "image src");
+      console.log(`  ${o1n}=${o1v || "(blank)"}${o2n ? ` ${o2n}=${o2v || "(blank)"}` : ""}${o3n ? ` ${o3n}=${o3v || "(blank)"}` : ""}  |  Image Src: ${img || "(BLANK)"}`);
+    }
+    console.log(`\nclassify(): ${classify(rows, col)}`);
+    console.log(`majorityStats(): ${JSON.stringify(majorityStats(rows, col))}`);
+    return;
   }
 
   const buckets: Record<Bucket, { count: number; examples: string[] }> = {
