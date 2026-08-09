@@ -170,7 +170,7 @@ interface Seller {
     whatsapp_checkout_enabled?: boolean;
   };
 }
-interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
+interface Variant { name: string; options: string[]; images?: { [option: string]: string[] }; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
@@ -212,21 +212,28 @@ const variantDelta = (product: Product, selected: { [key: string]: string }): nu
   }, 0);
 const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
   Math.max(0, product.price + variantDelta(product, selected));
-// The specific photo for whichever option value is currently selected
-// (e.g. the White option under a "Colour" variant group) -- populated on
-// import by scripts/migrate-4regn.ts's computeVariantImageMaps, only for
-// option dimensions where Shopify's export actually had a distinct image
-// per value. Returns null when nothing's selected yet, or the selected
-// product/variant simply has no per-value images (falls back to the
-// product's plain image_url/images gallery everywhere this is used).
-const resolveVariantImage = (product: Product, selected: { [key: string]: string }): string | null => {
+// The full photo SET for whichever option value is currently selected
+// (e.g. every photo tagged under the White option of a "Colour" variant
+// group -- a single value can legitimately have several: front, back,
+// close-up) -- populated on import by scripts/migrate-4regn.ts's
+// computeVariantImageMaps, only for option dimensions where Shopify's
+// export actually had real per-value photos. Returns null when nothing's
+// selected yet, or the selected product/variant has no per-value images
+// (falls back to the product's plain image_url/images gallery everywhere
+// this is used).
+const resolveVariantImages = (product: Product, selected: { [key: string]: string }): string[] | null => {
   for (const v of Array.isArray(product.variants) ? product.variants : []) {
     if (!v.images) continue;
     const chosen = selected[v.name];
-    if (chosen && v.images[chosen]) return v.images[chosen];
+    if (chosen && v.images[chosen]?.length) return v.images[chosen];
   }
   return null;
 };
+// Single-image convenience for spots that can only ever show one photo
+// (a cart line item, a checkout summary row) -- the first photo of the
+// resolved set, same as resolveVariantImages but never a list.
+const resolveVariantImage = (product: Product, selected: { [key: string]: string }): string | null =>
+  resolveVariantImages(product, selected)?.[0] || null;
 const pad = (n: number) => String(n).padStart(2, "0");
 const initials = (s: string) => (s || "").trim().slice(0, 1).toUpperCase();
 
@@ -2367,13 +2374,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           {selectedProduct && (() => {
             const p = selectedProduct;
             const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
-            // Whichever photo matches the currently-selected option (e.g.
-            // White) leads the gallery -- see resolveVariantImage's own
-            // comment. Falls back to the plain product gallery unchanged
-            // when nothing's selected yet or the product has no per-value
-            // images at all.
-            const variantImg = resolveVariantImage(p, selectedVariants);
-            const allImgs = variantImg ? [variantImg, ...baseImgs.filter((img) => img !== variantImg)] : baseImgs;
+            // The full photo set for the currently-selected option (e.g.
+            // every White photo) leads the gallery -- see
+            // resolveVariantImages' own comment. Falls back to the plain
+            // product gallery unchanged when nothing's selected yet or the
+            // product has no per-value images at all.
+            const variantImgs = resolveVariantImages(p, selectedVariants);
+            const allImgs = variantImgs?.length ? [...variantImgs, ...baseImgs.filter((img) => !variantImgs.includes(img))] : baseImgs;
             const onSale = p.old_price && p.old_price > p.price;
             return (
               <>
@@ -2788,9 +2795,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           const p = initialActiveProduct;
           const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
           // Same variant-leads-the-gallery logic as the slide-over PDP --
-          // see resolveVariantImage's own comment.
-          const variantImg = resolveVariantImage(p, selectedVariants);
-          const allImgs = variantImg ? [variantImg, ...baseImgs.filter((img) => img !== variantImg)] : baseImgs;
+          // see resolveVariantImages' own comment.
+          const variantImgs = resolveVariantImages(p, selectedVariants);
+          const allImgs = variantImgs?.length ? [...variantImgs, ...baseImgs.filter((img) => !variantImgs.includes(img))] : baseImgs;
           const onSale = p.old_price && p.old_price > p.price;
           const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
           const pdpBadge = getProductPromoBadge(p);

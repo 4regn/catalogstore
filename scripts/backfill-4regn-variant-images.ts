@@ -21,7 +21,7 @@ import { getAdminClient, parseArgs, resolveSeller, readCsv, parseCsvLine, makeCo
 
 const USAGE = "Usage: npx tsx scripts/backfill-4regn-variant-images.ts --csv=products.csv --seller=owner@4regn.com [--dry-run]";
 
-type ExistingProduct = { id: string; handle: string | null; name: string; variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string> }[] | null };
+type ExistingProduct = { id: string; handle: string | null; name: string; variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string[]> }[] | null };
 
 async function main() {
   const args = parseArgs(USAGE);
@@ -77,12 +77,14 @@ async function main() {
     const newVariants = product.variants.map((v) => {
       const images = imagesByDimension[v.name];
       if (!images) return v;
-      // Merge, don't overwrite -- an existing images map (from a re-run)
-      // keeps any values the CSV no longer covers rather than losing them.
-      const merged = { ...(v.images || {}), ...images };
-      if (JSON.stringify(merged) === JSON.stringify(v.images || {})) return v;
+      // Full replace, not merge -- images is deterministically recomputed
+      // from the same CSV every run, so there's nothing stale in the old
+      // value worth preserving (unlike a merge, which would leave behind
+      // single-string entries from before this became an array-per-value
+      // shape on a re-run).
+      if (JSON.stringify(images) === JSON.stringify(v.images || {})) return v;
       changed = true;
-      return { ...v, images: merged };
+      return { ...v, images };
     });
     if (changed) {
       withNewImages++;

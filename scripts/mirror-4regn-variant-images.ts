@@ -42,7 +42,7 @@ function parseArgs() {
   return out as { csv: string; seller: string; dryRun: boolean; concurrency: number };
 }
 
-type ProductVariant = { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string> };
+type ProductVariant = { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string[]> };
 type ProductRow = { id: string; name: string; handle: string | null; images: string[] | null; variants: ProductVariant[] | null };
 
 function needsMirroring(url: string): boolean {
@@ -79,7 +79,7 @@ async function main() {
   const products = await fetchAllRows<ProductRow>(admin, "products", "id, name, handle, images, variants", (q) => q.eq("seller_id", sellerId));
   const productsWithVariants = products.filter((p) => Array.isArray(p.variants) && p.variants.length > 0);
 
-  type Task = { productIdx: number; variantIdx: number; value: string; url: string };
+  type Task = { productIdx: number; variantIdx: number; value: string; urlIdx: number; url: string };
   const freeResolved = new Map<string, string>(); // raw url -> already-mirrored Storage url, no fetch needed
   const tasks: Task[] = []; // genuinely needs a real fetch+upload
 
@@ -103,11 +103,13 @@ async function main() {
     for (let vi = 0; vi < variants.length; vi++) {
       const images = variants[vi].images;
       if (!images) continue;
-      for (const [value, url] of Object.entries(images)) {
-        if (!needsMirroring(url)) continue;
-        const existing = rawToExisting?.get(url);
-        if (existing) freeResolved.set(url, existing);
-        else tasks.push({ productIdx: pi, variantIdx: vi, value, url });
+      for (const [value, urls] of Object.entries(images)) {
+        urls.forEach((url, urlIdx) => {
+          if (!needsMirroring(url)) return;
+          const existing = rawToExisting?.get(url);
+          if (existing) freeResolved.set(url, existing);
+          else tasks.push({ productIdx: pi, variantIdx: vi, value, urlIdx, url });
+        });
       }
     }
   }
@@ -157,7 +159,7 @@ async function main() {
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const ext = mimeToExt[contentType] || "jpg";
     const safeValue = task.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "variant";
-    const path = `${sellerId}/${productsWithVariants[task.productIdx].id}/variant-${safeValue}-${task.variantIdx}.${ext}`;
+    const path = `${sellerId}/${productsWithVariants[task.productIdx].id}/variant-${safeValue}-${task.variantIdx}-${task.urlIdx}.${ext}`;
     const { error: upErr } = await admin.storage.from("product-images").upload(path, Buffer.from(buffer), { contentType, upsert: true });
     if (upErr) return null;
     const { data: urlData } = admin.storage.from("product-images").getPublicUrl(path);
@@ -200,12 +202,14 @@ async function main() {
     let changed = false;
     const newVariants = variants.map((v) => {
       if (!v.images) return v;
-      const newImages: Record<string, string> = {};
+      const newImages: Record<string, string[]> = {};
       let variantChanged = false;
-      for (const [value, url] of Object.entries(v.images)) {
-        const resolved = resolvedByUrl.get(url);
-        if (resolved) { newImages[value] = resolved; variantChanged = true; }
-        else newImages[value] = url; // left as-is: already mirrored, or failed and kept as a working (if slow) fallback
+      for (const [value, urls] of Object.entries(v.images)) {
+        newImages[value] = urls.map((url) => {
+          const resolved = resolvedByUrl.get(url);
+          if (resolved) { variantChanged = true; return resolved; }
+          return url; // left as-is: already mirrored, or failed and kept as a working (if slow) fallback
+        });
       }
       if (variantChanged) changed = true;
       return variantChanged ? { ...v, images: newImages } : v;

@@ -33,7 +33,7 @@ type ProductRow = {
   description: string;
   in_stock: boolean;
   status: string;
-  variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string> }[];
+  variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string[]> }[];
   tags: string[];
   metafields: Record<string, string>;
   source_url: string | null;
@@ -155,7 +155,7 @@ async function main() {
     const opt2Name = col(first, "option2 name");
     const opt3Name = col(first, "option3 name");
     const hasVariants = opt1Name && opt1Name.toLowerCase() !== "title";
-    const variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string> }[] = [];
+    const variants: { name: string; options: string[]; priceDelta?: Record<string, number>; images?: Record<string, string[]> }[] = [];
 
     if (hasVariants) {
       const optGroups: Record<string, Set<string>> = {};

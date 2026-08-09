@@ -252,15 +252,22 @@ export function collectImageSrcs(variantRows: string[][], col: (row: string[], n
 // silently drift apart on what counts as a valid variant-image mapping.
 //
 // Shopify's CSV has one row per variant, each carrying its own "Image
-// Src" -- when a product's photos genuinely differ per option value (the
-// common case is a Color option), every row sharing that value shares the
-// exact same image, while rows with a different value have a different
-// one. Detected per-dimension rather than hardcoding "Color" as the
-// option name, since real catalogs use "Colour", "Style", etc. A
-// dimension only gets an images map if it's a genuine function (no option
-// value maps to two different images) AND more than one distinct image
-// actually shows up across its values -- otherwise it's left out, and
-// that dimension just falls back to the product's plain images[] gallery.
+// Src". An earlier version of this function assumed each option value
+// (e.g. Color=Grey) maps to exactly ONE photo, and refused to guess when
+// that wasn't a clean 1:1 function -- but confirmed against a real
+// product (a pullover sweater): a single color can legitimately have a
+// whole SET of its own photos (front/back/close-up, ~8 for Grey alone),
+// not one canonical image. There's no single "right" photo to pick there,
+// so this groups every image seen under each option value into an
+// ordered, deduped array instead of trying to pick one -- the PDP swaps
+// its gallery to that whole set when the value is selected, same as
+// Shopify's own storefront does for this exact product.
+//
+// A dimension only gets an images map if it shows genuine
+// differentiation: at least 2 values with any images, and not every
+// value's photo SET is identical (which would mean no real per-value
+// distinction exists at all, and the dimension should just fall back to
+// the product's plain images[] gallery).
 //
 // opt1Name/opt2Name/opt3Name must come from the product's FIRST row --
 // Shopify's export only populates "OptionN Name" there, leaving it blank
@@ -276,26 +283,29 @@ export function computeVariantImageMaps(
   opt1Name: string,
   opt2Name: string,
   opt3Name: string
-): Record<string, Record<string, string>> {
+): Record<string, Record<string, string[]>> {
   const dimensions = [
     opt1Name ? { name: opt1Name, valueCol: "option1 value" } : null,
     opt2Name ? { name: opt2Name, valueCol: "option2 value" } : null,
     opt3Name ? { name: opt3Name, valueCol: "option3 value" } : null,
   ].filter((d): d is { name: string; valueCol: string } => d !== null);
 
-  const imagesByDimension: Record<string, Record<string, string>> = {};
+  const imagesByDimension: Record<string, Record<string, string[]>> = {};
   for (const { name, valueCol } of dimensions) {
-    const valueToImage: Record<string, string> = {};
-    let consistent = true;
+    const valueToImages: Record<string, string[]> = {};
+    const seenPerValue: Record<string, Set<string>> = {};
     for (const vRow of variantRows) {
       const optValue = col(vRow, valueCol);
       const img = col(vRow, "image src");
       if (!optValue || !img) continue;
-      if (valueToImage[optValue] && valueToImage[optValue] !== img) { consistent = false; break; }
-      valueToImage[optValue] = img;
+      if (!valueToImages[optValue]) { valueToImages[optValue] = []; seenPerValue[optValue] = new Set(); }
+      if (!seenPerValue[optValue].has(img)) { seenPerValue[optValue].add(img); valueToImages[optValue].push(img); }
     }
-    const distinctImages = new Set(Object.values(valueToImage));
-    if (consistent && distinctImages.size > 1) imagesByDimension[name] = valueToImage;
+    const entries = Object.entries(valueToImages);
+    if (entries.length < 2) continue;
+    const distinctSets = new Set(entries.map(([, imgs]) => imgs.slice().sort().join("|")));
+    if (distinctSets.size < 2) continue;
+    imagesByDimension[name] = valueToImages;
   }
   return imagesByDimension;
 }
