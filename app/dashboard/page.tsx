@@ -129,7 +129,13 @@ interface CheckoutConfig {
   eft_branch_code: string; eft_account_type: string; eft_instructions: string;
   payfast_enabled: boolean; payfast_merchant_id: string; payfast_merchant_key: string;
   delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
-  shipping_options: { name: string; price: number; estimate?: string }[];
+  // is_premium: this option is ONLY offered when the cart contains a
+  // product tagged "import"/"imports" (and, symmetrically, hidden from
+  // every other cart) -- see CheckoutPageClient.tsx's own comment on this
+  // same field for the full behavior. Optional/undefined for every
+  // existing option and every seller who's never touched this, so it's a
+  // pure opt-in with no effect until at least one option is marked.
+  shipping_options: { name: string; price: number; estimate?: string; is_premium?: boolean }[];
   whatsapp_checkout_enabled: boolean;
 }
 
@@ -419,6 +425,7 @@ export default function Dashboard() {
   const [newShipName, setNewShipName] = useState("");
   const [newShipPrice, setNewShipPrice] = useState("");
   const [newShipEstimate, setNewShipEstimate] = useState("");
+  const [newShipPremium, setNewShipPremium] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
@@ -3188,7 +3195,23 @@ export default function Dashboard() {
                 <button onClick={() => setCheckoutConfig({ ...checkoutConfig, delivery_enabled: !checkoutConfig.delivery_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.delivery_enabled ? N : "var(--toggle-off)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.delivery_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
               </div>
               {checkoutConfig.delivery_enabled && (<>
-                {checkoutConfig.shipping_options.map((opt, i) => (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}><span style={{ flex: 1, padding: "10px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 13, color: "var(--text)" }}>{opt.name}{opt.estimate ? " · " + opt.estimate : ""} - <span style={{ color: N }}>R{opt.price}</span></span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, shipping_options: checkoutConfig.shipping_options.filter((_, idx) => idx !== i) })} style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 14, cursor: "pointer" }}>&times;</button></div>))}
+                {checkoutConfig.shipping_options.map((opt, i) => (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                  <span style={{ flex: 1, padding: "10px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 13, color: "var(--text)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ flex: 1 }}>{opt.name}{opt.estimate ? " · " + opt.estimate : ""} - <span style={{ color: N }}>R{opt.price}</span></span>
+                    {opt.is_premium && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" as const, padding: "3px 8px", borderRadius: 100, background: "rgba(255,107,53,0.12)", color: N, whiteSpace: "nowrap" as const }}>Premium/Import only</span>}
+                  </span>
+                  <button onClick={() => setCheckoutConfig({ ...checkoutConfig, shipping_options: checkoutConfig.shipping_options.map((o, idx) => idx === i ? { ...o, is_premium: !o.is_premium } : o) })}
+                    title={opt.is_premium ? "Stop restricting this option to import-tagged carts" : "Only offer this option when the cart has an import-tagged product"}
+                    style={{ padding: "0 10px", height: 32, borderRadius: 8, background: opt.is_premium ? "rgba(255,107,53,0.1)" : "var(--panel-2)", border: "1px solid var(--border)", color: opt.is_premium ? N : "var(--muted)", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const }}>
+                    {opt.is_premium ? "Premium ✓" : "Mark Premium"}
+                  </button>
+                  <button onClick={() => setCheckoutConfig({ ...checkoutConfig, shipping_options: checkoutConfig.shipping_options.filter((_, idx) => idx !== i) })} style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 14, cursor: "pointer" }}>&times;</button>
+                </div>))}
+                {checkoutConfig.shipping_options.some((o) => o.is_premium) && (
+                  <p style={{ fontSize: 11, color: "var(--muted-2)", margin: "0 0 12px", lineHeight: 1.5 }}>
+                    Options marked <strong style={{ color: N }}>Premium/Import only</strong> are the ONLY ones offered when a customer's cart contains a product tagged &quot;import&quot; or &quot;imports&quot; -- every other option is hidden for that order automatically, and the reverse is also true (a premium option never shows for a cart with no import-tagged product).
+                  </p>
+                )}
 
                 <div style={{ marginTop: 12, marginBottom: 4 }}>
                   <span style={{ fontSize: 10, fontWeight: 800, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Quick Add — Common SA Couriers</span>
@@ -3215,8 +3238,12 @@ export default function Dashboard() {
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input type="text" placeholder="Delivery estimate (optional, e.g. 7-10 working days)" value={newShipEstimate} onChange={(e) => setNewShipEstimate(e.target.value)} style={{ flex: 1, padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                    <button onClick={() => { if (newShipName.trim()) { setCheckoutConfig({ ...checkoutConfig, shipping_options: [...checkoutConfig.shipping_options, { name: newShipName.trim(), price: parseFloat(newShipPrice) || 0, estimate: newShipEstimate.trim() || undefined }] }); setNewShipName(""); setNewShipPrice(""); setNewShipEstimate(""); } }} style={{ padding: "10px 20px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 12, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>+ Add</button>
+                    <button onClick={() => { if (newShipName.trim()) { setCheckoutConfig({ ...checkoutConfig, shipping_options: [...checkoutConfig.shipping_options, { name: newShipName.trim(), price: parseFloat(newShipPrice) || 0, estimate: newShipEstimate.trim() || undefined, is_premium: newShipPremium || undefined }] }); setNewShipName(""); setNewShipPrice(""); setNewShipEstimate(""); setNewShipPremium(false); } }} style={{ padding: "10px 20px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 12, color: N, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, whiteSpace: "nowrap" as const }}>+ Add</button>
                   </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={newShipPremium} onChange={(e) => setNewShipPremium(e.target.checked)} style={{ accentColor: N }} />
+                    Only offer this for carts with an import-tagged product (hides every other option for that order)
+                  </label>
                 </div>
               </>)}
             </div>

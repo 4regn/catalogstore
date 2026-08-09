@@ -19,6 +19,14 @@ const LightboxGallery = dynamic(() => import("./FourRegnLightbox"), { ssr: false
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
 
+// A product tagged "import"/"imports" (singular or plural, case-insensitive
+// -- exactly what the seller confirmed Shopify uses) forces the 7-14 working
+// day "premium" shipping method and hides every faster option, on both the
+// cart page (a delivery-note banner) and checkout (the shipping-method
+// list itself, see checkout_config.shipping_options' own is_premium flag).
+const IMPORT_TAG_RE = /^imports?$/i;
+const hasImportTag = (tags?: string[] | null) => (tags || []).some((t) => IMPORT_TAG_RE.test((t || "").trim()));
+
 /* ─── TYPES ─────────────────────────────────────────────── */
 interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string;
@@ -1066,7 +1074,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const validVariants = (Array.isArray(product.variants) ? product.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
-    const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: product.image_url || "", selectedVariants }];
+    const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: product.image_url || "", selectedVariants, tags: product.tags || [] }];
     const encoded = btoa(JSON.stringify(payload));
     window.location.href = sp(`/checkout?cart=${encoded}`);
   };
@@ -1083,6 +1091,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
       image: i.product.image_url || "",
       selectedVariants: i.selectedVariants,
+      tags: i.product.tags || [],
     }));
     const encoded = btoa(JSON.stringify(payload));
     window.location.href = sp(`/checkout?cart=${encoded}`);
@@ -1197,6 +1206,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     : null;
   const cartTotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  // Banner only fires on a genuine MIX (import + non-import both present) --
+  // an all-import cart never had a faster option to lose, so there's
+  // nothing to warn about; see hasImportTag's own comment for the full
+  // behavior this feeds into at checkout.
+  const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
+  const cartHasGeneral = cart.some((i) => !hasImportTag(i.product.tags));
+  const cartMixesImportAndGeneral = cartHasImport && cartHasGeneral;
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
   const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
 
@@ -1969,6 +1985,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cart-sub-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-cart-sub-amt{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--ink)}
 .fr-cart-ship{font-size:11px;color:rgba(46,42,57,0.55);margin-bottom:18px}
+.fr-cart-import-note{background:rgba(214,71,53,0.06);border:1px solid rgba(214,71,53,0.18);border-radius:10px;padding:12px 14px;margin-bottom:16px}
+.fr-cart-import-note strong{display:block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.fr-cart-import-note p{margin:0;font-size:12px;line-height:1.6;color:var(--ink)}
+.fr-cart-import-note p strong{display:inline;font-size:12px;letter-spacing:normal;text-transform:none;color:var(--ink);margin:0}
 .fr-cart-checkout{width:100%;background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);padding:16px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer}
 .fr-cart-wa{display:block;width:100%;background:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:var(--btn-radius);margin-top:10px;padding:13px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;color:var(--ink)}
 .fr-cart-cont{display:block;text-align:center;margin-top:14px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:rgba(46,42,57,0.55);cursor:pointer;background:none;border:none;width:100%}
@@ -2299,6 +2319,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
           {cart.length > 0 && (
             <div className="fr-cart-foot">
+              {cartMixesImportAndGeneral && (
+                <div className="fr-cart-import-note">
+                  <strong>Delivery Note</strong>
+                  <p>Your cart includes a premium product. Please allow <strong>7-14 working days</strong> for your full order to arrive.</p>
+                </div>
+              )}
               <div className="fr-cart-sub">
                 <span className="fr-cart-sub-lbl">Subtotal</span>
                 <span className="fr-cart-sub-amt">{fmt(cartTotal)}</span>
@@ -2369,7 +2395,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         const validVariants = (Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
                         const allSelected = validVariants.every((v) => selectedVariants[v.name]);
                         if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
-                        const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: p.image_url || "", selectedVariants }];
+                        const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: p.image_url || "", selectedVariants, tags: p.tags || [] }];
                         const encoded = btoa(JSON.stringify(payload));
                         window.location.href = sp(`/checkout?cart=${encoded}`);
                       }}>

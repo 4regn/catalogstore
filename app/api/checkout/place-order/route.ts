@@ -95,10 +95,10 @@ export async function POST(req: NextRequest) {
 
   const [byId, byName] = await Promise.all([
     itemIds.length
-      ? getAdmin().from("products").select("id, name, price, in_stock, status, category, variants").in("id", itemIds).eq("seller_id", seller.id)
+      ? getAdmin().from("products").select("id, name, price, in_stock, status, category, variants, tags").in("id", itemIds).eq("seller_id", seller.id)
       : Promise.resolve({ data: [] as any[] }),
     itemNames.length
-      ? getAdmin().from("products").select("id, name, price, in_stock, status, category, variants").in("name", itemNames).eq("seller_id", seller.id)
+      ? getAdmin().from("products").select("id, name, price, in_stock, status, category, variants, tags").in("name", itemNames).eq("seller_id", seller.id)
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
@@ -107,6 +107,15 @@ export async function POST(req: NextRequest) {
 
   /* Build the line items with server-truth prices */
   const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string }[] = [];
+  // A product tagged "import"/"imports" (singular or plural, case-
+  // insensitive) restricts delivery to whichever shipping option(s) the
+  // seller marked is_premium -- see the shipping-option validation below.
+  // Kept in sync with the identical check in FourRegnStore.tsx/
+  // CheckoutPageClient.tsx; this is the one that actually can't be
+  // bypassed by a tampered request (those two only control what the UI
+  // shows/preselects).
+  const IMPORT_TAG_RE = /^imports?$/i;
+  let hasImportProduct = false;
   for (const raw of items as ItemIn[]) {
     const qty = Math.floor(Number(raw.qty) || 0);
     if (qty < 1 || qty > 999) {
@@ -123,6 +132,9 @@ export async function POST(req: NextRequest) {
     }
     if (product.in_stock === false) {
       return NextResponse.json({ error: `Out of stock: ${product.name}` }, { status: 409 });
+    }
+    if (Array.isArray(product.tags) && product.tags.some((t: string) => IMPORT_TAG_RE.test((t || "").trim()))) {
+      hasImportProduct = true;
     }
     const basePrice = Number(product.price) || 0;
     const delta = variantPriceDelta(product.variants, raw.selectedVariants);
@@ -142,10 +154,21 @@ export async function POST(req: NextRequest) {
   let shippingCost = 0;
   let shippingLabel: string = fulfillment === "pickup" ? "Pickup" : "";
   if (fulfillment === "delivery") {
-    const opts: { name: string; price: number }[] = Array.isArray(cc.shipping_options) ? cc.shipping_options : [];
+    const opts: { name: string; price: number; is_premium?: boolean }[] = Array.isArray(cc.shipping_options) ? cc.shipping_options : [];
     const idx = Number(shippingOptionIndex);
     if (!opts.length || !Number.isFinite(idx) || idx < 0 || idx >= opts.length) {
       return NextResponse.json({ error: "Invalid shipping option" }, { status: 400 });
+    }
+    // Same visibility rule CheckoutPageClient.tsx's own isShippingOptionVisible
+    // applies client-side, re-checked here so a tampered request can't pick
+    // a fast option for a cart with an import-tagged product (or vice
+    // versa) just because the UI would have hidden it. Fails open (skips
+    // this check) when the seller hasn't marked ANY option premium yet --
+    // same reasoning as the client-side guard: don't change behavior for
+    // sellers who've never touched this feature.
+    const hasAnyPremiumOption = opts.some((o) => o.is_premium);
+    if (hasAnyPremiumOption && !!opts[idx].is_premium !== hasImportProduct) {
+      return NextResponse.json({ error: "Invalid shipping option for this cart" }, { status: 400 });
     }
     shippingCost = Number(opts[idx].price) || 0;
     shippingLabel = opts[idx].name || "Delivery";

@@ -26,11 +26,22 @@ interface Seller {
     // actually share that account).
     yoco_enabled?: boolean;
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
-    shipping_options: { name: string; price: number }[];
+    // is_premium: only offered when the cart has an import-tagged product,
+    // and hidden from every other cart -- see hasImportTag's own comment
+    // below for the full behavior.
+    shipping_options: { name: string; price: number; estimate?: string; is_premium?: boolean }[];
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; }
+interface CartItem { id?: string; name: string; price: number; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; }
+
+// Same tag convention as FourRegnStore.tsx's own hasImportTag (kept in
+// sync -- both sides need to agree on which cart triggers this). A product
+// tagged "import"/"imports" restricts the shipping-method list to ONLY
+// options the seller marked is_premium, and the reverse -- a premium
+// option is hidden for any cart with no import-tagged product.
+const IMPORT_TAG_RE = /^imports?$/i;
+const hasImportTag = (tags?: string[] | null) => (tags || []).some((t) => IMPORT_TAG_RE.test((t || "").trim()));
 
 const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo", "Mpumalanga", "North West", "Northern Cape", "Western Cape"];
 
@@ -164,6 +175,7 @@ export default function CheckoutPageClient() {
             variant: typeof i.variant === "string" ? i.variant : "",
             image: typeof i.image === "string" ? i.image : "",
             selectedVariants: i.selectedVariants && typeof i.selectedVariants === "object" ? i.selectedVariants : undefined,
+            tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
           }))
           .filter((i: any) => i.name);
         if (clean.length > 0) setCart(clean);
@@ -177,6 +189,32 @@ export default function CheckoutPageClient() {
   };
 
   const cc = seller?.checkout_config || {} as any;
+  // Import-tagged product in the cart -> only is_premium-marked shipping
+  // options are offered (7-14 working day "premium" shipment), and the
+  // reverse -- see hasImportTag's own comment above for the full behavior.
+  // Guarded on "some option IS marked premium" so a seller who's never
+  // touched this feature sees the exact same option list as before --
+  // otherwise an import-tagged cart with no premium option configured yet
+  // would show NO shipping options at all instead of failing safe.
+  const cartHasImport = cart.some((i) => hasImportTag(i.tags));
+  const shippingOptionsConfigured: { name: string; price: number; estimate?: string; is_premium?: boolean }[] = cc.shipping_options || [];
+  const hasAnyPremiumOption = shippingOptionsConfigured.some((o) => o.is_premium);
+  const isShippingOptionVisible = (opt: { is_premium?: boolean }) =>
+    !hasAnyPremiumOption ? true : cartHasImport ? !!opt.is_premium : !opt.is_premium;
+  const visibleShippingOptions = shippingOptionsConfigured.filter(isShippingOptionVisible);
+  // shippingOption is an index into the FULL shipping_options array (the
+  // place-order request sends that raw index, see placeOrder() below) --
+  // if the cart's import status changes (an import product added/removed)
+  // and the currently-selected option is no longer visible, reselect the
+  // first one that still is, same as "if they remove the product then we
+  // show the normal delivery options" -- this is what actually makes that
+  // happen, not just hiding the row in the list.
+  useEffect(() => {
+    const current = shippingOptionsConfigured[shippingOption];
+    if (current && isShippingOptionVisible(current)) return;
+    const firstVisibleIdx = shippingOptionsConfigured.findIndex((o) => isShippingOptionVisible(o));
+    if (firstVisibleIdx !== -1 && firstVisibleIdx !== shippingOption) setShippingOption(firstVisibleIdx);
+  }, [cartHasImport, hasAnyPremiumOption, shippingOptionsConfigured.length]);
   const accent = seller?.primary_color || "#9c7c62";
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
   const isHL = seller?.template === "heirloom";
@@ -616,20 +654,31 @@ export default function CheckoutPageClient() {
             </div>
           )}
 
-          {/* SHIPPING METHOD */}
-          {fulfillment === "delivery" && cc.shipping_options?.length > 0 && (
+          {/* SHIPPING METHOD -- iterates the FULL shipping_options array
+              (not visibleShippingOptions) so each row's index still lines
+              up with shippingOption/the place-order request, but skips
+              rendering (and selecting) any option isShippingOptionVisible
+              says shouldn't show for this cart -- see that function's own
+              comment for the import-tagged-cart behavior this is. */}
+          {fulfillment === "delivery" && visibleShippingOptions.length > 0 && (
             <div style={{ marginBottom: 32 }}>
               <h2 style={{ fontFamily: T.headFont, fontSize: 24, fontWeight: 400, marginBottom: 16 }}>Shipping Method</h2>
               <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden" }}>
-                {cc.shipping_options.map((opt: { name: string; price: number }, i: number) => (
-                  <div key={i} onClick={() => setShippingOption(i)} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: shippingOption === i ? T.selectBg : T.card, borderBottom: i < cc.shipping_options.length - 1 ? "1px solid " + T.summaryBorder : "none" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: "50%", border: shippingOption === i ? "6px solid #22c55e" : "2px solid " + T.muted }} />
-                      <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{opt.name}</span>
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>{opt.price === 0 ? "Free" : "R" + opt.price}</span>
-                  </div>
-                ))}
+                {(() => {
+                  const lastVisibleIdx = shippingOptionsConfigured.reduce((last, o, oi) => isShippingOptionVisible(o) ? oi : last, -1);
+                  return shippingOptionsConfigured.map((opt, i) => {
+                    if (!isShippingOptionVisible(opt)) return null;
+                    return (
+                      <div key={i} onClick={() => setShippingOption(i)} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: shippingOption === i ? T.selectBg : T.card, borderBottom: i === lastVisibleIdx ? "none" : "1px solid " + T.summaryBorder }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: "50%", border: shippingOption === i ? "6px solid #22c55e" : "2px solid " + T.muted }} />
+                        <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{opt.name}{opt.estimate ? " · " + opt.estimate : ""}</span>
+                      </div>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>{opt.price === 0 ? "Free" : "R" + opt.price}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
