@@ -278,9 +278,9 @@ async function main() {
   let redirectHandles: string[];
   if (args.resumeImages) {
     console.log("\n--resume-images: skipping product insert, matching existing products by source_url instead...");
-    let existing: { id: string; source_url: string | null; images: string[] | null }[];
+    let existing: { id: string; source_url: string | null; images: string[] | null; handle: string | null }[];
     try {
-      existing = await fetchAllRows(admin, "products", "id, source_url, images", (q) => q.eq("seller_id", sellerId));
+      existing = await fetchAllRows(admin, "products", "id, source_url, images, handle", (q) => q.eq("seller_id", sellerId));
     } catch (e) {
       console.error("Failed to fetch existing products:", e instanceof Error ? e.message : String(e));
       process.exit(1);
@@ -491,12 +491,26 @@ async function main() {
     console.log(`Wrote ${failedTasks.length} still-failed image URL(s) to ${reportPath} for reference. Re-running with --resume-images will retry any product that ended up with fewer images than its CSV row listed, not just ones with zero.`);
   }
 
-  const redirectRows = redirectTargets.map((product, i) => ({
-    seller_id: sellerId,
-    old_path: `/products/${redirectHandles[i]}`,
-    destination_path: `/p/${product.id}`,
-    product_id: product.id,
-  }));
+  // Skip a product whose CSV-derived handle already IS its current,
+  // assigned handle (only possible in the --resume-images path -- a fresh
+  // insert never has a handle yet) -- writing that redirect would map
+  // /products/{handle} to /p/{uuid}, and /p/[productId]/page.tsx redirects
+  // right back to /products/{handle} once a product has a handle, so the
+  // pair loops forever. Confirmed as a real regression: a --resume-images
+  // run recreated exactly these rows for products backfill-4regn-handles.ts
+  // had already deleted them for, and every affected product's page went
+  // into a redirect loop (reported as a "screen goes black" symptom) until
+  // that script was re-run to delete them again. See its own comment on
+  // this same hazard for the reasoning this mirrors.
+  const redirectRows = redirectTargets
+    .map((product, i) => ({ product, handle: redirectHandles[i] }))
+    .filter(({ product, handle }) => product.handle !== handle)
+    .map(({ product, handle }) => ({
+      seller_id: sellerId,
+      old_path: `/products/${handle}`,
+      destination_path: `/p/${product.id}`,
+      product_id: product.id,
+    }));
   let redirectsWritten = 0;
   let redirectErrMsg: string | null = null;
   try {
