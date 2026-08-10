@@ -146,6 +146,14 @@ interface StoreConfig {
   // or "/"). Unset/empty falls back to every "WINTER ESSENTIALS"-tagged
   // product in catalog order (see the isHomeView render call).
   winter_essentials_slides?: string[];
+  // Winter Sale Marquee (see WinterSaleMarquee) -- same shape/resolution
+  // rule as winter_essentials_slides above (product id OR direct URL),
+  // just two independent lists, one per row. Unset/empty falls back to
+  // this seller's own products whose category contains "hoodie"/"tee"
+  // respectively (case-insensitive) -- see the isHomeView render call for
+  // why an exact collection-name match isn't used here.
+  winter_marquee_hoodie_slides?: string[];
+  winter_marquee_tee_slides?: string[];
 }
 
 // Auto-highlights a BOGO-style offer line the way the reference design
@@ -1808,6 +1816,47 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cef-btn:hover{transform:translateY(-3px)}
 .fr-cef-note{margin-top:10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#8c8880;font-weight:600}
 
+/* Winter Sale Marquee — ported from sections/4regn-winter-sale-landing.liquid
+   ("4REGN Winter Marquee"). Colors/spacing below are the real values from
+   this store's own templates/index.json settings (text #0a0a0a, muted
+   #8c8880, no bg_image configured so it's always the #e8e8e8 fallback,
+   deal-pill color #e8503a on both rows, 700px min-height, 30s scroll) --
+   same "fixed to this install's real settings, no editor panel yet"
+   approach as WinterCoverflow's own CSS comment above. Fixed class names
+   (not the Liquid version's {{ section.id }}-suffixed ones) for the same
+   reason the SETLA widget below uses fixed names -- only one of these is
+   ever mounted at a time. */
+.fr-fwm{background:#e8e8e8;color:#0a0a0a;overflow:hidden;font-family:'Montserrat',var(--body);min-height:700px;display:flex;flex-direction:column;padding:16px 0 20px}
+.fr-fwm-logo{font-family:var(--serif);font-size:18px;letter-spacing:5px;text-align:center;padding:4px 0;flex-shrink:0}
+.fr-fwm-hero{text-align:center;padding:6px 20px 2px;flex-shrink:0}
+.fr-fwm-eyebrow{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:#8c8880;font-weight:700;margin-bottom:4px}
+.fr-fwm-title{font-family:var(--serif);font-size:clamp(28px,6vw,60px);line-height:0.92;letter-spacing:1px;margin:0}
+.fr-fwm-thin{color:#8c8880}
+.fr-fwm-sub{font-size:clamp(10px,1.3vw,13px);font-weight:300;color:#8c8880;max-width:460px;margin:8px auto 0;line-height:1.5}
+.fr-fwm-rows{flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:12px 0;min-height:0;overflow:hidden}
+.fr-fwm-rowhead{text-align:center;margin-bottom:9px}
+.fr-fwm-rowtitle{font-family:var(--serif);font-size:clamp(18px,3vw,26px);letter-spacing:2px;line-height:1}
+.fr-fwm-deal{display:inline-block;margin-top:5px;color:#fff;font-family:var(--serif);font-size:clamp(13px,2vw,18px);letter-spacing:1.5px;padding:4px 16px;border-radius:40px;background:#e8503a;box-shadow:0 8px 22px -8px rgba(232,80,58,0.5)}
+.fr-fwm-deal small{font-family:var(--body);font-weight:600;font-size:9px;letter-spacing:1px;opacity:0.85;margin-left:7px}
+.fr-fwm-track{overflow:hidden}
+.fr-fwm-marquee{display:flex;gap:14px;width:max-content;animation:fr-fwm-scroll 30s linear infinite}
+.fr-fwm-marquee.reverse{animation:fr-fwm-scroll 30s linear infinite reverse}
+@keyframes fr-fwm-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.fr-fwm-marquee:hover{animation-play-state:paused}
+.fr-fwm-card{width:150px;flex-shrink:0;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 12px 30px -14px rgba(0,0,0,0.3);transition:transform 0.3s ease;display:block}
+.fr-fwm-card:hover{transform:translateY(-4px)}
+.fr-fwm-card img{width:100%;display:block;aspect-ratio:3/4;object-fit:cover;object-position:center top}
+.fr-fwm-cta{text-align:center;padding:10px 20px 4px;flex-shrink:0}
+.fr-fwm-buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.fr-fwm-btn{display:inline-block;background:#0a0a0a;color:#fff;padding:14px 30px;font-family:var(--serif);font-size:18px;letter-spacing:2px;text-decoration:none;border-radius:8px;transition:all 0.3s ease;box-shadow:0 10px 26px -8px rgba(0,0,0,0.4);border:2px solid #0a0a0a}
+.fr-fwm-btn:hover{transform:translateY(-3px)}
+.fr-fwm-btn small{display:block;font-family:var(--body);font-weight:600;font-size:8px;letter-spacing:1px;opacity:0.8;margin-top:2px}
+.fr-fwm-btn-outline{background:transparent;color:#0a0a0a;box-shadow:none}
+.fr-fwm-btn-outline:hover{background:#0a0a0a;color:#fff}
+.fr-fwm-note{margin-top:10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#8c8880;font-weight:600}
+@media(min-width:700px){.fr-fwm-card{width:175px}.fr-fwm-marquee{gap:18px}}
+@media(prefers-reduced-motion:reduce){.fr-fwm-marquee{animation:none}}
+
 /* SETLA product-page widget — ported 1:1 from setla-product-widget.liquid
    (same gradient, pill layout, and cents-based split math with the
    remainder folded into the last instalment, matching setla.4regn.com's
@@ -2806,6 +2855,57 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <TickerStrip />
           </EditSection>
         )}
+
+        {/* WINTER SALE MARQUEE — only on landing page, right after the
+            ticker strip and before Winter Essentials, matching
+            templates/index.json's real section order. Each row's images
+            (and its CTA link) are resolved together off the same matched
+            category, so the button always points at a collection that
+            actually contains the photos just shown -- unlike Winter
+            Essentials below, there's no single known tag name to rely on
+            here (the live site's own hoodie/tee collections are Shopify
+            *smart* collections, rule-matched, not a plain tag this store's
+            product rows are guaranteed to carry), so this falls back to a
+            substring match on category ("hoodie"/"tee") instead of an
+            exact name. Hides a row entirely if nothing matches it, same
+            "hide empty collections" precedent as everywhere else in this
+            file; hides the whole section only if BOTH rows are empty. */}
+        {isHomeView && (() => {
+          const resolveRow = (configuredSlides: string[] | undefined, matchSubstring: string) => {
+            if (configuredSlides && configuredSlides.length > 0) {
+              const images = configuredSlides
+                .map((entry) => (entry.startsWith("http") || entry.startsWith("/")) ? entry : products.find((p) => p.id === entry)?.image_url)
+                .filter((url): url is string => !!url)
+                .slice(0, 12);
+              return { images, href: sp("/collections/all") };
+            }
+            const matched = products.filter((p) => p.image_url && (p.category || "").toLowerCase().includes(matchSubstring));
+            if (matched.length === 0) return { images: [] as string[], href: sp("/collections/all") };
+            // Link the row's CTA/cards at whichever real category value
+            // (of possibly several comma-separated ones per product) most
+            // of the matched products actually share, so the destination
+            // collection page is guaranteed non-empty.
+            const counts = new Map<string, number>();
+            for (const p of matched) {
+              for (const c of (p.category || "").split(",").map((s) => s.trim())) {
+                if (c.toLowerCase().includes(matchSubstring)) counts.set(c, (counts.get(c) || 0) + 1);
+              }
+            }
+            const topCategory = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+            return {
+              images: matched.map((p) => p.image_url!).slice(0, 12),
+              href: topCategory ? sp(`/collections/${collectionSlug(topCategory)}`) : sp("/collections/all"),
+            };
+          };
+          const hoodie = resolveRow(config.winter_marquee_hoodie_slides, "hoodie");
+          const tee = resolveRow(config.winter_marquee_tee_slides, "tee");
+          if (hoodie.images.length === 0 && tee.images.length === 0) return null;
+          return (
+            <EditSection id="winter-sale-marquee">
+              <WinterSaleMarquee hoodieImages={hoodie.images} teeImages={tee.images} hoodieHref={hoodie.href} teeHref={tee.href} />
+            </EditSection>
+          );
+        })()}
 
         {/* WINTER ESSENTIALS COVERFLOW — only on landing page, right after
             the ticker strip. Images come from whatever products are
@@ -4011,6 +4111,77 @@ function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href
       <div className="fr-cef-cta">
         <a href={href} className="fr-cef-btn">SHOP WINTER ESSENTIALS</a>
         <div className="fr-cef-note">Up to 70% Off · Anniversary Sale · Ships Nationwide</div>
+      </div>
+    </div>
+  );
+}
+
+// Ported from the live Shopify theme's sections/4regn-winter-sale-landing.liquid
+// ("4REGN Winter Marquee") -- two independent rows of product photos
+// scrolling opposite directions (hoodies left, tees right), a deal pill
+// per row, and two CTA buttons. Pure CSS animation (translateX -50% loop
+// on a doubled list), unlike WinterCoverflow above -- the original section
+// used a plain CSS keyframe marquee, not the scale/perspective JS effect
+// WinterCoverflow has, so this stays that much simpler to match it.
+// Copy/colors/links below are the REAL values from this store's own
+// templates/index.json (not the section file's generic schema defaults --
+// e.g. the schema's own default title is "STAY WARM. STAY" / "A LEGEND.",
+// but the live site actually runs "STAY WARM." / "THIS WINTER").
+function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { hoodieImages: string[]; teeImages: string[]; hoodieHref: string; teeHref: string }) {
+  const hoodieSlides = hoodieImages.length > 0 ? [...hoodieImages, ...hoodieImages] : [];
+  const teeSlides = teeImages.length > 0 ? [...teeImages, ...teeImages] : [];
+  if (hoodieSlides.length === 0 && teeSlides.length === 0) return null;
+
+  return (
+    <div className="fr-fwm">
+      <div className="fr-fwm-logo">4REGN</div>
+      <div className="fr-fwm-hero">
+        <div className="fr-fwm-eyebrow">Winter Drop</div>
+        <h2 className="fr-fwm-title">STAY WARM. <span className="fr-fwm-thin">THIS WINTER</span></h2>
+        <p className="fr-fwm-sub">Heavyweight hoodies and oversized premium tees repping the artists you love. Mix, match and save this winter.</p>
+      </div>
+      <div className="fr-fwm-rows">
+        {hoodieSlides.length > 0 && (
+          <div>
+            <div className="fr-fwm-rowhead">
+              <div className="fr-fwm-rowtitle">HOODIES</div>
+              <span className="fr-fwm-deal">BUY 2 FOR R699<small>MIX ANY 2</small></span>
+            </div>
+            <div className="fr-fwm-track">
+              <div className="fr-fwm-marquee">
+                {hoodieSlides.map((src, i) => (
+                  <a key={i} className="fr-fwm-card" href={hoodieHref}>
+                    <Image src={src} alt={`Hoodie ${(i % hoodieImages.length) + 1}`} width={175} height={233} sizes="(max-width: 699px) 150px, 175px" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {teeSlides.length > 0 && (
+          <div>
+            <div className="fr-fwm-rowhead">
+              <div className="fr-fwm-rowtitle">OVERSIZED PREMIUM TEES</div>
+              <span className="fr-fwm-deal">BUY 2 GET 1 FREE<small>3 TEES FOR R700</small></span>
+            </div>
+            <div className="fr-fwm-track">
+              <div className="fr-fwm-marquee reverse">
+                {teeSlides.map((src, i) => (
+                  <a key={i} className="fr-fwm-card" href={teeHref}>
+                    <Image src={src} alt={`Oversized tee ${(i % teeImages.length) + 1}`} width={175} height={233} sizes="(max-width: 699px) 150px, 175px" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="fr-fwm-cta">
+        <div className="fr-fwm-buttons">
+          <a href={hoodieHref} className="fr-fwm-btn">SHOP HOODIES<small>2 FOR R699</small></a>
+          <a href={teeHref} className="fr-fwm-btn fr-fwm-btn-outline">SHOP TEES<small>BUY 2 GET 1 FREE</small></a>
+        </div>
+        <div className="fr-fwm-note">Winter Only · Ships Nationwide</div>
       </div>
     </div>
   );
