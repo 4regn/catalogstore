@@ -129,11 +129,15 @@ export async function POST(req: NextRequest) {
         allImageSrcs.push(imageSrcs);
       }
     } else {
-      const nameIdx = header.findIndex((h) => h === "name" || h === "product" || h === "product name");
-      const priceIdx = header.findIndex((h) => h === "price" || h === "amount");
-      const catIdx = header.findIndex((h) => h === "category" || h === "collection" || h === "type");
-      const descIdx = header.findIndex((h) => h === "description" || h === "desc");
-      const oldPriceIdx = header.findIndex((h) => h === "old price" || h === "old_price" || h === "original price" || h === "was");
+      const nameIdx = header.findIndex((h) => ["name", "product", "product name", "title"].includes(h));
+      const priceIdx = header.findIndex((h) => ["price", "amount", "selling price"].includes(h));
+      const catIdx = header.findIndex((h) => ["category", "collection", "type", "group", "product_type", "product type"].includes(h));
+      const descIdx = header.findIndex((h) => ["description", "desc", "details", "about"].includes(h));
+      const oldPriceIdx = header.findIndex((h) => ["old price", "old_price", "original price", "was", "compare price", "compare_price", "compare at price"].includes(h));
+      const imgIdx = header.findIndex((h) => ["image_url", "image url", "image", "photo", "picture", "main image", "image_link", "image link"].includes(h));
+      const img2Idx = header.findIndex((h) => ["image_url_2", "image url 2", "image 2", "photo 2", "additional_image_link"].includes(h));
+      const img3Idx = header.findIndex((h) => ["image_url_3", "image url 3", "image 3", "photo 3"].includes(h));
+      const stockIdx = header.findIndex((h) => ["in_stock", "in stock", "stock", "available", "availability"].includes(h));
       if (nameIdx < 0 || priceIdx < 0) {
         return NextResponse.json({ error: "CSV must have 'name' and 'price' columns. Found: " + header.join(", ") }, { status: 400 });
       }
@@ -142,6 +146,12 @@ export async function POST(req: NextRequest) {
         const cols = parseCsvLine(lines[i]);
         const name = cols[nameIdx]; const price = parseFloat(cols[priceIdx]);
         if (!name || !Number.isFinite(price) || price < 0) { errors++; continue; }
+        const stockVal = stockIdx >= 0 ? (cols[stockIdx] || "").toLowerCase().trim() : "";
+        const inStock = stockIdx < 0 || !["no", "false", "0", "out of stock", "out_of_stock"].includes(stockVal);
+        const imageSrcs: string[] = [];
+        if (imgIdx >= 0 && cols[imgIdx]) imageSrcs.push(cols[imgIdx].trim());
+        if (img2Idx >= 0 && cols[img2Idx]) imageSrcs.push(cols[img2Idx].trim());
+        if (img3Idx >= 0 && cols[img3Idx]) imageSrcs.push(cols[img3Idx].trim());
         rows.push({
           seller_id: sellerId,
           name: name.slice(0, 200),
@@ -149,12 +159,12 @@ export async function POST(req: NextRequest) {
           old_price: oldPriceIdx >= 0 && cols[oldPriceIdx] ? (Number.isFinite(parseFloat(cols[oldPriceIdx])) ? parseFloat(cols[oldPriceIdx]) : null) : null,
           category: catIdx >= 0 ? (cols[catIdx] || null) : null,
           description: descIdx >= 0 ? (cols[descIdx] || "").slice(0, 2000) : "",
-          in_stock: true,
+          in_stock: inStock,
           status: "published",
           variants: [],
           sort_order: existingCount + rows.length,
         });
-        allImageSrcs.push([]);
+        allImageSrcs.push(imageSrcs);
       }
     }
 
@@ -186,7 +196,8 @@ export async function POST(req: NextRequest) {
     let imagesUploaded = 0;
     let imagesFailed = 0;
 
-    if (inserted && isShopify) {
+    const hasImageUrls = allImageSrcs.some((srcs) => srcs.length > 0);
+    if (inserted && hasImageUrls) {
       const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
 
       const allTasks: { productIdx: number; imgIdx: number; url: string }[] = [];

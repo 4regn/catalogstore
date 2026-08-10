@@ -1,0 +1,6 @@
+name,price,category,description,old_price,image_url,in_stock
+Black Hoodie,450,Hoodies,Premium cotton hoodie with ribbed cuffs,599,https://example.com/images/hoodie-black.jpg,yes
+White T-Shirt,199,T-Shirts,Classic fit crew neck tee,,https://example.com/images/tshirt-white.jpg,yes
+Denim Jacket,799,Jackets,Vintage wash denim jacket,999,https://example.com/images/denim-jacket.jpg,yes
+Gold Earrings,350,Accessories,18k gold-plated stud earrings,,,yes
+Running Sneakers,1299,Sneakers,Lightweight mesh running shoes,1599,https://example.com/images/sneakers.jpg,yes
