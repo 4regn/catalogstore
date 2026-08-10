@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         handleMap.get(handle)!.push(cols);
       }
 
-      for (const [, variantRows] of handleMap) {
+      for (const [handle, variantRows] of handleMap) {
         const first = variantRows[0];
         const title = col(first, "title");
         if (!title) { errors++; continue; }
@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
           status,
           variants: hasVariants ? variants : [],
           sort_order: existingCount + rows.length,
+          legacy_handle: handle,
         });
         allImageSrcs.push(imageSrcs);
       }
