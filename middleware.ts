@@ -31,6 +31,74 @@ async function resolveCustomDomain(hostname: string): Promise<string | null> {
   }
 }
 
+// Recognizes old Shopify-style paths (/products/{handle}, /collections/{handle})
+// so a seller who migrated off Shopify (e.g. their domain used to be served by
+// Shopify and now points at CatalogStore) doesn't send existing search results,
+// bookmarks, or shared links to a 404.
+const LEGACY_PRODUCT_PATH = /^\/products\/([a-z0-9-]+)\/?$/i;
+const LEGACY_COLLECTION_PATH = /^\/collections\/([a-z0-9-]+)\/?$/i;
+
+// Looks up a seller's product by the Shopify "Handle" captured at CSV import
+// time (see legacy_handle in app/api/csv-import/route.ts). Two round trips
+// instead of a PostgREST embedded join, to match resolveCustomDomain's style
+// and avoid depending on relationship auto-detection. Cached for 5 minutes.
+async function resolveLegacyProductId(slug: string, handle: string): Promise<string | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  const headers = { apikey: key, Authorization: `Bearer ${key}` };
+  try {
+    const sellerRes = await fetch(
+      `${url}/rest/v1/sellers?select=id&subdomain=eq.${encodeURIComponent(slug)}&limit=1`,
+      { headers, next: { revalidate: 300 } }
+    );
+    if (!sellerRes.ok) return null;
+    const sellerRows = await sellerRes.json();
+    const sellerId = sellerRows?.[0]?.id;
+    if (!sellerId) return null;
+
+    const productRes = await fetch(
+      `${url}/rest/v1/products?select=id&seller_id=eq.${sellerId}&legacy_handle=eq.${encodeURIComponent(handle)}&limit=1`,
+      { headers, next: { revalidate: 300 } }
+    );
+    if (!productRes.ok) return null;
+    const productRows = await productRes.json();
+    return productRows?.[0]?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+// Redirects a legacy Shopify path to its CatalogStore equivalent on the same
+// host, or returns null if the path isn't a legacy pattern (or has no match,
+// for products -- an unmapped handle falls through to a normal 404 rather
+// than a broken redirect).
+async function legacyShopifyRedirect(req: NextRequest, slug: string): Promise<NextResponse | null> {
+  const { pathname } = req.nextUrl;
+
+  const collectionMatch = pathname.match(LEGACY_COLLECTION_PATH);
+  if (collectionMatch) {
+    // /c/{collection} already resolves a URL slug against the seller's
+    // category names, and Shopify collection handles are themselves slugs --
+    // so no lookup is needed, just point at the equivalent clean path.
+    const dest = req.nextUrl.clone();
+    dest.pathname = `/c/${collectionMatch[1]}`;
+    return NextResponse.redirect(dest, 308);
+  }
+
+  const productMatch = pathname.match(LEGACY_PRODUCT_PATH);
+  if (productMatch) {
+    const productId = await resolveLegacyProductId(slug, productMatch[1]);
+    if (productId) {
+      const dest = req.nextUrl.clone();
+      dest.pathname = `/p/${productId}`;
+      return NextResponse.redirect(dest, 308);
+    }
+  }
+
+  return null;
+}
+
 export async function middleware(req: NextRequest) {
   const hostname = (req.headers.get("host") || "").split(":")[0].toLowerCase();
   const { pathname, search } = req.nextUrl;
@@ -61,6 +129,8 @@ export async function middleware(req: NextRequest) {
   if (isSubdomainHost(hostname) && !pathname.startsWith("/api/") && !isStaticFile) {
     const sub = hostname.slice(0, -(`.${STORE_ROOT_DOMAIN}`.length));
     if (SLUG_PATTERN.test(sub)) {
+      const legacyRedirect = await legacyShopifyRedirect(req, sub);
+      if (legacyRedirect) return legacyRedirect;
       const url = req.nextUrl.clone();
       url.pathname = `/store/${sub}${pathname === "/" ? "" : pathname}`;
       return NextResponse.rewrite(url);
@@ -75,6 +145,8 @@ export async function middleware(req: NextRequest) {
   if (!pathname.startsWith("/api/") && !isStaticFile) {
     const slug = await resolveCustomDomain(hostname);
     if (slug) {
+      const legacyRedirect = await legacyShopifyRedirect(req, slug);
+      if (legacyRedirect) return legacyRedirect;
       const url = req.nextUrl.clone();
       url.pathname = `/store/${slug}${pathname === "/" ? "" : pathname}`;
       return NextResponse.rewrite(url);
