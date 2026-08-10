@@ -16,6 +16,14 @@ import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 // markup to produce anyway.
 const LightboxGallery = dynamic(() => import("./FourRegnLightbox"), { ssr: false });
 
+// Same reasoning as LightboxGallery above -- the popup only ever matters
+// once its own async data fetch resolves (2s+ after mount even in the best
+// case, see FourRegnSalesPopup.tsx's START_DELAY_MS), so there's no SSR
+// markup worth producing and no reason to ship its ~600 names/towns in the
+// initial bundle for every visitor, including ones on modes where it never
+// renders at all (see the isHomeView/isCollectionView gate below).
+const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: false });
+
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
 
@@ -2303,6 +2311,34 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-search-bar{padding:16px 18px}
   .fr-search-input{font-size:17px}
 }
+
+/* "Recent purchase" popup -- ported verbatim from the live Shopify theme's
+   snippets/regn-sales-popup.liquid (see FourRegnSalesPopup.tsx for the
+   component + its own comment on what this widget actually does). Class
+   names/z-index kept identical to the original so this is a faithful port,
+   not a re-skin. */
+#regn-popup-wrapper{position:fixed;top:80px;left:16px;z-index:99999;width:308px;opacity:0;transform:translateY(-12px) scale(0.97);transition:opacity 0.4s cubic-bezier(0.22,1,0.36,1),transform 0.4s cubic-bezier(0.22,1,0.36,1);pointer-events:none}
+#regn-popup-wrapper.visible{opacity:1;transform:translateY(0) scale(1);pointer-events:all}
+#regn-popup-link{display:block;text-decoration:none;border-radius:16px;position:relative}
+#regn-popup-close{position:absolute;top:9px;right:9px;width:20px;height:20px;background:rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.12);border-radius:50%;cursor:pointer;color:rgba(0,0,0,0.45);font-size:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s,color 0.15s;z-index:100000;line-height:1;padding:0}
+#regn-popup-close:hover{background:rgba(0,0,0,0.15);color:#000}
+#regn-popup-card{width:100%;background:rgba(255,255,255,0.75);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border:1px solid rgba(255,255,255,0.9);border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10),0 1px 0 rgba(255,255,255,1) inset;cursor:pointer;transition:background 0.2s}
+#regn-popup-card:hover{background:rgba(255,255,255,0.88)}
+.regn-popup-inner{display:flex;align-items:center;gap:12px;padding:13px 38px 13px 13px}
+.regn-popup-img-wrap{width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;background:rgba(0,0,0,0.06);border:2px solid rgba(0,0,0,0.08);box-shadow:0 2px 8px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center}
+.regn-popup-img-wrap.loading::after{content:'';width:20px;height:20px;border:2px solid rgba(0,0,0,0.1);border-top-color:rgba(0,0,0,0.4);border-radius:50%;animation:regn-spin 0.7s linear infinite}
+@keyframes regn-spin{to{transform:rotate(360deg)}}
+.regn-popup-img{width:100%;height:100%;object-fit:cover;display:block}
+.regn-popup-text{flex:1;min-width:0}
+.regn-popup-who{font-size:12.5px;color:rgba(0,0,0,0.6);line-height:1.4}
+.regn-popup-who strong{font-weight:700;color:#111111}
+.regn-popup-product{font-size:13px;color:#111111;font-weight:700;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em}
+.regn-popup-time{font-size:10.5px;color:rgba(0,0,0,0.4);margin-top:3px}
+.regn-popup-progress{height:2px;background:rgba(0,0,0,0.06)}
+.regn-popup-bar{height:100%;background:rgba(0,0,0,0.15);transform-origin:left}
+.regn-popup-bar.running{animation:regn-drain var(--dur, 10s) linear forwards}
+@keyframes regn-drain{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@media(max-width:480px){#regn-popup-wrapper{left:10px;right:10px;width:auto;top:72px}}
       `}</style>
 
       {isNavigating && <div className="fr-progress" aria-hidden="true" />}
@@ -2533,6 +2569,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             onClose={() => setLightbox(null)}
             onIndex={(i) => setLightbox((s) => s ? { ...s, index: i } : s)}
           />
+        )}
+
+        {/* "RECENT PURCHASE" POPUP -- same page scope as the live Shopify
+            theme's own {% if template == 'index' or template.name ==
+            'collection' %} guard around this snippet (theme.liquid). Not
+            shown in edit mode -- a seller previewing their store in the
+            dashboard iframe shouldn't see fabricated purchase notifications
+            firing every 10s while they're trying to edit. */}
+        {(isHomeView || isCollectionView) && !isEditMode && (
+          <FourRegnSalesPopup slug={slug} isSubdomain={!!isSubdomain} />
         )}
 
         {/* NAV */}
