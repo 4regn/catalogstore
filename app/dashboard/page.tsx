@@ -2654,7 +2654,7 @@ export default function Dashboard() {
 
           {tab === "abandoned" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Abandoned Checkouts</h1>
-            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Customers who started checkout (card, Yoco or SETLA) but didn't complete payment.</p>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Customers who started checkout (card, Yoco, Stitch or SETLA) but didn't complete payment.</p>
             {abandonedOrders.length === 0 ? (
               <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No abandoned checkouts</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>When customers leave without paying, they'll show up here.</p></div>
             ) : (
@@ -3317,9 +3317,9 @@ export default function Dashboard() {
                 // Merge onto whatever's actually in the DB right now, not a
                 // blind overwrite with just this form's own fields -- this
                 // form's own CheckoutConfig type deliberately doesn't include
-                // yoco_enabled/setla_enabled (non-self-serve, only ever set
-                // directly via SQL, see those fields' own comments in
-                // CheckoutPageClient.tsx), so a plain overwrite here was
+                // yoco_enabled/setla_enabled/stitch_enabled (non-self-serve,
+                // only ever set directly via SQL, see those fields' own
+                // comments in CheckoutPageClient.tsx), so a plain overwrite here was
                 // silently wiping them back out on every save from this page
                 // -- confirmed as a real regression (Yoco stopped working
                 // for a seller after they saved a shipping-option change

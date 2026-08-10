@@ -33,6 +33,11 @@ export async function GET(req: NextRequest) {
     // self-enable via a generic toggle. See /api/checkout/setla-create's
     // own comment.
     setla_enabled: !!cc.setla_enabled,
+    // Same non-self-serve reasoning as yoco_enabled -- STITCH_CLIENT_ID/
+    // STITCH_CLIENT_SECRET (lib/stitch.ts) are one platform-wide
+    // credential pair, not per-seller. See
+    // /api/checkout/stitch-redirect's own comment.
+    stitch_enabled: !!cc.stitch_enabled,
     delivery_enabled: cc.delivery_enabled !== false,
     pickup_enabled: !!cc.pickup_enabled,
     pickup_address: cc.pickup_address || "",

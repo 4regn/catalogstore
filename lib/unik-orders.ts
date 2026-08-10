@@ -26,13 +26,18 @@ export async function markUnikOrderPaid(
   admin: SupabaseClient,
   order: { id: string; seller_id: string; total: number; items: any; customer_name: string; customer_email: string; payment_status: string },
   paymentId: string,
-  eventId: string | null
+  eventId: string | null,
+  provider: "yoco" | "stitch" = "yoco"
 ): Promise<"paid" | "already_paid" | "amount_mismatch" | "update_failed"> {
   if (order.payment_status === "paid") return "already_paid";
 
+  const providerColumns = provider === "stitch"
+    ? { stitch_payment_id: paymentId, ...(eventId ? { stitch_event_id: eventId } : {}) }
+    : { yoco_payment_id: paymentId, ...(eventId ? { yoco_event_id: eventId } : {}) };
+
   const { data: updated, error } = await admin
     .from("orders")
-    .update({ payment_status: "paid", status: "confirmed", yoco_payment_id: paymentId, ...(eventId ? { yoco_event_id: eventId } : {}) })
+    .update({ payment_status: "paid", status: "confirmed", ...providerColumns })
     .eq("id", order.id)
     .in("payment_status", ["pending", "abandoned", "failed"])
     .select("id")
@@ -108,9 +113,9 @@ export async function markUnikOrderFailed(
    indistinguishable from "still checking out right now" to the customer
    and seller. Anything past ORDER_ABANDON_MS with no resolution gets
    relabelled "abandoned". Scoped to this seller and to gateways with no
-   separate real-time notification lifecycle of their own -- Yoco (direct
-   card) and both SETLA plan types (their first charge is a Yoco checkout
-   too, same webhook, see lib/setla-instalments.ts) -- so it never touches
+   separate real-time notification lifecycle of their own -- Yoco/Stitch
+   (direct card) and both SETLA plan types (their first charge is a Yoco
+   checkout too, same webhook, see lib/setla-instalments.ts) -- so it never touches
    EFT (never reaches "pending" in the first place, see place-order's own
    "awaiting_payment" status for that method) or PayFast, which has its own
    ITN-driven lifecycle. Despite the name, this was never actually UNIK-
@@ -167,7 +172,7 @@ export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: stri
     .from("orders")
     .update({ payment_status: "abandoned", status: "abandoned" })
     .eq("seller_id", sellerId)
-    .in("payment_method", ["yoco", "setla", "setla_pay_later", "setla_laybuy"])
+    .in("payment_method", ["yoco", "stitch", "setla", "setla_pay_later", "setla_laybuy"])
     .eq("payment_status", "pending")
     .lt("created_at", cutoff);
   if (error) console.error("sweepAbandonedOrders: update failed", error);

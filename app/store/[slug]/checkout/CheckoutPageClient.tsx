@@ -30,6 +30,11 @@ interface Seller {
     // seller directly), not a per-seller account. See
     // /api/checkout/setla-create's own comment.
     setla_enabled?: boolean;
+    // Same non-self-serve reasoning as yoco_enabled -- STITCH_CLIENT_ID/
+    // STITCH_CLIENT_SECRET (lib/stitch.ts) are one platform-wide credential
+    // pair, not per-seller. See /api/checkout/stitch-redirect's own
+    // comment.
+    stitch_enabled?: boolean;
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
@@ -112,7 +117,7 @@ export default function CheckoutPageClient() {
 
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [shippingOption, setShippingOption] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco" | "setla">("eft");
+  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco" | "stitch" | "setla">("eft");
   const [billingSame, setBillingSame] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -224,6 +229,7 @@ export default function CheckoutPageClient() {
     } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
     if (sd?.checkout_config?.yoco_enabled) setPaymentMethod("yoco");
+    else if (sd?.checkout_config?.stitch_enabled) setPaymentMethod("stitch");
     else if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
     else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");
     setLoading(false);
@@ -459,16 +465,16 @@ export default function CheckoutPageClient() {
       setOrderNumber(json.orderNumber);
       setOrderPlaced(true);
 
-      // Notify seller (non-blocking) -- but not for PayFast/Yoco/SETLA
-      // orders yet: this row is still payment_status "pending" and the
-      // customer hasn't even reached the payment gateway's page (or, for
-      // SETLA, hasn't chosen a plan yet). Those only get notified once
+      // Notify seller (non-blocking) -- but not for PayFast/Yoco/Stitch/
+      // SETLA orders yet: this row is still payment_status "pending" and
+      // the customer hasn't even reached the payment gateway's page (or,
+      // for SETLA, hasn't chosen a plan yet). Those only get notified once
       // their respective webhook (app/api/payfast/notify,
-      // app/api/unik/checkout/webhook, which already handles SETLA
-      // instalment/laybuy events too) confirms payment actually went
-      // through, so the seller never gets a "New Order!" email for a
-      // payment that failed or was abandoned.
-      if (paymentMethod !== "payfast" && paymentMethod !== "yoco" && paymentMethod !== "setla") {
+      // app/api/unik/checkout/webhook, app/api/checkout/stitch-webhook,
+      // which already handles SETLA instalment/laybuy events too)
+      // confirms payment actually went through, so the seller never gets
+      // a "New Order!" email for a payment that failed or was abandoned.
+      if (paymentMethod !== "payfast" && paymentMethod !== "yoco" && paymentMethod !== "stitch" && paymentMethod !== "setla") {
         fetch("/api/notify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -506,6 +512,30 @@ export default function CheckoutPageClient() {
         // PayFast, which needs an auto-submitting form) -- a plain
         // navigation is all that's needed.
         window.location.href = ycJson.redirectUrl;
+        return;
+      }
+
+      if (paymentMethod === "stitch" && cc.stitch_enabled) {
+        // Stitch only accepts one of up to 5 pre-registered exact redirect
+        // URLs (see lib/stitch.ts's registerStitchRedirectUrl), unlike
+        // Yoco's fully dynamic successUrl -- so the order/store context is
+        // stashed here and read back by the static bridge page
+        // (app/checkout/stitch-return) once Stitch sends the customer's
+        // browser back.
+        try {
+          sessionStorage.setItem("stitch_return_ctx", JSON.stringify({ orderId, slug, returnOrigin: window.location.origin }));
+        } catch {}
+        const stRes = await fetch("/api/checkout/stitch-redirect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, slug }),
+        });
+        const stJson = await stRes.json().catch(() => ({}));
+        if (!stRes.ok || !stJson.redirectUrl) {
+          setOrderError(stJson.error || "Could not start card payment. Your order was saved; please contact the seller.");
+          return;
+        }
+        window.location.href = stJson.redirectUrl;
         return;
       }
 
@@ -880,6 +910,27 @@ export default function CheckoutPageClient() {
                 {paymentMethod === "yoco" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Yoco to complete your payment.</div>}
               </div>
             )}
+            {cc.stitch_enabled && (
+              <div>
+                <div onClick={() => setPaymentMethod("stitch")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "stitch" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "stitch" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
+                    <span style={{ fontSize: 14, fontWeight: paymentMethod === "stitch" ? 600 : 400 }}>Card (Stitch)</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/visa.png" alt="Visa" style={{ height: 16, objectFit: "contain" }} /></span>
+                      <span style={{ padding: "2px 4px", background: T.payCardBg, border: "1px solid " + T.border, borderRadius: 4, display: "flex", alignItems: "center" }}><img src="/checkout/mastercard.png" alt="Mastercard" style={{ height: 16, objectFit: "contain" }} /></span>
+                    </div>
+                  </div>
+                </div>
+                {/* Card Consent inherently saves the card for later reuse --
+                    unlike Yoco's plain one-off charge, this needs its own,
+                    stronger disclosure line rather than reusing Yoco's
+                    "redirected to X" copy verbatim. */}
+                {paymentMethod === "stitch" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Stitch to complete your payment. Your card details are securely saved by Stitch for this order.</div>}
+              </div>
+            )}
             {cc.payfast_enabled && (
               <div>
                 <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "payfast" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
@@ -935,7 +986,7 @@ export default function CheckoutPageClient() {
                 moving off Shopify onto this same checkout system UNIK Labs
                 already runs on, and wants the two to look consistent) --
                 confirmed via that file directly rather than eyeballing it. */}
-            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA" : (paymentMethod === "payfast" || paymentMethod === "yoco") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
+            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA" : (paymentMethod === "payfast" || paymentMethod === "yoco" || paymentMethod === "stitch") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
           </div>
         </div>
 

@@ -197,3 +197,31 @@ export async function registerStitchWebhook(url: string): Promise<{ secret: stri
   }
   return { secret: data.data.secret };
 }
+
+/* One-time setup: registers a redirect URL Stitch will send the customer's
+   browser back to after a card-consent flow finishes (success OR
+   cancellation -- Stitch's docs don't distinguish the two via the URL
+   itself). Unlike Yoco's successUrl/cancelUrl/failureUrl (fully dynamic
+   per checkout), Stitch caps this at 5 PRE-REGISTERED exact URLs per
+   account -- there is no documented guarantee that arbitrary extra query
+   params (e.g. our own orderId) survive or are even accepted alongside a
+   registered URL, so this app registers ONE static bridge URL
+   (app/checkout/stitch-return/page.tsx) and carries the actual orderId/
+   slug across the redirect via sessionStorage instead (set by
+   CheckoutPageClient right before navigating to Stitch), the same way a
+   same-tab full-page redirect flow would in any OAuth-style handoff with
+   a fixed allow-listed callback. Called once via
+   app/api/admin/register-stitch-redirect-url/route.ts. */
+export async function registerStitchRedirectUrl(url: string): Promise<{ redirectUrls: string[] }> {
+  const token = await getStitchToken("client_paymentrequest");
+  const res = await fetch(`${STITCH_BASE_URL}/redirect-urls`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ redirectUrl: url }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.data?.redirectUrls) {
+    throw new Error(data?.generalErrors?.[0] || data?.message || `Could not register Stitch redirect URL (${res.status})`);
+  }
+  return { redirectUrls: data.data.redirectUrls };
+}
