@@ -1441,15 +1441,23 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className="fr-cat-img">
           {img ? (
             <>
-              {/* Same real-PageSpeed-trace fix as .fr-foot-logo/.fr-logo
-                  above -- this tile flagged as oversized too (828x1242
-                  source for a ~180x270 rendered tile). next/image instead
-                  of a plain <img>; width/height are just an aspect-ratio
-                  hint (kept 100%/auto via style so the tile's height still
-                  grows to match the image the same way the plain <img> did,
-                  not the fixed box `fill` would force), and `sizes` mirrors
-                  .fr-cat-grid's own 4-col desktop / 2-col mobile layout. */}
-              <Image src={img} alt={cat} width={600} height={800} sizes="(max-width: 900px) 45vw, 22vw" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
+              {/* REVERTED from next/image (see git history) -- catImage()
+                  can return config.collection_images' seller-pasted
+                  override URL, which is completely unconstrained (any
+                  host at all, including leftover Shopify CDN URLs from
+                  the original migration setup). next/image only proxies
+                  images from hosts explicitly whitelisted in
+                  next.config.ts (just *.supabase.co today); any collection
+                  cover image hosted elsewhere silently 400'd through
+                  /_next/image and fell back to the initials placeholder --
+                  a real, confirmed regression (reported directly: "a lot
+                  of the collections are missing their cover image now").
+                  Plain <img> has no such domain restriction, so it's the
+                  correct choice specifically for this uncontrolled-URL
+                  case -- unlike the footer/nav logo and payment icons
+                  nearby, which are all from a single verified, controlled
+                  source and keep next/image. */}
+              <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
             </>
           ) : <span className="fr-cat-mark">{cat}</span>}
