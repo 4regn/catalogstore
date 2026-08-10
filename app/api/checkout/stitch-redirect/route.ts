@@ -1,24 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { getAdmin } from "../../../../lib/supabase-admin";
-import { createStitchCardConsent } from "../../../../lib/stitch";
+import { createStitchPaymentLink } from "../../../../lib/stitch";
 
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
 
-/* Stitch Card Consent checkout-session creation for the GENERIC storefront
-   checkout (CheckoutPageClient.tsx) -- mirrors /api/checkout/yoco-redirect's
-   own shape exactly (place-order already created the pending `orders` row;
+/* Stitch Payment Link creation for the GENERIC storefront checkout
+   (CheckoutPageClient.tsx) -- mirrors /api/checkout/yoco-redirect's own
+   shape exactly (place-order already created the pending `orders` row;
    this just starts the gateway-specific payment leg). This is deliberately
    the SAME generic pattern as Yoco, not the SETLA-specific first-charge
-   flow in lib/setla-instalments.ts -- this is "Stitch as a 3rd payment
-   method for any order", the SETLA/instalment-automation use of Stitch's
-   card-consent-then-reuse behaviour is a later, separate step (see
-   app/api/checkout/stitch-webhook/route.ts's own comment).
+   flow in lib/setla-instalments.ts.
 
-   Card Consent inherently SAVES the customer's card for later reuse (that's
-   the whole point of the scope this account was granted) even though this
-   flow only ever charges it once today -- the UI must disclose that
-   plainly, not just "redirecting to Stitch to pay" the way Yoco's does. */
+   Uses Payment Links (a plain one-time charge, default scope), NOT Card
+   Consent -- Card Consent needs a separately-approved scope this account
+   doesn't have on its LIVE client yet (see lib/stitch.ts's own comment),
+   and isn't actually needed just to take a one-off payment. Card Consent
+   is reserved for SETLA's recurring-instalment automation, a later,
+   separate step once that scope is approved. */
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIP(req);
@@ -50,17 +49,17 @@ export async function POST(req: NextRequest) {
     // {orderId, slug, returnOrigin} in sessionStorage right before
     // navigating here, and app/checkout/stitch-return reads that back to
     // bounce to the right store's checkout page.
-    const consent = await createStitchCardConsent({
-      payerFullName: order.customer_name,
+    const paymentLink = await createStitchPaymentLink({
+      payerName: order.customer_name,
       email: order.customer_email,
-      payerId: orderId,
-      initialAmountCents: Math.round(Number(order.total) * 100),
+      merchantReference: orderId,
+      amountCents: Math.round(Number(order.total) * 100),
       redirectUrl: `${APP_ORIGIN}/checkout/stitch-return`,
     });
 
-    await getAdmin().from("orders").update({ stitch_consent_id: consent.id }).eq("id", orderId);
+    await getAdmin().from("orders").update({ stitch_link_id: paymentLink.id }).eq("id", orderId);
 
-    return NextResponse.json({ redirectUrl: consent.url });
+    return NextResponse.json({ redirectUrl: paymentLink.link });
   } catch (err: any) {
     console.error("Stitch redirect error:", err);
     return NextResponse.json({ error: err?.message || "Could not start card payment" }, { status: 500 });

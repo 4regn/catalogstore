@@ -6,15 +6,21 @@ import crypto from "node:crypto";
 // YOCO_SECRET_KEY/YOCO_WEBHOOK_SECRET in lib/yoco.ts, one shared merchant
 // account rather than per-seller credentials.
 //
-// This is the Card Consent flow specifically (save a card, then charge it
-// again later on our own schedule) -- confirmed via
-// scripts/check-stitch-access.ts that this account has the
-// client_recurringpaymentconsentrequest scope granted. NOT the separate
-// "Subscriptions" product, which enforces Stitch's own fixed billing
-// period rather than the custom per-plan schedules
-// lib/setla-instalments.ts already computes.
+// Two distinct Stitch products live in this file:
+//   - Payment Links (createStitchPaymentLink) -- a plain one-time charge,
+//     needs only the default client_paymentrequest scope. This is what the
+//     generic storefront checkout (app/api/checkout/stitch-redirect) uses.
+//   - Card Consent (createStitchCardConsent and friends, below) -- saves the
+//     card for a later re-charge, needs the separate
+//     client_recurringpaymentconsentrequest scope, which Stitch gates
+//     behind manual approval (confirmed via scripts/check-stitch-access.ts
+//     for the TEST client -- LIVE approval is a separate request to
+//     express-support@stitch.money, not yet granted as of this writing).
+//     This is reserved for SETLA's recurring-instalment automation, a
+//     later phase -- not used by the generic checkout.
 const STITCH_BASE_URL = "https://express.stitch.money/api/v1";
 const RECURRING_SCOPE = "client_recurringpaymentconsentrequest";
+const PAYMENT_REQUEST_SCOPE = "client_paymentrequest";
 
 // Tokens expire after 15 minutes (Stitch's own limit) -- cached per scope
 // in module scope so a warm serverless instance reuses one token across
@@ -47,6 +53,46 @@ async function getStitchToken(scope: string): Promise<string> {
   const token: string = data.data.accessToken;
   tokenCache.set(scope, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
   return token;
+}
+
+export type StitchPaymentLinkStatus = "PENDING" | "EXPIRED" | "PAID" | "CANCELLED";
+
+export type StitchPaymentLink = {
+  id: string;
+  link: string;
+  status: StitchPaymentLinkStatus;
+};
+
+// One-time charge -- this is what the generic storefront checkout
+// (app/api/checkout/stitch-redirect) actually uses today. Only needs the
+// default client_paymentrequest scope (no special approval), unlike
+// createStitchCardConsent below. The customer is sent to the returned
+// `link`, enters their card, and pays amountCents once -- no card is
+// saved, nothing to charge again later.
+export async function createStitchPaymentLink(opts: {
+  payerName: string;
+  email?: string;
+  merchantReference: string; // our own reference (e.g. orderId) -- echoed back on the webhook/GET lookup
+  amountCents: number;
+  redirectUrl?: string; // where Stitch sends the customer's browser after they finish -- must be a redirect URL registered in the Stitch dashboard
+}): Promise<StitchPaymentLink> {
+  const token = await getStitchToken(PAYMENT_REQUEST_SCOPE);
+  const res = await fetch(`${STITCH_BASE_URL}/payment-links`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      amount: opts.amountCents,
+      payerName: opts.payerName,
+      merchantReference: opts.merchantReference,
+      ...(opts.email ? { payerEmailAddress: opts.email } : {}),
+    }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.data?.payment?.id || !data?.data?.payment?.link) {
+    throw new Error(data?.generalErrors?.[0] || data?.message || `Could not create Stitch payment link (${res.status})`);
+  }
+  const link = opts.redirectUrl ? `${data.data.payment.link}?redirect_url=${encodeURIComponent(opts.redirectUrl)}` : data.data.payment.link;
+  return { id: data.data.payment.id, link, status: data.data.payment.status };
 }
 
 export type StitchConsentStatus = "PENDING" | "CONSENTED";
@@ -185,7 +231,7 @@ export function verifyStitchWebhookSignature(
 // documented for this endpoint (unlike card-consents/subscriptions), so
 // the base payment-request scope is used.
 export async function registerStitchWebhook(url: string): Promise<{ secret: string }> {
-  const token = await getStitchToken("client_paymentrequest");
+  const token = await getStitchToken(PAYMENT_REQUEST_SCOPE);
   const res = await fetch(`${STITCH_BASE_URL}/webhook`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -213,7 +259,7 @@ export async function registerStitchWebhook(url: string): Promise<{ secret: stri
    a fixed allow-listed callback. Called once via
    app/api/admin/register-stitch-redirect-url/route.ts. */
 export async function registerStitchRedirectUrl(url: string): Promise<{ redirectUrls: string[] }> {
-  const token = await getStitchToken("client_paymentrequest");
+  const token = await getStitchToken(PAYMENT_REQUEST_SCOPE);
   const res = await fetch(`${STITCH_BASE_URL}/redirect-urls`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },

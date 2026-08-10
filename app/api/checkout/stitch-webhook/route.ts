@@ -16,29 +16,30 @@ export const dynamic = "force-dynamic";
    picked up the same way an abandoned Yoco order is: sweepAbandonedOrders
    relabels it after ORDER_ABANDON_MS (see lib/unik-orders.ts).
 
-   This handles the GENERIC storefront checkout's Card Consent payment
-   (type "CONSENT", started by app/api/checkout/stitch-redirect) --
-   matches back to the order via stitch_consent_id the same way Yoco's
-   webhook matches via yoco_checkout_id, then reuses the same
-   markUnikOrderPaid used by every other gateway's webhook, passing
-   provider:"stitch" so it writes stitch_payment_id/stitch_event_id
-   instead of Yoco's columns.
+   This handles the GENERIC storefront checkout's Payment Link payment
+   (type "LINK", started by app/api/checkout/stitch-redirect via
+   createStitchPaymentLink) -- matches back to the order via
+   stitch_link_id the same way Yoco's webhook matches via
+   yoco_checkout_id, then reuses the same markUnikOrderPaid used by every
+   other gateway's webhook, passing provider:"stitch" so it writes
+   stitch_payment_id/stitch_event_id instead of Yoco's columns.
 
-   `type: "LINK"`/`"SUBSCRIPTION"`/`"terminalSessionId"` aren't used by
-   anything on this platform yet (no payment links, subscriptions, or
-   in-person terminals are created anywhere) -- ignored here, not an
-   error, since Stitch could in principle deliver test events of those
-   kinds against this same registered endpoint.
+   `type: "CONSENT"`/`"SUBSCRIPTION"`/`"terminalSessionId"` aren't used by
+   anything on this platform yet -- Card Consent needs a scope this
+   account doesn't have approved for its LIVE client (see lib/stitch.ts's
+   own comment), and is reserved for SETLA's future recurring-instalment
+   automation, not the generic checkout. Ignored here, not an error,
+   since Stitch could in principle deliver test events of those kinds
+   against this same registered endpoint.
 
    SETLA's own first-payment/instalment automation (replacing the Yoco
-   leg of lib/setla-instalments.ts with this same Card Consent flow) is a
-   later, separate step -- once that's wired, this should also branch on
-   a SETLA-specific metadata marker the same way
-   app/api/unik/checkout/webhook/route.ts branches on
+   leg of lib/setla-instalments.ts with Stitch's Card Consent flow) is a
+   later, separate step, blocked on that scope being approved -- once
+   that's wired, this should branch on a SETLA-specific metadata marker
+   the same way app/api/unik/checkout/webhook/route.ts branches on
    payload.metadata?.kind/instalmentId/laybuyPaymentId, calling
    activateSetlaPlanAfterPayment/markSetlaInstalmentPaid/
-   markLaybuyPaymentPaid -- none of that exists yet, so a CONSENT payment
-   today can only ever be this generic-checkout path. */
+   markLaybuyPaymentPaid. */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("svix-signature") || "";
@@ -55,17 +56,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", reason: "invalid body" }, { status: 400 });
   }
 
-  console.log("Stitch webhook received:", { status: event?.status, type: event?.type, id: event?.id, consentId: event?.consentId });
+  console.log("Stitch webhook received:", { status: event?.status, type: event?.type, id: event?.id, linkId: event?.linkId });
 
-  if (event?.status !== "PAID" || event?.type !== "CONSENT" || !event?.consentId) {
+  if (event?.status !== "PAID" || event?.type !== "LINK" || !event?.linkId) {
     return NextResponse.json({ status: "ignored" });
   }
 
   const paymentId: string | undefined = event.id;
-  const consentId: string = event.consentId;
+  const linkId: string = event.linkId;
   const amountCents: number = Number(event.amount) || 0;
   if (!paymentId) {
-    console.error("Stitch webhook: payment.paid missing payment id", { consentId });
+    console.error("Stitch webhook: payment.paid missing payment id", { linkId });
     return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
   }
 
@@ -73,10 +74,10 @@ export async function POST(req: NextRequest) {
   const { data: order } = await admin
     .from("orders")
     .select("id, seller_id, total, items, customer_name, customer_email, payment_status")
-    .eq("stitch_consent_id", consentId)
+    .eq("stitch_link_id", linkId)
     .maybeSingle();
   if (!order) {
-    console.error("Stitch webhook: no order for consentId", { consentId });
+    console.error("Stitch webhook: no order for linkId", { linkId });
     return NextResponse.json({ status: "error", reason: "order not found" }, { status: 404 });
   }
   if (order.payment_status === "paid") {
