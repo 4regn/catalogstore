@@ -1,33 +1,13 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "./email";
 
-/* Idempotently marks a UNIK order paid + its linked designs paid, and
-   emails both sides. Shared between the Yoco webhook (the primary path)
-   and a self-heal check on the order-status endpoint (in case the
-   webhook is slow or never arrives -- see getYocoCheckout in lib/yoco.ts).
-   The update is scoped to payment_status = "pending" so calling this
-   twice for the same order (webhook AND self-heal both firing) is safe. */
-export async function markUnikOrderPaid(
-  admin: SupabaseClient,
-  order: { id: string; seller_id: string; total: number; items: any; customer_name: string; customer_email: string; payment_status: string },
-  paymentId: string,
-  eventId: string | null
-): Promise<"paid" | "already_paid" | "amount_mismatch" | "update_failed"> {
-  if (order.payment_status === "paid") return "already_paid";
+type UnikOrder = { id: string; seller_id: string; total: number; items: any; customer_name: string; customer_email: string; payment_status: string };
 
-  const { data: updated, error } = await admin
-    .from("orders")
-    .update({ payment_status: "paid", status: "confirmed", yoco_payment_id: paymentId, ...(eventId ? { yoco_event_id: eventId } : {}) })
-    .eq("id", order.id)
-    .eq("payment_status", "pending")
-    .select("id")
-    .maybeSingle();
-  if (error) {
-    console.error("markUnikOrderPaid: update failed", error);
-    return "update_failed";
-  }
-  if (!updated) return "already_paid";
-
+/* Shared tail of "mark paid": flips linked designs to paid and emails both
+   sides. Split out so Yoco and Stitch (and any future payment method) only
+   need to handle their own provider-specific update, not duplicate the
+   design/email side effects. */
+async function finalizePaidOrder(admin: SupabaseClient, order: UnikOrder): Promise<void> {
   const designIds = (order.items || []).map((i: any) => i?.customization?.designId).filter(Boolean);
   if (designIds.length) {
     await admin.from("unik_designs").update({ status: "paid", saved_at: new Date().toISOString() }).in("id", designIds);
@@ -60,6 +40,61 @@ export async function markUnikOrderPaid(
       </div>`,
     });
   }
+}
 
+/* Idempotently marks a UNIK order paid + its linked designs paid, and
+   emails both sides. Shared between the Yoco webhook (the primary path)
+   and a self-heal check on the order-status endpoint (in case the
+   webhook is slow or never arrives -- see getYocoCheckout in lib/yoco.ts).
+   The update is scoped to payment_status = "pending" so calling this
+   twice for the same order (webhook AND self-heal both firing) is safe. */
+export async function markUnikOrderPaid(
+  admin: SupabaseClient,
+  order: UnikOrder,
+  paymentId: string,
+  eventId: string | null
+): Promise<"paid" | "already_paid" | "amount_mismatch" | "update_failed"> {
+  if (order.payment_status === "paid") return "already_paid";
+
+  const { data: updated, error } = await admin
+    .from("orders")
+    .update({ payment_status: "paid", status: "confirmed", yoco_payment_id: paymentId, ...(eventId ? { yoco_event_id: eventId } : {}) })
+    .eq("id", order.id)
+    .eq("payment_status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error("markUnikOrderPaid: update failed", error);
+    return "update_failed";
+  }
+  if (!updated) return "already_paid";
+
+  await finalizePaidOrder(admin, order);
+  return "paid";
+}
+
+/* Stitch equivalent of markUnikOrderPaid -- same idempotent, self-healable
+   shape, writing to the Stitch-specific columns instead of Yoco's. */
+export async function markUnikOrderPaidStitch(
+  admin: SupabaseClient,
+  order: UnikOrder,
+  paymentId: string | null
+): Promise<"paid" | "already_paid" | "update_failed"> {
+  if (order.payment_status === "paid") return "already_paid";
+
+  const { data: updated, error } = await admin
+    .from("orders")
+    .update({ payment_status: "paid", status: "confirmed", ...(paymentId ? { stitch_payment_id: paymentId } : {}) })
+    .eq("id", order.id)
+    .eq("payment_status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error("markUnikOrderPaidStitch: update failed", error);
+    return "update_failed";
+  }
+  if (!updated) return "already_paid";
+
+  await finalizePaidOrder(admin, order);
   return "paid";
 }

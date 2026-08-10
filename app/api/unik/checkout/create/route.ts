@@ -3,6 +3,7 @@ import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikCustomer } from "../../../../../lib/unik-customer";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 import { createYocoCheckout, type YocoLineItem } from "../../../../../lib/yoco";
+import { createStitchPaymentRequest } from "../../../../../lib/stitch";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
     designId?: string; qty?: number; preview?: string;
     customUpload?: { garment?: string; colour?: string; size?: string; zone?: string; frontImage?: string; backImage?: string; previewFront?: string; previewBack?: string };
   }[] = Array.isArray(body?.items) ? body.items : [];
+  const paymentMethod = body?.paymentMethod === "stitch" ? "stitch" : "yoco";
   const customer = body?.customer || {};
   const firstName = String(customer.firstName || "").trim().slice(0, 80);
   const lastName = String(customer.lastName || "").trim().slice(0, 80);
@@ -239,7 +241,7 @@ export async function POST(req: NextRequest) {
     shipping_option: shippingLabel,
     shipping_address: fulfillmentMethod === "delivery" ? { address: streetAddress, apartment: suburb || undefined, city: townCity, province, postal_code: postal } : null,
     shipping_cost: shippingCost,
-    payment_method: "yoco",
+    payment_method: paymentMethod,
     payment_status: "pending",
     status: "pending",
   }).select("id").single();
@@ -251,6 +253,26 @@ export async function POST(req: NextRequest) {
   await admin.from("unik_designs").update({ status: "checkout_started" }).in("id", lineItems.map((i) => i.designId));
 
   const origin = safeOrigin(body?.returnOrigin);
+
+  if (paymentMethod === "stitch") {
+    try {
+      const paymentRequest = await createStitchPaymentRequest({
+        amountRands: total,
+        externalReference: order.id,
+        // Stitch's Pay By Bank flow uses one redirect URL for every outcome
+        // (unlike Yoco's separate success/cancel/failure URLs) -- send the
+        // customer to the same "checking" state the Yoco success path uses,
+        // and let pollOrder() in checkout.html resolve the real outcome.
+        redirectUrl: `${origin}${CHECKOUT_PATH}?paid=1&orderId=${order.id}`,
+      });
+      await admin.from("orders").update({ stitch_payment_request_id: paymentRequest.id }).eq("id", order.id);
+      return NextResponse.json({ ok: true, orderId: order.id, redirectUrl: paymentRequest.url });
+    } catch (err: any) {
+      console.error("Stitch payment request creation failed:", err);
+      return NextResponse.json({ error: "Could not start payment. Please try again." }, { status: 502 });
+    }
+  }
+
   const yocoLineItems: YocoLineItem[] = lineItems.map((i) => ({ displayName: i.name, quantity: i.qty, pricingDetails: { price: Math.round(i.price * 100) } }));
   if (shippingCost > 0) yocoLineItems.push({ displayName: shippingLabel, quantity: 1, pricingDetails: { price: Math.round(shippingCost * 100) } });
 

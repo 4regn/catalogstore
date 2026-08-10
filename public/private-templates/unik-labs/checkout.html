@@ -36,7 +36,7 @@
     html[data-unik-theme='dark'] .delivery-opt-estimate{color:#979992!important}
   </style>
   <style>
-    .payment-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:5px 0 14px}
+    .payment-choice{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:5px 0 14px}
     .pay-option{display:grid;gap:5px;min-height:80px;padding:14px;border:1px solid #d1cec5;border-radius:13px;background:#faf9f6;color:#111;text-align:left;cursor:pointer}
     .pay-option strong{font-size:11px;letter-spacing:.09em;text-transform:uppercase}
     .pay-option span{color:#70736c;font-size:10px;line-height:1.45}
@@ -90,6 +90,7 @@
           <div class="payment-choice" aria-label="Choose payment method">
             <button class="pay-option active" type="button" data-payment="yoco"><strong>Card / Yoco</strong><span>Pay the full amount securely now.</span></button>
             <button class="pay-option" type="button" data-payment="setla"><strong>Setla Payments</strong><span>Use an approved limit or choose Laybuy.</span></button>
+            <button class="pay-option" type="button" data-payment="stitch"><strong>Pay by Bank</strong><span>Instant EFT via Stitch — no card needed.</span></button>
           </div>
           <div class="payment-note"><strong>Secure payment:</strong> complete your card payment on Yoco's encrypted checkout. UNIK Labs never sees or stores your card details.</div>
           <div id="checkoutError" class="demo-note" style="display:none;color:#8b2a20"></div>
@@ -130,16 +131,22 @@
 
       function showError(message){ errorEl.textContent = message; errorEl.style.display = 'block'; }
       function clearError(){ errorEl.style.display = 'none'; errorEl.textContent = ''; }
+      function paymentButtonLabel(){
+        if(paymentMethod === 'setla') return 'Continue with Setla';
+        if(paymentMethod === 'stitch') return 'Continue to your bank';
+        return 'Pay securely with Yoco';
+      }
       function setPaymentMethod(method){
         paymentMethod = method;
         paymentOptions.forEach(option => option.classList.toggle('active', option.dataset.payment === method));
         if(method === 'setla'){
           paymentNote.innerHTML = '<strong>Setla Payments:</strong> continue to your Setla dashboard to use an approved limit, apply, or choose Laybuy. Your order moves into production once the selected payment route is confirmed.';
-          button.textContent = 'Continue with Setla';
+        } else if(method === 'stitch'){
+          paymentNote.innerHTML = '<strong>Pay by Bank:</strong> you\'ll be redirected to your own bank\'s secure login to approve an instant EFT payment via Stitch. No card details are shared with UNIK Labs.';
         } else {
           paymentNote.innerHTML = '<strong>Secure payment:</strong> complete your card payment on Yoco\'s encrypted checkout. UNIK Labs never sees or stores your card details.';
-          button.textContent = 'Pay securely with Yoco';
         }
+        button.textContent = paymentButtonLabel();
       }
 
       function currentDelivery(){ return deliveryOptions[selectedDeliveryIndex] || deliveryOptions[0] || { name:'Delivery', price:0 }; }
@@ -213,7 +220,7 @@
         document.getElementById('grandTotal').textContent = money(subtotal + (delivery.price || 0));
         totalsEl.hidden = false;
         button.disabled = false;
-        button.textContent = paymentMethod === 'setla' ? 'Continue with Setla' : 'Pay securely with Yoco';
+        button.textContent = paymentButtonLabel();
         document.querySelectorAll('[data-remove]').forEach(el => el.addEventListener('click', () => { UNIK_CART.remove(el.dataset.remove); render(); }));
         document.querySelectorAll('[data-qty-inc]').forEach(el => el.addEventListener('click', () => {
           const current = UNIK_CART.get().find(i => i.id === el.dataset.qtyInc);
@@ -275,6 +282,7 @@
               },
               deliveryMethod: { name: delivery.name, isPickup: !!delivery.isPickup },
               returnOrigin: window.location.origin,
+              paymentMethod,
             }),
           });
           const payload = await response.json().catch(() => ({}));
@@ -284,7 +292,7 @@
         } catch (error) {
           showError(error.message || 'Could not start payment. Please try again.');
           button.disabled = false;
-          button.textContent = paymentMethod === 'setla' ? 'Continue with Setla' : 'Pay securely with Yoco';
+          button.textContent = paymentButtonLabel();
         }
       });
       paymentOptions.forEach(option => option.addEventListener('click', () => setPaymentMethod(option.dataset.payment)));
