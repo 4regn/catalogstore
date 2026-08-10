@@ -93,18 +93,13 @@ export async function POST(req: NextRequest) {
   if (order.seller_id !== seller.id) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   // This order was placed anonymously by /api/checkout/place-order (no
   // auth binding at all -- the generic storefront checkout doesn't require
-  // a SETLA login to add items to cart) -- unlike UNIK's own route, where
-  // the order is created fresh in THIS same request against the
-  // authenticated customer, so there's nothing to cross-check. Here, an
-  // already-logged-in SETLA session (a shared device, a stale login) must
-  // not be able to silently attach a payment plan to a DIFFERENT
-  // customer's order just because it knows/guesses the orderId -- the
-  // client already refuses to reach this point on a mismatch (see
-  // setla.js's initCheckout), this is the server-side backstop for that,
-  // not a display nicety.
-  if (String(order.customer_email || "").trim().toLowerCase() !== String(customer.email || "").trim().toLowerCase()) {
-    return NextResponse.json({ error: "This order doesn't belong to the signed-in SETLA account" }, { status: 403 });
-  }
+  // a SETLA login to add items to cart). The signed-in SETLA customer
+  // paying for it is deliberately NOT required to be the same person
+  // whose email is on the order (product decision -- e.g. paying for a
+  // family member's order); orderId itself is an unguessable UUID, the
+  // same access model /api/checkout/yoco-redirect and the generic
+  // checkout's own `?paid=<orderId>` return link already rely on with no
+  // login at all, so there's no real protection given up here.
   // Same replay guard as /api/payfast-redirect and /api/checkout/yoco-redirect
   // -- refuse a fresh payment plan for an order that's already resolved.
   if (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered" || order.status === "cancelled") {

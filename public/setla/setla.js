@@ -1320,27 +1320,15 @@
       return;
     }
     applySellerBranding(draft);
-    // Security: draft.customer.email is whatever the customer typed into
-    // the STORE's own checkout form -- entirely separate from SETLA login.
-    // If a DIFFERENT SETLA account already has a valid session on this
-    // browser (a shared device, a family member, a staff-assisted till),
-    // silently proceeding into checkout would let that stale session's
-    // real credit limit drive payment for an order placed under someone
-    // else's name/email, with nothing forcing a fresh login first. Refuse
-    // to show eligibility/limit/schedule info until the logged-in
-    // account's email actually matches what was typed at checkout.
-    const draftEmail=String(draft.customer?.email||'').trim().toLowerCase();
-    const accountEmail=String(account.email||'').trim().toLowerCase();
-    if(draftEmail&&accountEmail&&draftEmail!==accountEmail){
-      document.querySelector('.checkout-layout').innerHTML=`<section class="card empty-state"><div class="eligibility-icon"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8 7 10 4.1-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg></div><h2>Confirm it's you.</h2><p>You're signed into SETLA as <strong>${escapeHTML(account.email||'')}</strong>, but this order was placed with <strong>${escapeHTML(draft.customer?.email||'')}</strong>. Log out and sign in with the matching email to continue.</p><a class="button primary" href="#" id="mismatchLogout">Log out &amp; sign in again</a></section>`;
-      document.getElementById('mismatchLogout')?.addEventListener('click',async(event)=>{
-        event.preventDefault();
-        await fetch('/api/setla/auth/session',{method:'DELETE',credentials:'include'}).catch(()=>{});
-        clearRefreshToken();
-        location.href=`login.html?next=${encodeURIComponent('checkout.html')}`;
-      });
-      return;
-    }
+    // draft.customer.email (whatever was typed into the STORE's own
+    // checkout form) is deliberately NOT required to match the signed-in
+    // SETLA account's email -- product decision: a customer paying with
+    // SETLA is not necessarily the same person whose name/email is on the
+    // shipping details (e.g. paying for a family member's order), and the
+    // order is already looked up by its own unguessable UUID orderId (the
+    // same access model the generic checkout's own `?paid=<orderId>` link
+    // already relies on with no login at all), so there's no real
+    // protection being given up by not also requiring the emails to match.
     // The handoff only carries form fields (no cart items, no precomputed
     // totals) -- this is purely a display estimate; the real total is
     // always recomputed server-side from scratch at submit time
