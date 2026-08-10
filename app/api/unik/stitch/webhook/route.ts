@@ -6,17 +6,21 @@ import { markUnikOrderPaidStitch } from "../../../../../lib/unik-orders";
 export const dynamic = "force-dynamic";
 
 /* Stitch Pay By Bank webhook, mirroring app/api/unik/checkout/webhook's
-   role for Yoco. Verifies the X-Stitch-Signature header, looks up the order
-   by stitch_payment_request_id, and idempotently marks it paid via
+   role for Yoco. Verifies the Svix-delivered signature (webhook-id /
+   webhook-timestamp / webhook-signature headers -- same convention Yoco
+   uses, since both ride on Svix), looks up the order by
+   stitch_payment_request_id, and idempotently marks it paid via
    markUnikOrderPaidStitch -- self-heals via getStitchPaymentRequestStatus
    are not yet wired into /api/unik/orders/[id] the way Yoco's are; add that
    once this integration is confirmed against a real Stitch sandbox. */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
-  const signatureHeader = req.headers.get("x-stitch-signature");
+  const signature = req.headers.get("webhook-signature") || "";
+  const id = req.headers.get("webhook-id") || "";
+  const timestamp = req.headers.get("webhook-timestamp") || "";
 
-  if (!verifyStitchWebhookSignature(rawBody, signatureHeader)) {
-    console.error("UNIK Stitch webhook: signature verification failed", { hasSignature: !!signatureHeader, hasSecret: !!process.env.STITCH_WEBHOOK_SECRET, bodyLength: rawBody.length });
+  if (!verifyStitchWebhookSignature(rawBody, { id, timestamp, signature })) {
+    console.error("UNIK Stitch webhook: signature verification failed", { hasId: !!id, hasTimestamp: !!timestamp, hasSignature: !!signature, hasSecret: !!process.env.STITCH_WEBHOOK_SECRET, bodyLength: rawBody.length });
     return NextResponse.json({ status: "error", reason: "invalid signature" }, { status: 403 });
   }
 
