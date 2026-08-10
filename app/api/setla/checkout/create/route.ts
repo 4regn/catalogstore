@@ -4,6 +4,7 @@ import { requireSetlaCustomer } from "../../../../../lib/setla-customer";
 import { getUnikSeller } from "../../../../../lib/unik-customer";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 import { createYocoCheckout } from "../../../../../lib/yoco";
+import { createStitchCardConsent } from "../../../../../lib/stitch";
 import { resolveUnikCart, runDeferredUnikUploads, type RawCartItem } from "../../../../../lib/unik-cart-resolve";
 import { buildInstalmentSchedule, buildHalfAndHalfSchedule, buildSetlaFirstChargeMetadata, minLaybuyDeposit, type SetlaPlanType } from "../../../../../lib/setla-instalments";
 
@@ -172,38 +173,70 @@ export async function POST(req: NextRequest) {
   }
 
   const origin = safeOrigin(body?.returnOrigin);
+  // returnPath is only actually consumed by the Pay Later/Stitch branch
+  // below (the client stashes it for the static bridge page, see
+  // app/checkout/stitch-return's own comment for why Stitch can't take a
+  // dynamic successUrl the way Yoco does) -- computed here either way
+  // since firstChargeMeta needs building regardless of which gateway ends
+  // up used.
+  const returnPath = `${CONFIRM_PATH}?paid=1&orderId=${order.id}`;
+  const firstChargeMeta = buildSetlaFirstChargeMetadata({
+    orderId: order.id,
+    customerId: customer.id,
+    planType: planType as SetlaPlanType,
+    scheduleVariant,
+    financedAmount,
+    excessUpfront,
+    depositAmount: laybuyDeposit,
+    subtotal,
+    shippingCost,
+    total,
+  });
+
+  const runDeferredJobsIfAny = () => {
+    if (deferredJobs.length) {
+      const orderId = order.id;
+      after(() => runDeferredUnikUploads(admin, seller.id, orderId, deferredJobs));
+    }
+  };
+
+  // Pay Later's first charge goes through Stitch Card Consent instead of a
+  // plain Yoco checkout -- see app/api/checkout/setla-create/route.ts's
+  // identical comment. Laybuy has no fixed schedule to automate, stays on
+  // Yoco unchanged, below.
+  if (planType === "pay_later") {
+    try {
+      const consent = await createStitchCardConsent({
+        payerFullName: `${firstName} ${lastName}`.trim(),
+        email,
+        payerId: order.id,
+        initialAmountCents: Math.round(firstChargeAmount * 100),
+        redirectUrl: `${APP_ORIGIN}/checkout/stitch-return`,
+      });
+      await admin.from("orders").update({ stitch_consent_id: consent.id, setla_pending_stitch_meta: firstChargeMeta }).eq("id", order.id);
+      runDeferredJobsIfAny();
+      return NextResponse.json({ ok: true, orderId: order.id, redirectUrl: consent.url, returnPath });
+    } catch (err) {
+      console.error("SETLA checkout: Stitch card consent creation failed:", err);
+      return NextResponse.json({ error: `Could not start payment (${err instanceof Error ? err.message : "unknown error"})` }, { status: 502 });
+    }
+  }
+
   try {
     const checkout = await createYocoCheckout({
       amountCents: Math.round(firstChargeAmount * 100),
-      metadata: buildSetlaFirstChargeMetadata({
-        orderId: order.id,
-        customerId: customer.id,
-        planType: planType as SetlaPlanType,
-        scheduleVariant,
-        financedAmount,
-        excessUpfront,
-        depositAmount: laybuyDeposit,
-        subtotal,
-        shippingCost,
-        total,
-      }),
-      successUrl: `${origin}${CONFIRM_PATH}?paid=1&orderId=${order.id}`,
+      metadata: firstChargeMeta,
+      successUrl: `${origin}${returnPath}`,
       cancelUrl: `${origin}${CONFIRM_PATH}?cancelled=1&orderId=${order.id}`,
       failureUrl: `${origin}${CONFIRM_PATH}?failed=1&orderId=${order.id}`,
       lineItems: [{
-        displayName: planType === "laybuy"
-          ? `SETLA Laybuy deposit — Order ${order.order_number}`
-          : (excessUpfront > 0 ? `SETLA order balance + instalment 1 of ${scheduleVariant === "half" ? 2 : 4} — Order ${order.order_number}` : `SETLA instalment 1 of ${scheduleVariant === "half" ? 2 : 4} — Order ${order.order_number}`),
+        displayName: `SETLA Laybuy deposit — Order ${order.order_number}`,
         quantity: 1,
         pricingDetails: { price: Math.round(firstChargeAmount * 100) },
       }],
     });
 
-    if (deferredJobs.length) {
-      const orderId = order.id;
-      after(() => runDeferredUnikUploads(admin, seller.id, orderId, deferredJobs));
-    }
-
+    runDeferredJobsIfAny();
     return NextResponse.json({ ok: true, orderId: order.id, redirectUrl: checkout.redirectUrl });
   } catch (err) {
     console.error("SETLA checkout: Yoco checkout creation failed:", err);

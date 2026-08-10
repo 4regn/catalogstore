@@ -3,6 +3,7 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { requireSetlaCustomer } from "../../../../lib/setla-customer";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { createYocoCheckout } from "../../../../lib/yoco";
+import { createStitchCardConsent } from "../../../../lib/stitch";
 import { storePath } from "../../../../lib/store-url";
 import { buildInstalmentSchedule, buildHalfAndHalfSchedule, buildSetlaFirstChargeMetadata, minLaybuyDeposit, type SetlaPlanType } from "../../../../lib/setla-instalments";
 
@@ -161,30 +162,58 @@ export async function POST(req: NextRequest) {
   // Same return destination as /api/checkout/yoco-redirect -- the generic
   // checkout page's own ?paid=<orderId> handling (already generic across
   // every payment method, see CheckoutPageClient.tsx's load()) picks this
-  // up regardless of which gateway/plan actually paid it.
+  // up regardless of which gateway/plan actually paid it. Also returned as
+  // `returnPath` in the response below so the client can stash it for
+  // Stitch's static bridge page (app/checkout/stitch-return) when the
+  // Pay Later branch is used -- see that route's own comment for why
+  // Stitch can't just take a dynamic successUrl the way Yoco does.
   const checkoutBasePath = storePath(origin, slug, "/checkout");
+  const returnPath = `${checkoutBasePath}?paid=${order.id}`;
+  const firstChargeMeta = buildSetlaFirstChargeMetadata({
+    orderId: order.id,
+    customerId: customer.id,
+    planType: planType as SetlaPlanType,
+    scheduleVariant,
+    financedAmount,
+    excessUpfront,
+    depositAmount: laybuyDeposit,
+    subtotal: Math.max(0, total - shippingCost),
+    shippingCost,
+    total,
+  });
+
+  // Pay Later's first charge goes through Stitch Card Consent instead of a
+  // plain Yoco checkout -- the customer's card gets saved (with consent
+  // shown at the Stitch-hosted page) so instalments #2+ can be
+  // auto-collected later (see app/api/cron/setla-collect-instalments) with
+  // no further action from them. Laybuy has no fixed schedule to
+  // automate, so it stays on Yoco unchanged, below.
+  if (planType === "pay_later") {
+    try {
+      const consent = await createStitchCardConsent({
+        payerFullName: order.customer_name,
+        email: order.customer_email,
+        payerId: order.id,
+        initialAmountCents: Math.round(firstChargeAmount * 100),
+        redirectUrl: `${APP_ORIGIN}/checkout/stitch-return`,
+      });
+      await admin.from("orders").update({ stitch_consent_id: consent.id, setla_pending_stitch_meta: firstChargeMeta }).eq("id", order.id);
+      return NextResponse.json({ ok: true, orderId: order.id, redirectUrl: consent.url, returnPath });
+    } catch (err) {
+      console.error("SETLA generic checkout: Stitch card consent creation failed:", err);
+      return NextResponse.json({ error: `Could not start payment (${err instanceof Error ? err.message : "unknown error"})` }, { status: 502 });
+    }
+  }
+
   try {
     const checkout = await createYocoCheckout({
       amountCents: Math.round(firstChargeAmount * 100),
-      metadata: buildSetlaFirstChargeMetadata({
-        orderId: order.id,
-        customerId: customer.id,
-        planType: planType as SetlaPlanType,
-        scheduleVariant,
-        financedAmount,
-        excessUpfront,
-        depositAmount: laybuyDeposit,
-        subtotal: Math.max(0, total - shippingCost),
-        shippingCost,
-        total,
-      }),
-      successUrl: `${origin}${checkoutBasePath}?paid=${order.id}`,
+      metadata: firstChargeMeta,
+      successUrl: `${origin}${returnPath}`,
       cancelUrl: `${origin}${checkoutBasePath}?cancelled=1`,
       failureUrl: `${origin}${checkoutBasePath}?failed=1`,
       lineItems: [{
-        displayName: planType === "laybuy"
-          ? `SETLA Laybuy deposit — Order ${order.order_number || order.id.slice(0, 8)}`
-          : (excessUpfront > 0 ? `SETLA order balance + instalment 1 of ${scheduleVariant === "half" ? 2 : 4} — Order ${order.order_number || order.id.slice(0, 8)}` : `SETLA instalment 1 of ${scheduleVariant === "half" ? 2 : 4} — Order ${order.order_number || order.id.slice(0, 8)}`),
+        displayName: `SETLA Laybuy deposit — Order ${order.order_number || order.id.slice(0, 8)}`,
         quantity: 1,
         pricingDetails: { price: Math.round(firstChargeAmount * 100) },
       }],

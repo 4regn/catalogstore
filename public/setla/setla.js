@@ -1452,6 +1452,17 @@
           return;
         }
         localStorage.removeItem('unik-setla-handoff-v1');localStorage.removeItem('unik-labs-cart-v1');
+        // Pay Later's first charge goes through Stitch Card Consent now
+        // (see lib/setla-instalments.ts) -- the backend only includes
+        // returnPath when that branch was used (Laybuy's Yoco checkout
+        // already has its own successUrl baked in, nothing to stash for
+        // it). Stitch only accepts one pre-registered static redirect URL
+        // (see app/checkout/stitch-return/page.tsx's own comment), so the
+        // real destination is carried across via sessionStorage the same
+        // way CheckoutPageClient.tsx does it for the generic checkout.
+        if(payload.returnPath){
+          try{sessionStorage.setItem('stitch_return_ctx',JSON.stringify({returnOrigin:location.origin,returnPath:payload.returnPath}))}catch(_){}
+        }
         location.href=payload.redirectUrl;
       }catch(_){
         error.textContent='Something went wrong. Please try again.';error.classList.add('show');btn.disabled=false;btn.textContent='Confirm SETLA plan';

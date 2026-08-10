@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
-import { usesCleanStorePaths } from "../../../../lib/store-url";
+import { usesCleanStorePaths, storePath } from "../../../../lib/store-url";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
@@ -523,7 +523,9 @@ export default function CheckoutPageClient() {
         // (app/checkout/stitch-return) once Stitch sends the customer's
         // browser back.
         try {
-          sessionStorage.setItem("stitch_return_ctx", JSON.stringify({ orderId, slug, returnOrigin: window.location.origin }));
+          const returnOrigin = window.location.origin;
+          const returnPath = storePath(returnOrigin, slug, "/checkout?paid=" + orderId);
+          sessionStorage.setItem("stitch_return_ctx", JSON.stringify({ returnOrigin, returnPath }));
         } catch {}
         const stRes = await fetch("/api/checkout/stitch-redirect", {
           method: "POST",

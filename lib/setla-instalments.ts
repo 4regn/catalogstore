@@ -113,7 +113,10 @@ export function buildSetlaFirstChargeMetadata(meta: Omit<SetlaFirstChargeMeta, "
 }
 
 /* The real creation point for a SETLA plan -- called from the Yoco
-   webhook's payment.succeeded handler, NOT from the checkout-create
+   webhook's payment.succeeded handler (Laybuy, and Pay Later before Stitch
+   Card Consent existed) or the Stitch webhook's payment.paid/CONSENT
+   handler (Pay Later's first charge now, see
+   app/api/checkout/stitch-webhook/route.ts), NOT from the checkout-create
    routes anymore. Those routes used to insert setla_orders/
    setla_payment_plans/setla_instalments (or setla_laybuy_payments) and
    claim the customer's available_limit BEFORE redirecting to Yoco, on the
@@ -129,12 +132,23 @@ export function buildSetlaFirstChargeMetadata(meta: Omit<SetlaFirstChargeMeta, "
    payment actually went through (EFT is the sole exception, since it has
    no real-time gateway confirmation to defer to). Idempotent: a retried
    webhook for an order that already has a setla_orders row is a no-op. */
+// Yoco is the default (matches every existing call site, all of which
+// predate the Stitch Card Consent option) -- Pay Later's first charge can
+// also come through Stitch now (see app/api/checkout/setla-create/route.ts
+// and app/api/setla/checkout/create/route.ts), in which case the plan
+// needs its stitch_consent_id stored so instalments #2+ can be
+// auto-charged against the same saved card later. Laybuy never uses
+// Stitch -- no fixed schedule to automate, so provider is always "yoco"
+// on that branch.
+export type SetlaFirstChargeProvider = { provider: "yoco" } | { provider: "stitch"; consentId: string };
+
 export async function activateSetlaPlanAfterPayment(
   admin: SupabaseClient,
   meta: SetlaFirstChargeMeta,
   paymentId: string,
   amountCents: number,
-  eventId: string | null
+  eventId: string | null,
+  providerInfo: SetlaFirstChargeProvider = { provider: "yoco" }
 ): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; error: string }> {
   const { data: existing } = await admin.from("setla_orders").select("id").eq("unik_order_id", meta.orderId).maybeSingle();
   if (existing) return { ok: true, alreadyProcessed: true };
@@ -206,6 +220,8 @@ export async function activateSetlaPlanAfterPayment(
       principal_amount: isLaybuy ? total : financedAmount,
       min_deposit_amount: isLaybuy ? minLaybuyDeposit(total) : null,
       paid_amount: firstChargeAmount,
+      stitch_consent_id: providerInfo.provider === "stitch" ? providerInfo.consentId : null,
+      stitch_consent_status: providerInfo.provider === "stitch" ? "active" : null,
     })
     .select("id")
     .single();
@@ -271,9 +287,12 @@ export async function activateSetlaPlanAfterPayment(
   // is also why every "unresolved" filter (seller dashboard's Orders/
   // Abandoned split, sweepAbandonedOrders) has to check for "setla" too,
   // not just "setla_pay_later"/"setla_laybuy".
+  const providerColumns = providerInfo.provider === "stitch"
+    ? { stitch_payment_id: paymentId, ...(eventId ? { stitch_event_id: eventId } : {}) }
+    : { yoco_payment_id: paymentId };
   await admin
     .from("orders")
-    .update({ status: "confirmed", payment_status: "paid", payment_method: meta.planType === "pay_later" ? "setla_pay_later" : "setla_laybuy", yoco_payment_id: paymentId })
+    .update({ status: "confirmed", payment_status: "paid", payment_method: meta.planType === "pay_later" ? "setla_pay_later" : "setla_laybuy", ...providerColumns })
     .eq("id", order.id)
     .eq("payment_status", "pending");
 

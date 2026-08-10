@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyStitchWebhookSignature } from "../../../../lib/stitch";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { markUnikOrderPaid } from "../../../../lib/unik-orders";
+import { activateSetlaPlanAfterPayment, type SetlaFirstChargeMeta } from "../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -16,30 +17,24 @@ export const dynamic = "force-dynamic";
    picked up the same way an abandoned Yoco order is: sweepAbandonedOrders
    relabels it after ORDER_ABANDON_MS (see lib/unik-orders.ts).
 
-   This handles the GENERIC storefront checkout's Payment Link payment
-   (type "LINK", started by app/api/checkout/stitch-redirect via
-   createStitchPaymentLink) -- matches back to the order via
-   stitch_link_id the same way Yoco's webhook matches via
-   yoco_checkout_id, then reuses the same markUnikOrderPaid used by every
-   other gateway's webhook, passing provider:"stitch" so it writes
-   stitch_payment_id/stitch_event_id instead of Yoco's columns.
+   Two things use this endpoint:
+   - type "LINK" -- the GENERIC storefront checkout's Payment Link payment
+     (started by app/api/checkout/stitch-redirect via
+     createStitchPaymentLink), matched via stitch_link_id.
+   - type "CONSENT" -- SETLA Pay Later's FIRST instalment, charged via
+     Card Consent instead of Yoco (started by
+     app/api/checkout/setla-create and app/api/setla/checkout/create),
+     matched via stitch_consent_id. Instalments #2+ are NOT confirmed
+     here -- those are charged directly by
+     app/api/cron/setla-collect-instalments, which gets a synchronous
+     result from initiateStitchConsentPayment and marks them paid/failed
+     inline, with no webhook round-trip needed (there's no customer
+     redirect to wait on for a merchant-initiated charge).
 
-   `type: "CONSENT"`/`"SUBSCRIPTION"`/`"terminalSessionId"` aren't used by
-   anything on this platform yet -- Card Consent needs a scope this
-   account doesn't have approved for its LIVE client (see lib/stitch.ts's
-   own comment), and is reserved for SETLA's future recurring-instalment
-   automation, not the generic checkout. Ignored here, not an error,
-   since Stitch could in principle deliver test events of those kinds
-   against this same registered endpoint.
-
-   SETLA's own first-payment/instalment automation (replacing the Yoco
-   leg of lib/setla-instalments.ts with Stitch's Card Consent flow) is a
-   later, separate step, blocked on that scope being approved -- once
-   that's wired, this should branch on a SETLA-specific metadata marker
-   the same way app/api/unik/checkout/webhook/route.ts branches on
-   payload.metadata?.kind/instalmentId/laybuyPaymentId, calling
-   activateSetlaPlanAfterPayment/markSetlaInstalmentPaid/
-   markLaybuyPaymentPaid. */
+   `type: "SUBSCRIPTION"`/`terminalSessionId` aren't used by anything on
+   this platform -- ignored, not an error, since Stitch could in principle
+   deliver test events of those kinds against this same registered
+   endpoint. */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("svix-signature") || "";
@@ -56,12 +51,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", reason: "invalid body" }, { status: 400 });
   }
 
-  console.log("Stitch webhook received:", { status: event?.status, type: event?.type, id: event?.id, linkId: event?.linkId });
+  console.log("Stitch webhook received:", { status: event?.status, type: event?.type, id: event?.id, linkId: event?.linkId, consentId: event?.consentId });
 
-  if (event?.status !== "PAID" || event?.type !== "LINK" || !event?.linkId) {
+  if (event?.status !== "PAID") {
     return NextResponse.json({ status: "ignored" });
   }
 
+  if (event?.type === "CONSENT" && event?.consentId) {
+    return handleSetlaFirstCharge(event, svixId || null);
+  }
+  if (event?.type === "LINK" && event?.linkId) {
+    return handleGenericCheckoutPayment(event, svixId || null);
+  }
+  return NextResponse.json({ status: "ignored" });
+}
+
+async function handleGenericCheckoutPayment(event: any, svixId: string | null) {
   const paymentId: string | undefined = event.id;
   const linkId: string = event.linkId;
   const amountCents: number = Number(event.amount) || 0;
@@ -90,7 +95,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", reason: "amount mismatch" }, { status: 409 });
   }
 
-  const result = await markUnikOrderPaid(admin, order, paymentId, svixId || null, "stitch");
+  const result = await markUnikOrderPaid(admin, order, paymentId, svixId, "stitch");
   if (result === "update_failed") return NextResponse.json({ status: "error" }, { status: 500 });
+  return NextResponse.json({ status: "ok" });
+}
+
+async function handleSetlaFirstCharge(event: any, svixId: string | null) {
+  const paymentId: string | undefined = event.id;
+  const consentId: string = event.consentId;
+  const amountCents: number = Number(event.amount) || 0;
+  if (!paymentId) {
+    console.error("Stitch webhook: SETLA first-charge payment.paid missing payment id", { consentId });
+    return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
+  }
+
+  const admin = getAdmin();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, payment_status, setla_pending_stitch_meta")
+    .eq("stitch_consent_id", consentId)
+    .maybeSingle();
+  if (!order) {
+    console.error("Stitch webhook: no order for consentId", { consentId });
+    return NextResponse.json({ status: "error", reason: "order not found" }, { status: 404 });
+  }
+  if (order.payment_status === "paid") {
+    return NextResponse.json({ status: "ok", note: "already processed" });
+  }
+  const meta = order.setla_pending_stitch_meta as SetlaFirstChargeMeta | null;
+  if (!meta) {
+    console.error("Stitch webhook: order has stitch_consent_id but no setla_pending_stitch_meta", { orderId: order.id, consentId });
+    return NextResponse.json({ status: "error", reason: "missing plan metadata" }, { status: 500 });
+  }
+
+  // activateSetlaPlanAfterPayment does its own amount-mismatch check
+  // internally (against the exact first-instalment amount, which can
+  // differ from the plain order total once excessUpfront applies) -- no
+  // redundant check needed here, same as the Yoco webhook never did one
+  // before calling it either.
+  const result = await activateSetlaPlanAfterPayment(admin, meta, paymentId, amountCents, svixId, { provider: "stitch", consentId });
+  if (!result.ok) {
+    console.error("Stitch webhook: activateSetlaPlanAfterPayment failed", { orderId: order.id, error: result.error });
+    return NextResponse.json({ status: "error" }, { status: 500 });
+  }
   return NextResponse.json({ status: "ok" });
 }
