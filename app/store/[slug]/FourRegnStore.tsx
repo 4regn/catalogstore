@@ -149,9 +149,9 @@ interface StoreConfig {
   // Winter Sale Marquee (see WinterSaleMarquee) -- same shape/resolution
   // rule as winter_essentials_slides above (product id OR direct URL),
   // just two independent lists, one per row. Unset/empty falls back to
-  // this seller's own products whose category contains "hoodie"/"tee"
-  // respectively (case-insensitive) -- see the isHomeView render call for
-  // why an exact collection-name match isn't used here.
+  // every product in "BACK & FRONT PRINTED HOODIES" / "OVERSIZED PREMIUM
+  // TEES" respectively (exact category match -- see the isHomeView render
+  // call).
   winter_marquee_hoodie_slides?: string[];
   winter_marquee_tee_slides?: string[];
 }
@@ -2866,47 +2866,36 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {/* WINTER SALE MARQUEE — only on landing page, right after the
             ticker strip and before Winter Essentials, matching
-            templates/index.json's real section order. Each row's images
-            (and its CTA link) are resolved together off the same matched
-            category, so the button always points at a collection that
-            actually contains the photos just shown -- unlike Winter
-            Essentials below, there's no single known tag name to rely on
-            here (the live site's own hoodie/tee collections are Shopify
-            *smart* collections, rule-matched, not a plain tag this store's
-            product rows are guaranteed to carry), so this falls back to a
-            substring match on category ("hoodie"/"tee") instead of an
-            exact name. Hides a row entirely if nothing matches it, same
-            "hide empty collections" precedent as everywhere else in this
-            file; hides the whole section only if BOTH rows are empty. */}
+            templates/index.json's real section order. Each row is scoped
+            to one exact, confirmed-real collection (hoodies:
+            "BACK & FRONT PRINTED HOODIES", tees: "OVERSIZED PREMIUM TEES"
+            -- the actual Shopify Smart Collection titles behind
+            hoodie_link/tee_link in the live section's own settings, not a
+            loose text match) -- reported directly that the hoodie row was
+            pulling in unrelated hoodie products under an earlier looser
+            substring-match version of this. Dashboard-curated slides
+            (Editor -> Winter Sale Marquee) win if set, same shape as
+            Winter Essentials' own winter_essentials_slides; falls back to
+            every product in that exact collection, in catalog order.
+            Hides a row entirely if its collection currently has no
+            products, same "hide empty collections" precedent as
+            everywhere else in this file; hides the whole section only if
+            BOTH rows are empty. */}
         {isHomeView && (() => {
-          const resolveRow = (configuredSlides: string[] | undefined, matchSubstring: string) => {
+          const resolveRow = (configuredSlides: string[] | undefined, exactCategory: string) => {
+            const href = sp(`/collections/${collectionSlug(exactCategory)}`);
             if (configuredSlides && configuredSlides.length > 0) {
               const images = configuredSlides
                 .map((entry) => (entry.startsWith("http") || entry.startsWith("/")) ? entry : products.find((p) => p.id === entry)?.image_url)
                 .filter((url): url is string => !!url)
                 .slice(0, 12);
-              return { images, href: sp("/collections/all") };
+              return { images, href };
             }
-            const matched = products.filter((p) => p.image_url && (p.category || "").toLowerCase().includes(matchSubstring));
-            if (matched.length === 0) return { images: [] as string[], href: sp("/collections/all") };
-            // Link the row's CTA/cards at whichever real category value
-            // (of possibly several comma-separated ones per product) most
-            // of the matched products actually share, so the destination
-            // collection page is guaranteed non-empty.
-            const counts = new Map<string, number>();
-            for (const p of matched) {
-              for (const c of (p.category || "").split(",").map((s) => s.trim())) {
-                if (c.toLowerCase().includes(matchSubstring)) counts.set(c, (counts.get(c) || 0) + 1);
-              }
-            }
-            const topCategory = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-            return {
-              images: matched.map((p) => p.image_url!).slice(0, 12),
-              href: topCategory ? sp(`/collections/${collectionSlug(topCategory)}`) : sp("/collections/all"),
-            };
+            const images = products.filter((p) => p.image_url && pInCat(p, exactCategory)).map((p) => p.image_url!).slice(0, 12);
+            return { images, href };
           };
-          const hoodie = resolveRow(config.winter_marquee_hoodie_slides, "hoodie");
-          const tee = resolveRow(config.winter_marquee_tee_slides, "tee");
+          const hoodie = resolveRow(config.winter_marquee_hoodie_slides, "BACK & FRONT PRINTED HOODIES");
+          const tee = resolveRow(config.winter_marquee_tee_slides, "OVERSIZED PREMIUM TEES");
           if (hoodie.images.length === 0 && tee.images.length === 0) return null;
           return (
             <EditSection id="winter-sale-marquee">

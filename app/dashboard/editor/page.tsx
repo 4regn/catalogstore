@@ -163,6 +163,7 @@ type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
   | "setla" | "newsletter" | "shopbygender" | "ticker-strip" | "winter-essentials"
+  | "winter-sale-marquee"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -186,6 +187,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   shopbygender: { icon: "circle",       label: "Shop by Gender" },
   "ticker-strip":      { icon: "ticker", label: "4regn Ticker Strip" },
   "winter-essentials": { icon: "image",  label: "Winter Essentials" },
+  "winter-sale-marquee": { icon: "image", label: "Winter Sale Marquee" },
 };
 
 // Compact icon+label inline component for the chrome.
@@ -453,7 +455,7 @@ export default function StoreEditor() {
   // "add" picker is clicked) -- already-saved product-id slides need it
   // too, to resolve their thumbnails.
   useEffect(() => {
-    if (activeSection !== "winter-essentials" || pickerProducts || !seller) return;
+    if ((activeSection !== "winter-essentials" && activeSection !== "winter-sale-marquee") || pickerProducts || !seller) return;
     setPickerLoading(true);
     supabase.from("products").select("id, name, image_url, category").eq("seller_id", seller.id).not("image_url", "is", null)
       .then(({ data }) => { setPickerProducts(data || []); setPickerLoading(false); });
@@ -461,6 +463,16 @@ export default function StoreEditor() {
   // pickerProducts is already ensured by the effect above whenever this
   // panel is open -- this just needs to toggle the picker grid itself.
   const loadWinterPicker = () => setWinterPickerOpen(v => !v);
+  // Winter Sale Marquee -- two independent slide lists (hoodie row / tee
+  // row), same shape/UI pattern as winterSlides above, sharing the same
+  // pickerProducts fetch (see the effect below, extended to also cover
+  // this panel).
+  const [marqueeHoodieSlides, setMarqueeHoodieSlides] = useState<string[]>([]);
+  const [marqueeTeeSlides, setMarqueeTeeSlides] = useState<string[]>([]);
+  const [marqueeHoodiePickerOpen, setMarqueeHoodiePickerOpen] = useState(false);
+  const [marqueeTeePickerOpen, setMarqueeTeePickerOpen] = useState(false);
+  const [marqueeHoodieDragIdx, setMarqueeHoodieDragIdx] = useState<number | null>(null);
+  const [marqueeTeeDragIdx, setMarqueeTeeDragIdx] = useState<number | null>(null);
   const [footerAbout, setFooterAbout]                 = useState("");
   const [productsCollapsed, setProductsCollapsed]     = useState(false);
   const [contactEmail, setContactEmail]               = useState("");
@@ -667,6 +679,8 @@ export default function StoreEditor() {
       if (cfg?.hidden_collections) setHiddenCollections(cfg.hidden_collections);
       if (cfg?.winter_essentials_speed !== undefined) setWinterSpeed(cfg.winter_essentials_speed);
       if (cfg?.winter_essentials_slides) setWinterSlides(cfg.winter_essentials_slides);
+      if ((cfg as any)?.winter_marquee_hoodie_slides) setMarqueeHoodieSlides((cfg as any).winter_marquee_hoodie_slides);
+      if ((cfg as any)?.winter_marquee_tee_slides) setMarqueeTeeSlides((cfg as any).winter_marquee_tee_slides);
       if (cfg?.footer_about) setFooterAbout(cfg.footer_about);
       setProductsCollapsed(cfg?.products_collapsed === true);
       setCollectionsCollapsed(cfg?.collections_collapsed === true);
@@ -1027,6 +1041,8 @@ export default function StoreEditor() {
       hidden_collections: hiddenCollections,
       winter_essentials_speed: winterSpeed,
       winter_essentials_slides: winterSlides,
+      winter_marquee_hoodie_slides: marqueeHoodieSlides,
+      winter_marquee_tee_slides: marqueeTeeSlides,
       footer_about: footerAbout || undefined,
       products_collapsed: productsCollapsed || undefined,
       collections_collapsed: collectionsCollapsed || undefined,
@@ -2130,6 +2146,140 @@ export default function StoreEditor() {
                       </div>
                     )
                   )}
+                </div>
+              );
+            })()}
+
+            {/* WINTER SALE MARQUEE — 4regn only. Two independent rows
+                (hoodies / tees), each scoped to one exact real collection
+                -- same curated-slides-with-fallback UI pattern as Winter
+                Essentials above, factored into a local renderRow() since
+                it's the same ~90 lines twice, once per row. */}
+            {activeSection === "winter-sale-marquee" && seller?.template === "4regn" && (() => {
+              const renderRow = (opts: {
+                label: string;
+                exactCategory: string;
+                slides: string[];
+                setSlides: (v: string[]) => void;
+                pickerOpen: boolean;
+                setPickerOpen: (v: boolean) => void;
+                dragIdx: number | null;
+                setDragIdx: (v: number | null) => void;
+                uploadPrefix: string;
+              }) => {
+                const { label, exactCategory, slides, setSlides, pickerOpen, setPickerOpen, dragIdx, setDragIdx, uploadPrefix } = opts;
+                const tagged = (pickerProducts || []).filter(p =>
+                  (p.category || "").split(",").map(c => c.trim()).includes(exactCategory)
+                );
+                const resolveThumb = (entry: string) => {
+                  if (entry.startsWith("http") || entry.startsWith("/")) return entry;
+                  return (pickerProducts || []).find(p => p.id === entry)?.image_url || null;
+                };
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(245,245,245,0.75)" }}>{label} row</div>
+                    <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)" }}>
+                      Drag to reorder. Leave empty to automatically show every product in &quot;{exactCategory}&quot;, in catalog order.
+                    </div>
+                    {slides.length === 0 ? (
+                      <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)" }}>
+                        Using automatic order ({tagged.length} product{tagged.length !== 1 ? "s" : ""} in {exactCategory}).
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {slides.map((entry, i) => {
+                          const thumb = resolveThumb(entry);
+                          return (
+                            <div key={i}
+                              draggable
+                              onDragStart={() => setDragIdx(i)}
+                              onDragOver={e => e.preventDefault()}
+                              onDrop={e => {
+                                e.preventDefault();
+                                if (dragIdx === null || dragIdx === i) return;
+                                const u = [...slides];
+                                const [item] = u.splice(dragIdx, 1);
+                                u.splice(i, 0, item);
+                                setSlides(u);
+                                setDragIdx(null);
+                              }}
+                              onDragEnd={() => setDragIdx(null)}
+                              style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "grab", opacity: dragIdx === i ? 0.4 : 1 }}>
+                              <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 13 }}>⠿</span>
+                              {thumb ? (
+                                <img src={thumb} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                              ) : (
+                                <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                              )}
+                              <span style={{ flex: 1, fontSize: 11, color: "rgba(245,245,245,0.4)" }}>
+                                {entry.startsWith("http") || entry.startsWith("/") ? "Uploaded image" : ((pickerProducts || []).find(p => p.id === entry)?.name || "Product")}
+                              </span>
+                              <button onClick={() => setSlides(slides.filter((_, j) => j !== i))}
+                                style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(255,107,53,0.08)", border: "none", color: "#ff6b35", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>×</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button type="button" onClick={() => setPickerOpen(!pickerOpen)}
+                        style={{ flex: 1, fontSize: 12, color: "rgba(245,245,245,0.6)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
+                        + Add from {exactCategory} products
+                      </button>
+                      <label style={{ flex: 1, textAlign: "center", fontSize: 12, color: "rgba(245,245,245,0.6)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
+                        + Upload custom image
+                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={async e => {
+                          const f = e.target.files?.[0]; if (!f || !seller) return;
+                          const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
+                          const path = `${seller.id}/${uploadPrefix}_${Date.now()}.${ext}`;
+                          const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true });
+                          if (!error) {
+                            const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                            setSlides([...slides, data.publicUrl]);
+                          }
+                        }} />
+                      </label>
+                    </div>
+                    {pickerOpen && (
+                      pickerLoading ? (
+                        <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>Loading your products…</div>
+                      ) : tagged.length === 0 ? (
+                        <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products in &quot;{exactCategory}&quot; yet.</div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, maxHeight: 320, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                          {tagged.map(p => (
+                            <button key={p.id} type="button" title={p.name}
+                              onClick={() => setSlides([...slides, p.id])}
+                              style={{ padding: 0, display: "flex", flexDirection: "column", gap: 0, border: slides.includes(p.id) ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}>
+                              <img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
+                              <span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{p.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                );
+              };
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
+                    Two scrolling rows on the homepage: hoodies (from &quot;BACK &amp; FRONT PRINTED HOODIES&quot;) and oversized tees (from &quot;OVERSIZED PREMIUM TEES&quot;). A row disappears entirely if its collection has no products.
+                  </div>
+                  {renderRow({
+                    label: "Hoodies", exactCategory: "BACK & FRONT PRINTED HOODIES",
+                    slides: marqueeHoodieSlides, setSlides: setMarqueeHoodieSlides,
+                    pickerOpen: marqueeHoodiePickerOpen, setPickerOpen: setMarqueeHoodiePickerOpen,
+                    dragIdx: marqueeHoodieDragIdx, setDragIdx: setMarqueeHoodieDragIdx,
+                    uploadPrefix: "winter_marquee_hoodie",
+                  })}
+                  {renderRow({
+                    label: "Oversized Tees", exactCategory: "OVERSIZED PREMIUM TEES",
+                    slides: marqueeTeeSlides, setSlides: setMarqueeTeeSlides,
+                    pickerOpen: marqueeTeePickerOpen, setPickerOpen: setMarqueeTeePickerOpen,
+                    dragIdx: marqueeTeeDragIdx, setDragIdx: setMarqueeTeeDragIdx,
+                    uploadPrefix: "winter_marquee_tee",
+                  })}
                 </div>
               );
             })()}
