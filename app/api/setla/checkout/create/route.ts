@@ -202,9 +202,12 @@ export async function POST(req: NextRequest) {
 
   // Pay Later's first charge goes through Stitch Card Consent instead of a
   // plain Yoco checkout -- see app/api/checkout/setla-create/route.ts's
-  // identical comment. Laybuy has no fixed schedule to automate, stays on
-  // Yoco unchanged, below.
-  if (planType === "pay_later") {
+  // identical comment, including why this is gated behind
+  // STITCH_CARD_CONSENT_ENABLED (a real production outage otherwise --
+  // the /card-consents endpoint itself still rejects live traffic even
+  // once the token scope shows as granted). Laybuy has no fixed schedule
+  // to automate, stays on Yoco unchanged, below.
+  if (planType === "pay_later" && process.env.STITCH_CARD_CONSENT_ENABLED === "true") {
     try {
       const consent = await createStitchCardConsent({
         payerFullName: `${firstName} ${lastName}`.trim(),

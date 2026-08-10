@@ -48,10 +48,19 @@ async function main() {
     console.log("  OK -- base credentials are valid.");
   }
 
-  console.log("\nChecking Card Consent access (client_recurringpaymentconsentrequest scope)...");
+  console.log("\nChecking Card Consent token scope (client_recurringpaymentconsentrequest)...");
   const recurring = await requestToken("client_recurringpaymentconsentrequest");
   if (recurring.ok) {
-    console.log("  GRANTED -- Card Consent is enabled for this account. Safe to build against it.");
+    // IMPORTANT: this only confirms Stitch's /token endpoint will mint a
+    // token claiming this scope -- it does NOT confirm POST /card-consents
+    // itself will actually accept requests. Confirmed the hard way: this
+    // showed GRANTED while the real endpoint was still rejecting live
+    // traffic with "Card Consent is not enabled for your client." Treat
+    // this as "worth trying," not "confirmed working" -- the only real
+    // proof is a successful POST /card-consents call (or Stitch support
+    // explicitly confirming the endpoint itself, not just the scope).
+    console.log("  Token scope granted -- but this does NOT prove POST /card-consents itself is enabled.");
+    console.log("  Confirm with an actual test consent request, or ask Stitch support to confirm the endpoint directly, before relying on this.");
   } else if (recurring.status === 403) {
     console.log(`  NOT GRANTED (HTTP 403) -- credentials work, but this specific scope isn't enabled.`);
     console.log("  Email express-support@stitch.money and ask them to enable Card Consent for your client ID.");

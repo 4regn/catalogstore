@@ -188,7 +188,18 @@ export async function POST(req: NextRequest) {
   // auto-collected later (see app/api/cron/setla-collect-instalments) with
   // no further action from them. Laybuy has no fixed schedule to
   // automate, so it stays on Yoco unchanged, below.
-  if (planType === "pay_later") {
+  //
+  // Gated behind STITCH_CARD_CONSENT_ENABLED -- Stitch's /token endpoint
+  // will happily mint a token claiming the client_recurringpaymentconsentrequest
+  // scope (which is all scripts/check-stitch-access.ts actually verifies),
+  // but the real POST /card-consents endpoint does its own SEPARATE
+  // approval check and was confirmed still rejecting live traffic with
+  // "Card Consent is not enabled for your client" even after that scope
+  // showed as granted -- a real production outage for every Pay Later
+  // checkout while this was unconditional. Flip this env var to "true"
+  // once Stitch support (express-support@stitch.money) confirms the
+  // ACTUAL endpoint is enabled, not just the token scope.
+  if (planType === "pay_later" && process.env.STITCH_CARD_CONSENT_ENABLED === "true") {
     try {
       const consent = await createStitchCardConsent({
         payerFullName: order.customer_name,
