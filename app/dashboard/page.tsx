@@ -260,6 +260,16 @@ export default function Dashboard() {
   const [showForm, setShowForm] = useState(false);
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvResult, setCsvResult] = useState("");
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importTab, setImportTab] = useState<"photos" | "file">("photos");
+  const [aiPhotos, setAiPhotos] = useState<File[]>([]);
+  const [aiPhotoPreviews, setAiPhotoPreviews] = useState<string[]>([]);
+  const [aiProducts, setAiProducts] = useState<{ name: string; price: number; category: string }[]>([]);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiProgress, setAiProgress] = useState("");
+  const [aiImporting, setAiImporting] = useState(false);
+  const [aiResult, setAiResult] = useState("");
+  const aiFileInputRef = useRef<HTMLInputElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formPrice, setFormPrice] = useState("");
@@ -824,6 +834,114 @@ export default function Dashboard() {
   };
   useEffect(() => { if (products.length > 0 && seller) initSortOrders(); }, [products.length > 0 && seller?.id]);
   const emptyTrash = async () => { if (!confirm("Permanently delete all trashed products? This cannot be undone.")) return; const trashed = products.filter((p) => p.status === "trashed"); for (const p of trashed) { await supabase.from("products").delete().eq("id", p.id); } setProducts(products.filter((p) => p.status !== "trashed")); revalidateMyStore(); };
+
+  const handleAiPhotoSelect = (files: FileList | null) => {
+    if (!files) return;
+    const newFiles = Array.from(files).filter((f) => f.type.startsWith("image/") && f.size <= 5 * 1024 * 1024);
+    const remaining = planLimits.products - activeProductCount;
+    const limited = newFiles.slice(0, Math.min(remaining, 100));
+    setAiPhotos(limited);
+    setAiProducts([]);
+    setAiResult("");
+    const previews: string[] = [];
+    limited.forEach((f) => {
+      const r = new FileReader();
+      r.onload = () => { previews.push(r.result as string); if (previews.length === limited.length) setAiPhotoPreviews([...previews]); };
+      r.readAsDataURL(f);
+    });
+  };
+
+  const handleAiAnalyze = async () => {
+    if (!seller || aiPhotos.length === 0) return;
+    setAiAnalyzing(true); setAiProgress("Preparing photos..."); setAiResult("");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) { setAiResult("Not authenticated. Please refresh."); return; }
+      setAiProgress(`Analyzing ${aiPhotos.length} photo${aiPhotos.length > 1 ? "s" : ""} with AI...`);
+      const images = await Promise.all(aiPhotos.map(async (f) => {
+        const buf = await f.arrayBuffer();
+        const base64 = btoa(new Uint8Array(buf).reduce((s, b) => s + String.fromCharCode(b), ""));
+        return { base64, mediaType: f.type === "image/heic" || f.type === "image/heif" ? "image/jpeg" : f.type };
+      }));
+      const res = await fetch("/api/bulk-import-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ images }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAiResult(data.error || "AI analysis failed."); return; }
+      setAiProducts(data.products || []);
+      setAiProgress("");
+    } catch (e: any) {
+      setAiResult("Analysis failed: " + (e?.message || "unknown error"));
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
+  const handleAiImport = async () => {
+    if (!seller || aiProducts.length === 0) return;
+    setAiImporting(true); setAiResult("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setAiResult("Not authenticated."); return; }
+      let imported = 0;
+      for (let i = 0; i < aiProducts.length; i++) {
+        const p = aiProducts[i];
+        const photo = aiPhotos[i];
+        setAiProgress(`Importing ${i + 1} of ${aiProducts.length}...`);
+        const { data, error } = await supabase.from("products").insert({
+          seller_id: user.id, name: p.name, price: p.price, category: p.category,
+          in_stock: true, status: "published", variants: [], images: [], image_url: null,
+          sort_order: products.length + imported,
+        }).select().single();
+        if (error || !data) continue;
+        if (photo) {
+          const ext = photo.name.split(".").pop() || "jpg";
+          const path = `${user.id}/${data.id}/${Date.now()}-0.${ext}`;
+          const { error: upErr } = await supabase.storage.from("product-images").upload(path, photo);
+          if (!upErr) {
+            const url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+            await supabase.from("products").update({ image_url: url, images: [url] }).eq("id", data.id);
+            data.image_url = url; data.images = [url];
+          }
+        }
+        setProducts((prev) => [data, ...prev]);
+        imported++;
+      }
+      setAiResult(`${imported} product${imported !== 1 ? "s" : ""} imported with photos.`);
+      setAiPhotos([]); setAiPhotoPreviews([]); setAiProducts([]); setAiProgress("");
+      if (imported > 0) revalidateMyStore();
+    } catch (e: any) {
+      setAiResult("Import failed: " + (e?.message || "unknown error"));
+    } finally {
+      setAiImporting(false);
+    }
+  };
+
+  const handleFileImport = async (file: File) => {
+    if (!seller) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "xlsx" || ext === "xls") {
+      setCsvUploading(true); setCsvResult("Reading Excel file...");
+      try {
+        const XLSX = (await import("xlsx")).default;
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const csvText = XLSX.utils.sheet_to_csv(ws);
+        const csvBlob = new Blob([csvText], { type: "text/csv" });
+        const csvFile = new File([csvBlob], file.name.replace(/\.xlsx?$/, ".csv"), { type: "text/csv" });
+        handleCsvUpload(csvFile);
+      } catch {
+        setCsvResult("Failed to read Excel file. Try saving as CSV instead.");
+        setCsvUploading(false);
+      }
+    } else {
+      handleCsvUpload(file);
+    }
+  };
 
   const handleCsvUpload = async (file: File) => {
     if (!seller) return;
@@ -1710,17 +1828,105 @@ export default function Dashboard() {
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Products</h1><p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Manage the products in your store.</p></div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
                 <button onClick={() => { if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Pro for up to 100 products." : "")); return; } if (showForm) resetForm(); else { resetForm(); setShowForm(true); setProductFilter("published"); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", whiteSpace: "nowrap" as const }}>{showForm ? "Cancel" : "+ Add Product"}</button>
-                <label style={{ padding: "12px 18px", background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.12)", borderRadius: 100, color: "#2563eb", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  {csvUploading ? "Importing..." : "Import CSV"}
-                  <input type="file" accept=".csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsvUpload(f); e.target.value = ""; }} style={{ display: "none" }} />
-                </label>
+                <button onClick={() => { setShowImportPanel(!showImportPanel); setShowForm(false); }} style={{ padding: "12px 18px", background: showImportPanel ? "rgba(37,99,235,0.12)" : "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.12)", borderRadius: 100, color: "#2563eb", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <DashIcon name="box" size={13} />{showImportPanel ? "Close Import" : "Import Products"}
+                </button>
               </div>
             </div>
 
-            {csvResult && (
+            {(csvResult || aiResult) && (
               <div style={{ padding: "14px 18px", background: "rgba(37,99,235,0.04)", border: "1px solid rgba(37,99,235,0.12)", borderRadius: 12, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, color: "#2563eb", fontWeight: 600 }}>{csvResult}</span>
-                <button onClick={() => setCsvResult("")} style={{ background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer", fontSize: 14 }}>&times;</button>
+                <span style={{ fontSize: 13, color: "#2563eb", fontWeight: 600 }}>{csvResult || aiResult}</span>
+                <button onClick={() => { setCsvResult(""); setAiResult(""); }} style={{ background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer", fontSize: 14 }}>&times;</button>
+              </div>
+            )}
+
+            {showImportPanel && (
+              <div style={{ padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 24 }}>
+                <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+                  <button onClick={() => setImportTab("photos")} style={{ padding: "8px 18px", background: importTab === "photos" ? "rgba(255,107,53,0.08)" : "transparent", border: importTab === "photos" ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", borderRadius: 100, color: importTab === "photos" ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Upload Photos (AI)</button>
+                  <button onClick={() => setImportTab("file")} style={{ padding: "8px 18px", background: importTab === "file" ? "rgba(255,107,53,0.08)" : "transparent", border: importTab === "file" ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", borderRadius: 100, color: importTab === "file" ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Import File (CSV / Excel)</button>
+                </div>
+
+                {importTab === "photos" && (
+                  <div>
+                    <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>Upload your product photos and AI will generate names, prices, and categories for each one. You can edit everything before importing.</p>
+                    {aiPhotos.length === 0 ? (
+                      <div style={{ border: "2px dashed var(--border)", borderRadius: 14, padding: "40px 20px", textAlign: "center" as const, cursor: "pointer" }} onClick={() => aiFileInputRef.current?.click()}>
+                        <DashIcon name="products" size={28} />
+                        <p style={{ fontSize: 14, fontWeight: 700, marginTop: 12 }}>Select product photos</p>
+                        <p style={{ fontSize: 12, color: "var(--muted-2)", marginTop: 4 }}>JPEG, PNG, WebP or GIF. Max 5MB each. Up to {Math.min(planLimits.products - activeProductCount, 100)} photos.</p>
+                        <input ref={aiFileInputRef} type="file" accept="image/*" multiple onChange={(e) => { handleAiPhotoSelect(e.target.files); e.target.value = ""; }} style={{ display: "none" }} />
+                      </div>
+                    ) : aiProducts.length === 0 ? (
+                      <div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 16 }}>
+                          {aiPhotoPreviews.map((src, i) => (
+                            <div key={i} style={{ width: 64, height: 64, borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)" }}>
+                              <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} />
+                            </div>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>{aiPhotos.length} photo{aiPhotos.length !== 1 ? "s" : ""} selected</p>
+                        {aiProgress && <p style={{ fontSize: 12, color: "#2563eb", marginBottom: 12 }}>{aiProgress}</p>}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={handleAiAnalyze} disabled={aiAnalyzing} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", opacity: aiAnalyzing ? 0.6 : 1 }}>{aiAnalyzing ? "Analyzing..." : "Analyze with AI"}</button>
+                          <button onClick={() => { setAiPhotos([]); setAiPhotoPreviews([]); }} style={{ padding: "12px 18px", background: "transparent", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Clear</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Review & edit before importing:</p>
+                        <div style={{ overflowX: "auto" as const }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse" as const, fontSize: 13 }}>
+                            <thead>
+                              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                                <th style={{ padding: "8px 6px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" as const }}>Photo</th>
+                                <th style={{ padding: "8px 6px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" as const }}>Name</th>
+                                <th style={{ padding: "8px 6px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" as const }}>Price (R)</th>
+                                <th style={{ padding: "8px 6px", textAlign: "left" as const, fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" as const }}>Category</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {aiProducts.map((p, i) => (
+                                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                                  <td style={{ padding: "8px 6px" }}>{aiPhotoPreviews[i] && <img src={aiPhotoPreviews[i]} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover" as const }} />}</td>
+                                  <td style={{ padding: "8px 6px" }}><input value={p.name} onChange={(e) => { const u = [...aiProducts]; u[i] = { ...u[i], name: e.target.value }; setAiProducts(u); }} style={{ width: "100%", padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></td>
+                                  <td style={{ padding: "8px 6px" }}><input type="number" value={p.price} onChange={(e) => { const u = [...aiProducts]; u[i] = { ...u[i], price: parseFloat(e.target.value) || 0 }; setAiProducts(u); }} style={{ width: 90, padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></td>
+                                  <td style={{ padding: "8px 6px" }}><input value={p.category} onChange={(e) => { const u = [...aiProducts]; u[i] = { ...u[i], category: e.target.value }; setAiProducts(u); }} style={{ width: "100%", padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} /></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {aiProgress && <p style={{ fontSize: 12, color: "#2563eb", marginTop: 12 }}>{aiProgress}</p>}
+                        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                          <button onClick={handleAiImport} disabled={aiImporting} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", opacity: aiImporting ? 0.6 : 1 }}>{aiImporting ? "Importing..." : `Import ${aiProducts.length} Product${aiProducts.length !== 1 ? "s" : ""}`}</button>
+                          <button onClick={() => { setAiProducts([]); setAiPhotos([]); setAiPhotoPreviews([]); }} style={{ padding: "12px 18px", background: "transparent", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Start Over</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {importTab === "file" && (
+                  <div>
+                    <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>Upload a CSV or Excel file with your products. Supports Shopify exports, Meta Commerce Manager exports, and custom spreadsheets.</p>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" as const }}>
+                      <label style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        {csvUploading ? "Importing..." : "Choose File"}
+                        <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileImport(f); e.target.value = ""; }} style={{ display: "none" }} />
+                      </label>
+                      <a href="/templates/catalogstore-import-template.csv" download style={{ fontSize: 12, color: "#2563eb", fontWeight: 700, textDecoration: "none", cursor: "pointer" }}>Download CSV Template</a>
+                    </div>
+                    <div style={{ marginTop: 16, padding: "14px 16px", background: "var(--panel-2)", borderRadius: 12, fontSize: 12, color: "var(--muted)" }}>
+                      <p style={{ fontWeight: 700, marginBottom: 6 }}>Supported columns:</p>
+                      <p>Required: <b>name</b> (or title), <b>price</b> (or amount)</p>
+                      <p>Optional: category, description, old_price, image_url, image_url_2, image_url_3, in_stock</p>
+                      <p style={{ marginTop: 6 }}>Shopify exports and Meta Commerce Manager exports are auto-detected.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
