@@ -7,6 +7,7 @@ import { supabase } from "../../../lib/supabase";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../lib/automatic-discounts";
 
 // Only ever rendered after a click/keyboard interaction (see `lightbox`
 // state below) -- never needed for first paint, so it's split into its own
@@ -770,6 +771,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── CART ─── */
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [automaticBxgyDiscounts, setAutomaticBxgyDiscounts] = useState<AutomaticBxgyDiscount[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
 
   useLiveVisitorPing(seller?.id, {
@@ -863,6 +865,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         .from("product_promo_badges").select("label, scope, product_id, collection_name")
         .eq("seller_id", s.id).eq("active", true);
       setPromoBadges(badges || []);
+      // Same automatic Buy X Get Y rules the checkout page shows a savings
+      // preview for (see CheckoutPageClient.tsx and lib/automatic-discounts.ts)
+      // -- fetched here too so the CART drawer shows the exact same saving
+      // before the customer even reaches checkout. Date-window filter
+      // mirrors fetchActiveAutomaticBxgyDiscounts's own logic, since this is
+      // a direct table read (RLS disabled platform-wide, same as every
+      // other public storefront read in this file) rather than going
+      // through that server-side helper.
+      const nowIso = new Date().toISOString();
+      const { data: bxgy } = await supabase
+        .from("automatic_bxgy_discounts")
+        .select("id, title, buy_quantity, buy_collection_names, get_quantity, get_collection_names, effect_type, effect_value, starts_at, ends_at")
+        .eq("seller_id", s.id).eq("active", true);
+      setAutomaticBxgyDiscounts((bxgy || []).filter((r: any) => (!r.starts_at || r.starts_at <= nowIso) && (!r.ends_at || r.ends_at >= nowIso)));
       setLoading(false);
       if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
     })();
@@ -1282,6 +1298,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     : null;
   const cartTotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  // Live preview of automatic Buy X Get Y savings -- same pricing function
+  // /api/checkout/place-order uses for the real charge (see
+  // lib/automatic-discounts.ts's own comment on why both sides share one
+  // implementation).
+  const automaticDiscount = automaticBxgyDiscounts.length && cart.length
+    ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
+    : { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
   // Banner only fires on a genuine MIX (import + non-import both present) --
   // an all-import cart never had a faster option to lose, so there's
   // nothing to warn about; see hasImportTag's own comment for the full
@@ -2525,6 +2548,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <span className="fr-cart-sub-lbl">Subtotal</span>
                 <span className="fr-cart-sub-amt">{fmt(cartTotal)}</span>
               </div>
+              {automaticDiscount.applied.map((a) => (
+                <div key={a.title} className="fr-cart-sub" style={{ marginTop: -4 }}>
+                  <span className="fr-cart-sub-lbl" style={{ color: "#22c55e" }}>{a.title}</span>
+                  <span style={{ color: "#22c55e", fontWeight: 700, fontSize: 13 }}>-{fmt(a.amount)}</span>
+                </div>
+              ))}
               {FREE_SHIP && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>}
               <button className="fr-cart-checkout" onClick={goToCheckout}>Checkout</button>
               {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
