@@ -1134,7 +1134,7 @@ export default function CheckoutPageClient() {
                         </div>
                         <div className="payment-provider-art"><div className="provider-logo stitch"><img alt="Stitch" src="/checkout/stitch.png" /></div></div>
                       </div>
-                      {paymentMethod === "stitch" && <div className="payment-note">You&rsquo;ll continue securely with Stitch Express. Your card details are securely saved by Stitch for this order.</div>}
+                      {paymentMethod === "stitch" && <div className="payment-note">You&rsquo;ll be redirected to Stitch Express to complete your payment securely.</div>}
                     </div>
                   )}
                 </div>
