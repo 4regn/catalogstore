@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { getAdmin } from "../../../lib/supabase-admin";
 import { fetchActiveAutomaticBxgyDiscounts } from "../../../lib/automatic-discounts";
+
+// Explicitly non-cacheable -- this endpoint's data (checkout_config,
+// automatic_bxgy_discounts) can change at any time via the dashboard/SQL
+// and must always reflect current DB state. Next.js Route Handlers can be
+// statically optimized by default with no explicit dynamic/revalidate
+// export, which risks serving a stale snapshot from whenever the route
+// was first built/cached -- the exact same category of bug already found
+// and fixed once this session for the storefront pages themselves (see
+// commit 0a59bea, "stop calling headers() on every request").
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const ip = getClientIP(req);
   const rl = rateLimit("seller-pub:" + ip, 30, 60);
