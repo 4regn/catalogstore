@@ -773,6 +773,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   /* ─── CART ─── */
   const [cart, setCart] = useState<CartItem[]>([]);
   const [automaticBxgyDiscounts, setAutomaticBxgyDiscounts] = useState<AutomaticBxgyDiscount[]>([]);
+  // TEMPORARY diagnostic for the automatic-discount investigation --
+  // ?debugdiscount=1 in the URL shows a small on-page panel with the raw
+  // rules/cart-category data, since getting Network-tab/console output
+  // from the seller directly has been unreliable. Remove once the root
+  // cause is found. Read client-side only (not useSearchParams(), which
+  // would force this whole tree back into SSR bailout -- see the fix in
+  // commit history "Fix SSR bailout: remove useSearchParams()...").
+  const [debugDiscount, setDebugDiscount] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("debugdiscount")) setDebugDiscount(true);
+  }, []);
   const [cartOpen, setCartOpen] = useState(false);
 
   useLiveVisitorPing(seller?.id, {
@@ -2561,6 +2572,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span style={{ color: "#22c55e", fontWeight: 700, fontSize: 13 }}>-{fmt(a.amount)}</span>
                 </div>
               ))}
+              {debugDiscount && (
+                <pre style={{ fontSize: 10, background: "#111", color: "#0f0", padding: 10, marginBottom: 12, overflowX: "auto", whiteSpace: "pre-wrap" }}>
+{JSON.stringify({
+  rulesLoaded: automaticBxgyDiscounts.map((r) => ({ title: r.title, buy: r.buy_collection_names, get: r.get_collection_names })),
+  cartItems: cart.map((i) => ({ name: i.product.name, qty: i.qty, category: i.product.category })),
+  applied: automaticDiscount.applied,
+}, null, 2)}
+                </pre>
+              )}
               {FREE_SHIP && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>}
               <button className="fr-cart-checkout" onClick={goToCheckout}>Checkout</button>
               {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (

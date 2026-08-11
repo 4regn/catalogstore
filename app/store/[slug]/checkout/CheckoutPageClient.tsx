@@ -132,6 +132,12 @@ export default function CheckoutPageClient() {
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
   const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
+  // TEMPORARY diagnostic, see FourRegnStore.tsx's identical comment --
+  // ?debugdiscount=1 in the URL shows raw rules/cart-category data.
+  const [debugDiscount, setDebugDiscount] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("debugdiscount")) setDebugDiscount(true);
+  }, []);
 
   useLiveVisitorPing(seller?.id, {
     cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
@@ -1029,6 +1035,15 @@ export default function CheckoutPageClient() {
             {automaticDiscount.applied.map((a) => (
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
+            {debugDiscount && (
+              <pre style={{ fontSize: 10, background: "#111", color: "#0f0", padding: 10, marginBottom: 12, overflowX: "auto", whiteSpace: "pre-wrap" }}>
+{JSON.stringify({
+  rulesLoaded: (seller?.automatic_bxgy_discounts || []).map((r) => ({ title: r.title, buy: r.buy_collection_names, get: r.get_collection_names })),
+  cartItems: cart.map((i) => ({ name: i.name, qty: i.qty, category: sellerProducts.find((p) => p.name.toLowerCase() === i.name.toLowerCase())?.category })),
+  applied: automaticDiscount.applied,
+}, null, 2)}
+              </pre>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{shipping === 0 ? (fulfillment === "pickup" ? "Pickup" : "Free") : "R" + shipping}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
