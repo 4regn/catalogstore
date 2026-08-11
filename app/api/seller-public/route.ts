@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { getAdmin } from "../../../lib/supabase-admin";
+import { fetchActiveAutomaticBxgyDiscounts } from "../../../lib/automatic-discounts";
 export async function GET(req: NextRequest) {
   const ip = getClientIP(req);
   const rl = rateLimit("seller-pub:" + ip, 30, 60);
@@ -10,6 +11,13 @@ export async function GET(req: NextRequest) {
 
   const { data: seller } = await getAdmin().from("sellers").select("*").eq("subdomain", slug).single();
   if (!seller) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Public by nature -- these are marketing rules ("buy 2 get 1 free"),
+  // not sensitive data, needed client-side so the cart/checkout can show
+  // the automatic saving before the customer even reaches place-order
+  // (see lib/automatic-discounts.ts's own comment: both sides must
+  // compute the exact same thing from the same rules).
+  const automaticBxgyDiscounts = await fetchActiveAutomaticBxgyDiscounts(getAdmin(), seller.id);
 
   // Strip sensitive keys before sending to client
   const cc = seller.checkout_config || {} as any;
@@ -56,6 +64,7 @@ export async function GET(req: NextRequest) {
     subscription_status: seller.subscription_status || null,
     trial_ends_at: seller.trial_ends_at || null,
     checkout_config: safeCheckoutConfig,
+    automatic_bxgy_discounts: automaticBxgyDiscounts,
     // Styling/content only (fonts, colors, copy) -- no secrets live here.
     store_config: seller.store_config || {},
     template_configs: seller.template_configs || {},

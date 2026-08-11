@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
 import { usesCleanStorePaths, storePath } from "../../../../lib/store-url";
+import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
@@ -15,6 +16,7 @@ interface Seller {
   trial_ends_at?: string | null;
   store_config?: any;
   template_configs?: Record<string, any>;
+  automatic_bxgy_discounts?: AutomaticBxgyDiscount[];
   checkout_config: {
     eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
     eft_branch_code: string; eft_account_type: string; eft_instructions: string;
@@ -356,6 +358,20 @@ export default function CheckoutPageClient() {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const shipping = fulfillment === "pickup" ? 0 : (cc.shipping_options?.[shippingOption]?.price || 0);
 
+  // Automatic Buy X Get Y savings -- live preview so the customer sees it
+  // before they even reach place-order, computed with the exact same
+  // function that call makes the real charge with (lib/automatic-discounts.ts),
+  // just fed cart/sellerProducts instead of server-truth line items. Matches
+  // cart items to their category by name, same lookup convention the
+  // existing collection-scoped discount-code math above already uses.
+  const automaticDiscount = (() => {
+    const rules = seller?.automatic_bxgy_discounts || [];
+    if (!rules.length || !cart.length) return { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
+    const productByName = new Map(sellerProducts.map((p) => [p.name.toLowerCase(), p]));
+    const priced = cart.map((i) => ({ name: i.name, price: i.price, qty: i.qty, category: productByName.get(i.name.toLowerCase())?.category }));
+    return computeAutomaticBxgyDiscount(rules, priced);
+  })();
+
   // Calculate discount based on type
   const calcDiscount = () => {
     if (!discountApplied) return 0;
@@ -388,7 +404,9 @@ export default function CheckoutPageClient() {
   };
   const discountAmount = calcDiscount();
   const isShippingDiscount = discountApplied?.applies_to === "shipping";
-  const total = isShippingDiscount ? Math.max(0, subtotal + shipping - discountAmount) : Math.max(0, subtotal - discountAmount + shipping);
+  const total = isShippingDiscount
+    ? Math.max(0, subtotal + shipping - discountAmount - automaticDiscount.totalDiscount)
+    : Math.max(0, subtotal - discountAmount - automaticDiscount.totalDiscount + shipping);
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
 
   const applyDiscount = async () => {
@@ -1008,6 +1026,9 @@ export default function CheckoutPageClient() {
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, marginTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{subtotal.toFixed(0)}</span></div>
             {discountApplied && discountAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
+            {automaticDiscount.applied.map((a) => (
+              <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
+            ))}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{shipping === 0 ? (fulfillment === "pickup" ? "Pickup" : "Free") : "R" + shipping}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

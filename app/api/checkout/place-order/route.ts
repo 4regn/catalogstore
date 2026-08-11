@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { getAdmin } from "../../../../lib/supabase-admin";
+import { fetchActiveAutomaticBxgyDiscounts, computeAutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 
 /* Server-side order placement.
    The previous flow inserted directly from the browser using client-supplied
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
   const byNameMap = new Map<string, any>((byName.data || []).map((p) => [p.name.toLowerCase(), p]));
 
   /* Build the line items with server-truth prices */
-  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string }[] = [];
+  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string; category?: string | null }[] = [];
   // A product tagged "import"/"imports" (singular or plural, case-
   // insensitive) restricts delivery to whichever shipping option(s) the
   // seller marked is_premium -- see the shipping-option validation below.
@@ -145,10 +146,22 @@ export async function POST(req: NextRequest) {
       qty,
       variant: typeof raw.variant === "string" ? raw.variant.slice(0, 200) : "",
       image: typeof raw.image === "string" ? raw.image.slice(0, 500) : "",
+      category: product.category ?? null,
     });
   }
 
   const subtotal = lineItems.reduce((s, i) => s + i.price * i.qty, 0);
+
+  /* Automatic Buy X Get Y discounts -- applies the moment enough
+     qualifying items are in the cart, no code needed, mirroring exactly
+     how these worked as DiscountAutomaticBxgy on Shopify (see
+     lib/automatic-discounts.ts and scripts/inspect-4regn-bxgy-discounts.ts).
+     Combines with a manual discount_codes code below rather than
+     replacing it -- both reduce the same subtotal independently, matching
+     the "Combines with Order/Product Discounts" flags Shopify's own
+     export showed as true for these. */
+  const bxgyRules = await fetchActiveAutomaticBxgyDiscounts(getAdmin(), seller.id);
+  const automaticDiscount = bxgyRules.length ? computeAutomaticBxgyDiscount(bxgyRules, lineItems) : { totalDiscount: 0, applied: [] };
 
   /* Shipping — server picks the price from checkout_config */
   let shippingCost = 0;
@@ -233,7 +246,7 @@ export async function POST(req: NextRequest) {
     discountRow = dc;
   }
 
-  const total = Math.max(0, subtotal - discountAmount + shippingCost);
+  const total = Math.max(0, subtotal - discountAmount - automaticDiscount.totalDiscount + shippingCost);
 
   /* Build the order row in layers: core columns that every orders table has,
      then optional columns that may not exist yet (added later via migrations).
@@ -254,7 +267,13 @@ export async function POST(req: NextRequest) {
   };
 
   const tier1 = { subtotal, fulfillment_method: fulfillment };
-  const tier2 = { discount_code: discountRow?.code || null, discount_amount: discountAmount, shipping_option: shippingLabel };
+  const tier2 = {
+    discount_code: discountRow?.code || null,
+    discount_amount: discountAmount,
+    shipping_option: shippingLabel,
+    automatic_discount_amount: automaticDiscount.totalDiscount,
+    automatic_discount_title: automaticDiscount.applied.map((a) => a.title).join(", ") || null,
+  };
 
   const attempts = [
     { ...coreRow, ...tier1, ...tier2 },
@@ -286,5 +305,6 @@ export async function POST(req: NextRequest) {
     orderId: inserted.id,
     orderNumber: inserted.order_number || inserted.id.substring(0, 8),
     total: inserted.total,
+    automaticDiscount: automaticDiscount.totalDiscount > 0 ? automaticDiscount : null,
   });
 }
