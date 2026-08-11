@@ -2578,7 +2578,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span className="fr-cart-sub-amt" style={{ fontWeight: 800 }}>{fmt(Math.max(0, cartTotal - automaticDiscount.totalDiscount))}</span>
                 </div>
               )}
-              {debugDiscount && (
+              {(debugDiscount || (cart.length > 0 && automaticBxgyDiscounts.length > 0 && automaticDiscount.applied.length === 0)) && (
                 <pre style={{ fontSize: 10, background: "#111", color: "#0f0", padding: 10, marginBottom: 12, overflowX: "auto", whiteSpace: "pre-wrap" }}>
 {JSON.stringify({
   rulesLoaded: automaticBxgyDiscounts.map((r) => ({ title: r.title, buy: r.buy_collection_names, get: r.get_collection_names })),

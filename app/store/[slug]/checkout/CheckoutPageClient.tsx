@@ -1043,7 +1043,7 @@ export default function CheckoutPageClient() {
             {automaticDiscount.applied.map((a) => (
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
-            {debugDiscount && (
+            {(debugDiscount || (cart.length > 0 && (seller?.automatic_bxgy_discounts?.length || 0) > 0 && automaticDiscount.applied.length === 0)) && (
               <pre style={{ fontSize: 10, background: "#111", color: "#0f0", padding: 10, marginBottom: 12, overflowX: "auto", whiteSpace: "pre-wrap" }}>
 {JSON.stringify({
   rulesLoaded: (seller?.automatic_bxgy_discounts || []).map((r) => ({ title: r.title, buy: r.buy_collection_names, get: r.get_collection_names })),
