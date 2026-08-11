@@ -2525,7 +2525,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <div key={idx} className="fr-cart-item">
                     <div className="fr-cart-item-img" style={cartImg ? { backgroundImage: `url("${cartImg}")` } : {}} />
                     <div>
-                      <div className="fr-cart-item-cat">{i.product.category}</div>
                       <div className="fr-cart-item-name">{i.product.name}</div>
                       {varStr && <div className="fr-cart-item-var">{varStr}</div>}
                       <div className="fr-cart-item-qty">
@@ -3047,7 +3046,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               ← Back
             </button>
             <h1 className="fr-coll-title">{collectionName}</h1>
-            <div className="fr-coll-count">{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}</div>
           </div>
         )}
 
@@ -3872,7 +3870,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     )}
                     <div className="fr-search-item-info">
                       <div className="fr-search-item-name">{p.name}</div>
-                      {p.category && <div className="fr-search-item-cat">{p.category}</div>}
                     </div>
                     <div className="fr-search-item-price">{fmt(p.price)}</div>
                   </button>

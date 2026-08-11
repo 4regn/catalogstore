@@ -167,13 +167,25 @@ ratio will look distorted).
   pattern, then decide which events trigger one (order confirmed?
   instalment reminder?).
 - **4regn's own Resend account (`info@4regn.com` sender)** — see §7.
-- **Float payment integration** — I have no context on this. Nothing in
-  this codebase currently mentions "Float" as a payment provider. Before
-  any work can start here, I need: their API docs (same as how Stitch's
-  onboarding worked — upload the actual docs, don't rely on training
-  data guesses about their API), test/live credentials, and confirmation
-  of what specifically Float is used for on the Shopify side (a card
-  gateway? a BNPL product? something else?).
+- **Float payment integration — CORRECTION, this is already built.** An
+  earlier pass on this codebase already wired Float's real embedded
+  widget: `FourRegnStore.tsx`'s `FloatWidget` function component (around
+  line 4283) embeds Float's actual script
+  (`https://checkout.float.co.za/widgets/17bb89-2/float-details-widget?price=...`,
+  merchant ID `17bb89-2`) directly on the PDP, next to `SetlaProductWidget`.
+  It's currently **commented out** (search `FloatWidget temporarily
+  disabled` in `FourRegnStore.tsx`) because confirmed live: Float's script
+  renders its full onboarding/FAQ splash page instead of the compact
+  price-plan widget on `4regn.catalogstore.co.za` — almost certainly
+  because merchant `17bb89-2` was authorized against the old Shopify
+  domain, not this one. **The fix is on Float's own merchant dashboard
+  side** (whitelist/authorize the new domain there), not a code change —
+  once that's done, uncomment the single `<FloatWidget .../>` line right
+  below the disabled-comment block and it should just work, since the
+  component itself is already correct and unchanged. The footer's Float
+  logo (`public/checkout/float.png`) is already showing regardless,
+  separate from the interactive widget, matching the real Shopify
+  footer.
 
 ---
 
