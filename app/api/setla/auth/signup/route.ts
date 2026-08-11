@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdmin } from "../../../../../lib/supabase-admin";
+import { createDisposableAdmin } from "../../../../../lib/supabase-admin";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +59,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Passwords don't match" }, { status: 400 });
     }
 
-    const admin = getAdmin();
+    // Disposable, not the shared getAdmin() singleton -- this handler calls
+    // auth.signInWithPassword() near the end, which mutates the client's
+    // in-memory active session; the shared singleton is reused across
+    // requests on the same warm serverless instance, so that mutation would
+    // leak into whatever else that instance handles next (a real RLS-
+    // violation bug this caused elsewhere -- see createDisposableAdmin's
+    // own comment).
+    const admin = createDisposableAdmin();
     const { data: existingCustomer } = await admin.from("setla_customers").select("id").eq("email", email).maybeSingle();
     if (existingCustomer) return NextResponse.json({ error: "An account already exists for this email. Log in instead." }, { status: 409 });
 

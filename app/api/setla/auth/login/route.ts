@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdmin } from "../../../../../lib/supabase-admin";
+import { createDisposableAdmin } from "../../../../../lib/supabase-admin";
 import { rateLimit, getClientIP } from "../../../../../lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,14 @@ export async function POST(req: NextRequest) {
   const password = String(body.password || "");
   if (!email || !password) return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
 
-  const admin = getAdmin();
+  // A disposable client, not the shared getAdmin() singleton -- signInWithPassword
+  // mutates the client's in-memory active session, and getAdmin() is reused
+  // across requests on the same warm serverless instance. Using the shared
+  // one here would make every OTHER request that instance handles
+  // afterward (until it recycles) silently run as THIS customer's low-
+  // privilege JWT instead of the service role -- see createDisposableAdmin's
+  // own comment for the real RLS-violation bug this caused.
+  const admin = createDisposableAdmin();
   const { data: signInData, error: signInErr } = await admin.auth.signInWithPassword({ email, password });
   if (signInErr || !signInData.session) {
     return NextResponse.json({ error: "The email or password is incorrect. Please try again." }, { status: 401 });

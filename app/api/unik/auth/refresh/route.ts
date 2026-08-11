@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdmin } from "../../../../../lib/supabase-admin";
+import { createDisposableAdmin } from "../../../../../lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
   const refreshToken = String(body.refreshToken || "");
   if (!refreshToken) return NextResponse.json({ error: "Missing refresh token" }, { status: 400 });
 
-  const { data, error } = await getAdmin().auth.refreshSession({ refresh_token: refreshToken });
+  // Disposable, not the shared getAdmin() singleton -- refreshSession()
+  // mutates the client's in-memory active session the same way
+  // signInWithPassword does; see createDisposableAdmin's own comment for
+  // the real RLS-violation bug that pattern caused elsewhere.
+  const { data, error } = await createDisposableAdmin().auth.refreshSession({ refresh_token: refreshToken });
   if (error || !data.session) {
     return NextResponse.json({ error: "Could not refresh session" }, { status: 401 });
   }
