@@ -220,7 +220,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .total-row.grand span:first-child{font-size:17px;font-weight:500}
 .fr-checkout-v2 .total-row.grand strong{font-size:27px;font-weight:500;letter-spacing:-.03em}
 .fr-checkout-v2 .currency{font-size:10px;color:#888;margin-right:5px;font-weight:400}
-.fr-checkout-v2 .summary-foot{margin-top:22px;padding:0 4px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.fr-checkout-v2 .summary-foot{margin-top:22px;padding:0 4px}
 .fr-checkout-v2 .mini-trust{border-top:1px solid #dedede;padding-top:13px;font-size:11px;color:#707070;line-height:1.55}
 .fr-checkout-v2 .mini-trust strong{display:block;color:#050505;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;font-weight:600}
 @media(max-width:900px){
@@ -257,6 +257,24 @@ const FOUR_REGN_CHECKOUT_CSS = `
  .fr-checkout-v2 .card-brand img{max-width:30px}
  .fr-checkout-v2 .installments.four{grid-template-columns:repeat(2,1fr)}
 }
+.fr-checkout-v2 .setla-modal-overlay{position:fixed;inset:0;background:rgba(5,5,5,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.fr-checkout-v2 .setla-modal{position:relative;width:100%;max-width:380px;background:#fff;border-radius:14px;padding:32px 28px 28px;box-shadow:0 24px 60px rgba(0,0,0,.25)}
+.fr-checkout-v2 .setla-modal-close{position:absolute;top:14px;right:14px;width:28px;height:28px;border:none;background:#f4f4f4;border-radius:50%;font-size:16px;line-height:1;color:#555;display:flex;align-items:center;justify-content:center}
+.fr-checkout-v2 .setla-modal-logo{display:flex;justify-content:center;margin-bottom:18px}
+.fr-checkout-v2 .setla-modal-logo img{background:#050505;border-radius:6px;padding:7px 14px;height:20px;object-fit:contain}
+.fr-checkout-v2 .setla-modal-amount{text-align:center;margin-bottom:24px}
+.fr-checkout-v2 .setla-modal-amount span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#777;margin-bottom:4px}
+.fr-checkout-v2 .setla-modal-amount strong{font-size:30px;font-weight:500;letter-spacing:-.02em}
+.fr-checkout-v2 .setla-modal-choices{display:grid;gap:10px}
+.fr-checkout-v2 .setla-modal-option{display:flex;flex-direction:column;gap:2px;text-align:left;padding:14px 16px;border:1px solid #d4d4d4;border-radius:9px;background:#fff;text-decoration:none;color:#050505;width:100%}
+.fr-checkout-v2 .setla-modal-option:hover{border-color:#050505}
+.fr-checkout-v2 .setla-modal-option.primary{border-color:#00751f;background:rgba(0,117,31,.04)}
+.fr-checkout-v2 .setla-modal-option:disabled{opacity:.6;cursor:not-allowed}
+.fr-checkout-v2 .setla-modal-option .opt-title{font-size:14px;font-weight:600}
+.fr-checkout-v2 .setla-modal-option .opt-sub{font-size:12px;color:#707070}
+.fr-checkout-v2 .setla-modal-login{display:grid;gap:14px}
+.fr-checkout-v2 .setla-modal-back{justify-self:start;background:none;border:none;color:#666;font-size:12px;padding:0;margin-bottom:2px}
+.fr-checkout-v2 .setla-modal-login-btn{width:100%;min-width:0}
 `;
 
 export default function CheckoutPageClient() {
@@ -298,6 +316,48 @@ export default function CheckoutPageClient() {
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
   const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
+
+  // 4regn-exclusive SETLA choice modal -- replaces the old behavior of
+  // immediately navigating to /setla/checkout.html the moment "Continue to
+  // SETLA" is clicked, which dropped a first-time (or logged-out) shopper
+  // onto a bare login page with no context. Login here uses the exact same
+  // /api/setla/auth/login endpoint and localStorage refresh-token key
+  // (setla-labs-refresh-token-v1, see public/setla/setla.js's own
+  // storeRefreshToken) that SETLA's real login.html uses, so a customer who
+  // logs in through this modal lands on checkout.html already
+  // authenticated -- not asked to log in a second time.
+  const [setlaModalOpen, setSetlaModalOpen] = useState(false);
+  const [setlaModalView, setSetlaModalView] = useState<"choice" | "login">("choice");
+  const [setlaLoginEmail, setSetlaLoginEmail] = useState("");
+  const [setlaLoginPassword, setSetlaLoginPassword] = useState("");
+  const [setlaLoginError, setSetlaLoginError] = useState("");
+  const [setlaLoginLoading, setSetlaLoginLoading] = useState(false);
+  const SETLA_REFRESH_KEY = "setla-labs-refresh-token-v1";
+
+  const setlaLogin = async () => {
+    if (!setlaLoginEmail.trim() || !setlaLoginPassword) return;
+    setSetlaLoginLoading(true);
+    setSetlaLoginError("");
+    try {
+      const res = await fetch("/api/setla/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: setlaLoginEmail.trim(), password: setlaLoginPassword }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setSetlaLoginError(json.error || "Could not sign in"); setSetlaLoginLoading(false); return; }
+      try {
+        if (json.refreshToken) localStorage.setItem(SETLA_REFRESH_KEY, json.refreshToken);
+        localStorage.setItem("setla-active-email", setlaLoginEmail.trim().toLowerCase());
+      } catch {}
+      setSetlaModalOpen(false);
+      placeOrder("setla");
+    } catch {
+      setSetlaLoginError("Something went wrong. Please try again.");
+      setSetlaLoginLoading(false);
+    }
+  };
 
   useLiveVisitorPing(seller?.id, {
     cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
@@ -625,7 +685,13 @@ export default function CheckoutPageClient() {
     return false;
   };
 
-  const placeOrder = async () => {
+  // overrideMethod exists for 4regn's SETLA choice modal: "Pay in full as
+  // guest" needs to place this exact order via Yoco for the FULL amount
+  // without requiring the customer to first flip the payment-method radio
+  // back to Yoco themselves (paymentMethod state stays "setla" the whole
+  // time -- only this one call's effective method changes).
+  const placeOrder = async (overrideMethod?: typeof paymentMethod) => {
+    const effectiveMethod = overrideMethod || paymentMethod;
     /* Double-submit guard: a ref because state updates are async, so two
        fast clicks could both pass `if (placing) return` before React renders. */
     if (placingRef.current) return;
@@ -654,7 +720,7 @@ export default function CheckoutPageClient() {
             : null,
           fulfillment,
           shippingOptionIndex: fulfillment === "delivery" ? shippingOption : null,
-          paymentMethod,
+          paymentMethod: effectiveMethod,
           discountCode: discountApplied?.code || null,
         }),
       });
@@ -678,7 +744,7 @@ export default function CheckoutPageClient() {
       // which already handles SETLA instalment/laybuy events too)
       // confirms payment actually went through, so the seller never gets
       // a "New Order!" email for a payment that failed or was abandoned.
-      if (paymentMethod !== "payfast" && paymentMethod !== "yoco" && paymentMethod !== "stitch" && paymentMethod !== "setla") {
+      if (effectiveMethod !== "payfast" && effectiveMethod !== "yoco" && effectiveMethod !== "stitch" && effectiveMethod !== "setla") {
         fetch("/api/notify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -686,7 +752,7 @@ export default function CheckoutPageClient() {
         }).catch(() => {});
       }
 
-      if (paymentMethod === "payfast" && cc.payfast_enabled) {
+      if (effectiveMethod === "payfast" && cc.payfast_enabled) {
         const pfRes = await fetch("/api/payfast-redirect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -701,7 +767,7 @@ export default function CheckoutPageClient() {
         return;
       }
 
-      if (paymentMethod === "yoco" && cc.yoco_enabled) {
+      if (effectiveMethod === "yoco" && cc.yoco_enabled) {
         const ycRes = await fetch("/api/checkout/yoco-redirect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -719,7 +785,7 @@ export default function CheckoutPageClient() {
         return;
       }
 
-      if (paymentMethod === "stitch" && cc.stitch_enabled) {
+      if (effectiveMethod === "stitch" && cc.stitch_enabled) {
         // Stitch only accepts one of up to 5 pre-registered exact redirect
         // URLs (see lib/stitch.ts's registerStitchRedirectUrl), unlike
         // Yoco's fully dynamic successUrl -- so the order/store context is
@@ -745,7 +811,7 @@ export default function CheckoutPageClient() {
         return;
       }
 
-      if (paymentMethod === "setla" && cc.setla_enabled) {
+      if (effectiveMethod === "setla" && cc.setla_enabled) {
         // SETLA's own checkout.html (shared with UNIK Labs, see
         // app/api/checkout/setla-create/route.ts's own comment) picks
         // Pay Later vs Laybuy and shows the instalment schedule itself --
@@ -1062,6 +1128,8 @@ export default function CheckoutPageClient() {
                           <div className="card-brand-row">
                             <span className="card-brand"><img alt="Visa" src="/checkout/visa.png" /></span>
                             <span className="card-brand"><img alt="Mastercard" src="/checkout/mastercard.png" /></span>
+                            <span className="card-brand"><img alt="Capitec Pay" src="/checkout/capitecpay.png" /></span>
+                            <span className="card-brand apple"><img alt="Apple Pay" src="/checkout/applepay.png" /></span>
                           </div>
                         </div>
                         <div className="payment-provider-art"><div className="provider-logo stitch"><img alt="Stitch" src="/checkout/stitch.png" /></div></div>
@@ -1076,7 +1144,26 @@ export default function CheckoutPageClient() {
 
               <div className="actions">
                 <a className="return" href={sp()}>&larr; Return to store</a>
-                <button className="pay-btn" onClick={placeOrder} disabled={placing}>
+                <button
+                  className="pay-btn"
+                  onClick={() => {
+                    if (paymentMethod === "setla") {
+                      // Same fields placeOrder() itself validates -- checked
+                      // here too so a shopper isn't sent through the SETLA
+                      // login flow only to be told afterward that their
+                      // contact details are missing.
+                      if (!email || !firstName || !lastName) { setOrderError("Please fill in your contact details"); return; }
+                      if (fulfillment === "delivery" && (!address || !city || !postalCode)) { setOrderError("Please fill in your delivery address"); return; }
+                      setOrderError("");
+                      setSetlaModalView("choice");
+                      setSetlaLoginError("");
+                      setSetlaModalOpen(true);
+                      return;
+                    }
+                    placeOrder();
+                  }}
+                  disabled={placing}
+                >
                   {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : "Pay now · R" + total.toFixed(0)}
                 </button>
               </div>
@@ -1120,11 +1207,54 @@ export default function CheckoutPageClient() {
                 </div>
                 <div className="summary-foot">
                   <div className="mini-trust"><strong>Secure payment</strong>Payment details are handled by your selected payment provider.</div>
-                  <div className="mini-trust"><strong>Need to go back?</strong>Your cart remains accessible from the store.</div>
                 </div>
               </div>
             </aside>
           </main>
+
+          {setlaModalOpen && (
+            <div className="setla-modal-overlay" onClick={() => { if (!setlaLoginLoading) setSetlaModalOpen(false); }}>
+              <div className="setla-modal" onClick={(e) => e.stopPropagation()}>
+                <button className="setla-modal-close" onClick={() => setSetlaModalOpen(false)} aria-label="Close">&times;</button>
+                <div className="setla-modal-logo"><img alt="SETLA" src="/setla/assets/setla-payments-logo.png" /></div>
+                <div className="setla-modal-amount">
+                  <span>Total to pay</span>
+                  <strong>R{total.toLocaleString("en-ZA")}</strong>
+                </div>
+
+                {setlaModalView === "choice" ? (
+                  <div className="setla-modal-choices">
+                    <button className="setla-modal-option primary" onClick={() => { setSetlaModalView("login"); setSetlaLoginError(""); }}>
+                      <span className="opt-title">Already have an account?</span>
+                      <span className="opt-sub">Log in to continue with SETLA</span>
+                    </button>
+                    <a className="setla-modal-option" href="/setla/signup.html">
+                      <span className="opt-title">New to SETLA?</span>
+                      <span className="opt-sub">Sign up to pay in instalments</span>
+                    </a>
+                    <button
+                      className="setla-modal-option"
+                      disabled={placing}
+                      onClick={() => { setSetlaModalOpen(false); placeOrder("yoco"); }}
+                    >
+                      <span className="opt-title">Pay in full as guest</span>
+                      <span className="opt-sub">Complete payment now via card &mdash; R{total.toLocaleString("en-ZA")}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="setla-modal-login">
+                    <button className="setla-modal-back" onClick={() => setSetlaModalView("choice")}>&larr; Back</button>
+                    <div className="field wide"><label>Email address</label><input autoComplete="email" type="email" value={setlaLoginEmail} onChange={(e) => setSetlaLoginEmail(e.target.value)} /></div>
+                    <div className="field wide"><label>Password</label><input autoComplete="current-password" type="password" value={setlaLoginPassword} onChange={(e) => setSetlaLoginPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") setlaLogin(); }} /></div>
+                    {setlaLoginError && <p className="promo-error">{setlaLoginError}</p>}
+                    <button className="pay-btn setla-modal-login-btn" onClick={setlaLogin} disabled={setlaLoginLoading || !setlaLoginEmail.trim() || !setlaLoginPassword}>
+                      {setlaLoginLoading ? "Signing in..." : "Log in & continue"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1444,7 +1574,7 @@ export default function CheckoutPageClient() {
                 moving off Shopify onto this same checkout system UNIK Labs
                 already runs on, and wants the two to look consistent) --
                 confirmed via that file directly rather than eyeballing it. */}
-            <button onClick={placeOrder} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA" : (paymentMethod === "payfast" || paymentMethod === "yoco" || paymentMethod === "stitch") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
+            <button onClick={() => placeOrder()} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA" : (paymentMethod === "payfast" || paymentMethod === "yoco" || paymentMethod === "stitch") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
           </div>
         </div>
 
