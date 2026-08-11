@@ -865,24 +865,31 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         .from("product_promo_badges").select("label, scope, product_id, collection_name")
         .eq("seller_id", s.id).eq("active", true);
       setPromoBadges(badges || []);
-      // Same automatic Buy X Get Y rules the checkout page shows a savings
-      // preview for (see CheckoutPageClient.tsx and lib/automatic-discounts.ts)
-      // -- fetched here too so the CART drawer shows the exact same saving
-      // before the customer even reaches checkout. Date-window filter
-      // mirrors fetchActiveAutomaticBxgyDiscounts's own logic, since this is
-      // a direct table read (RLS disabled platform-wide, same as every
-      // other public storefront read in this file) rather than going
-      // through that server-side helper.
-      const nowIso = new Date().toISOString();
-      const { data: bxgy } = await supabase
-        .from("automatic_bxgy_discounts")
-        .select("id, title, buy_quantity, buy_collection_names, get_quantity, get_collection_names, effect_type, effect_value, starts_at, ends_at")
-        .eq("seller_id", s.id).eq("active", true);
-      setAutomaticBxgyDiscounts((bxgy || []).filter((r: any) => (!r.starts_at || r.starts_at <= nowIso) && (!r.ends_at || r.ends_at >= nowIso)));
       setLoading(false);
       if (isEditMode) window.parent.postMessage({ type: "IFRAME_READY" }, "*");
     })();
   }, [slug, isEditMode]);
+
+  // Separate from the LOAD effect above on purpose -- that one's entire
+  // body is skipped whenever initialSeller is provided (the real live
+  // page ALWAYS provides it, for SSR/SEO -- see app/store/[slug]/page.tsx),
+  // which meant this fetch never actually ran in production when it lived
+  // inside that block (confirmed live: the cart drawer showed no
+  // automatic-discount line at all despite the checkout page, which gets
+  // its rules via /api/seller-public instead, showing it correctly). Keyed
+  // on seller?.id so it runs once seller data exists regardless of which
+  // path provided it.
+  useEffect(() => {
+    if (!seller?.id) return;
+    (async () => {
+      const nowIso = new Date().toISOString();
+      const { data: bxgy } = await supabase
+        .from("automatic_bxgy_discounts")
+        .select("id, title, buy_quantity, buy_collection_names, get_quantity, get_collection_names, effect_type, effect_value, starts_at, ends_at")
+        .eq("seller_id", seller.id).eq("active", true);
+      setAutomaticBxgyDiscounts((bxgy || []).filter((r: any) => (!r.starts_at || r.starts_at <= nowIso) && (!r.ends_at || r.ends_at >= nowIso)));
+    })();
+  }, [seller?.id]);
 
   const getProductPromo = (productId: string) =>
     promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
