@@ -84,6 +84,47 @@ const QUERY = `query($cursor: String) {
               }
             }
           }
+          ... on DiscountAutomaticBxgy {
+            title
+            status
+            startsAt
+            endsAt
+            summary
+            customerBuys {
+              value {
+                __typename
+                ... on DiscountQuantity { quantity }
+                ... on DiscountPurchaseAmount { amount }
+              }
+              items {
+                __typename
+                ... on AllDiscountItems { allItems }
+                ... on DiscountProducts { products(first: 50) { edges { node { id handle title } } } }
+                ... on DiscountCollections { collections(first: 50) { edges { node { id title } } } }
+              }
+            }
+            customerGets {
+              value {
+                __typename
+                ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem }
+                ... on DiscountPercentage { percentage }
+                ... on DiscountOnQuantity {
+                  quantity { quantity }
+                  effect {
+                    __typename
+                    ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem }
+                    ... on DiscountPercentage { percentage }
+                  }
+                }
+              }
+              items {
+                __typename
+                ... on AllDiscountItems { allItems }
+                ... on DiscountProducts { products(first: 50) { edges { node { id handle title } } } }
+                ... on DiscountCollections { collections(first: 50) { edges { node { id title } } } }
+              }
+            }
+          }
         }
       }
     }
@@ -98,17 +139,23 @@ async function main() {
   let cursor: string | null = null;
   let hasNext = true;
   const bxgyNodes: any[] = [];
+  const typeCounts = new Map<string, number>();
   while (hasNext) {
     const data: any = await shopifyGraphQL(args.domain, args.token, args.apiVersion, QUERY, { cursor });
     const edges = data.discountNodes.edges;
     for (const e of edges) {
-      if (e.node.discount?.__typename === "DiscountCodeBxgy") bxgyNodes.push(e.node);
+      const t = e.node.discount?.__typename || "(none)";
+      typeCounts.set(t, (typeCounts.get(t) || 0) + 1);
+      if (t === "DiscountCodeBxgy" || t === "DiscountAutomaticBxgy") bxgyNodes.push(e.node);
     }
     hasNext = data.discountNodes.pageInfo.hasNextPage;
     cursor = edges.length ? edges[edges.length - 1].cursor : null;
   }
 
-  console.log(`Found ${bxgyNodes.length} DiscountCodeBxgy node(s).\n`);
+  console.log("All discount node types seen:");
+  for (const [t, n] of typeCounts) console.log(`  ${t}: ${n}`);
+
+  console.log(`\nFound ${bxgyNodes.length} BXGY node(s) (code or automatic).\n`);
   console.log(JSON.stringify(bxgyNodes, null, 2));
 }
 
