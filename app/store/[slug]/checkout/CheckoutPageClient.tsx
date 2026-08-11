@@ -8,6 +8,7 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
+import { fetchAllRows } from "../../../../lib/fetch-all-rows";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -176,8 +177,20 @@ export default function CheckoutPageClient() {
     const sd = sellerRes.ok ? await sellerRes.json() : null;
     if (sd) {
       setSeller(sd);
-      const { data: prods } = await supabase.from("products").select("id, name, category").eq("seller_id", sd.id);
-      if (prods) setSellerProducts(prods);
+      // A plain .select() with no .range() gets silently capped at
+      // PostgREST's default row limit (confirmed 1000 on this project --
+      // see fetch-all-rows.ts's own comment) -- for a seller with a real
+      // catalog north of that (4regn: ~1600 products), whichever products
+      // land past that cutoff (order is whatever Postgres returns with no
+      // explicit ORDER BY, not anything predictable) silently vanish from
+      // this lookup. That's the actual root cause of automatic-discount
+      // matching working for some products and not others at checkout:
+      // it was never a category or casing problem for the missing ones,
+      // sellerProducts just didn't contain their row at all.
+      const prods = await fetchAllRows<{ id: string; name: string; category: string }>(
+        supabase, "products", "id, name, category", (q) => q.eq("seller_id", sd.id)
+      );
+      setSellerProducts(prods);
     }
     const p = new URLSearchParams(window.location.search);
     // Check if returning from PayFast payment.
