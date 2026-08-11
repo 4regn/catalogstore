@@ -1499,7 +1499,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   case -- unlike the footer/nav logo and payment icons
                   nearby, which are all from a single verified, controlled
                   source and keep next/image. */}
-              <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
+              <img src={img} alt={cat} width={800} height={1000} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
             </>
           ) : <span className="fr-cat-mark">{cat}</span>}
@@ -1534,7 +1534,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           )}
           {p.image_url ? (
             <>
-              <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
+              <img src={p.image_url} alt={p.name} width={800} height={1000} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
             </>
           ) : (
@@ -1980,8 +1980,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sbg-dot{width:4px;height:4px;border-radius:999px;background:rgba(0,0,0,0.18);transition:all 0.25s ease;padding:0;border:none}
 .fr-sbg-dot.active{width:14px;background:rgba(0,0,0,0.55)}
 .fr-sbg-divider{width:1px;flex-shrink:0;align-self:stretch;margin:0 10px;background:linear-gradient(to bottom, transparent 0%, rgba(150,148,150,0.28) 15%, rgba(190,188,190,0.45) 35%, rgba(255,255,255,0.7) 50%, rgba(190,188,190,0.45) 65%, rgba(150,148,150,0.28) 85%, transparent 100%);position:relative;overflow:hidden}
-.fr-sbg-divider-shimmer{position:absolute;left:0;right:0;height:50px;background:linear-gradient(to bottom, transparent, rgba(255,255,255,0.88) 50%, transparent);animation:fr-sbg-divider-flow 2.8s ease-in-out infinite}
-@keyframes fr-sbg-divider-flow{0%{top:-100%}100%{top:100%}}
+.fr-sbg-divider-shimmer{position:absolute;left:0;right:0;top:0;height:50px;background:linear-gradient(to bottom, transparent, rgba(255,255,255,0.88) 50%, transparent);will-change:transform;animation:fr-sbg-divider-flow 2.8s ease-in-out infinite}
+@keyframes fr-sbg-divider-flow{0%{transform:translateY(-100%)}100%{transform:translateY(100%)}}
 
 .fr-section{max-width:1360px;margin:0 auto;padding:64px 40px}
 .fr-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;gap:20px;flex-wrap:wrap}
@@ -3301,7 +3301,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       >
                         {img ? (
                           <>
-                            <img src={img} alt={cat} loading="lazy" decoding="async" onError={handleImgError} className="fr-collgrid-img" />
+                            <img src={img} alt={cat} width={800} height={1000} loading="lazy" decoding="async" onError={handleImgError} className="fr-collgrid-img" />
                             <span className="fr-cat-mark" style={{ display: "none" }}>{cat}</span>
                             <div className="fr-collgrid-overlay">
                               <span className="fr-collgrid-title">{cat}</span>
@@ -3888,7 +3888,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     onClick={() => { setShowSearch(false); setSearchQuery(""); goToProduct(p); }}
                   >
                     {p.image_url ? (
-                      <img src={p.image_url} alt="" loading="lazy" decoding="async" className="fr-search-item-img" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                      <img src={p.image_url} alt="" width={52} height={64} loading="lazy" decoding="async" className="fr-search-item-img" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     ) : (
                       <div className="fr-search-item-img" />
                     )}
@@ -4262,7 +4262,7 @@ function SetlaProductWidget({ price }: { price: number }) {
   return (
     <div className="fr-setla-widget">
       <p className="fr-setla-widget-label">
-        <span className="fr-setla-widget-mark"><img src="/setla/assets/setla-payments-logo.png" alt="SETLA" /></span>
+        <span className="fr-setla-widget-mark"><Image src="/setla/assets/setla-payments-logo.png" alt="SETLA" width={964} height={265} style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
         Pay later with SETLA · 0% interest
       </p>
       <div className="fr-setla-widget-plan">
