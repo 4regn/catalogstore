@@ -15,14 +15,28 @@ type PricedLineItem = { name: string; price: number; qty: number; category?: str
 
 // Same comma-list collection-matching convention used everywhere else on
 // this platform (see FourRegnStore.tsx's own category-token splitting).
+// Normalized (lowercased/trimmed) on both sides -- the rule's
+// buy_collection_names/get_collection_names come from Shopify's own
+// collection title casing via the import script, which isn't guaranteed to
+// byte-for-byte match products.category's casing (backfilled separately,
+// by hand in places), even when both plainly refer to the same collection.
+// A silent case mismatch here would fail matchesAnyCollection with no error
+// anywhere -- exactly the failure mode this platform's other collection
+// matching (pInCat in FourRegnStore.tsx) doesn't have, since that comparison
+// runs case-sensitively today, only reads from products.category, and has
+// never needed to reconcile against a second, independently-sourced list.
+function normalizeCollectionName(name: string | null | undefined): string {
+  return (name || "").trim().toLowerCase();
+}
+
 function categoryTokens(category: string | null | undefined): string[] {
-  return (category || "").split(",").map((c) => c.trim()).filter(Boolean);
+  return (category || "").split(",").map((c) => normalizeCollectionName(c)).filter(Boolean);
 }
 
 function matchesAnyCollection(category: string | null | undefined, names: string[]): boolean {
   if (!names.length) return false;
   const tokens = categoryTokens(category);
-  return names.some((n) => tokens.includes(n));
+  return names.some((n) => tokens.includes(normalizeCollectionName(n)));
 }
 
 // Expands qty into individual priced units, cheapest first -- Shopify's own
