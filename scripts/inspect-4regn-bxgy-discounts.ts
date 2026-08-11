@@ -65,13 +65,13 @@ const QUERY = `query($cursor: String) {
             customerGets {
               value {
                 __typename
-                ... on DiscountAmount { amount appliesOnEachItem }
+                ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem }
                 ... on DiscountPercentage { percentage }
                 ... on DiscountOnQuantity {
                   quantity { quantity }
                   effect {
                     __typename
-                    ... on DiscountAmount { amount appliesOnEachItem }
+                    ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem }
                     ... on DiscountPercentage { percentage }
                   }
                 }
