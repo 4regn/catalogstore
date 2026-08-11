@@ -184,6 +184,7 @@ interface Seller {
     eft_enabled?: boolean;
     payfast_enabled?: boolean;
     yoco_enabled?: boolean;
+    stitch_enabled?: boolean;
     whatsapp_checkout_enabled?: boolean;
   };
 }
@@ -3668,6 +3669,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <span className="fr-pay-icon" title="Yoco"><Image src="/checkout/yoco.png" alt="Yoco" width={484} height={200} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                     <span className="fr-pay-icon" title="Capitec Pay"><Image src="/checkout/capitecpay.png" alt="Capitec Pay" width={1441} height={585} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   </>)}
+                  {seller.checkout_config?.stitch_enabled && (
+                    <span className="fr-pay-icon" title="Stitch"><Image src="/checkout/stitch.jpg" alt="Stitch" width={550} height={181} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
+                  )}
                   {showSetlaBanner && (
                     <span className="fr-pay-icon fr-pay-icon--setla" title="SETLA"><Image src="/setla/assets/setla-payments-logo.png" alt="SETLA" width={964} height={265} style={{ height: 12, width: "auto", objectFit: "contain" }} /></span>
                   )}
