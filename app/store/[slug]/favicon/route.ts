@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import sharp from "sharp";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
 
 // Per-seller favicon proxy. Returns the seller's logo bytes from our own
@@ -42,13 +43,27 @@ export async function GET(
     return new Response(null, { status: upstream.status });
   }
 
-  const body = await upstream.arrayBuffer();
-  const contentType = upstream.headers.get("content-type") ?? "image/png";
+  const source = Buffer.from(await upstream.arrayBuffer());
+  let body = new Uint8Array(source);
+  let contentType = upstream.headers.get("content-type") ?? "image/png";
+
+  try {
+    body = new Uint8Array(await sharp(source, { animated: false })
+      .resize(96, 96, {
+        fit: "contain",
+        background: { r: 255, g: 255, b: 255, alpha: 0 },
+      })
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer());
+    contentType = "image/png";
+  } catch (err) {
+    console.error("favicon proxy resize failed:", err);
+  }
 
   return new Response(body, {
     headers: {
       "Content-Type": contentType,
-      "Cache-Control": "public, max-age=3600, s-maxage=3600",
+      "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800",
     },
   });
 }

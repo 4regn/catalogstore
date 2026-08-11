@@ -1677,8 +1677,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   font-family:var(--body);background:var(--paper-grad);color:var(--ink);
   -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
-.fr-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:rgba(0,0,0,0.08);overflow:hidden;pointer-events:none}
-.fr-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:40%;background:#000;border-radius:0 2px 2px 0;animation:fr-progress 0.8s ease-in-out infinite}
+.fr-progress{position:fixed;top:0;left:0;right:0;height:4px;z-index:3000;background:rgba(22,119,255,0.16);overflow:hidden;pointer-events:none}
+.fr-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:42%;background:#1677ff;border-radius:0 999px 999px 0;box-shadow:0 0 14px rgba(22,119,255,0.55);animation:fr-progress 0.8s ease-in-out infinite}
 @keyframes fr-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}
 /* Scroll resets to the top the instant a navigation starts (see navigate()
    above), well before the next page is actually ready -- on a slow

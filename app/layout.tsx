@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import RootClientWidgets from "./components/RootClientWidgets";
 
 export const metadata: Metadata = {
@@ -78,7 +77,6 @@ export default function RootLayout({
         <RootClientWidgets />
         {children}
         <Analytics />
-        <SpeedInsights />
       </body>
     </html>
   );
