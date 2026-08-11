@@ -459,6 +459,29 @@ export default function Dashboard() {
   const [dcShowCountdown, setDcShowCountdown] = useState(false);
   const [dcEditId, setDcEditId] = useState<string | null>(null);
   const [openDiscountCat, setOpenDiscountCat] = useState<string | null>("cart");
+
+  // "Buy X Get Y" -- applies automatically the moment enough qualifying
+  // items are in the cart, no code needed (distinct mechanic from
+  // discount_codes above -- see lib/automatic-discounts.ts). Built
+  // originally as a 4regn-only Shopify import, generalized here into a
+  // real dashboard feature any seller can self-serve. Collections are
+  // picked from storeCollections (a dropdown, not free text) specifically
+  // so a rule's collection names can never drift out of exact-string sync
+  // with products.category -- a free-text mismatch here silently breaks
+  // matching with no error anywhere, which is exactly what happened to two
+  // of 4regn's three hand-imported rules before this UI existed.
+  interface AutomaticBxgy { id: string; title: string; buy_quantity: number; buy_collection_names: string[]; get_quantity: number; get_collection_names: string[]; effect_type: string; effect_value: number; active: boolean; }
+  const [automaticBxgy, setAutomaticBxgy] = useState<AutomaticBxgy[]>([]);
+  const [showBxgyForm, setShowBxgyForm] = useState(false);
+  const [bxgyEditId, setBxgyEditId] = useState<string | null>(null);
+  const [bxgyTitle, setBxgyTitle] = useState("");
+  const [bxgyBuyQty, setBxgyBuyQty] = useState("2");
+  const [bxgyBuyCollections, setBxgyBuyCollections] = useState<string[]>([]);
+  const [bxgyGetQty, setBxgyGetQty] = useState("1");
+  const [bxgyGetCollections, setBxgyGetCollections] = useState<string[]>([]);
+  const [bxgyEffectType, setBxgyEffectType] = useState("percentage");
+  const [bxgyEffectValue, setBxgyEffectValue] = useState("");
+  const [bxgySaving, setBxgySaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -514,11 +537,12 @@ export default function Dashboard() {
       await fetch("/api/orders/sweep-abandoned", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: session.access_token }) }).catch(() => {});
     }
     // Fetch seller + products + orders + discounts in a single parallel batch
-    const [sellerRes, pdResult, odResult, dcResult, svcResult, bkResult, ordersCountRes, orderStats] = await Promise.all([
+    const [sellerRes, pdResult, odResult, dcResult, bxgyResult, svcResult, bkResult, ordersCountRes, orderStats] = await Promise.all([
       supabase.from("sellers").select(SELLER_COLUMNS).eq("id", user.id).single(),
       fetchAllProducts(user.id),
       supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT),
       supabase.from("discount_codes").select(DISCOUNT_COLUMNS).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(DISCOUNTS_LIMIT),
+      supabase.from("automatic_bxgy_discounts").select("id, title, buy_quantity, buy_collection_names, get_quantity, get_collection_names, effect_type, effect_value, active").eq("seller_id", user.id).order("created_at", { ascending: false }),
       supabase.from("services").select(VELOUR_SERVICE_COLUMNS).eq("seller_id", user.id).order("sort_order", { ascending: true }),
       supabase.from("bookings").select(VELOUR_BOOKING_COLUMNS).eq("seller_id", user.id).order("date", { ascending: true }),
       // The "Total Orders" stat needs a real count, not orders.length --
@@ -545,6 +569,7 @@ export default function Dashboard() {
       setHasMoreOrders(odResult.data.length >= ORDERS_LIMIT);
     }
     if (dcResult.data) setDiscountCodes(dcResult.data);
+    if (bxgyResult.data) setAutomaticBxgy(bxgyResult.data as AutomaticBxgy[]);
     if (svcResult.data) setVelourServices(svcResult.data);
     if (bkResult.data) setVelourBookings(bkResult.data);
     setLoading(false);
@@ -2774,6 +2799,81 @@ export default function Dashboard() {
                 })}
               </div>
             )}
+
+            <div style={{ marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap" as const, gap: 12 }}>
+                <div><h2 style={{ fontSize: "clamp(18px, 3.5vw, 24px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Automatic Buy X Get Y</h2><p style={{ fontSize: 14, color: "var(--muted)" }}>Applies the moment enough qualifying items are in the cart -- no code needed.</p></div>
+                <button onClick={() => { if (showBxgyForm) { setShowBxgyForm(false); setBxgyEditId(null); } else { setBxgyTitle(""); setBxgyBuyQty("2"); setBxgyBuyCollections([]); setBxgyGetQty("1"); setBxgyGetCollections([]); setBxgyEffectType("percentage"); setBxgyEffectValue(""); setBxgyEditId(null); setShowBxgyForm(true); } }} style={{ padding: "12px 24px", background: showBxgyForm ? "var(--panel-2)" : G, color: showBxgyForm ? "var(--muted)" : "#fff", border: showBxgyForm ? "1px solid var(--border)" : "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{showBxgyForm ? "Cancel" : "+ New Rule"}</button>
+              </div>
+
+              {storeCollections.length === 0 && !showBxgyForm && (
+                <div style={{ padding: "12px 16px", background: "rgba(251,191,36,0.04)", border: "1px solid rgba(251,191,36,0.1)", borderRadius: 12, marginBottom: 16, fontSize: 12, color: "#fbbf24" }}>Add collections under My Store first -- rules are built from your existing collection names so they always match your products exactly.</div>
+              )}
+
+              {showBxgyForm && (
+                <div style={{ padding: "28px 24px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 24 }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Rule Name</label>
+                    <input type="text" value={bxgyTitle} onChange={(e) => setBxgyTitle(e.target.value)} placeholder="e.g. Buy 2 Get 1 Free" style={inputStyle} />
+                    <p style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 4 }}>Shown to customers as the savings label in their cart.</p>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    <div><label style={labelStyle}>Buy Quantity</label><input type="text" inputMode="numeric" value={bxgyBuyQty} onChange={(e) => setBxgyBuyQty(e.target.value.replace(/[^0-9]/g, ""))} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Get Quantity (discounted)</label><input type="text" inputMode="numeric" value={bxgyGetQty} onChange={(e) => setBxgyGetQty(e.target.value.replace(/[^0-9]/g, ""))} style={inputStyle} /></div>
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ ...labelStyle, marginBottom: 8 }}>Buy From Collections</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>{storeCollections.map((col) => (<button key={col} onClick={() => setBxgyBuyCollections(bxgyBuyCollections.includes(col) ? bxgyBuyCollections.filter((x) => x !== col) : [...bxgyBuyCollections, col])} style={{ padding: "8px 16px", borderRadius: 100, background: bxgyBuyCollections.includes(col) ? "rgba(255,107,53,0.08)" : "var(--panel-2)", border: bxgyBuyCollections.includes(col) ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", color: bxgyBuyCollections.includes(col) ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{col}</button>))}</div>
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>Discount Applies To Collections</label>
+                      <button onClick={() => setBxgyGetCollections(bxgyBuyCollections)} style={{ fontSize: 11, fontWeight: 700, color: N, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Same as Buy</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>{storeCollections.map((col) => (<button key={col} onClick={() => setBxgyGetCollections(bxgyGetCollections.includes(col) ? bxgyGetCollections.filter((x) => x !== col) : [...bxgyGetCollections, col])} style={{ padding: "8px 16px", borderRadius: 100, background: bxgyGetCollections.includes(col) ? "rgba(255,107,53,0.08)" : "var(--panel-2)", border: bxgyGetCollections.includes(col) ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", color: bxgyGetCollections.includes(col) ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{col}</button>))}</div>
+                    <p style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 6 }}>Usually the same collection(s) as "Buy" -- e.g. buy 2 hoodies, get the cheapest one discounted.</p>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+                    <div><label style={labelStyle}>Discount Type</label>
+                      <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                        {[{ k: "percentage", l: "%" }, { k: "fixed_amount", l: "R" }].map((t) => (<button key={t.k} onClick={() => { setBxgyEffectType(t.k); if (t.k === "percentage" && parseFloat(bxgyEffectValue) > 100) setBxgyEffectValue("100"); }} style={{ flex: 1, padding: "12px 16px", background: bxgyEffectType === t.k ? "rgba(255,107,53,0.12)" : "var(--panel-2)", border: "none", color: bxgyEffectType === t.k ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>{t.l}</button>))}
+                      </div>
+                    </div>
+                    <div><label style={labelStyle}>Discount Off Each "Get" Item</label><input type="text" inputMode="numeric" value={bxgyEffectValue} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); if (bxgyEffectType === "percentage" && parseFloat(v) > 100) { setBxgyEffectValue("100"); return; } setBxgyEffectValue(v); }} placeholder={bxgyEffectType === "percentage" ? "100 = free" : "e.g. 100"} style={inputStyle} /></div>
+                  </div>
+                  <button onClick={async () => {
+                    if (!bxgyTitle || !bxgyEffectValue || !seller) return;
+                    if (!bxgyBuyCollections.length || !bxgyGetCollections.length) { alert("Select at least one collection for both Buy and Discount Applies To."); return; }
+                    if (bxgyEffectType === "percentage" && parseFloat(bxgyEffectValue) > 100) { alert("Percentage cannot exceed 100%"); return; }
+                    setBxgySaving(true);
+                    const payload = { seller_id: seller.id, title: bxgyTitle.trim(), buy_quantity: parseInt(bxgyBuyQty) || 1, buy_collection_names: bxgyBuyCollections, get_quantity: parseInt(bxgyGetQty) || 1, get_collection_names: bxgyGetCollections, effect_type: bxgyEffectType, effect_value: parseFloat(bxgyEffectValue) };
+                    if (bxgyEditId) { const { error } = await supabase.from("automatic_bxgy_discounts").update(payload).eq("id", bxgyEditId); if (!error) { setAutomaticBxgy(automaticBxgy.map((r) => r.id === bxgyEditId ? { ...r, ...payload } as AutomaticBxgy : r)); setShowBxgyForm(false); setBxgyEditId(null); revalidateMyStore(); } else alert("Error: " + error.message); }
+                    else { const { data, error } = await supabase.from("automatic_bxgy_discounts").insert({ ...payload, active: true, source: "dashboard" }).select().single(); if (data) { setAutomaticBxgy([data as AutomaticBxgy, ...automaticBxgy]); setShowBxgyForm(false); revalidateMyStore(); } if (error) alert("Error: " + error.message); }
+                    setBxgySaving(false);
+                  }} disabled={bxgySaving || !bxgyTitle || !bxgyEffectValue} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bxgySaving ? "not-allowed" : "pointer", opacity: (bxgySaving || !bxgyTitle || !bxgyEffectValue) ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{bxgySaving ? "Saving..." : bxgyEditId ? "Save Changes" : "Create Rule"}</button>
+                </div>
+              )}
+
+              {!showBxgyForm && automaticBxgy.length === 0 ? (
+                <div style={{ textAlign: "center" as const, padding: "40px 20px", color: "var(--muted)" }}><p style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No automatic rules yet</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>Create one to start offering "buy X get Y" savings with no code needed.</p></div>
+              ) : !showBxgyForm && (
+                <div style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--panel)" }}>
+                  {automaticBxgy.map((r) => (
+                    <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border)", flexWrap: "wrap" as const, gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{r.title}</div>
+                        <div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>Buy {r.buy_quantity} from {r.buy_collection_names.join(", ")} - Get {r.get_quantity} off {r.get_collection_names.join(", ")} at {r.effect_type === "percentage" ? r.effect_value + "% off" : "R" + r.effect_value + " off"}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <button onClick={() => { setBxgyEditId(r.id); setBxgyTitle(r.title); setBxgyBuyQty(String(r.buy_quantity)); setBxgyBuyCollections(r.buy_collection_names || []); setBxgyGetQty(String(r.get_quantity)); setBxgyGetCollections(r.get_collection_names || []); setBxgyEffectType(r.effect_type); setBxgyEffectValue(String(r.effect_value)); setShowBxgyForm(true); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif" }}>Edit</button>
+                        <button onClick={async () => { await supabase.from("automatic_bxgy_discounts").update({ active: !r.active }).eq("id", r.id); setAutomaticBxgy(automaticBxgy.map((x) => x.id === r.id ? { ...x, active: !x.active } : x)); revalidateMyStore(); }} style={{ padding: "5px 12px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: r.active ? "rgba(34,197,94,0.1)" : "var(--panel-2)", color: r.active ? "#22c55e" : "var(--muted-2)" }}>{r.active ? "Active" : "Off"}</button>
+                        <button onClick={async () => { if (!confirm("Delete this rule?")) return; await supabase.from("automatic_bxgy_discounts").delete().eq("id", r.id); setAutomaticBxgy(automaticBxgy.filter((x) => x.id !== r.id)); revalidateMyStore(); }} style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>)}
 
           {tab === "mystore" && (<div>

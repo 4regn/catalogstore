@@ -1,0 +1,13 @@
+-- The original 20260811_automatic_bxgy_discounts.sql migration ended with
+-- `alter table public.automatic_bxgy_discounts disable row level security;`
+-- but a live check (`select relrowsecurity from pg_class where relname =
+-- 'automatic_bxgy_discounts'`) came back `true` -- RLS was still ON in
+-- production with zero policies defined, meaning the anon-key browser
+-- client (used by the storefront cart drawer) got zero rows back on every
+-- read while the service-role client (used server-side by
+-- /api/seller-public and checkout) bypassed it and worked fine. This is
+-- the actual, confirmed root cause of "discount shows at checkout, never
+-- in the cart drawer" for every rule, including ones with fully correct
+-- data. Re-running the disable explicitly (idempotent, safe to run even if
+-- it was somehow already off).
+alter table public.automatic_bxgy_discounts disable row level security;
