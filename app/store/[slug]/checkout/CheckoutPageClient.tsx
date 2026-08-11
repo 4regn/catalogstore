@@ -94,6 +94,171 @@ function setlaHalfHalfSchedule(total: number): { amount: number; label: string }
   ];
 }
 
+// "R 126,67" -- ZA decimal comma, used only for the two payment-choice
+// preview lines below (everything else on this page rounds to whole rand).
+function formatZARDecimal(value: number): string {
+  return "R " + value.toFixed(2).replace(".", ",");
+}
+
+// 4regn-exclusive checkout redesign (the "galxboy" direction, seller-
+// supplied mockup) -- scoped entirely under .fr-checkout-v2 so it can
+// never leak onto any other template's checkout, module-level so this
+// string isn't rebuilt every render. Structural/editorial only: every
+// value it renders (cart, totals, payment methods, SETLA/Stitch preview
+// math) comes from the exact same state and handlers the shared design
+// below uses -- this is a reskin, not a second checkout implementation.
+const FOUR_REGN_CHECKOUT_CSS = `
+.fr-checkout-v2,.fr-checkout-v2 *{box-sizing:border-box}
+.fr-checkout-v2{background:#fff;color:#050505;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+.fr-checkout-v2 button,.fr-checkout-v2 input,.fr-checkout-v2 select{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px}
+.fr-checkout-v2 button{cursor:pointer}
+.fr-checkout-v2 .topbar{height:82px;border-bottom:1px solid #e4e4e4;background:#fff;position:sticky;top:0;z-index:20}
+.fr-checkout-v2 .topbar-inner{max-width:1220px;height:100%;margin:0 auto;padding:0 30px;display:flex;align-items:center;justify-content:space-between}
+.fr-checkout-v2 .brand{display:flex;text-decoration:none}
+.fr-checkout-v2 .brand img{height:36px;max-width:180px;object-fit:contain;display:block}
+.fr-checkout-v2 .brand-text{font-size:20px;font-weight:600;letter-spacing:-.02em;text-transform:uppercase;color:#050505}
+.fr-checkout-v2 .secure-note{display:flex;align-items:center;gap:9px;font-size:12px;color:#111;font-weight:500}
+.fr-checkout-v2 .secure-note svg{width:16px;height:16px}
+.fr-checkout-v2 .layout{max-width:1220px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(380px,.92fr);min-height:calc(100vh - 82px)}
+.fr-checkout-v2 .form-pane{padding:52px 64px 88px 30px}
+.fr-checkout-v2 .summary-pane{border-left:1px solid #e3e3e3;padding:52px 30px 88px 52px;background:#fff}
+.fr-checkout-v2 .summary-sticky{position:sticky;top:32px}
+.fr-checkout-v2 .eyebrow{font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:#050505;margin-bottom:10px}
+.fr-checkout-v2 h1{font-weight:500;font-size:36px;line-height:1.05;letter-spacing:-.035em;margin:0 0 11px}
+.fr-checkout-v2 .intro{margin:0 0 38px;color:#666;font-size:13px;line-height:1.6}
+.fr-checkout-v2 .section{padding:28px 0;border-top:1px solid #e5e5e5}
+.fr-checkout-v2 .section:first-of-type{border-top:0;padding-top:0}
+.fr-checkout-v2 .section-head{display:flex;justify-content:space-between;align-items:baseline;gap:20px;margin-bottom:16px}
+.fr-checkout-v2 .section-title{font-size:20px;font-weight:500;letter-spacing:-.02em;margin:0}
+.fr-checkout-v2 .section-kicker{font-size:12px;color:#6f6f6f}
+.fr-checkout-v2 .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fr-checkout-v2 .field-grid .wide{grid-column:1/-1}
+.fr-checkout-v2 .field{position:relative}
+.fr-checkout-v2 .field input,.fr-checkout-v2 .field select{width:100%;height:56px;border:1px solid #cfcfcf;border-radius:8px;background:#fff;padding:19px 14px 7px;color:#050505;outline:none;transition:.2s border-color,.2s box-shadow;appearance:none}
+.fr-checkout-v2 .field input:focus,.fr-checkout-v2 .field select:focus{border-color:#050505;box-shadow:0 0 0 1px #050505}
+.fr-checkout-v2 .field label{position:absolute;left:14px;top:7px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#777;pointer-events:none}
+.fr-checkout-v2 .field select{padding-top:18px}
+.fr-checkout-v2 .choice-stack{display:grid;gap:8px}
+.fr-checkout-v2 .choice{border:1px solid #d4d4d4;border-radius:9px;background:#fff;overflow:hidden;transition:.2s}
+.fr-checkout-v2 .choice.active{border-color:#050505;box-shadow:0 0 0 1px #050505}
+.fr-checkout-v2 .choice-row{display:flex;align-items:flex-start;gap:13px;padding:16px;min-height:64px;cursor:pointer}
+.fr-checkout-v2 .radio{width:18px;height:18px;border:1.5px solid #8b8b8b;border-radius:50%;position:relative;flex:0 0 18px;margin-top:1px}
+.fr-checkout-v2 .choice.active .radio{border-color:#00751f}
+.fr-checkout-v2 .choice.active .radio:after{content:"";position:absolute;inset:4px;border-radius:50%;background:#00751f}
+.fr-checkout-v2 .choice-main{min-width:0;flex:1;padding-top:1px}
+.fr-checkout-v2 .choice-name{font-size:14px;font-weight:500;color:#050505}
+.fr-checkout-v2 .choice-sub{font-size:11.5px;color:#707070;margin-top:3px}
+.fr-checkout-v2 .choice-price{font-size:13px;font-weight:500}
+.fr-checkout-v2 .payment-title-note{font-weight:400;color:#5f5f5f;font-size:11px;letter-spacing:.015em;white-space:nowrap}
+.fr-checkout-v2 .card-brand-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}
+.fr-checkout-v2 .card-brand{height:23px;min-width:38px;border:1px solid #dedede;border-radius:4px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:3px 5px}
+.fr-checkout-v2 .card-brand img{display:block;max-width:34px;max-height:14px;object-fit:contain}
+.fr-checkout-v2 .card-brand.apple{min-width:42px}
+.fr-checkout-v2 .card-brand.apple img{max-width:36px;max-height:15px}
+.fr-checkout-v2 .payment-provider-art{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;min-height:32px;padding-top:1px}
+.fr-checkout-v2 .provider-logo{display:flex;align-items:center;justify-content:center}
+.fr-checkout-v2 .provider-logo.yoco img{width:74px;height:32px;object-fit:contain}
+.fr-checkout-v2 .provider-logo.stitch img{width:96px;height:22px;object-fit:contain}
+.fr-checkout-v2 .payment-logo.setla-logo{background:#050505;border-radius:5px;padding:5px 9px;min-width:78px;height:30px;display:flex;align-items:center;justify-content:center}
+.fr-checkout-v2 .payment-logo.setla-logo img{max-width:58px;max-height:16px}
+.fr-checkout-v2 .choice-sub.stitch-paylater-copy{display:flex;flex-direction:column;gap:2px;margin-top:5px}
+.fr-checkout-v2 .choice-sub .paylater-label{font-weight:600;color:#00751f;font-size:11px;display:block}
+.fr-checkout-v2 .choice-sub .paylater-line{color:#626262;font-size:11.5px;display:block}
+.fr-checkout-v2 .payment-note{padding:0 16px 14px 47px;color:#666;font-size:12px;line-height:1.5}
+.fr-checkout-v2 .setla-details{border-top:1px solid #dedede;background:#fafafa;padding:18px 16px 16px 47px}
+.fr-checkout-v2 .setla-plan+.setla-plan{margin-top:18px;padding-top:17px;border-top:1px solid #e1e1e1}
+.fr-checkout-v2 .plan-head{display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#111;margin-bottom:12px}
+.fr-checkout-v2 .plan-head span:last-child{color:#00751f}
+.fr-checkout-v2 .installments{display:grid;gap:10px}
+.fr-checkout-v2 .installments.four{grid-template-columns:repeat(4,1fr)}
+.fr-checkout-v2 .installments.two{grid-template-columns:repeat(2,1fr)}
+.fr-checkout-v2 .installments>div{min-width:0}
+.fr-checkout-v2 .installments strong{display:block;font-size:15px;font-weight:600;letter-spacing:-.02em}
+.fr-checkout-v2 .installments span{display:block;font-size:10px;color:#737373;margin:3px 0 8px}
+.fr-checkout-v2 .installments i{display:block;height:3px;background:#d9e8dd;border-radius:5px;font-style:normal}
+.fr-checkout-v2 .installments>div:first-child i{background:#00751f}
+.fr-checkout-v2 .laybuy-note{margin-top:16px;padding-top:14px;border-top:1px solid #e1e1e1;font-size:11px;line-height:1.55;color:#666}
+.fr-checkout-v2 .laybuy-note strong{color:#050505;font-weight:600}
+.fr-checkout-v2 .promo-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+.fr-checkout-v2 .promo-row input{height:50px;border:1px solid #cfcfcf;border-radius:8px;padding:0 14px;background:#fff;outline:none;color:#050505;text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.fr-checkout-v2 .promo-row input:focus{border-color:#050505}
+.fr-checkout-v2 .promo-row button{height:50px;padding:0 22px;border-radius:8px;border:1px solid #00751f;background:#00751f;color:#fff;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.fr-checkout-v2 .promo-row button:hover{background:#00631a}
+.fr-checkout-v2 .promo-row button:disabled{opacity:.5;cursor:not-allowed}
+.fr-checkout-v2 .promo-error{font-size:12px;color:#e53e3e;margin-top:8px}
+.fr-checkout-v2 .promo-applied{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:rgba(0,117,31,.05);border:1px solid rgba(0,117,31,.2);border-radius:8px}
+.fr-checkout-v2 .promo-applied-left{display:flex;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap}
+.fr-checkout-v2 .promo-applied-remove{background:none;border:none;color:#666;font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.fr-checkout-v2 .order-error{background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);color:#b91c1c;padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;line-height:1.5}
+.fr-checkout-v2 .actions{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-top:32px}
+.fr-checkout-v2 .return{color:#111;text-decoration:underline;text-underline-offset:3px;font-size:12px}
+.fr-checkout-v2 .pay-btn{min-width:280px;height:58px;border:0;border-radius:8px;background:#00751f;color:#fff;font-size:12px;font-weight:600;letter-spacing:.075em;text-transform:uppercase;transition:background .16s}
+.fr-checkout-v2 .pay-btn:hover{background:#00631a}
+.fr-checkout-v2 .pay-btn:disabled{opacity:.6;cursor:not-allowed}
+.fr-checkout-v2 .trust-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px;color:#686868;font-size:11px}
+.fr-checkout-v2 .trust-item{display:flex;align-items:center;gap:7px}
+.fr-checkout-v2 .trust-item svg{width:14px;height:14px}
+.fr-checkout-v2 .summary-label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#050505;margin-bottom:18px;font-weight:600}
+.fr-checkout-v2 .product-card{background:#fff;border:1px solid #dedede;border-radius:10px;padding:16px}
+.fr-checkout-v2 .product-row{display:grid;grid-template-columns:104px 1fr auto;gap:18px;align-items:center}
+.fr-checkout-v2 .product-row+.product-row{margin-top:16px;padding-top:16px;border-top:1px solid #ececec}
+.fr-checkout-v2 .product-image-wrap{position:relative;width:104px;height:128px;border-radius:7px;overflow:hidden;background:#f4f4f4}
+.fr-checkout-v2 .product-image-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.fr-checkout-v2 .qty{position:absolute;right:8px;top:8px;min-width:24px;height:24px;border-radius:999px;background:#050505;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 7px}
+.fr-checkout-v2 .product-name{font-size:15px;font-weight:500;letter-spacing:-.015em;line-height:1.25}
+.fr-checkout-v2 .product-meta{margin-top:7px;color:#777;font-size:12px}
+.fr-checkout-v2 .product-price{font-size:14px;font-weight:500;align-self:start;padding-top:3px}
+.fr-checkout-v2 .promo-banner{margin:16px 0 0;border:1px solid #d8d8d8;background:#fff;border-radius:8px;padding:13px;display:flex;gap:12px;align-items:center}
+.fr-checkout-v2 .promo-banner+.promo-banner{margin-top:10px}
+.fr-checkout-v2 .promo-badge{width:34px;height:34px;border-radius:5px;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 34px}
+.fr-checkout-v2 .promo-copy strong{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#050505}
+.fr-checkout-v2 .promo-copy span{display:block;margin-top:3px;font-size:12px;color:#6c6c6c}
+.fr-checkout-v2 .totals{padding-top:16px}
+.fr-checkout-v2 .total-row{display:flex;justify-content:space-between;gap:20px;padding:8px 0;font-size:13px;color:#606060}
+.fr-checkout-v2 .total-row.discount{color:#00751f;font-weight:500}
+.fr-checkout-v2 .total-row.grand{border-top:1px solid #dedede;margin-top:10px;padding-top:20px;color:#050505;align-items:end}
+.fr-checkout-v2 .total-row.grand span:first-child{font-size:17px;font-weight:500}
+.fr-checkout-v2 .total-row.grand strong{font-size:27px;font-weight:500;letter-spacing:-.03em}
+.fr-checkout-v2 .currency{font-size:10px;color:#888;margin-right:5px;font-weight:400}
+.fr-checkout-v2 .summary-foot{margin-top:22px;padding:0 4px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.fr-checkout-v2 .mini-trust{border-top:1px solid #dedede;padding-top:13px;font-size:11px;color:#707070;line-height:1.55}
+.fr-checkout-v2 .mini-trust strong{display:block;color:#050505;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;font-weight:600}
+@media(max-width:900px){
+ .fr-checkout-v2 .topbar{height:70px}
+ .fr-checkout-v2 .topbar-inner{padding:0 18px}
+ .fr-checkout-v2 .layout{display:flex;flex-direction:column;min-height:auto}
+ .fr-checkout-v2 .summary-pane{order:-1;border-left:0;border-bottom:1px solid #e5e5e5;padding:24px 18px 28px}
+ .fr-checkout-v2 .summary-sticky{position:static}
+ .fr-checkout-v2 .form-pane{order:0;padding:32px 18px 54px}
+ .fr-checkout-v2 h1{font-size:31px}
+ .fr-checkout-v2 .field-grid{grid-template-columns:1fr}
+ .fr-checkout-v2 .field-grid .wide{grid-column:auto}
+ .fr-checkout-v2 .actions{flex-direction:column-reverse;align-items:stretch}
+ .fr-checkout-v2 .pay-btn{width:100%;min-width:0}
+ .fr-checkout-v2 .return{text-align:center}
+ .fr-checkout-v2 .product-row{grid-template-columns:82px 1fr auto;gap:12px}
+ .fr-checkout-v2 .product-image-wrap{width:82px;height:104px}
+ .fr-checkout-v2 .summary-foot{grid-template-columns:1fr}
+ .fr-checkout-v2 .section{padding:24px 0}
+ .fr-checkout-v2 .installments.four{grid-template-columns:repeat(2,1fr);row-gap:15px}
+ .fr-checkout-v2 .payment-title-note{white-space:normal;display:inline}
+ .fr-checkout-v2 .setla-details{padding-left:16px}
+}
+@media(max-width:440px){
+ .fr-checkout-v2 .product-price{display:none}
+ .fr-checkout-v2 .choice-row{gap:10px;padding:14px 13px}
+ .fr-checkout-v2 .payment-provider-art{min-width:72px}
+ .fr-checkout-v2 .provider-logo.yoco img{width:58px;height:28px}
+ .fr-checkout-v2 .provider-logo.stitch img{width:70px;height:18px}
+ .fr-checkout-v2 .payment-logo.setla-logo{min-width:66px;height:28px}
+ .fr-checkout-v2 .payment-title-note{font-size:10px}
+ .fr-checkout-v2 .card-brand-row{gap:4px}
+ .fr-checkout-v2 .card-brand{min-width:34px;height:22px;padding:3px 4px}
+ .fr-checkout-v2 .card-brand img{max-width:30px}
+ .fr-checkout-v2 .installments.four{grid-template-columns:repeat(2,1fr)}
+}
+`;
+
 export default function CheckoutPageClient() {
   const params = useParams();
   const slug = params.slug as string;
@@ -712,6 +877,258 @@ export default function CheckoutPageClient() {
       </div>
     </div>
   );
+
+  if (isFourRegn) {
+    const setlaFrom = formatZARDecimal(total / 4);
+    const stitchFrom = formatZARDecimal(total / 6);
+    return (
+      <div className="fr-checkout-v2">
+        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0}`}</style>
+        <div className="checkout-shell">
+          <header className="topbar">
+            <div className="topbar-inner">
+              <a className="brand" href={sp()} aria-label={(seller?.store_name || "Store") + " home"}>
+                {seller?.logo_url ? <img src={seller.logo_url} alt={seller.store_name} /> : <span className="brand-text">{seller?.store_name}</span>}
+              </a>
+              <div className="secure-note">
+                <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 24 24"><rect height="10" rx="2" width="14" x="5" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                Secure checkout
+              </div>
+            </div>
+          </header>
+          <main className="layout">
+            <section className="form-pane">
+              <div className="eyebrow">Secure checkout</div>
+              <h1>Complete your order.</h1>
+              <p className="intro">Your pieces are reserved while you finish checkout. Enter your delivery details, select your preferred courier, and choose how you&rsquo;d like to pay.</p>
+
+              <div className="section">
+                <div className="section-head"><h2 className="section-title">Contact</h2><span className="section-kicker">Order updates &amp; delivery alerts</span></div>
+                <div className="field-grid">
+                  <div className="field wide"><label>Email address</label><input autoComplete="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+                  <div className="field wide"><label>Phone number</label><input autoComplete="tel" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
+                </div>
+              </div>
+
+              {(cc.delivery_enabled && cc.pickup_enabled) && (
+                <div className="section">
+                  <div className="section-head"><h2 className="section-title">Fulfillment</h2></div>
+                  <div className="choice-stack">
+                    <div className={"choice" + (fulfillment === "delivery" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setFulfillment("delivery")}><div className="radio"></div><div className="choice-main"><div className="choice-name">Delivery</div></div></div>
+                    </div>
+                    <div className={"choice" + (fulfillment === "pickup" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setFulfillment("pickup")}><div className="radio"></div><div className="choice-main"><div className="choice-name">Pickup</div>{cc.pickup_address && <div className="choice-sub">{cc.pickup_address}</div>}</div></div>
+                      {fulfillment === "pickup" && cc.pickup_instructions && <div className="payment-note" style={{ whiteSpace: "pre-wrap" }}>{cc.pickup_instructions}</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {fulfillment === "delivery" ? (
+                <div className="section">
+                  <div className="section-head"><h2 className="section-title">Delivery address</h2><span className="section-kicker">South Africa</span></div>
+                  <div className="field-grid">
+                    <div className="field"><label>First name</label><input autoComplete="given-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></div>
+                    <div className="field"><label>Last name</label><input autoComplete="family-name" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} /></div>
+                    <div className="field wide"><label>Street address</label><input autoComplete="street-address" type="text" value={address} onChange={(e) => setAddress(e.target.value)} /></div>
+                    <div className="field wide"><label>Apartment, suite, etc.</label><input type="text" value={apartment} onChange={(e) => setApartment(e.target.value)} /></div>
+                    <div className="field"><label>City</label><input autoComplete="address-level2" type="text" value={city} onChange={(e) => setCity(e.target.value)} /></div>
+                    <div className="field"><label>Postal code</label><input autoComplete="postal-code" inputMode="numeric" type="text" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} /></div>
+                    <div className="field wide"><label>Province</label>
+                      <select autoComplete="address-level1" value={province} onChange={(e) => setProvince(e.target.value)}>
+                        {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="section">
+                  <div className="section-head"><h2 className="section-title">Your details</h2></div>
+                  <div className="field-grid">
+                    <div className="field"><label>First name</label><input autoComplete="given-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></div>
+                    <div className="field"><label>Last name</label><input autoComplete="family-name" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} /></div>
+                  </div>
+                </div>
+              )}
+
+              {fulfillment === "delivery" && visibleShippingOptions.length > 0 && (
+                <div className="section">
+                  <div className="section-head"><h2 className="section-title">Shipping method</h2><span className="section-kicker">Choose your courier</span></div>
+                  <div className="choice-stack">
+                    {shippingOptionsConfigured.map((opt, i) => isShippingOptionVisible(opt) && (
+                      <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
+                        <div className="choice-row" onClick={() => setShippingOption(i)}>
+                          <div className="radio"></div>
+                          <div className="choice-main"><div className="choice-name">{opt.name}</div>{opt.estimate && <div className="choice-sub">{opt.estimate}</div>}</div>
+                          <div className="choice-price">{opt.price === 0 ? "Free" : "R" + opt.price}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="section">
+                <div className="section-head"><h2 className="section-title">Discount code</h2><span className="section-kicker">Optional</span></div>
+                {discountApplied ? (
+                  <div className="promo-applied">
+                    <div className="promo-applied-left">
+                      <span style={{ color: "#00751f" }}>&#10003;</span>
+                      <strong>{discountApplied.code}</strong>
+                      <span style={{ color: "#707070" }}>{discountApplied.type === "percentage" ? discountApplied.value + "% off" : "R" + discountApplied.value + " off"} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span>
+                    </div>
+                    <button className="promo-applied-remove" onClick={() => { setDiscountApplied(null); setDiscountCode(""); }}>Remove</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="promo-row">
+                      <input type="text" placeholder="Enter discount code" value={discountCode} onChange={(e) => { setDiscountCode(e.target.value.toUpperCase()); setDiscountError(""); }} onKeyDown={(e) => { if (e.key === "Enter") applyDiscount(); }} />
+                      <button type="button" onClick={applyDiscount} disabled={applyingDiscount || !discountCode.trim()}>{applyingDiscount ? "..." : "Apply"}</button>
+                    </div>
+                    {discountError && <p className="promo-error">{discountError}</p>}
+                  </div>
+                )}
+              </div>
+
+              <div className="section">
+                <div className="section-head"><div><h2 className="section-title">Payment</h2><div className="section-kicker" style={{ marginTop: 7 }}>All transactions are secure and encrypted.</div></div></div>
+                <div className="choice-stack">
+                  {cc.yoco_enabled && (
+                    <div className={"choice" + (paymentMethod === "yoco" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setPaymentMethod("yoco")}>
+                        <div className="radio"></div>
+                        <div className="choice-main">
+                          <div className="choice-name">Yoco</div>
+                          <div className="card-brand-row">
+                            <span className="card-brand"><img alt="Visa" src="/checkout/visa.png" /></span>
+                            <span className="card-brand"><img alt="Mastercard" src="/checkout/mastercard.png" /></span>
+                            <span className="card-brand apple"><img alt="Apple Pay" src="/checkout/applepay.png" /></span>
+                          </div>
+                        </div>
+                        <div className="payment-provider-art"><div className="provider-logo yoco"><img alt="Yoco" src="/checkout/yoco.png" /></div></div>
+                      </div>
+                      {paymentMethod === "yoco" && <div className="payment-note">You&rsquo;ll be redirected to Yoco to complete your payment securely.</div>}
+                    </div>
+                  )}
+
+                  {cc.setla_enabled && (
+                    <div className={"choice" + (paymentMethod === "setla" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setPaymentMethod("setla")}>
+                        <div className="radio"></div>
+                        <div className="choice-main">
+                          <div className="choice-name">SETLA <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
+                          <div className="choice-sub stitch-paylater-copy">
+                            <span className="paylater-label">Pay in 4</span>
+                            <span className="paylater-line">4 interest-free payments, from <strong>{setlaFrom}</strong></span>
+                          </div>
+                        </div>
+                        <div className="payment-provider-art"><div className="payment-logo setla-logo"><img alt="SETLA" src="/setla/assets/setla-payments-logo.png" /></div></div>
+                      </div>
+                      {paymentMethod === "setla" && (
+                        <div className="setla-details">
+                          <div className="setla-plan">
+                            <div className="plan-head"><span>Pay in 4</span><span>0% interest</span></div>
+                            <div className="installments four">
+                              {setlaPayIn4Schedule(total).map((row, i) => (
+                                <div key={i}><strong>R{row.amount.toFixed(0)}</strong><span>{row.label}</span><i></i></div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="setla-plan">
+                            <div className="plan-head"><span>Half &amp; Half</span><span>0% interest</span></div>
+                            <div className="installments two">
+                              {setlaHalfHalfSchedule(total).map((row, i) => (
+                                <div key={i}><strong>R{row.amount.toFixed(0)}</strong><span>{row.label}</span><i></i></div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="laybuy-note"><strong>Prefer SETLA Laybuy?</strong> Pay a R{setlaMinDeposit(total).toFixed(0)} deposit today (min. 30%), then clear the rest over up to 3 months. Your exact schedule is confirmed on the next step.</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {cc.stitch_enabled && (
+                    <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setPaymentMethod("stitch")}>
+                        <div className="radio"></div>
+                        <div className="choice-main">
+                          <div className="choice-name">Stitch Express <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
+                          <div className="choice-sub stitch-paylater-copy">
+                            <span className="paylater-label">Pay Later</span>
+                            <span className="paylater-line">Pay over 2&ndash;6 instalments, from <strong>{stitchFrom}</strong></span>
+                          </div>
+                          <div className="card-brand-row">
+                            <span className="card-brand"><img alt="Visa" src="/checkout/visa.png" /></span>
+                            <span className="card-brand"><img alt="Mastercard" src="/checkout/mastercard.png" /></span>
+                          </div>
+                        </div>
+                        <div className="payment-provider-art"><div className="provider-logo stitch"><img alt="Stitch" src="/checkout/stitch.png" /></div></div>
+                      </div>
+                      {paymentMethod === "stitch" && <div className="payment-note">You&rsquo;ll continue securely with Stitch Express. Your card details are securely saved by Stitch for this order.</div>}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {orderError && <div className="order-error">{orderError}</div>}
+
+              <div className="actions">
+                <a className="return" href={sp()}>&larr; Return to store</a>
+                <button className="pay-btn" onClick={placeOrder} disabled={placing}>
+                  {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : "Pay now · R" + total.toFixed(0)}
+                </button>
+              </div>
+              <div className="trust-row">
+                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>Encrypted checkout</div>
+                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 12 6 6L21 6"></path></svg>Order total shown upfront</div>
+              </div>
+            </section>
+
+            <aside className="summary-pane">
+              <div className="summary-sticky">
+                <div className="summary-label">Your order</div>
+                <div className="product-card">
+                  {cart.map((item, i) => (
+                    <div className="product-row" key={i}>
+                      <div className="product-image-wrap">
+                        {item.image ? <img alt={item.name} src={item.image} /> : null}
+                        <span className="qty">{item.qty}</span>
+                      </div>
+                      <div><div className="product-name">{item.name}</div>{item.variant && <div className="product-meta">{item.variant}</div>}</div>
+                      <div className="product-price">R{(item.price * item.qty).toLocaleString("en-ZA")}</div>
+                    </div>
+                  ))}
+                  {automaticDiscount.applied.map((a) => (
+                    <div className="promo-banner" key={a.title}>
+                      <div className="promo-badge">&#10003;</div>
+                      <div className="promo-copy"><strong>{a.title}</strong><span>Your R{a.amount.toFixed(0)} promo has been applied automatically.</span></div>
+                    </div>
+                  ))}
+                  <div className="totals">
+                    <div className="total-row"><span>Subtotal &middot; {itemCount} item{itemCount !== 1 ? "s" : ""}</span><span>R{subtotal.toLocaleString("en-ZA")}</span></div>
+                    {discountApplied && discountAmount > 0 && (
+                      <div className="total-row discount"><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>&minus;R{discountAmount.toFixed(0)}</span></div>
+                    )}
+                    {automaticDiscount.applied.map((a) => (
+                      <div className="total-row discount" key={a.title}><span>{a.title}</span><span>&minus;R{a.amount.toFixed(0)}</span></div>
+                    ))}
+                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (shipping === 0 ? "Free" : "R" + shipping)}</span></div>
+                    <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{total.toLocaleString("en-ZA")}</strong></div>
+                  </div>
+                </div>
+                <div className="summary-foot">
+                  <div className="mini-trust"><strong>Secure payment</strong>Payment details are handled by your selected payment provider.</div>
+                  <div className="mini-trust"><strong>Need to go back?</strong>Your cart remains accessible from the store.</div>
+                </div>
+              </div>
+            </aside>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: T.bodyFont, color: T.text }}>
