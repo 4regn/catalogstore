@@ -1329,16 +1329,32 @@
     // same access model the generic checkout's own `?paid=<orderId>` link
     // already relies on with no login at all), so there's no real
     // protection being given up by not also requiring the emails to match.
-    // The handoff only carries form fields (no cart items, no precomputed
-    // totals) -- this is purely a display estimate; the real total is
-    // always recomputed server-side from scratch at submit time
-    // (lib/unik-cart-resolve.ts), same trust model as the UNIK checkout
-    // this order came from.
+    // For the UNIK design-based flow the handoff only ever carried form
+    // fields (no cart items, no precomputed totals) -- subtotal+delivery
+    // was the only number available, a display estimate the real
+    // server-side total (lib/unik-cart-resolve.ts) could still differ
+    // from. The generic-product flow is different: draft.total comes
+    // straight off the already-placed order's own `orders.total` (real
+    // server-truth pricing from /api/checkout/place-order, discount codes
+    // and automatic BXGY discounts already subtracted -- see
+    // CheckoutPageClient.tsx's SETLA handoff). Recomputing subtotal+
+    // delivery here and ignoring draft.total was a real bug: a customer
+    // whose cart got an automatic discount at checkout (R760 total) saw
+    // this page show the pre-discount R1050+R60=R1110 instead, and the
+    // Pay-in-4/Laybuy schedule preview below (which shares this same
+    // `total`) previewed instalments sized off that wrong number too --
+    // confusing even though the real charge (computed server-side in
+    // /api/checkout/setla-create from the order's own stored total) was
+    // never actually wrong.
     const subtotal=cartItems.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||1),0);
     const delivery=Number(draft.deliveryMethod?.price||0);
-    const total=subtotal+delivery;
+    const recomputedTotal=subtotal+delivery;
+    const total=(isGenericDraft&&Number.isFinite(Number(draft.total)))?Number(draft.total):recomputedTotal;
+    const discount=Math.max(0,Math.round((recomputedTotal-total)*100)/100);
     container.innerHTML=cartItems.map(item=>{const image=itemImage(item),variantLabel=item?.options?.size||item?.variant;return `<article class="checkout-item">${image?`<img src="${escapeHTML(image)}" alt="${escapeHTML(itemTitle(item))}">`:'<div class="item-placeholder"><svg viewBox="0 0 64 64"><path d="M20 13 9 20l6 12 7-4v25h20V28l7 4 6-12-11-7-6 5H26Z"/></svg></div>'}<span><strong>${escapeHTML(itemTitle(item))}</strong><small>Quantity ${Number(item.qty||1)}${variantLabel?` · ${escapeHTML(variantLabel)}`:''}</small></span><b>${money(Number(item.price||0)*Number(item.qty||1))}</b></article>`}).join('');
     document.getElementById('summarySubtotal').textContent=money(subtotal);document.getElementById('summaryDelivery').textContent=money(delivery);document.getElementById('orderTotal').textContent=money(total);
+    const discountRow=document.getElementById('summaryDiscountRow');
+    if(discountRow){discountRow.hidden=discount<=0;const discountEl=document.getElementById('summaryDiscount');if(discountEl)discountEl.textContent='-'+money(discount);}
     const customerInfo=draft.customer||{},method=draft.deliveryMethod||{};
     const pickupCopy=isGenericDraft?'Collection details will be confirmed by the store.':'Collection details will be confirmed by UNIK Labs.';
     document.getElementById('deliverySummary').innerHTML=`<strong>${escapeHTML(method.name||'Delivery')}</strong><br>${method.isPickup?pickupCopy:escapeHTML([customerInfo.streetAddress,customerInfo.suburb,customerInfo.townCity,customerInfo.province,customerInfo.postal].filter(Boolean).join(', '))}`;
