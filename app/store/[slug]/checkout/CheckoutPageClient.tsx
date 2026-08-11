@@ -373,8 +373,16 @@ export default function CheckoutPageClient() {
   const automaticDiscount = (() => {
     const rules = seller?.automatic_bxgy_discounts || [];
     if (!rules.length || !cart.length) return { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
+    // Match by id first, not name -- sellerProducts includes every product
+    // row regardless of status (trashed/duplicate-named products included,
+    // same unfiltered query used by the collection-discount-code matching
+    // above), so a name-only Map can silently resolve to the wrong row's
+    // category when two products share a name. Cart items already carry
+    // the real product id (see FourRegnStore.tsx's goToCheckout), so this
+    // is both more correct and a no-op for the common case.
+    const productById = new Map(sellerProducts.map((p) => [p.id, p]));
     const productByName = new Map(sellerProducts.map((p) => [p.name.toLowerCase(), p]));
-    const priced = cart.map((i) => ({ name: i.name, price: i.price, qty: i.qty, category: productByName.get(i.name.toLowerCase())?.category }));
+    const priced = cart.map((i) => ({ name: i.name, price: i.price, qty: i.qty, category: (i.id ? productById.get(i.id) : undefined)?.category ?? productByName.get(i.name.toLowerCase())?.category }));
     return computeAutomaticBxgyDiscount(rules, priced);
   })();
 
@@ -1039,7 +1047,7 @@ export default function CheckoutPageClient() {
               <pre style={{ fontSize: 10, background: "#111", color: "#0f0", padding: 10, marginBottom: 12, overflowX: "auto", whiteSpace: "pre-wrap" }}>
 {JSON.stringify({
   rulesLoaded: (seller?.automatic_bxgy_discounts || []).map((r) => ({ title: r.title, buy: r.buy_collection_names, get: r.get_collection_names })),
-  cartItems: cart.map((i) => ({ name: i.name, qty: i.qty, category: sellerProducts.find((p) => p.name.toLowerCase() === i.name.toLowerCase())?.category })),
+  cartItems: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, category: (i.id ? sellerProducts.find((p) => p.id === i.id) : sellerProducts.find((p) => p.name.toLowerCase() === i.name.toLowerCase()))?.category })),
   applied: automaticDiscount.applied,
 }, null, 2)}
               </pre>

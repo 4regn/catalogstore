@@ -2572,6 +2572,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span style={{ color: "#22c55e", fontWeight: 700, fontSize: 13 }}>-{fmt(a.amount)}</span>
                 </div>
               ))}
+              {automaticDiscount.totalDiscount > 0 && (
+                <div className="fr-cart-sub" style={{ marginTop: -4 }}>
+                  <span className="fr-cart-sub-lbl" style={{ fontWeight: 800 }}>Total</span>
+                  <span className="fr-cart-sub-amt" style={{ fontWeight: 800 }}>{fmt(Math.max(0, cartTotal - automaticDiscount.totalDiscount))}</span>
+                </div>
+              )}
               {debugDiscount && (
                 <pre style={{ fontSize: 10, background: "#111", color: "#0f0", padding: 10, marginBottom: 12, overflowX: "auto", whiteSpace: "pre-wrap" }}>
 {JSON.stringify({
