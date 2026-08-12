@@ -1929,7 +1929,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 /* SHOP BY DEPARTMENT — clean editorial section matching the reference HTML:
    white background, slim borders, stacked men/women blocks, and circular
    category rails. */
-.fr-sbd-section{background:#fff;border-top:1px solid #e4e4e4;border-bottom:1px solid #e4e4e4;padding:96px 0}
+.fr-sbd-section{background:#e8e8e8;border-top:1px solid #d9d9d9;border-bottom:1px solid #d9d9d9;padding:96px 0}
 .fr-sbd-stack{display:flex;flex-direction:column;gap:76px}
 .fr-sbd-block{max-width:1420px;margin:0 auto;width:100%}
 .fr-sbd-header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:0 32px 30px}
@@ -1944,7 +1944,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sbd-circle img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}
 .fr-sbd-card:hover .fr-sbd-circle img{transform:scale(1.05)}
 .fr-sbd-label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.fr-sbd-divider{height:1px;background:#e6e6e6;max-width:1420px;margin:0 auto}
+.fr-sbd-divider{height:1px;background:#dcdcdc;max-width:1420px;margin:0 auto}
 
 @media(max-width:980px){
   .fr-sbd-section{padding:72px 0}
