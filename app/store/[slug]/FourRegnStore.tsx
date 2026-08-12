@@ -1926,51 +1926,43 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    only owns the outer spacing, not the widget's internal styling. */
 .fr-float-widget{margin-top:12px}
 
-/* SHOP BY GENDER — ported 1:1 from the real 4regn.com "Shop by Gender"
-   section (chrome-spinning glass panels, drag/arrow-scrollable circular
-   category tiles). Class names prefixed .fr-sbg- (not the raw Shopify
-   .sbg- names) to match this file's naming convention. */
-.fr-sbg-section{padding:40px 20px;background:#EBEBEB}
-.fr-sbg-inner{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
-.fr-sbg-header{text-align:center}
-.fr-sbg-eyebrow{font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:#8C8880;margin-bottom:6px}
-.fr-sbg-heading{font-size:clamp(16px,2vw,22px);font-weight:400;letter-spacing:7px;text-transform:uppercase;color:#1a1a1a;margin:0}
-.fr-sbg-panels{display:flex;flex-direction:row;gap:0;align-items:stretch}
-.fr-sbg-panel{flex:1;min-width:0;border-radius:24px;padding:2.5px;position:relative;overflow:hidden;box-shadow:0 16px 44px rgba(0,0,0,0.09),0 3px 10px rgba(0,0,0,0.05);transition:transform 0.3s ease;background:rgba(175,173,175,0.4)}
-.fr-sbg-panel::before{content:'';position:absolute;inset:-100%;background:conic-gradient(from 0deg, transparent 0deg, transparent 55deg, rgba(200,198,202,0.3) 70deg, rgba(255,255,255,0.95) 85deg, rgba(220,218,222,0.6) 98deg, rgba(255,255,255,0.3) 110deg, transparent 125deg, transparent 360deg);animation:fr-sbg-chrome-spin 3s linear infinite;z-index:0}
-@keyframes fr-sbg-chrome-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-.fr-sbg-panel::after{content:'';position:absolute;inset:2.5px;border-radius:22px;background:#EBEBEB;z-index:1;pointer-events:none}
-.fr-sbg-panel:hover{transform:translateY(-3px)}
-.fr-sbg-panel-inner{background:rgba(255,255,255,0.56);backdrop-filter:blur(48px) saturate(175%);-webkit-backdrop-filter:blur(48px) saturate(175%);border-radius:22px;height:100%;padding:28px 18px 24px;display:flex;flex-direction:column;align-items:center;gap:14px;position:relative;overflow:hidden;z-index:2}
-.fr-sbg-panel-title{font-family:var(--serif);font-size:clamp(28px,4vw,48px);font-weight:700;letter-spacing:7px;color:#1a1a1a;text-transform:uppercase;text-align:center;margin:0;transition:letter-spacing 0.3s}
-.fr-sbg-panel:hover .fr-sbg-panel-title{letter-spacing:11px}
-.fr-sbg-shopall{display:inline-flex;align-items:center;gap:6px;padding:7px 18px;border-radius:40px;background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.9);box-shadow:0 2px 8px rgba(0,0,0,0.05),inset 0 1px 0 rgba(255,255,255,0.9);font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:#555;text-decoration:none;transition:all 0.22s;white-space:nowrap;cursor:pointer}
-.fr-sbg-shopall:hover{background:rgba(255,255,255,0.88);color:#1a1a1a;transform:scale(1.03)}
-.fr-sbg-track-wrap{width:100%;position:relative}
-.fr-sbg-track{display:flex;gap:14px;overflow-x:auto;padding:8px 2px 4px;scrollbar-width:none;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;cursor:grab}
-.fr-sbg-track::-webkit-scrollbar{display:none}
-.fr-sbg-track:active{cursor:grabbing}
-.fr-sbg-cat-item{display:flex;flex-direction:column;align-items:center;gap:9px;flex-shrink:0;scroll-snap-align:start;text-decoration:none;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1)}
-.fr-sbg-cat-item:hover{transform:translateY(-5px) scale(1.03)}
-.fr-sbg-circle-frame{width:clamp(70px,10vw,130px);height:clamp(70px,10vw,130px);border-radius:50%;flex-shrink:0;position:relative;overflow:hidden;background:rgba(172,170,172,0.35);box-shadow:0 5px 20px rgba(0,0,0,0.1),0 1px 5px rgba(0,0,0,0.05);transition:box-shadow 0.3s}
-.fr-sbg-circle-frame::before{content:'';position:absolute;inset:-100%;background:conic-gradient(from 0deg, transparent 0deg, transparent 60deg, rgba(200,198,202,0.25) 72deg, rgba(255,255,255,0.95) 82deg, rgba(220,218,224,0.5) 90deg, rgba(255,255,255,0.2) 100deg, transparent 112deg, transparent 360deg);animation:fr-sbg-circle-spin 2.5s linear infinite;z-index:0;pointer-events:none}
-@keyframes fr-sbg-circle-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-.fr-sbg-circle-frame::after{content:'';position:absolute;inset:2px;border-radius:50%;background:#EBEBEB;z-index:1;pointer-events:none}
-.fr-sbg-cat-item:hover .fr-sbg-circle-frame{box-shadow:0 10px 30px rgba(0,0,0,0.14)}
-.fr-sbg-circle-img{position:absolute;inset:2px;border-radius:50%;overflow:hidden;background:#d8d4ce;z-index:2}
-.fr-sbg-circle-img img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;transition:transform 0.45s ease}
-.fr-sbg-cat-item:hover .fr-sbg-circle-img img{transform:scale(1.07)}
-.fr-sbg-cat-label{font-size:9px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#444;background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.88);padding:4px 11px;border-radius:30px;white-space:nowrap;transition:all 0.2s}
-.fr-sbg-cat-item:hover .fr-sbg-cat-label{background:rgba(255,255,255,0.85);color:#1a1a1a}
-.fr-sbg-arrow-row{display:flex;justify-content:space-between;align-items:center;width:100%}
-.fr-sbg-arrow{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#666;box-shadow:0 1px 6px rgba(0,0,0,0.06);transition:all 0.2s;font-size:13px;line-height:1;padding:0}
-.fr-sbg-arrow:hover{background:rgba(255,255,255,0.92);color:#1a1a1a;transform:scale(1.1)}
-.fr-sbg-dots{display:flex;gap:4px;align-items:center}
-.fr-sbg-dot{width:4px;height:4px;border-radius:999px;background:rgba(0,0,0,0.18);transition:all 0.25s ease;padding:0;border:none}
-.fr-sbg-dot.active{width:14px;background:rgba(0,0,0,0.55)}
-.fr-sbg-divider{width:1px;flex-shrink:0;align-self:stretch;margin:0 10px;background:linear-gradient(to bottom, transparent 0%, rgba(150,148,150,0.28) 15%, rgba(190,188,190,0.45) 35%, rgba(255,255,255,0.7) 50%, rgba(190,188,190,0.45) 65%, rgba(150,148,150,0.28) 85%, transparent 100%);position:relative;overflow:hidden}
-.fr-sbg-divider-shimmer{position:absolute;left:0;right:0;height:50px;background:linear-gradient(to bottom, transparent, rgba(255,255,255,0.88) 50%, transparent);animation:fr-sbg-divider-flow 2.8s ease-in-out infinite}
-@keyframes fr-sbg-divider-flow{0%{top:-100%}100%{top:100%}}
+/* SHOP BY DEPARTMENT — clean editorial section matching the reference HTML:
+   white background, slim borders, stacked men/women blocks, and circular
+   category rails. */
+.fr-sbd-section{background:#fff;border-top:1px solid #e4e4e4;border-bottom:1px solid #e4e4e4;padding:96px 0}
+.fr-sbd-stack{display:flex;flex-direction:column;gap:76px}
+.fr-sbd-block{max-width:1420px;margin:0 auto;width:100%}
+.fr-sbd-header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:0 32px 30px}
+.fr-sbd-heading-wrap{min-width:0}
+.fr-sbd-eyebrow{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6d6d6d;margin:0 0 10px}
+.fr-sbd-title{font-family:var(--body);font-size:clamp(34px,4.1vw,64px);line-height:.96;letter-spacing:-.05em;font-weight:700;margin:0;text-transform:uppercase;color:#080808}
+.fr-sbd-viewall{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #050505;padding-bottom:4px;white-space:nowrap;flex-shrink:0;color:#050505;text-decoration:none}
+.fr-sbd-rail{display:flex;gap:24px;overflow-x:auto;padding:0 max(32px,calc((100vw - 1420px)/2 + 32px)) 8px;scrollbar-width:none;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.fr-sbd-rail::-webkit-scrollbar{display:none}
+.fr-sbd-card{flex:0 0 156px;text-align:center;scroll-snap-align:start;text-decoration:none;color:inherit}
+.fr-sbd-circle{width:156px;height:156px;border-radius:50%;overflow:hidden;background:#f3f3f3;margin-bottom:13px;border:1px solid #ededed;position:relative}
+.fr-sbd-circle img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}
+.fr-sbd-card:hover .fr-sbd-circle img{transform:scale(1.05)}
+.fr-sbd-label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.fr-sbd-divider{height:1px;background:#e6e6e6;max-width:1420px;margin:0 auto}
+
+@media(max-width:980px){
+  .fr-sbd-section{padding:72px 0}
+  .fr-sbd-stack{gap:54px}
+  .fr-sbd-header{padding-left:18px;padding-right:18px}
+  .fr-sbd-rail{padding-left:18px;padding-right:18px}
+}
+
+@media(max-width:620px){
+  .fr-sbd-section{padding:58px 0}
+  .fr-sbd-stack{gap:48px}
+  .fr-sbd-header{display:flex;padding:0 14px 24px;align-items:flex-end}
+  .fr-sbd-title{font-size:38px}
+  .fr-sbd-rail{gap:16px;padding-left:14px;padding-right:14px}
+  .fr-sbd-card{flex-basis:128px}
+  .fr-sbd-circle{width:128px;height:128px}
+  .fr-sbd-viewall{font-size:9px}
+}
 
 .fr-section{max-width:1360px;margin:0 auto;padding:64px 40px}
 .fr-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;gap:20px;flex-wrap:wrap}
@@ -2989,51 +2981,38 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           );
         })()}
 
-        {/* SHOP BY GENDER — only on landing page. Ported from the real
-            "4REGN - Shop by Gender" Liquid section: two glass panels (MEN /
-            WOMEN) with a horizontally-scrollable row of circular category
-            tiles. Unlike the real Shopify section (12 fixed per-gender
-            settings slots), the tiles here are entirely derived from the
-            seller's real `collections` list via partitionGenderCollections
-            -- "Men <X>" / "Women <X>" become tiles, "ALL MEN" / "ALL WOMEN"
-            become the "Shop All" button target. No fixed category list is
-            baked in, so this stays generic for any seller who names their
-            collections this way, not just 4regn. */}
+        {/* SHOP BY DEPARTMENT — landing-page section matched to the HTML
+            reference you sent: clean editorial layout, slim borders, stacked
+            department blocks, and circular category rails. */}
         {showShopByGenderSection && (
           <EditSection id="shopbygender">
-            <section className="fr-sbg-section">
-              <div className="fr-sbg-inner">
-                <div className="fr-sbg-header">
-                  <p className="fr-sbg-eyebrow">{sbgEyebrow}</p>
-                  <h2 className="fr-sbg-heading">{sbgHeading}</h2>
-                </div>
-                <div className="fr-sbg-panels">
-                  {sbgHasMen && (
-                    <ShopByGenderPanel
-                      title="MEN"
-                      genderLabel="Men"
-                      bucket={sbgMen}
-                      catImage={catImage}
-                      handleImgError={handleImgError}
-                      hrefFor={(name) => sp(`/collections/${collectionSlug(name)}`)}
-                      onNavigate={(name) => navigate(sp(`/collections/${collectionSlug(name)}`))}
-                    />
-                  )}
-                  {sbgHasMen && sbgHasWomen && (
-                    <div className="fr-sbg-divider" aria-hidden="true"><div className="fr-sbg-divider-shimmer" /></div>
-                  )}
-                  {sbgHasWomen && (
-                    <ShopByGenderPanel
-                      title="WOMEN"
-                      genderLabel="Women"
-                      bucket={sbgWomen}
-                      catImage={catImage}
-                      handleImgError={handleImgError}
-                      hrefFor={(name) => sp(`/collections/${collectionSlug(name)}`)}
-                      onNavigate={(name) => navigate(sp(`/collections/${collectionSlug(name)}`))}
-                    />
-                  )}
-                </div>
+            <section className="fr-sbd-section">
+              <div className="fr-sbd-stack">
+                {sbgHasMen && (
+                  <ShopByDepartmentBlock
+                    title="Men."
+                    departmentLabel={sbgEyebrow}
+                    bucket={sbgMen}
+                    catImage={catImage}
+                    handleImgError={handleImgError}
+                    hrefFor={(name) => sp(`/collections/${collectionSlug(name)}`)}
+                    onNavigate={(name) => navigate(sp(`/collections/${collectionSlug(name)}`))}
+                    viewAllLabel="Shop all men"
+                  />
+                )}
+                {sbgHasMen && sbgHasWomen && <div className="fr-sbd-divider" aria-hidden="true" />}
+                {sbgHasWomen && (
+                  <ShopByDepartmentBlock
+                    title="Women."
+                    departmentLabel={sbgEyebrow}
+                    bucket={sbgWomen}
+                    catImage={catImage}
+                    handleImgError={handleImgError}
+                    hrefFor={(name) => sp(`/collections/${collectionSlug(name)}`)}
+                    onNavigate={(name) => navigate(sp(`/collections/${collectionSlug(name)}`))}
+                    viewAllLabel="Shop all women"
+                  />
+                )}
               </div>
             </section>
           </EditSection>
@@ -4444,124 +4423,79 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
 // tile still navigate), and the right-edge fade hides once scrolled to the
 // end. Defined outside FourRegnStore (like LightboxGallery above) since it
 // needs no closures over store state -- everything it needs is passed in.
-function ShopByGenderPanel({ title, genderLabel, bucket, catImage, handleImgError, hrefFor, onNavigate }: {
+function ShopByDepartmentBlock({
+  title,
+  departmentLabel,
+  bucket,
+  catImage,
+  handleImgError,
+  hrefFor,
+  onNavigate,
+  viewAllLabel,
+}: {
   title: string;
-  genderLabel: string;
+  departmentLabel: string;
   bucket: GenderBucket;
   catImage: (cat: string) => string | null;
   handleImgError: (e: React.SyntheticEvent<HTMLImageElement>) => void;
   hrefFor: (collectionName: string) => string;
   onNavigate: (collectionName: string) => void;
+  viewAllLabel: string;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [activeDot, setActiveDot] = useState(0);
-  const [atEnd, setAtEnd] = useState(false);
-  const dragRef = useRef({ moved: false });
-
-  const updateScrollState = () => {
-    const el = trackRef.current;
-    if (!el) return;
-    const children = Array.from(el.children) as HTMLElement[];
-    if (children.length > 0) {
-      let idx = 0;
-      let min = Infinity;
-      children.forEach((c, i) => {
-        const d = Math.abs(c.offsetLeft - el.scrollLeft);
-        if (d < min) { min = d; idx = i; }
-      });
-      setActiveDot(idx);
-    }
-    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
-  };
-
-  useEffect(() => { updateScrollState(); }, [bucket.items.length]);
-
-  const scrollByOne = (dir: 1 | -1) => {
-    const el = trackRef.current;
-    if (!el) return;
-    const first = el.children[0] as HTMLElement | undefined;
-    const gap = parseFloat(getComputedStyle(el).columnGap || "14") || 14;
-    const step = first ? first.getBoundingClientRect().width + gap : el.clientWidth * 0.8;
-    el.scrollBy({ left: dir * step, behavior: "smooth" });
-  };
-
-  const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = trackRef.current;
-    if (!el) return;
-    const startX = e.clientX;
-    const startScroll = el.scrollLeft;
-    dragRef.current.moved = false;
-    const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - startX;
-      if (Math.abs(dx) > 5) dragRef.current.moved = true;
-      el.scrollLeft = startScroll - dx;
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
-
   return (
-    <div className="fr-sbg-panel">
-      <div className="fr-sbg-panel-inner">
-        <h3 className="fr-sbg-panel-title">{title}</h3>
+    <div className="fr-sbd-block">
+      <div className="fr-sbd-header">
+        <div className="fr-sbd-heading-wrap">
+          <p className="fr-sbd-eyebrow">{departmentLabel}</p>
+          <h3 className="fr-sbd-title">{title}</h3>
+        </div>
         {bucket.shopAll && (
           <a
             href={hrefFor(bucket.shopAll)}
-            className="fr-sbg-shopall"
-            onClick={(e) => { e.preventDefault(); onNavigate(bucket.shopAll!); }}
+            className="fr-sbd-viewall"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate(bucket.shopAll!);
+            }}
           >
-            Shop All {genderLabel} →
+            {viewAllLabel}
           </a>
         )}
-        <div className={"fr-sbg-track-wrap" + (atEnd ? " at-end" : "")}>
-          <div
-            className="fr-sbg-track"
-            ref={trackRef}
-            onScroll={updateScrollState}
-            onMouseDown={onMouseDown}
-          >
-            {bucket.items.map((cat) => {
-              const img = catImage(cat.name);
-              return (
-                <a
-                  key={cat.name}
-                  href={hrefFor(cat.name)}
-                  className="fr-sbg-cat-item"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (dragRef.current.moved) { dragRef.current.moved = false; return; }
-                    onNavigate(cat.name);
-                  }}
-                >
-                  <div className="fr-sbg-circle-frame">
-                    <div className="fr-sbg-circle-img">
-                      {img ? (
-                        <>
-                          <Image src={img} alt={cat.label} fill sizes="(max-width: 900px) 20vw, 10vw" style={{ objectFit: "cover" }} onError={handleImgError} />
-                          <span className="fr-cat-mark" style={{ display: "none" }}>{cat.label}</span>
-                        </>
-                      ) : <span className="fr-cat-mark">{cat.label}</span>}
-                    </div>
-                  </div>
-                  <span className="fr-sbg-cat-label">{cat.label}</span>
-                </a>
-              );
-            })}
-          </div>
-        </div>
-        <div className="fr-sbg-arrow-row">
-          <button type="button" className="fr-sbg-arrow" aria-label={`Previous ${genderLabel.toLowerCase()} categories`} onClick={() => scrollByOne(-1)}>←</button>
-          <div className="fr-sbg-dots">
-            {bucket.items.map((_, i) => (
-              <span key={i} className={"fr-sbg-dot" + (i === activeDot ? " active" : "")} />
-            ))}
-          </div>
-          <button type="button" className="fr-sbg-arrow" aria-label={`Next ${genderLabel.toLowerCase()} categories`} onClick={() => scrollByOne(1)}>→</button>
-        </div>
+      </div>
+      <div className="fr-sbd-rail">
+        {bucket.items.map((cat) => {
+          const img = catImage(cat.name);
+          return (
+            <a
+              key={cat.name}
+              href={hrefFor(cat.name)}
+              className="fr-sbd-card"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(cat.name);
+              }}
+            >
+              <div className="fr-sbd-circle">
+                {img ? (
+                  <>
+                    <Image
+                      src={img}
+                      alt={cat.label}
+                      fill
+                      sizes="(max-width: 900px) 40vw, 156px"
+                      style={{ objectFit: "cover" }}
+                      onError={handleImgError}
+                    />
+                    <span className="fr-cat-mark" style={{ display: "none" }}>{cat.label}</span>
+                  </>
+                ) : (
+                  <span className="fr-cat-mark">{cat.label}</span>
+                )}
+              </div>
+              <span className="fr-sbd-label">{cat.label}</span>
+            </a>
+          );
+        })}
       </div>
     </div>
   );
