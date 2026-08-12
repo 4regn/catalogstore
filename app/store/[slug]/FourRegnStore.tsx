@@ -155,6 +155,8 @@ interface StoreConfig {
   // call).
   winter_marquee_hoodie_slides?: string[];
   winter_marquee_tee_slides?: string[];
+  standard_graphic_hoodies_slides?: string[];
+  standard_graphic_hoodies_interval?: number;
 }
 
 // Auto-highlights a BOGO-style offer line the way the reference design
@@ -1854,6 +1856,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cef-btn{display:inline-block;background:#0a0a0a;color:#fff;padding:15px 40px;font-family:var(--body);font-weight:700;font-size:15px;letter-spacing:2px;text-decoration:none;border-radius:8px;box-shadow:0 12px 28px -8px rgba(0,0,0,0.45);transition:transform 0.3s ease}
 .fr-cef-btn:hover{transform:translateY(-3px)}
 .fr-cef-note{margin-top:10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#8c8880;font-weight:600}
+/* STANDARD GRAPHIC HOODIES — stacked deck ported from the supplied Liquid section. */
+.fr-sdk{background:#e8e8e8;color:#0a0a0a;overflow:hidden;font-family:var(--body)}
+.fr-sdk-wrap{min-height:700px;display:flex;flex-direction:column;justify-content:center;padding:32px 0 20px;overflow:hidden}
+.fr-sdk-head{text-align:center;padding:0 20px 6px;flex-shrink:0}
+.fr-sdk-eyebrow{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:#8c8880;font-weight:700;margin-bottom:5px}
+.fr-sdk-title{font-family:var(--serif);font-size:clamp(30px,6vw,64px);line-height:.92;letter-spacing:1px;margin:0}
+.fr-sdk-deal{display:inline-block;margin-top:10px;color:#fff;font-family:var(--serif);font-size:clamp(16px,2.6vw,24px);letter-spacing:1.5px;padding:6px 22px;border-radius:40px;background:#e8503a;box-shadow:0 10px 28px -10px rgba(232,80,58,.5)}
+.fr-sdk-stage{position:relative;width:100%;height:clamp(380px,58vh,580px);margin-top:14px;display:flex;align-items:center;justify-content:center}
+.fr-sdk-card{position:absolute;width:clamp(240px,60vw,320px);border-radius:18px;overflow:hidden;background:#fff;box-shadow:0 30px 60px -24px rgba(0,0,0,.55);transition:transform .7s cubic-bezier(.6,.02,.2,1),opacity .7s;will-change:transform,opacity;display:block}
+.fr-sdk-card.is-flying{transform:translateX(120%) rotate(12deg)!important;opacity:0!important}
+.fr-sdk-card img{width:100%;display:block;aspect-ratio:3/4;object-fit:cover;object-position:center top}
+.fr-sdk-cta{text-align:center;padding:18px 20px 0;flex-shrink:0}
+.fr-sdk-btn{display:inline-block;background:#0a0a0a;color:#fff;padding:15px 40px;font-family:var(--serif);font-size:20px;letter-spacing:3px;text-decoration:none;border-radius:8px;box-shadow:0 12px 28px -8px rgba(0,0,0,.45);transition:transform .3s ease}
+.fr-sdk-btn:hover{transform:translateY(-3px)}
+.fr-sdk-note{margin-top:10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#8c8880;font-weight:600}
+@media(prefers-reduced-motion:reduce){.fr-sdk-card{transition:none}.fr-sdk-card.is-flying{transform:none!important;opacity:1!important}}
 
 /* Winter Sale Marquee — ported from sections/4regn-winter-sale-landing.liquid
    ("4REGN Winter Marquee"). Colors/spacing below are the real values from
@@ -2984,6 +3002,28 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {/* SHOP BY DEPARTMENT — landing-page section matched to the HTML
             reference you sent: clean editorial layout, slim borders, stacked
             department blocks, and circular category rails. */}
+        {isHomeView && (() => {
+          const configuredSlides = config.standard_graphic_hoodies_slides;
+          const images = (configuredSlides && configuredSlides.length > 0
+            ? configuredSlides
+                .map((entry) => (entry.startsWith("http") || entry.startsWith("/")) ? entry : products.find((p) => p.id === entry)?.image_url)
+                .filter((url): url is string => !!url)
+            : products
+                .filter((p) => pInCat(p, "STANDARD GRAPHIC HOODIES") && p.image_url)
+                .map((p) => p.image_url!)
+          ).slice(0, 12);
+          if (images.length === 0) return null;
+          return (
+            <EditSection id="standard-graphic-hoodies">
+              <StandardHoodieDeck
+                images={images}
+                href={sp("/collections/standard-graphic-hoodies")}
+                interval={config.standard_graphic_hoodies_interval ?? 2200}
+              />
+            </EditSection>
+          );
+        })()}
+
         {showShopByGenderSection && (
           <EditSection id="shopbygender">
             <section className="fr-sbd-section">
@@ -4035,6 +4075,82 @@ function TickerStrip() {
 // animation loop here (the Liquid version only disabled a CSS transition
 // that its own per-frame inline `transform` writes never used in the
 // first place, so reduced-motion did nothing there).
+function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[]; href: string; interval?: number }) {
+  const [order, setOrder] = useState<number[]>(() => images.map((_, index) => index));
+  const [flying, setFlying] = useState<number | null>(null);
+  const orderRef = useRef(order);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const nextOrder = images.map((_, index) => index);
+    orderRef.current = nextOrder;
+    setOrder(nextOrder);
+    setFlying(null);
+  }, [images]);
+
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
+
+  useEffect(() => {
+    if (images.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      const top = orderRef.current[0];
+      if (top === undefined) return;
+      setFlying(top);
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = window.setTimeout(() => {
+        setOrder((current) => current.length > 1 ? [...current.slice(1), current[0]] : current);
+        setFlying(null);
+      }, 700);
+    }, Math.max(1000, interval));
+    return () => {
+      window.clearInterval(timer);
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+    };
+  }, [images.length, interval]);
+
+  if (images.length === 0) return null;
+  return (
+    <section className="fr-sdk">
+      <div className="fr-sdk-wrap">
+        <div className="fr-sdk-head">
+          <div className="fr-sdk-eyebrow">Standard Graphic Hoodies</div>
+          <h2 className="fr-sdk-title">WEAR THE CULTURE</h2>
+          <div className="fr-sdk-deal">BUY 2 FOR R599</div>
+        </div>
+        <div className="fr-sdk-stage">
+          {order.map((imageIndex, depth) => (
+            <a
+              key={imageIndex}
+              href={href}
+              className={`fr-sdk-card${flying === imageIndex ? " is-flying" : ""}`}
+              style={{
+                zIndex: order.length - depth,
+                transform: `translateY(${depth * 8}px) scale(${Math.max(0.65, 1 - depth * 0.1).toFixed(3)})`,
+                opacity: depth <= 4 ? 1 : 0,
+                pointerEvents: depth === 0 ? "auto" : "none",
+              }}
+            >
+              <Image
+                src={images[imageIndex]}
+                alt={`Standard Graphic Hoodie look ${imageIndex + 1}`}
+                width={320}
+                height={427}
+                sizes="(max-width: 533px) 60vw, 320px"
+              />
+            </a>
+          ))}
+        </div>
+        <div className="fr-sdk-cta">
+          <a href={href} className="fr-sdk-btn">SHOP HOODIES</a>
+          <div className="fr-sdk-note">Buy 2 For R599 · Ships Nationwide</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href: string; speed?: number }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);

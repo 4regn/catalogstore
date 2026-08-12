@@ -163,7 +163,7 @@ type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
   | "setla" | "newsletter" | "shopbygender" | "ticker-strip" | "winter-essentials"
-  | "winter-sale-marquee"
+  | "winter-sale-marquee" | "standard-graphic-hoodies"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -188,6 +188,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   "ticker-strip":      { icon: "ticker", label: "4regn Ticker Strip" },
   "winter-essentials": { icon: "image",  label: "Winter Essentials" },
   "winter-sale-marquee": { icon: "image", label: "Winter Sale Marquee" },
+  "standard-graphic-hoodies": { icon: "image", label: "Standard Graphic Hoodies" },
 };
 
 // Compact icon+label inline component for the chrome.
@@ -451,11 +452,15 @@ export default function StoreEditor() {
   const [winterSlides, setWinterSlides] = useState<string[]>([]);
   const [winterPickerOpen, setWinterPickerOpen] = useState(false);
   const [winterDragIdx, setWinterDragIdx] = useState<number | null>(null);
+  const [hoodieDeckInterval, setHoodieDeckInterval] = useState(2200);
+  const [hoodieDeckSlides, setHoodieDeckSlides] = useState<string[]>([]);
+  const [hoodieDeckPickerOpen, setHoodieDeckPickerOpen] = useState(false);
+  const [hoodieDeckDragIdx, setHoodieDeckDragIdx] = useState<number | null>(null);
   // Loads pickerProducts as soon as this panel opens (not just when the
   // "add" picker is clicked) -- already-saved product-id slides need it
   // too, to resolve their thumbnails.
   useEffect(() => {
-    if ((activeSection !== "winter-essentials" && activeSection !== "winter-sale-marquee") || pickerProducts || !seller) return;
+    if ((activeSection !== "winter-essentials" && activeSection !== "winter-sale-marquee" && activeSection !== "standard-graphic-hoodies") || pickerProducts || !seller) return;
     setPickerLoading(true);
     supabase.from("products").select("id, name, image_url, category").eq("seller_id", seller.id).not("image_url", "is", null)
       .then(({ data }) => { setPickerProducts(data || []); setPickerLoading(false); });
@@ -679,6 +684,8 @@ export default function StoreEditor() {
       if (cfg?.hidden_collections) setHiddenCollections(cfg.hidden_collections);
       if (cfg?.winter_essentials_speed !== undefined) setWinterSpeed(cfg.winter_essentials_speed);
       if (cfg?.winter_essentials_slides) setWinterSlides(cfg.winter_essentials_slides);
+      if ((cfg as any)?.standard_graphic_hoodies_interval !== undefined) setHoodieDeckInterval((cfg as any).standard_graphic_hoodies_interval);
+      if ((cfg as any)?.standard_graphic_hoodies_slides) setHoodieDeckSlides((cfg as any).standard_graphic_hoodies_slides);
       if ((cfg as any)?.winter_marquee_hoodie_slides) setMarqueeHoodieSlides((cfg as any).winter_marquee_hoodie_slides);
       if ((cfg as any)?.winter_marquee_tee_slides) setMarqueeTeeSlides((cfg as any).winter_marquee_tee_slides);
       if (cfg?.footer_about) setFooterAbout(cfg.footer_about);
@@ -1041,6 +1048,8 @@ export default function StoreEditor() {
       hidden_collections: hiddenCollections,
       winter_essentials_speed: winterSpeed,
       winter_essentials_slides: winterSlides,
+      standard_graphic_hoodies_interval: hoodieDeckInterval,
+      standard_graphic_hoodies_slides: hoodieDeckSlides,
       winter_marquee_hoodie_slides: marqueeHoodieSlides,
       winter_marquee_tee_slides: marqueeTeeSlides,
       footer_about: footerAbout || undefined,
@@ -2155,6 +2164,65 @@ export default function StoreEditor() {
                 -- same curated-slides-with-fallback UI pattern as Winter
                 Essentials above, factored into a local renderRow() since
                 it's the same ~90 lines twice, once per row. */}
+            {activeSection === "standard-graphic-hoodies" && seller?.template === "4regn" && (() => {
+              const collectionName = "STANDARD GRAPHIC HOODIES";
+              const hoodieProducts = (pickerProducts || []).filter(p =>
+                (p.category || "").split(",").some(c => c.trim().toUpperCase() === collectionName)
+              );
+              const resolveThumb = (entry: string) => entry.startsWith("http") || entry.startsWith("/")
+                ? entry
+                : (pickerProducts || []).find(p => p.id === entry)?.image_url || null;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div>
+                    <label style={labelStyle}>Card Flip Speed</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="range" min={1000} max={5000} step={100} value={hoodieDeckInterval}
+                        onChange={e => setHoodieDeckInterval(parseInt(e.target.value, 10))}
+                        style={{ flex: 1, accentColor: "#9c7c62" }} />
+                      <span style={{ fontSize: 12, color: "rgba(245,245,245,0.5)", width: 46, textAlign: "right" }}>{(hoodieDeckInterval / 1000).toFixed(1)}s</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Cover Images</label>
+                    <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", marginBottom: 8 }}>Drag to reorder. Leave empty to use the collection automatically.</div>
+                    {hoodieDeckSlides.length === 0 ? (
+                      <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)" }}>
+                        Using automatic order ({hoodieProducts.length} product{hoodieProducts.length !== 1 ? "s" : ""}).
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {hoodieDeckSlides.map((entry, i) => (
+                          <div key={`${entry}-${i}`} draggable onDragStart={() => setHoodieDeckDragIdx(i)} onDragOver={e => e.preventDefault()}
+                            onDrop={e => { e.preventDefault(); if (hoodieDeckDragIdx === null || hoodieDeckDragIdx === i) return; const next = [...hoodieDeckSlides]; const [item] = next.splice(hoodieDeckDragIdx, 1); next.splice(i, 0, item); setHoodieDeckSlides(next); setHoodieDeckDragIdx(null); }}
+                            onDragEnd={() => setHoodieDeckDragIdx(null)}
+                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, cursor: "grab", opacity: hoodieDeckDragIdx === i ? 0.4 : 1 }}>
+                            <span style={{ color: "rgba(245,245,245,0.3)" }}>⠿</span>
+                            {resolveThumb(entry) ? <img src={resolveThumb(entry)!} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "rgba(255,255,255,0.06)" }} />}
+                            <span style={{ flex: 1, fontSize: 11, color: "rgba(245,245,245,0.5)" }}>{entry.startsWith("http") || entry.startsWith("/") ? "Uploaded image" : ((pickerProducts || []).find(p => p.id === entry)?.name || "Product")}</span>
+                            <button type="button" onClick={() => setHoodieDeckSlides(hoodieDeckSlides.filter((_, j) => j !== i))} style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(255,107,53,0.08)", border: "none", color: "#ff6b35", cursor: "pointer" }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button type="button" onClick={() => setHoodieDeckPickerOpen(v => !v)} style={{ flex: 1, fontSize: 12, color: "rgba(245,245,245,0.6)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>+ Add from collection</button>
+                    <label style={{ flex: 1, textAlign: "center", fontSize: 12, color: "rgba(245,245,245,0.6)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
+                      + Upload custom image
+                      <input type="file" accept="image/*" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (!f || !seller) return; const ext = f.name.split(".").pop()?.toLowerCase() || "jpg"; const path = `${seller.id}/standard_graphic_hoodies_${Date.now()}.${ext}`; const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true }); if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); setHoodieDeckSlides([...hoodieDeckSlides, data.publicUrl]); } e.target.value = ""; }} />
+                    </label>
+                  </div>
+                  {hoodieDeckPickerOpen && (pickerLoading ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)" }}>Loading your products…</div> : hoodieProducts.length === 0 ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)" }}>No products found in Standard Graphic Hoodies.</div> :
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, maxHeight: 320, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                      {hoodieProducts.map(p => <button key={p.id} type="button" title={p.name} onClick={() => setHoodieDeckSlides([...hoodieDeckSlides, p.id])} style={{ padding: 0, display: "flex", flexDirection: "column", border: hoodieDeckSlides.includes(p.id) ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}><img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover" }} /><span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left" }}>{p.name}</span></button>)}
+                    </div>
+                  )}
+                  <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 11, color: "rgba(245,245,245,0.4)" }}>Links to /collections/standard-graphic-hoodies</div>
+                </div>
+              );
+            })()}
+
             {activeSection === "winter-sale-marquee" && seller?.template === "4regn" && (() => {
               const renderRow = (opts: {
                 label: string;
