@@ -42,13 +42,13 @@ export async function GET(
     return new Response(null, { status: upstream.status });
   }
 
-  const body = await upstream.arrayBuffer();
+  const body = Buffer.from(await upstream.arrayBuffer());
   const contentType = upstream.headers.get("content-type") ?? "image/png";
 
   return new Response(body, {
     headers: {
       "Content-Type": contentType,
-      "Cache-Control": "public, max-age=3600, s-maxage=3600",
+      "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800",
     },
   });
 }
