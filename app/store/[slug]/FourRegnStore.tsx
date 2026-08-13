@@ -594,40 +594,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const router = useRouter();
   const pathname = usePathname();
   const [isNavigating, startNavigation] = useTransition();
-  // Scrolling to top here (at the moment navigation is triggered) rather
-  // than only reactively once the new page has mounted (see the
-  // useLayoutEffect below) matters on slower connections/devices: React
-  // keeps the OLD page's DOM on screen during the pending transition
-  // (that's the whole point of useTransition -- no blank flash), so if
-  // the fetch takes a while, the visible page is still the previous one at
-  // its old scroll position for that entire window. Confirmed as a real,
-  // reported issue on mobile specifically -- slower network + a much
-  // taller stacked mobile layout makes that window both longer and the
-  // resulting jump far more visible than on desktop. Resetting immediately
-  // means the old page is already at the top throughout the wait, so
-  // there's nothing left to visibly jump when the new page takes over.
-  const navigate = (path: string) => { window.scrollTo(0, 0); startNavigation(() => router.push(path)); };
-  // Same idea as navigate() above (reset the CURRENT page's scroll
-  // immediately, not just reactively once the next page has mounted --
-  // see that comment for why), but for collection pagination/sort
-  // specifically: brings the (still on-screen, about-to-be-replaced)
-  // product grid to the top of the viewport instead of the very top of
-  // the page. The header/hero above it looks identical on every page of
-  // the same collection, so scrolling all the way up hides the one thing
-  // that actually changes -- from the bottom of a long page that reads as
-  // "did my click even do anything," not as a page change in progress.
+  // Keep the current page completely still while the destination is being
+  // prepared. `scroll: false` also prevents Next's own navigation scroll
+  // from firing early. The useLayoutEffect below resets the position only
+  // after the destination content has committed, before its first paint.
+  const navigate = (path: string) => {
+    startNavigation(() => router.push(path, { scroll: false }));
+  };
   const navigateToProducts = (path: string) => {
-    // behavior: "instant" is load-bearing here, not cosmetic: globals.css
-    // sets html{scroll-behavior:smooth} site-wide, so scrollIntoView()
-    // without an explicit behavior animates instead of jumping. On a fast
-    // (cached/prefetched) navigation, this call and the useLayoutEffect
-    // below's correction can both fire within that animation's window,
-    // and the second one interrupting the first can leave the page stuck
-    // mid-scroll -- reported as "clicked page 2, it loaded, but I was
-    // still at the bottom." Forcing "instant" here and below removes the
-    // animation entirely, so there's nothing left to interrupt.
-    document.getElementById("fr-products")?.scrollIntoView({ block: "start", behavior: "instant" });
-    startNavigation(() => router.push(path));
+    startNavigation(() => router.push(path, { scroll: false }));
   };
   // Warms a destination route's RSC payload ahead of an actual click --
   // wired to onMouseEnter (desktop hover) and onTouchStart (fires before
@@ -1717,14 +1692,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-progress.is-loading::after{animation:fr-progress 10s cubic-bezier(0.12,0.72,0.18,1) forwards}
 .fr-progress.is-finishing::after{transform:scaleX(1);transition:transform 0.18s ease-out}
 @keyframes fr-progress{0%{transform:scaleX(0)}8%{transform:scaleX(.2)}24%{transform:scaleX(.45)}50%{transform:scaleX(.7)}75%{transform:scaleX(.84)}100%{transform:scaleX(.94)}}
-/* Scroll resets to the top the instant a navigation starts (see navigate()
-   above), well before the next page is actually ready -- on a slow
-   connection that otherwise reads as "the page jumped to the top and then
-   just sat there," since the thin top progress bar alone is easy to miss.
-   Dimming the current page for the duration makes that wait unmistakably
-   read as "loading," not stuck. Delayed by 150ms so an already-prefetched,
-   near-instant transition (the common case) never visibly dims at all. */
-.fr-root--navigating{opacity:0.5;pointer-events:none;transition:opacity 0.2s ease 150ms}
 @keyframes fr-spin{to{transform:rotate(360deg)}}
 
 /* Solid state (every page except the home hero, and the home page itself
@@ -2479,7 +2446,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       `}</style>
 
       <NavigationProgress active={isNavigating} />
-      <div className={"fr-root" + (isNavigating ? " fr-root--navigating" : "")} onClick={handleInternalLinkClick}>
+      <div className="fr-root" onClick={handleInternalLinkClick}>
         {displayAnnouncement && (
           <div style={{ background: "#000", color: "#fdfbf7", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center", fontFamily: "'Amiri', serif" }}>
             {displayAnnouncement}
