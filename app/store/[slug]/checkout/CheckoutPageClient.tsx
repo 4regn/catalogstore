@@ -160,6 +160,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .provider-logo{display:flex;align-items:center;justify-content:center}
 .fr-checkout-v2 .provider-logo.yoco img{width:74px;height:32px;object-fit:contain}
 .fr-checkout-v2 .provider-logo.stitch img{width:96px;height:22px;object-fit:contain}
+.fr-checkout-v2 .provider-logo.float img{width:96px;height:32px;object-fit:contain}
 .fr-checkout-v2 .payment-logo.setla-logo{background:#050505;border-radius:5px;padding:5px 9px;min-width:78px;height:30px;display:flex;align-items:center;justify-content:center}
 .fr-checkout-v2 .payment-logo.setla-logo img{max-width:58px;max-height:16px}
 .fr-checkout-v2 .choice-sub.stitch-paylater-copy{display:flex;flex-direction:column;gap:2px;margin-top:5px}
@@ -251,6 +252,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
  .fr-checkout-v2 .payment-provider-art{min-width:72px}
  .fr-checkout-v2 .provider-logo.yoco img{width:58px;height:28px}
  .fr-checkout-v2 .provider-logo.stitch img{width:70px;height:18px}
+ .fr-checkout-v2 .provider-logo.float img{width:70px;height:26px}
  .fr-checkout-v2 .payment-logo.setla-logo{min-width:66px;height:28px}
  .fr-checkout-v2 .payment-title-note{font-size:10px}
  .fr-checkout-v2 .card-brand-row{gap:4px}
@@ -1138,9 +1140,12 @@ export default function CheckoutPageClient() {
                         <div className="radio"></div>
                         <div className="choice-main">
                           <div className="choice-name">Float <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
-                          <div className="choice-sub">Split your purchase into interest-free monthly instalments using your credit card.</div>
+                          <div className="choice-sub stitch-paylater-copy">
+                            <span className="paylater-label">Split your purchase into interest-free monthly instalments using your credit card</span>
+                            <span className="paylater-line">Pay over 2&ndash;6 instalments, from <strong>{stitchFrom}</strong></span>
+                          </div>
                         </div>
-                        <div className="payment-provider-art"><div className="provider-logo"><img alt="Float" src="/checkout/float.png" /></div></div>
+                        <div className="payment-provider-art"><div className="provider-logo float"><img alt="Float" src="/checkout/float.png" /></div></div>
                       </div>
                       {paymentMethod === "float" && <div className="payment-note">You&rsquo;ll be redirected to Float to choose your payment plan securely.</div>}
                     </div>
@@ -1534,9 +1539,13 @@ export default function CheckoutPageClient() {
                 <div onClick={() => setPaymentMethod("float")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "float" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "float" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
-                    <span style={{ fontSize: 14, fontWeight: paymentMethod === "float" ? 600 : 400 }}>Float — Buy Now Pay Later</span>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: paymentMethod === "float" ? 600 : 400 }}>Float — Buy Now Pay Later</div>
+                      <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>Split your purchase into interest-free monthly instalments using your credit card</div>
+                      <div style={{ fontSize: 12, color: T.muted, marginTop: 3 }}>Pay over 2–6 instalments, from <strong style={{ color: T.text }}>{formatZARDecimal(total / 6)}</strong></div>
+                    </div>
                   </div>
-                  <img src="/checkout/float.png" alt="Float" style={{ height: 26, width: 50, objectFit: "contain" }} />
+                  <img src="/checkout/float.png" alt="Float" style={{ height: 32, width: 96, objectFit: "contain", marginLeft: 16, flexShrink: 0 }} />
                 </div>
                 {paymentMethod === "float" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Float to choose your interest-free payment plan securely.</div>}
               </div>
