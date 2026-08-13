@@ -127,10 +127,11 @@ export function parseArgs(usage: string): CliArgs {
 
 export async function resolveSeller(admin: SupabaseClient, sellerArg: string) {
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerArg);
+  const sellerColumn = isUuid ? "id" : sellerArg.includes("@") ? "email" : "subdomain";
   const { data: seller, error } = await admin
     .from("sellers")
     .select("id, email, subdomain, subscription_status, collections")
-    .eq(isUuid ? "id" : "email", sellerArg)
+    .eq(sellerColumn, sellerArg)
     .maybeSingle();
   if (error || !seller) {
     console.error(`Could not find a seller matching "${sellerArg}": ${error?.message || "no matching row"}`);
@@ -734,7 +735,15 @@ function markupInline(html: string): string {
 // before that: markupInline() converts them to markers instead of
 // tableToRowLines()/htmlToParagraphs()'s flat stripping.
 export function htmlToDescriptionMarkup(html: string): string {
-  const withInlineMarked = markupInline(html);
+  const withImagesMarked = html.replace(/<img\b([^>]*)>/gi, (_full, attrs: string) => {
+    const srcMatch = attrs.match(/\bsrc\s*=\s*"([^"]+)"|\bsrc\s*=\s*'([^']+)'/i);
+    const altMatch = attrs.match(/\balt\s*=\s*"([^"]*)"|\balt\s*=\s*'([^']*)'/i);
+    const src = (srcMatch?.[1] ?? srcMatch?.[2] ?? "").trim();
+    if (!/^https:\/\//i.test(src)) return "";
+    const alt = (altMatch?.[1] ?? altMatch?.[2] ?? "").trim();
+    return `\n\n[[image:${encodeURIComponent(src)}|${encodeURIComponent(alt)}]]\n\n`;
+  });
+  const withInlineMarked = markupInline(withImagesMarked);
   const withTablesConverted = withInlineMarked.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, (tableHtml) => {
     // markupInline() already ran over the whole document above, so any
     // <strong>/<em>/color spans inside this table's cells have already been

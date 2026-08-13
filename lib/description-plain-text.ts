@@ -11,6 +11,7 @@
 // "Chest | 36 | 38 | 40" table rows) instead of clean copy.
 export function descriptionToPlainText(raw: string): string {
   return raw
+    .replace(/\[\[image:[^\]]+\]\]/g, " ")
     .replace(/\[\[table\]\]([\s\S]*?)\[\[\/table\]\]/g, (_m, rows: string) =>
       rows
         .split("\n")

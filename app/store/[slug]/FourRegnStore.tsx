@@ -2362,6 +2362,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-desc-table th{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .fr-desc-table tbody tr:nth-child(even){background:rgba(0,0,0,0.03)}
 .fr-desc-table tbody td{border-top:1px solid rgba(0,0,0,0.06);color:var(--ink)}
+.fr-desc-image{display:block;width:100%;height:auto;margin:18px 0;border-radius:12px;object-fit:contain}
+.fr-pdp-desc.is-promo strong{color:#e21b23}
 .fr-pdp-section{border-top:1px solid rgba(0,0,0,0.07);padding:16px 0}
 .fr-pdp-section-lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:12px}
 .fr-size-row{display:flex;gap:8px;flex-wrap:wrap}
@@ -2780,7 +2782,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
-                    {p.description && <DescriptionText text={p.description} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -2819,6 +2820,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         </>
                       )}
                     </div>
+                    <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
+                    {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
                   </div>
                 </div>
               </>
@@ -3348,7 +3351,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
-                    {p.description && <DescriptionText text={p.description} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -3397,6 +3399,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
+                    {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
                     {/* FloatWidget temporarily disabled -- confirmed live that Float's
                         script renders its full onboarding/FAQ splash page instead of
                         the compact price-plan widget on this domain, taking over the
@@ -4160,12 +4163,26 @@ function DescriptionTable({ rowsText, keyPrefix }: { rowsText: string; keyPrefix
   );
 }
 
-function DescriptionText({ text }: { text: string }) {
+function isPromotionalDescription(product: Product): boolean {
+  const haystack = `${product.category || ""} ${(product.tags || []).join(" ")}`.toLowerCase();
+  return /standard graphic hood|front\s*(?:&|and)?\s*back printed hood|back\s*(?:&|and)?\s*front printed hood|oversized premium tee/.test(haystack);
+}
+
+function DescriptionText({ text, promo = false }: { text: string; promo?: boolean }) {
   const paragraphs = text.split(/\n\n+/);
   return (
-    <div className="fr-pdp-desc">
+    <div className={`fr-pdp-desc${promo ? " is-promo" : ""}`}>
       {paragraphs.map((para, pi) => {
         const trimmed = para.trim();
+        const imageMatch = trimmed.match(/^\[\[image:([^|\]]+)(?:\|([^\]]*))?\]\]$/);
+        if (imageMatch) {
+          try {
+            const src = decodeURIComponent(imageMatch[1]);
+            const alt = decodeURIComponent(imageMatch[2] || "");
+            if (/^https:\/\//i.test(src)) return <img key={pi} className="fr-desc-image" src={src} alt={alt} loading="lazy" decoding="async" />;
+          } catch {}
+          return null;
+        }
         // <table> is invalid inside a <p> (browsers/React would silently
         // break the DOM structure) -- table paragraphs render as a sibling
         // <div> instead of the shared <p> path below, which is also why the

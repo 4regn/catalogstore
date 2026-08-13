@@ -62,10 +62,16 @@ async function main() {
   }
 
   const bodyByHandle = new Map<string, string>();
+  const bodiesByNormalizedTitle = new Map<string, string[]>();
+  const normalizeTitle = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   for (const [handle, variantRows] of handleMap) {
     const first = variantRows[0];
     const bodyHtml = col(first, "body (html)");
-    if (bodyHtml) bodyByHandle.set(handle, bodyHtml);
+    if (bodyHtml) {
+      bodyByHandle.set(handle, bodyHtml);
+      const titleKey = normalizeTitle(col(first, "title"));
+      if (titleKey) bodiesByNormalizedTitle.set(titleKey, [...(bodiesByNormalizedTitle.get(titleKey) || []), bodyHtml]);
+    }
   }
   console.log(`\nParsed ${handleMap.size} handle group(s) from CSV, ${bodyByHandle.size} with a Body (HTML) value.`);
 
@@ -74,15 +80,19 @@ async function main() {
 
   type Plan = { product: ProductRow; newDescription: string };
   const matched: Plan[] = [];
-  let noHandle = 0;
+  let matchedByTitle = 0;
   let noCsvMatch = 0;
 
   for (const p of products) {
-    if (!p.handle) {
-      noHandle++;
-      continue;
+    let bodyHtml = p.handle ? bodyByHandle.get(p.handle) : undefined;
+    if (bodyHtml === undefined) {
+      const titleBodies = bodiesByNormalizedTitle.get(normalizeTitle(p.name)) || [];
+      const uniqueBodies = Array.from(new Set(titleBodies));
+      if (uniqueBodies.length === 1) {
+        bodyHtml = uniqueBodies[0];
+        matchedByTitle++;
+      }
     }
-    const bodyHtml = bodyByHandle.get(p.handle);
     if (bodyHtml === undefined) {
       noCsvMatch++;
       continue;
@@ -94,7 +104,7 @@ async function main() {
   const toWrite = matched.filter((pl) => (pl.product.description || "") !== pl.newDescription);
   const alreadyCorrect = matched.length - toWrite.length;
 
-  console.log(`\n${matched.length} product(s) matched a CSV row by handle (${noHandle} product(s) have no handle set, ${noCsvMatch} have a handle with no matching/empty CSV row).`);
+  console.log(`\n${matched.length} product(s) matched a CSV description (${matchedByTitle} by unique normalized title fallback, ${noCsvMatch} unmatched or ambiguous).`);
   console.log(`${toWrite.length} product(s) would have their description changed; ${alreadyCorrect} already match the re-derived text (left untouched).`);
 
   console.log(`\nSample changes (first 5):`);
