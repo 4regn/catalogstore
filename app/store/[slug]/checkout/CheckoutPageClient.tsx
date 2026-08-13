@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
 import { usesCleanStorePaths, storePath } from "../../../../lib/store-url";
@@ -8,7 +9,7 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
-import { fetchAllRows } from "../../../../lib/fetch-all-rows";
+import CheckoutLoading from "./CheckoutLoading";
 
 interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -394,27 +395,41 @@ export default function CheckoutPageClient() {
   }, [paidOrder?._processing, paidOrder?.order_number]);
 
   const load = async () => {
+    const p = new URLSearchParams(window.location.search);
+    let cleanCart: CartItem[] = [];
+    try {
+      const raw = p.get("cart") || "";
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(raw))));
+      if (Array.isArray(decoded)) {
+        cleanCart = decoded.filter((i: any) => i && typeof i === "object").map((i: any) => ({
+          id: typeof i.id === "string" ? i.id : undefined,
+          name: typeof i.name === "string" ? i.name : "",
+          price: Number.isFinite(Number(i.price)) ? Number(i.price) : 0,
+          qty: Math.max(1, Math.floor(Number(i.qty)) || 1),
+          variant: typeof i.variant === "string" ? i.variant : "",
+          image: typeof i.image === "string" ? i.image : "",
+          selectedVariants: i.selectedVariants && typeof i.selectedVariants === "object" ? i.selectedVariants : undefined,
+          tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
+        })).filter((i: CartItem) => i.name);
+        if (cleanCart.length) setCart(cleanCart);
+      }
+    } catch {}
+
     // Fetch seller data through safe API (strips merchant keys)
     const sellerRes = await fetch("/api/seller-public?slug=" + slug);
     const sd = sellerRes.ok ? await sellerRes.json() : null;
     if (sd) {
       setSeller(sd);
-      // A plain .select() with no .range() gets silently capped at
-      // PostgREST's default row limit (confirmed 1000 on this project --
-      // see fetch-all-rows.ts's own comment) -- for a seller with a real
-      // catalog north of that (4regn: ~1600 products), whichever products
-      // land past that cutoff (order is whatever Postgres returns with no
-      // explicit ORDER BY, not anything predictable) silently vanish from
-      // this lookup. That's the actual root cause of automatic-discount
-      // matching working for some products and not others at checkout:
-      // it was never a category or casing problem for the missing ones,
-      // sellerProducts just didn't contain their row at all.
-      const prods = await fetchAllRows<{ id: string; name: string; category: string }>(
-        supabase, "products", "id, name, category", (q) => q.eq("seller_id", sd.id)
-      );
-      setSellerProducts(prods);
+      const ids = cleanCart.map((item) => item.id).filter((id): id is string => !!id);
+      const names = cleanCart.filter((item) => !item.id).map((item) => item.name);
+      const queries: PromiseLike<any>[] = [];
+      if (ids.length) queries.push(supabase.from("products").select("id, name, category").eq("seller_id", sd.id).in("id", ids));
+      if (names.length) queries.push(supabase.from("products").select("id, name, category").eq("seller_id", sd.id).in("name", names));
+      if (queries.length) {
+        const results = await Promise.all(queries);
+        setSellerProducts(results.flatMap((result) => result.data || []));
+      }
     }
-    const p = new URLSearchParams(window.location.search);
     // Check if returning from PayFast payment.
     // Only show the success screen if the order is actually marked paid
     // server-side — previously anyone could land on ?paid=<orderId> and
@@ -450,7 +465,7 @@ export default function CheckoutPageClient() {
     /* Decode + validate cart from URL. Any malformed item would otherwise
        produce NaN totals and an unclickable "Pay Now RNaN" button. Prices
        here are display-only — the server re-fetches before charging. */
-    try {
+    if (!cleanCart.length) try {
       const raw = p.get("cart") || "";
       const decoded = JSON.parse(decodeURIComponent(escape(atob(raw))));
       if (Array.isArray(decoded)) {
@@ -880,7 +895,7 @@ export default function CheckoutPageClient() {
     }
   };
 
-  if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.bodyFont, background: T.bg }}><p style={{ color: T.muted }}>Loading checkout...</p></div>;
+  if (loading) return <CheckoutLoading />;
 
   if (seller && !isStoreActive(seller) && !paidOrder) return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: T.bodyFont, background: T.bg, color: T.text, padding: "40px 24px", textAlign: "center" }}>
@@ -895,7 +910,7 @@ export default function CheckoutPageClient() {
       <style>{T.fonts + `body,html{background:${T.bg};margin:0}`}</style>
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "60px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 40, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
+          {seller?.logo_url ? <Image src={seller.logo_url} alt="" width={180} height={40} sizes="180px" style={{ width: "auto", height: 40, maxWidth: 180, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
           {paidOrder._processing ? (
             <>
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -940,7 +955,7 @@ export default function CheckoutPageClient() {
       <style>{T.fonts + `body,html{background:${T.bg};margin:0}` + (isGC ? ` input::placeholder{color:rgba(255,255,255,0.3)!important}` : ``)}</style>
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "60px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 40, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
+          {seller?.logo_url ? <Image src={seller.logo_url} alt="" width={180} height={40} sizes="180px" style={{ width: "auto", height: 40, maxWidth: 180, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
           <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
           <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: 400, marginBottom: 8 }}>Order Placed!</h1>
           <p style={{ color: T.muted, fontSize: 14 }}>Order #{orderNumber}</p>
@@ -973,7 +988,7 @@ export default function CheckoutPageClient() {
           <header className="topbar">
             <div className="topbar-inner">
               <a className="brand" href={sp()} aria-label={(seller?.store_name || "Store") + " home"}>
-                {seller?.logo_url ? <img src={seller.logo_url} alt={seller.store_name} /> : <span className="brand-text">{seller?.store_name}</span>}
+                {seller?.logo_url ? <Image src={seller.logo_url} alt={seller.store_name} width={180} height={36} sizes="180px" priority style={{ width: "auto", height: 36, maxWidth: 180, objectFit: "contain" }} /> : <span className="brand-text">{seller?.store_name}</span>}
               </a>
               <div className="secure-note">
                 <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 24 24"><rect height="10" rx="2" width="14" x="5" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
@@ -1304,7 +1319,7 @@ export default function CheckoutPageClient() {
       <div style={{ borderBottom: "1px solid " + T.summaryBorder, padding: "16px 24px", background: T.stickyBg, backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <a href={sp()} style={{ textDecoration: "none" }}>
-            {seller?.logo_url ? <img src={seller.logo_url} alt="" style={{ height: 36, objectFit: "contain" }} /> : <span style={{ fontFamily: T.headFont, fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", color: T.text }}>{seller?.store_name}</span>}
+            {seller?.logo_url ? <Image src={seller.logo_url} alt="" width={180} height={36} sizes="180px" style={{ width: "auto", height: 36, maxWidth: 180, objectFit: "contain" }} /> : <span style={{ fontFamily: T.headFont, fontSize: 22, fontWeight: 300, letterSpacing: "0.06em", textTransform: "uppercase", color: T.text }}>{seller?.store_name}</span>}
           </a>
           <button onClick={() => setShowSummary(!showSummary)} style={{ background: "none", border: "none", fontSize: 13, color: accent, cursor: "pointer", fontFamily: T.bodyFont, display: "flex", alignItems: "center", gap: 6 }}>
             Order summary <span style={{ fontWeight: 600 }}>R{total.toFixed(0)}</span> <span style={{ fontSize: 10 }}>{showSummary ? "\u25B2" : "\u25BC"}</span>
