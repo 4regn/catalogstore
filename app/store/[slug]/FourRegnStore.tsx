@@ -2076,6 +2076,24 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-widget-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.22);margin-top:4px;padding-top:14px;gap:10px}
 .fr-setla-widget-foot span{font-size:10.5px;color:rgba(255,255,255,0.72)}
 .fr-setla-widget-foot a{font-size:11.5px;font-weight:600;color:#fff;text-decoration:underline;text-underline-offset:3px}
+.fr-stitch-widget{margin-top:12px;padding:18px;border-radius:16px;background:linear-gradient(145deg,#161020 0%,#24123f 55%,#321568 100%);border:1px solid rgba(119,52,255,.42);box-shadow:0 14px 34px rgba(45,18,91,.16);font-family:var(--body);color:#fff}
+.fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:15px}
+.fr-stitch-widget-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:8px;padding:6px 9px;line-height:0}
+.fr-stitch-widget-logo img{display:block;width:auto;height:17px}
+.fr-stitch-widget-tag{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#cdb8ff;text-align:right}
+.fr-stitch-widget-title{font-family:var(--serif);font-size:20px;line-height:1.15;margin:0 0 5px;color:#fff}
+.fr-stitch-widget-copy{font-size:11px;line-height:1.5;color:rgba(255,255,255,.68);margin:0 0 14px}
+.fr-stitch-terms{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
+.fr-stitch-term{min-width:0;padding:9px 3px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.055);color:rgba(255,255,255,.72);font-family:var(--body);font-size:10px;font-weight:700;cursor:pointer;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.fr-stitch-term:hover{transform:translateY(-1px);border-color:rgba(142,85,255,.8)}
+.fr-stitch-term.active{background:#6c2cff;border-color:#8a57ff;color:#fff;box-shadow:0 7px 18px rgba(108,44,255,.3)}
+.fr-stitch-amount{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:13px 14px;border-radius:12px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.1)}
+.fr-stitch-amount-label{font-size:10px;line-height:1.4;color:rgba(255,255,255,.62)}
+.fr-stitch-amount-value{text-align:right;white-space:nowrap}
+.fr-stitch-amount-value strong{display:block;font-family:var(--serif);font-size:21px;line-height:1;color:#fff}
+.fr-stitch-amount-value span{display:block;margin-top:4px;font-size:9px;color:#cdb8ff;text-transform:uppercase;letter-spacing:.09em}
+.fr-stitch-widget-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:9.5px;line-height:1.45;color:rgba(255,255,255,.56)}
+.fr-stitch-widget-foot strong{font-weight:700;color:#cdb8ff}
 
 /* Float BNPL widget container -- the widget itself renders its own DOM
    (see FloatWidget's own comment for why this is a plain imperative
@@ -2821,6 +2839,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
+                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
                   </div>
                 </div>
@@ -3399,6 +3418,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
+                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
                     {/* FloatWidget temporarily disabled -- confirmed live that Float's
                         script renders its full onboarding/FAQ splash page instead of
@@ -4550,6 +4570,46 @@ function SetlaProductWidget({ price }: { price: number }) {
       <div className="fr-setla-widget-foot">
         <span>Estimated for this item.</span>
         <a href="https://setla.4regn.com" target="_blank" rel="noopener noreferrer">Learn more about SETLA →</a>
+      </div>
+    </div>
+  );
+}
+
+// Product-page preview for Stitch Express Pay Later. Checkout currently
+// presents the same 2-6 month range and its "from" amount is total / 6;
+// this expands that compact checkout copy into a selectable comparison so
+// customers can understand every available term before entering checkout.
+// Cents are split with any remainder added to the final payment, avoiding
+// a displayed schedule that is a cent short of the actual product price.
+function StitchPayLaterWidget({ price }: { price: number }) {
+  const [months, setMonths] = useState(6);
+  if (!(price > 0)) return null;
+  const cents = Math.round(price * 100);
+  const monthlyBaseCents = Math.floor(cents / months);
+  const lastPaymentCents = monthlyBaseCents + (cents - monthlyBaseCents * months);
+  const money = (valueCents: number) => (valueCents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="fr-stitch-widget">
+      <div className="fr-stitch-widget-head">
+        <span className="fr-stitch-widget-logo"><img src="/checkout/stitch.png" alt="Stitch" /></span>
+        <span className="fr-stitch-widget-tag">Buy now · Pay later</span>
+      </div>
+      <h3 className="fr-stitch-widget-title">Choose your monthly plan</h3>
+      <p className="fr-stitch-widget-copy">Split this purchase into interest-free monthly instalments using your credit card.</p>
+      <div className="fr-stitch-terms" aria-label="Stitch instalment term">
+        {[2, 3, 4, 5, 6].map((term) => (
+          <button key={term} type="button" className={`fr-stitch-term${months === term ? " active" : ""}`} onClick={() => setMonths(term)} aria-pressed={months === term}>
+            {term} mo
+          </button>
+        ))}
+      </div>
+      <div className="fr-stitch-amount" aria-live="polite">
+        <span className="fr-stitch-amount-label">Estimated payment<br />over {months} months</span>
+        <span className="fr-stitch-amount-value"><strong>R{money(monthlyBaseCents)}</strong><span>per month</span></span>
+      </div>
+      <div className="fr-stitch-widget-foot">
+        <span>{lastPaymentCents !== monthlyBaseCents ? `Final payment R${money(lastPaymentCents)}.` : "Equal monthly payments."}</span>
+        <strong>0% interest</strong>
       </div>
     </div>
   );
