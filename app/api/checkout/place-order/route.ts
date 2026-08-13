@@ -196,8 +196,10 @@ export async function POST(req: NextRequest) {
     }
     // Re-check the forced premium rule server-side so a modified request
     // cannot submit a faster method hidden by the checkout UI.
-    const selectedIsPremium = !!opts[idx].is_premium || opts[idx].name?.trim().toUpperCase() === "PREMIUM PRODUCT SHIPMENT";
-    if (selectedIsPremium !== hasImportProduct) {
+    const explicitPremiumIdx = opts.findIndex((opt) => !!opt.is_premium || opt.name?.trim().toUpperCase() === "PREMIUM PRODUCT SHIPMENT");
+    const effectivePremiumIdx = explicitPremiumIdx !== -1 ? explicitPremiumIdx : (opts.length ? 0 : -1);
+    const selectedIsExplicitlyPremium = !!opts[idx].is_premium || opts[idx].name?.trim().toUpperCase() === "PREMIUM PRODUCT SHIPMENT";
+    if ((hasImportProduct && idx !== effectivePremiumIdx) || (!hasImportProduct && selectedIsExplicitlyPremium)) {
       return NextResponse.json({ error: "Invalid shipping option for this cart" }, { status: 400 });
     }
     shippingCost = Number(opts[idx].price) || 0;

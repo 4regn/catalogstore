@@ -398,7 +398,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       count += 1;
       const orderId = (paidOrder as any).id || new URLSearchParams(window.location.search).get("paid");
       if (!orderId) { clearInterval(id); return; }
-      const { data } = await supabase.from("orders").select("*").eq("id", orderId).single();
+      const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(orderId)}`, { cache: "no-store" });
+      const { order: data } = await response.json().catch(() => ({ order: null }));
       if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
         setPaidOrder({ ...data, _processing: false });
         clearInterval(id);
@@ -407,7 +408,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       }
     }, 3000);
     return () => clearInterval(id);
-  }, [paidOrder?._processing, paidOrder?.order_number]);
+  }, [paidOrder?._processing, paidOrder?.order_number, slug]);
 
   const load = async () => {
     const p = new URLSearchParams(window.location.search);
@@ -437,11 +438,23 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       const ids = cleanCart.map((item) => item.id).filter((id): id is string => !!id);
       const names = cleanCart.filter((item) => !item.id).map((item) => item.name);
       const queries: PromiseLike<any>[] = [];
-      if (ids.length) queries.push(supabase.from("products").select("id, name, category").eq("seller_id", sd.id).in("id", ids));
-      if (names.length) queries.push(supabase.from("products").select("id, name, category").eq("seller_id", sd.id).in("name", names));
+      if (ids.length) queries.push(supabase.from("products").select("id, name, category, tags").eq("seller_id", sd.id).in("id", ids));
+      if (names.length) queries.push(supabase.from("products").select("id, name, category, tags").eq("seller_id", sd.id).in("name", names));
       if (queries.length) {
         const results = await Promise.all(queries);
-        setSellerProducts(results.flatMap((result) => result.data || []));
+        const resolvedProducts = results.flatMap((result) => result.data || []);
+        setSellerProducts(resolvedProducts);
+        // The database is the source of truth for fulfillment tags. Older
+        // persisted carts and checkout URLs may predate the tags field, so
+        // enrich every line here before shipping is rendered instead of
+        // trusting that the storefront happened to include it.
+        const byId = new Map(resolvedProducts.map((product: any) => [product.id, product]));
+        const byName = new Map(resolvedProducts.map((product: any) => [String(product.name || "").toLowerCase(), product]));
+        cleanCart = cleanCart.map((item) => {
+          const product: any = (item.id ? byId.get(item.id) : null) || byName.get(item.name.toLowerCase());
+          return product ? { ...item, id: product.id || item.id, tags: Array.isArray(product.tags) ? product.tags : item.tags } : item;
+        });
+        setCart(cleanCart);
       }
     }
     // Check if returning from PayFast payment.
@@ -450,7 +463,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     // see "Payment Successful" regardless of whether payment went through.
     const paidId = p.get("paid");
     if (paidId) {
-      const { data: order } = await supabase.from("orders").select("*").eq("id", paidId).single();
+      const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(paidId)}`, { cache: "no-store" });
+      const { order } = await response.json().catch(() => ({ order: null }));
       if (order && (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered")) {
         setPaidOrder(order); setLoading(false); return;
       }
@@ -514,7 +528,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   // and delivery promise are fixed to 4regn's premium-product wording.
   const cartHasImport = cart.some((i) => hasImportTag(i.tags));
   const shippingOptionsConfigured: { name: string; price: number; estimate?: string; is_premium?: boolean }[] = cc.shipping_options || [];
-  const premiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
+  const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
+  // Import shipping is automatic. Prefer a seller-configured premium rate,
+  // but fall back to the first ordinary delivery rate so an import cart can
+  // never lose every shipping method merely because an old dashboard config
+  // predates the is_premium flag.
+  const premiumShippingIndex = explicitlyPremiumShippingIndex !== -1 ? explicitlyPremiumShippingIndex : (shippingOptionsConfigured.length ? 0 : -1);
   const isShippingOptionVisible = (opt: { is_premium?: boolean }, index: number) =>
     cartHasImport ? index === premiumShippingIndex : !isPremiumShippingOption(opt);
   const visibleShippingOptions = shippingOptionsConfigured.filter(isShippingOptionVisible);
@@ -940,7 +959,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         <div style={{ background: T.card, borderRadius: 16, padding: 28, marginBottom: 24, border: "1px solid " + T.border }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: paidOrder._processing ? "#fbbf24" : "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{paidOrder._processing ? "Awaiting Confirmation" : "Order Confirmed"}</h3>
           <p style={{ fontSize: 14, lineHeight: 1.8, color: T.muted, marginBottom: 20 }}>{paidOrder._processing
-            ? `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for the payment confirmation from PayFast. This page will update automatically, or check your email for the receipt.`
+            ? `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for confirmation from your payment provider. This page will update automatically, or check your email for the receipt.`
             : `Thank you ${paidOrder.customer_name}! Your payment has been received and your order is being processed. You'll receive updates via email.`}</p>
           <div style={{ borderTop: "1px solid " + T.border, paddingTop: 16 }}>
             {(paidOrder.items || []).map((item: any, i: number) => (
@@ -999,7 +1018,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         <div className="checkout-shell">
           <header className="topbar">
             <div className="topbar-inner">
-              <a className="brand" href={sp()} aria-label={(seller?.store_name || "Store") + " home"}>
+              <a className="brand" href="../" aria-label={(seller?.store_name || "Store") + " home"}>
                 {seller?.logo_url ? <Image src={seller.logo_url} alt={seller.store_name} width={180} height={36} sizes="180px" priority style={{ width: "auto", height: 36, maxWidth: 180, objectFit: "contain" }} /> : <span className="brand-text">{seller?.store_name}</span>}
               </a>
               <div className="secure-note">
@@ -1205,6 +1224,19 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                         <div className="payment-provider-art"><div className="provider-logo stitch"><img alt="Stitch" src="/checkout/stitch.png" /></div></div>
                       </div>
                       {paymentMethod === "stitch" && <div className="payment-note">You&rsquo;ll be redirected to Stitch Express to complete your payment securely.</div>}
+                    </div>
+                  )}
+
+                  {cc.eft_enabled && (
+                    <div className={"choice" + (paymentMethod === "eft" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setPaymentMethod("eft")}>
+                        <div className="radio"></div>
+                        <div className="choice-main">
+                          <div className="choice-name">EFT / Direct Deposit</div>
+                          <div className="choice-sub">Place your order now and pay using your order number as the reference.</div>
+                        </div>
+                      </div>
+                      {paymentMethod === "eft" && <div className="payment-note">Banking details and payment instructions will appear immediately after your order is placed and will also be sent by email.</div>}
                     </div>
                   )}
                 </div>
