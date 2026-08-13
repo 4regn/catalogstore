@@ -2160,7 +2160,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    section (light body background, not the dark "Stay in the know" style
    the rest of this template deliberately avoids outside the header/footer
    bookends). */
-.fr-about{max-width:none;margin:0;padding:120px max(32px,calc((100vw - 1420px)/2 + 32px));background:#050505;color:#fff;display:grid;grid-template-columns:.62fr 1.38fr;gap:100px;text-align:left}
+.fr-about{max-width:none;margin:80px 0 0;padding:120px max(32px,calc((100vw - 1420px)/2 + 32px));background:#050505;color:#fff;display:grid;grid-template-columns:.62fr 1.38fr;gap:100px;text-align:left}
 .fr-about-eyebrow{font-family:var(--body);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#999;margin:0}
 .fr-about-story{min-width:0}
 .fr-about-heading{font-family:var(--body);font-weight:500;font-size:clamp(52px,6vw,96px);line-height:.87;letter-spacing:-.07em;text-transform:uppercase;color:#fff;margin:0 0 34px;max-width:900px}
@@ -2185,7 +2185,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-foot{background:#050505;color:#fff;padding:72px max(32px,calc((100vw - 1420px)/2 + 32px)) 28px}
 .fr-foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:56px;max-width:1360px;margin:0 auto 56px}
 .fr-foot-brand{font-family:var(--serif);font-weight:700;font-size:24px;color:#fff;margin-bottom:14px}
-.fr-foot-logo{height:36px;max-width:180px;object-fit:contain;margin-bottom:14px;display:block;filter:brightness(0) invert(1)}
+.fr-foot-logo{height:36px;max-width:180px;object-fit:contain;margin-bottom:14px;display:block}
 .fr-foot-tag{font-size:11px;color:#909090;line-height:1.7;max-width:280px;margin:18px 0 22px}
 .fr-foot-soc{display:flex;gap:10px;flex-wrap:wrap}
 .fr-foot-soc a{width:34px;height:34px;border-radius:50%;background:#111;border:1px solid #333;color:#fdfbf7;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:opacity 0.2s}
@@ -2481,7 +2481,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
-  .fr-about{padding:80px 20px;grid-template-columns:1fr;gap:35px}
+  .fr-about{margin-top:48px;padding:80px 20px;grid-template-columns:1fr;gap:35px}
   .fr-about-stats{gap:32px}
   .fr-newsletter{padding:65px 20px;grid-template-columns:1fr;gap:40px}
   .fr-foot{padding:56px 20px 24px}
