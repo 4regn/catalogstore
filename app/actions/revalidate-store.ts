@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function revalidateStore(slug: string) {
   if (!slug) return;
+  revalidateTag(`storefront:${slug}`, "max");
   revalidatePath(`/store/${slug}`);
   revalidatePath(`/store/${slug}/p/[productId]`, "page");
   revalidatePath(`/store/${slug}/c/[collection]`, "page");
@@ -14,5 +15,7 @@ export async function revalidateStore(slug: string) {
   // updating immediately like the routes above already did.
   revalidatePath(`/store/${slug}/products/[handle]`, "page");
   revalidatePath(`/store/${slug}/collections`);
+  revalidatePath(`/store/${slug}/collections/[collection]`, "page");
+  revalidatePath(`/store/${slug}/search`);
   revalidatePath(`/store/${slug}/policies/[policy]`, "page");
 }

@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import type { Metadata, Viewport } from "next";
@@ -75,13 +76,54 @@ const PROMO_BADGE_COLUMNS = "label, scope, product_id, collection_name, starts_a
 // couple more columns than generateMetadata alone needs) since sharing one
 // query beats a byte-optimal one that can't be reused.
 const getSeller = cache(async (slug: string) => {
+  return unstable_cache(
+    async () => {
+      const { data } = await supabaseAdmin
+        .from("sellers")
+        .select(SELLER_COLUMNS)
+        .eq("subdomain", slug)
+        .maybeSingle();
+      return data;
+    },
+    ["four-regn-product-seller-v1", slug],
+    { revalidate: 60, tags: [`storefront:${slug}`] }
+  )();
+});
+
+const getProduct = cache(async (sellerId: string, handle: string) => {
   const { data } = await supabaseAdmin
-    .from("sellers")
-    .select(SELLER_COLUMNS)
-    .eq("subdomain", slug)
+    .from("products")
+    .select(PRODUCT_COLUMNS)
+    .eq("seller_id", sellerId)
+    .eq("handle", handle)
+    .eq("status", "published")
     .maybeSingle();
   return data;
 });
+
+function getCachedStorePromotions(slug: string, sellerId: string) {
+  return unstable_cache(
+    async () => {
+      const [discountsRes, promoBadgesRes] = await Promise.all([
+        supabaseAdmin
+          .from("discount_codes")
+          .select(DISCOUNT_COLUMNS)
+          .eq("seller_id", sellerId)
+          .eq("active", true)
+          .eq("show_countdown", true)
+          .not("expires_at", "is", null),
+        supabaseAdmin
+          .from("product_promo_badges")
+          .select(PROMO_BADGE_COLUMNS)
+          .eq("seller_id", sellerId)
+          .eq("active", true),
+      ]);
+      return { discounts: discountsRes.data ?? [], promoBadges: promoBadgesRes.data ?? [] };
+    },
+    ["four-regn-product-promotions-v1", slug, sellerId],
+    { revalidate: 3600, tags: [`storefront:${slug}`] }
+  )();
+}
 
 function activePromoBadges(rows: { label: string; scope: "product" | "collection"; product_id: string | null; collection_name: string | null; starts_at: string | null; ends_at: string | null }[] | null, nowIso: string) {
   return (rows || [])
@@ -100,12 +142,7 @@ export async function generateMetadata({
 
   if (!seller) return { title: "Product not found" };
 
-  const { data: product } = await supabaseAdmin
-    .from("products")
-    .select("name, description, price, image_url")
-    .eq("seller_id", seller.id)
-    .eq("handle", handle)
-    .maybeSingle();
+  const product = await getProduct(seller.id, handle);
 
   if (!product) return { title: "Product not found" };
 
@@ -154,39 +191,11 @@ export default async function ProductHandlePage({
   }
 
   const nowIso = new Date().toISOString();
-  const [productRes, discountsRes, promoBadgesRes] = await Promise.all([
-    supabaseAdmin
-      .from("products")
-      .select(PRODUCT_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("handle", handle)
-      // Not gated on in_stock -- a product stays live and browsable while
-      // sold out (ProductCard/PDP show a "Sold Out" state instead, see
-      // FourRegnStore.tsx), same reasoning as sitemap.ts's own seller-scoped
-      // exemption for this template: hiding/404ing a page the moment it
-      // sells out (then un-404ing it again on restock) throws away its
-      // search ranking every cycle, for a resale catalog where restocks are
-      // routine. Checkout independently still refuses to actually sell an
-      // in_stock=false item (see place-order's own check) -- this only
-      // controls page visibility, not purchasability. The only way to take
-      // a product down entirely is status (draft) or deleting it.
-      .eq("status", "published")
-      .maybeSingle(),
-    supabaseAdmin
-      .from("discount_codes")
-      .select(DISCOUNT_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("active", true)
-      .eq("show_countdown", true)
-      .not("expires_at", "is", null),
-    supabaseAdmin
-      .from("product_promo_badges")
-      .select(PROMO_BADGE_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("active", true),
+  const [activeProduct, promotions] = await Promise.all([
+    getProduct(seller.id, handle),
+    getCachedStorePromotions(slug, seller.id),
   ]);
 
-  const activeProduct = productRes.data;
   if (!activeProduct) notFound();
 
   // "You Might Also Like" no longer runs a server-side query at all --
@@ -202,7 +211,7 @@ export default async function ProductHandlePage({
   // the row popping in a beat late, not the page failing to load.
   const initialProducts: never[] = [];
 
-  const initialDiscountCodes = discountsRes.data ?? [];
+  const initialDiscountCodes = promotions.discounts;
 
   // Same Product schema shape as /p/[productId]'s productJsonLd, just
   // pointed at the canonical /products/{handle} URL instead of /p/{uuid}.
@@ -230,7 +239,7 @@ export default async function ProductHandlePage({
         initialSeller={trimSellerTemplateConfigs(seller, tpl)}
         initialProducts={initialProducts}
         initialDiscountCodes={initialDiscountCodes}
-        initialPromoBadges={activePromoBadges(promoBadgesRes.data, nowIso)}
+        initialPromoBadges={activePromoBadges(promotions.promoBadges, nowIso)}
         mode="product"
         initialActiveProduct={activeProduct}
         isSubdomain={isSubdomain}

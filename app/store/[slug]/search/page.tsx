@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
@@ -6,6 +7,7 @@ import { isStoreSubdomainRequest } from "../../../../lib/store-host";
 import { resolveSellerTemplate } from "../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../lib/template-config";
 import { fetchAllRows } from "../../../../lib/fetch-all-rows";
+import { getCachedFourRegnCatalog } from "../../../../lib/four-regn-catalog-cache";
 import StoreUnavailable from "../StoreUnavailable";
 
 // force-dynamic, not force-static -- reads ?q/?page/?sort off searchParams
@@ -27,10 +29,21 @@ const SELLER_COLUMNS =
 // Same column set c/[collection]/page.tsx selects for tpl === "4regn" --
 // see that file's own PRODUCT_COLUMNS comment for why each field is here,
 // including in_stock (ProductCard's Sold Out badge/disabled button).
-const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle, created_at, in_stock";
-const DISCOUNT_COLUMNS =
-  "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
-const PROMO_BADGE_COLUMNS = "label, scope, product_id, collection_name, starts_at, ends_at";
+
+function getCachedSeller(slug: string) {
+  return unstable_cache(
+    async () => {
+      const { data } = await supabaseAdmin
+        .from("sellers")
+        .select(SELLER_COLUMNS)
+        .eq("subdomain", slug)
+        .maybeSingle();
+      return data;
+    },
+    ["four-regn-search-seller-v1", slug],
+    { revalidate: 60, tags: [`storefront:${slug}`] }
+  )();
+}
 
 const PAGE_SIZE = 24;
 
@@ -66,11 +79,7 @@ export async function generateMetadata({
   const { q } = await searchParams;
   const query = (q || "").trim();
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select("store_name")
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getCachedSeller(slug);
 
   if (!seller) return {};
 
@@ -99,11 +108,7 @@ export default async function SearchPage({
   const { q, page: pageParam, sort: sortParam } = await searchParams;
   const query = (q || "").trim();
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select(SELLER_COLUMNS)
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getCachedSeller(slug);
 
   if (!seller) notFound();
 
@@ -128,26 +133,8 @@ export default async function SearchPage({
   let promoBadges: any[] = [];
   if (query) {
     const qLower = query.toLowerCase();
-    const [allProducts, discountsRes, promoBadgesRes] = await Promise.all([
-      // Not gated on in_stock -- see products/[handle]/page.tsx's identical
-      // comment; this route is 4regn-only, so the exemption applies
-      // unconditionally.
-      fetchAllRows<any>(supabaseAdmin, "products", PRODUCT_COLUMNS, (q2) =>
-        q2.eq("seller_id", seller.id).eq("status", "published").order("sort_order", { ascending: true })
-      ),
-      supabaseAdmin
-        .from("discount_codes")
-        .select(DISCOUNT_COLUMNS)
-        .eq("seller_id", seller.id)
-        .eq("active", true)
-        .eq("show_countdown", true)
-        .not("expires_at", "is", null),
-      supabaseAdmin
-        .from("product_promo_badges")
-        .select(PROMO_BADGE_COLUMNS)
-        .eq("seller_id", seller.id)
-        .eq("active", true),
-    ]);
+    const { products: allProducts, discounts: cachedDiscounts, promoBadges: cachedPromoBadges } =
+      await getCachedFourRegnCatalog(slug, seller.id);
     // Same substring match (name or category, case-insensitive) as the
     // header/mobile search popup's own `searched` filter in
     // FourRegnStore.tsx -- typing "Kelvin" finds "Kelvin Momo Oversized
@@ -157,8 +144,8 @@ export default async function SearchPage({
     matched = allProducts.filter(
       (p) => p.name.toLowerCase().includes(qLower) || (p.category || "").toLowerCase().includes(qLower)
     );
-    discounts = discountsRes.data ?? [];
-    promoBadges = promoBadgesRes.data ?? [];
+    discounts = cachedDiscounts;
+    promoBadges = cachedPromoBadges;
   }
 
   const sort = sortParam || "default";

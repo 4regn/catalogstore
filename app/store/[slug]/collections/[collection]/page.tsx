@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
@@ -7,6 +8,7 @@ import { canonicalStoreUrl } from "../../../../../lib/store-url";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
+import { getCachedFourRegnCatalog } from "../../../../../lib/four-regn-catalog-cache";
 import StoreUnavailable from "../../StoreUnavailable";
 
 // 4regn-only route -- every other template's collection pages still live at
@@ -34,10 +36,21 @@ const SELLER_COLUMNS =
 // FOUR_REGN_PRODUCT_COLUMNS -- see that file's comment for why each field
 // is here, including in_stock (ProductCard's Sold Out badge/disabled
 // button; this route doesn't filter sold-out products out either).
-const FOUR_REGN_PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, handle, created_at, in_stock";
-const DISCOUNT_COLUMNS =
-  "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
-const PROMO_BADGE_COLUMNS = "label, scope, product_id, collection_name, starts_at, ends_at";
+
+function getCachedSeller(slug: string) {
+  return unstable_cache(
+    async () => {
+      const { data } = await supabaseAdmin
+        .from("sellers")
+        .select(SELLER_COLUMNS)
+        .eq("subdomain", slug)
+        .maybeSingle();
+      return data;
+    },
+    ["four-regn-collection-seller-v1", slug],
+    { revalidate: 60, tags: [`storefront:${slug}`] }
+  )();
+}
 
 function activePromoBadges(rows: { label: string; scope: "product" | "collection"; product_id: string | null; collection_name: string | null; starts_at: string | null; ends_at: string | null }[] | null, nowIso: string) {
   return (rows || [])
@@ -70,9 +83,6 @@ function sortCollectionProducts(list: any[], sort: string): any[] {
 // ../../c/[collection]/page.tsx -- see that file's own comment for why
 // (force-dynamic + no cache meant every page/sort click re-ran the full
 // fetchAllRows + category filter over the whole collection).
-type CachedCollection = { products: any[]; discounts: any[]; promoBadges: any[] };
-const collectionDataCache = new Map<string, { value: CachedCollection; expires: number }>();
-const COLLECTION_CACHE_TTL_MS = 60_000;
 
 export async function generateMetadata({
   params,
@@ -81,11 +91,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug, collection } = await params;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select("store_name, collections")
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getCachedSeller(slug);
 
   if (!seller) return {};
 
@@ -114,11 +120,7 @@ export default async function CollectionPage({
   const { slug, collection } = await params;
   const { page: pageParam, sort: sortParam } = await searchParams;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select(SELLER_COLUMNS)
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getCachedSeller(slug);
 
   if (!seller) notFound();
 
@@ -165,45 +167,12 @@ export default async function CollectionPage({
 
   const nowIso = new Date().toISOString();
 
-  const cacheKey = `${seller.id}:${collection.toLowerCase()}`;
-  const cached = collectionDataCache.get(cacheKey);
-  let collectionProducts: any[];
-  let discounts: any[];
-  let promoBadges: any[];
-  if (cached && cached.expires > Date.now()) {
-    ({ products: collectionProducts, discounts, promoBadges } = cached.value);
-  } else {
-    const [initialProductsRaw, discountsRes, promoBadgesRes] = await Promise.all([
-      // Not gated on in_stock -- see ../../products/[handle]/page.tsx's
-      // identical comment; this route is 4regn-only, so the exemption
-      // applies unconditionally.
-      fetchAllRows<any>(supabaseAdmin, "products", FOUR_REGN_PRODUCT_COLUMNS, (q) => {
-        const base = q.eq("seller_id", seller.id).eq("status", "published").order("sort_order", { ascending: true });
-        return isAll ? base : base.like("category", `%${matched!}%`);
-      }),
-      supabaseAdmin
-        .from("discount_codes")
-        .select(DISCOUNT_COLUMNS)
-        .eq("seller_id", seller.id)
-        .eq("active", true)
-        .eq("show_countdown", true)
-        .not("expires_at", "is", null),
-      supabaseAdmin
-        .from("product_promo_badges")
-        .select(PROMO_BADGE_COLUMNS)
-        .eq("seller_id", seller.id)
-        .eq("active", true),
-    ]);
-
-    collectionProducts = isAll
-      ? initialProductsRaw
-      : initialProductsRaw.filter((p: any) =>
-          (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
-        );
-    discounts = discountsRes.data ?? [];
-    promoBadges = promoBadgesRes.data ?? [];
-    collectionDataCache.set(cacheKey, { value: { products: collectionProducts, discounts, promoBadges }, expires: Date.now() + COLLECTION_CACHE_TTL_MS });
-  }
+  const { products: catalogProducts, discounts, promoBadges } = await getCachedFourRegnCatalog(slug, seller.id);
+  const collectionProducts = isAll
+    ? catalogProducts
+    : catalogProducts.filter((p: any) =>
+        (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
+      );
 
   // Sort the WHOLE collection server-side, then slice to just the requested
   // page, instead of shipping every matching product (a collection can run
