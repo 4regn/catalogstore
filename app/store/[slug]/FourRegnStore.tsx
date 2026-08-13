@@ -2818,6 +2818,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </div>
                     ))}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
+                    {p.description && isPromotionalDescription(p) && <DescriptionText text={p.description} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
                         <button className="fr-pdp-add" disabled>Sold Out</button>
@@ -2842,7 +2843,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
                     {seller.checkout_config?.float_enabled && <FloatWidget price={effectivePrice(p, selectedVariants)} />}
-                    {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
+                    {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
                   </div>
                 </div>
               </>
@@ -3405,6 +3406,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </button>
                     )}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
+                    {p.description && isPromotionalDescription(p) && <DescriptionText text={p.description} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
                         <button className="fr-pdp-add" disabled>Sold Out</button>
@@ -3422,7 +3424,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
                     {seller.checkout_config?.float_enabled && <FloatWidget price={effectivePrice(p, selectedVariants)} />}
-                    {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
+                    {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
                   </div>
                 </div>
               </div>
