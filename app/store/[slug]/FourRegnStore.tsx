@@ -563,6 +563,26 @@ const CATALOG_MENU: { label: string; items?: string[] }[] = [
   { label: "MFUDUMALO COMBOS COLLECTION" },
 ];
 
+function NavigationProgress({ active }: { active: boolean }) {
+  const [phase, setPhase] = useState<"idle" | "loading" | "finishing">("idle");
+  const wasActive = useRef(false);
+
+  useEffect(() => {
+    if (active) {
+      wasActive.current = true;
+      setPhase("loading");
+      return;
+    }
+    if (!wasActive.current) return;
+    wasActive.current = false;
+    setPhase("finishing");
+    const hide = window.setTimeout(() => setPhase("idle"), 220);
+    return () => window.clearTimeout(hide);
+  }, [active]);
+
+  return <div className={`fr-progress is-${phase}`} role="progressbar" aria-label="Loading next page" />;
+}
+
 export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount, initialSearchQuery }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
@@ -1692,8 +1712,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
 .fr-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:rgba(37,99,235,0.1);overflow:hidden;pointer-events:none}
-.fr-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:40%;background:#2563eb;border-radius:0 2px 2px 0;animation:fr-progress 0.8s ease-in-out infinite}
-@keyframes fr-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}
+.fr-progress.is-idle{display:none}
+.fr-progress::after{content:"";position:absolute;inset:0;background:#2563eb;transform:scaleX(0);transform-origin:left center;border-radius:0 2px 2px 0}
+.fr-progress.is-loading::after{animation:fr-progress 10s cubic-bezier(0.12,0.72,0.18,1) forwards}
+.fr-progress.is-finishing::after{transform:scaleX(1);transition:transform 0.18s ease-out}
+@keyframes fr-progress{0%{transform:scaleX(0)}8%{transform:scaleX(.2)}24%{transform:scaleX(.45)}50%{transform:scaleX(.7)}75%{transform:scaleX(.84)}100%{transform:scaleX(.94)}}
 /* Scroll resets to the top the instant a navigation starts (see navigate()
    above), well before the next page is actually ready -- on a slow
    connection that otherwise reads as "the page jumped to the top and then
@@ -2455,7 +2478,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 @media(max-width:480px){#regn-popup-wrapper{left:10px;right:10px;width:auto;top:72px}}
       `}</style>
 
-      {isNavigating && <div className="fr-progress" aria-hidden="true" />}
+      <NavigationProgress active={isNavigating} />
       <div className={"fr-root" + (isNavigating ? " fr-root--navigating" : "")} onClick={handleInternalLinkClick}>
         {displayAnnouncement && (
           <div style={{ background: "#000", color: "#fdfbf7", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center", fontFamily: "'Amiri', serif" }}>
