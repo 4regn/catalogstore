@@ -785,8 +785,62 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   /* ─── CART ─── */
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartHydrated, setCartHydrated] = useState(false);
   const [automaticBxgyDiscounts, setAutomaticBxgyDiscounts] = useState<AutomaticBxgyDiscount[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+
+  // Each route renders a fresh FourRegnStore instance, so component state
+  // alone cannot carry a cart from a collection/product page back to Home.
+  // Persist a compact, seller-scoped copy and restore it before enabling
+  // writes; the hydration guard prevents the initial empty state from
+  // overwriting the saved cart during the first client render.
+  const cartStorageKey = seller?.subdomain ? `catalogstore-cart-v1:${seller.subdomain.toLowerCase()}` : null;
+  useEffect(() => {
+    if (!cartStorageKey) return;
+    setCartHydrated(false);
+    try {
+      const saved = localStorage.getItem(cartStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const restored = parsed.filter((item: any) =>
+            item && item.product && typeof item.product.id === "string" &&
+            typeof item.product.name === "string" && Number.isFinite(Number(item.product.price)) &&
+            Number.isFinite(Number(item.qty)) && Number(item.qty) > 0
+          ).map((item: any) => ({
+            product: { ...item.product, price: Number(item.product.price) },
+            qty: Math.max(1, Math.floor(Number(item.qty))),
+            selectedVariants: item.selectedVariants && typeof item.selectedVariants === "object" ? item.selectedVariants : {},
+          }));
+          setCart(restored);
+        }
+      }
+    } catch {
+      // A corrupt/blocked storage entry must never stop the storefront.
+    }
+    setCartHydrated(true);
+  }, [cartStorageKey]);
+
+  useEffect(() => {
+    if (!cartStorageKey || !cartHydrated) return;
+    try {
+      // Product descriptions and full gallery arrays are not needed by the
+      // cart; excluding them keeps mobile localStorage safely below quota.
+      const compactCart = cart.map(({ product, qty, selectedVariants }) => ({
+        product: {
+          id: product.id, name: product.name, price: product.price,
+          old_price: product.old_price, category: product.category,
+          image_url: product.image_url, variants: product.variants,
+          in_stock: product.in_stock, tags: product.tags, handle: product.handle,
+        },
+        qty,
+        selectedVariants,
+      }));
+      localStorage.setItem(cartStorageKey, JSON.stringify(compactCart));
+    } catch {
+      // Safari private mode/storage limits should not break cart controls.
+    }
+  }, [cart, cartHydrated, cartStorageKey]);
 
   useLiveVisitorPing(seller?.id, {
     cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),

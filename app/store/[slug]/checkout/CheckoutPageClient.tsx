@@ -325,6 +325,16 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
   const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
+  const storefrontCartKey = `catalogstore-cart-v1:${(initialSeller?.subdomain || slug).toLowerCase()}`;
+
+  // Keep the saved cart during a cancelled/failed/pending gateway attempt so
+  // the customer can retry. Remove it only once payment is confirmed, or
+  // once an EFT order has been successfully placed and its bank instructions
+  // are being shown.
+  useEffect(() => {
+    if ((!paidOrder || paidOrder._processing) && !(orderPlaced && paymentMethod === "eft")) return;
+    try { localStorage.removeItem(storefrontCartKey); } catch {}
+  }, [paidOrder, orderPlaced, paymentMethod, storefrontCartKey]);
 
   // 4regn-exclusive SETLA choice modal -- replaces the old behavior of
   // immediately navigating to /setla/checkout.html the moment "Continue to
