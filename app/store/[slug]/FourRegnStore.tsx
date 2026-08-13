@@ -1419,10 +1419,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const automaticDiscount = automaticBxgyDiscounts.length && cart.length
     ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
     : { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
-  // Any import product shows the delivery note. This includes import-only
-  // carts as well as carts mixing premium and general products, because the
-  // full order follows the premium shipment's 7-14-working-day timeline.
+  // The note is only useful for a mixed cart: import-only carts already say
+  // 7-14 working days in their sole checkout shipping method.
   const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
+  const cartHasGeneral = cart.some((i) => !hasImportTag(i.product.tags));
+  const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
   const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
 
@@ -2276,8 +2277,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cart-sub-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-cart-sub-amt{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--ink)}
 .fr-cart-ship{font-size:11px;color:rgba(46,42,57,0.55);margin-bottom:18px}
-.fr-cart-import-note{background:rgba(214,71,53,0.06);border:1px solid rgba(214,71,53,0.18);border-radius:10px;padding:12px 14px;margin-bottom:16px}
-.fr-cart-import-note strong{display:block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.fr-cart-import-note{background:rgba(0,117,31,0.06);border:1px solid rgba(0,117,31,0.2);border-radius:10px;padding:12px 14px;margin-bottom:16px}
+.fr-cart-import-note strong{display:block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#00751f;margin-bottom:4px}
 .fr-cart-import-note p{margin:0;font-size:12px;line-height:1.6;color:var(--ink)}
 .fr-cart-import-note p strong{display:inline;font-size:12px;letter-spacing:normal;text-transform:none;color:var(--ink);margin:0}
 .fr-cart-checkout{width:100%;background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);padding:16px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer}
@@ -2651,7 +2652,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
           {cart.length > 0 && (
             <div className="fr-cart-foot">
-              {cartHasImport && (
+              {cartHasMixedFulfillment && (
                 <div className="fr-cart-import-note">
                   <strong>Delivery Note</strong>
                   <p>Your cart includes a premium product. Please allow <strong>7-14 working days</strong> for your full order to arrive.</p>

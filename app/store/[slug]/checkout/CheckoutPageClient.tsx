@@ -170,8 +170,8 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .choice-sub.stitch-paylater-copy{display:flex;flex-direction:column;gap:2px;margin-top:5px}
 .fr-checkout-v2 .choice-sub .paylater-label{font-weight:600;color:#00751f;font-size:11px;display:block}
 .fr-checkout-v2 .choice-sub .paylater-line{color:#626262;font-size:11.5px;display:block}
-.fr-checkout-v2 .premium-delivery-note{margin:0 0 18px;padding:13px 15px;border:1px solid rgba(214,71,53,.2);border-radius:10px;background:rgba(214,71,53,.055);color:#252525;font-size:12px;line-height:1.55}
-.fr-checkout-v2 .premium-delivery-note strong{display:block;margin-bottom:3px;color:#d64735;font-size:10px;letter-spacing:1.1px;text-transform:uppercase}
+.fr-checkout-v2 .premium-delivery-note{margin:0 0 18px;padding:13px 15px;border:1px solid rgba(0,117,31,.2);border-radius:10px;background:rgba(0,117,31,.055);color:#252525;font-size:12px;line-height:1.55}
+.fr-checkout-v2 .premium-delivery-note strong{display:block;margin-bottom:3px;color:#00751f;font-size:10px;letter-spacing:1.1px;text-transform:uppercase}
 .fr-checkout-v2 .payment-note{padding:0 16px 14px 47px;color:#666;font-size:12px;line-height:1.5}
 .fr-checkout-v2 .setla-details{border-top:1px solid #dedede;background:#fafafa;padding:18px 16px 16px 47px}
 .fr-checkout-v2 .setla-plan+.setla-plan{margin-top:18px;padding-top:17px;border-top:1px solid #e1e1e1}
@@ -527,6 +527,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   // price/index remain the source of truth, while the customer-facing name
   // and delivery promise are fixed to 4regn's premium-product wording.
   const cartHasImport = cart.some((i) => hasImportTag(i.tags));
+  const cartHasGeneral = cart.some((i) => !hasImportTag(i.tags));
+  const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
   const shippingOptionsConfigured: { name: string; price: number; estimate?: string; is_premium?: boolean }[] = cc.shipping_options || [];
   const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
   // Import shipping is automatic. Prefer a seller-configured premium rate,
@@ -1083,7 +1085,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 </div>
               )}
 
-              {cartHasImport && (
+              {cartHasMixedFulfillment && (
                 <div className="premium-delivery-note">
                   <strong>Delivery Note</strong>
                   Your cart includes a premium product. Please allow <b>7-14 working days</b> for your full order to arrive.
@@ -1466,9 +1468,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               rendering (and selecting) any option isShippingOptionVisible
               says shouldn't show for this cart -- see that function's own
               comment for the import-tagged-cart behavior this is. */}
-          {cartHasImport && (
-            <div style={{ marginBottom: 20, padding: "14px 16px", border: "1px solid " + T.border, borderRadius: 12, background: T.selectBg, fontSize: 13, lineHeight: 1.55 }}>
-              <strong style={{ display: "block", marginBottom: 4 }}>Delivery Note</strong>
+          {cartHasMixedFulfillment && (
+            <div style={{ marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(0,117,31,.2)", borderRadius: 12, background: "rgba(0,117,31,.055)", fontSize: 13, lineHeight: 1.55 }}>
+              <strong style={{ display: "block", marginBottom: 4, color: "#00751f" }}>Delivery Note</strong>
               Your cart includes a premium product. Please allow <strong>7-14 working days</strong> for your full order to arrive.
             </div>
           )}

@@ -52,7 +52,7 @@ export default function FourRegnAccountClient({ seller }: { seller: Seller }) {
 
   return <main className="fa">
     <style>{CSS}</style>
-    <header><a href={storeHref()} className="brand">{seller.logo_url ? <img src={seller.logo_url} alt={seller.store_name}/> : seller.store_name}</a>{data && <button onClick={logout}>Sign out</button>}</header>
+    <header><a href="../" className="brand">{seller.logo_url ? <img src={seller.logo_url} alt={seller.store_name}/> : seller.store_name}</a>{data && <button onClick={logout}>Sign out</button>}</header>
     {loading ? <div className="loading">Loading your account…</div> : !data ? <section className="auth">
       <div><span className="eyebrow">4REGN MEMBERS</span><h1>Your wardrobe.<br/>Your orders.<br/>One place.</h1><p>Save favourites, follow every delivery, and keep your order history close.</p></div>
       <form onSubmit={submit}><div className="formtop"><span>{mode === "login" ? "WELCOME BACK" : mode === "email" ? "ACTIVATE ACCOUNT" : "CONFIRM YOUR EMAIL"}</span><h2>{mode === "login" ? "Sign in" : mode === "email" ? "Find your account" : "Create your password"}</h2></div>

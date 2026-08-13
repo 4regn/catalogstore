@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   // Link every new order to the imported/checkout customer identity so a
   // later account activation can immediately see all matching purchases.
   let customerId: string | null = null;
-  const { data: knownCustomer } = await getAdmin().from("customers").select("id").eq("seller_id", seller.id).ilike("email", normalizedCustomerEmail).maybeSingle();
+  const { data: knownCustomer } = await getAdmin().from("customers").select("id").eq("seller_id", seller.id).ilike("email", normalizedCustomerEmail).limit(1).maybeSingle();
   if (knownCustomer) {
     customerId = knownCustomer.id;
   } else {
