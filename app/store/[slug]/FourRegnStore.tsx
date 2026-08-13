@@ -1511,7 +1511,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const setlaCtaSecondary = config.setla_cta_secondary ?? "See how SETLA works";
   const setlaPhotoUrl = (config as any).setla_photo_url || null;
 
-  const displayFooterTagline = liveFooterTagline ?? config.footer_tagline ?? liveDescription ?? seller.description ?? seller.tagline ?? "";
+  const displayFooterTagline = liveFooterTagline ?? config.footer_tagline ?? "Premium South African streetwear for people who were never meant to blend in.";
   const displayFooterCol1 = liveFooterCol1Label ?? config.footer_col1_label ?? "Shop";
   // Opt-out (default on) -- 4regn's real storefront always shows the "Join
   // the 4REGN Family" signup, so unlike Soft Luxury's newsletter (opt-in)
@@ -2160,43 +2160,46 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    section (light body background, not the dark "Stay in the know" style
    the rest of this template deliberately avoids outside the header/footer
    bookends). */
-.fr-about{max-width:640px;margin:0 auto;padding:88px 40px 24px;text-align:left}
-.fr-about-eyebrow{font-family:var(--body);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:18px}
-.fr-about-heading{font-family:var(--serif);font-weight:700;font-size:clamp(32px,5vw,52px);color:var(--ink);margin-bottom:24px}
-.fr-about-p{font-family:var(--body);font-size:15px;line-height:1.75;color:rgba(46,42,57,0.75);margin-bottom:20px;max-width:560px}
-.fr-about-stats{display:flex;gap:48px;margin:32px 0 24px;padding-top:32px;border-top:1px solid rgba(0,0,0,0.1)}
-.fr-about-stat-value{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,40px);color:var(--ink);line-height:1}
-.fr-about-stat-label{font-family:var(--body);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-top:6px}
-.fr-about-cta{display:inline-block;background:none;border:none;padding:0;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink);text-decoration:underline;text-underline-offset:5px;cursor:pointer}
+.fr-about{max-width:none;margin:0;padding:120px max(32px,calc((100vw - 1420px)/2 + 32px));background:#050505;color:#fff;display:grid;grid-template-columns:.62fr 1.38fr;gap:100px;text-align:left}
+.fr-about-eyebrow{font-family:var(--body);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#999;margin:0}
+.fr-about-story{min-width:0}
+.fr-about-heading{font-family:var(--body);font-weight:500;font-size:clamp(52px,6vw,96px);line-height:.87;letter-spacing:-.07em;text-transform:uppercase;color:#fff;margin:0 0 34px;max-width:900px}
+.fr-about-p{font-family:var(--body);font-size:16px;line-height:1.7;color:#bdbdbd;margin:0 0 16px;max-width:860px}
+.fr-about-stats{display:flex;gap:50px;flex-wrap:wrap;margin:40px 0 0;padding-top:28px;border-top:1px solid #333}
+.fr-about-stat-value{font-family:var(--body);font-weight:600;font-size:26px;letter-spacing:-.04em;color:#fff;line-height:1}
+.fr-about-stat-label{font-family:var(--body);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8c8c8c;margin-top:6px}
 /* No background override -- every other section (.fr-section, .fr-about)
    is transparent and just shows .fr-root's own --paper-grad through, this
    was the one exception explicitly painted a flat --cream, which read as
    a visibly different-colored block instead of a continuous page. */
-.fr-newsletter{padding:88px 40px;text-align:center}
-.fr-nl-lbl{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(46,42,57,0.55);margin-bottom:16px}
-.fr-nl-title{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,44px);color:var(--ink);margin-bottom:16px}
-.fr-nl-sub{font-size:14px;color:rgba(46,42,57,0.65);max-width:460px;margin:0 auto 28px;line-height:1.6}
-.fr-nl-form{display:flex;max-width:440px;margin:0 auto;gap:8px}
-.fr-nl-form input{flex:1;background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:var(--btn-radius);outline:none;font-family:var(--body);font-size:13px;padding:13px 16px;color:var(--ink)}
+.fr-newsletter{padding:86px max(32px,calc((100vw - 1420px)/2 + 32px));background:#f1f1ee;border-bottom:1px solid #ddd;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:end;text-align:left}
+.fr-nl-copy{min-width:0}
+.fr-nl-lbl{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6f6f6f;margin-bottom:10px}
+.fr-nl-title{font-family:var(--body);font-weight:500;font-size:clamp(40px,4.2vw,66px);line-height:.95;letter-spacing:-.05em;text-transform:uppercase;color:#080808;margin:0}
+.fr-nl-sub{font-size:13px;color:#666;max-width:500px;margin:14px 0 0;line-height:1.6}
+.fr-nl-form{display:flex;border-bottom:1px solid #050505;padding-bottom:8px;margin:0}
+.fr-nl-form input{flex:1;min-width:0;background:transparent;border:0;outline:none;font-family:var(--body);font-size:13px;padding:15px 4px;color:#080808}
 .fr-nl-form input::placeholder{color:rgba(46,42,57,0.4)}
-.fr-nl-form button{background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);cursor:pointer;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:13px 22px}
+.fr-nl-form button{background:#050505;color:#fff;border:0;border-radius:7px;cursor:pointer;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 24px}
 
-.fr-foot{background:#f5f5f5;color:rgba(46,42,57,0.75);padding:72px 40px 28px}
+.fr-foot{background:#050505;color:#fff;padding:72px max(32px,calc((100vw - 1420px)/2 + 32px)) 28px}
 .fr-foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:56px;max-width:1360px;margin:0 auto 56px}
-.fr-foot-brand{font-family:var(--serif);font-weight:700;font-size:24px;color:var(--ink);margin-bottom:14px}
-.fr-foot-logo{height:36px;max-width:180px;object-fit:contain;margin-bottom:14px;display:block}
-.fr-foot-tag{font-size:13px;color:rgba(46,42,57,0.65);line-height:1.6;max-width:280px;margin-bottom:22px}
+.fr-foot-brand{font-family:var(--serif);font-weight:700;font-size:24px;color:#fff;margin-bottom:14px}
+.fr-foot-logo{height:36px;max-width:180px;object-fit:contain;margin-bottom:14px;display:block;filter:brightness(0) invert(1)}
+.fr-foot-tag{font-size:11px;color:#909090;line-height:1.7;max-width:280px;margin:18px 0 22px}
 .fr-foot-soc{display:flex;gap:10px;flex-wrap:wrap}
-.fr-foot-soc a{width:34px;height:34px;border-radius:50%;background:#000;color:#fdfbf7;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:opacity 0.2s}
+.fr-foot-soc a{width:34px;height:34px;border-radius:50%;background:#111;border:1px solid #333;color:#fdfbf7;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:opacity 0.2s}
 .fr-foot-soc a:hover{opacity:0.75}
-.fr-foot-col h4{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(46,42,57,0.5);margin-bottom:16px;font-weight:700;font-family:var(--body)}
+.fr-foot-col h4{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#777;margin-bottom:18px;font-weight:700;font-family:var(--body)}
 .fr-foot-col ul{list-style:none;margin:0;padding:0}
 .fr-foot-col li{margin-bottom:10px}
-.fr-foot-col a,.fr-foot-col button{color:var(--ink);font-size:13px;text-decoration:none;transition:color 0.2s;background:none;border:none;cursor:pointer;padding:0;font-family:var(--body);text-align:left}
-.fr-foot-col a:hover,.fr-foot-col button:hover{color:var(--brown)}
-.fr-foot-bot{max-width:1360px;margin:0 auto;padding-top:28px;border-top:1px solid rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;font-size:11px;color:rgba(46,42,57,0.5)}
+.fr-foot-col a,.fr-foot-col button{color:#d3d3d3;font-size:11px;text-decoration:none;transition:color 0.2s;background:none;border:none;cursor:pointer;padding:0;font-family:var(--body);text-align:left}
+.fr-foot-col a:hover,.fr-foot-col button:hover{color:#55dd78}
+.fr-foot-bot{max-width:1360px;margin:0 auto;padding-top:24px;border-top:1px solid #2d2d2d;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;font-size:9px;letter-spacing:.05em;color:#777}
+.fr-payment-strip{max-width:1360px;margin:0 auto 26px;padding-top:24px;border-top:1px solid #2d2d2d}
+.fr-payment-label{font-size:9px;color:#777;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
 .fr-pay-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-.fr-pay-icon{width:42px;height:26px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;display:flex;align-items:center;justify-content:center;background:#fff}
+.fr-pay-icon{height:30px;min-width:50px;padding:5px 7px;border:0;border-radius:5px;display:flex;align-items:center;justify-content:center;background:#fff}
 /* SETLA's logo mark is white -- invisible on the shared white card every
    other payment icon uses (reported directly: "makes the SETLA logo
    invisible"). Same card, just a black background for this one. */
@@ -2478,9 +2481,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-section{padding:48px 20px}
   .fr-coll-header{padding:40px 20px 4px}
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
-  .fr-about{padding:56px 20px 16px}
+  .fr-about{padding:80px 20px;grid-template-columns:1fr;gap:35px}
   .fr-about-stats{gap:32px}
-  .fr-newsletter{padding:56px 20px}
+  .fr-newsletter{padding:65px 20px;grid-template-columns:1fr;gap:40px}
   .fr-foot{padding:56px 20px 24px}
   .fr-foot-grid{grid-template-columns:1fr;gap:36px}
   .fr-pdp-grid{grid-template-columns:1fr}
@@ -3654,29 +3657,30 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           <EditSection id="about">
             <section className="fr-about">
               <div className="fr-about-eyebrow">{aboutEyebrow}</div>
-              <h2 className="fr-about-heading">{aboutHeading}</h2>
-              {aboutBody.split("\n\n").map((para, i) => <p key={i} className="fr-about-p">{para}</p>)}
-              {(aboutStat1Value || aboutStat2Value) && (
+              <div className="fr-about-story">
+                <h2 className="fr-about-heading">{aboutHeading}</h2>
+                {aboutBody.split("\n\n").map((para, i) => <p key={i} className="fr-about-p">{para}</p>)}
                 <div className="fr-about-stats">
-                  {aboutStat1Value && (
-                    <div className="fr-about-stat">
-                      <div className="fr-about-stat-value">{aboutStat1Value}</div>
-                      <div className="fr-about-stat-label">{aboutStat1Label}</div>
-                    </div>
-                  )}
-                  {aboutStat2Value && (
+                  <div className="fr-about-stat">
+                    <div className="fr-about-stat-value">{aboutStat1Value || "110K+"}</div>
+                    <div className="fr-about-stat-label">Successful deliveries</div>
+                  </div>
+                  <div className="fr-about-stat">
+                    <div className="fr-about-stat-value">South Africa</div>
+                    <div className="fr-about-stat-label">Born &amp; built</div>
+                  </div>
+                  <div className="fr-about-stat">
+                    <div className="fr-about-stat-value">4REGN</div>
+                    <div className="fr-about-stat-label">We&apos;re not from here</div>
+                  </div>
+                  {aboutStat2Value && aboutStat2Value !== "2019" && (
                     <div className="fr-about-stat">
                       <div className="fr-about-stat-value">{aboutStat2Value}</div>
                       <div className="fr-about-stat-label">{aboutStat2Label}</div>
                     </div>
                   )}
                 </div>
-              )}
-              {aboutCtaLabel && (
-                <button type="button" className="fr-about-cta" onClick={() => setPolicyModal({ title: aboutHeading, content: aboutBody })}>
-                  {aboutCtaLabel}
-                </button>
-              )}
+              </div>
             </section>
           </EditSection>
         )}
@@ -3685,9 +3689,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {isHomeView && showNewsletter && (
           <EditSection id="newsletter">
             <section className="fr-newsletter">
-              <div className="fr-nl-lbl">{nlLabel}</div>
-              <h2 className="fr-nl-title">{nlTitle}</h2>
-              <p className="fr-nl-sub">{nlSub}</p>
+              <div className="fr-nl-copy"><div className="fr-nl-lbl">Newsletter</div><h2 className="fr-nl-title">{nlTitle}</h2><p className="fr-nl-sub">{nlSub}</p></div>
               <form className="fr-nl-form" onSubmit={(e) => { e.preventDefault(); (e.currentTarget.querySelector("button") as HTMLButtonElement).textContent = "Joined ✓"; }}>
                 <input type="email" placeholder="your@email.com" required />
                 <button type="submit">Subscribe</button>
@@ -3739,7 +3741,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   )}
                 </div>
                 {config.physical_address && (
-                  <div style={{ marginTop: 20, fontSize: 12, color: "rgba(46,42,57,0.65)", lineHeight: 1.6, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <div style={{ marginTop: 20, fontSize: 12, color: "#909090", lineHeight: 1.6, display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
                     <span>{config.physical_address}</span>
                   </div>
@@ -3771,7 +3773,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 </ul>
               </div>
               <div className="fr-foot-col">
-                <h4>Payment Methods</h4>
+                <h4>Account</h4>
+                <ul>
+                  <li><a href={sp("/account")} onClick={(e) => { e.preventDefault(); navigate(sp("/account")); }}>Track Your Order</a></li>
+                  <li><button onClick={() => setCartOpen(true)}>Cart</button></li>
+                  <li><a href={sp("/collections/all-men")} onClick={(e) => { e.preventDefault(); navigate(sp("/collections/all-men")); }}>Men</a></li>
+                  <li><a href={sp("/collections/all-women")} onClick={(e) => { e.preventDefault(); navigate(sp("/collections/all-women")); }}>Women</a></li>
+                </ul>
+              </div>
+            </div>
+            <div className="fr-payment-strip">
+              <div className="fr-payment-label">Payment methods</div>
                 <div className="fr-pay-grid">
                   {/* Was gated on payfast_enabled alone -- Visa/Mastercard/
                       Apple Pay/Capitec Pay are accepted by Yoco too (and
@@ -3815,7 +3827,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <button onClick={() => setPolicyModal({ title: "WhatsApp Order", content: "Select WhatsApp Order at checkout to complete your order via WhatsApp with us." })} style={{ marginTop: 4, fontSize: 12 }}>WhatsApp Order</button>
                   )}
                 </div>
-              </div>
             </div>
             <div className="fr-foot-bot">
               <span>© {new Date().getFullYear()} {seller.store_name}</span>
