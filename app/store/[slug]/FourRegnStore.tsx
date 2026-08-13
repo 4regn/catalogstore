@@ -622,6 +622,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // Fire-and-forget: a prefetch failure just means no head start, not a
   // broken link (navigate() doesn't depend on this having succeeded).
   const prefetchPath = (path: string) => { try { router.prefetch(path); } catch {} };
+  // Some homepage feature sections render ordinary anchors because their
+  // reusable components only receive an href. Capture same-origin clicks at
+  // the storefront root so those links use the same client navigation,
+  // progress indicator and prefetched route cache as the explicit nav links.
+  // External links, downloads, new-tab/modifier clicks and hash jumps retain
+  // normal browser behaviour.
+  const handleInternalLinkClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = (event.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
+    if (!anchor || anchor.target || anchor.hasAttribute("download")) return;
+    let destination: URL;
+    try { destination = new URL(anchor.href, window.location.href); } catch { return; }
+    if (destination.origin !== window.location.origin || destination.hash && destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+    event.preventDefault();
+    navigate(destination.pathname + destination.search + destination.hash);
+  };
   const slug = params.slug as string;
   // Read via window.location instead of useSearchParams() -- that hook
   // forces this whole (force-static) route to bail out to full
@@ -1675,8 +1691,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   font-family:var(--body);background:var(--paper-grad);color:var(--ink);
   -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
-.fr-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:rgba(0,0,0,0.08);overflow:hidden;pointer-events:none}
-.fr-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:40%;background:#000;border-radius:0 2px 2px 0;animation:fr-progress 0.8s ease-in-out infinite}
+.fr-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:rgba(37,99,235,0.1);overflow:hidden;pointer-events:none}
+.fr-progress::after{content:"";position:absolute;top:0;left:0;height:100%;width:40%;background:#2563eb;border-radius:0 2px 2px 0;animation:fr-progress 0.8s ease-in-out infinite}
 @keyframes fr-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}
 /* Scroll resets to the top the instant a navigation starts (see navigate()
    above), well before the next page is actually ready -- on a slow
@@ -2440,7 +2456,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       `}</style>
 
       {isNavigating && <div className="fr-progress" aria-hidden="true" />}
-      <div className={"fr-root" + (isNavigating ? " fr-root--navigating" : "")}>
+      <div className={"fr-root" + (isNavigating ? " fr-root--navigating" : "")} onClick={handleInternalLinkClick}>
         {displayAnnouncement && (
           <div style={{ background: "#000", color: "#fdfbf7", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center", fontFamily: "'Amiri', serif" }}>
             {displayAnnouncement}
