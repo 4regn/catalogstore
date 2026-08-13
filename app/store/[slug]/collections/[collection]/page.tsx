@@ -176,12 +176,19 @@ export default async function CollectionPage({
     : catalogProducts.filter((p: any) =>
         (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
       );
-  const sellerCollectionDescriptions = Object.fromEntries(
-    Object.entries((seller.store_config || {}).collection_descriptions || {}).map(([title, description]) => [
-      title,
-      sanitizeCollectionDescriptionHtml(String(description || "")).replace(/\r?\n/g, "<br>"),
-    ])
-  );
+  const collectionTitle = isAll ? "All Products" : matched!;
+  const configuredDescriptions = (seller.store_config || {}).collection_descriptions || {};
+  const configuredDescription = Object.entries(configuredDescriptions).find(([title]) => title.toLowerCase() === collectionTitle.toLowerCase())?.[1];
+  const importedDescription = FOUR_REGN_SHOPIFY_COLLECTION_DESCRIPTIONS[collectionTitle];
+  const currentDescription = configuredDescription
+    ? sanitizeCollectionDescriptionHtml(String(configuredDescription)).replace(/\r?\n/g, "<br>")
+    : importedDescription
+      ? sanitizeCollectionDescriptionHtml(importedDescription)
+      : "";
+  // Do not send every collection description to the browser on every
+  // collection visit. It only renders the current one, and the full map
+  // unnecessarily inflated the route payload after the Shopify import.
+  const { collection_descriptions: _allCollectionDescriptions, ...leanStoreConfig } = seller.store_config || {};
 
   // Sort the WHOLE collection server-side, then slice to just the requested
   // page, instead of shipping every matching product (a collection can run
@@ -198,16 +205,8 @@ export default async function CollectionPage({
       initialSeller={{
         ...trimSellerTemplateConfigs(seller, tpl),
         store_config: {
-          ...(seller.store_config || {}),
-          collection_descriptions: {
-            ...Object.fromEntries(
-              Object.entries(FOUR_REGN_SHOPIFY_COLLECTION_DESCRIPTIONS).map(([title, description]) => [
-                title,
-                sanitizeCollectionDescriptionHtml(description),
-              ])
-            ),
-            ...sellerCollectionDescriptions,
-          },
+          ...leanStoreConfig,
+          collection_descriptions: currentDescription ? { [collectionTitle]: currentDescription } : {},
         },
       }}
       initialProducts={pageProducts}

@@ -908,8 +908,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const getProductPromo = (productId: string) =>
     promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
 
-  const getProductPromoBadge = (p: Product) =>
-    promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
+  const getProductPromoBadge = (p: Product): PromoBadge | undefined => {
+    const categories = (p.category || "").split(",").map((c) => c.trim().toUpperCase());
+    // These are 4regn's permanent collection offers. Keep them ahead of
+    // imported discount/% badges so the advertised multi-buy deal is the
+    // one customers see on both cards and the product page.
+    if (categories.includes("BACK & FRONT PRINTED HOODIES") || categories.includes("FRONT & BACK PRINTED HOODIES")) {
+      return { label: "BUY 2 FOR R699", scope: "collection", product_id: null, collection_name: "BACK & FRONT PRINTED HOODIES" };
+    }
+    if (categories.includes("STANDARD GRAPHIC HOODIES")) {
+      return { label: "BUY 2 FOR R599", scope: "collection", product_id: null, collection_name: "STANDARD GRAPHIC HOODIES" };
+    }
+    return promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
+  };
 
   /* ─── SEARCH (lazy catalog fetch) ─── */
   // Fires the first time a visitor on the home or product view opens
@@ -1326,13 +1337,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const automaticDiscount = automaticBxgyDiscounts.length && cart.length
     ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
     : { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
-  // Banner only fires on a genuine MIX (import + non-import both present) --
-  // an all-import cart never had a faster option to lose, so there's
-  // nothing to warn about; see hasImportTag's own comment for the full
-  // behavior this feeds into at checkout.
+  // Any import product shows the delivery note. This includes import-only
+  // carts as well as carts mixing premium and general products, because the
+  // full order follows the premium shipment's 7-14-working-day timeline.
   const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
-  const cartHasGeneral = cart.some((i) => !hasImportTag(i.product.tags));
-  const cartMixesImportAndGeneral = cartHasImport && cartHasGeneral;
   const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
   const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
 
@@ -1516,7 +1524,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   /* Shared product-card markup -- used by the grouped collection rows, the
      flat fallback grid, and the collection-page grid, so all three stay in
      sync instead of drifting out of three copy-pasted blocks. */
-  const ProductCard = ({ p }: { p: Product }) => {
+  const ProductCard = ({ p, priority = false }: { p: Product; priority?: boolean }) => {
     const onSale = p.old_price && p.old_price > p.price;
     const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
     const badge = getProductPromoBadge(p);
@@ -1536,7 +1544,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           )}
           {p.image_url ? (
             <>
-              <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
+              <img src={p.image_url} alt={p.name} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
             </>
           ) : (
@@ -2562,7 +2570,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
           {cart.length > 0 && (
             <div className="fr-cart-foot">
-              {cartMixesImportAndGeneral && (
+              {cartHasImport && (
                 <div className="fr-cart-import-note">
                   <strong>Delivery Note</strong>
                   <p>Your cart includes a premium product. Please allow <strong>7-14 working days</strong> for your full order to arrive.</p>
@@ -3470,7 +3478,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             ) : (
               <EditSection id="products">
                 <div className="fr-pgrid">
-                  {filtered.map((p) => <ProductCard key={p.id} p={p} />)}
+                  {filtered.map((p, index) => <ProductCard key={p.id} p={p} priority={index < 4} />)}
                 </div>
               </EditSection>
             )}

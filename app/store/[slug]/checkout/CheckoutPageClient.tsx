@@ -56,6 +56,10 @@ interface CartItem { id?: string; name: string; price: number; qty: number; vari
 // option is hidden for any cart with no import-tagged product.
 const IMPORT_TAG_RE = /^imports?$/i;
 const hasImportTag = (tags?: string[] | null) => (tags || []).some((t) => IMPORT_TAG_RE.test((t || "").trim()));
+const PREMIUM_SHIPPING_NAME = "PREMIUM PRODUCT SHIPMENT";
+const PREMIUM_SHIPPING_ESTIMATE = "7-14 WORKING DAYS DELIVERY";
+const isPremiumShippingOption = (opt: { name?: string; is_premium?: boolean }) =>
+  !!opt.is_premium || opt.name?.trim().toUpperCase() === PREMIUM_SHIPPING_NAME;
 
 const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo", "Mpumalanga", "North West", "Northern Cape", "Western Cape"];
 
@@ -166,6 +170,8 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .choice-sub.stitch-paylater-copy{display:flex;flex-direction:column;gap:2px;margin-top:5px}
 .fr-checkout-v2 .choice-sub .paylater-label{font-weight:600;color:#00751f;font-size:11px;display:block}
 .fr-checkout-v2 .choice-sub .paylater-line{color:#626262;font-size:11.5px;display:block}
+.fr-checkout-v2 .premium-delivery-note{margin:0 0 18px;padding:13px 15px;border:1px solid rgba(214,71,53,.2);border-radius:10px;background:rgba(214,71,53,.055);color:#252525;font-size:12px;line-height:1.55}
+.fr-checkout-v2 .premium-delivery-note strong{display:block;margin-bottom:3px;color:#d64735;font-size:10px;letter-spacing:1.1px;text-transform:uppercase}
 .fr-checkout-v2 .payment-note{padding:0 16px 14px 47px;color:#666;font-size:12px;line-height:1.5}
 .fr-checkout-v2 .setla-details{border-top:1px solid #dedede;background:#fafafa;padding:18px 16px 16px 47px}
 .fr-checkout-v2 .setla-plan+.setla-plan{margin-top:18px;padding-top:17px;border-top:1px solid #e1e1e1}
@@ -493,19 +499,18 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   };
 
   const cc = seller?.checkout_config || {} as any;
-  // Import-tagged product in the cart -> only is_premium-marked shipping
-  // options are offered (7-14 working day "premium" shipment), and the
-  // reverse -- see hasImportTag's own comment above for the full behavior.
-  // Guarded on "some option IS marked premium" so a seller who's never
-  // touched this feature sees the exact same option list as before --
-  // otherwise an import-tagged cart with no premium option configured yet
-  // would show NO shipping options at all instead of failing safe.
+  // An import product forces exactly one premium method. Its configured
+  // price/index remain the source of truth, while the customer-facing name
+  // and delivery promise are fixed to 4regn's premium-product wording.
   const cartHasImport = cart.some((i) => hasImportTag(i.tags));
   const shippingOptionsConfigured: { name: string; price: number; estimate?: string; is_premium?: boolean }[] = cc.shipping_options || [];
-  const hasAnyPremiumOption = shippingOptionsConfigured.some((o) => o.is_premium);
-  const isShippingOptionVisible = (opt: { is_premium?: boolean }) =>
-    !hasAnyPremiumOption ? true : cartHasImport ? !!opt.is_premium : !opt.is_premium;
+  const premiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
+  const isShippingOptionVisible = (opt: { is_premium?: boolean }, index: number) =>
+    cartHasImport ? index === premiumShippingIndex : !isPremiumShippingOption(opt);
   const visibleShippingOptions = shippingOptionsConfigured.filter(isShippingOptionVisible);
+  useEffect(() => {
+    if (cartHasImport && fulfillment !== "delivery") setFulfillment("delivery");
+  }, [cartHasImport, fulfillment]);
   // shippingOption is an index into the FULL shipping_options array (the
   // place-order request sends that raw index, see placeOrder() below) --
   // if the cart's import status changes (an import product added/removed)
@@ -515,10 +520,10 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   // happen, not just hiding the row in the list.
   useEffect(() => {
     const current = shippingOptionsConfigured[shippingOption];
-    if (current && isShippingOptionVisible(current)) return;
-    const firstVisibleIdx = shippingOptionsConfigured.findIndex((o) => isShippingOptionVisible(o));
+    if (current && isShippingOptionVisible(current, shippingOption)) return;
+    const firstVisibleIdx = shippingOptionsConfigured.findIndex((o, index) => isShippingOptionVisible(o, index));
     if (firstVisibleIdx !== -1 && firstVisibleIdx !== shippingOption) setShippingOption(firstVisibleIdx);
-  }, [cartHasImport, hasAnyPremiumOption, shippingOptionsConfigured.length]);
+  }, [cartHasImport, premiumShippingIndex, shippingOptionsConfigured.length]);
   const accent = seller?.primary_color || "#9c7c62";
   const isGC = seller?.template === "glass-futuristic" || seller?.template === "glass-chrome";
   const isHL = seller?.template === "heirloom";
@@ -871,7 +876,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               province: fulfillment === "delivery" ? province : undefined,
               postal: fulfillment === "delivery" ? postalCode : undefined,
             },
-            deliveryMethod: fulfillment === "delivery" ? { name: cc.shipping_options?.[shippingOption]?.name, price: shipping } : { name: "Pickup", price: 0, isPickup: true },
+            deliveryMethod: fulfillment === "delivery" ? { name: cartHasImport ? PREMIUM_SHIPPING_NAME : cc.shipping_options?.[shippingOption]?.name, price: shipping } : { name: "Pickup", price: 0, isPickup: true },
             discountCode: discountApplied?.code || undefined,
             total,
             returnOrigin: window.location.origin,
@@ -1007,7 +1012,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 </div>
               </div>
 
-              {(cc.delivery_enabled && cc.pickup_enabled) && (
+              {(cc.delivery_enabled && cc.pickup_enabled && !cartHasImport) && (
                 <div className="section">
                   <div className="section-head"><h2 className="section-title">Fulfillment</h2></div>
                   <div className="choice-stack">
@@ -1049,15 +1054,22 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 </div>
               )}
 
+              {cartHasImport && (
+                <div className="premium-delivery-note">
+                  <strong>Delivery Note</strong>
+                  Your cart includes a premium product. Please allow <b>7-14 working days</b> for your full order to arrive.
+                </div>
+              )}
+
               {fulfillment === "delivery" && visibleShippingOptions.length > 0 && (
                 <div className="section">
                   <div className="section-head"><h2 className="section-title">Shipping method</h2><span className="section-kicker">Choose your courier</span></div>
                   <div className="choice-stack">
-                    {shippingOptionsConfigured.map((opt, i) => isShippingOptionVisible(opt) && (
+                    {shippingOptionsConfigured.map((opt, i) => isShippingOptionVisible(opt, i) && (
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>
                           <div className="radio"></div>
-                          <div className="choice-main"><div className="choice-name">{opt.name}</div>{opt.estimate && <div className="choice-sub">{opt.estimate}</div>}</div>
+                          <div className="choice-main"><div className="choice-name">{cartHasImport ? PREMIUM_SHIPPING_NAME : opt.name}</div>{(cartHasImport || opt.estimate) && <div className="choice-sub">{cartHasImport ? PREMIUM_SHIPPING_ESTIMATE : opt.estimate}</div>}</div>
                           <div className="choice-price">{opt.price === 0 ? "Free" : "R" + opt.price}</div>
                         </div>
                       </div>
@@ -1353,7 +1365,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           <input type="tel" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: "100%", padding: "16px", border: "1px solid " + T.border, borderRadius: 12, fontSize: 14, fontFamily: T.bodyFont, outline: "none", marginBottom: 32, background: T.card, color: T.text }} />
 
           {/* DELIVERY vs PICKUP */}
-          {(cc.delivery_enabled || cc.pickup_enabled) && (
+          {(cc.delivery_enabled || (cc.pickup_enabled && !cartHasImport)) && (
             <div style={{ marginBottom: 32 }}>
               <h2 style={{ fontFamily: T.headFont, fontSize: 24, fontWeight: 400, marginBottom: 16 }}>Fulfillment</h2>
               <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden" }}>
@@ -1363,7 +1375,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     <span style={{ fontSize: 14, fontWeight: fulfillment === "delivery" ? 600 : 400 }}>Delivery</span>
                   </div>
                 )}
-                {cc.pickup_enabled && (
+                {cc.pickup_enabled && !cartHasImport && (
                   <div onClick={() => setFulfillment("pickup")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, background: fulfillment === "pickup" ? T.selectBg : T.card }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: fulfillment === "pickup" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                     <div><span style={{ fontSize: 14, fontWeight: fulfillment === "pickup" ? 600 : 400 }}>Pickup</span>{cc.pickup_address && <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{cc.pickup_address}</div>}</div>
@@ -1412,19 +1424,26 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               rendering (and selecting) any option isShippingOptionVisible
               says shouldn't show for this cart -- see that function's own
               comment for the import-tagged-cart behavior this is. */}
+          {cartHasImport && (
+            <div style={{ marginBottom: 20, padding: "14px 16px", border: "1px solid " + T.border, borderRadius: 12, background: T.selectBg, fontSize: 13, lineHeight: 1.55 }}>
+              <strong style={{ display: "block", marginBottom: 4 }}>Delivery Note</strong>
+              Your cart includes a premium product. Please allow <strong>7-14 working days</strong> for your full order to arrive.
+            </div>
+          )}
+
           {fulfillment === "delivery" && visibleShippingOptions.length > 0 && (
             <div style={{ marginBottom: 32 }}>
               <h2 style={{ fontFamily: T.headFont, fontSize: 24, fontWeight: 400, marginBottom: 16 }}>Shipping Method</h2>
               <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden" }}>
                 {(() => {
-                  const lastVisibleIdx = shippingOptionsConfigured.reduce((last, o, oi) => isShippingOptionVisible(o) ? oi : last, -1);
+                  const lastVisibleIdx = shippingOptionsConfigured.reduce((last, o, oi) => isShippingOptionVisible(o, oi) ? oi : last, -1);
                   return shippingOptionsConfigured.map((opt, i) => {
-                    if (!isShippingOptionVisible(opt)) return null;
+                    if (!isShippingOptionVisible(opt, i)) return null;
                     return (
                       <div key={i} onClick={() => setShippingOption(i)} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: shippingOption === i ? T.selectBg : T.card, borderBottom: i === lastVisibleIdx ? "none" : "1px solid " + T.summaryBorder }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{ width: 20, height: 20, borderRadius: "50%", border: shippingOption === i ? "6px solid #22c55e" : "2px solid " + T.muted }} />
-                        <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{opt.name}{opt.estimate ? " · " + opt.estimate : ""}</span>
+                        <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{cartHasImport ? `${PREMIUM_SHIPPING_NAME} · ${PREMIUM_SHIPPING_ESTIMATE}` : opt.name + (opt.estimate ? " · " + opt.estimate : "")}</span>
                       </div>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>{opt.price === 0 ? "Free" : "R" + opt.price}</span>
                       </div>

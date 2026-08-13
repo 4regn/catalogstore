@@ -150,6 +150,10 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  if (hasImportProduct && fulfillment !== "delivery") {
+    return NextResponse.json({ error: "Premium products require premium product shipment" }, { status: 400 });
+  }
+
   const subtotal = lineItems.reduce((s, i) => s + i.price * i.qty, 0);
 
   /* Automatic Buy X Get Y discounts -- applies the moment enough
@@ -172,19 +176,14 @@ export async function POST(req: NextRequest) {
     if (!opts.length || !Number.isFinite(idx) || idx < 0 || idx >= opts.length) {
       return NextResponse.json({ error: "Invalid shipping option" }, { status: 400 });
     }
-    // Same visibility rule CheckoutPageClient.tsx's own isShippingOptionVisible
-    // applies client-side, re-checked here so a tampered request can't pick
-    // a fast option for a cart with an import-tagged product (or vice
-    // versa) just because the UI would have hidden it. Fails open (skips
-    // this check) when the seller hasn't marked ANY option premium yet --
-    // same reasoning as the client-side guard: don't change behavior for
-    // sellers who've never touched this feature.
-    const hasAnyPremiumOption = opts.some((o) => o.is_premium);
-    if (hasAnyPremiumOption && !!opts[idx].is_premium !== hasImportProduct) {
+    // Re-check the forced premium rule server-side so a modified request
+    // cannot submit a faster method hidden by the checkout UI.
+    const selectedIsPremium = !!opts[idx].is_premium || opts[idx].name?.trim().toUpperCase() === "PREMIUM PRODUCT SHIPMENT";
+    if (selectedIsPremium !== hasImportProduct) {
       return NextResponse.json({ error: "Invalid shipping option for this cart" }, { status: 400 });
     }
     shippingCost = Number(opts[idx].price) || 0;
-    shippingLabel = opts[idx].name || "Delivery";
+    shippingLabel = hasImportProduct ? "PREMIUM PRODUCT SHIPMENT" : (opts[idx].name || "Delivery");
   }
 
   /* Discount — re-validate everything server-side, then atomically reserve a slot */
