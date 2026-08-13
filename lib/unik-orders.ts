@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "./email";
 import { voidStillbornPayLaterPlan } from "./setla-instalments";
+import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "./four-regn-orders";
 
 // How long a UNIK order can sit unpaid before we stop calling it "pending"
 // (implies "still in progress, fulfilment is coming") and start calling it
@@ -42,7 +43,7 @@ export async function markUnikOrderPaid(
     .update({ payment_status: "paid", status: "confirmed", ...providerColumns })
     .eq("id", order.id)
     .in("payment_status", ["pending", "abandoned", "failed"])
-    .select("id")
+    .select("id, order_number, external_id")
     .maybeSingle();
   if (error) {
     console.error("markUnikOrderPaid: update failed", error);
@@ -55,7 +56,7 @@ export async function markUnikOrderPaid(
     await admin.from("unik_designs").update({ status: "paid", saved_at: new Date().toISOString() }).in("id", designIds);
   }
 
-  const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url").eq("id", order.seller_id).maybeSingle();
+  const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url, subdomain").eq("id", order.seller_id).maybeSingle();
   const itemsHtml = (order.items || []).map((i: any) => `<p style="margin:0 0 4px">${i.name} x${i.qty} — R${Math.round(i.price * i.qty)}</p>`).join("");
 
   if (seller?.email) {
@@ -71,6 +72,9 @@ export async function markUnikOrderPaid(
     });
   }
   if (order.customer_email) {
+    const isFourRegn = seller?.subdomain === "4regn";
+    const reference = isFourRegn ? fourRegnOrderReference(updated) : "";
+    const fourRegnTracking = isFourRegn ? `<div style="background:#eef6ef;border:1px solid #d6ead8;border-radius:12px;padding:20px;margin:18px 0;"><h3 style="font-size:12px;color:#177533;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 16px;font-size:13px;color:#5f6c61;line-height:1.65;">Your order number is <strong>${reference}</strong>. Track it with the email address or mobile number used at checkout. You can enter the number with or without the # and D.</p><a href="${FOUR_REGN_TRACKING_URL}" style="display:block;text-align:center;padding:15px;background:#111;color:#fff;border-radius:100px;text-decoration:none;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Track Order</a></div><a href="${FOUR_REGN_ACCOUNT_URL}" style="display:block;text-align:center;padding:14px;border:1px solid #222;color:#222;border-radius:100px;text-decoration:none;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">View My Account</a>` : "";
     await sendEmail({
       to: order.customer_email,
       from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : undefined,
@@ -78,7 +82,7 @@ export async function markUnikOrderPaid(
       html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
         ${seller?.logo_url ? `<img src="${seller.logo_url}" alt="" style="height:40px;margin-bottom:16px" />` : `<h2 style="margin:0 0 12px">${seller?.store_name || "UNIK Labs"}</h2>`}
         <p style="margin:0 0 12px">Thanks ${order.customer_name}, your payment was received and your order is confirmed:</p>
-        <div style="background:#f4f1eb;border-radius:10px;padding:16px 18px;margin-bottom:16px">${itemsHtml}<p style="margin:12px 0 0;font-weight:700">Total: R${Math.round(Number(order.total))}</p></div>
+        <div style="background:#f4f1eb;border-radius:10px;padding:16px 18px;margin-bottom:16px">${itemsHtml}<p style="margin:12px 0 0;font-weight:700">Total: R${Math.round(Number(order.total))}</p></div>${fourRegnTracking}
       </div>`,
     });
   }

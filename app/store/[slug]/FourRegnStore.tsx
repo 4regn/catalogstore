@@ -1304,7 +1304,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const validVariants = (Array.isArray(product.variants) ? product.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
     const allSelected = validVariants.every((v) => selectedVariants[v.name]);
     if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
-    const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(product, selectedVariants) || product.image_url || "", selectedVariants, tags: product.tags || [] }];
+    const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), old_price: product.old_price, qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(product, selectedVariants) || product.image_url || "", selectedVariants, tags: product.tags || [] }];
     const encoded = btoa(JSON.stringify(payload));
     navigate(sp(`/checkout?cart=${encoded}`));
   };
@@ -1317,6 +1317,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       id: i.product.id,
       name: i.product.name,
       price: effectivePrice(i.product, i.selectedVariants),
+      old_price: i.product.old_price,
       qty: i.qty,
       variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
       image: resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url || "",
@@ -1445,6 +1446,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       })()
     : null;
   const cartTotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
+  const compareAtSavings = cart.reduce((sum, item) => {
+    const sellingPrice = effectivePrice(item.product, item.selectedVariants);
+    const originalPrice = Number(item.product.old_price) || 0;
+    return sum + Math.max(0, originalPrice - sellingPrice) * item.qty;
+  }, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   // Live preview of automatic Buy X Get Y savings -- same pricing function
   // /api/checkout/place-order uses for the real charge (see
@@ -1453,6 +1459,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const automaticDiscount = automaticBxgyDiscounts.length && cart.length
     ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
     : { totalDiscount: 0, applied: [] as { title: string; amount: number }[], lineDiscounts: [] as { lineIndex: number; amount: number; titles: string[] }[] };
+  const cartTotalSavings = compareAtSavings + automaticDiscount.totalDiscount;
   // The note is only useful for a mixed cart: import-only carts already say
   // 7-14 working days in their sole checkout shipping method.
   const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
@@ -2630,7 +2637,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             </button>
             <button onClick={() => {
               setMobileNavOpen(false);
-              window.open("https://track.4regn.com/", "_blank");
+              navigate(sp("/track"));
             }}>
               Track Your Order
             </button>
@@ -2720,6 +2727,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span className="fr-cart-sub-amt" style={{ fontWeight: 800 }}>{fmt(Math.max(0, cartTotal - automaticDiscount.totalDiscount))}</span>
                 </div>
               )}
+              {cartTotalSavings > 0 && (
+                <div className="fr-cart-sub" style={{ marginTop: -4, color: "#00751f" }}>
+                  <span className="fr-cart-sub-lbl" style={{ color: "#00751f", fontWeight: 800 }}>Total savings</span>
+                  <span style={{ fontWeight: 800, fontSize: 13 }}>-{fmt(cartTotalSavings)}</span>
+                </div>
+              )}
               {FREE_SHIP && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>}
               <button className="fr-cart-checkout" onClick={goToCheckout}>Checkout</button>
               {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
@@ -2797,7 +2810,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                             const validVariants = (Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
                             const allSelected = validVariants.every((v) => selectedVariants[v.name]);
                             if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
-                            const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(p, selectedVariants) || p.image_url || "", selectedVariants, tags: p.tags || [] }];
+                            const payload = [{ id: p.id, name: p.name, price: effectivePrice(p, selectedVariants), old_price: p.old_price, qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(p, selectedVariants) || p.image_url || "", selectedVariants, tags: p.tags || [] }];
                             const encoded = btoa(JSON.stringify(payload));
                             window.location.href = sp(`/checkout?cart=${encoded}`);
                           }}>
@@ -2921,7 +2934,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <a href={sp("/policies/contact")} className="fr-nav-link" onClick={(e) => { e.preventDefault(); navigate(sp("/policies/contact")); }}>
               Contact
             </a>
-            <a href="https://track.4regn.com/" target="_blank" rel="noreferrer" className="fr-nav-link">
+            <a href={sp("/track")} className="fr-nav-link">
               Track Your Order
             </a>
           </div>
@@ -3818,7 +3831,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <div className="fr-foot-col">
                 <h4>Account</h4>
                 <ul>
-                  <li><a href={sp("/account")} onClick={(e) => { e.preventDefault(); navigate(sp("/account")); }}>Track Your Order</a></li>
+                  <li><a href={sp("/track")} onClick={(e) => { e.preventDefault(); navigate(sp("/track")); }}>Track Your Order</a></li>
                   <li><button onClick={() => setCartOpen(true)}>Cart</button></li>
                   <li><a href={sp("/collections/all-men")} onClick={(e) => { e.preventDefault(); navigate(sp("/collections/all-men")); }}>Men</a></li>
                   <li><a href={sp("/collections/all-women")} onClick={(e) => { e.preventDefault(); navigate(sp("/collections/all-women")); }}>Women</a></li>

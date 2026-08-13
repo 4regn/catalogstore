@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { getAdmin } from "../../../lib/supabase-admin";
 import { canonicalStoreUrl } from "../../../lib/store-url";
+import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "../../../lib/four-regn-orders";
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIP(req);
@@ -19,8 +20,11 @@ export async function POST(req: NextRequest) {
     const { data: seller } = await getAdmin().from("sellers").select("*").eq("id", order.seller_id).single();
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
 
+    const isFourRegn = seller.subdomain === "4regn";
+    const displayOrderNumber = isFourRegn ? fourRegnOrderReference(order) : `#${order.order_number}`;
+
     const items = (order.items || []).map((i: any) => `${i.name} x${i.qty} — R${(i.price * i.qty).toFixed(0)}${i.variant ? " (" + i.variant + ")" : ""}`).join("\n");
-    const orderSummary = `New Order #${order.order_number}\n\nCustomer: ${order.customer_name}\nEmail: ${order.customer_email || "N/A"}\nPhone: ${order.customer_phone || "N/A"}\n\nItems:\n${items}\n\nShipping: R${order.shipping_cost || 0}\nTotal: R${order.total}\n\nPayment: ${order.payment_method?.toUpperCase() || "N/A"}\nFulfillment: ${order.fulfillment_method || "delivery"}${order.shipping_address ? "\nAddress: " + order.shipping_address.address + ", " + order.shipping_address.city + ", " + order.shipping_address.province : ""}`;
+    const orderSummary = `New Order ${displayOrderNumber}\n\nCustomer: ${order.customer_name}\nEmail: ${order.customer_email || "N/A"}\nPhone: ${order.customer_phone || "N/A"}\n\nItems:\n${items}\n\nShipping: R${order.shipping_cost || 0}\nTotal: R${order.total}\n\nPayment: ${order.payment_method?.toUpperCase() || "N/A"}\nFulfillment: ${order.fulfillment_method || "delivery"}${order.shipping_address ? "\nAddress: " + order.shipping_address.address + ", " + order.shipping_address.city + ", " + order.shipping_address.province : ""}`;
 
     // 1. Send email notification via Resend (if API key exists)
     const resendKey = process.env.RESEND_API_KEY;
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             from: process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>",
             to: [seller.email],
-            subject: `New Order #${order.order_number} — R${order.total}`,
+            subject: `New Order ${displayOrderNumber} — R${order.total}`,
             html: `
               <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #030303; color: #f5f5f5; border-radius: 12px; overflow: hidden;">
                 <div style="padding: 24px 28px; background: linear-gradient(135deg, #ff6b35, #ff3d6e);">
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
                 </div>
                 <div style="padding: 28px;">
                   <div style="margin-bottom: 20px;">
-                    <span style="font-size: 28px; font-weight: 900;">Order #${order.order_number}</span>
+                    <span style="font-size: 28px; font-weight: 900;">Order ${displayOrderNumber}</span>
                     <span style="display: block; font-size: 14px; color: rgba(245,245,245,0.4); margin-top: 4px;">${new Date(order.created_at).toLocaleString()}</span>
                   </div>
                   <div style="padding: 20px; background: rgba(255,255,255,0.04); border-radius: 12px; margin-bottom: 16px;">
@@ -74,6 +78,8 @@ export async function POST(req: NextRequest) {
     if (resendKey && order.customer_email) {
       try {
         const storeUrl = canonicalStoreUrl(seller.subdomain);
+        const trackingUrl = isFourRegn ? FOUR_REGN_TRACKING_URL : canonicalStoreUrl(seller.subdomain, "/track");
+        const accountUrl = isFourRegn ? FOUR_REGN_ACCOUNT_URL : canonicalStoreUrl(seller.subdomain, "/account");
         const accent = seller.primary_color || "#ff6b35";
         await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -81,7 +87,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             from: process.env.RESEND_FROM_EMAIL || `${seller.store_name} <orders@catalogstore.co.za>`,
             to: [order.customer_email],
-            subject: `Order Confirmed — #${order.order_number}`,
+            subject: `Order Confirmed — ${displayOrderNumber}`,
             html: `
               <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #fafafa; border-radius: 12px; overflow: hidden;">
                 <div style="padding: 28px; background: #fff; text-align: center; border-bottom: 1px solid #eee;">
@@ -92,7 +98,7 @@ export async function POST(req: NextRequest) {
                     <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto 16px;"><tr><td style="width: 64px; height: 64px; border-radius: 50%; background: #22c55e; text-align: center; vertical-align: middle; font-size: 28px; color: #fff; box-shadow: 0 0 20px rgba(34,197,94,0.4), 0 0 40px rgba(34,197,94,0.15);">&#10003;</td></tr></table>
                     <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #2a2a2e;">Order Confirmed!</h1>
                     <p style="margin: 8px 0 0; color: #8a8690; font-size: 14px;">Thank you for your order, ${order.customer_name}.</p>
-                    <p style="margin: 4px 0 0; color: #8a8690; font-size: 13px;">Order #${order.order_number}</p>
+                    <p style="margin: 4px 0 0; color: #8a8690; font-size: 13px;">Order ${displayOrderNumber}</p>
                   </div>
                   <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eee; margin-bottom: 16px;">
                     <h3 style="font-size: 12px; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;">Order Details</h3>
@@ -108,13 +114,13 @@ export async function POST(req: NextRequest) {
                   ${order.payment_method === "eft" ? `
                   <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eee; margin-bottom: 16px;">
                     <h3 style="font-size: 12px; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 8px;">Payment: EFT / Direct Deposit</h3>
-                    <p style="margin: 0; font-size: 13px; color: #8a8690;">Please complete your payment using the banking details provided at checkout. Reference your order number <strong>#${order.order_number}</strong>.</p>
+                    <p style="margin: 0; font-size: 13px; color: #8a8690;">Please complete your payment using the banking details provided at checkout. Reference your order number <strong>${displayOrderNumber}</strong>.</p>
                   </div>` : `
                   <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eee; margin-bottom: 16px;">
                     <h3 style="font-size: 12px; color: #22c55e; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 8px;">Payment Received</h3>
                     <p style="margin: 0; font-size: 13px; color: #8a8690;">Your payment via PayFast has been received. Your order is being processed.</p>
                   </div>`}
-                  <a href="${storeUrl}" style="display: block; text-align: center; padding: 16px; background: #2a2a2e; color: #fff; border-radius: 100px; text-decoration: none; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;">Continue Shopping</a>
+                  ${isFourRegn ? `<div style="background:#eef6ef;border:1px solid #d6ead8;border-radius:12px;padding:20px;margin-bottom:16px;"><h3 style="font-size:12px;color:#177533;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 16px;font-size:13px;color:#5f6c61;line-height:1.65;">Use order number <strong>${displayOrderNumber}</strong> with the email address or mobile number used at checkout. You can type the order number with or without the # and D.</p><a href="${trackingUrl}" style="display:block;text-align:center;padding:15px;background:#111;color:#fff;border-radius:100px;text-decoration:none;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Track Order</a></div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;"><tr><td style="padding-right:6px;"><a href="${accountUrl}" style="display:block;text-align:center;padding:14px;border:1px solid #2a2a2e;color:#2a2a2e;border-radius:100px;text-decoration:none;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">View My Account</a></td><td style="padding-left:6px;"><a href="${storeUrl}" style="display:block;text-align:center;padding:14px;border:1px solid #d8d8d4;color:#2a2a2e;border-radius:100px;text-decoration:none;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">Continue Shopping</a></td></tr></table>` : `<a href="${storeUrl}" style="display: block; text-align: center; padding: 16px; background: #2a2a2e; color: #fff; border-radius: 100px; text-decoration: none; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;">Continue Shopping</a>`}
                   ${seller.whatsapp_number ? `<p style="text-align: center; margin-top: 16px; font-size: 13px; color: #8a8690;">Questions? WhatsApp us at ${seller.whatsapp_number}</p>` : ""}
                 </div>
               </div>

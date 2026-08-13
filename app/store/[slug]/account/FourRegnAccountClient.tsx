@@ -8,6 +8,9 @@ type Seller = { subdomain: string; store_name: string; logo_url?: string | null 
 type AccountData = { customer: any; orders: any[]; wishlist: any[] };
 const STATUS_STAGES = ["confirmed", "processing", "shipped", "in_transit", "out_for_delivery", "delivered"];
 const statusLabel = (s: string) => (s || "pending").replace(/_/g, " ");
+const orderReference = (order: any) => order.external_id
+  ? String(order.external_id).replace(/^#?/, "#")
+  : `#${order.order_number}D`;
 
 export default function FourRegnAccountClient({ seller }: { seller: Seller }) {
   const router = useRouter();
@@ -51,7 +54,7 @@ export default function FourRegnAccountClient({ seller }: { seller: Seller }) {
   const removeWish = async (productId: string) => { await fetch("/api/customer-account/wishlist", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: seller.subdomain, productId }) }); setData((d) => { if (!d) return d; const wishlist = d.wishlist.filter((p) => p.id !== productId); try { localStorage.setItem(`catalogstore-wishlist-v1:${seller.subdomain.toLowerCase()}`, JSON.stringify(wishlist)); } catch {} return { ...d, wishlist }; }); };
 
   return <main className="fa">
-    <style>{CSS}</style>
+    <style>{CSS + `.guesttrack{display:block;text-align:center;margin-top:14px;color:#333;font-size:10px}.sectionhead a{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#777}`}</style>
     <header><a href="../" className="brand">{seller.logo_url ? <img src={seller.logo_url} alt={seller.store_name}/> : seller.store_name}</a>{data && <button onClick={logout}>Sign out</button>}</header>
     {loading ? <div className="loading">Loading your account…</div> : !data ? <section className="auth">
       <div><span className="eyebrow">4REGN MEMBERS</span><h1>Your wardrobe.<br/>Your orders.<br/>One place.</h1><p>Save favourites, follow every delivery, and keep your order history close.</p></div>
@@ -62,13 +65,14 @@ export default function FourRegnAccountClient({ seller }: { seller: Seller }) {
         {message && <p className="success">{message}</p>}{error && <p className="error">{error}</p>}
         <button className="primary" disabled={busy}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : mode === "email" ? "Send confirmation code" : "Activate account"}</button>
         <button type="button" className="switch" onClick={()=>{setMode(mode === "login" ? "email" : "login");setError("");setMessage("")}}>{mode === "login" ? "First time here? Link your existing account" : "Already activated? Sign in"}</button>
+        <a className="guesttrack" href={storeHref("/track")}>Track an order without signing in</a>
       </form>
     </section> : <section className="dash">
       <div className="hello"><span className="eyebrow">YOUR 4REGN ACCOUNT</span><h1>Hey, {data.customer.first_name || "there"}.</h1><p>{data.orders.length} orders · {data.wishlist.length} saved products</p></div>
-      <div className="grid"><section><div className="sectionhead"><h2>Orders</h2><span>Track delivery</span></div>{data.orders.length ? data.orders.map((o)=><button className="order" key={o.id} onClick={()=>setActiveOrder(o)}><div><strong>#{o.order_number || o.external_id}</strong><small>{new Date(o.created_at).toLocaleDateString("en-ZA")}</small></div><span className={`status ${o.status}`}>{statusLabel(o.status)}</span><b>R{o.total}</b></button>) : <div className="empty">Your new Catalogstore orders will appear here.</div>}</section>
+      <div className="grid"><section><div className="sectionhead"><h2>Orders</h2><a href={storeHref("/track")}>Track without login</a></div>{data.orders.length ? data.orders.map((o)=><button className="order" key={o.id} onClick={()=>setActiveOrder(o)}><div><strong>{orderReference(o)}</strong><small>{new Date(o.created_at).toLocaleDateString("en-ZA")}</small></div><span className={`status ${o.status}`}>{statusLabel(o.status)}</span><b>R{o.total}</b></button>) : <div className="empty">Your orders from #3540D onward will appear here.</div>}</section>
       <section><div className="sectionhead"><h2>Wishlist</h2><span>{data.wishlist.length} saved</span></div><div className="wishes">{data.wishlist.length ? data.wishlist.map((p)=><article key={p.id}><a href={storeHref(`/products/${p.handle || p.id}`)}><img src={p.image_url || ""} alt=""/><strong>{p.name}</strong><span>R {Number(p.price).toLocaleString("en-ZA")}</span></a><button onClick={()=>removeWish(p.id)}>Remove</button></article>) : <div className="empty">Tap the heart on any product to save it here.</div>}</div></section></div>
     </section>}
-    {activeOrder && <div className="modal" onClick={()=>setActiveOrder(null)}><div className="orderdetail" onClick={(e)=>e.stopPropagation()}><button className="close" onClick={()=>setActiveOrder(null)}>×</button><span className="eyebrow">ORDER TRACKING</span><h2>#{activeOrder.order_number || activeOrder.external_id}</h2><p>{new Date(activeOrder.created_at).toLocaleString("en-ZA")}</p><ol>{STATUS_STAGES.map((stage,i)=>{const current=Math.max(0,STATUS_STAGES.indexOf(activeOrder.status));return <li className={i<=current?"done":""} key={stage}><i/>{statusLabel(stage)}</li>})}</ol><div className="items">{(activeOrder.items||[]).map((it:any,i:number)=><div key={i}>{it.image&&<img src={it.image} alt=""/>}<span><strong>{it.name}</strong><small>{it.variant} · Qty {it.qty}</small></span><b>R{Number(it.price*it.qty).toFixed(0)}</b></div>)}</div></div></div>}
+    {activeOrder && <div className="modal" onClick={()=>setActiveOrder(null)}><div className="orderdetail" onClick={(e)=>e.stopPropagation()}><button className="close" onClick={()=>setActiveOrder(null)}>×</button><span className="eyebrow">ORDER TRACKING</span><h2>{orderReference(activeOrder)}</h2><p>{new Date(activeOrder.created_at).toLocaleString("en-ZA")}</p><ol>{STATUS_STAGES.map((stage,i)=>{const current=Math.max(0,STATUS_STAGES.indexOf(activeOrder.status));return <li className={i<=current?"done":""} key={stage}><i/>{statusLabel(stage)}</li>})}</ol><div className="items">{(activeOrder.items||[]).map((it:any,i:number)=><div key={i}>{it.image&&<img src={it.image} alt=""/>}<span><strong>{it.name}</strong><small>{it.variant} · Qty {it.qty}</small></span><b>R{Number(it.price*it.qty).toFixed(0)}</b></div>)}</div></div></div>}
   </main>;
 }
 

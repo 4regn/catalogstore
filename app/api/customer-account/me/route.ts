@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireCustomerAccount } from "../../../../lib/customer-account";
 import { getAdmin } from "../../../../lib/supabase-admin";
+import { isNewFourRegnTrackingOrder } from "../../../../lib/four-regn-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +34,10 @@ export async function GET(req: NextRequest) {
     .or("payment_status.eq.paid,status.in.(confirmed,processing,shipped,in_transit,out_for_delivery,delivered)")
     .order("created_at", { ascending: false })
     .limit(50);
+  const visibleOrders = (ordersResult.data || []).filter((order: any) => auth.seller.subdomain !== "4regn" || isNewFourRegnTrackingOrder(order));
   return NextResponse.json({
     customer: customerResult.data,
-    orders: ordersResult.data || [],
+    orders: visibleOrders,
     wishlist: (wishlistResult.data || []).map((row: any) => row.products).filter(Boolean),
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

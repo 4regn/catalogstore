@@ -47,7 +47,11 @@ export interface Seller {
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; }
+interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; }
+const checkoutOrderReference = (value: string | number | null | undefined, isFourRegn: boolean) => {
+  const raw = String(value || "").replace(/^#/, "");
+  return isFourRegn && /^\d+$/.test(raw) ? `#${raw}D` : `#${raw}`;
+};
 
 // Same tag convention as FourRegnStore.tsx's own hasImportTag (kept in
 // sync -- both sides need to agree on which cart triggers this). A product
@@ -324,7 +328,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<{ order_number: string; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
+  const [paidOrder, setPaidOrder] = useState<{ order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
   const storefrontCartKey = `catalogstore-cart-v1:${(initialSeller?.subdomain || slug).toLowerCase()}`;
 
   // Keep the saved cart during a cancelled/failed/pending gateway attempt so
@@ -421,6 +425,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           id: typeof i.id === "string" ? i.id : undefined,
           name: typeof i.name === "string" ? i.name : "",
           price: Number.isFinite(Number(i.price)) ? Number(i.price) : 0,
+          old_price: Number.isFinite(Number(i.old_price)) ? Number(i.old_price) : null,
           qty: Math.max(1, Math.floor(Number(i.qty)) || 1),
           variant: typeof i.variant === "string" ? i.variant : "",
           image: typeof i.image === "string" ? i.image : "",
@@ -503,6 +508,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             id: typeof i.id === "string" ? i.id : undefined,
             name: typeof i.name === "string" ? i.name : "",
             price: Number.isFinite(Number(i.price)) ? Number(i.price) : 0,
+            old_price: Number.isFinite(Number(i.old_price)) ? Number(i.old_price) : null,
             qty: Math.max(1, Math.floor(Number(i.qty)) || 1),
             variant: typeof i.variant === "string" ? i.variant : "",
             image: typeof i.image === "string" ? i.image : "",
@@ -702,6 +708,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     return 0;
   };
   const discountAmount = calcDiscount();
+  const compareAtSavings = cart.reduce((sum, item) => {
+    const originalPrice = Number(item.old_price) || 0;
+    return sum + Math.max(0, originalPrice - item.price) * item.qty;
+  }, 0);
+  const totalSavings = compareAtSavings + automaticDiscount.totalDiscount + discountAmount;
   const isShippingDiscount = discountApplied?.applies_to === "shipping";
   const total = isShippingDiscount
     ? Math.max(0, subtotal + shipping - discountAmount - automaticDiscount.totalDiscount)
@@ -948,13 +959,13 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             <>
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
               <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>Processing payment…</h1>
-              <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
+              <p style={{ color: T.muted, fontSize: 14 }}>Order {checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn)}</p>
             </>
           ) : (
             <>
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(34,197,94,0.12)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
               <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>Payment Successful!</h1>
-              <p style={{ color: T.muted, fontSize: 14 }}>Order #{paidOrder.order_number}</p>
+              <p style={{ color: T.muted, fontSize: 14 }}>Order {checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn)}</p>
             </>
           )}
         </div>
@@ -991,7 +1002,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           {seller?.logo_url ? <Image src={seller.logo_url} alt="" width={180} height={40} sizes="180px" style={{ width: "auto", height: 40, maxWidth: 180, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
           <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
           <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: 400, marginBottom: 8 }}>Order Placed!</h1>
-          <p style={{ color: T.muted, fontSize: 14 }}>Order #{orderNumber}</p>
+          <p style={{ color: T.muted, fontSize: 14 }}>Order {checkoutOrderReference(orderNumber, isFourRegn)}</p>
         </div>
         <div style={{ background: T.card, borderRadius: 16, padding: 28, marginBottom: 24, border: "1px solid " + T.border }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>EFT / Direct Deposit Payment Instructions</h3>
@@ -1305,6 +1316,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     {automaticDiscount.applied.map((a) => (
                       <div className="total-row discount" key={a.title}><span>{a.title}</span><span>&minus;R{a.amount.toFixed(0)}</span></div>
                     ))}
+                    {totalSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{totalSavings.toFixed(0)}</span></div>}
                     <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (shipping === 0 ? "Free" : "R" + shipping)}</span></div>
                     <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{total.toLocaleString("en-ZA")}</strong></div>
                   </div>
@@ -1724,6 +1736,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             {automaticDiscount.applied.map((a) => (
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
+            {totalSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{totalSavings.toFixed(0)}</span></div>}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{shipping === 0 ? (fulfillment === "pickup" ? "Pickup" : "Free") : "R" + shipping}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

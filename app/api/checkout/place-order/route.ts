@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
   let inserted: any = null;
   let insErr: any = null;
   for (const row of attempts) {
-    const res = await getAdmin().from("orders").insert(row).select("id, order_number, total").single();
+    const res = await getAdmin().from("orders").insert(row).select("id, order_number, external_id, total").single();
     inserted = res.data;
     insErr = res.error;
     if (!insErr) break;
@@ -323,7 +323,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     orderId: inserted.id,
-    orderNumber: inserted.order_number || inserted.id.substring(0, 8),
+    orderNumber: inserted.external_id || inserted.order_number || inserted.id.substring(0, 8),
     total: inserted.total,
     automaticDiscount: automaticDiscount.totalDiscount > 0 ? automaticDiscount : null,
   });

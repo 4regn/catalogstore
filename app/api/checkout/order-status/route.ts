@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, order_number, customer_name, items, total, shipping_cost, shipping_option, fulfillment_method, payment_method, payment_status, status, created_at")
+    .select("id, order_number, external_id, customer_name, items, total, shipping_cost, shipping_option, fulfillment_method, payment_method, payment_status, status, created_at")
     .eq("id", orderId)
     .eq("seller_id", seller.id)
     .maybeSingle();

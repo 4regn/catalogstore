@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "./email";
+import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "./four-regn-orders";
 
 export type SetlaPlanType = "pay_later" | "laybuy";
 
@@ -155,7 +156,7 @@ export async function activateSetlaPlanAfterPayment(
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, seller_id, payment_status, items, shipping_option, fulfillment_method, customer_name, customer_email")
+    .select("id, seller_id, order_number, external_id, payment_status, items, shipping_option, fulfillment_method, customer_name, customer_email")
     .eq("id", meta.orderId)
     .single();
   if (!order) return { ok: false, error: "Order not found" };
@@ -296,6 +297,13 @@ export async function activateSetlaPlanAfterPayment(
     .eq("id", order.id)
     .eq("payment_status", "pending");
 
+  const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url, subdomain").eq("id", order.seller_id).maybeSingle();
+  const isFourRegn = seller?.subdomain === "4regn";
+  const orderReference = isFourRegn ? fourRegnOrderReference(order) : `#${order.order_number}`;
+  const fourRegnTracking = isFourRegn
+    ? `<div style="background:#eef6ef;border:1px solid #d6ead8;border-radius:12px;padding:20px;margin:18px 0;"><h3 style="font-size:12px;color:#177533;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 16px;font-size:13px;color:#5f6c61;line-height:1.65;">Your order number is <strong>${orderReference}</strong>. Track it with the email address or mobile number used at checkout. You can enter the number with or without the # and D.</p><a href="${FOUR_REGN_TRACKING_URL}" style="display:block;text-align:center;padding:15px;background:#111;color:#fff;border-radius:100px;text-decoration:none;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Track Order</a></div><a href="${FOUR_REGN_ACCOUNT_URL}" style="display:block;text-align:center;padding:14px;border:1px solid #222;color:#222;border-radius:100px;text-decoration:none;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">View My Account</a>`
+    : "";
+
   const { data: customerRow } = await admin.from("setla_customers").select("id, first_name, email").eq("id", meta.customerId).maybeSingle();
   if (customerRow) {
     const title = isLaybuy ? "Laybuy deposit received" : "Payment received -- your order is in production";
@@ -303,10 +311,14 @@ export async function activateSetlaPlanAfterPayment(
       ? `We've received your deposit of R${depositAmount.toFixed(2)}. Pay off the rest -- any amount, any time -- from your dashboard.`
       : `We've received your payment of R${firstChargeAmount.toFixed(2)}. Your order is now confirmed and being prepared.`;
     await admin.from("setla_notifications").insert({ customer_id: customerRow.id, notification_type: isLaybuy ? "laybuy_payment_received" : "instalment_paid", title, body });
-    await sendEmail({ to: customerRow.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customerRow.first_name},</p><p>${body}</p>` });
+    await sendEmail({
+      to: customerRow.email,
+      from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : "SETLA Payments <orders@catalogstore.co.za>",
+      subject: isFourRegn ? `${title} — ${orderReference}` : title,
+      html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">${seller?.logo_url ? `<img src="${seller.logo_url}" alt="" style="height:40px;margin-bottom:16px" />` : ""}<p>Hi ${customerRow.first_name},</p><p>${body}</p>${fourRegnTracking}</div>`,
+    });
   }
 
-  const { data: seller } = await admin.from("sellers").select("email, store_name").eq("id", order.seller_id).maybeSingle();
   if (seller?.email) {
     await sendEmail({
       to: seller.email,

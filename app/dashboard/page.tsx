@@ -157,7 +157,7 @@ interface Product {
 }
 
 interface Order {
-  id: string; order_number: number; customer_name: string; customer_phone: string;
+  id: string; order_number: number; external_id?: string | null; customer_name: string; customer_phone: string;
   customer_email: string;
   items: { name: string; qty: number; price: number; variant?: string; image?: string }[]; total: number;
   status: string; payment_status: string; created_at: string;
@@ -189,7 +189,9 @@ interface VelourBooking {
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
 const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
-const ORDER_COLUMNS = "id, order_number, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
+const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
+const displayOrderReference = (order: Pick<Order, "order_number" | "external_id">) =>
+  order.external_id ? String(order.external_id).replace(/^#?/, "#") : `#${order.order_number}`;
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
 const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
 const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, amount, created_at";
@@ -577,7 +579,7 @@ export default function Dashboard() {
     const channel = supabase.channel("orders-" + user.id).on("postgres_changes", { event: "INSERT", schema: "public", table: "orders", filter: "seller_id=eq." + user.id }, (payload: any) => {
       const newOrder = payload.new;
       setOrders((prev) => [newOrder, ...prev]);
-      setOrderNotification({ order_number: newOrder.order_number || newOrder.id?.substring(0, 8), customer_name: newOrder.customer_name || "Customer", total: newOrder.total, id: newOrder.id });
+      setOrderNotification({ order_number: newOrder.external_id ? String(newOrder.external_id).replace(/^#/, "") : (newOrder.order_number || newOrder.id?.substring(0, 8)), customer_name: newOrder.customer_name || "Customer", total: newOrder.total, id: newOrder.id });
       try { const ctx = new AudioContext(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 880; gain.gain.value = 0.15; osc.start(); osc.stop(ctx.currentTime + 0.15); setTimeout(() => { const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain(); osc2.connect(gain2); gain2.connect(ctx.destination); osc2.frequency.value = 1100; gain2.gain.value = 0.15; osc2.start(); osc2.stop(ctx.currentTime + 0.2); }, 180); } catch {}
       setTimeout(() => setOrderNotification(null), 10000);
     }).subscribe();
@@ -2514,7 +2516,7 @@ export default function Dashboard() {
               <div>
                 <div style={{ padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap" as const, gap: 12 }}>
-                    <h2 style={{ fontSize: 20, fontWeight: 900, textTransform: "uppercase" as const }}>Order #{selectedOrder.order_number}</h2>
+                    <h2 style={{ fontSize: 20, fontWeight: 900, textTransform: "uppercase" as const }}>Order {displayOrderReference(selectedOrder)}</h2>
                     <span style={{ fontSize: 12, color: "var(--muted-2)" }}>{new Date(selectedOrder.created_at).toLocaleString()}</span>
                   </div>
                   {orderSaved && <div style={{ padding: "8px 16px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 12, marginBottom: 16, fontSize: 12, fontWeight: 700, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Changes saved</div>}
@@ -2578,7 +2580,7 @@ export default function Dashboard() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {visibleOrders.map((order) => (
                   <div key={order.id} onClick={() => setSelectedOrder(order)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--input-bg)"}>
-                    <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const }}>Order #{order.order_number}</div><div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}><span>{order.customer_name || "Customer"}</span><span>{new Date(order.created_at).toLocaleDateString()}</span></div></div>
+                    <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const }}>Order {displayOrderReference(order)}</div><div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}><span>{order.customer_name || "Customer"}</span><span>{new Date(order.created_at).toLocaleDateString()}</span></div></div>
                     <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em" }}>R{order.total}</div>
                     <div style={{ display: "flex", gap: 6 }}>
                       <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: order.payment_status === "paid" ? "rgba(34,197,94,0.1)" : "rgba(251,191,36,0.08)", color: order.payment_status === "paid" ? "#22c55e" : "#fbbf24" }}>{order.payment_status?.replace("_", " ")}</span>
@@ -2687,7 +2689,7 @@ export default function Dashboard() {
                 {abandonedOrders.map((order) => (
                   <div key={order.id} style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 12, marginBottom: 10 }}>
-                      <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>#{order.order_number} - {order.customer_name || "Unknown"}</div><div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>{order.customer_email} {order.customer_phone ? " / " + order.customer_phone : ""}</div></div>
+                      <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{displayOrderReference(order)} - {order.customer_name || "Unknown"}</div><div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>{order.customer_email} {order.customer_phone ? " / " + order.customer_phone : ""}</div></div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 16, fontWeight: 900 }}>R{order.total}</span><span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: "rgba(255,107,53,0.08)", color: "#ff6b35" }}>Abandoned</span></div>
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, fontSize: 11, color: "var(--muted-2)" }}>
