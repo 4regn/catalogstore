@@ -206,6 +206,7 @@ interface CartItem {
   product: Product; qty: number;
   selectedVariants: { [key: string]: string };
 }
+type WishlistItem = Pick<Product, "id" | "name" | "price" | "old_price" | "image_url" | "handle" | "in_stock" | "category">;
 interface PromoDiscount {
   code: string; type: string; value: number; applies_to: string;
   expires_at: string; product_ids: string[]; collection_names: string[];
@@ -788,6 +789,27 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [cartHydrated, setCartHydrated] = useState(false);
   const [automaticBxgyDiscounts, setAutomaticBxgyDiscounts] = useState<AutomaticBxgyDiscount[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
+  const [wishlistOpen, setWishlistOpen] = useState(false);
+  const wishlistStorageKey = seller?.subdomain ? `catalogstore-wishlist-v1:${seller.subdomain.toLowerCase()}` : null;
+
+  useEffect(() => {
+    if (!wishlistStorageKey) return;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(wishlistStorageKey) || "[]");
+      if (Array.isArray(parsed)) setWishlist(parsed.filter((p: any) => p && typeof p.id === "string" && typeof p.name === "string"));
+    } catch {}
+  }, [wishlistStorageKey]);
+  useEffect(() => {
+    if (!wishlistStorageKey) return;
+    try { localStorage.setItem(wishlistStorageKey, JSON.stringify(wishlist)); } catch {}
+  }, [wishlist, wishlistStorageKey]);
+
+  const toggleWishlist = (product: Product) => {
+    const exists = wishlist.some((p) => p.id === product.id);
+    setWishlist((prev) => exists ? prev.filter((p) => p.id !== product.id) : [...prev, { id: product.id, name: product.name, price: product.price, old_price: product.old_price, image_url: product.image_url, handle: product.handle, in_stock: product.in_stock, category: product.category }]);
+    fetch("/api/customer-account/wishlist", { method: exists ? "DELETE" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: seller?.subdomain, productId: product.id }) }).catch(() => {});
+  };
 
   // Each route renders a fresh FourRegnStore instance, so component state
   // alone cannot carry a cart from a collection/product page back to Home.
@@ -1586,6 +1608,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     return (
       <div className="fr-pcard" onClick={() => goToProduct(p)}>
         <div className="fr-pimg">
+          <button type="button" className={"fr-wish-btn" + (wishlist.some((w) => w.id === p.id) ? " active" : "")} aria-label="Toggle wishlist" onClick={(e) => { e.stopPropagation(); toggleWishlist(p); }}><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></button>
           {p.in_stock === false ? (
             <span className="fr-ptag soldout">Sold Out</span>
           ) : (
@@ -2112,6 +2135,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pimg{width:100%;overflow:hidden;position:relative;min-height:160px;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
 .fr-pimg img{transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
+.fr-wish-btn{position:absolute;right:12px;top:12px;z-index:5;width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.92);box-shadow:0 5px 16px rgba(0,0,0,.1);display:grid;place-items:center;cursor:pointer;color:#292735}.fr-wish-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8}.fr-wish-btn.active{background:#292735;color:#fff}.fr-wish-btn.active svg{fill:currentColor}.fr-pdp-main>.fr-wish-btn{left:auto;right:14px;top:14px}
+.fr-wishlist{position:fixed;z-index:1002;top:0;right:0;height:100dvh;width:min(430px,100vw);background:#f6f6f4;box-shadow:-20px 0 50px rgba(0,0,0,.16);transform:translateX(105%);transition:transform .32s ease;display:flex;flex-direction:column}.fr-wishlist.open{transform:translateX(0)}.fr-wishlist-list{padding:15px;overflow:auto;display:grid;gap:10px}.fr-wishlist-item{display:grid;grid-template-columns:76px 1fr auto;gap:13px;align-items:center;padding:10px;background:#fff;border:1px solid #ddd;border-radius:13px;cursor:pointer}.fr-wishlist-item img{width:76px;height:92px;object-fit:cover;border-radius:8px;background:#eee}.fr-wishlist-item strong{font-size:12px;display:block;margin-bottom:7px}.fr-wishlist-item span{font-size:12px}.fr-wishlist-item button{border:0;background:none;font-size:20px;color:#888;cursor:pointer}.fr-wishlist-empty{padding:55px 25px;text-align:center;color:#777;font-size:12px;line-height:1.7}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
 .fr-ptag{position:absolute;top:12px;left:12px;right:12px;z-index:2;font-size:8px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;color:var(--cream);padding:4px 9px;border-radius:999px;background:var(--brown);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:fit-content;max-width:100%}
 .fr-ptag.sale{background:var(--accent)}
@@ -2583,6 +2608,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             </button>
           </nav>
           <div className="fr-mm-foot">© {new Date().getFullYear()} {seller.store_name}</div>
+        </aside>
+        <div className={"fr-cart-overlay" + (wishlistOpen ? " open" : "")} onClick={() => setWishlistOpen(false)} />
+        <aside className={"fr-wishlist" + (wishlistOpen ? " open" : "")} aria-label="Wishlist">
+          <div className="fr-cart-h"><h3>Wishlist ({wishlist.length})</h3><button className="fr-cart-close" onClick={() => setWishlistOpen(false)}>✕</button></div>
+          <div className="fr-wishlist-list">{wishlist.length ? wishlist.map((p) => <div className="fr-wishlist-item" key={p.id} onClick={() => { setWishlistOpen(false); navigate(sp(`/products/${p.handle || p.id}`)); }}>
+            {p.image_url ? <img src={p.image_url} alt="" /> : <div />}
+            <div><strong>{p.name}</strong><span>{fmt(p.price)}</span></div>
+            <button onClick={(e) => { e.stopPropagation(); setWishlist((prev) => prev.filter((w) => w.id !== p.id)); fetch("/api/customer-account/wishlist", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: seller?.subdomain, productId: p.id }) }).catch(() => {}); }}>×</button>
+          </div>) : <div className="fr-wishlist-empty">Your wishlist is waiting.<br/>Tap the heart on any product you love.</div>}</div>
         </aside>
 
         {/* CART */}
@@ -3240,6 +3274,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
                       onImgError={handleImgError}
                       badges={<>
+                        <button type="button" className={"fr-wish-btn" + (wishlist.some((w) => w.id === p.id) ? " active" : "")} aria-label="Toggle wishlist" onClick={(e) => { e.stopPropagation(); toggleWishlist(p); }}><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></button>
                         {p.in_stock === false ? (
                           <span className="fr-ptag soldout">Sold Out</span>
                         ) : (
@@ -3795,12 +3830,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </footer>
         </EditSection>
 
-        {/* MOBILE BOTTOM DOCK — Home / Search / Cart / Account only (no
-            Wishlist icon: that's a separate, not-yet-built feature). Search
-            opens the same real product-search overlay as the header search
-            icon; Account opens the same Contact panel everything else in
-            this template already uses in place of a not-yet-built
-            account/login system. */}
+        {/* MOBILE BOTTOM DOCK */}
         <nav className="fr-dock" aria-label="Mobile navigation">
           <button type="button" className={"fr-dock-item" + (isHomeView ? " active" : "")} onClick={() => navigate(sp())}>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
@@ -3810,12 +3840,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
             Search
           </button>
+          <button type="button" className="fr-dock-item" onClick={() => setWishlistOpen(true)} aria-label="Wishlist">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg>
+            {wishlist.length > 0 && <span className="fr-dock-count">{wishlist.length}</span>}
+            Wishlist
+          </button>
           <button type="button" className="fr-dock-item" onClick={() => setCartOpen(true)} aria-label="Cart">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
             {cartCount > 0 && <span className="fr-dock-count">{cartCount}</span>}
             Cart
           </button>
-          <button type="button" className="fr-dock-item" onClick={() => navigate(sp("/policies/contact"))}>
+          <button type="button" className="fr-dock-item" onClick={() => navigate(sp("/account"))}>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
             Account
           </button>
