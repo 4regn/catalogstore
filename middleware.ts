@@ -17,6 +17,8 @@ const STATIC_FILE_PATTERN = /\.[a-zA-Z0-9]+$/;
 const WWW_ROOT_DOMAIN = `www.${STORE_ROOT_DOMAIN}`;
 const SUBDOMAIN_SUFFIX = `.${STORE_ROOT_DOMAIN}`;
 const SUBDOMAIN_SUFFIX_LENGTH = SUBDOMAIN_SUFFIX.length;
+const FOUR_REGN_LEGACY_HOST = `4regn.${STORE_ROOT_DOMAIN}`;
+const FOUR_REGN_PRIMARY_HOST = "4regn.com";
 
 // Edge Middleware runs in a separate runtime from Route Handlers/Server
 // Components, and confirmed in practice: the `next.revalidate` fetch option
@@ -141,6 +143,19 @@ const SETLA_MARKETING_HOSTS = new Set(["setla.4regn.com", "www.setla.4regn.com"]
 export async function middleware(req: NextRequest) {
   const hostname = (req.headers.get("host") || "").split(":")[0].toLowerCase();
   const { pathname, search } = req.nextUrl;
+
+  // 4REGN has completed its move to its connected custom domain. Keep the
+  // old CatalogStore subdomain alive only as a permanent, path-preserving
+  // redirect so bookmarks and indexed product/collection URLs transfer to
+  // the canonical domain instead of creating duplicate storefront pages.
+  if (hostname === FOUR_REGN_LEGACY_HOST) {
+    const destination = req.nextUrl.clone();
+    destination.protocol = "https:";
+    destination.hostname = FOUR_REGN_PRIMARY_HOST;
+    destination.port = "";
+    return NextResponse.redirect(destination, 308);
+  }
+
   const isStaticFile = STATIC_FILE_PATTERN.test(pathname);
   // Computed once and reused below (previously re-evaluated identically at
   // both the subdomain-routing and custom-domain-routing checks).
