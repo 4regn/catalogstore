@@ -646,32 +646,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (new URLSearchParams(window.location.search).get("editMode") === "true") setIsEditMode(true);
   }, []);
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
-  // Spotify-style predictive warm-up: after the homepage is interactive,
-  // prepare one representative catalog route during browser idle time. The
-  // server route shares a cached lightweight catalog snapshot with every
-  // collection and search page, so this single prefetch makes the whole next
-  // browsing path cheaper without requesting hundreds of product pages.
-  // Respect Data Saver and very slow connections so speed work never becomes
-  // unwanted background bandwidth on constrained mobile visitors.
-  useEffect(() => {
-    if (!isHomeView || isEditMode) return;
-    const connection = (navigator as Navigator & {
-      connection?: { saveData?: boolean; effectiveType?: string };
-    }).connection;
-    if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") return;
-
-    const warm = () => prefetchPath(sp("/collections/all"));
-    // requestIdleCallback is still missing in some mobile Safari/WebView
-    // versions. Calling it unconditionally crashes the entire storefront on
-    // those devices, so fall back to a small timeout and clean up whichever
-    // scheduler was actually used.
-    if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(warm, { timeout: 2500 });
-      return () => window.cancelIdleCallback?.(idleId);
-    }
-    const timerId = window.setTimeout(warm, 1500);
-    return () => window.clearTimeout(timerId);
-  }, [isHomeView, isEditMode, isSubdomain, slug]);
   // Collection-page pagination links -- page 1 has no ?page so the
   // canonical/default URL stays clean; sort is only appended when it isn't
   // the default, same reasoning. Reads the collection segment straight off
