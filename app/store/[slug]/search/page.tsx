@@ -41,7 +41,7 @@ function getCachedSeller(slug: string) {
       return data;
     },
     ["four-regn-search-seller-v1", slug],
-    { revalidate: 60, tags: [`storefront:${slug}`] }
+    { revalidate: 3600, tags: [`storefront:${slug}`] }
   )();
 }
 

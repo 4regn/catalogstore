@@ -766,6 +766,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // page that fails to load at all.
   const [searchProducts, setSearchProducts] = useState<Product[] | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
+  const searchRequestStarted = useRef(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
   const [lightbox, setLightbox] = useState<{ imgs: string[]; index: number } | null>(null);
@@ -976,7 +977,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // on seller?.id so it runs once seller data exists regardless of which
   // path provided it.
   useEffect(() => {
-    if (!seller?.id) return;
+    // These rules are only consumed by the cart totals. Avoid competing
+    // with visible images and route chunks on visits where the shopper has
+    // not put anything in their cart yet.
+    if (!seller?.id || cart.length === 0) return;
     (async () => {
       const nowIso = new Date().toISOString();
       const { data: bxgy } = await supabase
@@ -985,7 +989,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         .eq("seller_id", seller.id).eq("active", true);
       setAutomaticBxgyDiscounts((bxgy || []).filter((r: any) => (!r.starts_at || r.starts_at <= nowIso) && (!r.ends_at || r.ends_at >= nowIso)));
     })();
-  }, [seller?.id]);
+  }, [seller?.id, cart.length]);
 
   const getProductPromo = (productId: string) =>
     promoDiscounts.find((d) => d.applies_to === "product" && d.product_ids?.includes(productId));
@@ -1018,9 +1022,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     // Product view fires this eagerly (not gated on showSearch) -- it's
     // also the data source for the "You Might Also Like" row, which needs
     // to show up without the visitor ever opening search.
-    if (!(isHomeView || isProductView || isCollectionView) || (!showSearch && !isProductView) || searchProducts !== null || searchLoading || !seller?.id) return;
-    setSearchLoading(true);
-    (async () => {
+    if (!(isHomeView || isProductView || isCollectionView || isCollectionsIndexView) || (!showSearch && !isProductView) || searchProducts !== null || searchRequestStarted.current || !seller?.id) return;
+    const loadCatalog = async () => {
+      searchRequestStarted.current = true;
+      setSearchLoading(true);
       const { data } = await supabase
         .from("products")
         .select("id, name, price, old_price, category, image_url, handle, tags, in_stock")
@@ -1042,8 +1047,27 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       // narrow-column fetches elsewhere in this app already rely on.
       setSearchProducts((data || []) as unknown as Product[]);
       setSearchLoading(false);
-    })();
-  }, [isHomeView, isProductView, isCollectionView, showSearch, searchProducts, searchLoading, seller?.id]);
+    };
+
+    // A product page uses this catalogue for the below-the-fold related
+    // row, but its hero image and controls are more important. Let the
+    // browser finish initial rendering first; opening Search bypasses this
+    // delay and starts immediately.
+    if (isProductView && !showSearch) {
+      const idleWindow = window as Window & {
+        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+        cancelIdleCallback?: (id: number) => void;
+      };
+      if (idleWindow.requestIdleCallback) {
+        const id = idleWindow.requestIdleCallback(() => { void loadCatalog(); }, { timeout: 1800 });
+        return () => idleWindow.cancelIdleCallback?.(id);
+      }
+      const timer = window.setTimeout(() => { void loadCatalog(); }, 900);
+      return () => window.clearTimeout(timer);
+    }
+
+    void loadCatalog();
+  }, [isHomeView, isProductView, isCollectionView, isCollectionsIndexView, showSearch, searchProducts, seller?.id]);
   // Collection view's `products` used to hold the WHOLE collection's
   // product list (search there was scoped to just the current collection),
   // but now that the collection route paginates server-side (24/page,
@@ -1052,7 +1076,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // on the visible page. Reuses the same lazily-fetched full-catalog array
   // home/product views already rely on, so search now covers the whole
   // store regardless of which collection page it was opened from.
-  const searchSource = (isHomeView || isProductView || isCollectionView) ? (searchProducts ?? []) : products;
+  const searchSource = (isHomeView || isProductView || isCollectionView || isCollectionsIndexView) ? (searchProducts ?? []) : products;
 
   /* ─── LIVE EDIT POSTMESSAGE ─── */
   useEffect(() => {
@@ -1282,7 +1306,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (!allSelected && validVariants.length > 0) { setVariantError(true); return; }
     const payload = [{ id: product.id, name: product.name, price: effectivePrice(product, selectedVariants), qty: localQty, variant: Object.entries(selectedVariants).map(([k, v]) => k + ": " + v).join(", "), image: resolveVariantImage(product, selectedVariants) || product.image_url || "", selectedVariants, tags: product.tags || [] }];
     const encoded = btoa(JSON.stringify(payload));
-    window.location.href = sp(`/checkout?cart=${encoded}`);
+    navigate(sp(`/checkout?cart=${encoded}`));
   };
 
   /* ─── CHECKOUT (redirect to existing route) ─── */
@@ -1300,8 +1324,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       tags: i.product.tags || [],
     }));
     const encoded = btoa(JSON.stringify(payload));
-    window.location.href = sp(`/checkout?cart=${encoded}`);
+    navigate(sp(`/checkout?cart=${encoded}`));
   };
+
+  // Opening the cart is a strong checkout signal. Warm the shared checkout
+  // route after the drawer has settled, rather than prefetching it for every
+  // casual storefront visitor. The exact cart remains in the eventual URL;
+  // this warm-up prepares the route code and cached server configuration.
+  useEffect(() => {
+    if (!cartOpen || cart.length === 0) return;
+    const timer = window.setTimeout(() => prefetchPath(sp("/checkout")), 180);
+    return () => window.clearTimeout(timer);
+  }, [cartOpen, cart.length]);
 
   /* ─── DERIVED ─── */
   const allCategories = ["All", ...Array.from(new Set(products.flatMap((p) => (p.category || "").split(",").map((c) => c.trim()).filter(Boolean))))];

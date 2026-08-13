@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../../lib/store-template-access";
 import StoreUnavailable from "../StoreUnavailable";
@@ -6,14 +7,37 @@ import UnikLabsIframePage from "../_unik/UnikLabsIframePage";
 import CheckoutPageClient from "./CheckoutPageClient";
 import { fetchActiveAutomaticBxgyDiscounts } from "../../../../lib/automatic-discounts";
 
+// Checkout is store configuration, not customer-specific server data (the
+// cart itself is decoded by CheckoutPageClient from ?cart= in the browser).
+// Cache the shared shell/config so moving from cart to checkout normally
+// avoids two live database round trips. Dashboard saves explicitly
+// revalidate this path and tag, so payment/shipping changes still appear
+// immediately instead of waiting for this fallback window.
+export const revalidate = 3600;
+export const dynamic = "force-static";
+
+const CHECKOUT_SELLER_COLUMNS =
+  "id, store_name, whatsapp_number, subdomain, primary_color, logo_url, template, subscription_status, trial_ends_at, store_config, template_configs, checkout_config";
+
+function getCachedCheckoutSeller(slug: string) {
+  return unstable_cache(
+    async () => {
+      const { data } = await supabaseAdmin
+        .from("sellers")
+        .select(CHECKOUT_SELLER_COLUMNS)
+        .eq("subdomain", slug)
+        .maybeSingle();
+      return data;
+    },
+    ["checkout-seller-v1", slug],
+    { revalidate: 3600, tags: [`storefront:${slug}`] }
+  )();
+}
+
 export default async function CheckoutPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const { data: seller } = await supabaseAdmin
-    .from("sellers")
-    .select("*")
-    .eq("subdomain", slug)
-    .maybeSingle();
+  const seller = await getCachedCheckoutSeller(slug);
 
   if (!seller) notFound();
   if (seller.subscription_status === "expired" || seller.subscription_status === "cancelled") {

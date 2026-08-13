@@ -27,25 +27,11 @@ const FourRegn = nextDynamic(() => import("../FourRegnStore"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
-// Traced every isCollectionsIndexView code path in FourRegnStore.tsx: the
-// collection tiles here only read category/image_url via catCount()/
-// catImage(). But `products` is shared client state, not a per-mode prop --
-// the header/mobile-dock search overlay (fr-search-btn / fr-dock, both
-// rendered unconditionally, not gated to any `mode`) is reachable from this
-// page too, and its result list reads id, name, price, and goToProduct()
-// off it, which falls back to `handle` for routing. `initialProducts` here
-// is passed straight through to `products` client state (this route always
-// passes `initialSeller`, so FourRegnStore's client-fetch effect short-
-// circuits and never backfills missing columns) -- so search would silently
-// render blank names/prices and mis-route on click if those columns were
-// dropped. old_price/images/variants/in_stock/description/sort_order/
-// created_at are never read on this view (no ProductCard, no product sort
-// dropdown here), fetchAllRows<any> means TS doesn't require the full
-// `Product` shape to type-check, so this is a real narrowing, not a
-// same-shape-for-safety fetch. This is the same floor set as the homepage's
-// FOUR_REGN_HOME_PRODUCT_COLUMNS (app/store/[slug]/page.tsx) for the same
-// reason (search overlay is on that page's nav too).
-const PRODUCT_COLUMNS = "id, name, price, category, image_url, handle";
+// The index tiles only need these three fields. Search now loads its richer
+// catalogue lazily when the overlay is opened, matching the homepage, so
+// browsing /collections no longer serializes names/prices/handles for the
+// seller's entire catalogue into the initial page payload.
+const PRODUCT_COLUMNS = "id, category, image_url";
 
 export async function generateMetadata({
   params,

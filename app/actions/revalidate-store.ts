@@ -17,5 +17,6 @@ export async function revalidateStore(slug: string) {
   revalidatePath(`/store/${slug}/collections`);
   revalidatePath(`/store/${slug}/collections/[collection]`, "page");
   revalidatePath(`/store/${slug}/search`);
+  revalidatePath(`/store/${slug}/checkout`);
   revalidatePath(`/store/${slug}/policies/[policy]`, "page");
 }
