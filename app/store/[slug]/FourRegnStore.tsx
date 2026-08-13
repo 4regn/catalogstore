@@ -187,6 +187,7 @@ interface Seller {
     payfast_enabled?: boolean;
     yoco_enabled?: boolean;
     stitch_enabled?: boolean;
+    float_enabled?: boolean;
     whatsapp_checkout_enabled?: boolean;
   };
 }
@@ -2840,6 +2841,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
+                    {seller.checkout_config?.float_enabled && <FloatWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
                   </div>
                 </div>
@@ -3419,17 +3421,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
+                    {seller.checkout_config?.float_enabled && <FloatWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && <DescriptionText text={p.description} promo={isPromotionalDescription(p)} />}
-                    {/* FloatWidget temporarily disabled -- confirmed live that Float's
-                        script renders its full onboarding/FAQ splash page instead of
-                        the compact price-plan widget on this domain, taking over the
-                        whole viewport. Almost certainly because merchant 17bb89-2 isn't
-                        authorized for 4regn.catalogstore.co.za yet (it was presumably
-                        set up against the original Shopify domain) -- needs whitelisting
-                        in Float's own merchant dashboard before this can go back in.
-                        The component itself is unchanged and ready; just re-add the
-                        line below once that's sorted. */}
-                    {/* <FloatWidget price={effectivePrice(p, selectedVariants)} /> */}
                   </div>
                 </div>
               </div>
