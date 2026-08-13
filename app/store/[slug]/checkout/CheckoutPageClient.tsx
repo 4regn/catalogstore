@@ -9,9 +9,8 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
-import CheckoutLoading from "./CheckoutLoading";
 
-interface Seller {
+export interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
   primary_color: string; logo_url: string; template: string;
   subscription_status?: string | null;
@@ -281,7 +280,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .setla-modal-login-btn{width:100%;min-width:0}
 `;
 
-export default function CheckoutPageClient() {
+export default function CheckoutPageClient({ initialSeller }: { initialSeller: Seller }) {
   const params = useParams();
   const slug = params.slug as string;
   // Entirely client-rendered (no SSR data), so reading window.location here
@@ -290,10 +289,10 @@ export default function CheckoutPageClient() {
     typeof window !== "undefined" && usesCleanStorePaths(window.location.hostname)
       ? suffix || "/"
       : `/store/${slug}${suffix}`;
-  const [seller, setSeller] = useState<Seller | null>(null);
+  const [seller, setSeller] = useState<Seller | null>(initialSeller);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<{ id: string; name: string; category: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -416,8 +415,7 @@ export default function CheckoutPageClient() {
     } catch {}
 
     // Fetch seller data through safe API (strips merchant keys)
-    const sellerRes = await fetch("/api/seller-public?slug=" + slug);
-    const sd = sellerRes.ok ? await sellerRes.json() : null;
+    const sd = initialSeller;
     if (sd) {
       setSeller(sd);
       const ids = cleanCart.map((item) => item.id).filter((id): id is string => !!id);
@@ -895,7 +893,6 @@ export default function CheckoutPageClient() {
     }
   };
 
-  if (loading) return <CheckoutLoading />;
 
   if (seller && !isStoreActive(seller) && !paidOrder) return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: T.bodyFont, background: T.bg, color: T.text, padding: "40px 24px", textAlign: "center" }}>
@@ -1000,7 +997,7 @@ export default function CheckoutPageClient() {
             <section className="form-pane">
               <div className="eyebrow">Secure checkout</div>
               <h1>Complete your order.</h1>
-              <p className="intro">Your pieces are reserved while you finish checkout. Enter your delivery details, select your preferred courier, and choose how you&rsquo;d like to pay.</p>
+              <p className="intro">Your products are reserved while you finish checkout. Enter your delivery details, select your preferred courier, and choose how you&rsquo;d like to pay.</p>
 
               <div className="section">
                 <div className="section-head"><h2 className="section-title">Contact</h2><span className="section-kicker">Order updates &amp; delivery alerts</span></div>

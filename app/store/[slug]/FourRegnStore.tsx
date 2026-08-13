@@ -1998,7 +1998,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-search-page-input:focus{border-color:rgba(0,0,0,0.35)}
 .fr-search-page-submit{font-family:var(--body);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#fdfbf7;background:var(--ink);border:none;border-radius:8px;padding:0 22px;cursor:pointer}
 .fr-search-page-empty{font-family:var(--body);font-size:14px;color:rgba(46,42,57,0.6);padding:40px 0}
-.fr-coll-desc{font-family:var(--body);font-size:14px;line-height:1.7;color:rgba(46,42,57,0.7);max-width:720px;margin:-8px 0 24px}
+.fr-coll-desc{font-family:var(--body);font-size:16px;line-height:1.65;color:rgba(46,42,57,0.78);max-width:820px;margin:28px 0 34px}
+.fr-coll-desc p{margin:0 0 18px}.fr-coll-desc p:last-child{margin-bottom:0}.fr-coll-desc strong{font-weight:700}.fr-coll-desc em{font-style:italic}
 
 .fr-coll-header{max-width:1360px;margin:0 auto;padding:56px 40px 8px;text-align:center}
 .fr-coll-back{background:none;border:none;font-family:var(--body);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55);cursor:pointer;padding:0 0 18px;text-decoration:underline;text-underline-offset:3px}
@@ -3078,6 +3079,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               ← Back
             </button>
             <h1 className="fr-coll-title">{collectionName}</h1>
+            {collectionName && config.collection_descriptions?.[collectionName] && (
+              <div
+                className="fr-coll-desc"
+                dangerouslySetInnerHTML={{ __html: config.collection_descriptions[collectionName] }}
+              />
+            )}
           </div>
         )}
 
@@ -3452,13 +3459,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       current page's count (up to PAGE_SIZE) -- show the
                       whole matched set's total instead, same as Shopify's
                       own collection/search pages do. */}
-                  {(() => { const c = (isCollectionView || isSearchView) && totalProductCount != null ? totalProductCount : filtered.length; return <>{c} {c === 1 ? "piece" : "pieces"}</>; })()}
+                  {(() => { const c = (isCollectionView || isSearchView) && totalProductCount != null ? totalProductCount : filtered.length; return <>{c} {c === 1 ? "product" : "products"}</>; })()}
                 </span>
               </div>
             </div>
-            {isCollectionView && collectionName && config.collection_descriptions?.[collectionName] && (
-              <p className="fr-coll-desc">{config.collection_descriptions[collectionName]}</p>
-            )}
             {isSearchView && !initialSearchQuery?.trim() ? (
               <div className="fr-search-page-empty">Type a search term above to find products.</div>
             ) : isSearchView && filtered.length === 0 ? (
@@ -3539,7 +3543,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                             View All
                           </a>
                         )}
-                        <span className="fr-count">{group.products.length} {group.products.length === 1 ? "piece" : "pieces"}</span>
+                        <span className="fr-count">{group.products.length} {group.products.length === 1 ? "product" : "products"}</span>
                       </div>
                     </div>
                     <div className="fr-pgrid">

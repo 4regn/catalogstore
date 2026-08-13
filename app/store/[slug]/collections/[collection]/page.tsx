@@ -9,6 +9,8 @@ import { resolveSellerTemplate } from "../../../../../lib/store-template-access"
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
 import { getCachedFourRegnCatalog } from "../../../../../lib/four-regn-catalog-cache";
+import { sanitizeCollectionDescriptionHtml } from "../../../../../lib/sanitize-collection-description";
+import { FOUR_REGN_SHOPIFY_COLLECTION_DESCRIPTIONS } from "../../../../../lib/four-regn-collection-descriptions";
 import StoreUnavailable from "../../StoreUnavailable";
 
 // 4regn-only route -- every other template's collection pages still live at
@@ -60,6 +62,7 @@ function activePromoBadges(rows: { label: string; scope: "product" | "collection
 
 const slugify = (s: string) =>
   s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
 
 // Shopify showed 24 products per collection page on the real site this
 // platform imports from -- matches ../../c/[collection]/page.tsx's own
@@ -173,6 +176,12 @@ export default async function CollectionPage({
     : catalogProducts.filter((p: any) =>
         (p.category || "").split(",").map((c: string) => c.trim()).includes(matched!)
       );
+  const sellerCollectionDescriptions = Object.fromEntries(
+    Object.entries((seller.store_config || {}).collection_descriptions || {}).map(([title, description]) => [
+      title,
+      sanitizeCollectionDescriptionHtml(String(description || "")).replace(/\r?\n/g, "<br>"),
+    ])
+  );
 
   // Sort the WHOLE collection server-side, then slice to just the requested
   // page, instead of shipping every matching product (a collection can run
@@ -186,7 +195,21 @@ export default async function CollectionPage({
 
   return (
     <FourRegn
-      initialSeller={trimSellerTemplateConfigs(seller, tpl)}
+      initialSeller={{
+        ...trimSellerTemplateConfigs(seller, tpl),
+        store_config: {
+          ...(seller.store_config || {}),
+          collection_descriptions: {
+            ...Object.fromEntries(
+              Object.entries(FOUR_REGN_SHOPIFY_COLLECTION_DESCRIPTIONS).map(([title, description]) => [
+                title,
+                sanitizeCollectionDescriptionHtml(description),
+              ])
+            ),
+            ...sellerCollectionDescriptions,
+          },
+        },
+      }}
       initialProducts={pageProducts}
       initialDiscountCodes={discounts}
       initialPromoBadges={activePromoBadges(promoBadges, nowIso)}
