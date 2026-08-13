@@ -1418,7 +1418,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // implementation).
   const automaticDiscount = automaticBxgyDiscounts.length && cart.length
     ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
-    : { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
+    : { totalDiscount: 0, applied: [] as { title: string; amount: number }[], lineDiscounts: [] as { lineIndex: number; amount: number; titles: string[] }[] };
   // The note is only useful for a mixed cart: import-only carts already say
   // 7-14 working days in their sole checkout shipping method.
   const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
@@ -2632,6 +2632,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               cart.map((i, idx) => {
                 const varStr = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(" · ");
                 const cartImg = resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url;
+                const lineOriginal = effectivePrice(i.product, i.selectedVariants) * i.qty;
+                const lineDiscount = automaticDiscount.lineDiscounts.find((discount) => discount.lineIndex === idx);
+                const lineFinal = Math.max(0, lineOriginal - (lineDiscount?.amount || 0));
                 return (
                   <div key={idx} className="fr-cart-item">
                     <div className="fr-cart-item-img" style={cartImg ? { backgroundImage: `url("${cartImg}")` } : {}} />
@@ -2645,7 +2648,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div className="fr-cart-item-price">{fmt(effectivePrice(i.product, i.selectedVariants) * i.qty)}</div>
+                      {lineDiscount ? (
+                        <>
+                          <div style={{ fontSize: 11, color: "rgba(46,42,57,.48)", textDecoration: "line-through", marginBottom: 2 }}>{fmt(lineOriginal)}</div>
+                          <div className="fr-cart-item-price" style={{ color: "#00751f" }}>{fmt(lineFinal)}</div>
+                          <div style={{ maxWidth: 120, marginTop: 4, color: "#00751f", fontSize: 9, fontWeight: 700, lineHeight: 1.3, textTransform: "uppercase", letterSpacing: ".04em" }}>{lineDiscount.titles.join(" · ")} −{fmt(lineDiscount.amount)}</div>
+                        </>
+                      ) : <div className="fr-cart-item-price">{fmt(lineOriginal)}</div>}
                       <button className="fr-cart-item-rm" onClick={() => removeFromCart(idx)}>Remove</button>
                     </div>
                   </div>

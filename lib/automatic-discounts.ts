@@ -42,15 +42,20 @@ function matchesAnyCollection(category: string | null | undefined, names: string
 // Expands qty into individual priced units, cheapest first -- Shopify's own
 // real behavior for BXGY: when items tie for "cheapest", the discount goes
 // to the lowest-priced eligible units, not an arbitrary/undefined order.
-function expandUnits(items: PricedLineItem[]): number[] {
-  const units: number[] = [];
-  for (const i of items) for (let n = 0; n < i.qty; n++) units.push(i.price);
-  return units.sort((a, b) => a - b);
+type PricedUnit = { price: number; lineIndex: number; unitIndex: number };
+
+function expandUnits(items: { item: PricedLineItem; lineIndex: number }[]): PricedUnit[] {
+  const units: PricedUnit[] = [];
+  for (const { item, lineIndex } of items) {
+    for (let n = 0; n < item.qty; n++) units.push({ price: item.price, lineIndex, unitIndex: n });
+  }
+  return units.sort((a, b) => a.price - b.price || a.lineIndex - b.lineIndex || a.unitIndex - b.unitIndex);
 }
 
 export type AutomaticDiscountResult = {
   totalDiscount: number;
   applied: { title: string; amount: number }[];
+  lineDiscounts: { lineIndex: number; amount: number; titles: string[] }[];
 };
 
 /* Computes automatic Buy X Get Y savings for a cart, mirroring exactly how
@@ -68,11 +73,13 @@ export function computeAutomaticBxgyDiscount(
   lineItems: PricedLineItem[]
 ): AutomaticDiscountResult {
   const applied: { title: string; amount: number }[] = [];
+  const lineAllocations = new Map<number, { amount: number; titles: Set<string> }>();
   let totalDiscount = 0;
 
   for (const rule of rules) {
-    const buyEligible = lineItems.filter((i) => matchesAnyCollection(i.category, rule.buy_collection_names));
-    const getEligible = lineItems.filter((i) => matchesAnyCollection(i.category, rule.get_collection_names));
+    const indexedItems = lineItems.map((item, lineIndex) => ({ item, lineIndex }));
+    const buyEligible = indexedItems.filter(({ item }) => matchesAnyCollection(item.category, rule.buy_collection_names));
+    const getEligible = indexedItems.filter(({ item }) => matchesAnyCollection(item.category, rule.get_collection_names));
     if (!buyEligible.length || !getEligible.length) continue;
 
     // Every real 4regn rule has an IDENTICAL buy/get collection (buy 1
@@ -89,6 +96,14 @@ export function computeAutomaticBxgyDiscount(
 
     const groupSize = rule.buy_quantity + rule.get_quantity;
     let ruleDiscount = 0;
+    const allocate = (unit: PricedUnit) => {
+      const amount = rule.effect_type === "percentage" ? unit.price * (rule.effect_value / 100) : Math.min(rule.effect_value, unit.price);
+      ruleDiscount += amount;
+      const allocation = lineAllocations.get(unit.lineIndex) || { amount: 0, titles: new Set<string>() };
+      allocation.amount += amount;
+      allocation.titles.add(rule.title);
+      lineAllocations.set(unit.lineIndex, allocation);
+    };
 
     if (sameSet) {
       const units = expandUnits(buyEligible);
@@ -96,9 +111,7 @@ export function computeAutomaticBxgyDiscount(
       for (let g = 0; g < groups; g++) {
         const groupUnits = units.slice(g * groupSize, (g + 1) * groupSize);
         const getUnits = groupUnits.slice(0, rule.get_quantity);
-        for (const price of getUnits) {
-          ruleDiscount += rule.effect_type === "percentage" ? price * (rule.effect_value / 100) : Math.min(rule.effect_value, price);
-        }
+        for (const unit of getUnits) allocate(unit);
       }
     } else {
       const buyUnits = expandUnits(buyEligible);
@@ -106,9 +119,7 @@ export function computeAutomaticBxgyDiscount(
       const groups = Math.min(Math.floor(buyUnits.length / rule.buy_quantity), Math.floor(getUnits.length / rule.get_quantity));
       for (let g = 0; g < groups; g++) {
         const slice = getUnits.slice(g * rule.get_quantity, (g + 1) * rule.get_quantity);
-        for (const price of slice) {
-          ruleDiscount += rule.effect_type === "percentage" ? price * (rule.effect_value / 100) : Math.min(rule.effect_value, price);
-        }
+        for (const unit of slice) allocate(unit);
       }
     }
 
@@ -118,7 +129,15 @@ export function computeAutomaticBxgyDiscount(
     }
   }
 
-  return { totalDiscount: Math.round(totalDiscount * 100) / 100, applied };
+  return {
+    totalDiscount: Math.round(totalDiscount * 100) / 100,
+    applied,
+    lineDiscounts: [...lineAllocations.entries()].map(([lineIndex, allocation]) => ({
+      lineIndex,
+      amount: Math.round(allocation.amount * 100) / 100,
+      titles: [...allocation.titles],
+    })),
+  };
 }
 
 export async function fetchActiveAutomaticBxgyDiscounts(admin: SupabaseClient, sellerId: string): Promise<AutomaticBxgyDiscount[]> {
