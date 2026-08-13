@@ -2842,7 +2842,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
-                    {seller.checkout_config?.float_enabled && <FloatWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
                   </div>
                 </div>
@@ -3423,7 +3422,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
-                    {seller.checkout_config?.float_enabled && <FloatWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
                   </div>
                 </div>
