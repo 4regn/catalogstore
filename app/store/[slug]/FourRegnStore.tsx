@@ -661,8 +661,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") return;
 
     const warm = () => prefetchPath(sp("/collections/all"));
-    const idleId = window.requestIdleCallback(warm, { timeout: 2500 });
-    return () => window.cancelIdleCallback(idleId);
+    // requestIdleCallback is still missing in some mobile Safari/WebView
+    // versions. Calling it unconditionally crashes the entire storefront on
+    // those devices, so fall back to a small timeout and clean up whichever
+    // scheduler was actually used.
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(warm, { timeout: 2500 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+    const timerId = window.setTimeout(warm, 1500);
+    return () => window.clearTimeout(timerId);
   }, [isHomeView, isEditMode, isSubdomain, slug]);
   // Collection-page pagination links -- page 1 has no ?page so the
   // canonical/default URL stays clean; sort is only appended when it isn't
