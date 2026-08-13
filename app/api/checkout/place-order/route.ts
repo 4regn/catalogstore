@@ -88,6 +88,24 @@ export async function POST(req: NextRequest) {
   if (!active) return NextResponse.json({ error: "This store is not currently accepting orders." }, { status: 409 });
 
   const cc = (seller.checkout_config || {}) as any;
+  const normalizedCustomerEmail = customer.email.trim().toLowerCase();
+  // Link every new order to the imported/checkout customer identity so a
+  // later account activation can immediately see all matching purchases.
+  let customerId: string | null = null;
+  const { data: knownCustomer } = await getAdmin().from("customers").select("id").eq("seller_id", seller.id).ilike("email", normalizedCustomerEmail).maybeSingle();
+  if (knownCustomer) {
+    customerId = knownCustomer.id;
+  } else {
+    const { data: createdCustomer } = await getAdmin().from("customers").insert({
+      seller_id: seller.id,
+      first_name: customer.firstName.trim(),
+      last_name: customer.lastName.trim(),
+      email: normalizedCustomerEmail,
+      phone: customer.phone || null,
+      source: "checkout",
+    }).select("id").single();
+    customerId = createdCustomer?.id || null;
+  }
 
   /* Resolve product prices server-side. Prefer id; fall back to seller-scoped
      name lookup for legacy carts that don't carry an id. */
@@ -254,7 +272,7 @@ export async function POST(req: NextRequest) {
   const coreRow: any = {
     seller_id: seller.id,
     customer_name: `${customer.firstName} ${customer.lastName}`.trim(),
-    customer_email: customer.email,
+    customer_email: normalizedCustomerEmail,
     customer_phone: customer.phone || null,
     items: lineItems.map(({ id, name, price, qty, variant, image }) => ({ id, name, price, qty, variant, image })),
     total,
@@ -267,6 +285,7 @@ export async function POST(req: NextRequest) {
 
   const tier1 = { subtotal, fulfillment_method: fulfillment };
   const tier2 = {
+    customer_id: customerId,
     discount_code: discountRow?.code || null,
     discount_amount: discountAmount,
     shipping_option: shippingLabel,
