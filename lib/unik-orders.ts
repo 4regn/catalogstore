@@ -27,13 +27,15 @@ export async function markUnikOrderPaid(
   order: { id: string; seller_id: string; total: number; items: any; customer_name: string; customer_email: string; payment_status: string },
   paymentId: string,
   eventId: string | null,
-  provider: "yoco" | "stitch" = "yoco"
+  provider: "yoco" | "stitch" | "float" = "yoco"
 ): Promise<"paid" | "already_paid" | "amount_mismatch" | "update_failed"> {
   if (order.payment_status === "paid") return "already_paid";
 
   const providerColumns = provider === "stitch"
     ? { stitch_payment_id: paymentId, ...(eventId ? { stitch_event_id: eventId } : {}) }
-    : { yoco_payment_id: paymentId, ...(eventId ? { yoco_event_id: eventId } : {}) };
+    : provider === "float"
+      ? { float_checkout_id: paymentId }
+      : { yoco_payment_id: paymentId, ...(eventId ? { yoco_event_id: eventId } : {}) };
 
   const { data: updated, error } = await admin
     .from("orders")
@@ -172,7 +174,7 @@ export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: stri
     .from("orders")
     .update({ payment_status: "abandoned", status: "abandoned" })
     .eq("seller_id", sellerId)
-    .in("payment_method", ["yoco", "stitch", "setla", "setla_pay_later", "setla_laybuy"])
+    .in("payment_method", ["yoco", "stitch", "float", "setla", "setla_pay_later", "setla_laybuy"])
     .eq("payment_status", "pending")
     .lt("created_at", cutoff);
   if (error) console.error("sweepAbandonedOrders: update failed", error);

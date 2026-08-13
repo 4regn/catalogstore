@@ -38,6 +38,7 @@ interface Seller {
     // pair, not per-seller. See /api/checkout/stitch-redirect's own
     // comment.
     stitch_enabled?: boolean;
+    float_enabled?: boolean;
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
@@ -303,7 +304,7 @@ export default function CheckoutPageClient() {
 
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [shippingOption, setShippingOption] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco" | "stitch" | "setla">("eft");
+  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco" | "stitch" | "setla" | "float">("eft");
   const [billingSame, setBillingSame] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -469,6 +470,7 @@ export default function CheckoutPageClient() {
     } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
     if (sd?.checkout_config?.yoco_enabled) setPaymentMethod("yoco");
+    else if (sd?.checkout_config?.float_enabled) setPaymentMethod("float");
     else if (sd?.checkout_config?.stitch_enabled) setPaymentMethod("stitch");
     else if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
     else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");
@@ -736,7 +738,7 @@ export default function CheckoutPageClient() {
       setOrderPlaced(true);
 
       // Notify seller (non-blocking) -- but not for PayFast/Yoco/Stitch/
-      // SETLA orders yet: this row is still payment_status "pending" and
+      // Float/SETLA orders yet: this row is still payment_status "pending" and
       // the customer hasn't even reached the payment gateway's page (or,
       // for SETLA, hasn't chosen a plan yet). Those only get notified once
       // their respective webhook (app/api/payfast/notify,
@@ -744,7 +746,7 @@ export default function CheckoutPageClient() {
       // which already handles SETLA instalment/laybuy events too)
       // confirms payment actually went through, so the seller never gets
       // a "New Order!" email for a payment that failed or was abandoned.
-      if (effectiveMethod !== "payfast" && effectiveMethod !== "yoco" && effectiveMethod !== "stitch" && effectiveMethod !== "setla") {
+      if (effectiveMethod !== "payfast" && effectiveMethod !== "yoco" && effectiveMethod !== "stitch" && effectiveMethod !== "float" && effectiveMethod !== "setla") {
         fetch("/api/notify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -808,6 +810,21 @@ export default function CheckoutPageClient() {
           return;
         }
         window.location.href = stJson.redirectUrl;
+        return;
+      }
+
+      if (effectiveMethod === "float" && cc.float_enabled) {
+        const flRes = await fetch("/api/checkout/float-redirect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, slug, returnOrigin: window.location.origin }),
+        });
+        const flJson = await flRes.json().catch(() => ({}));
+        if (!flRes.ok || !flJson.redirectUrl) {
+          setOrderError(flJson.error || "Could not start Float checkout. Your order was saved; please contact the seller.");
+          return;
+        }
+        window.location.href = flJson.redirectUrl;
         return;
       }
 
@@ -1115,6 +1132,20 @@ export default function CheckoutPageClient() {
                     </div>
                   )}
 
+                  {cc.float_enabled && (
+                    <div className={"choice" + (paymentMethod === "float" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setPaymentMethod("float")}>
+                        <div className="radio"></div>
+                        <div className="choice-main">
+                          <div className="choice-name">Float <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
+                          <div className="choice-sub">Split your purchase into interest-free monthly instalments using your credit card.</div>
+                        </div>
+                        <div className="payment-provider-art"><div className="provider-logo"><img alt="Float" src="/checkout/float.png" /></div></div>
+                      </div>
+                      {paymentMethod === "float" && <div className="payment-note">You&rsquo;ll be redirected to Float to choose your payment plan securely.</div>}
+                    </div>
+                  )}
+
                   {cc.stitch_enabled && (
                     <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")}>
                       <div className="choice-row" onClick={() => setPaymentMethod("stitch")}>
@@ -1164,7 +1195,7 @@ export default function CheckoutPageClient() {
                   }}
                   disabled={placing}
                 >
-                  {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : "Pay now · R" + total.toFixed(0)}
+                  {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : paymentMethod === "float" ? "Continue to Float · R" + total.toFixed(0) : "Pay now · R" + total.toFixed(0)}
                 </button>
               </div>
               <div className="trust-row">
@@ -1498,6 +1529,18 @@ export default function CheckoutPageClient() {
                 {paymentMethod === "yoco" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Yoco to complete your payment.</div>}
               </div>
             )}
+            {cc.float_enabled && (
+              <div>
+                <div onClick={() => setPaymentMethod("float")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "float" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "float" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
+                    <span style={{ fontSize: 14, fontWeight: paymentMethod === "float" ? 600 : 400 }}>Float — Buy Now Pay Later</span>
+                  </div>
+                  <img src="/checkout/float.png" alt="Float" style={{ height: 26, width: 50, objectFit: "contain" }} />
+                </div>
+                {paymentMethod === "float" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Float to choose your interest-free payment plan securely.</div>}
+              </div>
+            )}
             {cc.stitch_enabled && (
               <div>
                 <div onClick={() => setPaymentMethod("stitch")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "stitch" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
@@ -1574,7 +1617,7 @@ export default function CheckoutPageClient() {
                 moving off Shopify onto this same checkout system UNIK Labs
                 already runs on, and wants the two to look consistent) --
                 confirmed via that file directly rather than eyeballing it. */}
-            <button onClick={() => placeOrder()} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA" : (paymentMethod === "payfast" || paymentMethod === "yoco" || paymentMethod === "stitch") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
+            <button onClick={() => placeOrder()} disabled={placing} style={{ padding: "18px 48px", background: "#007517", color: "#fff", border: "none", borderRadius: T.btnRadius, fontFamily: T.bodyFont, fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: placing ? "not-allowed" : "pointer", opacity: placing ? 0.6 : 1 }}>{placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA" : paymentMethod === "float" ? "Continue to Float" : (paymentMethod === "payfast" || paymentMethod === "yoco" || paymentMethod === "stitch") ? "Pay Now - R" + total.toFixed(0) : "Complete Order - R" + total.toFixed(0)}</button>
           </div>
         </div>
 

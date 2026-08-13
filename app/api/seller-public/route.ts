@@ -57,6 +57,12 @@ export async function GET(req: NextRequest) {
     // credential pair, not per-seller. See
     // /api/checkout/stitch-redirect's own comment.
     stitch_enabled: !!cc.stitch_enabled,
+    // Float credentials are server-only and shared by the approved 4REGN
+    // merchant integration. Only this harmless availability flag is public.
+    // Do not advertise Float until both server-side credentials exist in
+    // this deployment; this prevents a visible payment option that can
+    // only fail while Vercel is still being configured.
+    float_enabled: !!cc.float_enabled && !!process.env.FLOAT_CLIENT_SECRET && !!process.env.FLOAT_SIGNING_KEY,
     delivery_enabled: cc.delivery_enabled !== false,
     pickup_enabled: !!cc.pickup_enabled,
     pickup_address: cc.pickup_address || "",
