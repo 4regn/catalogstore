@@ -1,14 +1,12 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { usesCleanStorePaths } from "../../../../lib/store-url";
 
 type Seller = { subdomain: string; store_name: string; logo_url?: string | null };
 const STAGES = ["confirmed", "processing", "shipped", "in_transit", "out_for_delivery", "delivered"];
 const label = (value: string) => (value || "confirmed").replace(/_/g, " ");
 
 export default function FourRegnTrackingClient({ seller }: { seller: Seller }) {
-  const storeHref = (suffix = "") => typeof window !== "undefined" && usesCleanStorePaths(window.location.hostname) ? (suffix || "/") : `/store/${seller.subdomain}${suffix}`;
   const [orderNumber, setOrderNumber] = useState("");
   const [contact, setContact] = useState("");
   const [order, setOrder] = useState<any | null>(null);
@@ -31,7 +29,7 @@ export default function FourRegnTrackingClient({ seller }: { seller: Seller }) {
   const currentStage = order ? Math.max(0, STAGES.indexOf(order.status)) : 0;
   return <main className="ft">
     <style>{CSS}</style>
-    <header><a href={storeHref()}>{seller.logo_url ? <img src={seller.logo_url} alt={seller.store_name}/> : seller.store_name}</a><a className="account" href={storeHref("/account")}>My account</a></header>
+    <header><a href="/">{seller.logo_url ? <img src={seller.logo_url} alt={seller.store_name}/> : seller.store_name}</a><a className="account" href="/account">My account</a></header>
     <section className="hero">
       <div className="intro"><span>4REGN ORDER TRACKING</span><h1>Follow your<br/>order.</h1><p>Enter the order number from your confirmation email and the email address or mobile number used at checkout.</p></div>
       <form onSubmit={submit}>
@@ -47,7 +45,7 @@ export default function FourRegnTrackingClient({ seller }: { seller: Seller }) {
       <ol>{STAGES.map((stage,index)=><li className={index<=currentStage?"done":""} key={stage}><i/><span>{label(stage)}</span></li>)}</ol>
       {order.shipping_option && <p className="shipping">Delivery method <strong>{order.shipping_option}</strong></p>}
       <div className="items">{(order.items||[]).map((item:any,index:number)=><div key={index}>{item.image?<img src={item.image} alt=""/>:<i/>}<span><strong>{item.name}</strong><small>{item.variant ? `${item.variant} · ` : ""}Qty {item.qty}</small></span></div>)}</div>
-      <p className="accountnote">Want all your orders and saved products in one place? <a href={storeHref("/account")}>Log into your account</a>.</p>
+      <p className="accountnote">Want all your orders and saved products in one place? <a href="/account">Log into your account</a>.</p>
     </section>}
   </main>;
 }
