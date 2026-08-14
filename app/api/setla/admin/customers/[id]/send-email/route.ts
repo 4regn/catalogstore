@@ -49,11 +49,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     );
   }
 
+  const limitVariant = body.limitVariant === "starter" ? "starter" : "standard";
   const deliverTo = overrideEmailRaw || customer.email;
   const content = type.content(customer.first_name, customer.approved_limit);
   await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: content.subject, body: content.headline });
   if (emailType === "approved") {
-    await sendApprovedSetlaLimitEmail({ to: deliverTo, firstName: customer.first_name, approvedLimit: customer.approved_limit });
+    await sendApprovedSetlaLimitEmail({ to: deliverTo, firstName: customer.first_name, approvedLimit: customer.approved_limit, variant: limitVariant });
   } else {
     await sendSetlaEmail({ ...content, to: deliverTo });
   }
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     admin_email: auth.admin.email,
     action: "setla_manual_email",
     target_seller_id: null,
-    details: { customerId: id, emailType, deliveredTo: overrideEmailRaw ? deliverTo : undefined },
+    details: { customerId: id, emailType, deliveredTo: overrideEmailRaw ? deliverTo : undefined, limitVariant: emailType === "approved" ? limitVariant : undefined },
   });
 
   return NextResponse.json({ success: true });

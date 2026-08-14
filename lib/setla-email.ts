@@ -223,10 +223,20 @@ async function approvedLogoAttachments() {
 // don't invert a design with no light variant -- would be actively wrong
 // here, since this design IS the light variant). Every other SETLA email
 // keeps using the shared shell unchanged.
-export async function sendApprovedSetlaLimitEmail(opts: { to: string; firstName: string; approvedLimit: number }) {
+export async function sendApprovedSetlaLimitEmail(opts: { to: string; firstName: string; approvedLimit: number; variant?: "standard" | "starter" }) {
   const amount = Math.round(Number(opts.approvedLimit) || 0);
   const amountFormatted = `R${amount.toLocaleString("en-ZA")}`;
   const dashboardUrl = `${SETLA_APP_ORIGIN}/setla/dashboard.html`;
+  // The seller's own starter-limit mockup (SETLA_standard_limit_R1000_email.html)
+  // included a ".starter-review" style block but never actually used it in
+  // the markup -- copy below follows the same "this can grow" language
+  // signupNudgeEmailContent already uses elsewhere, since that's the real
+  // reason a starter limit is smaller: it's a first look, not a ceiling.
+  const starterNoteHtml = opts.variant === "starter" ? `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 6px"><tr><td style="padding:18px 19px;background:#f2faf4;border:1px solid #d8efdf;border-radius:17px">
+    <strong style="display:block;color:#176f37;font-size:14px;margin-bottom:5px">This is your starter limit</strong>
+    <span style="color:#405147;font-size:13px;line-height:1.55">Every new SETLA customer begins here. Repay on time and shop responsibly, and your limit can grow the next time you're reviewed.</span>
+  </td></tr></table>` : "";
 
   const html = `<!doctype html>
 <html lang="en">
@@ -266,7 +276,7 @@ export async function sendApprovedSetlaLimitEmail(opts: { to: string; firstName:
   <h2 style="font-size:24px;line-height:1.2;margin:0 0 14px;letter-spacing:-.5px;color:#141714;font-weight:800">Hi ${opts.firstName}, your limit is ready.</h2>
   <p style="font-size:15.5px;line-height:1.62;color:#505850;margin:0 0 20px">Your application has been approved and you now have <strong style="color:#111613;font-weight:800">${money(opts.approvedLimit)}</strong> available through SETLA.</p>
   <p style="font-size:15.5px;line-height:1.62;color:#505850;margin:0 0 20px">Use your SETLA limit when shopping at <strong style="color:#111613;font-weight:800">4REGN</strong> or <strong style="color:#111613;font-weight:800">UNIK Labs</strong>. Pick what you want, choose SETLA at checkout, and your available limit will be shown before you confirm.</p>
-
+${starterNoteHtml}
   <div style="margin-top:26px;font-size:12.5px;letter-spacing:1.6px;font-weight:800;color:#16773a;text-transform:uppercase">Where you can use SETLA</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px"><tr>
     <td width="50%" style="padding-right:6px;vertical-align:top">
@@ -372,6 +382,11 @@ export function limitAdjustedEmailContent(firstName: string, newLimit: number, i
 // to render its highlighted card, and there's no real customer record to
 // pull one from when testing in the abstract.
 export const SETLA_SAMPLE_LIMIT = 2000;
+// Same idea, specifically for previewing the "starter limit" variant --
+// matches the seller's own R1,000 starter-limit mockup rather than reusing
+// the standard sample amount, so a test send actually looks like a real
+// starter approval, not a standard one with a note bolted on.
+export const SETLA_STARTER_SAMPLE_LIMIT = 1000;
 
 export type SetlaEmailContent = Omit<Parameters<typeof sendSetlaEmail>[0], "to">;
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../lib/setla-admin";
-import { sendSetlaEmail, sendApprovedSetlaLimitEmail, SETLA_EMAIL_TYPES, SETLA_SAMPLE_LIMIT } from "../../../../../lib/setla-email";
+import { sendSetlaEmail, sendApprovedSetlaLimitEmail, SETLA_EMAIL_TYPES, SETLA_SAMPLE_LIMIT, SETLA_STARTER_SAMPLE_LIMIT } from "../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +29,9 @@ export async function POST(req: NextRequest) {
   const firstName = String(body.firstName || "").trim().slice(0, 80);
   if (!firstName) return NextResponse.json({ error: "Enter a name for the email to be addressed to" }, { status: 400 });
 
+  const limitVariant = body.limitVariant === "starter" ? "starter" : "standard";
   if (emailType === "approved") {
-    await sendApprovedSetlaLimitEmail({ to, firstName, approvedLimit: SETLA_SAMPLE_LIMIT });
+    await sendApprovedSetlaLimitEmail({ to, firstName, approvedLimit: limitVariant === "starter" ? SETLA_STARTER_SAMPLE_LIMIT : SETLA_SAMPLE_LIMIT, variant: limitVariant });
   } else {
     const content = type.content(firstName);
     await sendSetlaEmail({ ...content, to });
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     admin_email: auth.admin.email,
     action: "setla_test_email",
     target_seller_id: null,
-    details: { emailType, to, firstName },
+    details: { emailType, to, firstName, limitVariant: emailType === "approved" ? limitVariant : undefined },
   });
 
   return NextResponse.json({ success: true });

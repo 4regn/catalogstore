@@ -494,6 +494,11 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   const [overrideEmail, setOverrideEmail] = useState("");
   const [testEmail, setTestEmail] = useState("");
   const [testName, setTestName] = useState("");
+  // Only meaningful for emailType === "approved" -- the seller supplied
+  // two different designs for the same approval email depending on
+  // whether this is a first-time starter limit or a standard one, see
+  // sendApprovedSetlaLimitEmail's own comment.
+  const [limitVariant, setLimitVariant] = useState<"standard" | "starter">("standard");
   const [busy, setBusy] = useState(false);
 
   const activeType = SETLA_EMAIL_TYPES.find((t) => t.value === emailType)!;
@@ -511,7 +516,7 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
     if (selected) {
       const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-email`, {
         method: "POST",
-        body: JSON.stringify({ emailType, overrideEmail: overrideEmail.trim() || undefined }),
+        body: JSON.stringify({ emailType, overrideEmail: overrideEmail.trim() || undefined, limitVariant: emailType === "approved" ? limitVariant : undefined }),
       });
       const payload = await res.json().catch(() => ({}));
       setBusy(false);
@@ -521,7 +526,7 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
     } else if (testReady) {
       const res = await authedFetch(`/api/setla/admin/send-test-email`, {
         method: "POST",
-        body: JSON.stringify({ emailType, to: testEmail.trim(), firstName: testName.trim() }),
+        body: JSON.stringify({ emailType, to: testEmail.trim(), firstName: testName.trim(), limitVariant: emailType === "approved" ? limitVariant : undefined }),
       });
       const payload = await res.json().catch(() => ({}));
       setBusy(false);
@@ -551,6 +556,15 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
             {eligible.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name} — {c.email}</option>)}
           </select>
         </label>
+        {emailType === "approved" && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 200px" }}>
+            Limit type
+            <select className="sad-select" value={limitVariant} onChange={(e) => setLimitVariant(e.target.value as "standard" | "starter")}>
+              <option value="standard">Standard limit</option>
+              <option value="starter">Starter limit (first-time)</option>
+            </select>
+          </label>
+        )}
       </div>
       {selected ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
