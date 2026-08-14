@@ -230,6 +230,10 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .product-name{font-size:15px;font-weight:500;letter-spacing:-.015em;line-height:1.25}
 .fr-checkout-v2 .product-meta{margin-top:7px;color:#777;font-size:12px}
 .fr-checkout-v2 .product-price{font-size:14px;font-weight:500;align-self:start;padding-top:3px}
+.fr-checkout-v2 .product-sale-saving{margin-top:7px;color:#00751f;font-size:11.5px;font-weight:800;letter-spacing:.035em;text-transform:uppercase}
+.fr-checkout-v2 .product-price-stack{text-align:right;align-self:start;padding-top:3px}
+.fr-checkout-v2 .product-price-was{font-size:11px;color:#888;text-decoration:line-through;margin-bottom:2px}
+.fr-checkout-v2 .product-price-now{font-size:14px;font-weight:700;color:#050505}
 .fr-checkout-v2 .promo-banner{margin:16px 0 0;border:1px solid #d8d8d8;background:#fff;border-radius:8px;padding:13px;display:flex;gap:12px;align-items:center}
 .fr-checkout-v2 .promo-banner+.promo-banner{margin-top:10px}
 .fr-checkout-v2 .promo-badge{width:34px;height:34px;border-radius:5px;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 34px}
@@ -1548,16 +1552,26 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               <div className="summary-sticky">
                 <div className="summary-label">Your order</div>
                 <div className="product-card">
-                  {cart.map((item, i) => (
-                    <div className="product-row" key={i}>
-                      <div className="product-image-wrap">
-                        {item.image ? <img alt={item.name} src={item.image} /> : null}
-                        <span className="qty">{item.qty}</span>
+                  {cart.map((item, i) => {
+                    const originalLine = (Number(item.old_price) || 0) * item.qty;
+                    const lineTotal = item.price * item.qty;
+                    const saleSaving = Math.max(0, originalLine - lineTotal);
+                    return (
+                      <div className="product-row" key={i}>
+                        <div className="product-image-wrap">
+                          {item.image ? <img alt={item.name} src={item.image} /> : null}
+                          <span className="qty">{item.qty}</span>
+                        </div>
+                        <div><div className="product-name">{item.name}</div>{item.variant && <div className="product-meta">{item.variant}</div>}{saleSaving > 0 && <div className="product-sale-saving">You save R{saleSaving.toLocaleString("en-ZA")}</div>}</div>
+                        {saleSaving > 0 ? (
+                          <div className="product-price-stack">
+                            <div className="product-price-was">R{originalLine.toLocaleString("en-ZA")}</div>
+                            <div className="product-price-now">R{lineTotal.toLocaleString("en-ZA")}</div>
+                          </div>
+                        ) : <div className="product-price">R{lineTotal.toLocaleString("en-ZA")}</div>}
                       </div>
-                      <div><div className="product-name">{item.name}</div>{item.variant && <div className="product-meta">{item.variant}</div>}</div>
-                      <div className="product-price">R{(item.price * item.qty).toLocaleString("en-ZA")}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {automaticDiscount.applied.map((a) => (
                     <div className="promo-banner" key={a.title}>
                       <div className="promo-badge">&#10003;</div>
@@ -1977,16 +1991,21 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         {/* RIGHT - ORDER SUMMARY */}
         <div className="ck-summary" style={{ padding: "32px 24px", borderLeft: "1px solid " + T.summaryBorder, background: T.summaryBg }}>
           <h3 style={{ fontFamily: T.headFont, fontSize: 20, fontWeight: 400, marginBottom: 20 }}>Order Summary</h3>
-          {cart.map((item, i) => (
-            <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "center" }}>
-              <div style={{ position: "relative" }}>
-                {item.image ? <img src={item.image} alt="" style={{ width: 60, height: 72, borderRadius: 10, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 60, height: 72, borderRadius: 10, background: T.emptyImg }} />}
-                <span style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: T.badgeBg, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.qty}</span>
+          {cart.map((item, i) => {
+            const originalLine = (Number(item.old_price) || 0) * item.qty;
+            const lineTotal = item.price * item.qty;
+            const saleSaving = Math.max(0, originalLine - lineTotal);
+            return (
+              <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "center" }}>
+                <div style={{ position: "relative" }}>
+                  {item.image ? <img src={item.image} alt="" style={{ width: 60, height: 72, borderRadius: 10, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 60, height: 72, borderRadius: 10, background: T.emptyImg }} />}
+                  <span style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: T.badgeBg, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.qty}</span>
+                </div>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{item.name}</div>{item.variant && <div style={{ fontSize: 12, color: T.muted }}>{item.variant}</div>}{saleSaving > 0 && <div style={{ marginTop: 5, color: "#00751f", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".035em" }}>You save R{saleSaving.toFixed(0)}</div>}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, textAlign: "right" }}>{saleSaving > 0 && <span style={{ display: "block", color: T.muted, textDecoration: "line-through", fontSize: 12, fontWeight: 500 }}>R{originalLine.toFixed(0)}</span>}R{lineTotal.toFixed(0)}</div>
               </div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{item.name}</div>{item.variant && <div style={{ fontSize: 12, color: T.muted }}>{item.variant}</div>}</div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>R{(item.price * item.qty).toFixed(0)}</div>
-            </div>
-          ))}
+            );
+          })}
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, marginTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{subtotal.toFixed(0)}</span></div>
             {discountApplied && discountAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}

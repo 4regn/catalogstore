@@ -2695,6 +2695,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 const varStr = Object.entries(i.selectedVariants).map(([k, v]) => `${k}: ${v}`).join(" · ");
                 const cartImg = resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url;
                 const lineOriginal = effectivePrice(i.product, i.selectedVariants) * i.qty;
+                const compareAtOriginal = (Number(i.product.old_price) || 0) * i.qty;
+                const saleSaving = Math.max(0, compareAtOriginal - lineOriginal);
                 const lineDiscount = automaticDiscount.lineDiscounts.find((discount) => discount.lineIndex === idx);
                 const lineFinal = Math.max(0, lineOriginal - (lineDiscount?.amount || 0));
                 return (
@@ -2710,11 +2712,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      {lineDiscount ? (
+                      {(saleSaving > 0 || lineDiscount) ? (
                         <>
-                          <div style={{ fontSize: 11, color: "rgba(46,42,57,.48)", textDecoration: "line-through", marginBottom: 2 }}>{fmt(lineOriginal)}</div>
+                          {saleSaving > 0 && <div style={{ fontSize: 11, color: "rgba(46,42,57,.48)", textDecoration: "line-through", marginBottom: 2 }}>{fmt(compareAtOriginal)}</div>}
+                          {lineDiscount && <div style={{ fontSize: 11, color: "rgba(46,42,57,.48)", textDecoration: "line-through", marginBottom: 2 }}>{fmt(lineOriginal)}</div>}
                           <div className="fr-cart-item-price" style={{ color: "#00751f" }}>{fmt(lineFinal)}</div>
-                          <div style={{ maxWidth: 120, marginTop: 4, color: "#00751f", fontSize: 9, fontWeight: 700, lineHeight: 1.3, textTransform: "uppercase", letterSpacing: ".04em" }}>{lineDiscount.titles.join(" · ")} −{fmt(lineDiscount.amount)}</div>
+                          {saleSaving > 0 && <div style={{ marginTop: 4, color: "#00751f", fontSize: 9, fontWeight: 800, lineHeight: 1.3, textTransform: "uppercase", letterSpacing: ".04em" }}>You save {fmt(saleSaving)}</div>}
+                          {lineDiscount && <div style={{ maxWidth: 120, marginTop: 4, color: "#00751f", fontSize: 9, fontWeight: 700, lineHeight: 1.3, textTransform: "uppercase", letterSpacing: ".04em" }}>{lineDiscount.titles.join(" · ")} −{fmt(lineDiscount.amount)}</div>}
                         </>
                       ) : <div className="fr-cart-item-price">{fmt(lineOriginal)}</div>}
                       <button className="fr-cart-item-rm" onClick={() => removeFromCart(idx)}>Remove</button>
