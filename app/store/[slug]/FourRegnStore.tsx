@@ -2122,11 +2122,44 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sbd-label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .fr-sbd-divider{height:1px;background:#dcdcdc;max-width:1420px;margin:0 auto}
 
+/* Studio Collaboration -- UNIK Labs' AI Studio linked from 4regn's own
+   homepage. The right-hand "how it works" motion is an <iframe> onto the
+   REAL public/private-templates/unik-labs/how-to-demo.html (same static
+   file UNIK's own homepage already embeds, see UnikLabsIframePage.tsx for
+   the identical src-path convention) -- loading="lazy" so it doesn't
+   compete with anything above the fold, and its 14 reference images load
+   as their own document instead of bloating this page's own JS bundle.
+   No new image assets of our own here besides the two brand marks (both
+   through next/image, same "resize to what's displayed" fix already
+   applied to .fr-foot-logo above). */
+.fr-collab{background:radial-gradient(120% 140% at 82% 0%,#111,#050505 62%);color:#f4f2ee}
+.fr-collab-inner{max-width:1420px;margin:0 auto;padding:104px 32px;display:grid;grid-template-columns:1fr .86fr;gap:64px;align-items:center}
+.fr-collab-lockup{display:flex;align-items:center;gap:14px;margin-bottom:38px}
+.fr-collab-mark{font-family:var(--body);font-size:14px;font-weight:700;letter-spacing:.02em;color:#f4f2ee}
+.fr-collab-x{font-size:13px;color:rgba(244,242,238,.4)}
+.fr-collab-eyebrow{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(244,242,238,.5);margin:0 0 18px}
+.fr-collab-title{font-family:var(--body);font-size:clamp(36px,4.2vw,62px);font-weight:700;letter-spacing:-.04em;line-height:.98;text-transform:uppercase;margin:0 0 22px;text-wrap:balance}
+.fr-collab-title em{font-style:normal;color:#00c93d}
+.fr-collab-sub{font-size:15.5px;line-height:1.7;color:rgba(244,242,238,.68);max-width:44ch;margin:0 0 34px}
+.fr-collab-steps{display:flex;flex-wrap:wrap;gap:10px 0;margin:0 0 40px;padding:0;list-style:none}
+.fr-collab-steps li{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(244,242,238,.82);display:flex;align-items:center}
+.fr-collab-steps li:not(:last-child)::after{content:"→";margin:0 14px;color:rgba(244,242,238,.3);font-weight:400}
+.fr-collab-cta-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.fr-collab-cta{display:inline-flex;align-items:center;gap:10px;background:#fff;color:#0a0a0a;padding:16px 30px;border-radius:10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;text-decoration:none;transition:transform .18s ease,box-shadow .18s ease}
+.fr-collab-cta:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.fr-collab-fine{font-size:11.5px;color:rgba(244,242,238,.42)}
+.fr-collab-fine b{color:rgba(244,242,238,.68);font-weight:700}
+.fr-collab-visual{position:relative;display:flex;justify-content:center}
+.fr-collab-visual::before{content:"";position:absolute;inset:-40px -60px;background:radial-gradient(closest-side,rgba(0,117,31,.18),transparent 70%);filter:blur(10px);z-index:0}
+.fr-collab-frame{position:relative;z-index:1;width:100%;max-width:380px;height:520px;border:0;border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.55);background:#0a0a0a}
+
 @media(max-width:980px){
   .fr-sbd-section{padding:72px 0}
   .fr-sbd-stack{gap:54px}
   .fr-sbd-header{padding-left:18px;padding-right:18px}
   .fr-sbd-rail{padding-left:18px;padding-right:18px}
+  .fr-collab-inner{grid-template-columns:1fr;padding:72px 20px 88px;gap:52px}
+  .fr-collab-visual{order:-1}
 }
 
 @media(max-width:620px){
@@ -2138,6 +2171,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-sbd-card{flex-basis:128px}
   .fr-sbd-circle{width:128px;height:128px}
   .fr-sbd-viewall{font-size:9px}
+  .fr-collab-frame{height:460px}
+  .fr-collab-steps{display:none}
 }
 
 .fr-section{max-width:1360px;margin:0 auto;padding:64px 40px}
@@ -3237,6 +3272,47 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     viewAllLabel="Shop all women"
                   />
                 )}
+              </div>
+            </section>
+          </EditSection>
+        )}
+
+        {isHomeView && (
+          <EditSection id="studio-collab">
+            <section className="fr-collab">
+              <div className="fr-collab-inner">
+                <div>
+                  <div className="fr-collab-lockup">
+                    {displayLogo
+                      ? <Image src={displayLogo} alt={seller.store_name} width={100} height={26} style={{ width: "auto", height: 22 }} />
+                      : <span className="fr-collab-mark">{seller.store_name}</span>}
+                    <span className="fr-collab-x">×</span>
+                    <Image src="/private-templates/unik-labs/assets/brand/unik-logo-white-transparent.png" alt="UNIK Labs" width={100} height={22} style={{ width: "auto", height: 15 }} />
+                  </div>
+                  <div className="fr-collab-eyebrow">A Studio Collaboration</div>
+                  <h2 className="fr-collab-title">Turn your photos into <em>something you can wear.</em></h2>
+                  <p className="fr-collab-sub">Create custom hoodies and tees that capture your people, memories and style, made with you through UNIK Labs x 4REGN design studios.</p>
+                  <ul className="fr-collab-steps">
+                    <li>Pick your garment</li>
+                    <li>Add your photos</li>
+                    <li>Make it uniquely yours</li>
+                  </ul>
+                  <div className="fr-collab-cta-row">
+                    <a className="fr-collab-cta" href="https://uniklabs.co.za/studio" target="_blank" rel="noopener noreferrer">
+                      Make Yours
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+                    </a>
+                    <span className="fr-collab-fine">Opens UNIK Labs&rsquo; AI Studio &mdash; <b>uniklabs.co.za</b></span>
+                  </div>
+                </div>
+                <div className="fr-collab-visual">
+                  <iframe
+                    className="fr-collab-frame"
+                    src="/private-templates/unik-labs/how-to-demo.html"
+                    title="UNIK Labs AI Studio — how it works"
+                    loading="lazy"
+                  />
+                </div>
               </div>
             </section>
           </EditSection>
