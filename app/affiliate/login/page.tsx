@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+
+// verify=success|already|invalid|missing|error from
+// /api/affiliate/verify-email's redirect after an affiliate clicks the
+// link in their welcome email.
+const VERIFY_MESSAGES: Record<string, string> = {
+  success: "Email verified — you can now request withdrawals.",
+  already: "That email was already verified.",
+  invalid: "That verification link is invalid or has expired.",
+  missing: "That verification link is missing its token.",
+};
 
 export default function AffiliateLogin() {
   const router = useRouter();
@@ -12,6 +22,17 @@ export default function AffiliateLogin() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [resetSending, setResetSending] = useState(false);
+
+  // Read client-side only (not useSearchParams(), which would force this
+  // page back into SSR bailout -- same fix already applied across every
+  // storefront template this session).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const status = new URLSearchParams(window.location.search).get("verify");
+    if (!status) return;
+    const message = VERIFY_MESSAGES[status];
+    if (message) (status === "success" || status === "already" ? setInfo : setError)(message);
+  }, []);
 
   async function handleReset() {
     setError(""); setInfo("");

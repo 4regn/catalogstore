@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
+import { sendEmail } from "../../../../lib/email";
+
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+
 // Server-side admin client (uses service role — bypasses RLS, runs server-only)
 export async function POST(req: NextRequest) {
   try {
@@ -134,6 +138,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ─── 5. CREATE AFFILIATE RECORD ───────────────────────
+    const emailVerificationToken = crypto.randomUUID();
     const { error: insertErr } = await getAdmin().from("affiliates").insert({
       user_id: authData.user.id,
       slug,
@@ -146,6 +151,8 @@ export async function POST(req: NextRequest) {
       account_type: accountType,
       branch_code: branchCode,
       email_verified: false,
+      email_verification_token: emailVerificationToken,
+      email_verification_sent_at: new Date().toISOString(),
       status: "active",
     });
 
@@ -159,9 +166,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ─── 6. SEND VERIFICATION EMAIL (Resend) ──────────────
-    // We'll wire this up properly in a later step — for now just log
-    // TODO: send verification email + welcome email via Resend
+    // ─── 6. SEND WELCOME + VERIFICATION EMAIL (Resend) ────
+    // Verification is separate from Supabase Auth's own email_confirm
+    // (already true above, so they can log in immediately) -- it gates
+    // withdrawals specifically (affiliates.email_verified), so a signup
+    // typo'd email can't collect a real payout. Non-blocking: a failed
+    // send shouldn't fail the signup itself, same reasoning as every
+    // other notify-*-style call in this codebase.
+    const verifyUrl = `${APP_ORIGIN}/api/affiliate/verify-email?token=${emailVerificationToken}`;
+    sendEmail({
+      to: email,
+      subject: "Welcome to the CatalogStore Affiliate Program",
+      html: `
+        <div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
+          <h2 style="margin:0 0 12px">Welcome, ${fullName.split(" ")[0] || fullName}!</h2>
+          <p style="margin:0 0 16px;line-height:1.6">Your affiliate account is ready. Your referral link:</p>
+          <p style="margin:0 0 20px"><a href="https://catalogstore.co.za/?ref=${slug}" style="color:#ff6b35;font-weight:600">catalogstore.co.za/?ref=${slug}</a></p>
+          <p style="margin:0 0 16px;line-height:1.6">One more step before you can request a withdrawal: confirm this is really your email address.</p>
+          <p style="margin:0 0 20px"><a href="${verifyUrl}" style="display:inline-block;padding:12px 28px;background:#ff6b35;color:#fff;text-decoration:none;border-radius:100px;font-weight:700">Verify my email</a></p>
+          <p style="margin:0;font-size:13px;color:#666">If that button doesn't work, paste this link into your browser: ${verifyUrl}</p>
+        </div>
+      `,
+    }).catch(() => {});
 
     return NextResponse.json({
       ok: true,

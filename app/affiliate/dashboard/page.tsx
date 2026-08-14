@@ -73,6 +73,7 @@ type Affiliate = {
   accountType: "cheque" | "savings" | null;
   branchCode: string | null;
   photoUrl: string | null;
+  emailVerified: boolean;
 };
 
 type Referral = {
@@ -115,6 +116,7 @@ export default function AffiliateDashboard() {
   const [affiliate, setAffiliate] = useState<Affiliate | null>(null);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [tab, setTab] = useState<"all" | "active" | "trial">("all");
   const [toast, setToast] = useState("");
@@ -254,9 +256,24 @@ export default function AffiliateDashboard() {
       showToast(`Need at least R${MIN_WITHDRAW_R} to withdraw`);
       return;
     }
+    if (!affiliate.emailVerified) {
+      showToast("Verify your email first -- check your inbox for the link from signup");
+      return;
+    }
     if (!confirm(`Request withdrawal of ${formatR(affiliate.availableBalance)}?`)) return;
-    showToast("Withdrawal feature coming soon");
-    // TODO: wire up withdrawal request endpoint
+    setWithdrawing(true);
+    try {
+      const res = await authedFetch("/api/affiliate/withdrawals", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || "Could not request withdrawal"); return; }
+      showToast(`Withdrawal of ${formatR(data.withdrawal.amount)} requested`);
+      setAffiliate((prev) => (prev ? { ...prev, availableBalance: 0 } : prev));
+      setWithdrawals((prev) => [data.withdrawal, ...prev]);
+    } catch {
+      showToast("Network error -- try again");
+    } finally {
+      setWithdrawing(false);
+    }
   }
 
   async function signOut() {
@@ -568,12 +585,16 @@ export default function AffiliateDashboard() {
 
           <button
             onClick={handleWithdraw}
-            style={{ ...styles.withdrawBtn, ...styles.withdrawBtnDisabled }}
-            disabled
-            title="Withdrawals will open once the payout system is live"
+            style={canWithdraw && affiliate.emailVerified && !withdrawing ? styles.withdrawBtn : { ...styles.withdrawBtn, ...styles.withdrawBtnDisabled }}
+            disabled={!canWithdraw || !affiliate.emailVerified || withdrawing}
+            title={!affiliate.emailVerified ? "Verify your email first -- check your inbox" : !canWithdraw ? `Need at least R${MIN_WITHDRAW_R} to withdraw` : undefined}
           >
-            {canWithdraw
-              ? `${formatR(affiliate.availableBalance)} available · Withdrawals coming soon`
+            {withdrawing
+              ? "Requesting…"
+              : !affiliate.emailVerified
+              ? `${formatR(affiliate.availableBalance)} available · Verify email to withdraw`
+              : canWithdraw
+              ? `Withdraw ${formatR(affiliate.availableBalance)}`
               : `R${fromCents(affiliate.availableBalance)} available · min R${MIN_WITHDRAW_R} to withdraw`}
           </button>
 
