@@ -494,6 +494,11 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   const [overrideEmail, setOverrideEmail] = useState("");
   const [testEmail, setTestEmail] = useState("");
   const [testName, setTestName] = useState("");
+  // Standalone-test only (see below) -- a real customer's "approved" resend
+  // always uses their true approved_limit, never an admin-typed override,
+  // so a live customer can never be shown a number that doesn't match
+  // their actual account.
+  const [testAmount, setTestAmount] = useState("");
   // Only meaningful for emailType === "approved" -- the seller supplied
   // two different designs for the same approval email depending on
   // whether this is a first-time starter limit or a standard one, see
@@ -526,13 +531,17 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
     } else if (testReady) {
       const res = await authedFetch(`/api/setla/admin/send-test-email`, {
         method: "POST",
-        body: JSON.stringify({ emailType, to: testEmail.trim(), firstName: testName.trim(), limitVariant: emailType === "approved" ? limitVariant : undefined }),
+        body: JSON.stringify({
+          emailType, to: testEmail.trim(), firstName: testName.trim(),
+          limitVariant: emailType === "approved" ? limitVariant : undefined,
+          amount: emailType === "approved" && testAmount.trim() ? Number(testAmount) : undefined,
+        }),
       });
       const payload = await res.json().catch(() => ({}));
       setBusy(false);
       if (!res.ok) { toast(payload.error || "Could not send this email"); return; }
       toast(`Test sent to ${testEmail.trim()}`);
-      setTestEmail(""); setTestName("");
+      setTestEmail(""); setTestName(""); setTestAmount("");
     } else {
       setBusy(false);
     }
@@ -586,6 +595,12 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
               Addressed to (name)
               <input className="sad-input" type="text" placeholder="e.g. Thabo" value={testName} onChange={(e) => setTestName(e.target.value)} />
             </label>
+            {emailType === "approved" && (
+              <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 140px" }}>
+                Amount (R)
+                <input className="sad-input" type="number" min="0" placeholder={limitVariant === "starter" ? "e.g. 1000" : "e.g. 2000"} value={testAmount} onChange={(e) => setTestAmount(e.target.value)} />
+              </label>
+            )}
             <button type="button" className="sad-btn" disabled={!testReady || busy} onClick={handleSend}>{busy ? "Sending…" : "Send test"}</button>
           </div>
         </>

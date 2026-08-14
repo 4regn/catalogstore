@@ -30,8 +30,14 @@ export async function POST(req: NextRequest) {
   if (!firstName) return NextResponse.json({ error: "Enter a name for the email to be addressed to" }, { status: 400 });
 
   const limitVariant = body.limitVariant === "starter" ? "starter" : "standard";
+  // Admin-typed test amount, if given -- falls back to a variant-appropriate
+  // sample (same as before this could be overridden) when left blank or
+  // invalid, so the field is genuinely optional, not a second required input.
+  const requestedAmount = Number(body.amount);
+  const defaultAmount = limitVariant === "starter" ? SETLA_STARTER_SAMPLE_LIMIT : SETLA_SAMPLE_LIMIT;
+  const amount = Number.isFinite(requestedAmount) && requestedAmount > 0 ? requestedAmount : defaultAmount;
   if (emailType === "approved") {
-    await sendApprovedSetlaLimitEmail({ to, firstName, approvedLimit: limitVariant === "starter" ? SETLA_STARTER_SAMPLE_LIMIT : SETLA_SAMPLE_LIMIT, variant: limitVariant });
+    await sendApprovedSetlaLimitEmail({ to, firstName, approvedLimit: amount, variant: limitVariant });
   } else {
     const content = type.content(firstName);
     await sendSetlaEmail({ ...content, to });
@@ -41,7 +47,7 @@ export async function POST(req: NextRequest) {
     admin_email: auth.admin.email,
     action: "setla_test_email",
     target_seller_id: null,
-    details: { emailType, to, firstName, limitVariant: emailType === "approved" ? limitVariant : undefined },
+    details: { emailType, to, firstName, limitVariant: emailType === "approved" ? limitVariant : undefined, amount: emailType === "approved" ? amount : undefined },
   });
 
   return NextResponse.json({ success: true });
