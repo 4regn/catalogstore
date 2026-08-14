@@ -1178,7 +1178,15 @@ export default function Dashboard() {
   // lib/setla-instalments.ts). Both plan-specific values are kept here
   // too, for any order created before that change.
   const UNRESOLVED_PAYMENT_METHODS = ["payfast", "yoco", "setla", "setla_pay_later", "setla_laybuy"];
-  const isUnpaidGatewayOrder = (o: Order) => UNRESOLVED_PAYMENT_METHODS.includes(o.payment_method) && (o.payment_status === "pending" || o.payment_status === "abandoned");
+  // Includes "failed" as of this pass -- a real gateway decline
+  // (lib/unik-orders.ts's markUnikOrderFailed, fired by the Yoco webhook's
+  // payment.failed event) was being written to payment_status correctly,
+  // but this filter only ever checked for pending/abandoned, so a declined
+  // card fell through to visibleOrders instead -- mixed in with real paid
+  // orders, no distinct badge, no visibility into the fact a customer
+  // actually tried to pay and got declined. That's the real gap: the data
+  // already existed, it just wasn't being shown anywhere.
+  const isUnpaidGatewayOrder = (o: Order) => UNRESOLVED_PAYMENT_METHODS.includes(o.payment_method) && (o.payment_status === "pending" || o.payment_status === "abandoned" || o.payment_status === "failed");
   const visibleOrders = orders.filter((o) => !isUnpaidGatewayOrder(o));
   const abandonedOrders = orders.filter(isUnpaidGatewayOrder);
   const totalImageSlots = existingImages.length + formImages.length;
@@ -2748,23 +2756,43 @@ export default function Dashboard() {
 
           {tab === "abandoned" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Abandoned Checkouts</h1>
-            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Customers who started checkout (card, Yoco, Stitch or SETLA) but didn't complete payment.</p>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 10 }}>Customers who started checkout (card, Yoco, Stitch or SETLA) but didn't complete payment.</p>
+            <div style={{ padding: "12px 16px", background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 12, marginBottom: 24, fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
+              Every order below already reached the "place order" step -- their name, delivery address and cart are all real and shown below. <strong style={{ color: "var(--text)" }}>Payment Declined</strong> means their card was actually rejected by the gateway; <strong style={{ color: "var(--text)" }}>Awaiting Payment</strong> means they were redirected to pay and haven't resolved it yet; <strong style={{ color: "var(--text)" }}>Abandoned</strong> means over an hour has passed with no resolution either way. This doesn't include visitors who added items to a cart but never reached checkout at all -- that earlier stage isn't tracked as a saved record yet.
+            </div>
             {abandonedOrders.length === 0 ? (
               <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No abandoned checkouts</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>When customers leave without paying, they'll show up here.</p></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {abandonedOrders.map((order) => (
-                  <div key={order.id} style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 12, marginBottom: 10 }}>
-                      <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{displayOrderReference(order)} - {order.customer_name || "Unknown"}</div><div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>{order.customer_email} {order.customer_phone ? " / " + order.customer_phone : ""}</div></div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 16, fontWeight: 900 }}>R{order.total}</span><span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: "rgba(255,107,53,0.08)", color: "#ff6b35" }}>Abandoned</span></div>
+                {abandonedOrders.map((order) => {
+                  const statusMeta =
+                    order.payment_status === "failed" ? { label: "Payment Declined", bg: "rgba(239,68,68,0.1)", fg: "#ef4444" } :
+                    order.payment_status === "abandoned" ? { label: "Abandoned", bg: "rgba(255,107,53,0.08)", fg: "#ff6b35" } :
+                    { label: "Awaiting Payment", bg: "rgba(251,191,36,0.1)", fg: "#fbbf24" };
+                  const methodLabel: Record<string, string> = { yoco: "Yoco", payfast: "PayFast", setla: "SETLA", setla_pay_later: "SETLA Pay Later", setla_laybuy: "SETLA Laybuy", stitch: "Stitch" };
+                  const addr = order.shipping_address;
+                  return (
+                    <div key={order.id} style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 12, marginBottom: 10 }}>
+                        <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{displayOrderReference(order)} - {order.customer_name || "Unknown"}</div><div style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>{order.customer_email} {order.customer_phone ? " / " + order.customer_phone : ""}</div></div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" as const }}>
+                          <span style={{ fontSize: 16, fontWeight: 900 }}>R{order.total}</span>
+                          <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: "var(--panel-2)", color: "var(--muted)", border: "1px solid var(--border)" }}>{methodLabel[order.payment_method] || order.payment_method}</span>
+                          <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: statusMeta.bg, color: statusMeta.fg }}>{statusMeta.label}</span>
+                        </div>
+                      </div>
+                      {addr && (
+                        <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
+                          {[addr.address, addr.apartment, addr.city, addr.province, addr.postal_code].filter(Boolean).join(", ")}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, fontSize: 11, color: "var(--muted-2)" }}>
+                        {(order.items || []).map((item, i) => (<span key={i} style={{ padding: "4px 10px", background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--border)" }}>{item.name} x{item.qty}</span>))}
+                        <span style={{ marginLeft: "auto" }}>{new Date(order.created_at).toLocaleString()}</span>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, fontSize: 11, color: "var(--muted-2)" }}>
-                      {(order.items || []).map((item, i) => (<span key={i} style={{ padding: "4px 10px", background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--border)" }}>{item.name} x{item.qty}</span>))}
-                      <span style={{ marginLeft: "auto" }}>{new Date(order.created_at).toLocaleString()}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>)}
