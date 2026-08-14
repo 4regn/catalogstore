@@ -1589,6 +1589,8 @@ export default function Dashboard() {
         @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0) !important; } .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 72px !important; padding-bottom: 84px !important; } .mobile-bottom-nav { display: flex !important; } .stats-grid { grid-template-columns: repeat(2, 1fr) !important; } .form-grid-3 { grid-template-columns: 1fr !important; } .actions-grid { grid-template-columns: 1fr !important; } .quick-actions-grid { grid-template-columns: repeat(2, 1fr) !important; } .overview-panels-grid { grid-template-columns: 1fr !important; } .hero-row { grid-template-columns: 1fr !important; } .product-row-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; } .product-actions { flex-wrap: wrap !important; } .templates-grid { grid-template-columns: 1fr !important; } .logo-banner-grid { grid-template-columns: 1fr !important; } }
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,0.45)}70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+        @keyframes liveRowIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
 
       {orderNotification && (
@@ -2598,58 +2600,73 @@ export default function Dashboard() {
           {tab === "live" && (<div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
               <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const }}>Live Visitors</h1>
-              {liveVisitors.length > 0 && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 4px rgba(34,197,94,0.18)" }} />}
+              {liveVisitors.length > 0 && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#22c55e", animation: "livePulse 2s infinite" }} />}
             </div>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Who's on your store right now -- browsing, has an active cart, or is at checkout. Refreshes every 10 seconds.</p>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
-              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Live now</div>
-                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{liveVisitors.length}</div>
+            {/* HERO: live-now count, oversized, with the rest of today's numbers alongside it */}
+            <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }} className="stats-grid">
+              <div style={{ position: "relative" as const, padding: "20px 22px", background: "linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.02))", border: "1px solid rgba(34,197,94,0.22)", borderRadius: 16, overflow: "hidden" }}>
+                <div style={{ position: "absolute" as const, top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: "rgba(34,197,94,0.12)", filter: "blur(2px)" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", animation: liveVisitors.length > 0 ? "livePulse 2s infinite" : "none" }} />
+                  <span style={{ fontSize: 10, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 800 }}>Live now</span>
+                </div>
+                <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1, position: "relative" as const }}>{liveVisitors.length}</div>
+                <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 6 }}>{liveVisitors.filter((v) => v.status === "checkout").length} at checkout &middot; {liveVisitors.filter((v) => v.status === "active_cart").length} with a cart</div>
               </div>
-              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Sessions today</div>
-                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{sessionAnalytics?.sessionsToday ?? "—"}</div>
-              </div>
-              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Orders today</div>
-                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>{sessionAnalytics?.ordersToday ?? "—"}</div>
-              </div>
-              <div style={{ padding: "16px 18px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-                <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Sales today</div>
-                <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em" }}>R{Math.round(sessionAnalytics?.salesToday ?? 0)}</div>
-              </div>
+              {[
+                { label: "Sessions today", value: sessionAnalytics?.sessionsToday ?? "—", icon: "eye" as DashIconName, color: "#60a5fa" },
+                { label: "Orders today", value: sessionAnalytics?.ordersToday ?? "—", icon: "orders" as DashIconName, color: "#fbbf24" },
+                { label: "Sales today", value: "R" + Math.round(sessionAnalytics?.salesToday ?? 0), icon: "trend-up" as DashIconName, color: "#ff6b35" },
+              ].map((s) => (
+                <div key={s.label} style={{ padding: "20px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                    <DashIcon name={s.icon} size={15} stroke={1.8} />
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.05em", fontWeight: 700, marginTop: 6 }}>{s.label}</div>
+                </div>
+              ))}
             </div>
 
             {sessionAnalytics && (
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 24 }}>
-                <div style={{ padding: "18px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 14 }}>Sessions by day</div>
-                  <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 24 }} className="overview-panels-grid">
+                <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Sessions by day</div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 84 }}>
                     {sessionAnalytics.dailySessions.map((d) => {
                       const max = Math.max(1, ...sessionAnalytics.dailySessions.map((x) => x.sessions));
                       const dayLabel = new Date(d.date + "T00:00:00Z").getUTCDate();
                       return (
-                        <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                          <div style={{ width: "100%", height: Math.max(2, Math.round((d.sessions / max) * 64)), background: d.sessions > 0 ? "#ff6b35" : "var(--input-bg)", borderRadius: 3 }} />
+                        <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: "100%", height: Math.max(3, Math.round((d.sessions / max) * 68)), background: d.sessions > 0 ? "linear-gradient(180deg, #ff8a5c, #ff6b35)" : "var(--input-bg)", borderRadius: "4px 4px 2px 2px", transition: "height 0.3s" }} />
                           <span style={{ fontSize: 8, color: "var(--muted-2)" }}>{dayLabel}</span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-                <div style={{ padding: "18px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
-                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 14 }}>Top locations · 30 days</div>
+                <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Top locations &middot; 30 days</div>
                   {sessionAnalytics.topLocations.length === 0 ? (
                     <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No location data yet.</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {sessionAnalytics.topLocations.map((loc, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                          <span>{[loc.city, loc.region, loc.country].filter(Boolean).join(", ") || "Unknown"}</span>
-                          <strong>{loc.count}</strong>
-                        </div>
-                      ))}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {(() => {
+                        const topMax = Math.max(1, ...sessionAnalytics.topLocations.map((l) => l.count));
+                        return sessionAnalytics.topLocations.map((loc, i) => (
+                          <div key={i}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
+                              <span style={{ color: "var(--text)" }}>{[loc.city, loc.region, loc.country].filter(Boolean).join(", ") || "Unknown"}</span>
+                              <strong>{loc.count}</strong>
+                            </div>
+                            <div style={{ height: 4, borderRadius: 2, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                              <div style={{ width: `${Math.max(6, Math.round((loc.count / topMax) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #ff6b35, #ff8a5c)", borderRadius: 2 }} />
+                            </div>
+                          </div>
+                        ));
+                      })()}
                     </div>
                   )}
                 </div>
@@ -2659,22 +2676,49 @@ export default function Dashboard() {
             {liveVisitors.length === 0 ? (
               <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No one's on your store right now</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>As soon as someone visits, they'll show up here.</p></div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {liveVisitors.map((v) => {
-                  const meta = liveVisitorMeta(v.status);
-                  return (
-                    <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12 }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{v.customer_name || v.customer_email || "Anonymous visitor"}</div>
-                        <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}>
-                          <span>{v.path || "/"}</span><span>{timeAgo(v.last_seen_at)}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {[...liveVisitors]
+                  .sort((a, b) => {
+                    const rank = (s: string) => (s === "checkout" ? 0 : s === "active_cart" ? 1 : 2);
+                    return rank(a.status) - rank(b.status) || +new Date(b.last_seen_at) - +new Date(a.last_seen_at);
+                  })
+                  .map((v, i) => {
+                    const meta = liveVisitorMeta(v.status);
+                    const icon: DashIconName = v.status === "checkout" ? "payment" : v.status === "active_cart" ? "cart" : "eye";
+                    const initials = (v.customer_name || v.customer_email || "?").trim().charAt(0).toUpperCase();
+                    return (
+                      <div
+                        key={v.id}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 14, padding: "14px 18px",
+                          background: "var(--panel)", border: "1px solid " + (v.status === "checkout" ? "rgba(34,197,94,0.3)" : "var(--border)"),
+                          borderLeft: "3px solid " + meta.fg, borderRadius: 12, flexWrap: "wrap" as const,
+                          boxShadow: v.status === "checkout" ? "0 10px 24px -14px rgba(34,197,94,0.45)" : "0 6px 16px -12px rgba(0,0,0,0.3)",
+                          animation: `liveRowIn 0.25s ease ${Math.min(i, 8) * 0.03}s both`,
+                        }}
+                      >
+                        <div style={{ width: 38, height: 38, borderRadius: 11, background: meta.bg, color: meta.fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 800, fontSize: 14, position: "relative" as const }}>
+                          {v.customer_name || v.customer_email ? initials : <DashIcon name={icon} size={16} stroke={1.8} />}
                         </div>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{v.customer_name || v.customer_email || "Anonymous visitor"}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, color: "var(--muted-2)", fontWeight: 600 }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 100, background: "var(--input-bg)", textTransform: "none" as const, letterSpacing: 0, maxWidth: 220, overflow: "hidden" as const, textOverflow: "ellipsis" as const, whiteSpace: "nowrap" as const }}>{v.path || "/"}</span>
+                            <span style={{ textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{timeAgo(v.last_seen_at)}</span>
+                          </div>
+                        </div>
+                        {v.cart_item_count > 0 && (
+                          <div style={{ textAlign: "right" as const }}>
+                            <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: "-0.03em" }}>R{Math.round(v.cart_value)}</div>
+                            <div style={{ fontSize: 10, color: "var(--muted-2)" }}>{v.cart_item_count} item{v.cart_item_count === 1 ? "" : "s"}</div>
+                          </div>
+                        )}
+                        <span style={{ padding: "6px 12px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: meta.bg, color: meta.fg, display: "flex", alignItems: "center", gap: 5 }}>
+                          <DashIcon name={icon} size={10} stroke={2} />{meta.label}
+                        </span>
                       </div>
-                      {v.cart_item_count > 0 && <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em" }}>R{Math.round(v.cart_value)} · {v.cart_item_count} item{v.cart_item_count === 1 ? "" : "s"}</div>}
-                      <span style={{ padding: "5px 10px", borderRadius: 100, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", background: meta.bg, color: meta.fg }}>{meta.label}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             )}
           </div>)}
