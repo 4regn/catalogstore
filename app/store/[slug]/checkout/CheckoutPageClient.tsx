@@ -339,7 +339,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<{ order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; _processing?: boolean } | null>(null);
+  const [paidOrder, setPaidOrder] = useState<{ order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; _processing?: boolean; _timedOut?: boolean } | null>(null);
   const storefrontCartKey = `catalogstore-cart-v1:${(initialSeller?.subdomain || slug).toLowerCase()}`;
 
   // Keep the saved cart during a cancelled/failed/pending gateway attempt so
@@ -405,7 +405,16 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
 
   /* While we're showing the "Processing payment" state, poll the order
      every 3 seconds for up to 90 seconds so the page flips to "Confirmed"
-     as soon as PayFast's ITN lands. */
+     as soon as PayFast's/Yoco's ITN or webhook lands. This is the ONLY
+     resolution path for Stitch specifically -- its webhook has exactly one
+     event type (payment.paid, see stitch-webhook/route.ts's own comment)
+     and its static return page (stitch-return/page.tsx) can't distinguish
+     a successful payment from a cancelled/declined one, so a customer who
+     backs out of Stitch lands right back here with _processing:true and
+     nothing will ever flip it. Previously this loop just gave up silently
+     at 30 attempts, leaving that customer stuck on "Almost there..."
+     forever -- now it flips _timedOut so the confirmation screens below
+     can offer a "Try again" action instead of a dead end. */
   useEffect(() => {
     if (!paidOrder?._processing || !paidOrder?.order_number) return;
     let count = 0;
@@ -419,11 +428,66 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         setPaidOrder({ ...data, _processing: false });
         clearInterval(id);
       } else if (count >= 30) {
+        setPaidOrder((prev) => (prev ? { ...prev, _timedOut: true } : prev));
         clearInterval(id);
       }
     }, 3000);
     return () => clearInterval(id);
   }, [paidOrder?._processing, paidOrder?.order_number, slug]);
+
+  /* Shared by load()'s cancelled/declined-Yoco/PayFast restore path AND the
+     "Try again" action on a timed-out Stitch order below -- refills the
+     whole form (not just the cart) from an already-placed order's own
+     saved fields so the customer doesn't retype contact/delivery details.
+     Takes the order object directly rather than re-fetching, since both
+     callers already have one in hand (the restore fetch in load(), or
+     paidOrder itself, which /api/checkout/order-status already returns in
+     the same shape). */
+  const restoreFormFromOrder = async (order: any, sd: any) => {
+    setEmail(order.customer_email || "");
+    setPhone(order.customer_phone || "");
+    const nameParts = String(order.customer_name || "").split(" ");
+    setFirstName(nameParts[0] || "");
+    setLastName(nameParts.slice(1).join(" ") || "");
+    if (order.shipping_address) {
+      setFulfillment("delivery");
+      setAddress(order.shipping_address.address || "");
+      setApartment(order.shipping_address.apartment || "");
+      setCity(order.shipping_address.city || "");
+      setProvince(order.shipping_address.province || "Gauteng");
+      setPostalCode(order.shipping_address.postal_code || "");
+    } else if (order.fulfillment_method === "pickup") {
+      setFulfillment("pickup");
+    }
+    const shippingOptions = sd?.checkout_config?.shipping_options || [];
+    const matchedShippingIdx = shippingOptions.findIndex((o: any) => o.name === order.shipping_option);
+    if (matchedShippingIdx !== -1) setShippingOption(matchedShippingIdx);
+    if (["eft", "payfast", "yoco", "stitch", "setla", "float"].includes(order.payment_method)) {
+      setPaymentMethod(order.payment_method);
+    }
+    if (Array.isArray(order.items) && order.items.length) setCart(order.items);
+    if (order.discount_code && sd) {
+      const { data: discountRow } = await supabase.from("discount_codes").select("code, type, value, applies_to, product_ids, collection_names").eq("seller_id", sd.id).eq("code", order.discount_code).maybeSingle();
+      if (discountRow) {
+        setDiscountCode(discountRow.code);
+        setDiscountApplied({ code: discountRow.code, type: discountRow.type, value: discountRow.value, applies_to: discountRow.applies_to || "cart", product_ids: discountRow.product_ids || [], collection_names: discountRow.collection_names || [] });
+      }
+    }
+  };
+
+  /* "Try again" on a timed-out Stitch (or any gateway's) processing screen
+     -- drops the customer straight back into a fully-prefilled live
+     checkout form, no page reload/redirect-URL round trip needed since we
+     already have the full order in `paidOrder`. Placing a fresh order here
+     mints a new orders row (same as the existing cancelled/declined Yoco/
+     PayFast retry path already does via placeOrder()), so there's no risk
+     of double-submitting the original stuck order. */
+  const retryFromTimedOutOrder = async () => {
+    if (!paidOrder) return;
+    await restoreFormFromOrder(paidOrder, seller);
+    setOrderError("We couldn't confirm your payment automatically. Please check your details and try again.");
+    setPaidOrder(null);
+  };
 
   const load = async () => {
     const p = new URLSearchParams(window.location.search);
@@ -522,36 +586,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     if (restoreOrderId && sd) {
       const restoreRes = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(restoreOrderId)}`, { cache: "no-store" }).catch(() => null);
       const { order: restoreOrder } = restoreRes ? await restoreRes.json().catch(() => ({ order: null })) : { order: null };
-      if (restoreOrder) {
-        setEmail(restoreOrder.customer_email || "");
-        setPhone(restoreOrder.customer_phone || "");
-        const nameParts = String(restoreOrder.customer_name || "").split(" ");
-        setFirstName(nameParts[0] || "");
-        setLastName(nameParts.slice(1).join(" ") || "");
-        if (restoreOrder.shipping_address) {
-          setFulfillment("delivery");
-          setAddress(restoreOrder.shipping_address.address || "");
-          setApartment(restoreOrder.shipping_address.apartment || "");
-          setCity(restoreOrder.shipping_address.city || "");
-          setProvince(restoreOrder.shipping_address.province || "Gauteng");
-          setPostalCode(restoreOrder.shipping_address.postal_code || "");
-        } else if (restoreOrder.fulfillment_method === "pickup") {
-          setFulfillment("pickup");
-        }
-        const shippingOptions = sd.checkout_config?.shipping_options || [];
-        const matchedShippingIdx = shippingOptions.findIndex((o: any) => o.name === restoreOrder.shipping_option);
-        if (matchedShippingIdx !== -1) setShippingOption(matchedShippingIdx);
-        if (["eft", "payfast", "yoco", "stitch", "setla", "float"].includes(restoreOrder.payment_method)) {
-          setPaymentMethod(restoreOrder.payment_method);
-        }
-        if (restoreOrder.discount_code) {
-          const { data: discountRow } = await supabase.from("discount_codes").select("code, type, value, applies_to, product_ids, collection_names").eq("seller_id", sd.id).eq("code", restoreOrder.discount_code).maybeSingle();
-          if (discountRow) {
-            setDiscountCode(discountRow.code);
-            setDiscountApplied({ code: discountRow.code, type: discountRow.type, value: discountRow.value, applies_to: discountRow.applies_to || "cart", product_ids: discountRow.product_ids || [], collection_names: discountRow.collection_names || [] });
-          }
-        }
-      }
+      // Not passed through restoreFormFromOrder's setCart(order.items) --
+      // the cart= param above (or storefrontCartKey) is already this
+      // request's source of truth for the live cart here, unlike the
+      // timed-out-Stitch retry path which has no such param to fall back
+      // on and needs the order's own items instead.
+      if (restoreOrder) await restoreFormFromOrder({ ...restoreOrder, items: undefined }, sd);
     }
     /* Decode + validate cart from URL. Any malformed item would otherwise
        produce NaN totals and an unclickable "Pay Now RNaN" button. Prices
@@ -1032,7 +1072,13 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           </header>
           <main className="confirm-main">
             <div className="confirm-hero">
-              {paidOrder._processing ? (
+              {paidOrder._processing && paidOrder._timedOut ? (
+                <>
+                  <div className="confirm-icon pending"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                  <h1>We couldn&rsquo;t confirm this payment</h1>
+                  <p>Thanks {paidOrder.customer_name}, your order is saved but we haven&rsquo;t received confirmation from your payment provider yet. If you completed payment, check your email for the receipt &mdash; otherwise you can try again below.</p>
+                </>
+              ) : paidOrder._processing ? (
                 <>
                   <div className="confirm-icon pending"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
                   <h1>Almost there…</h1>
@@ -1065,7 +1111,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             </div>
 
             <div className="confirm-actions">
-              <a className="pay-btn" href={sp()} style={{ textDecoration: "none", display: "block" }}>Continue shopping</a>
+              {paidOrder._processing && paidOrder._timedOut ? (
+                <button type="button" className="pay-btn" style={{ display: "block", width: "100%" }} onClick={() => { retryFromTimedOutOrder(); }}>Try again</button>
+              ) : (
+                <a className="pay-btn" href={sp()} style={{ textDecoration: "none", display: "block" }}>Continue shopping</a>
+              )}
               <a className="return" href={sp("/track")}>Track my order</a>
             </div>
           </main>
@@ -1081,7 +1131,13 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "60px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           {seller?.logo_url ? <Image src={seller.logo_url} alt="" width={180} height={40} sizes="180px" style={{ width: "auto", height: 40, maxWidth: 180, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
-          {paidOrder._processing ? (
+          {paidOrder._processing && paidOrder._timedOut ? (
+            <>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>We couldn&rsquo;t confirm this payment</h1>
+              <p style={{ color: T.muted, fontSize: 14 }}>Order {checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn)}</p>
+            </>
+          ) : paidOrder._processing ? (
             <>
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
               <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>Processing payment…</h1>
@@ -1096,9 +1152,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           )}
         </div>
         <div style={{ background: T.card, borderRadius: 16, padding: 28, marginBottom: 24, border: "1px solid " + T.border }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: paidOrder._processing ? "#fbbf24" : "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{paidOrder._processing ? "Awaiting Confirmation" : "Order Confirmed"}</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: paidOrder._processing ? "#fbbf24" : "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{paidOrder._processing ? (paidOrder._timedOut ? "Payment Not Confirmed" : "Awaiting Confirmation") : "Order Confirmed"}</h3>
           <p style={{ fontSize: 14, lineHeight: 1.8, color: T.muted, marginBottom: 20 }}>{paidOrder._processing
-            ? `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for confirmation from your payment provider. This page will update automatically, or check your email for the receipt.`
+            ? (paidOrder._timedOut
+              ? `Thanks ${paidOrder.customer_name}, your order is saved but we haven't received confirmation from your payment provider yet. If you completed payment, check your email for the receipt -- otherwise you can try again below.`
+              : `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for confirmation from your payment provider. This page will update automatically, or check your email for the receipt.`)
             : `Thank you ${paidOrder.customer_name}! Your payment has been received and your order is being processed. You'll receive updates via email.`}</p>
           <div style={{ borderTop: "1px solid " + T.border, paddingTop: 16 }}>
             {(paidOrder.items || []).map((item: any, i: number) => (
@@ -1114,7 +1172,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           </div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <a href={sp()} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Continue Shopping</a>
+          {paidOrder._processing && paidOrder._timedOut ? (
+            <button type="button" onClick={() => { retryFromTimedOutOrder(); }} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", border: "none", cursor: "pointer" }}>Try Again</button>
+          ) : (
+            <a href={sp()} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Continue Shopping</a>
+          )}
         </div>
       </div>
     </div>
