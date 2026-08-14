@@ -1,0 +1,13 @@
+{
+  "name": "CatalogStore Dashboard",
+  "short_name": "CatalogStore",
+  "start_url": "/dashboard",
+  "scope": "/dashboard",
+  "display": "standalone",
+  "background_color": "#030303",
+  "theme_color": "#030303",
+  "icons": [
+    { "src": "/cs-icon.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/cs-apple-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
