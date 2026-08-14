@@ -167,6 +167,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .paxi-point-box{margin-top:12px;padding:14px;border:1px solid rgba(0,124,137,.18);border-radius:14px;background:rgba(0,124,137,.045)}
 .fr-checkout-v2 .paxi-point-box label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#007c89;margin-bottom:7px}
 .fr-checkout-v2 .paxi-point-box input{width:100%;padding:13px 14px;border:1px solid #d9e5e6;border-radius:10px;background:#fff;font-size:13px;outline:none}
+.fr-checkout-v2 .paxi-point-action{display:block;width:100%;margin:0 0 10px;padding:12px 14px;border:1px solid #007c89;border-radius:999px;background:#fff;color:#007c89;text-align:center;text-decoration:none;font-size:12px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}
 .fr-checkout-v2 .paxi-point-hint{font-size:11.5px;color:#707070;margin:8px 0 0;line-height:1.45}
 .fr-checkout-v2 .payment-title-note{font-weight:400;color:#5f5f5f;font-size:11px;letter-spacing:.015em;white-space:nowrap}
 .fr-checkout-v2 .card-brand-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}
@@ -1314,18 +1315,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       {fulfillment === "pickup" && cc.pickup_instructions && <div className="payment-note" style={{ whiteSpace: "pre-wrap" }}>{cc.pickup_instructions}</div>}
                     </div>
                   </div>
-                  {selectedIsPaxi && (
-                    <div className="paxi-point-box">
-                      <label>Selected PAXI point</label>
-                      <input
-                        type="text"
-                        value={paxiPoint}
-                        onChange={(e) => setPaxiPoint(e.target.value)}
-                        placeholder="Example: P7334 · Durban CBD"
-                      />
-                      <p className="paxi-point-hint">For now, enter the PAXI point code or store name you want to collect from. We&rsquo;ll replace this with PAXI&rsquo;s official locator once we have their widget/API access.</p>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1374,6 +1363,19 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                           <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} /></div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
                           <ShippingPrice opt={opt} />
                         </div>
+                        {shippingOption === i && opt.carrier === "paxi" && !cartHasImport && (
+                          <div className="paxi-point-box">
+                            <a className="paxi-point-action" href="https://www.paxi.co.za/paxi-points" target="_blank" rel="noreferrer">Choose PAXI point</a>
+                            <label>Selected PAXI point</label>
+                            <input
+                              type="text"
+                              value={paxiPoint}
+                              onChange={(e) => setPaxiPoint(e.target.value)}
+                              placeholder="Example: P7334 - Durban CBD"
+                            />
+                            <p className="paxi-point-hint">Open the PAXI locator, choose your preferred point, then enter the PAXI code or store name here.</p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
