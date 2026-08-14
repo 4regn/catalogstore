@@ -473,7 +473,7 @@ export function BankAccountsPanel({ authedFetch, toast }: { authedFetch: (path: 
 
 // ---------------------------------------------------------------------------
 
-type CustomerRow = { id: string; first_name: string; last_name: string; email: string; application_status: string; approved_limit: number; created_at: string };
+type CustomerRow = { id: string; first_name: string; last_name: string; email: string; phone?: string; application_status: string; approved_limit: number; created_at: string };
 
 // Mirrors the eligibleStatus pattern from the Brand Manager's partner email
 // card -- each email only makes sense for customers currently sitting in
@@ -504,20 +504,54 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   // whether this is a first-time starter limit or a standard one, see
   // sendApprovedSetlaLimitEmail's own comment.
   const [limitVariant, setLimitVariant] = useState<"standard" | "starter">("standard");
+  // SMS only exists for the "approved" nudge (the actual ask -- see
+  // lib/setla-sms.ts), not a copy of every email type, so this only ever
+  // matters when emailType === "approved"; forced back to "email" whenever
+  // it doesn't apply (see the effect below) so a stale "sms" selection
+  // can't silently survive a switch to some other email type.
+  const [channel, setChannel] = useState<"email" | "sms">("email");
+  const [testPhone, setTestPhone] = useState("");
   const [busy, setBusy] = useState(false);
 
   const activeType = SETLA_EMAIL_TYPES.find((t) => t.value === emailType)!;
   const eligible = customers.filter((c) => c.application_status === activeType.eligibleStatus);
   const selected = eligible.find((c) => c.id === customerId) || null;
-  const testReady = !selected && !!testEmail.trim() && !!testName.trim();
+  const testReady = !selected && (channel === "sms" ? !!testPhone.trim() : !!testEmail.trim()) && !!testName.trim();
 
   // Switching email type can make the currently-picked customer ineligible
   // (e.g. not approved) -- drop a stale selection rather than silently
   // leaving it picked with a now-invalid email type.
   useEffect(() => { if (customerId && !eligible.some((c) => c.id === customerId)) setCustomerId(""); }, [emailType]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (emailType !== "approved" && channel !== "email") setChannel("email"); }, [emailType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSend() {
     setBusy(true);
+    if (channel === "sms") {
+      if (selected) {
+        const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-sms`, {
+          method: "POST",
+          body: JSON.stringify({ limitVariant }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        setBusy(false);
+        if (!res.ok) { toast(payload.error || "Could not send this SMS"); return; }
+        toast("SMS sent");
+        setCustomerId("");
+      } else if (testReady) {
+        const res = await authedFetch(`/api/setla/admin/send-test-sms`, {
+          method: "POST",
+          body: JSON.stringify({ to: testPhone.trim(), firstName: testName.trim(), limitVariant, amount: testAmount.trim() ? Number(testAmount) : undefined }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        setBusy(false);
+        if (!res.ok) { toast(payload.error || "Could not send this SMS"); return; }
+        toast(`Test SMS sent to ${testPhone.trim()}`);
+        setTestPhone(""); setTestName(""); setTestAmount("");
+      } else {
+        setBusy(false);
+      }
+      return;
+    }
     if (selected) {
       const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/send-email`, {
         method: "POST",
@@ -560,37 +594,59 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
         </label>
         <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 240px" }}>
           Customer
-          <select className="sad-select" value={customerId} onChange={(e) => { setCustomerId(e.target.value); if (e.target.value) { setTestEmail(""); setTestName(""); } }}>
+          <select className="sad-select" value={customerId} onChange={(e) => { setCustomerId(e.target.value); if (e.target.value) { setTestEmail(""); setTestPhone(""); setTestName(""); } }}>
             <option value="">{eligible.length ? "Select a customer…" : "No eligible customers"}</option>
             {eligible.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name} — {c.email}</option>)}
           </select>
         </label>
         {emailType === "approved" && (
-          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 200px" }}>
-            Limit type
-            <select className="sad-select" value={limitVariant} onChange={(e) => setLimitVariant(e.target.value as "standard" | "starter")}>
-              <option value="standard">Standard limit</option>
-              <option value="starter">Starter limit (first-time)</option>
-            </select>
-          </label>
+          <>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 160px" }}>
+              Channel
+              <select className="sad-select" value={channel} onChange={(e) => setChannel(e.target.value as "email" | "sms")}>
+                <option value="email">Email</option>
+                <option value="sms">SMS</option>
+              </select>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 200px" }}>
+              Limit type
+              <select className="sad-select" value={limitVariant} onChange={(e) => setLimitVariant(e.target.value as "standard" | "starter")}>
+                <option value="standard">Standard limit</option>
+                <option value="starter">Starter limit (first-time)</option>
+              </select>
+            </label>
+          </>
         )}
       </div>
       {selected ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 320px" }}>
-            Send to a different address (optional -- e.g. for testing)
-            <input className="sad-input" type="email" placeholder={selected.email} value={overrideEmail} onChange={(e) => setOverrideEmail(e.target.value)} />
-          </label>
-          <button type="button" className="sad-btn" disabled={busy} onClick={handleSend}>{busy ? "Sending…" : "Send email"}</button>
+          {channel === "sms" ? (
+            <p className="sad-empty" style={{ margin: 0, flex: "1 1 320px" }}>
+              {selected.phone ? `Will send to ${selected.phone}.` : "This customer has no phone number on file -- SMS can't be sent."}
+            </p>
+          ) : (
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 320px" }}>
+              Send to a different address (optional -- e.g. for testing)
+              <input className="sad-input" type="email" placeholder={selected.email} value={overrideEmail} onChange={(e) => setOverrideEmail(e.target.value)} />
+            </label>
+          )}
+          <button type="button" className="sad-btn" disabled={busy || (channel === "sms" && !selected.phone)} onClick={handleSend}>{busy ? "Sending…" : channel === "sms" ? "Send SMS" : "Send email"}</button>
         </div>
       ) : (
         <>
           <p className="sad-empty" style={{ margin: "0 0 10px", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase" }}>Or send a standalone test</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 220px" }}>
-              Test email
-              <input className="sad-input" type="email" placeholder="you@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
-            </label>
+            {channel === "sms" ? (
+              <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 220px" }}>
+                Test phone number
+                <input className="sad-input" type="tel" placeholder="082 123 4567" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
+              </label>
+            ) : (
+              <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 220px" }}>
+                Test email
+                <input className="sad-input" type="email" placeholder="you@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
+              </label>
+            )}
             <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 180px" }}>
               Addressed to (name)
               <input className="sad-input" type="text" placeholder="e.g. Thabo" value={testName} onChange={(e) => setTestName(e.target.value)} />
@@ -601,7 +657,7 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
                 <input className="sad-input" type="number" min="0" placeholder={limitVariant === "starter" ? "e.g. 1000" : "e.g. 2000"} value={testAmount} onChange={(e) => setTestAmount(e.target.value)} />
               </label>
             )}
-            <button type="button" className="sad-btn" disabled={!testReady || busy} onClick={handleSend}>{busy ? "Sending…" : "Send test"}</button>
+            <button type="button" className="sad-btn" disabled={!testReady || busy} onClick={handleSend}>{busy ? "Sending…" : channel === "sms" ? "Send test SMS" : "Send test"}</button>
           </div>
         </>
       )}
