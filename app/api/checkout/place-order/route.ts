@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { fetchActiveAutomaticBxgyDiscounts, computeAutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
+import { buildCheckoutShippingOptions, isPremiumShippingOption, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 
 /* Server-side order placement.
    The previous flow inserted directly from the browser using client-supplied
@@ -189,16 +190,16 @@ export async function POST(req: NextRequest) {
   let shippingCost = 0;
   let shippingLabel: string = fulfillment === "pickup" ? "Pickup" : "";
   if (fulfillment === "delivery") {
-    const opts: { name: string; price: number; is_premium?: boolean }[] = Array.isArray(cc.shipping_options) ? cc.shipping_options : [];
+    const opts: CheckoutShippingOption[] = buildCheckoutShippingOptions(cc.shipping_options, { subdomain: slug, template: undefined });
     const idx = Number(shippingOptionIndex);
     if (!opts.length || !Number.isFinite(idx) || idx < 0 || idx >= opts.length) {
       return NextResponse.json({ error: "Invalid shipping option" }, { status: 400 });
     }
     // Re-check the forced premium rule server-side so a modified request
     // cannot submit a faster method hidden by the checkout UI.
-    const explicitPremiumIdx = opts.findIndex((opt) => !!opt.is_premium || opt.name?.trim().toUpperCase() === "PREMIUM PRODUCT SHIPMENT");
+    const explicitPremiumIdx = opts.findIndex(isPremiumShippingOption);
     const effectivePremiumIdx = explicitPremiumIdx !== -1 ? explicitPremiumIdx : (opts.length ? 0 : -1);
-    const selectedIsExplicitlyPremium = !!opts[idx].is_premium || opts[idx].name?.trim().toUpperCase() === "PREMIUM PRODUCT SHIPMENT";
+    const selectedIsExplicitlyPremium = isPremiumShippingOption(opts[idx]);
     if ((hasImportProduct && idx !== effectivePremiumIdx) || (!hasImportProduct && selectedIsExplicitlyPremium)) {
       return NextResponse.json({ error: "Invalid shipping option for this cart" }, { status: 400 });
     }

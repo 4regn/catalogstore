@@ -9,6 +9,7 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
+import { buildCheckoutShippingOptions, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 
 export interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -43,7 +44,7 @@ export interface Seller {
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
     // below for the full behavior.
-    shipping_options: { name: string; price: number; estimate?: string; is_premium?: boolean }[];
+    shipping_options: CheckoutShippingOption[];
   };
 }
 
@@ -62,9 +63,6 @@ const IMPORT_TAG_RE = /^imports?$/i;
 const hasImportTag = (tags?: string[] | null) => (tags || []).some((t) => IMPORT_TAG_RE.test((t || "").trim()));
 const PREMIUM_SHIPPING_NAME = "PREMIUM PRODUCT SHIPMENT";
 const PREMIUM_SHIPPING_ESTIMATE = "7-14 WORKING DAYS DELIVERY";
-const isPremiumShippingOption = (opt: { name?: string; is_premium?: boolean }) =>
-  !!opt.is_premium || opt.name?.trim().toUpperCase() === PREMIUM_SHIPPING_NAME;
-
 const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo", "Mpumalanga", "North West", "Northern Cape", "Western Cape"];
 
 // Pure re-implementation of lib/setla-instalments.ts's buildInstalmentSchedule/
@@ -158,6 +156,14 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .choice-name{font-size:14px;font-weight:500;color:#050505}
 .fr-checkout-v2 .choice-sub{font-size:11.5px;color:#707070;margin-top:3px}
 .fr-checkout-v2 .choice-price{font-size:13px;font-weight:500}
+.fr-checkout-v2 .choice-price-stack{display:grid;gap:2px;text-align:right}
+.fr-checkout-v2 .choice-price-was{text-decoration:line-through;color:#8f8f8f;font-size:11px;font-weight:500}
+.fr-checkout-v2 .choice-price-now{font-size:13px;font-weight:700;color:#050505}
+.fr-checkout-v2 .shipping-provider{display:inline-flex;align-items:center;gap:9px;min-height:24px}
+.fr-checkout-v2 .shipping-provider img{display:block;width:auto;height:22px;max-width:72px;object-fit:contain}
+.fr-checkout-v2 .shipping-provider span{font-size:12.5px;font-weight:800;line-height:1.25}
+.fr-checkout-v2 .shipping-provider.aramex span{color:#e1261c}
+.fr-checkout-v2 .shipping-provider.paxi span{color:#007c89}
 .fr-checkout-v2 .payment-title-note{font-weight:400;color:#5f5f5f;font-size:11px;letter-spacing:.015em;white-space:nowrap}
 .fr-checkout-v2 .card-brand-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}
 .fr-checkout-v2 .card-brand{height:23px;min-width:38px;border:1px solid #dedede;border-radius:4px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:3px 5px}
@@ -220,6 +226,10 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .product-name{font-size:15px;font-weight:500;letter-spacing:-.015em;line-height:1.25}
 .fr-checkout-v2 .product-meta{margin-top:7px;color:#777;font-size:12px}
 .fr-checkout-v2 .product-price{font-size:14px;font-weight:500;align-self:start;padding-top:3px}
+.fr-checkout-v2 .product-sale-saving{margin-top:7px;color:#00751f;font-size:11.5px;font-weight:800;letter-spacing:.035em;text-transform:uppercase}
+.fr-checkout-v2 .product-price-stack{text-align:right;align-self:start;padding-top:3px}
+.fr-checkout-v2 .product-price-was{font-size:11px;color:#888;text-decoration:line-through;margin-bottom:2px}
+.fr-checkout-v2 .product-price-now{font-size:14px;font-weight:700;color:#050505}
 .fr-checkout-v2 .promo-banner{margin:16px 0 0;border:1px solid #d8d8d8;background:#fff;border-radius:8px;padding:13px;display:flex;gap:12px;align-items:center}
 .fr-checkout-v2 .promo-banner+.promo-banner{margin-top:10px}
 .fr-checkout-v2 .promo-badge{width:34px;height:34px;border-radius:5px;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 34px}
@@ -633,7 +643,10 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const cartHasImport = cart.some((i) => hasImportTag(i.tags));
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
-  const shippingOptionsConfigured: { name: string; price: number; estimate?: string; is_premium?: boolean }[] = cc.shipping_options || [];
+  const shippingOptionsConfigured = buildCheckoutShippingOptions(cc.shipping_options, {
+    subdomain: seller?.subdomain,
+    template: seller?.template,
+  });
   const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
   // Import shipping is automatic. Prefer a seller-configured premium rate,
   // but fall back to the first ordinary delivery rate so an import cart can
@@ -751,7 +764,38 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     stickyBg: `${slBg}f2`, emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const shipping = fulfillment === "pickup" ? 0 : (cc.shipping_options?.[shippingOption]?.price || 0);
+  const selectedShippingOption = shippingOptionsConfigured[shippingOption];
+  const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
+  const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
+  const shippingDisplayName = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_NAME : (opt?.name || "Delivery");
+  const shippingDisplayEstimate = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_ESTIMATE : opt?.estimate;
+  const shippingProviderLogo = (opt?: CheckoutShippingOption) => opt?.carrier === "aramex"
+    ? "/checkout/aramex.png"
+    : opt?.carrier === "paxi"
+      ? "/checkout/paxi.png"
+      : "";
+  const shippingPriceLabel = (opt?: CheckoutShippingOption) => (opt?.price || 0) === 0 ? "Free" : "R" + opt?.price;
+  const ShippingPrice = ({ opt, className = "choice-price" }: { opt: CheckoutShippingOption; className?: string }) => {
+    const saving = shippingOptionSavings(opt);
+    if (saving <= 0) return <div className={className}>{shippingPriceLabel(opt)}</div>;
+    return (
+      <div className={`${className} choice-price-stack`}>
+        <span className="choice-price-was">R{Number(opt.compare_at_price).toFixed(0)}</span>
+        <span className="choice-price-now">{shippingPriceLabel(opt)}</span>
+      </div>
+    );
+  };
+  const ShippingTitle = ({ opt }: { opt: CheckoutShippingOption }) => {
+    const name = shippingDisplayName(opt);
+    const logo = !cartHasImport ? shippingProviderLogo(opt) : "";
+    if (!logo) return <>{name}</>;
+    return (
+      <span className={`shipping-provider ${opt.carrier || ""}`}>
+        <img src={logo} alt={opt.carrier === "aramex" ? "Aramex" : "PAXI"} />
+        <span>{name}</span>
+      </span>
+    );
+  };
 
   // Automatic Buy X Get Y savings -- live preview so the customer sees it
   // before they even reach place-order, computed with the exact same
@@ -810,7 +854,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const originalPrice = Number(item.old_price) || 0;
     return sum + Math.max(0, originalPrice - item.price) * item.qty;
   }, 0);
-  const totalSavings = compareAtSavings + automaticDiscount.totalDiscount + discountAmount;
+  const totalSavings = compareAtSavings + automaticDiscount.totalDiscount + discountAmount + deliverySavings;
   const isShippingDiscount = discountApplied?.applies_to === "shipping";
   const total = isShippingDiscount
     ? Math.max(0, subtotal + shipping - discountAmount - automaticDiscount.totalDiscount)
@@ -1016,7 +1060,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               province: fulfillment === "delivery" ? province : undefined,
               postal: fulfillment === "delivery" ? postalCode : undefined,
             },
-            deliveryMethod: fulfillment === "delivery" ? { name: cartHasImport ? PREMIUM_SHIPPING_NAME : cc.shipping_options?.[shippingOption]?.name, price: shipping } : { name: "Pickup", price: 0, isPickup: true },
+            deliveryMethod: fulfillment === "delivery" ? { name: shippingDisplayName(selectedShippingOption), price: shipping } : { name: "Pickup", price: 0, isPickup: true },
             discountCode: discountApplied?.code || undefined,
             total,
             returnOrigin: window.location.origin,
@@ -1307,8 +1351,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>
                           <div className="radio"></div>
-                          <div className="choice-main"><div className="choice-name">{cartHasImport ? PREMIUM_SHIPPING_NAME : opt.name}</div>{(cartHasImport || opt.estimate) && <div className="choice-sub">{cartHasImport ? PREMIUM_SHIPPING_ESTIMATE : opt.estimate}</div>}</div>
-                          <div className="choice-price">{opt.price === 0 ? "Free" : "R" + opt.price}</div>
+                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} /></div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
+                          <ShippingPrice opt={opt} />
                         </div>
                       </div>
                     ))}
@@ -1488,16 +1532,26 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               <div className="summary-sticky">
                 <div className="summary-label">Your order</div>
                 <div className="product-card">
-                  {cart.map((item, i) => (
-                    <div className="product-row" key={i}>
-                      <div className="product-image-wrap">
-                        {item.image ? <img alt={item.name} src={item.image} /> : null}
-                        <span className="qty">{item.qty}</span>
+                  {cart.map((item, i) => {
+                    const originalLine = (Number(item.old_price) || 0) * item.qty;
+                    const lineTotal = item.price * item.qty;
+                    const saleSaving = Math.max(0, originalLine - lineTotal);
+                    return (
+                      <div className="product-row" key={i}>
+                        <div className="product-image-wrap">
+                          {item.image ? <img alt={item.name} src={item.image} /> : null}
+                          <span className="qty">{item.qty}</span>
+                        </div>
+                        <div><div className="product-name">{item.name}</div>{item.variant && <div className="product-meta">{item.variant}</div>}{saleSaving > 0 && <div className="product-sale-saving">You save R{saleSaving.toLocaleString("en-ZA")}</div>}</div>
+                        {saleSaving > 0 ? (
+                          <div className="product-price-stack">
+                            <div className="product-price-was">R{originalLine.toLocaleString("en-ZA")}</div>
+                            <div className="product-price-now">R{lineTotal.toLocaleString("en-ZA")}</div>
+                          </div>
+                        ) : <div className="product-price">R{lineTotal.toLocaleString("en-ZA")}</div>}
                       </div>
-                      <div><div className="product-name">{item.name}</div>{item.variant && <div className="product-meta">{item.variant}</div>}</div>
-                      <div className="product-price">R{(item.price * item.qty).toLocaleString("en-ZA")}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {automaticDiscount.applied.map((a) => (
                     <div className="promo-banner" key={a.title}>
                       <div className="promo-badge">&#10003;</div>
@@ -1512,8 +1566,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     {automaticDiscount.applied.map((a) => (
                       <div className="total-row discount" key={a.title}><span>{a.title}</span><span>&minus;R{a.amount.toFixed(0)}</span></div>
                     ))}
+                    {deliverySavings > 0 && <div className="total-row discount"><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>&minus;R{deliverySavings.toFixed(0)}</span></div>}
                     {totalSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{totalSavings.toFixed(0)}</span></div>}
-                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (shipping === 0 ? "Free" : "R" + shipping)}</span></div>
+                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
                     <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{total.toLocaleString("en-ZA")}</strong></div>
                   </div>
                 </div>
@@ -1695,9 +1750,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div key={i} onClick={() => setShippingOption(i)} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: shippingOption === i ? T.selectBg : T.card, borderBottom: i === lastVisibleIdx ? "none" : "1px solid " + T.summaryBorder }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{ width: 20, height: 20, borderRadius: "50%", border: shippingOption === i ? "6px solid #22c55e" : "2px solid " + T.muted }} />
-                        <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{cartHasImport ? `${PREMIUM_SHIPPING_NAME} · ${PREMIUM_SHIPPING_ESTIMATE}` : opt.name + (opt.estimate ? " · " + opt.estimate : "")}</span>
+                        <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{shippingDisplayName(opt)}{shippingDisplayEstimate(opt) ? " - " + shippingDisplayEstimate(opt) : ""}</span>
                       </div>
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>{opt.price === 0 ? "Free" : "R" + opt.price}</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, textAlign: "right" }}>{shippingOptionSavings(opt) > 0 && <span style={{ display: "block", color: T.muted, textDecoration: "line-through", fontSize: 12 }}>R{Number(opt.compare_at_price).toFixed(0)}</span>}{shippingPriceLabel(opt)}</span>
                       </div>
                     );
                   });
@@ -1916,24 +1971,30 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         {/* RIGHT - ORDER SUMMARY */}
         <div className="ck-summary" style={{ padding: "32px 24px", borderLeft: "1px solid " + T.summaryBorder, background: T.summaryBg }}>
           <h3 style={{ fontFamily: T.headFont, fontSize: 20, fontWeight: 400, marginBottom: 20 }}>Order Summary</h3>
-          {cart.map((item, i) => (
-            <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "center" }}>
-              <div style={{ position: "relative" }}>
-                {item.image ? <img src={item.image} alt="" style={{ width: 60, height: 72, borderRadius: 10, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 60, height: 72, borderRadius: 10, background: T.emptyImg }} />}
-                <span style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: T.badgeBg, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.qty}</span>
+          {cart.map((item, i) => {
+            const originalLine = (Number(item.old_price) || 0) * item.qty;
+            const lineTotal = item.price * item.qty;
+            const saleSaving = Math.max(0, originalLine - lineTotal);
+            return (
+              <div key={i} style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "center" }}>
+                <div style={{ position: "relative" }}>
+                  {item.image ? <img src={item.image} alt="" style={{ width: 60, height: 72, borderRadius: 10, objectFit: "cover", border: "1px solid " + T.summaryBorder }} /> : <div style={{ width: 60, height: 72, borderRadius: 10, background: T.emptyImg }} />}
+                  <span style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: T.badgeBg, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.qty}</span>
+                </div>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{item.name}</div>{item.variant && <div style={{ fontSize: 12, color: T.muted }}>{item.variant}</div>}{saleSaving > 0 && <div style={{ marginTop: 5, color: "#00751f", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".035em" }}>You save R{saleSaving.toFixed(0)}</div>}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, textAlign: "right" }}>{saleSaving > 0 && <span style={{ display: "block", color: T.muted, textDecoration: "line-through", fontSize: 12, fontWeight: 500 }}>R{originalLine.toFixed(0)}</span>}R{lineTotal.toFixed(0)}</div>
               </div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{item.name}</div>{item.variant && <div style={{ fontSize: 12, color: T.muted }}>{item.variant}</div>}</div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>R{(item.price * item.qty).toFixed(0)}</div>
-            </div>
-          ))}
+            );
+          })}
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, marginTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{subtotal.toFixed(0)}</span></div>
             {discountApplied && discountAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
             {automaticDiscount.applied.map((a) => (
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
+            {deliverySavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>-R{deliverySavings.toFixed(0)}</span></div>}
             {totalSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{totalSavings.toFixed(0)}</span></div>}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{shipping === 0 ? (fulfillment === "pickup" ? "Pickup" : "Free") : "R" + shipping}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 16, fontWeight: 600 }}>Total</span>
