@@ -203,9 +203,6 @@ export async function POST(req: NextRequest) {
     if ((hasImportProduct && idx !== effectivePremiumIdx) || (!hasImportProduct && selectedIsExplicitlyPremium)) {
       return NextResponse.json({ error: "Invalid shipping option for this cart" }, { status: 400 });
     }
-    if (!hasImportProduct && opts[idx].carrier === "paxi" && !String(address?.paxi_point || "").trim()) {
-      return NextResponse.json({ error: "PAXI point required" }, { status: 400 });
-    }
     shippingCost = Number(opts[idx].price) || 0;
     shippingLabel = hasImportProduct ? "PREMIUM PRODUCT SHIPMENT" : (opts[idx].name || "Delivery");
   }

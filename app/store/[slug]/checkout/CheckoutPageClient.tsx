@@ -164,11 +164,6 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .shipping-provider span{font-size:12.5px;font-weight:800;line-height:1.25}
 .fr-checkout-v2 .shipping-provider.aramex span{color:#e1261c}
 .fr-checkout-v2 .shipping-provider.paxi span{color:#007c89}
-.fr-checkout-v2 .paxi-point-box{margin-top:12px;padding:14px;border:1px solid rgba(0,124,137,.18);border-radius:14px;background:rgba(0,124,137,.045)}
-.fr-checkout-v2 .paxi-point-box label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#007c89;margin-bottom:7px}
-.fr-checkout-v2 .paxi-point-box input{width:100%;padding:13px 14px;border:1px solid #d9e5e6;border-radius:10px;background:#fff;font-size:13px;outline:none}
-.fr-checkout-v2 .paxi-point-action{display:block;width:100%;margin:0 0 10px;padding:12px 14px;border:1px solid #007c89;border-radius:999px;background:#fff;color:#007c89;text-align:center;text-decoration:none;font-size:12px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}
-.fr-checkout-v2 .paxi-point-hint{font-size:11.5px;color:#707070;margin:8px 0 0;line-height:1.45}
 .fr-checkout-v2 .payment-title-note{font-weight:400;color:#5f5f5f;font-size:11px;letter-spacing:.015em;white-space:nowrap}
 .fr-checkout-v2 .card-brand-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}
 .fr-checkout-v2 .card-brand{height:23px;min-width:38px;border:1px solid #dedede;border-radius:4px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:3px 5px}
@@ -339,7 +334,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("Gauteng");
   const [postalCode, setPostalCode] = useState("");
-  const [paxiPoint, setPaxiPoint] = useState("");
 
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [shippingOption, setShippingOption] = useState(0);
@@ -771,7 +765,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   };
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const selectedShippingOption = shippingOptionsConfigured[shippingOption];
-  const selectedIsPaxi = selectedShippingOption?.carrier === "paxi" && !cartHasImport;
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
   const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
   const shippingDisplayName = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_NAME : (opt?.name || "Delivery");
@@ -912,7 +905,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     if (!isStoreActive(seller)) { setOrderError("This store is not currently accepting orders. Please contact the seller directly."); return; }
     if (!email || !firstName || !lastName) { setOrderError("Please fill in your contact details"); return; }
     if (fulfillment === "delivery" && (!address || !city || !postalCode)) { setOrderError("Please fill in your delivery address"); return; }
-    if (fulfillment === "delivery" && selectedIsPaxi && !paxiPoint.trim()) { setOrderError("Please enter your chosen PAXI point before placing your order."); return; }
 
     placingRef.current = true;
     setPlacing(true);
@@ -930,7 +922,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image, selectedVariants: i.selectedVariants })),
           customer: { firstName, lastName, email, phone },
           address: fulfillment === "delivery"
-            ? { address, apartment, city, province, postal_code: postalCode, paxi_point: selectedIsPaxi ? paxiPoint.trim() : undefined }
+            ? { address, apartment, city, province, postal_code: postalCode }
             : null,
           fulfillment,
           shippingOptionIndex: fulfillment === "delivery" ? shippingOption : null,
@@ -1067,7 +1059,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               townCity: fulfillment === "delivery" ? city : undefined,
               province: fulfillment === "delivery" ? province : undefined,
               postal: fulfillment === "delivery" ? postalCode : undefined,
-              paxiPoint: fulfillment === "delivery" && selectedIsPaxi ? paxiPoint.trim() : undefined,
             },
             deliveryMethod: fulfillment === "delivery" ? { name: shippingDisplayName(selectedShippingOption), price: shipping } : { name: "Pickup", price: 0, isPickup: true },
             discountCode: discountApplied?.code || undefined,
@@ -1363,19 +1354,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                           <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} /></div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
                           <ShippingPrice opt={opt} />
                         </div>
-                        {shippingOption === i && opt.carrier === "paxi" && !cartHasImport && (
-                          <div className="paxi-point-box">
-                            <a className="paxi-point-action" href="https://www.paxi.co.za/paxi-points" target="_blank" rel="noreferrer">Choose PAXI point</a>
-                            <label>Selected PAXI point</label>
-                            <input
-                              type="text"
-                              value={paxiPoint}
-                              onChange={(e) => setPaxiPoint(e.target.value)}
-                              placeholder="Example: P7334 - Durban CBD"
-                            />
-                            <p className="paxi-point-hint">Open the PAXI locator, choose your preferred point, then enter the PAXI code or store name here.</p>
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
