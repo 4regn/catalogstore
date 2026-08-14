@@ -288,6 +288,17 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .setla-modal-login{display:grid;gap:14px}
 .fr-checkout-v2 .setla-modal-back{justify-self:start;background:none;border:none;color:#666;font-size:12px;padding:0;margin-bottom:2px}
 .fr-checkout-v2 .setla-modal-login-btn{width:100%;min-width:0}
+.fr-checkout-v2 .confirm-main{max-width:560px;margin:0 auto;padding:64px 24px 80px}
+.fr-checkout-v2 .confirm-hero{text-align:center;margin-bottom:36px}
+.fr-checkout-v2 .confirm-icon{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px}
+.fr-checkout-v2 .confirm-icon.success{background:rgba(0,117,31,.1);border:2px solid #00751f;color:#00751f}
+.fr-checkout-v2 .confirm-icon.pending{background:rgba(251,191,36,.12);border:2px solid #fbbf24;color:#b58a00}
+.fr-checkout-v2 .confirm-hero h1{font-size:32px;font-weight:700;letter-spacing:-.02em;margin:0 0 8px}
+.fr-checkout-v2 .confirm-hero p{font-size:14px;color:#666;margin:0;line-height:1.6}
+.fr-checkout-v2 .confirm-ref{display:inline-block;margin-top:14px;padding:6px 16px;border-radius:100px;background:#f4f4f4;font-size:12px;font-weight:700;letter-spacing:.04em}
+.fr-checkout-v2 .confirm-actions{display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:28px}
+.fr-checkout-v2 .confirm-actions .pay-btn{width:100%;text-align:center}
+@media(max-width:560px){.fr-checkout-v2 .confirm-main{padding:44px 18px 64px}.fr-checkout-v2 .confirm-hero h1{font-size:27px}}
 `;
 
 export default function CheckoutPageClient({ initialSeller }: { initialSeller: Seller }) {
@@ -947,6 +958,74 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       <p style={{ fontSize: 15, color: T.muted, maxWidth: 420, lineHeight: 1.6 }}>This store is not currently accepting orders. Please check back soon or contact the seller directly.</p>
     </div>
   );
+
+  // 4regn-exclusive order confirmation, matching the galxboy-v2 checkout
+  // design it hands off from -- same .fr-checkout-v2 shell/topbar/card
+  // classes, so the redirect after a real payment doesn't drop back into
+  // the old generic T-theme confirmation below (that one still renders
+  // for every other template, untouched). Handles both the real success
+  // state and the transient "webhook hasn't landed yet" _processing state
+  // load() already sets for any gateway's redirect-back, not just PayFast.
+  if (isFourRegn && paidOrder) {
+    const reference = checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn);
+    return (
+      <div className="fr-checkout-v2">
+        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0}`}</style>
+        <div className="checkout-shell">
+          <header className="topbar">
+            <div className="topbar-inner">
+              <a className="brand" href={sp()} aria-label={(seller?.store_name || "Store") + " home"}>
+                {seller?.logo_url ? <Image src={seller.logo_url} alt={seller.store_name} width={180} height={36} sizes="180px" priority style={{ width: "auto", height: 36, maxWidth: 180, objectFit: "contain" }} /> : <span className="brand-text">{seller?.store_name}</span>}
+              </a>
+              <div className="secure-note">
+                <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 24 24"><rect height="10" rx="2" width="14" x="5" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                Secure checkout
+              </div>
+            </div>
+          </header>
+          <main className="confirm-main">
+            <div className="confirm-hero">
+              {paidOrder._processing ? (
+                <>
+                  <div className="confirm-icon pending"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                  <h1>Almost there…</h1>
+                  <p>Thanks {paidOrder.customer_name}. Your order is saved and we're waiting on confirmation from your payment provider &mdash; this page updates automatically the moment it lands, or check your email for the receipt.</p>
+                </>
+              ) : (
+                <>
+                  <div className="confirm-icon success"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                  <h1>Order confirmed!</h1>
+                  <p>Thank you, {paidOrder.customer_name}. Your payment went through and your order is being prepared &mdash; we'll email you updates as it moves.</p>
+                </>
+              )}
+              <span className="confirm-ref">Order {reference}</span>
+            </div>
+
+            <div className="product-card">
+              {(paidOrder.items || []).map((item: any, i: number) => (
+                <div className="product-row" key={i}>
+                  <div className="product-image-wrap">
+                    {item.image ? <img alt={item.name} src={item.image} /> : null}
+                    <span className="qty">{item.qty}</span>
+                  </div>
+                  <div><div className="product-name">{item.name}</div>{item.variant && <div className="product-meta">{item.variant}</div>}</div>
+                  <div className="product-price">R{(item.price * item.qty).toLocaleString("en-ZA")}</div>
+                </div>
+              ))}
+              <div className="totals">
+                <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{Number(paidOrder.total).toLocaleString("en-ZA")}</strong></div>
+              </div>
+            </div>
+
+            <div className="confirm-actions">
+              <a className="pay-btn" href={sp()} style={{ textDecoration: "none", display: "block" }}>Continue shopping</a>
+              <a className="return" href={sp("/track")}>Track my order</a>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   // PayFast payment success confirmation
   if (paidOrder) return (
