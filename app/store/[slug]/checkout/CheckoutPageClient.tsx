@@ -9,6 +9,7 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
+import { buildCheckoutShippingOptions, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 
 export interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -43,7 +44,7 @@ export interface Seller {
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
     // below for the full behavior.
-    shipping_options: { name: string; price: number; estimate?: string; is_premium?: boolean }[];
+    shipping_options: CheckoutShippingOption[];
   };
 }
 
@@ -62,9 +63,6 @@ const IMPORT_TAG_RE = /^imports?$/i;
 const hasImportTag = (tags?: string[] | null) => (tags || []).some((t) => IMPORT_TAG_RE.test((t || "").trim()));
 const PREMIUM_SHIPPING_NAME = "PREMIUM PRODUCT SHIPMENT";
 const PREMIUM_SHIPPING_ESTIMATE = "7-14 WORKING DAYS DELIVERY";
-const isPremiumShippingOption = (opt: { name?: string; is_premium?: boolean }) =>
-  !!opt.is_premium || opt.name?.trim().toUpperCase() === PREMIUM_SHIPPING_NAME;
-
 const PROVINCES = ["Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo", "Mpumalanga", "North West", "Northern Cape", "Western Cape"];
 
 // Pure re-implementation of lib/setla-instalments.ts's buildInstalmentSchedule/
@@ -158,6 +156,18 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .choice-name{font-size:14px;font-weight:500;color:#050505}
 .fr-checkout-v2 .choice-sub{font-size:11.5px;color:#707070;margin-top:3px}
 .fr-checkout-v2 .choice-price{font-size:13px;font-weight:500}
+.fr-checkout-v2 .choice-price-stack{display:grid;gap:2px;text-align:right}
+.fr-checkout-v2 .choice-price-was{text-decoration:line-through;color:#8f8f8f;font-size:11px;font-weight:500}
+.fr-checkout-v2 .choice-price-now{font-size:13px;font-weight:700;color:#050505}
+.fr-checkout-v2 .shipping-provider{display:inline-flex;align-items:center;gap:9px;min-height:24px}
+.fr-checkout-v2 .shipping-provider img{display:block;width:auto;height:22px;max-width:72px;object-fit:contain}
+.fr-checkout-v2 .shipping-provider span{font-size:12.5px;font-weight:800;line-height:1.25}
+.fr-checkout-v2 .shipping-provider.aramex span{color:#e1261c}
+.fr-checkout-v2 .shipping-provider.paxi span{color:#007c89}
+.fr-checkout-v2 .paxi-point-box{margin-top:12px;padding:14px;border:1px solid rgba(0,124,137,.18);border-radius:14px;background:rgba(0,124,137,.045)}
+.fr-checkout-v2 .paxi-point-box label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#007c89;margin-bottom:7px}
+.fr-checkout-v2 .paxi-point-box input{width:100%;padding:13px 14px;border:1px solid #d9e5e6;border-radius:10px;background:#fff;font-size:13px;outline:none}
+.fr-checkout-v2 .paxi-point-hint{font-size:11.5px;color:#707070;margin:8px 0 0;line-height:1.45}
 .fr-checkout-v2 .payment-title-note{font-weight:400;color:#5f5f5f;font-size:11px;letter-spacing:.015em;white-space:nowrap}
 .fr-checkout-v2 .card-brand-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}
 .fr-checkout-v2 .card-brand{height:23px;min-width:38px;border:1px solid #dedede;border-radius:4px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:3px 5px}
@@ -324,6 +334,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("Gauteng");
   const [postalCode, setPostalCode] = useState("");
+  const [paxiPoint, setPaxiPoint] = useState("");
 
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [shippingOption, setShippingOption] = useState(0);
@@ -633,7 +644,10 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const cartHasImport = cart.some((i) => hasImportTag(i.tags));
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
-  const shippingOptionsConfigured: { name: string; price: number; estimate?: string; is_premium?: boolean }[] = cc.shipping_options || [];
+  const shippingOptionsConfigured = buildCheckoutShippingOptions(cc.shipping_options, {
+    subdomain: seller?.subdomain,
+    template: seller?.template,
+  });
   const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
   // Import shipping is automatic. Prefer a seller-configured premium rate,
   // but fall back to the first ordinary delivery rate so an import cart can
@@ -751,7 +765,39 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     stickyBg: `${slBg}f2`, emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const shipping = fulfillment === "pickup" ? 0 : (cc.shipping_options?.[shippingOption]?.price || 0);
+  const selectedShippingOption = shippingOptionsConfigured[shippingOption];
+  const selectedIsPaxi = selectedShippingOption?.carrier === "paxi" && !cartHasImport;
+  const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
+  const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
+  const shippingDisplayName = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_NAME : (opt?.name || "Delivery");
+  const shippingDisplayEstimate = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_ESTIMATE : opt?.estimate;
+  const shippingProviderLogo = (opt?: CheckoutShippingOption) => opt?.carrier === "aramex"
+    ? "/checkout/aramex.png"
+    : opt?.carrier === "paxi"
+      ? "/checkout/paxi.png"
+      : "";
+  const shippingPriceLabel = (opt?: CheckoutShippingOption) => (opt?.price || 0) === 0 ? "Free" : "R" + opt?.price;
+  const ShippingPrice = ({ opt, className = "choice-price" }: { opt: CheckoutShippingOption; className?: string }) => {
+    const saving = shippingOptionSavings(opt);
+    if (saving <= 0) return <div className={className}>{shippingPriceLabel(opt)}</div>;
+    return (
+      <div className={`${className} choice-price-stack`}>
+        <span className="choice-price-was">R{Number(opt.compare_at_price).toFixed(0)}</span>
+        <span className="choice-price-now">{shippingPriceLabel(opt)}</span>
+      </div>
+    );
+  };
+  const ShippingTitle = ({ opt }: { opt: CheckoutShippingOption }) => {
+    const name = shippingDisplayName(opt);
+    const logo = !cartHasImport ? shippingProviderLogo(opt) : "";
+    if (!logo) return <>{name}</>;
+    return (
+      <span className={`shipping-provider ${opt.carrier || ""}`}>
+        <img src={logo} alt={opt.carrier === "aramex" ? "Aramex" : "PAXI"} />
+        <span>{name}</span>
+      </span>
+    );
+  };
 
   // Automatic Buy X Get Y savings -- live preview so the customer sees it
   // before they even reach place-order, computed with the exact same
@@ -810,7 +856,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const originalPrice = Number(item.old_price) || 0;
     return sum + Math.max(0, originalPrice - item.price) * item.qty;
   }, 0);
-  const totalSavings = compareAtSavings + automaticDiscount.totalDiscount + discountAmount;
+  const totalSavings = compareAtSavings + automaticDiscount.totalDiscount + discountAmount + deliverySavings;
   const isShippingDiscount = discountApplied?.applies_to === "shipping";
   const total = isShippingDiscount
     ? Math.max(0, subtotal + shipping - discountAmount - automaticDiscount.totalDiscount)
@@ -861,6 +907,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     if (!isStoreActive(seller)) { setOrderError("This store is not currently accepting orders. Please contact the seller directly."); return; }
     if (!email || !firstName || !lastName) { setOrderError("Please fill in your contact details"); return; }
     if (fulfillment === "delivery" && (!address || !city || !postalCode)) { setOrderError("Please fill in your delivery address"); return; }
+    if (fulfillment === "delivery" && selectedIsPaxi && !paxiPoint.trim()) { setOrderError("Please enter your chosen PAXI point before placing your order."); return; }
 
     placingRef.current = true;
     setPlacing(true);
@@ -878,7 +925,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image, selectedVariants: i.selectedVariants })),
           customer: { firstName, lastName, email, phone },
           address: fulfillment === "delivery"
-            ? { address, apartment, city, province, postal_code: postalCode }
+            ? { address, apartment, city, province, postal_code: postalCode, paxi_point: selectedIsPaxi ? paxiPoint.trim() : undefined }
             : null,
           fulfillment,
           shippingOptionIndex: fulfillment === "delivery" ? shippingOption : null,
@@ -1015,8 +1062,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               townCity: fulfillment === "delivery" ? city : undefined,
               province: fulfillment === "delivery" ? province : undefined,
               postal: fulfillment === "delivery" ? postalCode : undefined,
+              paxiPoint: fulfillment === "delivery" && selectedIsPaxi ? paxiPoint.trim() : undefined,
             },
-            deliveryMethod: fulfillment === "delivery" ? { name: cartHasImport ? PREMIUM_SHIPPING_NAME : cc.shipping_options?.[shippingOption]?.name, price: shipping } : { name: "Pickup", price: 0, isPickup: true },
+            deliveryMethod: fulfillment === "delivery" ? { name: shippingDisplayName(selectedShippingOption), price: shipping } : { name: "Pickup", price: 0, isPickup: true },
             discountCode: discountApplied?.code || undefined,
             total,
             returnOrigin: window.location.origin,
@@ -1262,6 +1310,18 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       {fulfillment === "pickup" && cc.pickup_instructions && <div className="payment-note" style={{ whiteSpace: "pre-wrap" }}>{cc.pickup_instructions}</div>}
                     </div>
                   </div>
+                  {selectedIsPaxi && (
+                    <div className="paxi-point-box">
+                      <label>Selected PAXI point</label>
+                      <input
+                        type="text"
+                        value={paxiPoint}
+                        onChange={(e) => setPaxiPoint(e.target.value)}
+                        placeholder="Example: P7334 · Durban CBD"
+                      />
+                      <p className="paxi-point-hint">For now, enter the PAXI point code or store name you want to collect from. We&rsquo;ll replace this with PAXI&rsquo;s official locator once we have their widget/API access.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1307,8 +1367,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>
                           <div className="radio"></div>
-                          <div className="choice-main"><div className="choice-name">{cartHasImport ? PREMIUM_SHIPPING_NAME : opt.name}</div>{(cartHasImport || opt.estimate) && <div className="choice-sub">{cartHasImport ? PREMIUM_SHIPPING_ESTIMATE : opt.estimate}</div>}</div>
-                          <div className="choice-price">{opt.price === 0 ? "Free" : "R" + opt.price}</div>
+                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} /></div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
+                          <ShippingPrice opt={opt} />
                         </div>
                       </div>
                     ))}
@@ -1512,8 +1572,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     {automaticDiscount.applied.map((a) => (
                       <div className="total-row discount" key={a.title}><span>{a.title}</span><span>&minus;R{a.amount.toFixed(0)}</span></div>
                     ))}
+                    {deliverySavings > 0 && <div className="total-row discount"><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>&minus;R{deliverySavings.toFixed(0)}</span></div>}
                     {totalSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{totalSavings.toFixed(0)}</span></div>}
-                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (shipping === 0 ? "Free" : "R" + shipping)}</span></div>
+                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
                     <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{total.toLocaleString("en-ZA")}</strong></div>
                   </div>
                 </div>
@@ -1695,9 +1756,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div key={i} onClick={() => setShippingOption(i)} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: shippingOption === i ? T.selectBg : T.card, borderBottom: i === lastVisibleIdx ? "none" : "1px solid " + T.summaryBorder }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{ width: 20, height: 20, borderRadius: "50%", border: shippingOption === i ? "6px solid #22c55e" : "2px solid " + T.muted }} />
-                        <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{cartHasImport ? `${PREMIUM_SHIPPING_NAME} · ${PREMIUM_SHIPPING_ESTIMATE}` : opt.name + (opt.estimate ? " · " + opt.estimate : "")}</span>
+                        <span style={{ fontSize: 14, fontWeight: shippingOption === i ? 600 : 400 }}>{shippingDisplayName(opt)}{shippingDisplayEstimate(opt) ? " - " + shippingDisplayEstimate(opt) : ""}</span>
                       </div>
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>{opt.price === 0 ? "Free" : "R" + opt.price}</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, textAlign: "right" }}>{shippingOptionSavings(opt) > 0 && <span style={{ display: "block", color: T.muted, textDecoration: "line-through", fontSize: 12 }}>R{Number(opt.compare_at_price).toFixed(0)}</span>}{shippingPriceLabel(opt)}</span>
                       </div>
                     );
                   });
@@ -1932,8 +1993,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             {automaticDiscount.applied.map((a) => (
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
+            {deliverySavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>-R{deliverySavings.toFixed(0)}</span></div>}
             {totalSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{totalSavings.toFixed(0)}</span></div>}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{shipping === 0 ? (fulfillment === "pickup" ? "Pickup" : "Free") : "R" + shipping}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 16, fontWeight: 600 }}>Total</span>
