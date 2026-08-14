@@ -21,3 +21,11 @@ export function sastDayStartUtc(dateStr: string): Date {
 export function sastMonthStartUtc(dateStr: string): Date {
   return sastDayStartUtc(dateStr.slice(0, 7) + "-01");
 }
+
+// The SAST calendar date ("YYYY-MM-DD") that a given UTC instant (e.g. an
+// order's created_at) falls on -- the inverse of sastDayStartUtc, used to
+// bucket historical timestamps into the seller's local days rather than
+// UTC ones (a sale at 23:30 SAST is already the next UTC day).
+export function sastDateOf(iso: string): string {
+  return new Date(new Date(iso).getTime() + SAST_OFFSET_MS).toISOString().slice(0, 10);
+}

@@ -12,6 +12,7 @@ import Spinner from "../components/Spinner";
 import SupportChat from "../components/SupportChat";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
+import type { FullAnalytics } from "../../lib/store-analytics";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -362,6 +363,9 @@ export default function Dashboard() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
+  const [fullAnalytics, setFullAnalytics] = useState<FullAnalytics | null>(null);
+  const [fullAnalyticsLoading, setFullAnalyticsLoading] = useState(false);
+  const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -646,6 +650,25 @@ export default function Dashboard() {
     const id = setInterval(fetchSessionAnalytics, 30000);
     return () => clearInterval(id);
   }, [loading]);
+
+  // Lazy-loaded: only fetches once the Analytics tab is actually opened
+  // (it scans every order in the selected range, real work server-side,
+  // no reason to pay for it on every dashboard load), and re-fetches
+  // whenever the range selector changes.
+  useEffect(() => {
+    if (loading || tab !== "analytics") return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setFullAnalyticsLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, days: analyticsRangeDays }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setFullAnalytics(data);
+      } catch {}
+      setFullAnalyticsLoading(false);
+    })();
+  }, [loading, tab, analyticsRangeDays]);
 
   const fetchSubscribers = async () => {
     const token = await getAccessToken();
@@ -3294,13 +3317,178 @@ export default function Dashboard() {
           </div>)}
 
           {tab === "analytics" && (<div>
-            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Analytics</h1>
-            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Visitors, conversion, and revenue trends.</p>
-            <div style={{ ...sectionCard, textAlign: "center" as const, padding: "60px 20px" }}>
-              <div style={{ width: 52, height: 52, borderRadius: 14, background: "rgba(255,107,53,0.08)", color: N, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><DashIcon name="analytics" size={22} /></div>
-              <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Analytics is coming soon</h3>
-              <p style={{ fontSize: 13, color: "var(--muted-2)", maxWidth: 360, margin: "0 auto" }}>Visitor tracking, conversion rate, and revenue trends are next on the roadmap. Orders and revenue are already tracked live on your Overview page.</p>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 12, marginBottom: 4 }}>
+              <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const }}>Analytics</h1>
+              <div style={{ display: "flex", gap: 4, padding: 4, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100 }}>
+                {[7, 30, 90].map((d) => (
+                  <button key={d} onClick={() => setAnalyticsRangeDays(d)} style={{ padding: "7px 16px", borderRadius: 100, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 800, fontFamily: "'Schibsted Grotesk', sans-serif", background: analyticsRangeDays === d ? G : "transparent", color: analyticsRangeDays === d ? "#fff" : "var(--muted)" }}>{d} days</button>
+                ))}
+              </div>
             </div>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Visitors, conversion, best sellers, and revenue trends -- real order and session data, no estimates.</p>
+
+            {fullAnalyticsLoading && !fullAnalytics ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 13 }}>Crunching your numbers…</p></div>
+            ) : !fullAnalytics ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 13 }}>Could not load analytics. Try refreshing.</p></div>
+            ) : (() => {
+              const fa = fullAnalytics;
+              const money = (n: number) => "R" + Math.round(n).toLocaleString("en-ZA");
+              const paymentMethodLabel: Record<string, string> = { yoco: "Card (Yoco)", stitch: "Card (Stitch)", setla: "SETLA", payfast: "PayFast", eft: "EFT" };
+              return (
+                <>
+                  {/* HERO STATS */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
+                    {[
+                      { label: "Revenue", value: money(fa.totals.revenue), icon: "trend-up" as DashIconName, color: "#22c55e" },
+                      { label: "Orders", value: String(fa.totals.orders), icon: "orders" as DashIconName, color: "#fbbf24" },
+                      { label: "Conversion rate", value: fa.totals.conversionRate.toFixed(1) + "%", icon: "sparkle" as DashIconName, color: "#60a5fa" },
+                      { label: "Avg. order value", value: money(fa.totals.averageOrderValue), icon: "cart" as DashIconName, color: "#ff6b35" },
+                    ].map((s) => (
+                      <div key={s.label} style={{ padding: "20px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                          <DashIcon name={s.icon} size={15} stroke={1.8} />
+                        </div>
+                        <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1 }}>{s.value}</div>
+                        <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.05em", fontWeight: 700, marginTop: 6 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* REVENUE TREND */}
+                  <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>Revenue &middot; last {fa.rangeDays} days</div>
+                      <div style={{ fontSize: 13, fontWeight: 800 }}>{money(fa.totals.revenue)} total</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: fa.rangeDays > 30 ? 2 : 5, height: 110 }}>
+                      {fa.revenueSeries.map((d) => {
+                        const max = Math.max(1, ...fa.revenueSeries.map((x) => x.revenue));
+                        return (
+                          <div key={d.date} title={`${d.date}: R${Math.round(d.revenue).toLocaleString("en-ZA")}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 1 }}>
+                            <div style={{ width: "100%", height: Math.max(2, Math.round((d.revenue / max) * 96)), background: d.revenue > 0 ? "linear-gradient(180deg, #34d872, #22c55e)" : "var(--input-bg)", borderRadius: "3px 3px 1px 1px", transition: "height 0.3s" }} />
+                            {fa.rangeDays <= 30 && <span style={{ fontSize: 7, color: "var(--muted-2)" }}>{new Date(d.date + "T00:00:00Z").getUTCDate()}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ORDERS + SESSIONS TREND */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }} className="overview-panels-grid">
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Orders &middot; last {fa.rangeDays} days</div>
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: fa.rangeDays > 30 ? 2 : 5, height: 76 }}>
+                        {fa.ordersSeries.map((d) => {
+                          const max = Math.max(1, ...fa.ordersSeries.map((x) => x.orders));
+                          return <div key={d.date} title={`${d.date}: ${d.orders} order${d.orders === 1 ? "" : "s"}`} style={{ flex: 1, minWidth: 1, height: Math.max(2, Math.round((d.orders / max) * 68)), background: d.orders > 0 ? "linear-gradient(180deg, #fbbf24, #f59e0b)" : "var(--input-bg)", borderRadius: "3px 3px 1px 1px" }} />;
+                        })}
+                      </div>
+                    </div>
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Sessions &middot; last {fa.rangeDays} days</div>
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: fa.rangeDays > 30 ? 2 : 5, height: 76 }}>
+                        {fa.sessionsSeries.map((d) => {
+                          const max = Math.max(1, ...fa.sessionsSeries.map((x) => x.sessions));
+                          return <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, minWidth: 1, height: Math.max(2, Math.round((d.sessions / max) * 68)), background: d.sessions > 0 ? "linear-gradient(180deg, #7aa2ff, #60a5fa)" : "var(--input-bg)", borderRadius: "3px 3px 1px 1px" }} />;
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BEST SELLERS */}
+                  <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Best sellers &middot; last {fa.rangeDays} days</div>
+                    {fa.bestSellers.length === 0 ? (
+                      <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No paid orders in this range yet.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {fa.bestSellers.map((p, i) => {
+                          const maxRevenue = Math.max(1, ...fa.bestSellers.map((x) => x.revenue));
+                          return (
+                            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 6px" }}>
+                              <div style={{ width: 18, fontSize: 12, fontWeight: 800, color: "var(--muted-2)", textAlign: "center" as const, flexShrink: 0 }}>{i + 1}</div>
+                              {p.image ? <img src={p.image} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} /> : <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--input-bg)", flexShrink: 0 }} />}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" as const, overflow: "hidden" as const, textOverflow: "ellipsis" as const, marginBottom: 5 }}>{p.name}</div>
+                                <div style={{ height: 3, borderRadius: 2, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                  <div style={{ width: `${Math.max(4, Math.round((p.revenue / maxRevenue) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #ff6b35, #ff8a5c)", borderRadius: 2 }} />
+                                </div>
+                              </div>
+                              <div style={{ textAlign: "right" as const, flexShrink: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 800 }}>{money(p.revenue)}</div>
+                                <div style={{ fontSize: 10, color: "var(--muted-2)" }}>{p.unitsSold} sold</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PAYMENT METHODS + LOCATIONS + CUSTOMERS */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }} className="form-grid-3">
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Payment methods</div>
+                      {fa.paymentMethods.length === 0 ? (
+                        <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No paid orders yet.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {fa.paymentMethods.map((pm) => {
+                            const max = Math.max(1, ...fa.paymentMethods.map((x) => x.revenue));
+                            return (
+                              <div key={pm.method}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
+                                  <span>{paymentMethodLabel[pm.method] || pm.method}</span>
+                                  <strong>{money(pm.revenue)}</strong>
+                                </div>
+                                <div style={{ height: 4, borderRadius: 2, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                  <div style={{ width: `${Math.max(4, Math.round((pm.revenue / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #60a5fa, #7aa2ff)", borderRadius: 2 }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Top locations</div>
+                      {fa.topLocations.length === 0 ? (
+                        <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No location data yet.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {fa.topLocations.map((loc, i) => {
+                            const max = Math.max(1, ...fa.topLocations.map((x) => x.count));
+                            return (
+                              <div key={i}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
+                                  <span>{[loc.city, loc.region, loc.country].filter(Boolean).join(", ") || "Unknown"}</span>
+                                  <strong>{loc.count}</strong>
+                                </div>
+                                <div style={{ height: 4, borderRadius: 2, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                  <div style={{ width: `${Math.max(4, Math.round((loc.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #ff6b35, #ff8a5c)", borderRadius: 2 }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Customers</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+                        <span style={{ fontSize: 28, fontWeight: 900, letterSpacing: "-0.03em" }}>{fa.customers.total}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted-2)" }}>paying customers</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }}>{fa.customers.returning} returning ({fa.customers.returningRate.toFixed(0)}%)</div>
+                      <div style={{ height: 4, borderRadius: 2, background: "var(--input-bg)", overflow: "hidden" as const, marginTop: 8 }}>
+                        <div style={{ width: `${Math.max(0, Math.min(100, fa.customers.returningRate))}%`, height: "100%", background: "linear-gradient(90deg, #22c55e, #34d872)", borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>)}
 
           {tab === "qrcode" && (<div>
