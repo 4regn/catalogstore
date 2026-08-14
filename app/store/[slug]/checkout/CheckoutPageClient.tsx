@@ -492,10 +492,16 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         return;
       }
     }
-    // Handle cancelled PayFast/Yoco payment - reload cart from order
+    // Handle cancelled PayFast/Yoco payment - reload cart from order.
+    // Shown via the same styled orderError banner the checkout form
+    // itself uses for a failed placeOrder() call, not a native alert() --
+    // a plain browser popup here looked like a system error rather than
+    // part of checkout, especially jarring right after the polished
+    // confirmation-page pass. The cart is still preserved either way (see
+    // the effect above), this only changes how the message is shown.
     const cancelledParam = p.get("cancelled");
     if (cancelledParam === "1") {
-      alert("Payment was cancelled. You can try again.");
+      setOrderError("Payment was cancelled. You can try again below.");
     }
     // Yoco reports a declined/failed card attempt separately from an
     // outright cancel (see failureUrl in /api/checkout/yoco-redirect) --
@@ -504,7 +510,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     // go through.
     const failedParam = p.get("failed");
     if (failedParam === "1") {
-      alert("Your payment could not be completed. Please try again or use a different payment method.");
+      setOrderError("Your payment could not be completed. Please try again or use a different payment method.");
     }
     /* Decode + validate cart from URL. Any malformed item would otherwise
        produce NaN totals and an unclickable "Pay Now RNaN" button. Prices
@@ -1121,6 +1127,14 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           </header>
           <main className="layout">
             <section className="form-pane">
+              {/* Duplicate of the order-error banner further down (still
+                  shown near the pay button for an error from clicking it)
+                  -- this copy is specifically for a customer LANDING on the
+                  page already carrying an error (redirected back after a
+                  cancelled/declined payment), who wouldn't otherwise see
+                  anything below the fold without scrolling past the whole
+                  form first. */}
+              {orderError && <div className="order-error">{orderError}</div>}
               <div className="eyebrow">Secure checkout</div>
               <h1>Complete your order.</h1>
               <p className="intro">Your products are reserved while you finish checkout. Enter your delivery details, select your preferred courier, and choose how you&rsquo;d like to pay.</p>
