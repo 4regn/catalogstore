@@ -512,6 +512,47 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     if (failedParam === "1") {
       setOrderError("Your payment could not be completed. Please try again or use a different payment method.");
     }
+    // Refill the whole form from the order that was already placed --
+    // not just the cart -- so a customer bounced back from a cancelled/
+    // declined gateway attempt doesn't have to retype their contact and
+    // delivery details too. orderId is only present on cancel/failure
+    // redirects built after this was added (yoco-redirect, payfast-
+    // redirect); older/other links without it just skip this silently.
+    const restoreOrderId = (cancelledParam === "1" || failedParam === "1") ? p.get("orderId") : null;
+    if (restoreOrderId && sd) {
+      const restoreRes = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(restoreOrderId)}`, { cache: "no-store" }).catch(() => null);
+      const { order: restoreOrder } = restoreRes ? await restoreRes.json().catch(() => ({ order: null })) : { order: null };
+      if (restoreOrder) {
+        setEmail(restoreOrder.customer_email || "");
+        setPhone(restoreOrder.customer_phone || "");
+        const nameParts = String(restoreOrder.customer_name || "").split(" ");
+        setFirstName(nameParts[0] || "");
+        setLastName(nameParts.slice(1).join(" ") || "");
+        if (restoreOrder.shipping_address) {
+          setFulfillment("delivery");
+          setAddress(restoreOrder.shipping_address.address || "");
+          setApartment(restoreOrder.shipping_address.apartment || "");
+          setCity(restoreOrder.shipping_address.city || "");
+          setProvince(restoreOrder.shipping_address.province || "Gauteng");
+          setPostalCode(restoreOrder.shipping_address.postal_code || "");
+        } else if (restoreOrder.fulfillment_method === "pickup") {
+          setFulfillment("pickup");
+        }
+        const shippingOptions = sd.checkout_config?.shipping_options || [];
+        const matchedShippingIdx = shippingOptions.findIndex((o: any) => o.name === restoreOrder.shipping_option);
+        if (matchedShippingIdx !== -1) setShippingOption(matchedShippingIdx);
+        if (["eft", "payfast", "yoco", "stitch", "setla", "float"].includes(restoreOrder.payment_method)) {
+          setPaymentMethod(restoreOrder.payment_method);
+        }
+        if (restoreOrder.discount_code) {
+          const { data: discountRow } = await supabase.from("discount_codes").select("code, type, value, applies_to, product_ids, collection_names").eq("seller_id", sd.id).eq("code", restoreOrder.discount_code).maybeSingle();
+          if (discountRow) {
+            setDiscountCode(discountRow.code);
+            setDiscountApplied({ code: discountRow.code, type: discountRow.type, value: discountRow.value, applies_to: discountRow.applies_to || "cart", product_ids: discountRow.product_ids || [], collection_names: discountRow.collection_names || [] });
+          }
+        }
+      }
+    }
     /* Decode + validate cart from URL. Any malformed item would otherwise
        produce NaN totals and an unclickable "Pay Now RNaN" button. Prices
        here are display-only — the server re-fetches before charging. */

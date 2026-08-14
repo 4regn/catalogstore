@@ -83,7 +83,12 @@ export async function POST(req: NextRequest) {
       email_address: email || "",
       cell_number: phone || "",
       return_url: origin + storePath(origin, slug, "/checkout?paid=" + orderId),
-      cancel_url: origin + storePath(origin, slug, "/checkout?cancelled=1&cart=" + cartEncoded),
+      // orderId included here too (not just cart=) so the checkout page can
+      // re-fetch this exact order's saved contact/address/payment-method
+      // details and refill the form on the way back -- see
+      // CheckoutPageClient.tsx's load() for the restore logic. Same
+      // reasoning as yoco-redirect's own cancelUrl/failureUrl.
+      cancel_url: origin + storePath(origin, slug, "/checkout?cancelled=1&orderId=" + orderId + "&cart=" + cartEncoded),
       /* notify_url is always our own configured APP_ORIGIN, not derived
          from the request — defense against attackers setting their own
          host as the ITN destination. */

@@ -94,8 +94,13 @@ export async function POST(req: NextRequest) {
       amountCents: Math.round(Number(order.total) * 100),
       metadata: { orderId },
       successUrl: origin + storePath(origin, slug, "/checkout?paid=" + orderId),
-      cancelUrl: origin + storePath(origin, slug, "/checkout?cancelled=1&cart=" + cartEncoded),
-      failureUrl: origin + storePath(origin, slug, "/checkout?failed=1&cart=" + cartEncoded),
+      // orderId included here too (not just cart=) so the checkout page can
+      // re-fetch this exact order's saved contact/address/payment-method
+      // details on the way back and refill the form, instead of leaving
+      // the customer to retype everything except their cart -- see
+      // CheckoutPageClient.tsx's load() for the restore logic.
+      cancelUrl: origin + storePath(origin, slug, "/checkout?cancelled=1&orderId=" + orderId + "&cart=" + cartEncoded),
+      failureUrl: origin + storePath(origin, slug, "/checkout?failed=1&orderId=" + orderId + "&cart=" + cartEncoded),
       lineItems,
     });
 
