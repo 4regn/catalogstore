@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
-import { sendSetlaEmail, approvedEmailContent, declinedEmailContent, manualReviewEmailContent } from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, sendApprovedSetlaLimitEmail, declinedEmailContent, manualReviewEmailContent } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -70,13 +70,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       : "Your application needs a closer look -- we'll be in touch shortly.";
   await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `application_${decision}`, title, body: body_ });
 
-  const content =
-    decision === "approved"
-      ? approvedEmailContent(customer.first_name, proposedLimit as number)
-      : decision === "declined"
-      ? declinedEmailContent(customer.first_name, reason)
-      : manualReviewEmailContent(customer.first_name);
-  await sendSetlaEmail({ to: customer.email, ...content });
+  if (decision === "approved") {
+    await sendApprovedSetlaLimitEmail({ to: customer.email, firstName: customer.first_name, approvedLimit: proposedLimit as number });
+  } else {
+    const content = decision === "declined" ? declinedEmailContent(customer.first_name, reason) : manualReviewEmailContent(customer.first_name);
+    await sendSetlaEmail({ to: customer.email, ...content });
+  }
 
   await admin.from("admin_audit_log").insert({
     admin_email: auth.admin.email,

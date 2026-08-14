@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
-import { sendSetlaEmail, SETLA_EMAIL_TYPES } from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, sendApprovedSetlaLimitEmail, SETLA_EMAIL_TYPES } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const deliverTo = overrideEmailRaw || customer.email;
   const content = type.content(customer.first_name, customer.approved_limit);
   await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: `manual_${emailType}`, title: content.subject, body: content.headline });
-  await sendSetlaEmail({ ...content, to: deliverTo });
+  if (emailType === "approved") {
+    await sendApprovedSetlaLimitEmail({ to: deliverTo, firstName: customer.first_name, approvedLimit: customer.approved_limit });
+  } else {
+    await sendSetlaEmail({ ...content, to: deliverTo });
+  }
   if (emailType === "signup_nudge") {
     await admin.from("setla_customers").update({ signup_nudge_sent_at: new Date().toISOString() }).eq("id", customer.id);
   }

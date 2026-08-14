@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../lib/setla-admin";
-import { sendSetlaEmail, SETLA_EMAIL_TYPES } from "../../../../../lib/setla-email";
+import { sendSetlaEmail, sendApprovedSetlaLimitEmail, SETLA_EMAIL_TYPES, SETLA_SAMPLE_LIMIT } from "../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +29,12 @@ export async function POST(req: NextRequest) {
   const firstName = String(body.firstName || "").trim().slice(0, 80);
   if (!firstName) return NextResponse.json({ error: "Enter a name for the email to be addressed to" }, { status: 400 });
 
-  const content = type.content(firstName);
-  await sendSetlaEmail({ ...content, to });
+  if (emailType === "approved") {
+    await sendApprovedSetlaLimitEmail({ to, firstName, approvedLimit: SETLA_SAMPLE_LIMIT });
+  } else {
+    const content = type.content(firstName);
+    await sendSetlaEmail({ ...content, to });
+  }
 
   await getAdmin().from("admin_audit_log").insert({
     admin_email: auth.admin.email,
