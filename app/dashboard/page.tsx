@@ -440,6 +440,14 @@ export default function Dashboard() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
+  // Real OS-level push notifications for new orders (see lib/push-notify.ts)
+  // -- distinct from the Realtime toast/chime above, which only fires while
+  // this tab is open and focused. pushBusy guards the async permission/
+  // subscribe round trip so a second click can't race the first.
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushBannerDismissed, setPushBannerDismissed] = useState(true);
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
@@ -615,6 +623,75 @@ export default function Dashboard() {
   const getAccessToken = async () => {
     const { data } = await supabase.auth.getSession();
     return data?.session?.access_token || "";
+  };
+
+  // Web Push's applicationServerKey wants a Uint8Array, not the base64url
+  // string NEXT_PUBLIC_VAPID_PUBLIC_KEY is stored/transmitted as.
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  };
+
+  // Reflects whatever's actually registered in the browser (not a DB flag)
+  // so the bell shows the true on/off state even after e.g. clearing site
+  // data or switching devices, without a network round trip.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    setPushSupported(true);
+    setPushBannerDismissed(localStorage.getItem("cs_push_banner_dismissed") === "1");
+    navigator.serviceWorker.getRegistration("/order-push-sw.js").then(async (reg) => {
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) setPushEnabled(true);
+    }).catch(() => {});
+  }, []);
+
+  const dismissPushBanner = () => {
+    setPushBannerDismissed(true);
+    try { localStorage.setItem("cs_push_banner_dismissed", "1"); } catch {}
+  };
+
+  const enableOrderPush = async () => {
+    if (!pushSupported || pushBusy) return;
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidKey) { alert("Push notifications aren't configured yet."); return; }
+    setPushBusy(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") { setPushBusy(false); return; }
+      const reg = await navigator.serviceWorker.register("/order-push-sw.js");
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidKey) });
+      const token = await getAccessToken();
+      if (!token) { setPushBusy(false); return; }
+      const res = await fetch("/api/dashboard/push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: token, subscription: sub.toJSON(), user_agent: navigator.userAgent }),
+      });
+      if (res.ok) setPushEnabled(true);
+    } catch (err) {
+      console.error("enableOrderPush failed:", err);
+    }
+    setPushBusy(false);
+  };
+
+  const disableOrderPush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration("/order-push-sw.js");
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        const token = await getAccessToken();
+        if (token) await fetch("/api/dashboard/push-subscribe", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, endpoint: sub.endpoint }) }).catch(() => {});
+        await sub.unsubscribe();
+      }
+    } catch (err) {
+      console.error("disableOrderPush failed:", err);
+    }
+    setPushEnabled(false);
+    setPushBusy(false);
   };
 
   const fetchLiveVisitors = async () => {
@@ -1746,10 +1823,17 @@ export default function Dashboard() {
                 : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>}
               {theme === "dark" ? "Dark Mode" : "Light Mode"}
             </button>
-            <div style={{ position: "relative", width: 38, height: 38, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <DashIcon name="bell" size={16} />
-              {orderNotification && <span style={{ position: "absolute", top: 7, right: 7, width: 7, height: 7, borderRadius: "50%", background: N, border: "1.5px solid var(--panel)" }} />}
-            </div>
+            {pushSupported && (
+              <button
+                onClick={() => { pushEnabled ? disableOrderPush() : enableOrderPush(); }}
+                disabled={pushBusy}
+                title={pushEnabled ? "Order push alerts are on — click to turn off" : "Turn on push alerts for new orders, even when this tab is closed"}
+                style={{ position: "relative", width: 38, height: 38, background: pushEnabled ? "rgba(34,197,94,0.1)" : "var(--panel)", border: "1px solid " + (pushEnabled ? "rgba(34,197,94,0.3)" : "var(--border)"), borderRadius: 10, color: pushEnabled ? "#22c55e" : "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", cursor: pushBusy ? "default" : "pointer", opacity: pushBusy ? 0.6 : 1 }}
+              >
+                <DashIcon name="bell" size={16} />
+                {orderNotification && <span style={{ position: "absolute", top: 7, right: 7, width: 7, height: 7, borderRadius: "50%", background: N, border: "1.5px solid var(--panel)" }} />}
+              </button>
+            )}
             <div style={{ position: "relative" }}>
               <button onClick={() => setProfileMenuOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px 6px 6px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, cursor: "pointer" }}>
                 <StoreAvatar size={26} fontSize={11} />
@@ -1788,6 +1872,20 @@ export default function Dashboard() {
               </div>
               <span style={{ padding: "6px 16px", background: G, borderRadius: 100, fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Upgrade</span>
             </a>
+          )}
+
+          {pushSupported && !pushEnabled && !pushBannerDismissed && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 24, flexWrap: "wrap" as const, gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ color: "var(--text)", display: "flex" }}><DashIcon name="bell" size={15} /></span>
+                <span style={{ fontSize: 13, color: "var(--text)", fontWeight: 700 }}>Get notified the second an order comes in</span>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>- a real popup alert on this device, even when the dashboard isn't open</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={enableOrderPush} disabled={pushBusy} style={{ padding: "8px 16px", background: N, border: "none", borderRadius: 100, fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase" as const, letterSpacing: "0.06em", cursor: pushBusy ? "default" : "pointer", opacity: pushBusy ? 0.6 : 1 }}>{pushBusy ? "Enabling…" : "Enable Alerts"}</button>
+                <button onClick={dismissPushBanner} style={{ background: "none", border: "none", color: "var(--muted-2)", fontSize: 18, cursor: "pointer", padding: 4, lineHeight: 1 }}>&times;</button>
+              </div>
+            </div>
           )}
 
           {tab === "overview" && (<div>

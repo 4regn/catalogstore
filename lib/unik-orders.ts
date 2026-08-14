@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "./email";
+import { sendOrderPushToSeller } from "./push-notify";
 import { voidStillbornPayLaterPlan } from "./setla-instalments";
 import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "./four-regn-orders";
 
@@ -71,6 +72,11 @@ export async function markUnikOrderPaid(
       </div>`,
     });
   }
+  await sendOrderPushToSeller(admin, order.seller_id, {
+    title: `New order — R${Math.round(Number(order.total))}`,
+    body: `${order.customer_name} · ${(order.items || []).length} item${(order.items || []).length === 1 ? "" : "s"}`,
+    url: "/dashboard?tab=orders",
+  });
   if (order.customer_email) {
     const isFourRegn = seller?.subdomain === "4regn";
     const reference = isFourRegn ? fourRegnOrderReference(updated) : "";

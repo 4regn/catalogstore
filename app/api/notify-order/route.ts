@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../lib/rate-limit";
 import { getAdmin } from "../../../lib/supabase-admin";
 import { canonicalStoreUrl } from "../../../lib/store-url";
+import { sendOrderPushToSeller } from "../../../lib/push-notify";
 import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "../../../lib/four-regn-orders";
 export async function POST(req: NextRequest) {
   try {
@@ -132,7 +133,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Build WhatsApp notification URL (stored for dashboard to use)
+    // 3. Push notification to the seller's dashboard (real OS-level popup,
+    // not just the in-tab Realtime toast) -- see lib/push-notify.ts. Never
+    // allowed to block/fail this route; it already no-ops quietly if VAPID
+    // env vars aren't configured or the seller never enabled it.
+    await sendOrderPushToSeller(getAdmin(), order.seller_id, {
+      title: `New order — R${order.total}`,
+      body: `${order.customer_name} · ${(order.items || []).length} item${(order.items || []).length === 1 ? "" : "s"}`,
+      url: "/dashboard?tab=orders",
+    });
+
+    // 4. Build WhatsApp notification URL (stored for dashboard to use)
     let whatsappUrl = "";
     if (seller.whatsapp_number) {
       const waNumber = seller.whatsapp_number.replace(/\D/g, "").replace(/^0/, "27");
