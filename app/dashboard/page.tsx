@@ -3786,9 +3786,28 @@ export default function Dashboard() {
                 // here). Re-fetches the current row instead of trusting
                 // client-side `seller` state, in case it's gone stale since
                 // this page loaded.
-                const { data: current } = await supabase.from("sellers").select("checkout_config").eq("id", seller.id).single();
+                const { data: current, error: fetchErr } = await supabase.from("sellers").select("checkout_config").eq("id", seller.id).single();
+                if (fetchErr) {
+                  console.error("Checkout settings save: fetch current row failed", fetchErr);
+                  alert("Couldn't save: " + fetchErr.message);
+                  setCheckoutSaving(false);
+                  return;
+                }
                 const merged = { ...(current?.checkout_config || {}), ...checkoutConfig };
-                await supabase.from("sellers").update({ checkout_config: merged }).eq("id", seller.id);
+                // Previously unchecked -- a failed write here (RLS, network,
+                // stale session) still showed "Saved!" and updated local
+                // state optimistically, so the dashboard looked correct
+                // while the DB (and therefore the storefront) kept the old
+                // value. Surfacing the error is the only way a save that
+                // silently doesn't persist stops looking identical to one
+                // that does.
+                const { error: saveErr } = await supabase.from("sellers").update({ checkout_config: merged }).eq("id", seller.id);
+                if (saveErr) {
+                  console.error("Checkout settings save failed", saveErr);
+                  alert("Couldn't save: " + saveErr.message);
+                  setCheckoutSaving(false);
+                  return;
+                }
                 setSeller({ ...seller, checkout_config: merged });
                 setCheckoutSaving(false); setCheckoutSaved(true); setTimeout(() => setCheckoutSaved(false), 3000); revalidateMyStore();
               }} disabled={checkoutSaving} style={{ padding: "14px 40px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: checkoutSaving ? "not-allowed" : "pointer", opacity: checkoutSaving ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{checkoutSaving ? "Saving..." : "Save Checkout Settings"}</button>
