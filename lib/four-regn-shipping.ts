@@ -53,15 +53,17 @@ export function buildCheckoutShippingOptions(
 
   const premiumOptions = options.filter(isPremiumShippingOption).map((opt) => ({
     ...opt,
+    price: 0,
+    compare_at_price: 99,
     carrier: opt.carrier || "premium",
     service_level: opt.service_level || "premium",
   }));
 
   return [
-    FOUR_REGN_AR_MAILER,
     FOUR_REGN_PAXI_STANDARD,
-    FOUR_REGN_PAXI_EXPRESS,
+    FOUR_REGN_AR_MAILER,
     ...premiumOptions,
+    FOUR_REGN_PAXI_EXPRESS,
   ];
 }
 
