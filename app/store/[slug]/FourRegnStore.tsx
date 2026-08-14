@@ -3287,7 +3287,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       ? <Image src={displayLogo} alt={seller.store_name} width={100} height={26} style={{ width: "auto", height: 22 }} />
                       : <span className="fr-collab-mark">{seller.store_name}</span>}
                     <span className="fr-collab-x">×</span>
-                    <Image src="/private-templates/unik-labs/assets/brand/unik-logo-white-transparent.png" alt="UNIK Labs" width={100} height={22} style={{ width: "auto", height: 15 }} />
+                    <Image src="/private-templates/unik-labs/assets/brand/unik-wordmark-white.png" alt="UNIK Labs" width={200} height={49} style={{ width: "auto", height: 16 }} />
                   </div>
                   <div className="fr-collab-eyebrow">A Studio Collaboration</div>
                   <h2 className="fr-collab-title">Turn your photos into <em>something you can wear.</em></h2>
