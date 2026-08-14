@@ -18,7 +18,7 @@ export const FOUR_REGN_AR_MAILER: CheckoutShippingOption = {
 };
 
 export const FOUR_REGN_PAXI_STANDARD: CheckoutShippingOption = {
-  name: "PAXI Standard - Collect from a PAXI Point",
+  name: "PAXI Standard Delivery",
   price: 0,
   compare_at_price: 60,
   estimate: "7-9 working days",
@@ -27,7 +27,7 @@ export const FOUR_REGN_PAXI_STANDARD: CheckoutShippingOption = {
 };
 
 export const FOUR_REGN_PAXI_EXPRESS: CheckoutShippingOption = {
-  name: "PAXI Express - Collect from a PAXI Point",
+  name: "PAXI Express Delivery",
   price: 110,
   estimate: "3-5 working days",
   carrier: "paxi",
@@ -66,5 +66,8 @@ export function buildCheckoutShippingOptions(
 }
 
 export function shippingOptionSavings(opt: CheckoutShippingOption | undefined | null) {
-  return Math.max(0, Number(opt?.compare_at_price) - Number(opt?.price || 0));
+  const compareAt = Number(opt?.compare_at_price);
+  const price = Number(opt?.price || 0);
+  if (!Number.isFinite(compareAt) || compareAt <= price) return 0;
+  return compareAt - price;
 }
