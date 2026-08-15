@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { getYocoCheckout } from "../../../../lib/yoco";
 import { markUnikOrderPaid } from "../../../../lib/unik-orders";
+import { activateSetlaPlanAfterPayment, type SetlaFirstChargeMeta } from "../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
-const ORDER_SELECT = "id, seller_id, order_number, external_id, customer_name, customer_email, customer_phone, items, total, shipping_cost, shipping_option, shipping_address, fulfillment_method, payment_method, payment_status, status, discount_code, yoco_checkout_id, created_at";
+const ORDER_SELECT = "id, seller_id, order_number, external_id, customer_name, customer_email, customer_phone, items, total, shipping_cost, shipping_option, shipping_address, fulfillment_method, payment_method, payment_status, status, discount_code, yoco_checkout_id, setla_pending_stitch_meta, created_at";
 
 type CheckoutOrder = {
   id: string;
@@ -26,13 +27,15 @@ type CheckoutOrder = {
   status?: string | null;
   discount_code?: string | null;
   yoco_checkout_id?: string | null;
+  setla_pending_stitch_meta?: unknown;
   created_at?: string | null;
 };
 
 function publicOrder(order: CheckoutOrder) {
-  const safeOrder = { ...order } as Omit<CheckoutOrder, "seller_id" | "yoco_checkout_id"> & Partial<Pick<CheckoutOrder, "seller_id" | "yoco_checkout_id">>;
+  const safeOrder = { ...order } as Omit<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "setla_pending_stitch_meta"> & Partial<Pick<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "setla_pending_stitch_meta">>;
   delete safeOrder.seller_id;
   delete safeOrder.yoco_checkout_id;
+  delete safeOrder.setla_pending_stitch_meta;
   return safeOrder;
 }
 
@@ -77,7 +80,12 @@ export async function GET(req: NextRequest) {
         const expectedCents = Math.round(Number(order.total || 0) * 100);
         const amountMatches = !checkout.amount || Math.abs(expectedCents - Number(checkout.amount || 0)) <= 1;
         if (amountMatches) {
-          const result = await markUnikOrderPaid(admin, order, checkout.paymentId, null, "yoco");
+          const setlaMeta = order.payment_method === "setla" && (order.setla_pending_stitch_meta as SetlaFirstChargeMeta | null)?.kind === "setla_first_charge"
+            ? order.setla_pending_stitch_meta as SetlaFirstChargeMeta
+            : null;
+          const result = setlaMeta
+            ? ((await activateSetlaPlanAfterPayment(admin, setlaMeta, checkout.paymentId, Number(checkout.amount) || expectedCents, null)).ok ? "paid" : "update_failed")
+            : await markUnikOrderPaid(admin, order, checkout.paymentId, null, "yoco");
           if (result === "paid" || result === "already_paid") {
             const { data: refreshed } = await admin
               .from("orders")

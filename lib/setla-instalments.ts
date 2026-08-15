@@ -295,7 +295,7 @@ export async function activateSetlaPlanAfterPayment(
     .from("orders")
     .update({ status: "confirmed", payment_status: "paid", payment_method: meta.planType === "pay_later" ? "setla_pay_later" : "setla_laybuy", ...providerColumns })
     .eq("id", order.id)
-    .eq("payment_status", "pending");
+    .in("payment_status", ["pending", "abandoned", "failed"]);
 
   const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url, subdomain").eq("id", order.seller_id).maybeSingle();
   const isFourRegn = seller?.subdomain === "4regn";
