@@ -911,9 +911,9 @@ export default function Dashboard() {
   const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormSourceUrl(p.source_url || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
 
   const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
-    if (typeof window === "undefined") return "";
     const key = p.handle || p.id;
-    return `${window.location.origin}/dashboard?tab=products&editProductHandle=${encodeURIComponent(key)}`;
+    const adminOrigin = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+    return `${adminOrigin.replace(/\/$/, "")}/dashboard?tab=products&editProductHandle=${encodeURIComponent(key)}`;
   };
 
   useEffect(() => {
