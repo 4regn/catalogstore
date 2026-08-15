@@ -163,6 +163,7 @@ interface Order {
   customer_email: string;
   items: { name: string; qty: number; price: number; variant?: string; image?: string }[]; total: number;
   status: string; payment_status: string; created_at: string;
+  tracking_updated_at?: string | null;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null;
 }
@@ -191,9 +192,19 @@ interface VelourBooking {
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
 const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url";
-const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
+const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
 const displayOrderReference = (order: Pick<Order, "order_number" | "external_id">) =>
   order.external_id ? String(order.external_id).replace(/^#?/, "#") : `#${order.order_number}`;
+const toDateTimeLocalValue = (iso?: string | null) => {
+  const date = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+const fromDateTimeLocalValue = (value: string) => {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+};
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
 const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
 const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, amount, created_at";
@@ -2716,12 +2727,20 @@ export default function Dashboard() {
                       <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,107,53,0.1)" : "rgba(251,191,36,0.1)") : "var(--panel-2)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff6b35" : "#fbbf24") : "var(--muted-2)" }}>{s.replace("_", " ")}</button>
                     ))}
                   </div>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 18, maxWidth: 360 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Tracking update date & time</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      <input type="datetime-local" value={toDateTimeLocalValue(selectedOrder.tracking_updated_at || selectedOrder.created_at)} onChange={(e) => { const updated = { ...selectedOrder, tracking_updated_at: fromDateTimeLocalValue(e.target.value) }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); }} style={{ flex: "1 1 220px", minWidth: 0, padding: "10px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                      <button type="button" onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "10px 14px", borderRadius: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", cursor: "pointer", border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", background: "var(--panel-2)", color: "var(--muted)" }}>Save time</button>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--muted-2)" }}>Customers will see this timestamp on the tracking page.</span>
+                  </div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Status:</label>
                     {(seller?.template === "unik-labs" ? UNIK_ORDER_STATUSES : GENERIC_ORDER_STATUSES).map((s) => {
                       const c = orderStatusColors(s);
                       return (
-                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? c.bg : "var(--panel-2)", color: selectedOrder.status === s ? c.fg : "var(--muted-2)" }}>{s.replace(/_/g, " ")}</button>
+                      <button key={s} onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ status: s, tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? c.bg : "var(--panel-2)", color: selectedOrder.status === s ? c.fg : "var(--muted-2)" }}>{s.replace(/_/g, " ")}</button>
                       );
                     })}
                   </div>

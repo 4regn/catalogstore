@@ -2101,9 +2101,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .stitch-pay-later-widget p strong{color:#161218;font-weight:900}
 .stitch-pay-later-widget a{display:inline-flex;margin-top:6px;color:#6e2cff;text-decoration:underline;text-underline-offset:3px;font-size:11.5px;font-weight:800}
 .stitch-pay-later-widget a:hover{color:#1d1328}
-.stitch-pay-later-widget .fr-stitch-payment-logos{margin-top:9px;padding:0;border:0;background:transparent;gap:6px}
-.stitch-pay-later-widget .fr-stitch-payment-logo{height:28px;min-width:46px;padding:4px 7px;border-radius:9px;box-shadow:0 5px 12px rgba(28,18,43,.05)}
-.stitch-pay-later-widget .fr-stitch-payment-logo img{max-height:16px;max-width:54px}
+.stitch-pay-later-widget .fr-stitch-payment-logos{margin-top:9px;padding:0;border:0;background:transparent;gap:5px;flex-wrap:nowrap}
+.stitch-pay-later-widget .fr-stitch-payment-logo{height:26px;min-width:0;flex:0 1 25%;padding:4px 6px;border-radius:9px;box-shadow:0 5px 12px rgba(28,18,43,.05)}
+.stitch-pay-later-widget .fr-stitch-payment-logo img{max-height:15px;max-width:48px}
 .fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
 .fr-stitch-widget-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:8px;padding:6px 9px;line-height:0}
 .fr-stitch-widget-logo img{display:block;width:auto;height:17px}
