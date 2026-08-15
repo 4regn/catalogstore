@@ -2090,19 +2090,27 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-widget-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.22);margin-top:4px;padding-top:14px;gap:10px}
 .fr-setla-widget-foot span{font-size:10.5px;color:rgba(255,255,255,0.72)}
 .fr-setla-widget-foot a{font-size:11.5px;font-weight:600;color:#fff;text-decoration:underline;text-underline-offset:3px}
-.fr-stitch-widget{margin-top:12px;padding:18px;border-radius:16px;background:linear-gradient(145deg,#161020 0%,#24123f 55%,#321568 100%);border:1px solid rgba(119,52,255,.42);box-shadow:0 14px 34px rgba(45,18,91,.16);font-family:var(--body);color:#fff}
+.fr-stitch-widget,.stitch-pay-later-widget{margin-top:12px;padding:15px 16px;border-radius:16px;background:#fff;border:1px solid rgba(21,17,24,.11);box-shadow:0 12px 28px rgba(21,17,24,.07);font-family:var(--body);color:#211b27}
+.stitch-pay-later-widget{display:flex;align-items:center;gap:14px}
+.stitch-pay-later-widget>img{width:78px;height:auto;object-fit:contain;flex:0 0 auto}
+.stitch-pay-later-widget>div{min-width:0}
+.stitch-pay-later-widget small{display:block;margin-bottom:4px;font-size:9.5px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#6e2cff}
+.stitch-pay-later-widget p{margin:0;color:#5f5865;font-size:12.5px;line-height:1.45}
+.stitch-pay-later-widget p strong{color:#161218;font-weight:900}
+.stitch-pay-later-widget a{display:inline-flex;margin-top:6px;color:#6e2cff;text-decoration:underline;text-underline-offset:3px;font-size:11.5px;font-weight:800}
+.stitch-pay-later-widget a:hover{color:#1d1328}
 .fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
 .fr-stitch-widget-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:8px;padding:6px 9px;line-height:0}
 .fr-stitch-widget-logo img{display:block;width:auto;height:17px}
-.fr-stitch-widget-tag{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#d9c8ff;text-align:right}
-.fr-stitch-widget-body{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;border-radius:14px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.1)}
-.fr-stitch-widget-copy{font-size:12px;line-height:1.45;color:rgba(255,255,255,.72);margin:0}
-.fr-stitch-widget-copy strong{display:block;color:#fff;font-size:13px;margin-bottom:3px}
+.fr-stitch-widget-tag{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#6e2cff;text-align:right}
+.fr-stitch-widget-body{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;border-radius:14px;background:rgba(110,44,255,.06);border:1px solid rgba(110,44,255,.12)}
+.fr-stitch-widget-copy{font-size:12px;line-height:1.45;color:#5f5865;margin:0}
+.fr-stitch-widget-copy strong{display:block;color:#161218;font-size:13px;margin-bottom:3px}
 .fr-stitch-amount-value{text-align:right;white-space:nowrap}
-.fr-stitch-amount-value strong{display:block;font-family:var(--serif);font-size:24px;line-height:1;color:#fff}
-.fr-stitch-amount-value span{display:block;margin-top:4px;font-size:9px;color:#d9c8ff;text-transform:uppercase;letter-spacing:.1em}
-.fr-stitch-widget-link{display:inline-flex;margin-top:13px;color:#fff;text-decoration:underline;text-underline-offset:4px;font-size:11.5px;font-weight:700}
-.fr-stitch-widget-link:hover{color:#d9c8ff}
+.fr-stitch-amount-value strong{display:block;font-family:var(--serif);font-size:24px;line-height:1;color:#161218}
+.fr-stitch-amount-value span{display:block;margin-top:4px;font-size:9px;color:#6e2cff;text-transform:uppercase;letter-spacing:.1em}
+.fr-stitch-widget-link{display:inline-flex;margin-top:13px;color:#6e2cff;text-decoration:underline;text-underline-offset:4px;font-size:11.5px;font-weight:700}
+.fr-stitch-widget-link:hover{color:#1d1328}
 .fr-stitch-modal-shell{position:fixed;inset:0;z-index:120;display:none;align-items:flex-start;justify-content:center;background:rgba(7,5,10,.82);backdrop-filter:blur(10px);overflow:auto;padding:28px}
 .fr-stitch-modal-shell.open{display:flex}
 .fr-stitch-modal{position:relative;width:min(1040px,100%);background:#fbf9ff;color:#1b1028;border-radius:32px;overflow:hidden;box-shadow:0 30px 100px rgba(0,0,0,.42);font-family:var(--body)}
@@ -4778,28 +4786,24 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
   const monthly = price / 6;
   const money = (value: number) => value.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
-    <section className="fr-stitch-widget" aria-labelledby="stitchpaylater-title">
-      <div className="fr-stitch-widget-head">
-        <span className="fr-stitch-widget-logo"><img src="/checkout/stitch.png" alt="Stitch" /></span>
-        <span className="fr-stitch-widget-tag">STITCH PAY LATER</span>
+    <>
+      <div className="stitch-pay-later-widget" aria-labelledby="stitchpaylater-title">
+        <img src="/checkout/stitch.png" alt="Stitch" />
+        <div>
+          <small>STITCH PAY LATER</small>
+          <p id="stitchpaylater-title">
+            Or pay <strong id="stitchMonthly">R{money(monthly)}</strong>{" "}
+            over <strong>6 monthly instalments</strong>.
+          </p>
+          <a href="#stitchpaylater" onClick={(event) => { event.preventDefault(); setOpen(true); }}>
+            How to pay with Stitch Pay Later
+          </a>
+        </div>
       </div>
-      <div className="fr-stitch-widget-body">
-        <p className="fr-stitch-widget-copy" id="stitchpaylater-title">
-          <strong>Buy now. Pay over time.</strong>
-          Split this purchase into interest-free monthly instalments using your credit card.
-        </p>
-        <span className="fr-stitch-amount-value" aria-label={`From R${money(monthly)} per month over 6 months`}>
-          <strong>R{money(monthly)}</strong>
-          <span>per month x 6</span>
-        </span>
-      </div>
-      <a href="#stitchpaylater" className="fr-stitch-widget-link" onClick={(event) => { event.preventDefault(); setOpen(true); }}>
-        How to pay with Stitch Pay Later
-      </a>
       <div id="stitchpaylater" className={`fr-stitch-modal-shell${open ? " open" : ""}`} aria-hidden={!open} onClick={() => setOpen(false)}>
         <article className="fr-stitch-modal" role="dialog" aria-modal={open} aria-label="How to pay with Stitch Pay Later" onClick={(event) => event.stopPropagation()}>
           <button className="fr-stitch-close" type="button" onClick={() => setOpen(false)} aria-label="Close Stitch Pay Later guide">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
           <section className="fr-stitch-hero">
             <div className="fr-stitch-hero-top">
@@ -4807,28 +4811,25 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
               <span className="fr-stitch-eyebrow">Pay Later on 4REGN</span>
             </div>
             <div>
-              <h2>Wear it now.<br /><span>Pay your way.</span></h2>
+              <h2>How to pay with <span>Stitch Pay Later</span></h2>
               <p>Shop 4REGN today and split your purchase into flexible monthly instalments with Stitch Pay Later. Your available spend and repayment options are shown at checkout before you commit.</p>
               <div className="fr-stitch-hero-pills">
-                <span>2-6 instalments</span>
-                <span>Instant decision at checkout</span>
-                <span>See your schedule upfront</span>
+                <span>2-6 monthly instalments</span>
+                <span>Clear payment schedule</span>
+                <span>Available at checkout</span>
               </div>
             </div>
           </section>
           <section className="fr-stitch-content">
             <div className="fr-stitch-kicker">How it works</div>
-            <h2>From cart to checkout,<br />without the drama.</h2>
+            <h2>Checkout stays simple.</h2>
             <p className="fr-stitch-intro">You shop 4REGN exactly as normal. Stitch only steps in when you&apos;re ready to choose how you want to pay.</p>
             <div className="fr-stitch-steps">
               {[
-                ["01", "Build your cart", "Add your favourite 4REGN products and head to checkout when you're ready.", "cart"],
-                ["02", "Select Stitch Express", "Choose Stitch Express as your payment method, then select Pay Later.", "card"],
-                ["03", "Sign in or sign up", "If you're new to Stitch, create your account and complete the quick approval flow at checkout.", "user"],
-                ["04", "Get your options", "Once approved, Stitch shows your available spend and the instalment plans available for your purchase.", "shield"],
-                ["05", "Choose your plan", "Pick from the repayment options offered to you and review every amount and date before confirming.", "plan"],
-                ["06", "Complete your order", "Confirm your plan, finish the transaction and your 4REGN order is placed right there and then.", "check"],
-              ].map(([num, title, copy, icon]) => (
+                ["01", "cart", "Add your products", "Choose your size, colour and quantity, then continue to secure checkout."],
+                ["02", "card", "Choose Stitch Pay Later", "Select Stitch at payment and follow the guided approval flow."],
+                ["03", "check", "Confirm your plan", "Review your instalment schedule, confirm, and complete your 4REGN order."]
+              ].map(([num, icon, title, copy]) => (
                 <article className="fr-stitch-step" key={num}>
                   <div className="fr-stitch-step-num">{num}</div>
                   <div className="fr-stitch-step-icon"><StitchGuideIcon icon={icon} /></div>
@@ -4838,15 +4839,15 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
             </div>
             <section className="fr-stitch-plan">
               <div className="fr-stitch-kicker">Your plan is personal</div>
-              <h2>2 to 6 instalments.<br />What you see is what you get.</h2>
-              <p>Approval does not necessarily mean every repayment term will be available. Your approved spend and the plans shown to you can vary, so you may see a shorter plan rather than the longest option.</p>
+              <h2>Pick what fits.</h2>
+              <p>Stitch can show different repayment options depending on your approval and checkout total. The product page shows the 6-month estimate so you can plan before checkout.</p>
               <div className="fr-stitch-months" aria-label="Possible instalment lengths">
                 {[2, 3, 4, 5, 6].map((term) => <div className="fr-stitch-month" key={term}><strong>{term}</strong><span>Instalments</span></div>)}
               </div>
             </section>
             <section className="fr-stitch-approval">
               <div className="fr-stitch-kicker">Before you start</div>
-              <h2>Keep it simple.</h2>
+              <h2>Have the basics ready.</h2>
               <p className="fr-stitch-intro">The checkout flow is designed to be quick. Have your basic details ready so Stitch can complete the account and approval process.</p>
               <div className="fr-stitch-approval-grid">
                 {["South African resident", "Valid South African ID", "Valid email address", "Complete approval at checkout"].map((item) => <div className="fr-stitch-req" key={item}><i>✓</i><span>{item}</span></div>)}
@@ -4854,7 +4855,7 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
             </section>
             <section className="fr-stitch-message">
               <div className="fr-stitch-kicker">The 4REGN way</div>
-              <h2>More choice.<br /><strong>Less checkout pressure.</strong></h2>
+              <h2>Decide with confidence.</h2>
               <p className="fr-stitch-intro">Find the product you want, see what Stitch can offer you, review the full repayment schedule and decide from there. No guessing what comes next.</p>
             </section>
           </section>
@@ -4864,10 +4865,9 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
           </footer>
         </article>
       </div>
-    </section>
+    </>
   );
 }
-
 function StitchGuideIcon({ icon }: { icon: string }) {
   if (icon === "cart") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3.5 5.5h2l1.7 9.1a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 1.9-1.4l1.2-5.2H7.2" /><circle cx="10" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg>;
   if (icon === "card") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3.5" y="5" width="17" height="14" rx="2.5" /><path d="M3.5 9h17" /></svg>;
