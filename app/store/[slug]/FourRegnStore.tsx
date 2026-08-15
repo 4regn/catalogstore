@@ -1972,6 +1972,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-plan span{display:block;font-family:var(--body);color:#929c94;font-size:10px}
 .fr-setla-badge{position:absolute;z-index:3;right:28px;bottom:28px;padding:12px 14px;border:1px solid rgba(255,255,255,0.12);border-radius:15px;background:rgba(5,5,5,0.56);display:flex;align-items:center;gap:9px;color:#d8ddd9;font-family:var(--body);font-size:11px}
 .fr-setla-badge i{display:block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 16px #4ade80}
+.fr-stitch-landing-banner{background:#f4f0ff;padding:0}
+.fr-stitch-landing-banner img{display:block;width:100%;height:auto}
 
 /* TICKER STRIP — ported 1:1 from the real site's ticker-strip.liquid
    section (same 5 default items, same infinite-marquee mechanics): black
@@ -2099,6 +2101,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .stitch-pay-later-widget p strong{color:#161218;font-weight:900}
 .stitch-pay-later-widget a{display:inline-flex;margin-top:6px;color:#6e2cff;text-decoration:underline;text-underline-offset:3px;font-size:11.5px;font-weight:800}
 .stitch-pay-later-widget a:hover{color:#1d1328}
+.stitch-pay-later-widget .fr-stitch-payment-logos{margin-top:9px;padding:0;border:0;background:transparent;gap:6px}
+.stitch-pay-later-widget .fr-stitch-payment-logo{height:28px;min-width:46px;padding:4px 7px;border-radius:9px;box-shadow:0 5px 12px rgba(28,18,43,.05)}
+.stitch-pay-later-widget .fr-stitch-payment-logo img{max-height:16px;max-width:54px}
 .fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
 .fr-stitch-widget-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:8px;padding:6px 9px;line-height:0}
 .fr-stitch-widget-logo img{display:block;width:auto;height:17px}
@@ -2149,6 +2154,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-stitch-approval-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}
 .fr-stitch-req{display:flex;align-items:center;gap:10px;border-radius:15px;background:#f5f0ff;padding:12px;font-size:12px;font-weight:700;color:#2a1d38}
 .fr-stitch-req i{width:28px;height:28px;border-radius:999px;background:#e7dcff;color:#6e2cff;display:grid;place-items:center;font-style:normal;flex:0 0 28px}
+.fr-stitch-payment-logos{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;padding:14px;border:1px solid #e5dff0;border-radius:18px;background:#fbf9ff}
+.fr-stitch-payment-logo{height:42px;min-width:72px;padding:8px 12px;border-radius:14px;background:#fff;border:1px solid #ece6f5;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(28,18,43,.05)}
+.fr-stitch-payment-logo img{display:block;max-height:24px;max-width:86px;width:auto;height:auto;object-fit:contain}
 .fr-stitch-message{background:#e9ddff;position:relative;overflow:hidden}
 .fr-stitch-message strong{color:#6e2cff}
 .fr-stitch-modal-foot{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:24px 42px 34px;color:#847b8c;font-size:11px}
@@ -3207,6 +3215,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {/* TICKER STRIP — only on landing page, sits right after the SETLA
             banner and before the rest of the homepage content, matching
             templates/index.json's real section order on the live store. */}
+        {isHomeView && (
+          <EditSection id="stitch-pay-later-banner">
+            <section className="fr-stitch-landing-banner" aria-label="Stitch Pay Later available at checkout">
+              <img src="/checkout/stitch-pay-later-banner.jpeg" alt="Stitch Pay Later available at checkout. Buy now, pay later." />
+            </section>
+          </EditSection>
+        )}
+
         {isHomeView && (
           <EditSection id="ticker-strip">
             <TickerStrip />
@@ -4798,6 +4814,7 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
           <a href="#stitchpaylater" onClick={(event) => { event.preventDefault(); setOpen(true); }}>
             How to pay with Stitch Pay Later
           </a>
+          <StitchPaymentLogoRow />
         </div>
       </div>
       <div id="stitchpaylater" className={`fr-stitch-modal-shell${open ? " open" : ""}`} aria-hidden={!open} onClick={() => setOpen(false)}>
@@ -4852,6 +4869,7 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
               <div className="fr-stitch-approval-grid">
                 {["South African resident", "Valid South African ID", "Valid email address", "Complete approval at checkout"].map((item) => <div className="fr-stitch-req" key={item}><i>✓</i><span>{item}</span></div>)}
               </div>
+              <StitchPaymentLogoRow />
             </section>
             <section className="fr-stitch-message">
               <div className="fr-stitch-kicker">The 4REGN way</div>
@@ -4866,6 +4884,22 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
         </article>
       </div>
     </>
+  );
+}
+function StitchPaymentLogoRow() {
+  return (
+    <div className="fr-stitch-payment-logos" aria-label="Stitch Pay Later supported payment logos">
+      {[
+        { src: "/checkout/visa.png", alt: "Visa" },
+        { src: "/checkout/mastercard.png", alt: "Mastercard" },
+        { src: "/checkout/applepay.png", alt: "Apple Pay" },
+        { src: "/checkout/capitecpay.png", alt: "Capitec Pay" },
+      ].map((logo) => (
+        <span className="fr-stitch-payment-logo" key={logo.alt}>
+          <img src={logo.src} alt={logo.alt} />
+        </span>
+      ))}
+    </div>
   );
 }
 function StitchGuideIcon({ icon }: { icon: string }) {
