@@ -4790,9 +4790,7 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
   // Prefetch the images on either side of the active one so swiping/tapping
   // the arrows repeatedly doesn't feel "frozen" on a slow connection --
   // by the time the user reaches a neighbor, the browser has likely already
-  // cached it. Uses the global window.Image constructor (this file already
-  // imports `Image` from next/image for its <Image> components, so that
-  // name is taken -- window.Image avoids the collision).
+  // cached it. Uses the browser's native Image constructor.
   useEffect(() => {
     const preload = (url: string | undefined) => {
       if (!url) return;
@@ -4844,19 +4842,14 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
       {badges}
       {mainImg ? (
         <>
-          <Image
+          <img
             ref={imgRef}
             src={mainImg}
             alt={alt}
-            fill
-            sizes="(max-width: 900px) 100vw, 50vw"
-            style={{ objectFit: "contain" }}
-            // Only the image actually visible on first paint (index 0) --
-            // this is the real LCP (Largest Contentful Paint) element on a
-            // product page, so it should preload ahead of everything else
-            // instead of competing on the same priority as offscreen/
-            // not-yet-swiped-to images.
-            priority={activeIndex === 0}
+            loading={activeIndex === 0 ? "eager" : "lazy"}
+            fetchPriority={activeIndex === 0 ? "high" : "auto"}
+            decoding="async"
+            draggable={false}
             onError={handleMainImgError}
             onLoad={() => setImgLoaded(true)}
           />
