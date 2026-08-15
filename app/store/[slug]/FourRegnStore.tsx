@@ -2091,23 +2091,80 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-widget-foot span{font-size:10.5px;color:rgba(255,255,255,0.72)}
 .fr-setla-widget-foot a{font-size:11.5px;font-weight:600;color:#fff;text-decoration:underline;text-underline-offset:3px}
 .fr-stitch-widget{margin-top:12px;padding:18px;border-radius:16px;background:linear-gradient(145deg,#161020 0%,#24123f 55%,#321568 100%);border:1px solid rgba(119,52,255,.42);box-shadow:0 14px 34px rgba(45,18,91,.16);font-family:var(--body);color:#fff}
-.fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:15px}
+.fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
 .fr-stitch-widget-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:8px;padding:6px 9px;line-height:0}
 .fr-stitch-widget-logo img{display:block;width:auto;height:17px}
-.fr-stitch-widget-tag{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#cdb8ff;text-align:right}
-.fr-stitch-widget-title{font-family:var(--serif);font-size:20px;line-height:1.15;margin:0 0 5px;color:#fff}
-.fr-stitch-widget-copy{font-size:11px;line-height:1.5;color:rgba(255,255,255,.68);margin:0 0 14px}
-.fr-stitch-terms{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
-.fr-stitch-term{min-width:0;padding:9px 3px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.055);color:rgba(255,255,255,.72);font-family:var(--body);font-size:10px;font-weight:700;cursor:pointer;transition:background .18s ease,border-color .18s ease,transform .18s ease}
-.fr-stitch-term:hover{transform:translateY(-1px);border-color:rgba(142,85,255,.8)}
-.fr-stitch-term.active{background:#6c2cff;border-color:#8a57ff;color:#fff;box-shadow:0 7px 18px rgba(108,44,255,.3)}
-.fr-stitch-amount{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:13px 14px;border-radius:12px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.1)}
-.fr-stitch-amount-label{font-size:10px;line-height:1.4;color:rgba(255,255,255,.62)}
+.fr-stitch-widget-tag{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#d9c8ff;text-align:right}
+.fr-stitch-widget-body{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;border-radius:14px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.1)}
+.fr-stitch-widget-copy{font-size:12px;line-height:1.45;color:rgba(255,255,255,.72);margin:0}
+.fr-stitch-widget-copy strong{display:block;color:#fff;font-size:13px;margin-bottom:3px}
 .fr-stitch-amount-value{text-align:right;white-space:nowrap}
-.fr-stitch-amount-value strong{display:block;font-family:var(--serif);font-size:21px;line-height:1;color:#fff}
-.fr-stitch-amount-value span{display:block;margin-top:4px;font-size:9px;color:#cdb8ff;text-transform:uppercase;letter-spacing:.09em}
-.fr-stitch-widget-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:9.5px;line-height:1.45;color:rgba(255,255,255,.56)}
-.fr-stitch-widget-foot strong{font-weight:700;color:#cdb8ff}
+.fr-stitch-amount-value strong{display:block;font-family:var(--serif);font-size:24px;line-height:1;color:#fff}
+.fr-stitch-amount-value span{display:block;margin-top:4px;font-size:9px;color:#d9c8ff;text-transform:uppercase;letter-spacing:.1em}
+.fr-stitch-widget-link{display:inline-flex;margin-top:13px;color:#fff;text-decoration:underline;text-underline-offset:4px;font-size:11.5px;font-weight:700}
+.fr-stitch-widget-link:hover{color:#d9c8ff}
+.fr-stitch-modal-shell{position:fixed;inset:0;z-index:120;display:none;align-items:flex-start;justify-content:center;background:rgba(7,5,10,.82);backdrop-filter:blur(10px);overflow:auto;padding:28px}
+.fr-stitch-modal-shell.open{display:flex}
+.fr-stitch-modal{position:relative;width:min(1040px,100%);background:#fbf9ff;color:#1b1028;border-radius:32px;overflow:hidden;box-shadow:0 30px 100px rgba(0,0,0,.42);font-family:var(--body)}
+.fr-stitch-close{position:sticky;top:18px;float:right;margin:18px 18px -70px 0;z-index:4;width:46px;height:46px;border:0;border-radius:999px;background:rgba(255,255,255,.9);box-shadow:0 10px 28px rgba(0,0,0,.18);display:grid;place-items:center;cursor:pointer;color:#1f1230}
+.fr-stitch-close svg{width:22px;height:22px}
+.fr-stitch-hero{min-height:520px;padding:42px 44px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(circle at 82% 18%,rgba(211,191,255,.42),transparent 30%),linear-gradient(145deg,#100817 0%,#201032 48%,#6e2cff 100%);color:#fff}
+.fr-stitch-hero-top{display:flex;justify-content:space-between;gap:18px;align-items:center}
+.fr-stitch-hero-logo{background:#fff;border-radius:12px;padding:9px 13px}
+.fr-stitch-hero-logo img{height:22px;width:auto}
+.fr-stitch-eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:#dccfff;font-weight:800}
+.fr-stitch-hero h2{font-family:var(--serif);font-size:clamp(48px,8vw,90px);line-height:.92;letter-spacing:-.05em;margin:0 0 18px;max-width:760px}
+.fr-stitch-hero h2 span{color:#d9c8ff;font-style:italic}
+.fr-stitch-hero p{max-width:660px;margin:0;color:rgba(255,255,255,.74);font-size:15px;line-height:1.65}
+.fr-stitch-hero-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.fr-stitch-hero-pills span{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.09);border-radius:999px;padding:9px 12px;font-size:11px;font-weight:700;color:#fff}
+.fr-stitch-content{padding:42px}
+.fr-stitch-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:#6e2cff;font-weight:900;margin-bottom:10px}
+.fr-stitch-content h2{font-family:var(--serif);font-size:clamp(34px,5vw,58px);line-height:1;margin:0 0 12px;color:#1b1028}
+.fr-stitch-intro{max-width:680px;color:#6b6174;line-height:1.65;font-size:14px;margin:0 0 24px}
+.fr-stitch-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fr-stitch-step{min-height:210px;border:1px solid #e5dff0;background:#fff;border-radius:22px;padding:18px}
+.fr-stitch-step-num{font-size:11px;color:#6e2cff;font-weight:900;margin-bottom:14px}
+.fr-stitch-step-icon{width:50px;height:50px;border-radius:16px;background:#f0e8ff;color:#6e2cff;display:grid;place-items:center;margin-bottom:16px}
+.fr-stitch-step-icon svg{width:25px;height:25px}
+.fr-stitch-step h3{margin:0 0 8px;font-size:15px;color:#21162d}
+.fr-stitch-step p{margin:0;color:#73687d;font-size:12.5px;line-height:1.55}
+.fr-stitch-plan,.fr-stitch-approval,.fr-stitch-message{margin-top:28px;border-radius:26px;padding:28px;border:1px solid #e5dff0;background:#fff}
+.fr-stitch-plan{background:linear-gradient(145deg,#1a0c2d,#6e2cff);color:#fff;border:0}
+.fr-stitch-plan .fr-stitch-kicker{color:#d9c8ff}
+.fr-stitch-plan h2{color:#fff}
+.fr-stitch-plan p{color:rgba(255,255,255,.72);line-height:1.6;font-size:13px;max-width:690px}
+.fr-stitch-months{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:18px}
+.fr-stitch-month{border-radius:16px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);padding:15px 6px;text-align:center}
+.fr-stitch-month strong{display:block;font-family:var(--serif);font-size:30px}
+.fr-stitch-month span{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+.fr-stitch-approval-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}
+.fr-stitch-req{display:flex;align-items:center;gap:10px;border-radius:15px;background:#f5f0ff;padding:12px;font-size:12px;font-weight:700;color:#2a1d38}
+.fr-stitch-req i{width:28px;height:28px;border-radius:999px;background:#e7dcff;color:#6e2cff;display:grid;place-items:center;font-style:normal;flex:0 0 28px}
+.fr-stitch-message{background:#e9ddff;position:relative;overflow:hidden}
+.fr-stitch-message strong{color:#6e2cff}
+.fr-stitch-modal-foot{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:24px 42px 34px;color:#847b8c;font-size:11px}
+.fr-stitch-modal-foot img{height:20px;width:auto;opacity:.85}
+@media(max-width:760px){
+ .fr-stitch-widget-body{align-items:flex-start;flex-direction:column}
+ .fr-stitch-amount-value{text-align:left}
+ .fr-stitch-modal-shell{padding:0;background:#0a0a0a}
+ .fr-stitch-modal{min-height:100vh;border-radius:0}
+ .fr-stitch-close{top:12px;margin:12px 12px -58px 0}
+ .fr-stitch-hero{min-height:500px;padding:30px 22px}
+ .fr-stitch-hero-top{align-items:flex-start;flex-direction:column}
+ .fr-stitch-content{padding:28px 18px}
+ .fr-stitch-steps{grid-template-columns:1fr}
+ .fr-stitch-step{min-height:auto;display:grid;grid-template-columns:42px 54px 1fr;gap:12px;align-items:start}
+ .fr-stitch-step-num{margin-top:8px}
+ .fr-stitch-step-icon{width:52px;height:52px;margin:0}
+ .fr-stitch-months{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+ .fr-stitch-month{border-radius:13px;padding:12px 3px}
+ .fr-stitch-month strong{font-size:23px}
+ .fr-stitch-approval-grid{grid-template-columns:1fr 1fr;gap:8px}
+ .fr-stitch-req{font-size:11px;padding:10px}
+ .fr-stitch-modal-foot{padding:22px 18px 30px}
+}
 
 /* Float BNPL widget container -- the widget itself renders its own DOM
    (see FloatWidget's own comment for why this is a plain imperative
@@ -2853,6 +2910,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -2893,7 +2951,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
-                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
                   </div>
                 </div>
@@ -3465,6 +3522,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -3514,7 +3572,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
-                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
                   </div>
                 </div>
@@ -4667,6 +4724,7 @@ function SetlaProductWidget({ price }: { price: number }) {
 // customers can understand every available term before entering checkout.
 // Cents are split with any remainder added to the final payment, avoiding
 // a displayed schedule that is a cent short of the actual product price.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function StitchPayLaterWidget({ price }: { price: number }) {
   const [months, setMonths] = useState(6);
   if (!(price > 0)) return null;
@@ -4699,6 +4757,124 @@ function StitchPayLaterWidget({ price }: { price: number }) {
       </div>
     </div>
   );
+}
+
+function StitchPayLaterProductWidget({ price }: { price: number }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  if (!(price > 0)) return null;
+  const monthly = price / 6;
+  const money = (value: number) => value.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <section className="fr-stitch-widget" aria-labelledby="stitchpaylater-title">
+      <div className="fr-stitch-widget-head">
+        <span className="fr-stitch-widget-logo"><img src="/checkout/stitch.png" alt="Stitch" /></span>
+        <span className="fr-stitch-widget-tag">STITCH PAY LATER</span>
+      </div>
+      <div className="fr-stitch-widget-body">
+        <p className="fr-stitch-widget-copy" id="stitchpaylater-title">
+          <strong>Buy now. Pay over time.</strong>
+          Split this purchase into interest-free monthly instalments using your credit card.
+        </p>
+        <span className="fr-stitch-amount-value" aria-label={`From R${money(monthly)} per month over 6 months`}>
+          <strong>R{money(monthly)}</strong>
+          <span>per month x 6</span>
+        </span>
+      </div>
+      <a href="#stitchpaylater" className="fr-stitch-widget-link" onClick={(event) => { event.preventDefault(); setOpen(true); }}>
+        How to pay with Stitch Pay Later
+      </a>
+      <div id="stitchpaylater" className={`fr-stitch-modal-shell${open ? " open" : ""}`} aria-hidden={!open} onClick={() => setOpen(false)}>
+        <article className="fr-stitch-modal" role="dialog" aria-modal={open} aria-label="How to pay with Stitch Pay Later" onClick={(event) => event.stopPropagation()}>
+          <button className="fr-stitch-close" type="button" onClick={() => setOpen(false)} aria-label="Close Stitch Pay Later guide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg>
+          </button>
+          <section className="fr-stitch-hero">
+            <div className="fr-stitch-hero-top">
+              <span className="fr-stitch-hero-logo"><img src="/checkout/stitch.png" alt="Stitch" /></span>
+              <span className="fr-stitch-eyebrow">Pay Later on 4REGN</span>
+            </div>
+            <div>
+              <h2>Wear it now.<br /><span>Pay your way.</span></h2>
+              <p>Shop 4REGN today and split your purchase into flexible monthly instalments with Stitch Pay Later. Your available spend and repayment options are shown at checkout before you commit.</p>
+              <div className="fr-stitch-hero-pills">
+                <span>2-6 instalments</span>
+                <span>Instant decision at checkout</span>
+                <span>See your schedule upfront</span>
+              </div>
+            </div>
+          </section>
+          <section className="fr-stitch-content">
+            <div className="fr-stitch-kicker">How it works</div>
+            <h2>From cart to checkout,<br />without the drama.</h2>
+            <p className="fr-stitch-intro">You shop 4REGN exactly as normal. Stitch only steps in when you&apos;re ready to choose how you want to pay.</p>
+            <div className="fr-stitch-steps">
+              {[
+                ["01", "Build your cart", "Add your favourite 4REGN products and head to checkout when you're ready.", "cart"],
+                ["02", "Select Stitch Express", "Choose Stitch Express as your payment method, then select Pay Later.", "card"],
+                ["03", "Sign in or sign up", "If you're new to Stitch, create your account and complete the quick approval flow at checkout.", "user"],
+                ["04", "Get your options", "Once approved, Stitch shows your available spend and the instalment plans available for your purchase.", "shield"],
+                ["05", "Choose your plan", "Pick from the repayment options offered to you and review every amount and date before confirming.", "plan"],
+                ["06", "Complete your order", "Confirm your plan, finish the transaction and your 4REGN order is placed right there and then.", "check"],
+              ].map(([num, title, copy, icon]) => (
+                <article className="fr-stitch-step" key={num}>
+                  <div className="fr-stitch-step-num">{num}</div>
+                  <div className="fr-stitch-step-icon"><StitchGuideIcon icon={icon} /></div>
+                  <div><h3>{title}</h3><p>{copy}</p></div>
+                </article>
+              ))}
+            </div>
+            <section className="fr-stitch-plan">
+              <div className="fr-stitch-kicker">Your plan is personal</div>
+              <h2>2 to 6 instalments.<br />What you see is what you get.</h2>
+              <p>Approval does not necessarily mean every repayment term will be available. Your approved spend and the plans shown to you can vary, so you may see a shorter plan rather than the longest option.</p>
+              <div className="fr-stitch-months" aria-label="Possible instalment lengths">
+                {[2, 3, 4, 5, 6].map((term) => <div className="fr-stitch-month" key={term}><strong>{term}</strong><span>Instalments</span></div>)}
+              </div>
+            </section>
+            <section className="fr-stitch-approval">
+              <div className="fr-stitch-kicker">Before you start</div>
+              <h2>Keep it simple.</h2>
+              <p className="fr-stitch-intro">The checkout flow is designed to be quick. Have your basic details ready so Stitch can complete the account and approval process.</p>
+              <div className="fr-stitch-approval-grid">
+                {["South African resident", "Valid South African ID", "Valid email address", "Complete approval at checkout"].map((item) => <div className="fr-stitch-req" key={item}><i>✓</i><span>{item}</span></div>)}
+              </div>
+            </section>
+            <section className="fr-stitch-message">
+              <div className="fr-stitch-kicker">The 4REGN way</div>
+              <h2>More choice.<br /><strong>Less checkout pressure.</strong></h2>
+              <p className="fr-stitch-intro">Find the product you want, see what Stitch can offer you, review the full repayment schedule and decide from there. No guessing what comes next.</p>
+            </section>
+          </section>
+          <footer className="fr-stitch-modal-foot">
+            <img src="/checkout/stitch.png" alt="Stitch" />
+            <span>Stitch Pay Later available at 4REGN checkout</span>
+          </footer>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function StitchGuideIcon({ icon }: { icon: string }) {
+  if (icon === "cart") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3.5 5.5h2l1.7 9.1a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 1.9-1.4l1.2-5.2H7.2" /><circle cx="10" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg>;
+  if (icon === "card") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3.5" y="5" width="17" height="14" rx="2.5" /><path d="M3.5 9h17" /></svg>;
+  if (icon === "user") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" /></svg>;
+  if (icon === "shield") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 2.8l6.8 3v5.1c0 4.4-2.7 8-6.8 10.3-4.1-2.3-6.8-5.9-6.8-10.3V5.8l6.8-3z" /><path d="M8.8 11.7l2.1 2.1 4.4-4.6" /></svg>;
+  if (icon === "plan") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M7 3.5h10v17H7z" /><path d="M9.5 7h5M9.5 10.5h5M9.5 14h3" /><path d="M15.5 16.5l1.5 1.5 2.7-3" /></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 12l5 5L20 6" /><circle cx="12" cy="12" r="9" /></svg>;
 }
 
 // Float (checkout.float.co.za) buy-now-pay-later widget -- same embed the
