@@ -242,6 +242,9 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .total-row.grand span:first-child{font-size:17px;font-weight:500}
 .fr-checkout-v2 .total-row.grand strong{font-size:27px;font-weight:500;letter-spacing:-.03em}
 .fr-checkout-v2 .currency{font-size:10px;color:#888;margin-right:5px;font-weight:400}
+.fr-checkout-v2 .shipping-saving-stack{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.fr-checkout-v2 .shipping-saving-stack .was{color:#9b9b9b;text-decoration:line-through}
+.fr-checkout-v2 .shipping-saving-stack .now{color:#050505}
 .fr-checkout-v2 .summary-foot{margin-top:22px;padding:0 4px}
 .fr-checkout-v2 .mini-trust{border-top:1px solid #dedede;padding-top:13px;font-size:11px;color:#707070;line-height:1.55}
 .fr-checkout-v2 .mini-trust strong{display:block;color:#050505;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;font-weight:600}
@@ -855,8 +858,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const originalPrice = Number(item.old_price) || 0;
     return sum + Math.max(0, originalPrice - item.price) * item.qty;
   }, 0);
-  const totalSavings = compareAtSavings + automaticDiscount.totalDiscount + discountAmount + deliverySavings;
   const isShippingDiscount = discountApplied?.applies_to === "shipping";
+  const merchandiseSavings = compareAtSavings + automaticDiscount.totalDiscount + (isShippingDiscount ? 0 : discountAmount);
+  const summarySubtotal = subtotal + compareAtSavings;
   const total = isShippingDiscount
     ? Math.max(0, subtotal + shipping - discountAmount - automaticDiscount.totalDiscount)
     : Math.max(0, subtotal - discountAmount - automaticDiscount.totalDiscount + shipping);
@@ -1560,16 +1564,16 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     </div>
                   ))}
                   <div className="totals">
-                    <div className="total-row"><span>Subtotal &middot; {itemCount} item{itemCount !== 1 ? "s" : ""}</span><span>R{subtotal.toLocaleString("en-ZA")}</span></div>
-                    {discountApplied && discountAmount > 0 && (
+                    <div className="total-row"><span>Subtotal &middot; {itemCount} item{itemCount !== 1 ? "s" : ""}</span><span>R{summarySubtotal.toLocaleString("en-ZA")}</span></div>
+                    {discountApplied && discountAmount > 0 && !isShippingDiscount && (
                       <div className="total-row discount"><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>&minus;R{discountAmount.toFixed(0)}</span></div>
                     )}
                     {automaticDiscount.applied.map((a) => (
                       <div className="total-row discount" key={a.title}><span>{a.title}</span><span>&minus;R{a.amount.toFixed(0)}</span></div>
                     ))}
-                    {deliverySavings > 0 && <div className="total-row discount"><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>&minus;R{deliverySavings.toFixed(0)}</span></div>}
-                    {totalSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{totalSavings.toFixed(0)}</span></div>}
-                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
+                    {compareAtSavings > 0 && <div className="total-row discount"><span>Sale discount</span><span>&minus;R{compareAtSavings.toFixed(0)}</span></div>}
+                    {merchandiseSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{merchandiseSavings.toFixed(0)}</span></div>}
+                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (deliverySavings > 0 ? <span className="shipping-saving-stack"><span className="was">R{Number(selectedShippingOption?.compare_at_price || shipping + deliverySavings).toFixed(0)}</span><span className="now">{shippingPriceLabel(selectedShippingOption)}</span></span> : shippingPriceLabel(selectedShippingOption))}</span></div>
                     <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{total.toLocaleString("en-ZA")}</strong></div>
                   </div>
                 </div>
@@ -1988,14 +1992,14 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             );
           })}
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, marginTop: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{subtotal.toFixed(0)}</span></div>
-            {discountApplied && discountAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{summarySubtotal.toFixed(0)}</span></div>
+            {discountApplied && discountAmount > 0 && !isShippingDiscount && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
             {automaticDiscount.applied.map((a) => (
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
-            {deliverySavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>-R{deliverySavings.toFixed(0)}</span></div>}
-            {totalSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{totalSavings.toFixed(0)}</span></div>}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
+            {compareAtSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>Sale discount</span><span>-R{compareAtSavings.toFixed(0)}</span></div>}
+            {merchandiseSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{merchandiseSavings.toFixed(0)}</span></div>}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (deliverySavings > 0 ? <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}><span style={{ color: T.muted, textDecoration: "line-through" }}>R{Number(selectedShippingOption?.compare_at_price || shipping + deliverySavings).toFixed(0)}</span><span style={{ color: T.text }}>{shippingPriceLabel(selectedShippingOption)}</span></span> : shippingPriceLabel(selectedShippingOption))}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 16, fontWeight: 600 }}>Total</span>
