@@ -155,6 +155,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
   status: string; sort_order: number; description: string; created_at: string;
+  handle: string | null; source_url: string | null;
 }
 
 interface Order {
@@ -189,7 +190,7 @@ interface VelourBooking {
 }
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
-const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url";
 const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
 const displayOrderReference = (order: Pick<Order, "order_number" | "external_id">) =>
   order.external_id ? String(order.external_id).replace(/^#?/, "#") : `#${order.order_number}`;
@@ -388,6 +389,7 @@ export default function Dashboard() {
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formSourceUrl, setFormSourceUrl] = useState("");
   const [formImages, setFormImages] = useState<File[]>([]);
   const [formPreviews, setFormPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -399,6 +401,7 @@ export default function Dashboard() {
   const [formSaving, setFormSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editProductParamHandledRef = useRef(false);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
   const [storeColor, setStoreColor] = useState("#ff6b35");
@@ -904,8 +907,36 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSourceUrl(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormSourceUrl(p.source_url || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
+
+  const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
+    if (typeof window === "undefined") return "";
+    const key = p.handle || p.id;
+    return `${window.location.origin}/dashboard?tab=products&editProductHandle=${encodeURIComponent(key)}`;
+  };
+
+  useEffect(() => {
+    if (editProductParamHandledRef.current || products.length === 0 || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    const productKey = params.get("editProductHandle") || params.get("editProduct") || params.get("product");
+    if (tabParam === "products") switchTab("products");
+    if (!productKey) return;
+    const decodedKey = decodeURIComponent(productKey).trim().toLowerCase();
+    const product = products.find((p) =>
+      p.id.toLowerCase() === decodedKey ||
+      (p.handle || "").toLowerCase() === decodedKey
+    );
+    if (!product) return;
+    editProductParamHandledRef.current = true;
+    setProductFilter((product.status || "published") === "trashed" ? "trashed" : (product.status === "draft" ? "draft" : "published"));
+    switchTab("products");
+    startEdit(product);
+    setTimeout(() => {
+      document.getElementById("product-edit-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }, [products]);
 
   const addVariant = () => setFormVariants([...formVariants, { name: "", options: [""] }]);
   const removeVariant = (i: number) => setFormVariants(formVariants.filter((_, idx) => idx !== i));
@@ -1010,14 +1041,15 @@ export default function Dashboard() {
       if (formImages.length > 0) { newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, newUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
+      const cleanSourceUrl = formSourceUrl.trim() || null;
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: formSourceUrl.trim() || null, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
       ]);
       const { data, error } = insertResult;
       if (error || !data) { setFormSaving(false); return; }
@@ -2225,8 +2257,21 @@ export default function Dashboard() {
               </div>
             )}
 
-            {showForm && (<div style={{ padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 24 }}>
+            {showForm && (<div id="product-edit-form" style={{ padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 24 }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", marginBottom: 16 }}>{editingId ? "Edit Product" : "New Product"}</h3>
+              {editingId && (() => {
+                const product = products.find((p) => p.id === editingId);
+                const url = product ? adminProductEditUrl(product) : "";
+                return url ? (
+                  <div style={{ marginBottom: 16, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 3 }}>Admin edit URL</div>
+                      <a href={url} style={{ color: N, fontSize: 12, fontWeight: 700, wordBreak: "break-all", textDecoration: "none" }}>{url}</a>
+                    </div>
+                    <button type="button" onClick={() => navigator.clipboard?.writeText(url)} style={{ padding: "8px 12px", background: "transparent", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Copy</button>
+                  </div>
+                ) : null;
+              })()}
               <form onSubmit={handleSubmit}>
 
                 {/* 1. PHOTOS FIRST */}
@@ -2360,6 +2405,20 @@ export default function Dashboard() {
                     rows={5}
                     style={{ ...inputStyle, resize: "vertical" as const, lineHeight: 1.5 }}
                   />
+                </div>
+
+                {/* Admin-only product provenance. This stays in the dashboard
+                    and is never selected by the storefront/public routes. */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 8 }}>Product source URL (admin only)</label>
+                  <input
+                    type="url"
+                    placeholder="https://supplier.com/product-page"
+                    value={formSourceUrl}
+                    onChange={(e) => setFormSourceUrl(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Use this to check supplier availability. Customers do not see this URL.</p>
                 </div>
 
                 {/* 6. COLLECTION with auto-create */}
