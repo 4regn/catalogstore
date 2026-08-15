@@ -272,6 +272,19 @@ const resolveVariantImages = (product: Product, selected: { [key: string]: strin
 // resolved set, same as resolveVariantImages but never a list.
 const resolveVariantImage = (product: Product, selected: { [key: string]: string }): string | null =>
   resolveVariantImages(product, selected)?.[0] || null;
+const uniqueImageList = (...groups: Array<string | null | undefined | Array<string | null | undefined>>): string[] => {
+  const out: string[] = [];
+  for (const group of groups) {
+    const items = Array.isArray(group) ? group : [group];
+    for (const raw of items) {
+      const img = typeof raw === "string" ? raw.trim() : "";
+      if (img && !out.includes(img)) out.push(img);
+    }
+  }
+  return out;
+};
+const productBaseImages = (product: Product): string[] =>
+  uniqueImageList(product.image_url, Array.isArray(product.images) ? product.images : []);
 const pad = (n: number) => String(n).padStart(2, "0");
 const initials = (s: string) => (s || "").trim().slice(0, 1).toUpperCase();
 
@@ -2808,7 +2821,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <aside className={"fr-pdp" + (selectedProduct ? " open" : "")}>
           {selectedProduct && (() => {
             const p = selectedProduct;
-            const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+            const baseImgs = productBaseImages(p);
             // The full photo set for the currently-selected option (e.g.
             // every White photo) leads the gallery -- see
             // resolveVariantImages' own comment. Falls back to the plain
@@ -3349,7 +3362,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             Also Like" row the slide-over doesn't have. */}
         {isProductView && initialActiveProduct && (() => {
           const p = initialActiveProduct;
-          const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+          const baseImgs = productBaseImages(p);
           // Same variant-leads-the-gallery logic as the slide-over PDP --
           // see resolveVariantImages' own comment.
           const variantImgs = resolveVariantImages(p, selectedVariants, activeImageDim);
@@ -4754,8 +4767,14 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
 }) {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const imgsKey = imgs.join("|");
+  const [failedImgState, setFailedImgState] = useState<{ key: string; failed: Set<string> }>(() => ({ key: imgsKey, failed: new Set() }));
   const imgRef = useRef<HTMLImageElement>(null);
-  const mainImg = imgs[activeIndex];
+  const failedImgs = failedImgState.key === imgsKey ? failedImgState.failed : new Set<string>();
+  const activeImg = imgs[activeIndex];
+  const mainImg = activeImg && !failedImgs.has(activeImg)
+    ? activeImg
+    : (imgs.find((img) => img && !failedImgs.has(img)) || activeImg || imgs[0]);
 
   // Reset the loading indicator whenever the active image changes -- the
   // <img>'s onLoad below flips it back to true once the new image is
@@ -4793,6 +4812,23 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
     if (dx < 0 && activeIndex < imgs.length - 1) onIndexChange(activeIndex + 1);
     else if (dx > 0 && activeIndex > 0) onIndexChange(activeIndex - 1);
   };
+  const handleMainImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!mainImg) {
+      onImgError(e);
+      return;
+    }
+    const fallbackIndex = imgs.findIndex((img) => img && img !== mainImg && !failedImgs.has(img));
+    setFailedImgState((prev) => {
+      const next = prev.key === imgsKey ? new Set(prev.failed) : new Set<string>();
+      next.add(mainImg);
+      return { key: imgsKey, failed: next };
+    });
+    if (fallbackIndex !== -1) {
+      onIndexChange(fallbackIndex);
+    } else {
+      onImgError(e);
+    }
+  };
 
   return (
     <div
@@ -4821,7 +4857,7 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
             // instead of competing on the same priority as offscreen/
             // not-yet-swiped-to images.
             priority={activeIndex === 0}
-            onError={onImgError}
+            onError={handleMainImgError}
             onLoad={() => setImgLoaded(true)}
           />
           <span className="fr-p-mark" style={{ display: "none" }}>{initials(alt)}</span>
