@@ -502,6 +502,33 @@ export default function StoreEditor() {
     u[idx] = { ...u[idx], ...patch };
     setHoursStructured(u);
   };
+  const persistCollectionSettings = async (
+    nextImages = collectionImages,
+    nextOrder = collOrder,
+    nextHidden = hiddenCollections
+  ) => {
+    if (!seller) return;
+    const editedFields = {
+      collection_images: nextImages,
+      hidden_collections: nextHidden,
+    };
+    const newStoreConfig = { ...omitTemplateFields(seller.store_config || {}), ...omitTemplateFields(editedFields) };
+    const newTemplateConfigs = {
+      ...(seller.template_configs || {}),
+      [seller.template]: {
+        ...(seller.template_configs?.[seller.template] || pickTemplateFields(seller.store_config || {})),
+        ...pickTemplateFields(editedFields),
+      },
+    };
+    const nextCollections = nextOrder.length > 0 ? nextOrder : seller.collections;
+    await supabase.from("sellers").update({
+      collections: nextCollections,
+      store_config: newStoreConfig,
+      template_configs: newTemplateConfigs,
+    }).eq("id", seller.id);
+    setSeller({ ...seller, collections: nextCollections, store_config: newStoreConfig, template_configs: newTemplateConfigs });
+    if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
+  };
 
   /* ─── LOAD ─── */
   useEffect(() => {
@@ -2054,7 +2081,9 @@ export default function StoreEditor() {
                           const { error } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
                           if (!error) {
                             const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
-                            setCollectionImages(prev => ({ ...prev, [col]: data.publicUrl }));
+                            const nextImages = { ...collectionImages, [col]: data.publicUrl };
+                            setCollectionImages(nextImages);
+                            await persistCollectionSettings(nextImages, collOrder, hiddenCollections);
                           }
                         };
                         return (
@@ -2063,8 +2092,8 @@ export default function StoreEditor() {
                               <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 11, letterSpacing: "0.08em" }}>ORDER</span>
                               <span style={{ flex: 1, fontSize: 13 }}>{col}<span style={{ color: "rgba(245,245,245,0.35)" }}> / {label}</span></span>
                               <div style={{ display: "flex", gap: 4 }}>
-                                <button type="button" onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i - 1], u[i]] = [u[i], u[i - 1]]; setCollOrder(u); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.62)", cursor: i === 0 ? "not-allowed" : "pointer", fontSize: 10, padding: "5px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Up</button>
-                                <button type="button" onClick={() => { if (i === collOrder.length - 1) return; const u = [...collOrder]; [u[i], u[i + 1]] = [u[i + 1], u[i]]; setCollOrder(u); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.62)", cursor: i === collOrder.length - 1 ? "not-allowed" : "pointer", fontSize: 10, padding: "5px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Down</button>
+                                <button type="button" onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i - 1], u[i]] = [u[i], u[i - 1]]; setCollOrder(u); void persistCollectionSettings(collectionImages, u, hiddenCollections); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.62)", cursor: i === 0 ? "not-allowed" : "pointer", fontSize: 10, padding: "5px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Up</button>
+                                <button type="button" onClick={() => { if (i === collOrder.length - 1) return; const u = [...collOrder]; [u[i], u[i + 1]] = [u[i + 1], u[i]]; setCollOrder(u); void persistCollectionSettings(collectionImages, u, hiddenCollections); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.62)", cursor: i === collOrder.length - 1 ? "not-allowed" : "pointer", fontSize: 10, padding: "5px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Down</button>
                               </div>
                             </div>
                             <div style={{ padding: "0 12px 10px", display: "flex", alignItems: "center", gap: 8 }}>
@@ -2078,14 +2107,14 @@ export default function StoreEditor() {
                                   <input type="file" accept="image/*" onChange={async (e) => { await uploadCover(e.target.files?.[0]); e.currentTarget.value = ""; }} style={{ display: "none" }} />
                                 </label>
                                 <button type="button" onClick={() => openCoverPicker(coverPickerFor === col ? "" : col)} style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Choose from product</button>
-                                {collectionImages[col] && <button type="button" onClick={() => setCollectionImages(prev => { const n = { ...prev }; delete n[col]; return n; })} style={{ fontSize: 12, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Remove</button>}
+                                {collectionImages[col] && <button type="button" onClick={() => { const nextImages = { ...collectionImages }; delete nextImages[col]; setCollectionImages(nextImages); void persistCollectionSettings(nextImages, collOrder, hiddenCollections); }} style={{ fontSize: 12, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Remove</button>}
                               </div>
                             </div>
                             {coverPickerFor === col && (
                               <div style={{ padding: "0 12px 12px" }}>
                                 {pickerLoading ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>Loading your products...</div> : matches.length === 0 ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products with an image in this collection yet. Use Upload image instead.</div> : (
                                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 8, maxHeight: 240, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
-                                    {matches.map(p => <button key={p.id} type="button" title={p.name} onClick={() => { setCollectionImages(prev => ({ ...prev, [col]: p.image_url! })); setCoverPickerFor(null); }} style={{ padding: 0, display: "flex", flexDirection: "column", gap: 0, border: collectionImages[col] === p.image_url ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}><img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} /><span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{p.name}</span></button>)}
+                                    {matches.map(p => <button key={p.id} type="button" title={p.name} onClick={() => { const nextImages = { ...collectionImages, [col]: p.image_url! }; setCollectionImages(nextImages); setCoverPickerFor(null); void persistCollectionSettings(nextImages, collOrder, hiddenCollections); }} style={{ padding: 0, display: "flex", flexDirection: "column", gap: 0, border: collectionImages[col] === p.image_url ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}><img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} /><span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{p.name}</span></button>)}
                                   </div>
                                 )}
                               </div>
