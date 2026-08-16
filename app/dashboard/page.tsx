@@ -123,6 +123,7 @@ interface StoreConfig {
   font_pair?: string;
   hero_image_position?: string;
   hero_image_behavior?: string;
+  collection_images?: Record<string, string>;
 }
 
 interface CheckoutConfig {
@@ -590,7 +591,7 @@ export default function Dashboard() {
     // subscription setup -- selecting "free" instead lands as subscription_status
     // "free" (already active, no gate needed).
     if (sd?.subscription_status === "pending") { router.push("/dashboard/billing"); return; }
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c: any = effectiveStoreConfig(sd); setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", privacy_policy: c.privacy_policy || "", terms_of_service: c.terms_of_service || "", free_ship_threshold: c.free_ship_threshold ?? null, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c: any = effectiveStoreConfig(sd); setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", privacy_policy: c.privacy_policy || "", terms_of_service: c.terms_of_service || "", free_ship_threshold: c.free_ship_threshold ?? null, collection_images: c.collection_images || {}, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
     if (pdResult.data) setProducts(pdResult.data);
     if (odResult.data) {
       setOrders(odResult.data);
@@ -1177,6 +1178,28 @@ export default function Dashboard() {
     const updates = arr.map((p, i) => ({ id: p.id, sort_order: slots[i] }));
     await Promise.all(updates.map((u) => supabase.from("products").update({ sort_order: u.sort_order }).eq("id", u.id)));
     setProducts(products.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, sort_order: u.sort_order } : p; }));
+    revalidateMyStore();
+  };
+  const saveCollectionCover = async (collectionName: string, imageUrl: string | null) => {
+    if (!seller) return;
+    const nextImages = { ...(storeConfig.collection_images || {}) };
+    if (imageUrl) nextImages[collectionName] = imageUrl; else delete nextImages[collectionName];
+    const nextConfig = { ...storeConfig, collection_images: nextImages };
+    setStoreConfig(nextConfig);
+    const { error } = await supabase.from("sellers").update({ store_config: nextConfig }).eq("id", seller.id);
+    if (error) { alert("Failed to save collection cover: " + error.message); return; }
+    setSeller({ ...seller, store_config: nextConfig });
+    revalidateMyStore();
+  };
+  const moveCollection = async (fromIndex: number, toIndex: number) => {
+    if (!seller || toIndex < 0 || toIndex >= storeCollections.length || fromIndex === toIndex) return;
+    const updated = [...storeCollections];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+    setStoreCollections(updated);
+    const { error } = await supabase.from("sellers").update({ collections: updated }).eq("id", seller.id);
+    if (error) { alert("Failed to reorder collections: " + error.message); return; }
+    setSeller({ ...seller, collections: updated });
     revalidateMyStore();
   };
   const initSortOrders = async () => {
@@ -2616,6 +2639,25 @@ export default function Dashboard() {
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 900, textTransform: "uppercase" as const, marginBottom: 4 }}>{selectedCollection}</h2>
                 <p style={{ fontSize: 13, color: "var(--muted-2)", marginBottom: 20 }}>{products.filter((p) => productInCat(selectedCollection!, p) && (p.status || "published") !== "trashed").length} products in this collection</p>
+                {(() => {
+                  const fallbackCover = products.find((p) => productInCat(selectedCollection!, p) && p.image_url)?.image_url || "";
+                  const coverUrl = storeConfig.collection_images?.[selectedCollection!] || fallbackCover;
+                  return (
+                    <div style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, marginBottom: 20 }}>
+                      <h3 style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 10, color: N }}>Collection cover image</h3>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {coverUrl ? <img src={coverUrl} alt="" style={{ width: 72, height: 72, borderRadius: 12, objectFit: "cover", background: "var(--input-bg)" }} /> : <div style={{ width: 72, height: 72, borderRadius: 12, background: "var(--input-bg)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted-2)", fontSize: 11, fontWeight: 800 }}>No cover</div>}
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 12, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>This image is used for Shop by Department and collection tiles. Use the product list below to set a specific product image as the cover.</p>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 10 }}>
+                            <button onClick={() => { const nextUrl = prompt("Paste the image URL for this collection cover:", storeConfig.collection_images?.[selectedCollection!] || ""); if (nextUrl !== null) saveCollectionCover(selectedCollection!, nextUrl.trim() || null); }} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>Paste image URL</button>
+                            {storeConfig.collection_images?.[selectedCollection!] && <button onClick={() => saveCollectionCover(selectedCollection!, null)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>Clear custom cover</button>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const }}>
                   {[{ k: "manual", l: "Manual" }, { k: "az", l: "A-Z" }, { k: "za", l: "Z-A" }, { k: "latest", l: "Latest" }, { k: "oldest", l: "Oldest" }, { k: "price-asc", l: "Price Low" }, { k: "price-desc", l: "Price High" }].map((s) => (
                     <button key={s.k} onClick={() => setProductSort(s.k)} style={{ padding: "6px 14px", borderRadius: 100, background: productSort === s.k ? "rgba(255,107,53,0.08)" : "var(--panel)", border: productSort === s.k ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", color: productSort === s.k ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{s.l}</button>
@@ -2645,7 +2687,10 @@ export default function Dashboard() {
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--input-bg)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "var(--muted-2)" }}>R{p.price}</div></div>
                           </div>
-                          <button onClick={async () => { const updated = removeCat(p.category, selectedCollection!); await supabase.from("products").update({ category: updated }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: updated } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" as const }}>
+                            {p.image_url && <button onClick={() => saveCollectionCover(selectedCollection!, p.image_url!)} style={{ padding: "6px 12px", background: storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "rgba(34,197,94,0.1)" : "var(--panel-2)", border: storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "1px solid rgba(34,197,94,0.25)" : "1px solid var(--border)", borderRadius: 8, color: storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "#16a34a" : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>{storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "Cover" : "Set cover"}</button>}
+                            <button onClick={async () => { const updated = removeCat(p.category, selectedCollection!); await supabase.from("products").update({ category: updated }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: updated } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2682,13 +2727,16 @@ export default function Dashboard() {
                     {storeCollections.map((col, i) => {
                       const count = products.filter((p) => productInCat(col, p) && (p.status || "published") !== "trashed").length;
                       const thumb = products.find((p) => productInCat(col, p) && p.image_url);
+                      const coverUrl = storeConfig.collection_images?.[col] || thumb?.image_url || "";
                       return (
                         <div key={i} onClick={() => setSelectedCollection(col)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--input-bg)"}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            {thumb?.image_url ? <img src={thumb.image_url} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--input-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 16, color: "var(--muted-2)" }}>&#9633;</span></div>}
+                            {coverUrl ? <img src={coverUrl} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--input-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 16, color: "var(--muted-2)" }}>&#9633;</span></div>}
                             <div><div style={{ fontSize: 14, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 2 }}>{col}</div><div style={{ fontSize: 11, color: "var(--muted-2)" }}>{count} product{count !== 1 ? "s" : ""}</div></div>
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); moveCollection(i, i - 1); }} style={{ width: 28, height: 28, borderRadius: "50%", background: i === 0 ? "var(--input-bg)" : "var(--panel-2)", border: "1px solid var(--border)", color: i === 0 ? "var(--muted-2)" : "var(--muted)", fontSize: 12, cursor: i === 0 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&uarr;</button>
+                            <button disabled={i === storeCollections.length - 1} onClick={(e) => { e.stopPropagation(); moveCollection(i, i + 1); }} style={{ width: 28, height: 28, borderRadius: "50%", background: i === storeCollections.length - 1 ? "var(--input-bg)" : "var(--panel-2)", border: "1px solid var(--border)", color: i === storeCollections.length - 1 ? "var(--muted-2)" : "var(--muted)", fontSize: 12, cursor: i === storeCollections.length - 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&darr;</button>
                             <span style={{ fontSize: 12, color: "var(--muted-2)" }}>&rarr;</span>
                             <button onClick={async (e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                           </div>
