@@ -460,7 +460,7 @@ export default function StoreEditor() {
   // "add" picker is clicked) -- already-saved product-id slides need it
   // too, to resolve their thumbnails.
   useEffect(() => {
-    if ((activeSection !== "winter-essentials" && activeSection !== "winter-sale-marquee" && activeSection !== "standard-graphic-hoodies") || pickerProducts || !seller) return;
+    if ((activeSection !== "shopbygender" && activeSection !== "winter-essentials" && activeSection !== "winter-sale-marquee" && activeSection !== "standard-graphic-hoodies") || pickerProducts || !seller) return;
     setPickerLoading(true);
     supabase.from("products").select("id, name, image_url, category").eq("seller_id", seller.id).not("image_url", "is", null)
       .then(({ data }) => { setPickerProducts(data || []); setPickerLoading(false); });
@@ -776,6 +776,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ shopByGenderHeading }); }, [shopByGenderHeading]);
   useEffect(() => { postUpdate({ newsletterCopyright }); }, [newsletterCopyright]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
+  useEffect(() => { postUpdate({ collectionImages }); }, [collectionImages]);
+  useEffect(() => { postUpdate({ hiddenCollections }); }, [hiddenCollections]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ heroVideo: heroVideoUrl }); }, [heroVideoUrl]);
   useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
@@ -2032,6 +2034,54 @@ export default function StoreEditor() {
                 <div>
                   <label style={labelStyle}>Heading</label>
                   <input value={shopByGenderHeading} onChange={e => setShopByGenderHeading(e.target.value)} placeholder="Shop by Category" style={inputStyle} />
+                </div>
+
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8 }}>
+                  <label style={labelStyle}>Department collection order & covers</label>
+                  <div style={{ fontSize: 12, color: "rgba(245,245,245,0.42)", marginBottom: 10, lineHeight: 1.5 }}>These controls update the circles in this Shop by Department section. Drag or use arrows to reorder; upload an image or choose one from the collection&apos;s products.</div>
+                  {collOrder.filter(col => /^(men|women)\s+/i.test(col)).length === 0 ? (
+                    <div style={{ fontSize: 12, color: "rgba(245,245,245,0.35)" }}>No Men/Women collections found yet. Create collections like &quot;Men Accessories&quot; or &quot;Women Shoes&quot; first.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {collOrder.filter(col => /^(men|women)\s+/i.test(col)).map((col) => {
+                        const i = collOrder.indexOf(col);
+                        const label = col.replace(/^(men|women)\s+/i, "");
+                        const matches = (pickerProducts || []).filter(p => (p.category || "").split(",").map(c => c.trim()).includes(col));
+                        return (
+                          <div key={col} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden" }}>
+                            <div draggable onDragStart={e => { e.dataTransfer.setData("text/plain", String(i)); e.dataTransfer.effectAllowed = "move"; }} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const from = Number(e.dataTransfer.getData("text/plain")); if (from === i) return; const u = [...collOrder]; const [item] = u.splice(from, 1); u.splice(i, 0, item); setCollOrder(u); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", cursor: "grab", userSelect: "none" }}>
+                              <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 14 }}>â ¿</span>
+                              <span style={{ flex: 1, fontSize: 13 }}>{col}<span style={{ color: "rgba(245,245,245,0.35)" }}> / {label}</span></span>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <button onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i-1], u[i]] = [u[i], u[i-1]]; setCollOrder(u); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>â–²</button>
+                                <button onClick={() => { if (i === collOrder.length-1) return; const u = [...collOrder]; [u[i], u[i+1]] = [u[i+1], u[i]]; setCollOrder(u); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.5)", cursor: "pointer", fontSize: 10, padding: "2px 6px" }}>â–¼</button>
+                              </div>
+                            </div>
+                            <div style={{ padding: "0 12px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+                              {collectionImages[col] ? <img src={collectionImages[col]} alt="" style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(245,245,245,0.35)" }}>+</div>}
+                              <div style={{ flex: 1, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                <label style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                  {collectionImages[col] ? "Change image" : "Upload image"}
+                                  <input type="file" accept="image/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f || !seller) return; const ext = f.name.split(".").pop()?.toLowerCase() || "jpg"; const path = `${seller.id}/shopbydepartment_${col.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.${ext}`; const { error } = await supabase.storage.from("store-assets").upload(path, f, { upsert: true }); if (!error) { const { data } = supabase.storage.from("store-assets").getPublicUrl(path); setCollectionImages(prev => ({ ...prev, [col]: data.publicUrl })); } }} style={{ display: "none" }} />
+                                </label>
+                                <button type="button" onClick={() => openCoverPicker(coverPickerFor === col ? "" : col)} style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Choose from product</button>
+                                {collectionImages[col] && <button onClick={() => setCollectionImages(prev => { const n = { ...prev }; delete n[col]; return n; })} style={{ fontSize: 12, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Remove</button>}
+                              </div>
+                            </div>
+                            {coverPickerFor === col && (
+                              <div style={{ padding: "0 12px 12px" }}>
+                                {pickerLoading ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>Loading your productsâ€¦</div> : matches.length === 0 ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products with an image in this collection yet. Use Upload image instead.</div> : (
+                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 8, maxHeight: 240, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                                    {matches.map(p => <button key={p.id} type="button" title={p.name} onClick={() => { setCollectionImages(prev => ({ ...prev, [col]: p.image_url! })); setCoverPickerFor(null); }} style={{ padding: 0, display: "flex", flexDirection: "column", gap: 0, border: collectionImages[col] === p.image_url ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}><img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} /><span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{p.name}</span></button>)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>

@@ -743,6 +743,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveAboutStat2Value, setLiveAboutStat2Value] = useState<string | null>(null);
   const [liveAboutStat2Label, setLiveAboutStat2Label] = useState<string | null>(null);
   const [liveAboutCtaLabel, setLiveAboutCtaLabel] = useState<string | null>(null);
+  const [liveCollectionImages, setLiveCollectionImages] = useState<Record<string, string> | null>(null);
+  const [liveHiddenCollections, setLiveHiddenCollections] = useState<string[] | null>(null);
+  const [liveCollOrder, setLiveCollOrder] = useState<string[] | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
@@ -1134,6 +1137,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.aboutStat2Value !== undefined) setLiveAboutStat2Value(e.data.aboutStat2Value);
       if (e.data.aboutStat2Label !== undefined) setLiveAboutStat2Label(e.data.aboutStat2Label);
       if (e.data.aboutCtaLabel !== undefined) setLiveAboutCtaLabel(e.data.aboutCtaLabel);
+      if (e.data.collectionImages !== undefined) setLiveCollectionImages(e.data.collectionImages || {});
+      if (e.data.hiddenCollections !== undefined) setLiveHiddenCollections(e.data.hiddenCollections || []);
+      if (e.data.collOrder !== undefined) setLiveCollOrder(e.data.collOrder || []);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -1360,7 +1366,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // can filter out collections that currently match 0 products (sold out,
   // unpublished, or just not tagged to anything) before anything renders.
   const catImage = (cat: string) => {
-    const override = config.collection_images?.[cat];
+    const images = liveCollectionImages ?? config.collection_images ?? {};
+    const normalizedCat = cat.trim().toLowerCase();
+    const override = images[cat]
+      || Object.entries(images).find(([key]) => key.trim().toLowerCase() === normalizedCat)?.[1]
+      || Object.entries(images).find(([key]) => key.trim().replace(/^(men|women)\s+/i, "").toLowerCase() === normalizedCat)?.[1]
+      || images[`Men ${cat}`]
+      || images[`Women ${cat}`];
     if (override) return override;
     const p = products.find((p) => pInCat(p, cat) && p.image_url);
     return p?.image_url || null;
@@ -1384,8 +1396,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // effectiveStoreConfig() is called directly rather than via the `config`
   // const below since that's defined later in this component and only
   // depends on `seller`, which is already in scope here.
-  const hiddenCollectionsSet = new Set(seller ? ((effectiveStoreConfig(seller) as StoreConfig).hidden_collections || []) : []);
-  const sellerCollections = (seller?.collections || []).filter(Boolean).filter((c) => !hiddenCollectionsSet.has(c));
+  const hiddenCollectionsSet = new Set(liveHiddenCollections ?? (seller ? ((effectiveStoreConfig(seller) as StoreConfig).hidden_collections || []) : []));
+  const sellerCollections = (liveCollOrder ?? seller?.collections ?? []).filter(Boolean).filter((c) => !hiddenCollectionsSet.has(c));
   const categoryList = (sellerCollections.length > 0 ? sellerCollections : allCategories.filter((c) => c !== "All").slice(0, 8)).filter((cat) => catCount(cat) > 0);
   // Nav / menu links come straight from the seller's collections list -- no
   // fixed menu structure baked in here. "All" has no real per-collection
