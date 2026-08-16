@@ -2092,6 +2092,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-widget-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.22);margin-top:4px;padding-top:14px;gap:10px}
 .fr-setla-widget-foot span{font-size:10.5px;color:rgba(255,255,255,0.72)}
 .fr-setla-widget-foot a{font-size:11.5px;font-weight:600;color:#fff;text-decoration:underline;text-underline-offset:3px}
+.fr-free-shipping-pill{width:100%;height:64px;display:flex;align-items:center;margin-top:14px;background:#0a7f4f;border-radius:999px;padding:6px 18px 6px 7px;color:#fff;font-family:Arial,Helvetica,sans-serif;box-shadow:0 12px 28px rgba(10,127,79,.16)}
+.fr-free-shipping-icon{width:52px;height:52px;min-width:52px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;margin-right:18px}
+.fr-free-shipping-icon svg{width:25px;height:25px;stroke:#0a7f4f}
+.fr-free-shipping-copy{display:flex;align-items:center;gap:15px;white-space:nowrap;font-size:15px;font-weight:800;letter-spacing:.045em}
+.fr-free-shipping-copy .diamond{width:7px;height:7px;background:rgba(255,255,255,.8);transform:rotate(45deg);border-radius:1px}
+.fr-free-shipping-copy .nationwide{font-size:13px;font-weight:800}
+.fr-free-shipping-country{margin-left:auto;height:36px;padding-left:22px;border-left:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center}
+.fr-free-shipping-flag{width:34px;height:23px;display:block;overflow:hidden;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
 .fr-stitch-widget,.stitch-pay-later-widget{margin-top:12px;padding:15px 16px;border-radius:16px;background:#fff;border:1px solid rgba(21,17,24,.11);box-shadow:0 12px 28px rgba(21,17,24,.07);font-family:var(--body);color:#211b27}
 .stitch-pay-later-widget{display:flex;align-items:center;gap:14px}
 .stitch-pay-later-widget>img{width:78px;height:auto;object-fit:contain;flex:0 0 auto}
@@ -2180,6 +2188,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
  .fr-stitch-approval-grid{grid-template-columns:1fr 1fr;gap:8px}
  .fr-stitch-req{font-size:11px;padding:10px}
  .fr-stitch-modal-foot{padding:22px 18px 30px}
+ .fr-free-shipping-pill{height:52px;padding:5px 13px 5px 6px}
+ .fr-free-shipping-icon{width:42px;height:42px;min-width:42px;margin-right:12px}
+ .fr-free-shipping-icon svg{width:21px;height:21px}
+ .fr-free-shipping-copy{gap:9px;font-size:12px}
+ .fr-free-shipping-copy .nationwide{font-size:11px}
+ .fr-free-shipping-copy .diamond{width:5px;height:5px}
+ .fr-free-shipping-country{padding-left:13px}
+ .fr-free-shipping-flag{width:28px;height:19px}
 }
 
 /* Float BNPL widget container -- the widget itself renders its own DOM
@@ -2926,6 +2942,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    <FreeShippingPill />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
@@ -3546,6 +3563,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    <FreeShippingPill />
                     {seller.checkout_config?.stitch_enabled && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
@@ -4702,6 +4720,42 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
 // price splitting unevenly) -- the leftover cent(s) from the integer
 // division get folded into the LAST instalment, same as the Liquid
 // version's own remainder handling.
+function FreeShippingPill() {
+  return (
+    <div className="fr-free-shipping-pill" aria-label="Free shipping nationwide">
+      <div className="fr-free-shipping-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3.5 8.5H19.5V21H3.5V8.5Z" />
+          <path d="M19.5 13H24.2L28.5 17.2V21H19.5V13Z" />
+          <path d="M23 13V17H28" />
+          <circle cx="9" cy="22" r="2.4" />
+          <circle cx="24" cy="22" r="2.4" />
+          <path d="M5.5 22H6.5" />
+          <path d="M11.5 22H21.5" />
+          <path d="M26.5 22H28" />
+        </svg>
+      </div>
+      <div className="fr-free-shipping-copy">
+        <span>FREE SHIPPING</span>
+        <span className="diamond" />
+        <span className="nationwide">NATIONWIDE</span>
+      </div>
+      <div className="fr-free-shipping-country" aria-hidden="true">
+        <svg className="fr-free-shipping-flag" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+          <clipPath id="frFreeShippingFlagClip"><rect width="900" height="600" /></clipPath>
+          <g clipPath="url(#frFreeShippingFlagClip)">
+            <rect width="900" height="300" fill="#DE3831" />
+            <rect y="300" width="900" height="300" fill="#002395" />
+            <path d="M0 0 L360 300 L900 300 M0 600 L360 300" fill="none" stroke="#FFFFFF" strokeWidth="150" strokeLinejoin="miter" />
+            <path d="M0 0 L360 300 L900 300 M0 600 L360 300" fill="none" stroke="#007A4D" strokeWidth="90" strokeLinejoin="miter" />
+            <polygon points="0,0 350,300 0,600" fill="#FFB612" />
+            <polygon points="0,65 275,300 0,535" fill="#000000" />
+          </g>
+        </svg>
+      </div>
+    </div>
+  );
+}
 function SetlaProductWidget({ price }: { price: number }) {
   if (!(price > 0)) return null;
   const cents = Math.round(price * 100);
