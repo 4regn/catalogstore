@@ -1365,7 +1365,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // buckets below so every place that renders a browsable collection list
   // can filter out collections that currently match 0 products (sold out,
   // unpublished, or just not tagged to anything) before anything renders.
+  const catTokenMatches = (token: string, cat: string) => {
+    const cleanToken = token.trim().toLowerCase();
+    const cleanCat = cat.trim().toLowerCase();
+    const shortToken = cleanToken.replace(/^(men|women)\s+/i, "");
+    const shortCat = cleanCat.replace(/^(men|women)\s+/i, "");
+    return cleanToken === cleanCat || shortToken === shortCat;
+  };
+  const productInCatAlias = (p: Product, cat: string) =>
+    (p.category || "").split(",").some((token) => catTokenMatches(token, cat));
   const catImage = (cat: string) => {
+    const p = products.find((p) => productInCatAlias(p, cat) && p.image_url);
+    if (p?.image_url) return p.image_url;
     const images = liveCollectionImages ?? config.collection_images ?? {};
     const normalizedCat = cat.trim().toLowerCase();
     const override = images[cat]
@@ -1374,10 +1385,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       || images[`Men ${cat}`]
       || images[`Women ${cat}`];
     if (override) return override;
-    const p = products.find((p) => pInCat(p, cat) && p.image_url);
-    return p?.image_url || null;
+    return null;
   };
-  const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
+  const catCount = (cat: string) => products.filter((p) => productInCatAlias(p, cat)).length;
   // "Shop by Collection" grid: the seller's real, explicitly-ordered
   // collections list is the source of truth here (same list the nav/footer
   // already use below) so this grid can never drift from what the seller
