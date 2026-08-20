@@ -87,7 +87,7 @@ const PRODUCT_COLUMNS =
 // them is gone). This narrower set is 4regn-specific -- every other
 // template's homepage still renders a full product grid and needs the full
 // PRODUCT_COLUMNS above, so this is only swapped in for tpl === "4regn".
-const FOUR_REGN_HOME_PRODUCT_COLUMNS = "id, category, image_url";
+const FOUR_REGN_HOME_PRODUCT_COLUMNS = "id, name, category, image_url";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 

@@ -1371,6 +1371,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     return match ? match[1].toLowerCase() : null;
   };
   const stripGenderPrefix = (value: string) => value.trim().replace(/^(men|women)\s+/i, "").toLowerCase();
+  const categoryTokens = (p: Product) => (p.category || "").split(",").map((token) => token.trim()).filter(Boolean);
   const catTokenMatches = (token: string, cat: string) => {
     const cleanToken = normalizeCollectionName(token);
     const cleanCat = normalizeCollectionName(cat);
@@ -1380,10 +1381,21 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (catGender || tokenGender) return tokenGender === catGender && stripGenderPrefix(token) === stripGenderPrefix(cat);
     return stripGenderPrefix(token) === stripGenderPrefix(cat);
   };
-  const productInCatAlias = (p: Product, cat: string) =>
-    (p.category || "").split(",").some((token) => catTokenMatches(token, cat));
+  const productInCatAlias = (p: Product, cat: string) => {
+    const tokens = categoryTokens(p);
+    if (tokens.some((token) => catTokenMatches(token, cat))) return true;
+    const catGender = genderPrefix(cat);
+    if (!catGender) return false;
+    const shortCat = stripGenderPrefix(cat);
+    const hasGenderToken = tokens.some((token) => normalizeCollectionName(token) === catGender);
+    const hasShortToken = tokens.some((token) => stripGenderPrefix(token) === shortCat);
+    const nameHasGender = normalizeCollectionName(p.name || "").includes(catGender);
+    return hasShortToken && (hasGenderToken || nameHasGender);
+  };
   const catImage = (cat: string) => {
-    const images = liveCollectionImages ?? config.collection_images ?? {};
+    const scopedImages = seller?.template_configs?.[seller.template || ""]?.collection_images || {};
+    const globalImages = seller?.store_config?.collection_images || {};
+    const images = { ...globalImages, ...scopedImages, ...(config.collection_images || {}), ...(liveCollectionImages || {}) };
     const normalizedCat = normalizeCollectionName(cat);
     const override = images[cat]
       || Object.entries(images).find(([key]) => normalizeCollectionName(key) === normalizedCat)?.[1]
