@@ -4447,6 +4447,7 @@ function withFreeDeliveryThreshold(html: string) {
 
 function normalizeOversizedTeePromoCopy(text: string) {
   return text
+    .replace(/BUY\s*ANY\s*2\s*OVERSIZED\s*GRAPHIC\s*TEES\s*GET\s*A\s*3RD\s*TEE\s*FREE/gi, "BUY 2 FOR R449!")
     .replace(/BUY\s*2\s*GET\s*1\s*FREE\s*(?:—|-)?\s*3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
     .replace(/BUY\s*2\s*,?\s*GET\s*A?\s*3(?:RD|RD)?\s*TEE\s*FREE!!!?/gi, "BUY 2 FOR R449!")
     .replace(/3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
