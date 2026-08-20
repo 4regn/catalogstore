@@ -2140,7 +2140,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-free-shipping-pill{width:100%;height:64px;display:flex;align-items:center;margin-top:14px;background:#0a7f4f;border-radius:999px;padding:6px 18px 6px 7px;color:#fff;font-family:Arial,Helvetica,sans-serif;box-shadow:0 12px 28px rgba(10,127,79,.16)}
 .fr-free-shipping-icon{width:52px;height:52px;min-width:52px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;margin-right:18px}
 .fr-free-shipping-icon svg{width:25px;height:25px;stroke:#0a7f4f}
-.fr-free-shipping-copy{display:flex;align-items:center;gap:15px;white-space:nowrap;font-size:15px;font-weight:800;letter-spacing:.045em}
+.fr-free-shipping-copy{display:grid;gap:2px;white-space:nowrap;font-size:15px;font-weight:800;letter-spacing:.045em}
+.fr-free-shipping-copy-main{display:flex;align-items:center;gap:15px}
+.fr-free-shipping-note{font-size:11px;font-weight:500;font-style:italic;letter-spacing:.02em;text-transform:none;opacity:.9}
 .fr-free-shipping-copy .diamond{width:7px;height:7px;background:rgba(255,255,255,.8);transform:rotate(45deg);border-radius:1px}
 .fr-free-shipping-copy .nationwide{font-size:13px;font-weight:800}
 .fr-free-shipping-country{margin-left:auto;height:36px;padding-left:22px;border-left:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center}
@@ -2236,7 +2238,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
  .fr-free-shipping-pill{height:52px;padding:5px 13px 5px 6px}
  .fr-free-shipping-icon{width:42px;height:42px;min-width:42px;margin-right:12px}
  .fr-free-shipping-icon svg{width:21px;height:21px}
- .fr-free-shipping-copy{gap:9px;font-size:12px}
+ .fr-free-shipping-copy{gap:1px;font-size:12px}
+ .fr-free-shipping-copy-main{gap:9px}
+ .fr-free-shipping-note{font-size:9.5px}
  .fr-free-shipping-copy .nationwide{font-size:11px}
  .fr-free-shipping-copy .diamond{width:5px;height:5px}
  .fr-free-shipping-country{padding-left:13px}
@@ -3502,7 +3506,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             {collectionName && config.collection_descriptions?.[collectionName] && (
               <div
                 className="fr-coll-desc"
-                dangerouslySetInnerHTML={{ __html: config.collection_descriptions[collectionName] }}
+                dangerouslySetInnerHTML={{ __html: withFreeDeliveryThreshold(config.collection_descriptions[collectionName]) }}
               />
             )}
           </div>
@@ -4429,6 +4433,14 @@ function isPromotionalDescription(product: Product): boolean {
   return /standard graphic hood|front\s*(?:&|and)?\s*back printed hood|back\s*(?:&|and)?\s*front printed hood|oversized premium tee/.test(haystack);
 }
 
+const FREE_DELIVERY_COPY_RE = /\bfree\s+(delivery|shipping)\b/i;
+const FREE_DELIVERY_THRESHOLD_RE = /starting\s+from\s+r?449/i;
+
+function withFreeDeliveryThreshold(html: string) {
+  if (!FREE_DELIVERY_COPY_RE.test(html) || FREE_DELIVERY_THRESHOLD_RE.test(html)) return html;
+  return html.replace(/(<\/p>)/i, '$1\n<p><em>starting from R449</em></p>');
+}
+
 function DescriptionText({ text, promo = false }: { text: string; promo?: boolean }) {
   const paragraphs = text.split(/\n\n+/);
   return (
@@ -4452,6 +4464,7 @@ function DescriptionText({ text, promo = false }: { text: string; promo?: boolea
           const rowsText = trimmed.slice("[[table]]".length, -"[[/table]]".length);
           return <DescriptionTable key={pi} rowsText={rowsText} keyPrefix={`${pi}`} />;
         }
+        const needsFreeDeliveryThreshold = FREE_DELIVERY_COPY_RE.test(trimmed) && !FREE_DELIVERY_THRESHOLD_RE.test(trimmed);
         return (
           <p key={pi} className="fr-pdp-desc-p">
             {para.split("\n").map((line, li) => (
@@ -4460,6 +4473,12 @@ function DescriptionText({ text, promo = false }: { text: string; promo?: boolea
                 {parseInlineMarkup(line, `${pi}-${li}`)}
               </Fragment>
             ))}
+            {needsFreeDeliveryThreshold && (
+              <>
+                <br />
+                <em>starting from R449</em>
+              </>
+            )}
           </p>
         );
       })}
@@ -4474,7 +4493,7 @@ function DescriptionText({ text, promo = false }: { text: string; promo?: boolea
 // the copy without a code change).
 const TICKER_ITEMS = [
   "Trusted by 110,000+ Happy Customers",
-  "Free Standard Delivery Nationwide",
+  "Free Standard Delivery Nationwide — Starting From R449",
   "Sale — Up to 50% Off",
   "Pay in 4 with SETLA",
   "Luxury Streetwear Brand",
@@ -4792,9 +4811,12 @@ function FreeShippingPill() {
         </svg>
       </div>
       <div className="fr-free-shipping-copy">
-        <span>FREE SHIPPING</span>
-        <span className="diamond" />
-        <span className="nationwide">NATIONWIDE</span>
+        <span className="fr-free-shipping-copy-main">
+          <span>FREE SHIPPING</span>
+          <span className="diamond" />
+          <span className="nationwide">NATIONWIDE</span>
+        </span>
+        <span className="fr-free-shipping-note">starting from R449</span>
       </div>
       <div className="fr-free-shipping-country" aria-hidden="true">
         <svg className="fr-free-shipping-flag" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
