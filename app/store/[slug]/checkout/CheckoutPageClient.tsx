@@ -647,9 +647,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const cartHasImport = cart.some((i) => hasImportTag(i.tags));
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const shippingOptionsConfigured = buildCheckoutShippingOptions(cc.shipping_options, {
     subdomain: seller?.subdomain,
     template: seller?.template,
+    subtotal,
+    hasImportProduct: cartHasImport,
   });
   const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
   // Import shipping is automatic. Prefer a seller-configured premium rate,
@@ -767,7 +770,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     badgeBg: slMuted, badgeText: "#fff",
     stickyBg: `${slBg}f2`, emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const selectedShippingOption = shippingOptionsConfigured[shippingOption];
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
   const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
@@ -860,6 +862,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   }, 0);
   const isShippingDiscount = discountApplied?.applies_to === "shipping";
   const merchandiseSavings = compareAtSavings + automaticDiscount.totalDiscount + (isShippingDiscount ? 0 : discountAmount);
+  const totalSavings = merchandiseSavings + deliverySavings;
   const summarySubtotal = subtotal + compareAtSavings;
   const total = isShippingDiscount
     ? Math.max(0, subtotal + shipping - discountAmount - automaticDiscount.totalDiscount)
@@ -1572,7 +1575,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div className="total-row discount" key={a.title}><span>{a.title}</span><span>&minus;R{a.amount.toFixed(0)}</span></div>
                     ))}
                     {compareAtSavings > 0 && <div className="total-row discount"><span>Sale discount</span><span>&minus;R{compareAtSavings.toFixed(0)}</span></div>}
-                    {merchandiseSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{merchandiseSavings.toFixed(0)}</span></div>}
+                    {totalSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{totalSavings.toFixed(0)}</span></div>}
                     <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (deliverySavings > 0 ? <span className="shipping-saving-stack"><span className="was">R{Number(selectedShippingOption?.compare_at_price || shipping + deliverySavings).toFixed(0)}</span><span className="now">{shippingPriceLabel(selectedShippingOption)}</span></span> : shippingPriceLabel(selectedShippingOption))}</span></div>
                     <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{total.toLocaleString("en-ZA")}</strong></div>
                   </div>
@@ -1998,7 +2001,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
             {compareAtSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>Sale discount</span><span>-R{compareAtSavings.toFixed(0)}</span></div>}
-            {merchandiseSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{merchandiseSavings.toFixed(0)}</span></div>}
+            {totalSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{totalSavings.toFixed(0)}</span></div>}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (deliverySavings > 0 ? <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}><span style={{ color: T.muted, textDecoration: "line-through" }}>R{Number(selectedShippingOption?.compare_at_price || shipping + deliverySavings).toFixed(0)}</span><span style={{ color: T.text }}>{shippingPriceLabel(selectedShippingOption)}</span></span> : shippingPriceLabel(selectedShippingOption))}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

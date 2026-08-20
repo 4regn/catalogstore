@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
   let shippingCost = 0;
   let shippingLabel: string = fulfillment === "pickup" ? "Pickup" : "";
   if (fulfillment === "delivery") {
-    const opts: CheckoutShippingOption[] = buildCheckoutShippingOptions(cc.shipping_options, { subdomain: slug, template: undefined });
+    const opts: CheckoutShippingOption[] = buildCheckoutShippingOptions(cc.shipping_options, { subdomain: slug, template: undefined, subtotal, hasImportProduct });
     const idx = Number(shippingOptionIndex);
     if (!opts.length || !Number.isFinite(idx) || idx < 0 || idx >= opts.length) {
       return NextResponse.json({ error: "Invalid shipping option" }, { status: 400 });

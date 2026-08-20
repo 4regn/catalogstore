@@ -8,6 +8,7 @@ import { useParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../lib/automatic-discounts";
+import { FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM } from "../../../lib/four-regn-shipping";
 
 // Only ever rendered after a click/keyboard interaction (see `lightbox`
 // state below) -- never needed for first paint, so it's split into its own
@@ -1515,13 +1516,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const automaticDiscount = automaticBxgyDiscounts.length && cart.length
     ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
     : { totalDiscount: 0, applied: [] as { title: string; amount: number }[], lineDiscounts: [] as { lineIndex: number; amount: number; titles: string[] }[] };
+  const cartPayableMerchandiseTotal = Math.max(0, cartTotal - automaticDiscount.totalDiscount);
+  const cartStitchMonthly = cartPayableMerchandiseTotal / 6;
   const cartTotalSavings = compareAtSavings + automaticDiscount.totalDiscount;
   // The note is only useful for a mixed cart: import-only carts already say
   // 7-14 working days in their sole checkout shipping method.
   const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.product.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
-  const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
+  const FREE_SHIP = seller?.template === "4regn" ? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM : (seller?.store_config?.free_ship_threshold ?? null);
   const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
 
   if (loading) {
@@ -2519,6 +2522,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cart-sub-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-cart-sub-amt{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--ink)}
 .fr-cart-ship{font-size:11px;color:rgba(46,42,57,0.55);margin-bottom:18px}
+.fr-cart-stitch{margin:12px 0 16px;box-shadow:none}
 .fr-cart-import-note{background:rgba(0,117,31,0.06);border:1px solid rgba(0,117,31,0.2);border-radius:10px;padding:12px 14px;margin-bottom:16px}
 .fr-cart-import-note strong{display:block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#00751f;margin-bottom:4px}
 .fr-cart-import-note p{margin:0;font-size:12px;line-height:1.6;color:var(--ink)}
@@ -2937,7 +2941,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span style={{ fontWeight: 800, fontSize: 13 }}>-{fmt(cartTotalSavings)}</span>
                 </div>
               )}
-              {FREE_SHIP && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>}
+              {seller.checkout_config?.stitch_enabled && (
+                <div className="stitch-pay-later-widget fr-cart-stitch" aria-label="Stitch Pay Later cart calculator">
+                  <img src="/checkout/stitch.png" alt="Stitch" />
+                  <div>
+                    <small>STITCH PAY LATER</small>
+                    <p>Or pay <strong>{fmt(cartStitchMonthly)}</strong> over <strong>6 monthly instalments</strong>.</p>
+                    <StitchPaymentLogoRow />
+                  </div>
+                </div>
+              )}
+              {FREE_SHIP && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more to unlock free PAXI Standard Delivery` : "Free PAXI Standard Delivery unlocked ✓"}</p>}
               <button className="fr-cart-checkout" onClick={goToCheckout}>Checkout</button>
               {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
                 <button className="fr-cart-wa" onClick={orderViaWhatsApp}>Order via WhatsApp</button>
