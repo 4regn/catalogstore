@@ -1571,8 +1571,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? seller.tagline ?? seller.store_name;
   const displayHeroBody = liveHeroBody ?? config.hero_body ?? seller.description ?? "";
   const displayHeroDisclaimer = liveHeroDisclaimer ?? config.hero_disclaimer ?? "";
-  const displayHeroOfferHeadline = liveHeroOfferHeadline ?? config.hero_offer_headline ?? "";
-  const displayHeroOfferNote = liveHeroOfferNote ?? config.hero_offer_note ?? "";
+  const displayHeroOfferHeadline = normalizeOversizedTeePromoCopy(liveHeroOfferHeadline ?? config.hero_offer_headline ?? "");
+  const displayHeroOfferNote = normalizeOversizedTeePromoCopy(liveHeroOfferNote ?? config.hero_offer_note ?? "");
   const showAbout = liveShowAbout ?? config.show_about ?? true;
   const aboutEyebrow = liveAboutEyebrow ?? config.about_eyebrow ?? "Est. 2019 — South Africa";
   const aboutHeading = liveAboutHeading ?? config.about_heading ?? "Built for the Culture";
@@ -1634,7 +1634,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // unlike Newsletter/Shop by Gender above: an empty label would otherwise
   // render an empty pill by default on every seller's storefront.
   const showHeroPill = (liveShowHeroPill ?? config.show_hero_pill ?? false) && !!(liveHeroPillLabel ?? config.hero_pill_label);
-  const heroPillLabel = liveHeroPillLabel ?? config.hero_pill_label ?? "";
+  const heroPillLabel = normalizeOversizedTeePromoCopy(liveHeroPillLabel ?? config.hero_pill_label ?? "");
   const sbgEyebrow = liveShopByGenderEyebrow ?? config.shopbygender_eyebrow ?? `${seller.store_name} Collection`;
   const sbgHeading = liveShopByGenderHeading ?? config.shopbygender_heading ?? "Shop by Category";
   // partitionGenderCollections only partitions by name convention -- it has
