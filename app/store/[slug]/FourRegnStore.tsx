@@ -1023,6 +1023,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (categories.includes("STANDARD GRAPHIC HOODIES")) {
       return { label: "BUY 2 FOR R599", scope: "collection", product_id: null, collection_name: "STANDARD GRAPHIC HOODIES" };
     }
+    if (categories.includes("OVERSIZED PREMIUM TEES")) {
+      return { label: "BUY 2 FOR R449", scope: "collection", product_id: null, collection_name: "OVERSIZED PREMIUM TEES" };
+    }
     return promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
   };
 
@@ -4437,12 +4440,21 @@ const FREE_DELIVERY_COPY_RE = /\bfree\s+(delivery|shipping)\b/i;
 const FREE_DELIVERY_THRESHOLD_RE = /starting\s+from\s+r?449/i;
 
 function withFreeDeliveryThreshold(html: string) {
-  if (!FREE_DELIVERY_COPY_RE.test(html) || FREE_DELIVERY_THRESHOLD_RE.test(html)) return html;
-  return html.replace(/(<\/p>)/i, '$1\n<p><em>starting from R449</em></p>');
+  const promoSafeHtml = normalizeOversizedTeePromoCopy(html);
+  if (!FREE_DELIVERY_COPY_RE.test(promoSafeHtml) || FREE_DELIVERY_THRESHOLD_RE.test(promoSafeHtml)) return promoSafeHtml;
+  return promoSafeHtml.replace(/(<\/p>)/i, '$1\n<p><em>starting from R449</em></p>');
+}
+
+function normalizeOversizedTeePromoCopy(text: string) {
+  return text
+    .replace(/BUY\s*2\s*GET\s*1\s*FREE\s*(?:—|-)?\s*3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
+    .replace(/BUY\s*2\s*,?\s*GET\s*A?\s*3(?:RD|RD)?\s*TEE\s*FREE!!!?/gi, "BUY 2 FOR R449!")
+    .replace(/3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
+    .replace(/R350\s*EACH\s*BUY\s*3\s*FOR\s*2/gi, "BUY 2 FOR R449!");
 }
 
 function DescriptionText({ text, promo = false }: { text: string; promo?: boolean }) {
-  const paragraphs = text.split(/\n\n+/);
+  const paragraphs = normalizeOversizedTeePromoCopy(text).split(/\n\n+/);
   return (
     <div className={`fr-pdp-desc${promo ? " is-promo" : ""}`}>
       {paragraphs.map((para, pi) => {
@@ -4762,7 +4774,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
           <div>
             <div className="fr-fwm-rowhead">
               <div className="fr-fwm-rowtitle">OVERSIZED PREMIUM TEES</div>
-              <span className="fr-fwm-deal">BUY 2 GET 1 FREE<small>3 TEES FOR R700</small></span>
+              <span className="fr-fwm-deal">BUY 2 FOR R449<small>MIX ANY 2</small></span>
             </div>
             <div className="fr-fwm-track">
               <div className="fr-fwm-marquee reverse">
@@ -4779,7 +4791,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
       <div className="fr-fwm-cta">
         <div className="fr-fwm-buttons">
           <a href={hoodieHref} className="fr-fwm-btn">SHOP HOODIES<small>2 FOR R699</small></a>
-          <a href={teeHref} className="fr-fwm-btn fr-fwm-btn-outline">SHOP TEES<small>BUY 2 GET 1 FREE</small></a>
+          <a href={teeHref} className="fr-fwm-btn fr-fwm-btn-outline">SHOP TEES<small>2 FOR R449</small></a>
         </div>
         <div className="fr-fwm-note">Winter Only · Ships Nationwide</div>
       </div>
