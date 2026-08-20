@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
-import { getYocoCheckout } from "../../../../lib/yoco";
-import { markUnikOrderPaid } from "../../../../lib/unik-orders";
+import { getYocoCheckout, isYocoCheckoutPaid, YOCO_TERMINAL_FAILURE_STATUSES } from "../../../../lib/yoco";
+import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../lib/unik-orders";
 import { activateSetlaPlanAfterPayment, type SetlaFirstChargeMeta } from "../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
   if (order.payment_status !== "paid" && order.yoco_checkout_id) {
     try {
       const checkout = await getYocoCheckout(order.yoco_checkout_id);
-      if (checkout?.paymentId) {
+      if (isYocoCheckoutPaid(checkout)) {
         const expectedCents = Math.round(Number(order.total || 0) * 100);
         const amountMatches = !checkout.amount || Math.abs(expectedCents - Number(checkout.amount || 0)) <= 1;
         if (amountMatches) {
@@ -103,6 +103,8 @@ export async function GET(req: NextRequest) {
             checkoutId: order.yoco_checkout_id,
           });
         }
+      } else if (checkout?.status && YOCO_TERMINAL_FAILURE_STATUSES.has(checkout.status.toLowerCase()) && order.payment_status === "pending") {
+        await markUnikOrderFailed(admin, order.id);
       }
     } catch (error) {
       console.error("Yoco self-heal failed", { orderId, error });

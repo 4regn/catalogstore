@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireUnikCustomer } from "../../../../../lib/unik-customer";
-import { getYocoCheckout } from "../../../../../lib/yoco";
+import { getYocoCheckout, isYocoCheckoutPaid, YOCO_TERMINAL_FAILURE_STATUSES } from "../../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed, ORDER_ABANDON_MS } from "../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +11,6 @@ export const dynamic = "force-dynamic";
 // still in progress -- catching that here means a failed card gets labelled
 // "failed" immediately, instead of sitting as "pending" for a full hour
 // until the abandonment sweep would relabel it "abandoned" instead.
-const YOCO_TERMINAL_FAILURE_STATUSES = new Set(["failed", "cancelled", "canceled", "expired", "declined"]);
-
 /* Polled by checkout.html after the Yoco redirect back. The webhook is the
    primary way an order gets marked paid, but webhook delivery can be slow,
    misconfigured, or fail signature verification -- so if the order is
@@ -40,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (paymentStatus !== "paid" && order.yoco_checkout_id) {
     const checkout = await getYocoCheckout(order.yoco_checkout_id);
-    if (checkout?.paymentId) {
+    if (isYocoCheckoutPaid(checkout)) {
       const expectedCents = Math.round(Number(order.total) * 100);
       if (Math.abs(expectedCents - checkout.amount) <= 1) {
         const result = await markUnikOrderPaid(admin, order as any, checkout.paymentId, null);

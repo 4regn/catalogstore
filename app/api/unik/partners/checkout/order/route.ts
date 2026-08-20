@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../lib/supabase-admin";
 import { requireUnikPartner } from "../../../../../../lib/unik-partner";
-import { getYocoCheckout } from "../../../../../../lib/yoco";
+import { getYocoCheckout, isYocoCheckoutPaid, YOCO_TERMINAL_FAILURE_STATUSES } from "../../../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed, ORDER_ABANDON_MS } from "../../../../../../lib/unik-orders";
 
 export const dynamic = "force-dynamic";
-
-const YOCO_TERMINAL_FAILURE_STATUSES = new Set(["failed", "cancelled", "canceled", "expired", "declined"]);
 
 /* Partner-scoped twin of /api/unik/orders/[id] -- polled by the Studio
    tab's cart/checkout panel after the Yoco redirect back. Same self-heal
@@ -36,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   if (paymentStatus !== "paid" && order.yoco_checkout_id) {
     const checkout = await getYocoCheckout(order.yoco_checkout_id);
-    if (checkout?.paymentId) {
+    if (isYocoCheckoutPaid(checkout)) {
       const expectedCents = Math.round(Number(order.total) * 100);
       if (Math.abs(expectedCents - checkout.amount) <= 1) {
         const result = await markUnikOrderPaid(admin, order as any, checkout.paymentId, null);
