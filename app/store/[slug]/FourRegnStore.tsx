@@ -1365,26 +1365,34 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // buckets below so every place that renders a browsable collection list
   // can filter out collections that currently match 0 products (sold out,
   // unpublished, or just not tagged to anything) before anything renders.
+  const normalizeCollectionName = (value: string) => value.trim().toLowerCase();
+  const genderPrefix = (value: string) => {
+    const match = /^(men|women)\s+/i.exec(value.trim());
+    return match ? match[1].toLowerCase() : null;
+  };
+  const stripGenderPrefix = (value: string) => value.trim().replace(/^(men|women)\s+/i, "").toLowerCase();
   const catTokenMatches = (token: string, cat: string) => {
-    const cleanToken = token.trim().toLowerCase();
-    const cleanCat = cat.trim().toLowerCase();
-    const shortToken = cleanToken.replace(/^(men|women)\s+/i, "");
-    const shortCat = cleanCat.replace(/^(men|women)\s+/i, "");
-    return cleanToken === cleanCat || shortToken === shortCat;
+    const cleanToken = normalizeCollectionName(token);
+    const cleanCat = normalizeCollectionName(cat);
+    if (cleanToken === cleanCat) return true;
+    const tokenGender = genderPrefix(token);
+    const catGender = genderPrefix(cat);
+    if (catGender || tokenGender) return tokenGender === catGender && stripGenderPrefix(token) === stripGenderPrefix(cat);
+    return stripGenderPrefix(token) === stripGenderPrefix(cat);
   };
   const productInCatAlias = (p: Product, cat: string) =>
     (p.category || "").split(",").some((token) => catTokenMatches(token, cat));
   const catImage = (cat: string) => {
+    const images = liveCollectionImages ?? config.collection_images ?? {};
+    const normalizedCat = normalizeCollectionName(cat);
+    const override = images[cat]
+      || Object.entries(images).find(([key]) => normalizeCollectionName(key) === normalizedCat)?.[1]
+      || (!genderPrefix(cat) ? Object.entries(images).find(([key]) => stripGenderPrefix(key) === normalizedCat)?.[1] : undefined);
+    if (override) return override;
+    const exact = products.find((p) => pInCat(p, cat) && p.image_url);
+    if (exact?.image_url) return exact.image_url;
     const p = products.find((p) => productInCatAlias(p, cat) && p.image_url);
     if (p?.image_url) return p.image_url;
-    const images = liveCollectionImages ?? config.collection_images ?? {};
-    const normalizedCat = cat.trim().toLowerCase();
-    const override = images[cat]
-      || Object.entries(images).find(([key]) => key.trim().toLowerCase() === normalizedCat)?.[1]
-      || Object.entries(images).find(([key]) => key.trim().replace(/^(men|women)\s+/i, "").toLowerCase() === normalizedCat)?.[1]
-      || images[`Men ${cat}`]
-      || images[`Women ${cat}`];
-    if (override) return override;
     return null;
   };
   const catCount = (cat: string) => products.filter((p) => productInCatAlias(p, cat)).length;
