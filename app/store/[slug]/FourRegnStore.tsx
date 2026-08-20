@@ -2261,7 +2261,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sbd-rail::-webkit-scrollbar{display:none}
 .fr-sbd-card{flex:0 0 156px;text-align:center;scroll-snap-align:start;text-decoration:none;color:inherit}
 .fr-sbd-circle{width:156px;height:156px;border-radius:50%;overflow:hidden;background:#f3f3f3;margin-bottom:13px;border:1px solid #ededed;position:relative}
-.fr-sbd-circle img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}
+.fr-sbd-circle img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s ease}
 .fr-sbd-card:hover .fr-sbd-circle img{transform:scale(1.05)}
 .fr-sbd-label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .fr-sbd-divider{height:1px;background:#dcdcdc;max-width:1420px;margin:0 auto}
@@ -5247,12 +5247,11 @@ function ShopByDepartmentBlock({
               <div className="fr-sbd-circle">
                 {img ? (
                   <>
-                    <Image
+                    <img
                       src={img}
                       alt={cat.label}
-                      fill
-                      sizes="(max-width: 900px) 40vw, 156px"
-                      style={{ objectFit: "cover" }}
+                      loading="lazy"
+                      decoding="async"
                       onError={handleImgError}
                     />
                     <span className="fr-cat-mark" style={{ display: "none" }}>{cat.label}</span>
