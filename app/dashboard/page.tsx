@@ -159,6 +159,17 @@ interface Product {
   handle: string | null; source_url: string | null;
 }
 
+interface ProductUrlPreview {
+  sourceUrl: string;
+  supplier: string;
+  title: string;
+  price: number | null;
+  compareAtPrice: number | null;
+  currency: string;
+  description: string;
+  images: string[];
+}
+
 interface Order {
   id: string; order_number: number; external_id?: string | null; customer_name: string; customer_phone: string;
   customer_email: string;
@@ -395,6 +406,11 @@ export default function Dashboard() {
   const [showForm, setShowForm] = useState(false);
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvResult, setCsvResult] = useState("");
+  const [importUrl, setImportUrl] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState("");
+  const [importPreview, setImportPreview] = useState<ProductUrlPreview | null>(null);
+  const [formImportAsDraft, setFormImportAsDraft] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formPrice, setFormPrice] = useState("");
@@ -919,8 +935,8 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSourceUrl(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormSourceUrl(p.source_url || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSourceUrl(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormSourceUrl(p.source_url || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
 
   const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
     const key = p.handle || p.id;
@@ -1061,20 +1077,60 @@ export default function Dashboard() {
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: formSourceUrl.trim() || null, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: formSourceUrl.trim() || null, in_stock: true, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
       ]);
       const { data, error } = insertResult;
       if (error || !data) { setFormSaving(false); return; }
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, uploadedUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const followUp: Record<string, unknown> = {};
-      if (uploadedUrls.length > 0) { followUp.images = uploadedUrls; followUp.image_url = uploadedUrls[0] || null; }
+      const allImages = [...existingImages, ...uploadedUrls];
+      if (allImages.length > 0) { followUp.images = allImages; followUp.image_url = allImages[0] || null; }
       if (cv.length > 0) { followUp.variants = cv; }
       if (Object.keys(followUp).length > 0) { await supabase.from("products").update(followUp).eq("id", data.id); }
-      setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
+      setProducts([{ ...data, images: allImages, image_url: allImages[0] || null, variants: cv }, ...products]);
       revalidateMyStore();
     }
     resetForm(); setFormSaving(false);
+  };
+
+  const previewSupplierProduct = async () => {
+    if (!importUrl.trim()) { setImportResult("Paste a Shein, Temu, Nike, or Superbalist product link first."); return; }
+    setImportLoading(true); setImportResult(""); setImportPreview(null);
+    try {
+      const res = await fetch("/api/product-url-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setImportResult(data.error || "Could not preview this product."); return; }
+      setImportPreview(data.product);
+      setImportResult("Preview ready. Review it, then import it as a draft.");
+    } catch (e: any) {
+      setImportResult(e?.message || "Could not preview this product.");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const useSupplierPreview = () => {
+    if (!importPreview) return;
+    if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Pro for unlimited products." : "")); return; }
+    resetForm();
+    setProductFilter("draft");
+    setShowForm(true);
+    setFormImportAsDraft(true);
+    setFormName(importPreview.title || "");
+    setFormPrice(importPreview.price ? String(importPreview.price) : "");
+    setFormComparePrice(importPreview.compareAtPrice ? String(importPreview.compareAtPrice) : "");
+    setFormDescription(importPreview.description || "");
+    setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
+    setExistingImages((importPreview.images || []).slice(0, maxImages));
+    setImportResult("Imported into the form as a draft. Set your 4REGN price, collection, variants and save.");
+    setTimeout(() => {
+      document.getElementById("product-edit-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); revalidateMyStore(); };
@@ -2265,6 +2321,52 @@ export default function Dashboard() {
                 <button onClick={() => setCsvResult("")} style={{ background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer", fontSize: 14 }}>&times;</button>
               </div>
             )}
+
+            <div style={{ padding: "18px", background: "linear-gradient(135deg, rgba(255,107,53,0.08), rgba(37,99,235,0.04))", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 18 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 4 }}>Supplier URL Importer</h3>
+                  <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>Paste a Shein, Temu, Nike, or Superbalist product link. We&apos;ll pull what we can, then save it as a draft for review.</p>
+                </div>
+                <span style={{ padding: "6px 10px", borderRadius: 100, background: "rgba(0,0,0,0.06)", color: "var(--muted)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Draft-first</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                <input
+                  type="url"
+                  placeholder="https://www.shein.com/..."
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void previewSupplierProduct(); }}
+                  style={{ ...inputStyle, flex: "1 1 340px", minWidth: 0 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void previewSupplierProduct()}
+                  disabled={importLoading}
+                  style={{ padding: "11px 18px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 900, cursor: importLoading ? "not-allowed" : "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", opacity: importLoading ? 0.65 : 1 }}
+                >
+                  {importLoading ? "Checking..." : "Preview Product"}
+                </button>
+              </div>
+              {importResult && <div style={{ marginTop: 10, fontSize: 12, color: importPreview ? "#16a34a" : "var(--muted)", fontWeight: 700 }}>{importResult}</div>}
+              {importPreview && (
+                <div style={{ marginTop: 14, padding: 14, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, display: "grid", gridTemplateColumns: "96px 1fr", gap: 14 }}>
+                  {importPreview.images?.[0] ? <img src={importPreview.images[0]} alt="" style={{ width: 96, height: 96, objectFit: "cover" as const, borderRadius: 12, background: "var(--panel-2)" }} /> : <div style={{ width: 96, height: 96, borderRadius: 12, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted-2)", fontSize: 11 }}>No image</div>}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" as const, marginBottom: 6 }}>
+                      <span style={{ padding: "4px 8px", background: "rgba(37,99,235,0.08)", color: "#2563eb", borderRadius: 100, fontSize: 10, fontWeight: 900, textTransform: "uppercase" as const }}>{importPreview.supplier}</span>
+                      <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{importPreview.images.length} image{importPreview.images.length === 1 ? "" : "s"} found</span>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 4, lineHeight: 1.25 }}>{importPreview.title}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{importPreview.price ? `${importPreview.currency === "ZAR" ? "R" : importPreview.currency + " "}${importPreview.price}` : "No price detected — enter your 4REGN selling price manually"}</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      <button type="button" onClick={useSupplierPreview} style={{ padding: "9px 14px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Use as Draft</button>
+                      <a href={importPreview.sourceUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 14px", background: "var(--panel-2)", color: "var(--muted)", border: "1px solid var(--border)", borderRadius: 100, fontSize: 10, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Open source</a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" as const }}>
               {([{ key: "published" as const, label: "Published", count: publishedCount }, { key: "draft" as const, label: "Drafts", count: draftCount }, { key: "trashed" as const, label: "Trash", count: trashedCount }]).map((f) => (
