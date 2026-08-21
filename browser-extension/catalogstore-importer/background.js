@@ -65,7 +65,12 @@ async function downloadImages(urls, productUrl) {
   let totalBytes = 0;
   for (const url of urls.slice(0, 16)) {
     try {
-      const response = await fetch(url, { credentials: "include", referrer: productUrl });
+      let response;
+      try {
+        response = await fetch(url, { credentials: "omit", referrer: productUrl });
+      } catch {
+        response = await fetch(url, { credentials: "same-origin", referrer: productUrl });
+      }
       if (!response.ok) throw new Error(String(response.status));
       const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
       if (!type.startsWith("image/")) throw new Error("not an image");
