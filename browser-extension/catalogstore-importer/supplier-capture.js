@@ -153,17 +153,19 @@
   function colorNodes() {
     return [...document.querySelectorAll([
       '.product-intro__color-radio',
+      '.product-intro__color-radio-inner',
+      '[class*="product-intro__color" i] [data-attr_value_name]',
       '[class*="product-intro" i] [class*="color" i] [data-attr_value_name]',
-      '[class*="product-intro" i] [data-attr_value_name][role="radio"]',
       '[data-attr_name*="color" i]',
       '[data-attr_name*="colour" i]',
       '[aria-label*="color" i][role="radio"]',
       '[aria-label*="colour" i][role="radio"]',
     ].join(","))]
       .filter((el) => {
+        const context = clean(`${el.className} ${el.getAttribute("data-attr_name")} ${el.getAttribute("aria-label")} ${el.closest('[class*="color" i],[class*="colour" i],[data-attr_name*="color" i],[data-attr_name*="colour" i]')?.className || ""}`);
         const value = clean(el.getAttribute("data-attr_value_name") || el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent)
           .replace(/^(?:color|colour)\s*:?\s*/i, "");
-        return value && value.length <= 45 && !/size|guide|select|quantity|add to/i.test(value);
+        return /color|colour/i.test(context) && value && value.length <= 45 && !/size|guide|select|quantity|add to/i.test(`${context} ${value}`);
       });
   }
 
