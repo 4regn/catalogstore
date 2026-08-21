@@ -46,7 +46,7 @@ const SELLER_COLUMNS =
 // /products/{handle} page, so dropping it would break that redirect.
 // created_at stays for Heirloom/SoftLuxury's Newest/Oldest sort.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, size_chart_html, sort_order, created_at, handle";
 // 4regn-only: "You Might Also Like" (relatedProducts in FourRegnStore.tsx)
 // has no server-side fetch on this route either, same as
 // ../../products/[handle]/page.tsx -- it reads off the header/mobile-dock

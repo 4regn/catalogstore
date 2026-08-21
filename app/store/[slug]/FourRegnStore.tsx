@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useTransition, Fragment, type TouchEvent as ReactTouchEvent } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import { parseProductSizeChartHtml } from "@/lib/product-size-chart";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
@@ -197,6 +198,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
+  size_chart_html?: string | null;
   sort_order: number; created_at?: string; tags?: string[];
   // SEO-friendly Shopify-derived handle, once backfilled -- see
   // goToProduct() below. Optional: not every product has one yet (a fresh
@@ -3549,6 +3551,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // navigation/browsing but leaving every affected product's own
           // breadcrumb still announcing it defeats the point of hiding it.
           const firstRealCategory = catTokens.find((t) => !hiddenCollectionsSet.has(t)) || null;
+          const customSizeChart = parseProductSizeChartHtml(p.size_chart_html);
           const sizeChartType = getSizeChartType(p);
           // Sourced from searchProducts (the lazy client-side catalog fetch
           // above), not `products` -- the server route no longer runs a
@@ -3654,7 +3657,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         </div>
                       </div>
                     ))}
-                    {sizeChartType && (
+                    {(customSizeChart || sizeChartType) && (
                       // Was a small underlined text link, easy to miss --
                       // matches the real site's own bordered, icon+chevron
                       // "SIZE CHART" button now (reported directly: "you can
@@ -4204,9 +4207,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           overlay/close pattern as the policy modal below; table/tab content
           uses new fr-sc- classes. */}
       {sizeChartOpen && initialActiveProduct && (() => {
+        const customChart = parseProductSizeChartHtml(initialActiveProduct.size_chart_html);
         const sizeChartType = getSizeChartType(initialActiveProduct);
-        if (!sizeChartType) return null;
-        const chart = SIZE_CHARTS[sizeChartType];
+        const chart = customChart || (sizeChartType ? SIZE_CHARTS[sizeChartType] : null);
+        if (!chart) return null;
         return (
           <div className="fr-modal-overlay" onClick={() => setSizeChartOpen(false)}>
             <div className="fr-modal" onClick={(e) => e.stopPropagation()}>
@@ -4240,7 +4244,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       ))}
                     </tbody>
                   </table>
-                  <p className="fr-sc-tip">All measurements in CM. If you are between sizes, we recommend sizing up.</p>
+                  <p className="fr-sc-tip">{customChart?.note || "All measurements in CM. If you are between sizes, we recommend sizing up."}</p>
                 </div>
               ) : (
                 <div className="fr-sc-measure">

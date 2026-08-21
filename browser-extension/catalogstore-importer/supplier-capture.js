@@ -556,17 +556,16 @@
       .map((element) => clean(element.textContent))
       .find((text) => /manually measuring the product/i.test(text)) ||
       "*This data was obtained from manually measuring the product, it may be off by 1-2 CM.";
-    const tableRows = rows
-      .map((row) => row.map((cell) => clean(cell).replace(/\|/g, "/")).join(" | "))
-      .join("\n");
+    const escapeHtml = (value) => clean(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+    const htmlRow = (row, cell) => `<tr>${row.map((value) => `<${cell}>${escapeHtml(value)}</${cell}>`).join("")}</tr>`;
     return {
       attempted: true,
-      html: [
-        "**Size Chart**",
-        "__Product measurements (CM)__",
-        `[[table]]\n${tableRows}\n[[/table]]`,
-        `__${notice}__`,
-      ].join("\n\n"),
+      html: `<table><thead>${htmlRow(rows[0], "th")}</thead><tbody>${rows.slice(1).map((row) => htmlRow(row, "td")).join("")}</tbody></table><p><em>${escapeHtml(notice)}</em></p>`,
     };
   }
 
@@ -577,10 +576,9 @@
       if (sizeChart.attempted) withColors.warnings = [...(withColors.warnings || []), "The SHEIN size guide opened, but its Product Chart could not be read. Add the size chart manually before publishing."];
       return withColors;
     }
-    const description = clean(withColors.description);
     return {
       ...withColors,
-      description: `${description}${description ? "\n\n" : ""}${sizeChart.html}`,
+      sizeChartHtml: sizeChart.html,
       stockNote: `${withColors.stockNote || ""} Product size chart captured in CM.`.trim(),
     };
   }

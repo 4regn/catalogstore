@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import { extractLegacyImportedSizeChart, parseProductSizeChartHtml } from "@/lib/product-size-chart";
 import { revalidateStore } from "../actions/revalidate-store";
 import { canonicalStoreUrl } from "../../lib/store-url";
 import { FONT_PAIRS, DEFAULT_FONT_PAIR_KEY } from "../../lib/font-pairs";
@@ -156,7 +157,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
   status: string; sort_order: number; description: string; created_at: string;
-  handle: string | null; source_url: string | null;
+  handle: string | null; source_url: string | null; size_chart_html: string | null;
 }
 
 interface ProductUrlPreview {
@@ -173,6 +174,7 @@ interface ProductUrlPreview {
   stockNote?: string;
   captureMethod?: "server" | "browser";
   warnings?: string[];
+  sizeChartHtml?: string;
 }
 
 const CATALOG_IMPORT_APP_SOURCE = "catalogstore-product-importer";
@@ -227,7 +229,7 @@ interface VelourBooking {
 }
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
-const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url";
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url, size_chart_html";
 const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
 const displayOrderReference = (order: Pick<Order, "order_number" | "external_id">) =>
   order.external_id ? String(order.external_id).replace(/^#?/, "#") : `#${order.order_number}`;
@@ -446,6 +448,7 @@ export default function Dashboard() {
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formSizeChartHtml, setFormSizeChartHtml] = useState("");
   const [formSourceUrl, setFormSourceUrl] = useState("");
   const [formInStock, setFormInStock] = useState(true);
   const [formImages, setFormImages] = useState<File[]>([]);
@@ -1010,8 +1013,8 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
 
   const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
     const key = p.handle || p.id;
@@ -1145,14 +1148,15 @@ export default function Dashboard() {
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, newUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const cleanSourceUrl = formSourceUrl.trim() || null;
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
+      const cleanSizeChartHtml = formSizeChartHtml.trim() || null;
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, size_chart_html: formSizeChartHtml.trim() || null, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
       ]);
       const { data, error } = insertResult;
       if (error || !data) { setFormSaving(false); return; }
@@ -1229,6 +1233,7 @@ export default function Dashboard() {
     setFormPrice(importPreview.price ? String(importPreview.price) : "");
     setFormComparePrice(importPreview.compareAtPrice ? String(importPreview.compareAtPrice) : "");
     setFormDescription(importPreview.description || "");
+    setFormSizeChartHtml(importPreview.sizeChartHtml || "");
     setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
     setFormInStock(importPreview.inStock !== false);
     const capturedImages = (importPreview.images || []).slice(0, maxImages);
@@ -1257,6 +1262,7 @@ export default function Dashboard() {
       old_price: p.old_price,
       category: p.category,
       description: p.description,
+      size_chart_html: p.size_chart_html,
       in_stock: p.in_stock,
       variants: p.variants || [],
       status: "draft",
@@ -2478,6 +2484,7 @@ export default function Dashboard() {
                       <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{importPreview.images.length} image{importPreview.images.length === 1 ? "" : "s"} found</span>
                       {!!importPreview.variants?.length && <span style={{ fontSize: 11, color: "var(--muted-2)" }}>· {importPreview.variants.map((v) => `${v.name}: ${v.options.length}`).join(", ")}</span>}
                       {importPreview.inStock !== undefined && importPreview.inStock !== null && <span style={{ fontSize: 11, color: importPreview.inStock ? "#16a34a" : "#dc2626", fontWeight: 800 }}>· {importPreview.inStock ? "In stock" : "Sold out"}</span>}
+                      {!!importPreview.sizeChartHtml && <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 800 }}>· Size chart ready</span>}
                       {importPreview.captureMethod && <span style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const }}>· {importPreview.captureMethod} capture</span>}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 4, lineHeight: 1.25 }}>{importPreview.title}</div>
@@ -2666,6 +2673,26 @@ export default function Dashboard() {
                     rows={5}
                     style={{ ...inputStyle, resize: "vertical" as const, lineHeight: 1.5 }}
                   />
+                </div>
+
+                {/* Supplier-specific size guide. Stored separately from the
+                    shopper-facing description so importing a table cannot
+                    flatten or clutter normal product copy. */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 8 }}>Size chart HTML (admin only)</label>
+                  <textarea
+                    placeholder="Imported supplier size charts appear here automatically."
+                    value={formSizeChartHtml}
+                    onChange={(e) => setFormSizeChartHtml(e.target.value)}
+                    rows={5}
+                    style={{ ...inputStyle, resize: "vertical" as const, lineHeight: 1.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11 }}
+                  />
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Customers see this through the Size Chart popup, not inside the product description.</p>
+                  {(() => {
+                    const preview = parseProductSizeChartHtml(formSizeChartHtml);
+                    if (!preview) return formSizeChartHtml.trim() ? <p style={{ fontSize: 10, color: "#dc2626", marginTop: 8, fontWeight: 700 }}>The HTML does not contain a readable table yet.</p> : null;
+                    return <div style={{ marginTop: 10, overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}><thead><tr>{preview.headers.map((header) => <th key={header} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{header}</th>)}</tr></thead><tbody>{preview.rows.slice(0, 4).map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} style={{ padding: 8, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{cell}</td>)}</tr>)}</tbody></table></div>;
+                  })()}
                 </div>
 
                 {/* Admin-only product provenance. This stays in the dashboard
