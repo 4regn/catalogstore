@@ -7,6 +7,8 @@ const TOP_LOCATIONS_LIMIT = 5;
 
 export type DailySessionPoint = { date: string; sessions: number };
 export type TopLocation = { country: string; region: string; city: string; count: number };
+export type FunnelVisitorActivity = { visitorId: string; timestamp: string; path: string | null; status: string | null };
+export type FunnelPurchaseActivity = { orderId: string; orderNumber: number | null; externalId: string | null; customerName: string | null; customerEmail: string | null; total: number; timestamp: string; paymentMethod: string | null };
 
 export type SessionAnalytics = {
   sessionsToday: number;
@@ -17,6 +19,11 @@ export type SessionAnalytics = {
   salesToday: number;
   dailySessions: DailySessionPoint[];
   topLocations: TopLocation[];
+  activity: {
+    addedToCart: FunnelVisitorActivity[];
+    reachedCheckout: FunnelVisitorActivity[];
+    purchases: FunnelPurchaseActivity[];
+  };
 };
 
 // Pure calendar-date arithmetic on the "YYYY-MM-DD" string -- deliberately
@@ -48,7 +55,7 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   const [sessionsRes, liveSessionsRes, ordersRes] = await Promise.all([
     admin
       .from("store_visitor_sessions")
-      .select("session_date, country, region, city, had_cart, reached_checkout")
+      .select("visitor_id, session_date, country, region, city, had_cart, reached_checkout, cart_started_at, checkout_started_at, last_seen_at, last_path, last_status")
       .eq("seller_id", sellerId)
       .gte("session_date", windowStart),
     admin
@@ -58,7 +65,7 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
       .gte("last_seen_at", todayStartIso),
     admin
       .from("orders")
-      .select("total, payment_status")
+      .select("id, order_number, external_id, customer_name, customer_email, total, payment_status, payment_method, created_at")
       .eq("seller_id", sellerId)
       .gte("created_at", todayStartIso),
   ]);
@@ -72,13 +79,21 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   let sessionsToday = 0;
   let addedToCartToday = 0;
   let reachedCheckoutToday = 0;
+  const addedToCartActivity: FunnelVisitorActivity[] = [];
+  const reachedCheckoutActivity: FunnelVisitorActivity[] = [];
 
   for (const row of sessionRows) {
     if (dailyCounts.has(row.session_date)) dailyCounts.set(row.session_date, (dailyCounts.get(row.session_date) || 0) + 1);
     if (row.session_date === today) {
       sessionsToday++;
-      if (row.had_cart) addedToCartToday++;
-      if (row.reached_checkout) reachedCheckoutToday++;
+      if (row.had_cart) {
+        addedToCartToday++;
+        addedToCartActivity.push({ visitorId: row.visitor_id, timestamp: row.cart_started_at || row.last_seen_at, path: row.last_path, status: row.last_status });
+      }
+      if (row.reached_checkout) {
+        reachedCheckoutToday++;
+        reachedCheckoutActivity.push({ visitorId: row.visitor_id, timestamp: row.checkout_started_at || row.last_seen_at, path: row.last_path, status: row.last_status });
+      }
     }
 
     const country = row.country || "Unknown";
@@ -116,6 +131,23 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
     salesToday: paidToday.reduce((sum, o) => sum + Number(o.total || 0), 0),
     dailySessions: chartDays.map((d) => ({ date: d, sessions: dailyCounts.get(d) || 0 })),
     topLocations,
+    activity: {
+      addedToCart: addedToCartActivity.sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 50),
+      reachedCheckout: reachedCheckoutActivity.sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 50),
+      purchases: paidToday
+        .map((o) => ({
+          orderId: o.id,
+          orderNumber: o.order_number ?? null,
+          externalId: o.external_id ?? null,
+          customerName: o.customer_name ?? null,
+          customerEmail: o.customer_email ?? null,
+          total: Number(o.total || 0),
+          timestamp: o.created_at,
+          paymentMethod: o.payment_method ?? null,
+        }))
+        .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))
+        .slice(0, 50),
+    },
   };
 }
 

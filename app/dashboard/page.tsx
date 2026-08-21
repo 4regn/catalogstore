@@ -191,6 +191,11 @@ interface SessionAnalytics {
   sessionsToday: number; addedToCartToday?: number; reachedCheckoutToday?: number; completedCheckoutToday?: number; ordersToday: number; salesToday: number;
   dailySessions: { date: string; sessions: number }[];
   topLocations: { country: string; region: string; city: string; count: number }[];
+  activity?: {
+    addedToCart: { visitorId: string; timestamp: string; path: string | null; status: string | null }[];
+    reachedCheckout: { visitorId: string; timestamp: string; path: string | null; status: string | null }[];
+    purchases: { orderId: string; orderNumber: number | null; externalId: string | null; customerName: string | null; customerEmail: string | null; total: number; timestamp: string; paymentMethod: string | null }[];
+  };
 }
 
 interface VelourService {
@@ -388,6 +393,7 @@ export default function Dashboard() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
+  const [liveActivityPanel, setLiveActivityPanel] = useState<"addedToCart" | "reachedCheckout" | "purchases" | null>(null);
   const [fullAnalytics, setFullAnalytics] = useState<FullAnalytics | null>(null);
   const [fullAnalyticsLoading, setFullAnalyticsLoading] = useState(false);
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
@@ -2977,21 +2983,73 @@ export default function Dashboard() {
               </div>
               {[
                 { label: "Sessions today", value: sessionAnalytics?.sessionsToday ?? "—", icon: "eye" as DashIconName, color: "#60a5fa" },
-                { label: "Added to cart", value: sessionAnalytics?.addedToCartToday ?? "—", icon: "cart" as DashIconName, color: "#22c55e" },
-                { label: "Reached checkout", value: sessionAnalytics?.reachedCheckoutToday ?? "—", icon: "payment" as DashIconName, color: "#a78bfa" },
-                { label: "Completed", value: sessionAnalytics?.completedCheckoutToday ?? sessionAnalytics?.ordersToday ?? "—", icon: "check" as DashIconName, color: "#16a34a" },
+                { label: "Added to cart", value: sessionAnalytics?.addedToCartToday ?? "—", icon: "cart" as DashIconName, color: "#22c55e", panel: "addedToCart" as const },
+                { label: "Reached checkout", value: sessionAnalytics?.reachedCheckoutToday ?? "—", icon: "payment" as DashIconName, color: "#a78bfa", panel: "reachedCheckout" as const },
+                { label: "Completed", value: sessionAnalytics?.completedCheckoutToday ?? sessionAnalytics?.ordersToday ?? "—", icon: "check" as DashIconName, color: "#16a34a", panel: "purchases" as const },
                 { label: "Orders today", value: sessionAnalytics?.ordersToday ?? "—", icon: "orders" as DashIconName, color: "#fbbf24" },
                 { label: "Sales today", value: "R" + Math.round(sessionAnalytics?.salesToday ?? 0), icon: "trend-up" as DashIconName, color: "#ff6b35" },
               ].map((s) => (
-                <div key={s.label} style={{ padding: "20px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                <div
+                  key={s.label}
+                  onClick={() => s.panel && setLiveActivityPanel(liveActivityPanel === s.panel ? null : s.panel)}
+                  style={{ padding: "20px 20px", background: liveActivityPanel === s.panel ? "rgba(255,107,53,0.07)" : "var(--panel)", border: liveActivityPanel === s.panel ? "1px solid rgba(255,107,53,0.22)" : "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", cursor: s.panel ? "pointer" : "default" }}
+                >
                   <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
                     <DashIcon name={s.icon} size={15} stroke={1.8} />
                   </div>
                   <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1 }}>{s.value}</div>
                   <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.05em", fontWeight: 700, marginTop: 6 }}>{s.label}</div>
+                  {s.panel && <div style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginTop: 8 }}>{liveActivityPanel === s.panel ? "Hide details" : "View details"}</div>}
                 </div>
               ))}
             </div>
+
+            {sessionAnalytics && liveActivityPanel && (
+              <div style={{ padding: "18px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+                      {liveActivityPanel === "addedToCart" ? "Added to cart today" : liveActivityPanel === "reachedCheckout" ? "Reached checkout today" : "Completed purchases today"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 4 }}>Newest activity first, using South African time.</div>
+                  </div>
+                  <button onClick={() => setLiveActivityPanel(null)} style={{ border: "none", background: "transparent", color: "var(--muted-2)", cursor: "pointer", fontSize: 18 }}>&times;</button>
+                </div>
+                {liveActivityPanel === "purchases" ? (
+                  (sessionAnalytics.activity?.purchases || []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No completed purchases today yet.</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {(sessionAnalytics.activity?.purchases || []).map((o) => (
+                        <div key={o.orderId} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800 }}>{o.externalId ? String(o.externalId).replace(/^#?/, "#") : o.orderNumber ? `#${o.orderNumber}` : "Order"} · {o.customerName || o.customerEmail || "Customer"}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>{new Date(o.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}{o.paymentMethod ? ` · ${o.paymentMethod}` : ""}</div>
+                          </div>
+                          <div style={{ fontSize: 14, fontWeight: 900 }}>R{Math.round(o.total).toLocaleString("en-ZA")}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  ((liveActivityPanel === "addedToCart" ? sessionAnalytics.activity?.addedToCart : sessionAnalytics.activity?.reachedCheckout) || []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No visitor activity in this stage today yet.</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {((liveActivityPanel === "addedToCart" ? sessionAnalytics.activity?.addedToCart : sessionAnalytics.activity?.reachedCheckout) || []).map((v) => (
+                        <div key={v.visitorId + v.timestamp} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800 }}>Visitor {v.visitorId.slice(0, 10)}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{v.path || "/"}{v.status ? ` · ${v.status.replace("_", " ")}` : ""}</div>
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "right" as const }}>{new Date(v.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
             {sessionAnalytics && (
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 24 }} className="overview-panels-grid">

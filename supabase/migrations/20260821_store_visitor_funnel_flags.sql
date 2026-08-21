@@ -5,8 +5,11 @@
 
 alter table public.store_visitor_sessions
   add column if not exists last_status text,
+  add column if not exists last_path text,
   add column if not exists had_cart boolean not null default false,
   add column if not exists reached_checkout boolean not null default false,
+  add column if not exists cart_started_at timestamptz,
+  add column if not exists checkout_started_at timestamptz,
   add column if not exists last_seen_at timestamptz not null default now();
 
 create index if not exists store_visitor_sessions_seller_funnel_idx

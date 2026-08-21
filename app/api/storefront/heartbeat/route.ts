@@ -91,8 +91,11 @@ export async function POST(req: NextRequest) {
       session_date: sastToday(),
       ...geo,
       last_status: status,
+      last_path: path,
       had_cart: cartItemCount > 0,
       reached_checkout: status === "checkout",
+      cart_started_at: cartItemCount > 0 ? new Date().toISOString() : null,
+      checkout_started_at: status === "checkout" ? new Date().toISOString() : null,
       last_seen_at: new Date().toISOString(),
     },
     { onConflict: "seller_id,visitor_id,session_date", ignoreDuplicates: true }
@@ -101,6 +104,7 @@ export async function POST(req: NextRequest) {
 
   const sessionUpdate: Record<string, unknown> = {
     last_status: status,
+    last_path: path,
     last_seen_at: new Date().toISOString(),
   };
   if (cartItemCount > 0) sessionUpdate.had_cart = true;
@@ -112,6 +116,27 @@ export async function POST(req: NextRequest) {
     .eq("visitor_id", visitorId)
     .eq("session_date", sastToday());
   if (sessionUpdateError) console.error("storefront heartbeat session-log update failed:", sessionUpdateError);
+
+  if (cartItemCount > 0) {
+    const { error: cartTimeError } = await admin
+      .from("store_visitor_sessions")
+      .update({ cart_started_at: new Date().toISOString() })
+      .eq("seller_id", sellerId)
+      .eq("visitor_id", visitorId)
+      .eq("session_date", sastToday())
+      .is("cart_started_at", null);
+    if (cartTimeError) console.error("storefront heartbeat cart timestamp update failed:", cartTimeError);
+  }
+  if (status === "checkout") {
+    const { error: checkoutTimeError } = await admin
+      .from("store_visitor_sessions")
+      .update({ checkout_started_at: new Date().toISOString() })
+      .eq("seller_id", sellerId)
+      .eq("visitor_id", visitorId)
+      .eq("session_date", sastToday())
+      .is("checkout_started_at", null);
+    if (checkoutTimeError) console.error("storefront heartbeat checkout timestamp update failed:", checkoutTimeError);
+  }
 
   return NextResponse.json({ ok: true });
 }
