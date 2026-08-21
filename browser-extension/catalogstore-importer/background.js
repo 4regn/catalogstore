@@ -59,18 +59,46 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
-async function downloadImages(urls, productUrl) {
+function canonicalImageKey(value) {
+  try {
+    const url = new URL(value);
+    return `${url.hostname}${url.pathname}`
+      .replace(/(_thumbnail|_square|_main|_medium|_small)?_\d+x\d*(?=\.)/gi, "")
+      .replace(/\.(webp|jpe?g|png)$/i, "");
+  } catch {
+    return String(value || "");
+  }
+}
+
+async function fetchImage(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    return await fetch(url, {
+      credentials: "omit",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function downloadImages(urls, onProgress) {
   const images = [];
   const warnings = [];
   let totalBytes = 0;
-  for (const url of urls.slice(0, 60)) {
+  const seen = new Set();
+  const uniqueUrls = urls.filter((url) => {
+    const key = canonicalImageKey(url);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 60);
+  for (let index = 0; index < uniqueUrls.length; index += 1) {
+    const url = uniqueUrls[index];
     try {
-      let response;
-      try {
-        response = await fetch(url, { credentials: "omit", referrer: productUrl });
-      } catch {
-        response = await fetch(url, { credentials: "same-origin", referrer: productUrl });
-      }
+      const response = await fetchImage(url);
       if (!response.ok) throw new Error(String(response.status));
       const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
       if (!type.startsWith("image/")) throw new Error("not an image");
@@ -85,6 +113,7 @@ async function downloadImages(urls, productUrl) {
       warnings.push("One or more supplier photos could not be copied; their original URLs were kept for review.");
       images.push(url);
     }
+    onProgress?.(index + 1, uniqueUrls.length);
   }
   return { images, warnings: [...new Set(warnings)] };
 }
@@ -108,7 +137,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const captured = await sendToTab(tab.id, { type: "CATALOG_CAPTURE_PAGE" });
     if (!captured.ok) throw new Error(captured.error || "The rendered product could not be captured.");
     progress(dashboardTabId, requestId, "Copying supplier photos into CatalogStore...");
-    const copied = await downloadImages(captured.product.images || [], captured.product.sourceUrl || url);
+    const copied = await downloadImages(captured.product.images || [], (completed, total) => {
+      progress(dashboardTabId, requestId, `Copying supplier photos into CatalogStore (${completed}/${total})...`);
+    });
     sendResponse({
       ok: true,
       product: {

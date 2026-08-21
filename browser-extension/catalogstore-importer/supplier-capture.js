@@ -123,11 +123,21 @@
         values.push(url);
       }
     };
-    document.querySelectorAll([
-      'section.main-picture [data-before-crop-src*="_thumbnail_900x" i]',
-      'section[aria-label="Product images" i] [data-before-crop-src*="_thumbnail_900x" i]',
-      'section.main-picture [data-before-crop-src]',
-      'section[aria-label="Product images" i] [data-before-crop-src]',
+    const sections = [...document.querySelectorAll('section.main-picture,section[aria-label="Product images" i]')]
+      .filter((section, index, all) => all.indexOf(section) === index);
+    const ranked = sections
+      .map((section) => {
+        const rect = section.getBoundingClientRect();
+        const style = getComputedStyle(section);
+        const visible = rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+        return { section, score: visible ? rect.width * rect.height : 0 };
+      })
+      .sort((left, right) => right.score - left.score);
+    const gallery = ranked[0]?.section;
+    if (!gallery) return [];
+    gallery.querySelectorAll([
+      '[data-before-crop-src*="_thumbnail_900x" i]',
+      '[data-before-crop-src]',
     ].join(",")).forEach((element) => add(element.getAttribute("data-before-crop-src")));
     return values.slice(0, 20);
   }
