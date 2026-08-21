@@ -6,6 +6,7 @@ import { sastToday } from "../../../../lib/sast-time";
 export const dynamic = "force-dynamic";
 
 const STATUSES = new Set(["browsing", "active_cart", "checkout"]);
+const EVENT_TYPES = new Set(["page_view", "add_to_cart", "reached_checkout"]);
 
 // Vercel populates these on every request that comes through its edge
 // network (both Edge and Node serverless functions), no third-party geo-IP
@@ -46,6 +47,17 @@ export async function POST(req: NextRequest) {
   const cartValue = Math.max(0, Math.min(1_000_000, Number(body?.cartValue) || 0));
   const customerName = body?.customerName ? String(body.customerName).trim().slice(0, 160) || null : null;
   const customerEmail = body?.customerEmail ? String(body.customerEmail).trim().slice(0, 160) || null : null;
+  const eventType = EVENT_TYPES.has(body?.eventType) ? body.eventType : null;
+  const cartItems = Array.isArray(body?.cartItems)
+    ? body.cartItems.slice(0, 20).map((item: any) => ({
+        id: typeof item?.id === "string" ? item.id.slice(0, 80) : undefined,
+        name: String(item?.name || "").trim().slice(0, 180),
+        price: Math.max(0, Math.min(1_000_000, Number(item?.price) || 0)),
+        qty: Math.max(1, Math.min(999, Math.round(Number(item?.qty)) || 1)),
+        variant: item?.variant ? String(item.variant).trim().slice(0, 240) : undefined,
+        image: item?.image ? String(item.image).trim().slice(0, 600) : undefined,
+      })).filter((item: any) => item.name)
+    : [];
 
   const admin = getAdmin();
   let sellerId = typeof body?.sellerId === "string" ? body.sellerId.trim() : "";
@@ -136,6 +148,23 @@ export async function POST(req: NextRequest) {
       .eq("session_date", sastToday())
       .is("checkout_started_at", null);
     if (checkoutTimeError) console.error("storefront heartbeat checkout timestamp update failed:", checkoutTimeError);
+  }
+
+  if (eventType) {
+    const eventRow = {
+      seller_id: sellerId,
+      visitor_id: visitorId,
+      event_type: eventType,
+      path,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      cart_item_count: cartItemCount,
+      cart_value: cartValue,
+      cart_items: cartItems,
+      ...geo,
+    };
+    const { error: eventError } = await admin.from("store_visitor_events").insert(eventRow);
+    if (eventError) console.error("storefront heartbeat event insert failed:", eventError);
   }
 
   return NextResponse.json({ ok: true });

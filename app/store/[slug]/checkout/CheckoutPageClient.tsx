@@ -412,6 +412,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     checkout: true,
     customerName: [firstName, lastName].filter(Boolean).join(" "),
     customerEmail: email,
+    cartItems: cart.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant, image: i.image })),
   });
 
   useEffect(() => { load(); }, [slug]);

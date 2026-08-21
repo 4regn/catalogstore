@@ -169,6 +169,23 @@ interface ProductUrlPreview {
   description: string;
   images: string[];
   variants?: Variant[];
+  inStock?: boolean | null;
+  stockNote?: string;
+  captureMethod?: "server" | "browser";
+  warnings?: string[];
+}
+
+const CATALOG_IMPORT_APP_SOURCE = "catalogstore-product-importer";
+const CATALOG_IMPORT_EXTENSION_SOURCE = "4regn-catalog-importer-extension";
+
+function dataUrlToImageFile(dataUrl: string, index: number) {
+  const match = dataUrl.match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
+  if (!match) return null;
+  const bytes = atob(match[2]);
+  const array = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) array[i] = bytes.charCodeAt(i);
+  const ext = match[1].split("/")[1].replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "jpg";
+  return new File([array], `supplier-product-${index + 1}.${ext}`, { type: match[1] });
 }
 
 interface Order {
@@ -192,9 +209,10 @@ interface SessionAnalytics {
   dailySessions: { date: string; sessions: number }[];
   topLocations: { country: string; region: string; city: string; count: number }[];
   activity?: {
-    addedToCart: { visitorId: string; timestamp: string; path: string | null; status: string | null }[];
-    reachedCheckout: { visitorId: string; timestamp: string; path: string | null; status: string | null }[];
+    addedToCart: { visitorId: string; timestamp: string; path: string | null; status: string | null; customerName: string | null; customerEmail: string | null; cartItemCount: number; cartValue: number; cartItems: { id?: string; name: string; price: number; qty: number; variant?: string; image?: string }[] }[];
+    reachedCheckout: { visitorId: string; timestamp: string; path: string | null; status: string | null; customerName: string | null; customerEmail: string | null; cartItemCount: number; cartValue: number; cartItems: { id?: string; name: string; price: number; qty: number; variant?: string; image?: string }[] }[];
     purchases: { orderId: string; orderNumber: number | null; externalId: string | null; customerName: string | null; customerEmail: string | null; total: number; timestamp: string; paymentMethod: string | null }[];
+    timeline: { visitorId: string; eventType: string; timestamp: string; path: string | null; customerName: string | null; customerEmail: string | null; cartItemCount: number; cartValue: number; cartItems: { id?: string; name: string; price: number; qty: number; variant?: string; image?: string }[] }[];
   };
 }
 
@@ -393,7 +411,7 @@ export default function Dashboard() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
-  const [liveActivityPanel, setLiveActivityPanel] = useState<"addedToCart" | "reachedCheckout" | "purchases" | null>(null);
+  const [liveActivityPanel, setLiveActivityPanel] = useState<"addedToCart" | "reachedCheckout" | "purchases" | "timeline" | null>(null);
   const [fullAnalytics, setFullAnalytics] = useState<FullAnalytics | null>(null);
   const [fullAnalyticsLoading, setFullAnalyticsLoading] = useState(false);
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
@@ -417,6 +435,10 @@ export default function Dashboard() {
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState("");
   const [importPreview, setImportPreview] = useState<ProductUrlPreview | null>(null);
+  const [browserImporterAvailable, setBrowserImporterAvailable] = useState(false);
+  const [browserCaptureNeeded, setBrowserCaptureNeeded] = useState(false);
+  const browserCaptureRequestRef = useRef<string | null>(null);
+  const browserCaptureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formImportAsDraft, setFormImportAsDraft] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
@@ -425,6 +447,7 @@ export default function Dashboard() {
   const [formCategory, setFormCategory] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formSourceUrl, setFormSourceUrl] = useState("");
+  const [formInStock, setFormInStock] = useState(true);
   const [formImages, setFormImages] = useState<File[]>([]);
   const [formPreviews, setFormPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -437,6 +460,51 @@ export default function Dashboard() {
   const [uploadProgress, setUploadProgress] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editProductParamHandledRef = useRef(false);
+
+  useEffect(() => {
+    const onImporterMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.data?.source !== CATALOG_IMPORT_EXTENSION_SOURCE) return;
+      const message = event.data;
+      if (message.type === "PONG") {
+        setBrowserImporterAvailable(true);
+        return;
+      }
+      if (!browserCaptureRequestRef.current || message.requestId !== browserCaptureRequestRef.current) return;
+      if (message.type === "CAPTURE_PROGRESS") {
+        if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+        browserCaptureTimeoutRef.current = setTimeout(() => {
+          if (browserCaptureRequestRef.current !== message.requestId) return;
+          browserCaptureRequestRef.current = null;
+          setImportLoading(false);
+          setImportResult("Browser capture timed out. Keep the product page open, complete any verification, and try again.");
+        }, 90000);
+        setImportResult(String(message.message || "Reading the supplier page in Chrome..."));
+        return;
+      }
+      if (message.type !== "CAPTURE_RESULT") return;
+      if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+      browserCaptureRequestRef.current = null;
+      setImportLoading(false);
+      if (!message.ok || !message.product) {
+        setImportResult(message.error || "Browser capture could not read this product. Open the supplier page, complete any verification, then try again.");
+        return;
+      }
+      setBrowserImporterAvailable(true);
+      setBrowserCaptureNeeded(false);
+      setImportPreview(message.product as ProductUrlPreview);
+      const imageCount = Array.isArray(message.product.images) ? message.product.images.length : 0;
+      const variantCount = Array.isArray(message.product.variants)
+        ? message.product.variants.reduce((sum: number, group: Variant) => sum + (group.options?.length || 0), 0)
+        : 0;
+      setImportResult(`Browser capture complete: ${imageCount} photo${imageCount === 1 ? "" : "s"} and ${variantCount} variant option${variantCount === 1 ? "" : "s"} found. Review before saving.`);
+    };
+    window.addEventListener("message", onImporterMessage);
+    window.postMessage({ source: CATALOG_IMPORT_APP_SOURCE, type: "PING" }, window.location.origin);
+    return () => {
+      window.removeEventListener("message", onImporterMessage);
+      if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+    };
+  }, []);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
   const [storeColor, setStoreColor] = useState("#ff6b35");
@@ -942,8 +1010,8 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSourceUrl(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormSourceUrl(p.source_url || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
 
   const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
     const key = p.handle || p.id;
@@ -1077,14 +1145,14 @@ export default function Dashboard() {
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, newUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const cleanSourceUrl = formSourceUrl.trim() || null;
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: formSourceUrl.trim() || null, in_stock: true, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
       ]);
       const { data, error } = insertResult;
       if (error || !data) { setFormSaving(false); return; }
@@ -1101,9 +1169,25 @@ export default function Dashboard() {
     resetForm(); setFormSaving(false);
   };
 
+  const requestBrowserCapture = (url = importUrl.trim()) => {
+    if (!url) { setImportResult("Paste a supplier product link first."); return; }
+    const requestId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    browserCaptureRequestRef.current = requestId;
+    setImportLoading(true);
+    setBrowserCaptureNeeded(true);
+    setImportResult("Opening the supplier page in Chrome. Complete any supplier verification if it appears; capture will continue automatically.");
+    window.postMessage({ source: CATALOG_IMPORT_APP_SOURCE, type: "CAPTURE_PRODUCT", requestId, url }, window.location.origin);
+    if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+    browserCaptureTimeoutRef.current = setTimeout(() => {
+      if (browserCaptureRequestRef.current !== requestId) return;
+      setImportLoading(false);
+      setImportResult("Browser capture extension was not detected. Install or reload the 4REGN capture extension, refresh this dashboard, then try Browser Capture again.");
+    }, 5000);
+  };
+
   const previewSupplierProduct = async () => {
     if (!importUrl.trim()) { setImportResult("Paste a Shein, Temu, Nike, or Superbalist product link first."); return; }
-    setImportLoading(true); setImportResult(""); setImportPreview(null);
+    setImportLoading(true); setImportResult(""); setImportPreview(null); setBrowserCaptureNeeded(false);
     try {
       const res = await fetch("/api/product-url-import", {
         method: "POST",
@@ -1111,13 +1195,26 @@ export default function Dashboard() {
         body: JSON.stringify({ url: importUrl.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setImportResult(data.error || "Could not preview this product."); return; }
+      if (!res.ok) {
+        if (data.browserAssisted) {
+          if (data.partialProduct) setImportPreview(data.partialProduct);
+          setBrowserCaptureNeeded(true);
+          requestBrowserCapture(importUrl.trim());
+          return;
+        }
+        setImportResult(data.error || "Could not preview this product."); return;
+      }
       setImportPreview(data.product);
-      setImportResult("Preview ready. Review it, then import it as a draft.");
+      if (data.browserAssisted) {
+        setBrowserCaptureNeeded(true);
+        requestBrowserCapture(importUrl.trim());
+        return;
+      }
+      setImportResult("Server preview ready. Review it, then import it as a draft.");
     } catch (e: any) {
       setImportResult(e?.message || "Could not preview this product.");
     } finally {
-      setImportLoading(false);
+      if (!browserCaptureRequestRef.current) setImportLoading(false);
     }
   };
 
@@ -1133,9 +1230,14 @@ export default function Dashboard() {
     setFormComparePrice(importPreview.compareAtPrice ? String(importPreview.compareAtPrice) : "");
     setFormDescription(importPreview.description || "");
     setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
-    setExistingImages((importPreview.images || []).slice(0, maxImages));
+    setFormInStock(importPreview.inStock !== false);
+    const capturedImages = (importPreview.images || []).slice(0, maxImages);
+    const capturedFiles = capturedImages.map(dataUrlToImageFile).filter(Boolean) as File[];
+    setFormImages(capturedFiles);
+    setFormPreviews(capturedImages.filter((image) => image.startsWith("data:image/")));
+    setExistingImages(capturedImages.filter((image) => !image.startsWith("data:image/")));
     setFormVariants(importPreview.variants || []);
-    setImportResult("Imported into the form as a draft. Set your 4REGN price, collection, variants and save.");
+    setImportResult("Imported into the form as a draft. Confirm your selling price, photos, sizes and stock before saving.");
     setTimeout(() => {
       document.getElementById("product-edit-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
@@ -2334,7 +2436,7 @@ export default function Dashboard() {
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, marginBottom: 12 }}>
                 <div>
                   <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 4 }}>Supplier URL Importer</h3>
-                  <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>Paste a Shein, Temu, Nike, or Superbalist product link. We&apos;ll pull what we can, then save it as a draft for review.</p>
+                  <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>Paste a Shein, Temu, Nike, or Superbalist product link. CatalogStore tries a quick server preview first, then uses Chrome when the supplier hides photos or sizes.</p>
                 </div>
                 <span style={{ padding: "6px 10px", borderRadius: 100, background: "rgba(0,0,0,0.06)", color: "var(--muted)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Draft-first</span>
               </div>
@@ -2355,6 +2457,16 @@ export default function Dashboard() {
                 >
                   {importLoading ? "Checking..." : "Preview Product"}
                 </button>
+                {(browserImporterAvailable || browserCaptureNeeded) && (
+                  <button
+                    type="button"
+                    onClick={() => requestBrowserCapture()}
+                    disabled={importLoading}
+                    style={{ padding: "11px 18px", background: "rgba(37,99,235,0.08)", color: "#2563eb", border: "1px solid rgba(37,99,235,0.18)", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 900, cursor: importLoading ? "not-allowed" : "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", opacity: importLoading ? 0.65 : 1 }}
+                  >
+                    Browser Capture
+                  </button>
+                )}
               </div>
               {importResult && <div style={{ marginTop: 10, fontSize: 12, color: importPreview ? "#16a34a" : "var(--muted)", fontWeight: 700 }}>{importResult}</div>}
               {importPreview && (
@@ -2365,9 +2477,13 @@ export default function Dashboard() {
                       <span style={{ padding: "4px 8px", background: "rgba(37,99,235,0.08)", color: "#2563eb", borderRadius: 100, fontSize: 10, fontWeight: 900, textTransform: "uppercase" as const }}>{importPreview.supplier}</span>
                       <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{importPreview.images.length} image{importPreview.images.length === 1 ? "" : "s"} found</span>
                       {!!importPreview.variants?.length && <span style={{ fontSize: 11, color: "var(--muted-2)" }}>· {importPreview.variants.map((v) => `${v.name}: ${v.options.length}`).join(", ")}</span>}
+                      {importPreview.inStock !== undefined && importPreview.inStock !== null && <span style={{ fontSize: 11, color: importPreview.inStock ? "#16a34a" : "#dc2626", fontWeight: 800 }}>· {importPreview.inStock ? "In stock" : "Sold out"}</span>}
+                      {importPreview.captureMethod && <span style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const }}>· {importPreview.captureMethod} capture</span>}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 4, lineHeight: 1.25 }}>{importPreview.title}</div>
                     <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{importPreview.price ? `${importPreview.currency === "ZAR" ? "R" : importPreview.currency + " "}${importPreview.price}` : "No price detected — enter your 4REGN selling price manually"}</div>
+                    {!!importPreview.stockNote && <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 8 }}>{importPreview.stockNote}</div>}
+                    {!!importPreview.warnings?.length && <div style={{ fontSize: 11, color: "#b45309", marginBottom: 10 }}>{importPreview.warnings.join(" ")}</div>}
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
                       <button type="button" onClick={useSupplierPreview} style={{ padding: "9px 14px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Use as Draft</button>
                       <a href={importPreview.sourceUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 14px", background: "var(--panel-2)", color: "var(--muted)", border: "1px solid var(--border)", borderRadius: 100, fontSize: 10, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Open source</a>
@@ -2565,6 +2681,14 @@ export default function Dashboard() {
                   />
                   <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Use this to check supplier availability. Customers do not see this URL.</p>
                 </div>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={formInStock} onChange={(e) => setFormInStock(e.target.checked)} />
+                  <span>
+                    <span style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text)", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Product is in stock</span>
+                    <span style={{ display: "block", fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>Browser capture sets this from the supplier page; confirm it before publishing.</span>
+                  </span>
+                </label>
 
                 {/* 6. COLLECTION with auto-create */}
                 <div style={{ marginBottom: 20 }}>
@@ -2971,7 +3095,7 @@ export default function Dashboard() {
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Who's on your store right now -- browsing, has an active cart, or is at checkout. Refreshes every 10 seconds.</p>
 
             {/* HERO: live-now count, oversized, with the rest of today's numbers alongside it */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.3fr repeat(6, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
+            <div style={{ display: "grid", gridTemplateColumns: "1.3fr repeat(7, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
               <div style={{ position: "relative" as const, padding: "20px 22px", background: "linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.02))", border: "1px solid rgba(34,197,94,0.22)", borderRadius: 16, overflow: "hidden" }}>
                 <div style={{ position: "absolute" as const, top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: "rgba(34,197,94,0.12)", filter: "blur(2px)" }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -2986,6 +3110,7 @@ export default function Dashboard() {
                 { label: "Added to cart", value: sessionAnalytics?.addedToCartToday ?? "—", icon: "cart" as DashIconName, color: "#22c55e", panel: "addedToCart" as const },
                 { label: "Reached checkout", value: sessionAnalytics?.reachedCheckoutToday ?? "—", icon: "payment" as DashIconName, color: "#a78bfa", panel: "reachedCheckout" as const },
                 { label: "Completed", value: sessionAnalytics?.completedCheckoutToday ?? sessionAnalytics?.ordersToday ?? "—", icon: "check" as DashIconName, color: "#16a34a", panel: "purchases" as const },
+                { label: "Timeline", value: sessionAnalytics?.activity?.timeline?.length ?? "—", icon: "live" as DashIconName, color: "#fb7185", panel: "timeline" as const },
                 { label: "Orders today", value: sessionAnalytics?.ordersToday ?? "—", icon: "orders" as DashIconName, color: "#fbbf24" },
                 { label: "Sales today", value: "R" + Math.round(sessionAnalytics?.salesToday ?? 0), icon: "trend-up" as DashIconName, color: "#ff6b35" },
               ].map((s) => (
@@ -3009,7 +3134,7 @@ export default function Dashboard() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14 }}>
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
-                      {liveActivityPanel === "addedToCart" ? "Added to cart today" : liveActivityPanel === "reachedCheckout" ? "Reached checkout today" : "Completed purchases today"}
+                      {liveActivityPanel === "addedToCart" ? "Added to cart today" : liveActivityPanel === "reachedCheckout" ? "Reached checkout today" : liveActivityPanel === "timeline" ? "Live session timeline today" : "Completed purchases today"}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 4 }}>Newest activity first, using South African time.</div>
                   </div>
@@ -3031,6 +3156,29 @@ export default function Dashboard() {
                       ))}
                     </div>
                   )
+                ) : liveActivityPanel === "timeline" ? (
+                  (sessionAnalytics.activity?.timeline || []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No timeline events have been recorded today yet.</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {(sessionAnalytics.activity?.timeline || []).map((v) => (
+                        <div key={v.visitorId + v.eventType + v.timestamp} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const, marginBottom: 3 }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{v.eventType.replace(/_/g, " ")}</span>
+                              <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{v.customerName || v.customerEmail || `Visitor ${v.visitorId.slice(0, 10)}`}</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{v.path || "/"}</div>
+                            {v.cartItems.length > 0 && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{v.cartItems.map((item) => `${item.qty}× ${item.name}${item.variant ? ` (${item.variant})` : ""}`).join(" · ")}</div>}
+                          </div>
+                          <div style={{ textAlign: "right" as const }}>
+                            <div style={{ fontSize: 11, color: "var(--muted)" }}>{new Date(v.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}</div>
+                            {v.cartValue > 0 && <div style={{ fontSize: 12, fontWeight: 900, marginTop: 4 }}>R{Math.round(v.cartValue).toLocaleString("en-ZA")}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 ) : (
                   ((liveActivityPanel === "addedToCart" ? sessionAnalytics.activity?.addedToCart : sessionAnalytics.activity?.reachedCheckout) || []).length === 0 ? (
                     <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No visitor activity in this stage today yet.</p>
@@ -3039,10 +3187,11 @@ export default function Dashboard() {
                       {((liveActivityPanel === "addedToCart" ? sessionAnalytics.activity?.addedToCart : sessionAnalytics.activity?.reachedCheckout) || []).map((v) => (
                         <div key={v.visitorId + v.timestamp} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 800 }}>Visitor {v.visitorId.slice(0, 10)}</div>
+                            <div style={{ fontSize: 13, fontWeight: 800 }}>{v.customerName || v.customerEmail || `Visitor ${v.visitorId.slice(0, 10)}`}</div>
                             <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{v.path || "/"}{v.status ? ` · ${v.status.replace("_", " ")}` : ""}</div>
+                            {v.cartItems.length > 0 && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{v.cartItems.map((item) => `${item.qty}× ${item.name}${item.variant ? ` (${item.variant})` : ""}`).join(" · ")}</div>}
                           </div>
-                          <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "right" as const }}>{new Date(v.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "right" as const }}>{new Date(v.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}{v.cartValue > 0 && <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text)", marginTop: 4 }}>R{Math.round(v.cartValue).toLocaleString("en-ZA")}</div>}</div>
                         </div>
                       ))}
                     </div>

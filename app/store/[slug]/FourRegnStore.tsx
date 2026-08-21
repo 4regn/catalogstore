@@ -892,6 +892,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   useLiveVisitorPing(seller?.id, {
     cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
     cartValue: cart.reduce((sum, i) => sum + i.product.price * i.qty, 0),
+    cartItems: cart.map((i) => ({
+      id: i.product.id,
+      name: i.product.name,
+      price: effectivePrice(i.product, i.selectedVariants),
+      qty: i.qty,
+      variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
+      image: resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url || "",
+    })),
   });
 
   /* ─── NAV ─── */
