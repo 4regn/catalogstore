@@ -280,7 +280,9 @@
       if (!/^(?:XX?S|S|M|L|X{1,4}L|[2-6]XL|UK\s*\d+(?:\.5)?|US\s*\d+(?:\.5)?|EU\s*\d+(?:\.5)?|\d{1,3}(?:\.5)?)$/i.test(value) && !el.hasAttribute("data-attr_value_name")) continue;
       sizeRows.push({ value, available: !disabled(el) });
     }
-    if (structuredRows.length) sizeRows.splice(0, sizeRows.length, ...structuredRows);
+    // After a SHEIN colour switch the JSON-LD can remain on the original
+    // colour. Prefer the live size radios and use structured rows as fallback.
+    if (!sizeRows.length && structuredRows.length) sizeRows.push(...structuredRows);
     const allSizes = uniq(sizeRows.map((row) => row.value));
     const availableSizes = uniq(sizeRows.filter((row) => row.available).map((row) => row.value));
 
@@ -345,6 +347,7 @@
     const sizeValues = [];
     const soldOutValues = [];
     const failedColors = [];
+    const repeatedGalleries = [];
     const originalScroll = window.scrollY;
     const duplicateColorCounts = new Map();
 
@@ -380,29 +383,44 @@
       };
     });
 
-    for (const target of targets.slice(0, 12)) {
+    const initialActiveIndex = swatches.findIndex((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
+    const orderedTargets = [
+      ...(initialActiveIndex >= 0 ? targets.filter((target) => target.index === initialActiveIndex) : []),
+      ...targets.filter((target) => target.index !== initialActiveIndex),
+    ].slice(0, 12);
+    const visitedIndexes = new Set();
+    const visitedGallerySignatures = new Set();
+    let settledBaseProduct = null;
+
+    for (const target of orderedTargets) {
+      if (visitedIndexes.has(target.index)) continue;
+      visitedIndexes.add(target.index);
       const currentSwatches = colorNodes();
       // SHEIN mutates and can temporarily duplicate swatch thumbnails after a
       // selection. The radio order stays stable, so position is the identity.
       const swatch = currentSwatches[target.index];
       if (!swatch) continue;
-      const beforeGallery = currentGallerySignature();
       const color = target.color;
       const wasSelected = swatch.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(swatch.className));
       swatch.scrollIntoView({ block: "center", inline: "center" });
       if (!wasSelected) swatch.click();
 
-      let matchedTarget = wasSelected;
-      const changeStarted = Date.now();
-      while (Date.now() - changeStarted < 25000) {
+      // Never record SHEIN's transition state. Prices, stock and galleries can
+      // change more than once during the first few seconds after a click.
+      const minimumCaptureTime = Date.now() + 7000;
+      while (Date.now() < minimumCaptureTime) await sleep(500);
+
+      let matchedTarget = false;
+      const matchStarted = Date.now();
+      while (Date.now() - matchStarted < 18000) {
         const latestSwatches = colorNodes();
         const activeIndex = latestSwatches.findIndex((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
         const active = activeIndex >= 0 ? latestSwatches[activeIndex] : null;
         const activeMatches = activeIndex === target.index;
         const gallerySignature = currentGallerySignature();
-        const galleryChanged = gallerySignature !== beforeGallery;
-        const galleryMatches = !!swatchImageKey(active) && JSON.parse(gallerySignature || "[]")[0] === swatchImageKey(active);
-        if (activeMatches && (galleryMatches || (wasSelected && Date.now() - changeStarted >= 1000) || (galleryChanged && Date.now() - changeStarted >= 3000))) {
+        const galleryKeys = JSON.parse(gallerySignature || "[]");
+        const galleryMatches = !!swatchImageKey(active) && galleryKeys.length > 0 && galleryKeys[0] === swatchImageKey(active);
+        if (activeMatches && galleryMatches) {
           matchedTarget = true;
           break;
         }
@@ -414,14 +432,20 @@
         continue;
       }
 
-      // SHEIN updates the active swatch before its schema, stock and lazy gallery
-      // have all finished updating. Require three seconds of stable structured data.
+      // After the mandatory delay, require another three seconds with no
+      // gallery, selected-radio, price or stock changes.
       let stableSignature = selectedColorSignature();
       let stableChecks = 0;
       const settleStarted = Date.now();
-      while (Date.now() - settleStarted < 18000 && stableChecks < 6) {
+      while (Date.now() - settleStarted < 20000 && stableChecks < 6) {
         await sleep(500);
-        const nextSignature = selectedColorSignature();
+        const liveProduct = capture();
+        const nextSignature = JSON.stringify([
+          selectedColorSignature(),
+          liveProduct.price,
+          liveProduct.compareAtPrice,
+          liveProduct.variants,
+        ]);
         if (nextSignature === stableSignature) stableChecks += 1;
         else {
           stableSignature = nextSignature;
@@ -429,13 +453,24 @@
         }
       }
       const captured = capture();
+      const gallerySignature = JSON.stringify(captured.images.map(imageKey));
+      if (!captured.images.length) {
+        failedColors.push(color);
+        continue;
+      }
+      if (visitedGallerySignatures.has(gallerySignature)) {
+        repeatedGalleries.push(color);
+        continue;
+      }
+      visitedGallerySignatures.add(gallerySignature);
+      if (target.index === initialActiveIndex) settledBaseProduct = captured;
       const variantData = variants(jsonLdProducts()[0]);
       imageValues.push(...captured.images);
       colorValues.push(color);
       const sizeGroup = variantData.groups.find((group) => /size/i.test(group.name));
       if (sizeGroup) sizeValues.push(...sizeGroup.options);
       soldOutValues.push(...variantData.soldOutSizes.map((size) => `${color}: ${size}`));
-      byColor.push(`${color} (${sizeGroup?.options.length || 0} available size${sizeGroup?.options.length === 1 ? "" : "s"})`);
+      byColor.push(`${color} (${captured.images.length} photo${captured.images.length === 1 ? "" : "s"}, ${sizeGroup?.options.length || 0} available size${sizeGroup?.options.length === 1 ? "" : "s"})`);
     }
 
     window.scrollTo({ top: originalScroll });
@@ -455,7 +490,7 @@
     }
 
     return {
-      ...baseProduct,
+      ...(settledBaseProduct || baseProduct),
       images: mergedImages.length ? mergedImages.slice(0, 60) : baseProduct.images.slice(0, 20),
       variants: mergedVariants.length ? mergedVariants : baseProduct.variants,
       inStock: sizes.length ? true : baseProduct.inStock,
@@ -464,6 +499,7 @@
         ...(baseProduct.warnings || []),
         ...(soldOutValues.length ? [`Sold-out sizes were excluded by colour: ${soldOutValues.join(", ")}.`] : []),
         ...(failedColors.length ? [`These colours did not finish loading and were skipped to prevent incorrect duplicates: ${uniq(failedColors).join(", ")}. Try Browser Capture again if they remain missing.`] : []),
+        ...(repeatedGalleries.length ? [`SHEIN returned a gallery that had already been captured for: ${uniq(repeatedGalleries).join(", ")}. It was skipped instead of importing duplicate photos.`] : []),
       ],
     };
   }
