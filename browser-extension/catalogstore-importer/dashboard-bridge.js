@@ -12,6 +12,7 @@
     }
     if (event.data.type !== "CAPTURE_PRODUCT") return;
     const { requestId, url } = event.data;
+    post({ type: "CAPTURE_PROGRESS", requestId, message: "Browser capture extension detected. Opening the supplier page..." });
     chrome.runtime.sendMessage({ type: "CATALOG_CAPTURE_START", requestId, url }, (response) => {
       if (chrome.runtime.lastError) {
         post({ type: "CAPTURE_RESULT", requestId, ok: false, error: chrome.runtime.lastError.message });
