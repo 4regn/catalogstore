@@ -86,6 +86,7 @@ async function fetchImage(url) {
 
 async function downloadImages(urls, onProgress) {
   const images = [];
+  const copiedByKey = {};
   const warnings = [];
   let totalBytes = 0;
   const seen = new Set();
@@ -97,6 +98,8 @@ async function downloadImages(urls, onProgress) {
   }).slice(0, 60);
   for (let index = 0; index < uniqueUrls.length; index += 1) {
     const url = uniqueUrls[index];
+    const key = canonicalImageKey(url);
+    let copiedImage = url;
     try {
       const response = await fetchImage(url);
       if (!response.ok) throw new Error(String(response.status));
@@ -105,17 +108,18 @@ async function downloadImages(urls, onProgress) {
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (!bytes.length || bytes.length > MAX_IMAGE_BYTES || totalBytes + bytes.length > MAX_TOTAL_IMAGE_BYTES) {
         warnings.push("One or more very large supplier photos were skipped.");
-        continue;
+      } else {
+        totalBytes += bytes.length;
+        copiedImage = `data:${type};base64,${bytesToBase64(bytes)}`;
       }
-      totalBytes += bytes.length;
-      images.push(`data:${type};base64,${bytesToBase64(bytes)}`);
     } catch {
       warnings.push("One or more supplier photos could not be copied; their original URLs were kept for review.");
-      images.push(url);
     }
+    images.push(copiedImage);
+    copiedByKey[key] = copiedImage;
     onProgress?.(index + 1, uniqueUrls.length);
   }
-  return { images, warnings: [...new Set(warnings)] };
+  return { images, copiedByKey, warnings: [...new Set(warnings)] };
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -140,11 +144,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const copied = await downloadImages(captured.product.images || [], (completed, total) => {
       progress(dashboardTabId, requestId, `Copying supplier photos into CatalogStore (${completed}/${total})...`);
     });
+    const copiedVariants = (captured.product.variants || []).map((group) => ({
+      ...group,
+      images: Object.fromEntries(Object.entries(group.images || {}).map(([option, image]) => [
+        option,
+        copied.copiedByKey[canonicalImageKey(image)] || image,
+      ])),
+    }));
     sendResponse({
       ok: true,
       product: {
         ...captured.product,
         images: copied.images,
+        variants: copiedVariants,
         warnings: [...new Set([...(captured.product.warnings || []), ...copied.warnings])],
       },
     });

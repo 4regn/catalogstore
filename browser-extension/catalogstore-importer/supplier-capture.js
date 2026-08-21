@@ -343,6 +343,7 @@
 
     const byColor = [];
     const imageValues = [];
+    const colorCoverImages = {};
     const colorValues = [];
     const sizeValues = [];
     const soldOutValues = [];
@@ -467,6 +468,7 @@
       const variantData = variants(jsonLdProducts()[0]);
       imageValues.push(...captured.images);
       colorValues.push(color);
+      colorCoverImages[color] = captured.images[0];
       const sizeGroup = variantData.groups.find((group) => /size/i.test(group.name));
       if (sizeGroup) sizeValues.push(...sizeGroup.options);
       soldOutValues.push(...variantData.soldOutSizes.map((size) => `${color}: ${size}`));
@@ -478,7 +480,11 @@
     const colors = uniq(colorValues);
     const sizes = uniq(sizeValues);
     if (sizes.length) mergedVariants.push({ name: "Size", options: sizes });
-    if (colors.length) mergedVariants.push({ name: "Color", options: colors });
+    if (colors.length) mergedVariants.push({
+      name: "Color",
+      options: colors,
+      images: Object.fromEntries(colors.filter((color) => colorCoverImages[color]).map((color) => [color, colorCoverImages[color]])),
+    });
     const mergedImages = [];
     const seen = new Set();
     for (const image of imageValues) {
