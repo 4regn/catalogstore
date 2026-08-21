@@ -11,6 +11,10 @@ type ImportedProductPreview = {
   currency: string;
   description: string;
   images: string[];
+  variants: { name: string; options: string[] }[];
+  inStock: boolean | null;
+  captureMethod: "server" | "browser";
+  warnings: string[];
 };
 
 const SUPPORTED_HOSTS = [
@@ -110,6 +114,47 @@ function readJsonLdProducts(html: string) {
   return products;
 }
 
+function normalizeOption(value: string) {
+  return decodeHtml(value).replace(/\s+/g, " ").trim();
+}
+
+function addVariantOption(groups: Map<string, Set<string>>, name: string, value: unknown) {
+  if (Array.isArray(value)) return value.forEach((v) => addVariantOption(groups, name, v));
+  if (typeof value !== "string" && typeof value !== "number") return;
+  const option = normalizeOption(String(value));
+  if (!option || option.length > 40) return;
+  const key = normalizeOption(name);
+  if (!key) return;
+  if (!groups.has(key)) groups.set(key, new Set());
+  groups.get(key)!.add(option);
+}
+
+function collectVariants(html: string, jsonProduct?: any) {
+  const groups = new Map<string, Set<string>>();
+  const productProps = Array.isArray(jsonProduct?.additionalProperty) ? jsonProduct.additionalProperty : [];
+  for (const prop of productProps) {
+    const name = String(prop?.name || "").trim();
+    if (/size|colour|color|waist|length/i.test(name)) addVariantOption(groups, name, prop?.value);
+  }
+
+  const offers = Array.isArray(jsonProduct?.offers) ? jsonProduct.offers : jsonProduct?.offers ? [jsonProduct.offers] : [];
+  for (const offer of offers) {
+    addVariantOption(groups, "Size", offer?.size);
+    addVariantOption(groups, "Color", offer?.color || offer?.colour);
+  }
+
+  const sizeMatches = Array.from(html.matchAll(/(?:size|sizes|attr_name)["'\s:=]+(?:[^<>{}\]]{0,200}?)(XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|\d{2,3})/gi));
+  for (const match of sizeMatches) addVariantOption(groups, "Size", match[1].toUpperCase());
+
+  const colorMatches = Array.from(html.matchAll(/(?:color|colour|attr_name)["'\s:=]+(?:[^<>{}\]]{0,200}?)(Black|White|Blue|Navy|Red|Green|Brown|Grey|Gray|Pink|Purple|Orange|Beige|Khaki|Cream|Yellow)/gi));
+  for (const match of colorMatches) addVariantOption(groups, "Color", match[1]);
+
+  return Array.from(groups.entries())
+    .map(([name, values]) => ({ name, options: Array.from(values).slice(0, 80) }))
+    .filter((v) => v.options.length > 0)
+    .slice(0, 3);
+}
+
 function collectImages(html: string, baseUrl: string, jsonProduct?: any) {
   const raw = new Set<string>();
   const add = (value: unknown) => {
@@ -124,6 +169,22 @@ function collectImages(html: string, baseUrl: string, jsonProduct?: any) {
   return Array.from(raw)
     .filter((url) => !/sprite|logo|icon|avatar|placeholder|blank/i.test(url))
     .slice(0, 12);
+}
+
+function assessPreview(preview: Omit<ImportedProductPreview, "variants" | "inStock" | "captureMethod" | "warnings">, variantCount: number) {
+  const genericTitles = ["Women's & Men's Clothing, Shop Online Fashion", "Shop online fashion", "SHEIN", "Temu"];
+  const title = preview.title.trim().toLowerCase();
+  const genericTitle = genericTitles.some((generic) => title === generic.toLowerCase());
+  const warnings: string[] = [];
+  if (genericTitle) warnings.push("The supplier returned a generic page title instead of the product title.");
+  if (preview.images.length === 0) warnings.push("No product images were exposed to the server.");
+  if (preview.price === null) warnings.push("No product price was exposed to the server.");
+  if (variantCount === 0) warnings.push("No sizes or other variants were exposed to the server.");
+  return {
+    unusable: genericTitle && preview.images.length === 0 && preview.price === null,
+    needsBrowserAssist: genericTitle || preview.images.length === 0 || variantCount === 0,
+    warnings,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -153,7 +214,11 @@ export async function POST(req: NextRequest) {
       next: { revalidate: 0 },
     });
     if (!resp.ok) {
-      return NextResponse.json({ error: `Supplier page could not be opened (${resp.status}). You can still add it manually and save the source URL.` }, { status: 502 });
+      return NextResponse.json({
+        error: `The supplier blocked the server request (${resp.status}). Use browser capture so CatalogStore can read the product page you can already see in Chrome.`,
+        code: "SUPPLIER_BLOCKED_SERVER",
+        browserAssisted: true,
+      }, { status: 502 });
     }
 
     const html = await resp.text();
@@ -165,8 +230,9 @@ export async function POST(req: NextRequest) {
     const compareAtPrice = parsePrice(offer?.highPrice || offer?.priceSpecification?.price);
     const currency = String(offer?.priceCurrency || pickMeta(html, ["product:price:currency", "og:price:currency"]) || "ZAR").toUpperCase();
     const images = collectImages(html, parsed.toString(), jsonProduct);
+    const variants = collectVariants(html, jsonProduct);
 
-    const preview: ImportedProductPreview = {
+    const preview = {
       sourceUrl: parsed.toString(),
       supplier: getSupplier(parsed.hostname),
       title: title || `${getSupplier(parsed.hostname)} product`,
@@ -177,7 +243,20 @@ export async function POST(req: NextRequest) {
       images,
     };
 
-    return NextResponse.json({ product: preview });
+    const quality = assessPreview(preview, variants.reduce((sum, group) => sum + group.options.length, 0));
+    if (quality.unusable) {
+      return NextResponse.json({
+        error: `${preview.supplier} hid the product details from the server. Use browser capture to collect the rendered title, photos, price, sizes and stock from Chrome.`,
+        code: "BROWSER_CAPTURE_REQUIRED",
+        browserAssisted: true,
+        partialProduct: { ...preview, variants, inStock: null, captureMethod: "server", warnings: quality.warnings },
+      }, { status: 422 });
+    }
+
+    return NextResponse.json({
+      product: { ...preview, variants, inStock: null, captureMethod: "server", warnings: quality.warnings } satisfies ImportedProductPreview,
+      browserAssisted: quality.needsBrowserAssist,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Could not import this product URL." }, { status: 500 });
   }
