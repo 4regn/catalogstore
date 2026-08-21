@@ -366,16 +366,16 @@
       duplicateColorCounts.set(rawColor.toLowerCase(), duplicateNumber);
       return {
         index,
-        key: swatchImageKey(swatch),
         color: duplicateNumber === 1 ? rawColor : `${rawColor} ${duplicateNumber}`,
       };
-    }).filter((target, index, all) => all.findIndex((candidate) => candidate.key ? candidate.key === target.key : candidate.index === target.index) === index);
+    });
 
     for (const target of targets.slice(0, 12)) {
       const currentSwatches = colorNodes();
-      const swatch = currentSwatches.find((candidate) => target.key && swatchImageKey(candidate) === target.key) || currentSwatches[target.index];
+      // SHEIN mutates and can temporarily duplicate swatch thumbnails after a
+      // selection. The radio order stays stable, so position is the identity.
+      const swatch = currentSwatches[target.index];
       if (!swatch) continue;
-      const beforeKey = selectedColorSignature();
       const beforeGallery = currentGallerySignature();
       const color = target.color;
       const wasSelected = swatch.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(swatch.className));
@@ -385,11 +385,13 @@
       let matchedTarget = wasSelected;
       const changeStarted = Date.now();
       while (Date.now() - changeStarted < 25000) {
-        const active = colorNodes().find((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
-        const activeMatches = target.key ? swatchImageKey(active) === target.key : clean(active?.getAttribute("aria-label")) === color;
+        const latestSwatches = colorNodes();
+        const activeIndex = latestSwatches.findIndex((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
+        const active = activeIndex >= 0 ? latestSwatches[activeIndex] : null;
+        const activeMatches = activeIndex === target.index;
         const gallerySignature = currentGallerySignature();
         const galleryChanged = gallerySignature !== beforeGallery;
-        const galleryMatches = target.key && JSON.parse(gallerySignature || "[]")[0] === target.key;
+        const galleryMatches = !!swatchImageKey(active) && JSON.parse(gallerySignature || "[]")[0] === swatchImageKey(active);
         if (activeMatches && (galleryMatches || (wasSelected && Date.now() - changeStarted >= 1000) || (galleryChanged && Date.now() - changeStarted >= 3000))) {
           matchedTarget = true;
           break;
@@ -417,11 +419,6 @@
         }
       }
       const captured = capture();
-      const afterKey = selectedColorSignature();
-      if (!wasSelected && beforeKey === afterKey) {
-        failedColors.push(color);
-        continue;
-      }
       const variantData = variants(jsonLdProducts()[0]);
       imageValues.push(...captured.images);
       colorValues.push(color);
