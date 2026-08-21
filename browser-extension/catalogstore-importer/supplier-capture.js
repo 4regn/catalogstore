@@ -510,6 +510,81 @@
     };
   }
 
+  function largestVisible(elements) {
+    return [...elements]
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const visible = rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+        return { element, score: visible ? rect.width * rect.height : 0 };
+      })
+      .sort((left, right) => right.score - left.score)[0]?.element || null;
+  }
+
+  async function captureSheinSizeChart() {
+    if (!isShein()) return { attempted: false, html: "" };
+    const button = largestVisible(document.querySelectorAll('.product-intro__size-guide,[aria-label="Size Guide" i]'));
+    if (!button) return { attempted: false, html: "" };
+    button.scrollIntoView({ block: "center", inline: "center" });
+    button.click();
+
+    let chart = null;
+    const openedAt = Date.now();
+    while (Date.now() - openedAt < 15000) {
+      chart = largestVisible(document.querySelectorAll('.bsc-common-size-table'));
+      if (chart) break;
+      await sleep(300);
+    }
+    if (!chart) return { attempted: true, html: "" };
+
+    const productTab = [...chart.querySelectorAll('[aria-label="Product Chart" i],.bsc-common-size-table__top_tabs_item')]
+      .find((element) => /product chart/i.test(clean(`${element.getAttribute("aria-label")} ${element.textContent}`)));
+    if (productTab && !/\bactive\b/i.test(clean(productTab.className))) {
+      productTab.click();
+      await sleep(2500);
+      chart = largestVisible(document.querySelectorAll('.bsc-common-size-table')) || chart;
+    }
+
+    const table = chart.querySelector('.bsc-common-size-table__content table,table');
+    if (!table) return { attempted: true, html: "" };
+    const rows = [...table.querySelectorAll("tr")]
+      .map((row) => [...row.querySelectorAll("th,td")].map((cell) => clean(cell.textContent)).filter(Boolean))
+      .filter((cells) => cells.length > 1);
+    if (rows.length < 2) return { attempted: true, html: "" };
+
+    const notice = [...chart.querySelectorAll('.bsc-size-table__notice')]
+      .map((element) => clean(element.textContent))
+      .find((text) => /manually measuring the product/i.test(text)) ||
+      "*This data was obtained from manually measuring the product, it may be off by 1-2 CM.";
+    const tableRows = rows
+      .map((row) => row.map((cell) => clean(cell).replace(/\|/g, "/")).join(" | "))
+      .join("\n");
+    return {
+      attempted: true,
+      html: [
+        "**Size Chart**",
+        "__Product measurements (CM)__",
+        `[[table]]\n${tableRows}\n[[/table]]`,
+        `__${notice}__`,
+      ].join("\n\n"),
+    };
+  }
+
+  async function enhanceCapture(product) {
+    const withColors = await captureAllColorVariants(product);
+    const sizeChart = await captureSheinSizeChart();
+    if (!sizeChart.html) {
+      if (sizeChart.attempted) withColors.warnings = [...(withColors.warnings || []), "The SHEIN size guide opened, but its Product Chart could not be read. Add the size chart manually before publishing."];
+      return withColors;
+    }
+    const description = clean(withColors.description);
+    return {
+      ...withColors,
+      description: `${description}${description ? "\n\n" : ""}${sizeChart.html}`,
+      stockNote: `${withColors.stockNote || ""} Product size chart captured in CM.`.trim(),
+    };
+  }
+
   async function captureWhenReady() {
     const started = Date.now();
     let last = null;
@@ -523,14 +598,14 @@
       const key = JSON.stringify([current.title, current.price, current.images.length, current.variants]);
       stable = last === key ? stable + 1 : 0;
       last = key;
-      if (current.title && current.images.length && stable >= 2) return await captureAllColorVariants(current);
+      if (current.title && current.images.length && stable >= 2) return await enhanceCapture(current);
       await sleep(1200);
     }
     if (verificationPage()) throw new Error("Supplier verification is still blocking the page. Complete it in the opened tab, then run Browser Capture again.");
     const partial = capture();
     if (!partial.title || (!partial.images.length && partial.price === null)) throw new Error("The page loaded, but no reliable product details were found. Confirm this is a product URL and try again.");
     partial.warnings.push("The supplier page did not fully settle; review every field before publishing.");
-    return await captureAllColorVariants(partial);
+    return await enhanceCapture(partial);
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
