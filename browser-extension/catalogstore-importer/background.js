@@ -63,7 +63,7 @@ async function downloadImages(urls, productUrl) {
   const images = [];
   const warnings = [];
   let totalBytes = 0;
-  for (const url of urls.slice(0, 10)) {
+  for (const url of urls.slice(0, 16)) {
     try {
       const response = await fetch(url, { credentials: "include", referrer: productUrl });
       if (!response.ok) throw new Error(String(response.status));
