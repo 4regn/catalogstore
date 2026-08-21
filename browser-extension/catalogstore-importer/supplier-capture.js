@@ -142,7 +142,7 @@
       const url = absoluteImage(source);
       if ((largeEnough || supplierCdn) && imageLooksLikeProduct(url, img, context)) add(url);
     });
-    return values.slice(0, 16);
+    return values.slice(0, isShein() ? 4 : 16);
   }
 
   function disabled(el) {
@@ -151,21 +151,43 @@
   }
 
   function colorNodes() {
-    return [...document.querySelectorAll([
+    const candidates = [...document.querySelectorAll([
       '.product-intro__color-radio',
       '.product-intro__color-radio-inner',
       '[class*="product-intro__color" i] [data-attr_value_name]',
       '[class*="product-intro" i] [class*="color" i] [data-attr_value_name]',
+      '.main-sales-attr__item',
+      '.main-sales-attr__color-item',
+      '[class*="main-sales-attr" i] [class*="radio-container" i]',
+      '[class*="main-sales-attr" i] img',
+      '[class*="radio-container__circleImage" i]',
+      '[class*="radio-container__squareImage" i]',
       '[data-attr_name*="color" i]',
       '[data-attr_name*="colour" i]',
       '[aria-label*="color" i][role="radio"]',
       '[aria-label*="colour" i][role="radio"]',
-    ].join(","))]
+    ].join(","))];
+
+    const picked = [];
+    const seen = new Set();
+    for (const el of candidates) {
+      const clickable = el.closest('[role="radio"],button,a,[tabindex],.product-intro__color-radio,.main-sales-attr__item,[class*="radio-container" i]') || el;
+      if (seen.has(clickable)) continue;
+      seen.add(clickable);
+      const context = clean(`${clickable.className} ${clickable.getAttribute("data-attr_name")} ${clickable.getAttribute("aria-label")} ${clickable.closest('[class*="color" i],[class*="colour" i],[class*="main-sales-attr" i],[data-attr_name*="color" i],[data-attr_name*="colour" i]')?.className || ""}`);
+      const hasImageSwatch = !!clickable.querySelector?.("img") || clickable.tagName === "IMG" || /circleImage|squareImage|main-sales-attr/i.test(context);
+      if (!(/color|colour|main-sales-attr|radio-container/i.test(context) || hasImageSwatch)) continue;
+      if (/size|guide|quantity|add to|shipping|coupon|recommend/i.test(context)) continue;
+      picked.push(clickable);
+    }
+
+    return picked
       .filter((el) => {
-        const context = clean(`${el.className} ${el.getAttribute("data-attr_name")} ${el.getAttribute("aria-label")} ${el.closest('[class*="color" i],[class*="colour" i],[data-attr_name*="color" i],[data-attr_name*="colour" i]')?.className || ""}`);
+        const context = clean(`${el.className} ${el.getAttribute("data-attr_name")} ${el.getAttribute("aria-label")} ${el.closest('[class*="color" i],[class*="colour" i],[class*="main-sales-attr" i],[data-attr_name*="color" i],[data-attr_name*="colour" i]')?.className || ""}`);
         const value = clean(el.getAttribute("data-attr_value_name") || el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent)
           .replace(/^(?:color|colour)\s*:?\s*/i, "");
-        return /color|colour/i.test(context) && value && value.length <= 45 && !/size|guide|select|quantity|add to/i.test(`${context} ${value}`);
+        const hasImageSwatch = !!el.querySelector?.("img") || el.tagName === "IMG" || /circleImage|squareImage|main-sales-attr/i.test(context);
+        return (hasImageSwatch || /color|colour|main-sales-attr/i.test(context)) && (!value || value.length <= 45) && !/size|guide|select size|quantity|add to/i.test(`${context} ${value}`);
       });
   }
 
@@ -244,13 +266,15 @@
       const currentSwatches = colorNodes();
       const swatch = currentSwatches[index];
       if (!swatch) continue;
-      const color = clean(swatch.getAttribute("data-attr_value_name") || swatch.getAttribute("aria-label") || swatch.getAttribute("title") || swatch.textContent)
-        .replace(/^(?:color|colour)\s*:?\s*/i, "");
-      if (!color) continue;
+      const beforeKey = capture().images.map(imageKey).join("|");
+      const color = clean(swatch.getAttribute("data-attr_value_name") || swatch.getAttribute("aria-label") || swatch.getAttribute("title") || swatch.querySelector?.("img")?.getAttribute("alt") || swatch.textContent || `Colour ${index + 1}`)
+        .replace(/^(?:color|colour)\s*:?\s*/i, "") || `Colour ${index + 1}`;
       swatch.scrollIntoView({ block: "center", inline: "center" });
       swatch.click();
-      await sleep(1100);
+      await sleep(1600);
       const captured = capture();
+      const afterKey = captured.images.map(imageKey).join("|");
+      if (index > 0 && beforeKey && afterKey && beforeKey === afterKey) continue;
       const variantData = variants();
       imageValues.push(...captured.images);
       colorValues.push(color);
@@ -278,7 +302,7 @@
 
     return {
       ...baseProduct,
-      images: mergedImages.length ? mergedImages.slice(0, 16) : baseProduct.images,
+      images: mergedImages.length ? mergedImages.slice(0, 16) : baseProduct.images.slice(0, 4),
       variants: mergedVariants.length ? mergedVariants : baseProduct.variants,
       inStock: sizes.length ? true : baseProduct.inStock,
       stockNote: byColor.length ? `Captured ${colors.length} colour variant${colors.length === 1 ? "" : "s"}: ${byColor.join("; ")}.` : baseProduct.stockNote,
