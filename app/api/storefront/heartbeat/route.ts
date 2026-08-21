@@ -83,11 +83,35 @@ export async function POST(req: NextRequest) {
   // insert-and-ignore-on-conflict, so only the FIRST heartbeat of a given
   // visitor on a given day writes anything; the other ~50-100 heartbeats
   // they'll send that same day are no-ops here.
+  const geo = geoFromHeaders(req);
   const { error: sessionError } = await admin.from("store_visitor_sessions").upsert(
-    { seller_id: sellerId, visitor_id: visitorId, session_date: sastToday(), ...geoFromHeaders(req) },
+    {
+      seller_id: sellerId,
+      visitor_id: visitorId,
+      session_date: sastToday(),
+      ...geo,
+      last_status: status,
+      had_cart: cartItemCount > 0,
+      reached_checkout: status === "checkout",
+      last_seen_at: new Date().toISOString(),
+    },
     { onConflict: "seller_id,visitor_id,session_date", ignoreDuplicates: true }
   );
   if (sessionError) console.error("storefront heartbeat session-log upsert failed:", sessionError);
+
+  const sessionUpdate: Record<string, unknown> = {
+    last_status: status,
+    last_seen_at: new Date().toISOString(),
+  };
+  if (cartItemCount > 0) sessionUpdate.had_cart = true;
+  if (status === "checkout") sessionUpdate.reached_checkout = true;
+  const { error: sessionUpdateError } = await admin
+    .from("store_visitor_sessions")
+    .update(sessionUpdate)
+    .eq("seller_id", sellerId)
+    .eq("visitor_id", visitorId)
+    .eq("session_date", sastToday());
+  if (sessionUpdateError) console.error("storefront heartbeat session-log update failed:", sessionUpdateError);
 
   return NextResponse.json({ ok: true });
 }

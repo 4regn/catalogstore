@@ -10,6 +10,9 @@ export type TopLocation = { country: string; region: string; city: string; count
 
 export type SessionAnalytics = {
   sessionsToday: number;
+  addedToCartToday: number;
+  reachedCheckoutToday: number;
+  completedCheckoutToday: number;
   ordersToday: number;
   salesToday: number;
   dailySessions: DailySessionPoint[];
@@ -42,12 +45,17 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   const todayStartIso = sastDayStartUtc(today).toISOString();
   const windowStart = pastNDaysStrings(LOCATION_WINDOW_DAYS, today)[0];
 
-  const [sessionsRes, ordersRes] = await Promise.all([
+  const [sessionsRes, liveSessionsRes, ordersRes] = await Promise.all([
     admin
       .from("store_visitor_sessions")
-      .select("session_date, country, region, city")
+      .select("session_date, country, region, city, had_cart, reached_checkout")
       .eq("seller_id", sellerId)
       .gte("session_date", windowStart),
+    admin
+      .from("store_live_sessions")
+      .select("visitor_id, status, cart_item_count, last_seen_at")
+      .eq("seller_id", sellerId)
+      .gte("last_seen_at", todayStartIso),
     admin
       .from("orders")
       .select("total, payment_status")
@@ -62,10 +70,16 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   const dailyCounts = new Map(chartDays.map((d) => [d, 0]));
   const locationCounts = new Map<string, TopLocation>();
   let sessionsToday = 0;
+  let addedToCartToday = 0;
+  let reachedCheckoutToday = 0;
 
   for (const row of sessionRows) {
     if (dailyCounts.has(row.session_date)) dailyCounts.set(row.session_date, (dailyCounts.get(row.session_date) || 0) + 1);
-    if (row.session_date === today) sessionsToday++;
+    if (row.session_date === today) {
+      sessionsToday++;
+      if (row.had_cart) addedToCartToday++;
+      if (row.reached_checkout) reachedCheckoutToday++;
+    }
 
     const country = row.country || "Unknown";
     const region = row.region || "";
@@ -76,12 +90,28 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
     else locationCounts.set(key, { country, region, city, count: 1 });
   }
 
-  const topLocations = Array.from(locationCounts.values())
+  // If today's historical session row didn't get written yet but live
+  // presence is working, don't show the seller the impossible state of
+  // "1 live visitor / 0 sessions today". This also covers a just-deployed
+  // migration while older live rows are still warm.
+  const liveToday = liveSessionsRes.data || [];
+  if (sessionsToday < liveToday.length) sessionsToday = liveToday.length;
+  const liveWithCart = liveToday.filter((v) => Number(v.cart_item_count || 0) > 0 || v.status === "active_cart" || v.status === "checkout").length;
+  const liveAtCheckout = liveToday.filter((v) => v.status === "checkout").length;
+  if (addedToCartToday < liveWithCart) addedToCartToday = liveWithCart;
+  if (reachedCheckoutToday < liveAtCheckout) reachedCheckoutToday = liveAtCheckout;
+
+  const rawTopLocations = Array.from(locationCounts.values()).sort((a, b) => b.count - a.count);
+  const cleanTopLocations = rawTopLocations.filter((loc) => !isLikelyNoisyLocation(loc));
+  const topLocations = (cleanTopLocations.length ? cleanTopLocations : rawTopLocations)
     .sort((a, b) => b.count - a.count)
     .slice(0, TOP_LOCATIONS_LIMIT);
 
   return {
     sessionsToday,
+    addedToCartToday,
+    reachedCheckoutToday,
+    completedCheckoutToday: paidToday.length,
     ordersToday: paidToday.length,
     salesToday: paidToday.reduce((sum, o) => sum + Number(o.total || 0), 0),
     dailySessions: chartDays.map((d) => ({ date: d, sessions: dailyCounts.get(d) || 0 })),
@@ -102,7 +132,7 @@ export type PaymentBreakdown = { method: string; count: number; revenue: number 
 
 export type FullAnalytics = {
   rangeDays: number;
-  totals: { revenue: number; orders: number; sessions: number; conversionRate: number; averageOrderValue: number };
+  totals: { revenue: number; orders: number; sessions: number; addedToCart: number; reachedCheckout: number; conversionRate: number; cartRate: number; checkoutRate: number; averageOrderValue: number };
   revenueSeries: { date: string; revenue: number }[];
   ordersSeries: { date: string; orders: number }[];
   sessionsSeries: DailySessionPoint[];
@@ -152,7 +182,7 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
     fetchOrdersInRange(admin, sellerId, rangeStartIso),
     admin
       .from("store_visitor_sessions")
-      .select("session_date, country, region, city")
+      .select("session_date, country, region, city, had_cart, reached_checkout")
       .eq("seller_id", sellerId)
       .gte("session_date", dateStrings[0]),
   ]);
@@ -195,8 +225,12 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
   const sessionRows = sessionsRes.data || [];
   const sessionsByDate = new Map(dateStrings.map((d) => [d, 0]));
   const locationCounts = new Map<string, TopLocation>();
+  let addedToCart = 0;
+  let reachedCheckout = 0;
   for (const row of sessionRows) {
     if (sessionsByDate.has(row.session_date)) sessionsByDate.set(row.session_date, (sessionsByDate.get(row.session_date) || 0) + 1);
+    if (row.had_cart) addedToCart++;
+    if (row.reached_checkout) reachedCheckout++;
     const country = row.country || "Unknown";
     const region = row.region || "";
     const city = row.city || "";
@@ -210,6 +244,8 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
   const totalOrders = paid.length;
   const totalSessions = sessionRows.length;
   const returning = Array.from(emailCounts.values()).filter((c) => c > 1).length;
+  const rawFullTopLocations = Array.from(locationCounts.values()).sort((a, b) => b.count - a.count);
+  const cleanFullTopLocations = rawFullTopLocations.filter((loc) => !isLikelyNoisyLocation(loc));
 
   return {
     rangeDays: days,
@@ -217,7 +253,11 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
       revenue: totalRevenue,
       orders: totalOrders,
       sessions: totalSessions,
+      addedToCart,
+      reachedCheckout,
       conversionRate: totalSessions > 0 ? (totalOrders / totalSessions) * 100 : 0,
+      cartRate: totalSessions > 0 ? (addedToCart / totalSessions) * 100 : 0,
+      checkoutRate: totalSessions > 0 ? (reachedCheckout / totalSessions) * 100 : 0,
       averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
     },
     revenueSeries: dateStrings.map((d) => ({ date: d, revenue: Math.round((revenueByDate.get(d) || 0) * 100) / 100 })),
@@ -225,11 +265,23 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
     sessionsSeries: dateStrings.map((d) => ({ date: d, sessions: sessionsByDate.get(d) || 0 })),
     bestSellers: Array.from(bestSellerMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, BEST_SELLERS_LIMIT),
     paymentMethods: Array.from(paymentMethodMap.values()).sort((a, b) => b.revenue - a.revenue),
-    topLocations: Array.from(locationCounts.values()).sort((a, b) => b.count - a.count).slice(0, FULL_TOP_LOCATIONS_LIMIT),
+    topLocations: (cleanFullTopLocations.length ? cleanFullTopLocations : rawFullTopLocations).slice(0, FULL_TOP_LOCATIONS_LIMIT),
     customers: {
       total: emailCounts.size,
       returning,
       returningRate: emailCounts.size > 0 ? (returning / emailCounts.size) * 100 : 0,
     },
   };
+}
+
+function isLikelyNoisyLocation(loc: TopLocation) {
+  const country = (loc.country || "").toUpperCase();
+  const city = (loc.city || "").toLowerCase();
+  const region = (loc.region || "").toUpperCase();
+  // These repeatedly show up as crawler/proxy/data-centre traffic on SA
+  // storefronts and distort the seller-facing "where are my customers?"
+  // view. Real paid order location remains separate in Orders.
+  if (country === "CN") return true;
+  if (country === "US" && city === "dallas" && region === "TX") return true;
+  return false;
 }

@@ -168,6 +168,7 @@ interface ProductUrlPreview {
   currency: string;
   description: string;
   images: string[];
+  variants?: Variant[];
 }
 
 interface Order {
@@ -187,7 +188,7 @@ interface LiveVisitor {
 }
 
 interface SessionAnalytics {
-  sessionsToday: number; ordersToday: number; salesToday: number;
+  sessionsToday: number; addedToCartToday?: number; reachedCheckoutToday?: number; completedCheckoutToday?: number; ordersToday: number; salesToday: number;
   dailySessions: { date: string; sessions: number }[];
   topLocations: { country: string; region: string; city: string; count: number }[];
 }
@@ -1127,6 +1128,7 @@ export default function Dashboard() {
     setFormDescription(importPreview.description || "");
     setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
     setExistingImages((importPreview.images || []).slice(0, maxImages));
+    setFormVariants(importPreview.variants || []);
     setImportResult("Imported into the form as a draft. Set your 4REGN price, collection, variants and save.");
     setTimeout(() => {
       document.getElementById("product-edit-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2356,6 +2358,7 @@ export default function Dashboard() {
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" as const, marginBottom: 6 }}>
                       <span style={{ padding: "4px 8px", background: "rgba(37,99,235,0.08)", color: "#2563eb", borderRadius: 100, fontSize: 10, fontWeight: 900, textTransform: "uppercase" as const }}>{importPreview.supplier}</span>
                       <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{importPreview.images.length} image{importPreview.images.length === 1 ? "" : "s"} found</span>
+                      {!!importPreview.variants?.length && <span style={{ fontSize: 11, color: "var(--muted-2)" }}>· {importPreview.variants.map((v) => `${v.name}: ${v.options.length}`).join(", ")}</span>}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 4, lineHeight: 1.25 }}>{importPreview.title}</div>
                     <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{importPreview.price ? `${importPreview.currency === "ZAR" ? "R" : importPreview.currency + " "}${importPreview.price}` : "No price detected — enter your 4REGN selling price manually"}</div>
@@ -2962,7 +2965,7 @@ export default function Dashboard() {
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Who's on your store right now -- browsing, has an active cart, or is at checkout. Refreshes every 10 seconds.</p>
 
             {/* HERO: live-now count, oversized, with the rest of today's numbers alongside it */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }} className="stats-grid">
+            <div style={{ display: "grid", gridTemplateColumns: "1.3fr repeat(6, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
               <div style={{ position: "relative" as const, padding: "20px 22px", background: "linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.02))", border: "1px solid rgba(34,197,94,0.22)", borderRadius: 16, overflow: "hidden" }}>
                 <div style={{ position: "absolute" as const, top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: "rgba(34,197,94,0.12)", filter: "blur(2px)" }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -2974,6 +2977,9 @@ export default function Dashboard() {
               </div>
               {[
                 { label: "Sessions today", value: sessionAnalytics?.sessionsToday ?? "—", icon: "eye" as DashIconName, color: "#60a5fa" },
+                { label: "Added to cart", value: sessionAnalytics?.addedToCartToday ?? "—", icon: "cart" as DashIconName, color: "#22c55e" },
+                { label: "Reached checkout", value: sessionAnalytics?.reachedCheckoutToday ?? "—", icon: "payment" as DashIconName, color: "#a78bfa" },
+                { label: "Completed", value: sessionAnalytics?.completedCheckoutToday ?? sessionAnalytics?.ordersToday ?? "—", icon: "check" as DashIconName, color: "#16a34a" },
                 { label: "Orders today", value: sessionAnalytics?.ordersToday ?? "—", icon: "orders" as DashIconName, color: "#fbbf24" },
                 { label: "Sales today", value: "R" + Math.round(sessionAnalytics?.salesToday ?? 0), icon: "trend-up" as DashIconName, color: "#ff6b35" },
               ].map((s) => (
@@ -3692,12 +3698,15 @@ export default function Dashboard() {
               return (
                 <>
                   {/* HERO STATS */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
                     {[
                       { label: "Revenue", value: money(fa.totals.revenue), icon: "trend-up" as DashIconName, color: "#22c55e" },
                       { label: "Orders", value: String(fa.totals.orders), icon: "orders" as DashIconName, color: "#fbbf24" },
+                      { label: "Sessions", value: String(fa.totals.sessions), icon: "eye" as DashIconName, color: "#60a5fa" },
+                      { label: "Added to cart", value: `${fa.totals.addedToCart} (${fa.totals.cartRate.toFixed(0)}%)`, icon: "cart" as DashIconName, color: "#22c55e" },
+                      { label: "Reached checkout", value: `${fa.totals.reachedCheckout} (${fa.totals.checkoutRate.toFixed(0)}%)`, icon: "payment" as DashIconName, color: "#a78bfa" },
                       { label: "Conversion rate", value: fa.totals.conversionRate.toFixed(1) + "%", icon: "sparkle" as DashIconName, color: "#60a5fa" },
-                      { label: "Avg. order value", value: money(fa.totals.averageOrderValue), icon: "cart" as DashIconName, color: "#ff6b35" },
+                      { label: "Avg. order value", value: money(fa.totals.averageOrderValue), icon: "payment" as DashIconName, color: "#ff6b35" },
                     ].map((s) => (
                       <div key={s.label} style={{ padding: "20px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
                         <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>

@@ -2545,10 +2545,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-h{position:sticky;top:0;background:#fff;z-index:5;padding:18px 30px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center}
 .fr-pdp-bread{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-pdp-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink)}
-.fr-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1}
-.fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:20px;gap:10px;border-right:1px solid rgba(0,0,0,0.06)}
-.fr-pdp-main{flex:1;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;border-radius:var(--card-radius)}
-.fr-pdp-main img{width:100%;height:100%;object-fit:contain;display:block}
+.fr-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;min-width:0}
+.fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:20px;gap:10px;border-right:1px solid rgba(0,0,0,0.06);min-width:0}
+.fr-pdp-main{flex:1;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;max-width:100%;border-radius:var(--card-radius);min-width:0}
+.fr-pdp-main img{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;display:block}
 .fr-pdp-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(245,245,245,0.6);z-index:2;pointer-events:none}
 .fr-pdp-loading-spin{width:26px;height:26px;border:2px solid rgba(0,0,0,0.1);border-top-color:rgba(0,0,0,0.4);border-radius:50%;animation:fr-spin 0.9s linear infinite}
 .fr-pdp-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.7);color:#1a1a1a;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:2px;box-shadow:0 1px 6px rgba(0,0,0,0.12);transition:all 0.2s;z-index:1}
@@ -2587,7 +2587,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    breadcrumb are new; everything inside .fr-pdp-grid reuses the slide-over
    PDP's own fr-pdp-* classes above verbatim so the two stay visually
    identical. */
-.fr-pdp2-page{max-width:1360px;margin:0 auto;padding:40px 40px 0}
+.fr-pdp2-page{max-width:1360px;margin:0 auto;padding:40px 40px 0;overflow-x:hidden}
 /* Reuses .fr-coll-back's text treatment (the collection page's own "← Back"
    link) verbatim for visual consistency; this override just left-aligns it
    since .fr-coll-back's centering comes from its own parent
@@ -2740,9 +2740,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-foot-grid{grid-template-columns:1fr;gap:36px}
   .fr-pdp-grid{grid-template-columns:1fr}
   .fr-pdp-gal{min-height:auto;padding:16px;border-right:none;border-bottom:1px solid rgba(0,0,0,0.06)}
+  .fr-pdp-main{flex:none;aspect-ratio:auto;height:min(72vh,540px);max-height:540px}
+  .fr-pdp-main img{width:100%;height:100%;object-fit:contain}
   .fr-pdp-info{padding:28px 22px}
   .fr-pdp-name{font-size:26px}
-  .fr-pdp2-page{padding:24px 20px 0}
+  .fr-pdp2-page{width:100%;max-width:100vw;padding:24px 20px 0}
   .fr-policy-page{padding:48px 20px 64px}
   .fr-cart{width:100vw}
   .fr-root{padding-bottom:78px}
