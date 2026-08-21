@@ -19,6 +19,7 @@ const SUBDOMAIN_SUFFIX = `.${STORE_ROOT_DOMAIN}`;
 const SUBDOMAIN_SUFFIX_LENGTH = SUBDOMAIN_SUFFIX.length;
 const FOUR_REGN_LEGACY_HOST = `4regn.${STORE_ROOT_DOMAIN}`;
 const FOUR_REGN_PRIMARY_HOST = "4regn.com";
+const FOUR_REGN_ADMIN_HOSTS = new Set(["admin.4regn.com", "www.admin.4regn.com"]);
 
 // Edge Middleware runs in a separate runtime from Route Handlers/Server
 // Components, and confirmed in practice: the `next.revalidate` fetch option
@@ -143,6 +144,18 @@ const SETLA_MARKETING_HOSTS = new Set(["setla.4regn.com", "www.setla.4regn.com"]
 export async function middleware(req: NextRequest) {
   const hostname = (req.headers.get("host") || "").split(":")[0].toLowerCase();
   const { pathname, search } = req.nextUrl;
+
+  // admin.4regn.com is a private application host, never a storefront.
+  // Authentication remains the existing Supabase login; /production and
+  // every mutation perform their own server-side 4REGN authorization.
+  if (FOUR_REGN_ADMIN_HOSTS.has(hostname)) {
+    if (pathname === "/") {
+      const destination = req.nextUrl.clone();
+      destination.pathname = "/production";
+      return NextResponse.redirect(destination, 307);
+    }
+    return NextResponse.next();
+  }
 
   // 4REGN has completed its move to its connected custom domain. Keep the
   // old CatalogStore subdomain alive only as a permanent, path-preserving

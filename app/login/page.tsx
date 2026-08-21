@@ -21,7 +21,10 @@ export default function Login() {
     setInfo("");
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) { setError(authError.message); setLoading(false); return; }
-    router.push("/dashboard");
+    const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
+    const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : null;
+    const isFourRegnAdminHost = typeof window !== "undefined" && ["admin.4regn.com", "www.admin.4regn.com"].includes(window.location.hostname);
+    router.push(safeNext || (isFourRegnAdminHost ? "/production" : "/dashboard"));
   };
 
   const handleReset = async () => {
