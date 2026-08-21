@@ -142,7 +142,7 @@
       const url = absoluteImage(source);
       if ((largeEnough || supplierCdn) && imageLooksLikeProduct(url, img, context)) add(url);
     });
-    return values.slice(0, isShein() ? 4 : 16);
+    return values.slice(0, isShein() ? 10 : 16);
   }
 
   function disabled(el) {
@@ -302,7 +302,7 @@
 
     return {
       ...baseProduct,
-      images: mergedImages.length ? mergedImages.slice(0, 16) : baseProduct.images.slice(0, 4),
+      images: mergedImages.length ? mergedImages.slice(0, 30) : baseProduct.images.slice(0, 10),
       variants: mergedVariants.length ? mergedVariants : baseProduct.variants,
       inStock: sizes.length ? true : baseProduct.inStock,
       stockNote: byColor.length ? `Captured ${colors.length} colour variant${colors.length === 1 ? "" : "s"}: ${byColor.join("; ")}.` : baseProduct.stockNote,

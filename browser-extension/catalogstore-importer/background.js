@@ -63,7 +63,7 @@ async function downloadImages(urls, productUrl) {
   const images = [];
   const warnings = [];
   let totalBytes = 0;
-  for (const url of urls.slice(0, 16)) {
+  for (const url of urls.slice(0, 30)) {
     try {
       let response;
       try {
