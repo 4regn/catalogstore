@@ -7,8 +7,14 @@
 
   function decode(value) {
     const textarea = document.createElement("textarea");
-    textarea.innerHTML = String(value || "");
-    return clean(textarea.value);
+    let decoded = String(value || "");
+    for (let index = 0; index < 3; index += 1) {
+      textarea.innerHTML = decoded;
+      const next = textarea.value;
+      if (next === decoded) break;
+      decoded = next;
+    }
+    return clean(decoded);
   }
 
   function productTitle(product) {
@@ -36,7 +42,7 @@
       if (Array.isArray(node)) return node.forEach(visit);
       if (typeof node !== "object") return;
       const types = Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]];
-      if (types.some((type) => String(type).toLowerCase() === "product")) found.push(node);
+      if (types.some((type) => ["product", "productgroup"].includes(String(type).toLowerCase()))) found.push(node);
       if (node["@graph"]) visit(node["@graph"]);
     };
     document.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
@@ -119,7 +125,18 @@
       }
     };
 
-    if (!isShein()) {
+    if (isShein()) {
+      // SHEIN's ProductGroup schema contains only the selected colour's real gallery.
+      // It is substantially safer than scanning every image on the page.
+      add(product?.image);
+      document.querySelectorAll([
+        'section.main-picture [data-before-crop-src*="_thumbnail_900x" i]',
+        'section[aria-label="Product images" i] [data-before-crop-src*="_thumbnail_900x" i]',
+        'section.main-picture [data-before-crop-src]',
+        'section[aria-label="Product images" i] [data-before-crop-src]',
+      ].join(",")).forEach((element) => add(element.getAttribute("data-before-crop-src")));
+      return values.slice(0, 16);
+    } else {
       add(product?.image);
       add(meta("og:image"));
     }
@@ -151,6 +168,14 @@
   }
 
   function colorNodes() {
+    if (isShein()) {
+      return [...document.querySelectorAll([
+        '.product-intro__color [role="radiogroup"][aria-label*="color" i] > [role="radio"]',
+        '.product-intro__color .main-sales-attr__color-container > .radio-container[role="radio"]',
+        '[class*="product-intro__color" i] [role="radiogroup"][aria-label*="color" i] [role="radio"]',
+      ].join(","))].filter((element, index, all) => all.indexOf(element) === index);
+    }
+
     const candidates = [...document.querySelectorAll([
       '.product-intro__color-radio',
       '.product-intro__color-radio-inner',
@@ -191,8 +216,20 @@
       });
   }
 
-  function variants() {
-    const sizeNodes = [...document.querySelectorAll('[data-attr_value_name][role="radio"],[data-attr_value_name].product-intro__size-radio,[role="radiogroup"] [role="radio"],button[data-testid*="size" i],button[class*="size" i]')];
+  function variants(product) {
+    const structuredRows = (Array.isArray(product?.hasVariant) ? product.hasVariant : [])
+      .map((variant) => {
+        const offer = Array.isArray(variant?.offers) ? variant.offers[0] : variant?.offers;
+        return {
+          value: clean(variant?.size),
+          available: !/outofstock|soldout|discontinued/i.test(String(offer?.availability || "")),
+        };
+      })
+      .filter((row) => row.value);
+    const sizeSelector = isShein()
+      ? '[class*="product-intro__size" i] [data-attr_value_name][role="radio"],[class*="product-intro__size" i] .product-intro__size-radio[role="radio"]'
+      : '[data-attr_value_name][role="radio"],[data-attr_value_name].product-intro__size-radio,[role="radiogroup"] [role="radio"],button[data-testid*="size" i],button[class*="size" i]';
+    const sizeNodes = [...document.querySelectorAll(sizeSelector)];
     const sizeRows = [];
     for (const el of sizeNodes) {
       const value = clean(el.getAttribute("data-attr_value_name") || el.getAttribute("aria-label") || el.textContent);
@@ -200,6 +237,7 @@
       if (!/^(?:XX?S|S|M|L|X{1,4}L|[2-6]XL|UK\s*\d+(?:\.5)?|US\s*\d+(?:\.5)?|EU\s*\d+(?:\.5)?|\d{1,3}(?:\.5)?)$/i.test(value) && !el.hasAttribute("data-attr_value_name")) continue;
       sizeRows.push({ value, available: !disabled(el) });
     }
+    if (structuredRows.length) sizeRows.splice(0, sizeRows.length, ...structuredRows);
     const allSizes = uniq(sizeRows.map((row) => row.value));
     const availableSizes = uniq(sizeRows.filter((row) => row.available).map((row) => row.value));
 
@@ -209,6 +247,7 @@
         .replace(/^(?:color|colour)\s*:?\s*/i, "");
       if (value && value.length <= 40 && !/select|swatch/i.test(value)) colorValues.push(value);
     });
+    if (clean(product?.color)) colorValues.unshift(clean(product.color));
 
     const groups = [];
     if (availableSizes.length) groups.push({ name: "Size", options: availableSizes });
@@ -218,13 +257,15 @@
 
   function capture() {
     const product = jsonLdProducts()[0];
-    const offer = Array.isArray(product?.offers) ? product.offers[0] : product?.offers;
+    const firstVariant = Array.isArray(product?.hasVariant) ? product.hasVariant[0] : null;
+    const offerSource = product?.offers || firstVariant?.offers;
+    const offer = Array.isArray(offerSource) ? offerSource[0] : offerSource;
     const title = productTitle(product);
     const mainPriceNode = document.querySelector('#productMainPriceId,.productPrice__main,[data-testid*="current-price" i],[class*="product-price" i],[class*="current-price" i]');
     const oldPriceNode = document.querySelector('.productDiscountInfo__retail,.productEstimatedTagNewRetail__retail,[data-testid*="original-price" i],[class*="old-price" i],[class*="original-price" i]');
     const sellingPrice = price(offer?.price ?? mainPriceNode?.getAttribute("aria-label") ?? mainPriceNode?.textContent ?? meta("product:price:amount"));
     const compareAtPrice = price(offer?.highPrice ?? oldPriceNode?.getAttribute("aria-label") ?? oldPriceNode?.textContent);
-    const variantData = variants();
+    const variantData = variants(product);
     const pageText = clean(document.body?.innerText);
     const soldOutPage = /\b(sold out|out of stock|currently unavailable)\b/i.test(pageText);
     const inStock = variantData.allSizes.length ? variantData.availableSizes.length > 0 : !soldOutPage;
@@ -234,7 +275,7 @@
     if (!variantData.groups.length) warnings.push("No selectable sizes or colours were detected; confirm variants manually.");
     if (variantData.soldOutSizes.length) warnings.push(`Sold-out sizes were excluded: ${variantData.soldOutSizes.join(", ")}.`);
     return {
-      sourceUrl: location.href,
+      sourceUrl: clean(product?.url || meta("og:url") || location.href),
       supplier: supplier(),
       title,
       price: sellingPrice,
@@ -261,21 +302,56 @@
     const sizeValues = [];
     const soldOutValues = [];
     const originalScroll = window.scrollY;
+    const duplicateColorCounts = new Map();
+
+    const selectedColorSignature = () => {
+      const active = colorNodes().find((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
+      const thumbnail = active?.querySelector?.("[data-before-crop-src]")?.getAttribute("data-before-crop-src") || active?.querySelector?.("img")?.getAttribute("alt") || "";
+      const product = jsonLdProducts()[0];
+      return JSON.stringify([
+        clean(active?.getAttribute("aria-label")),
+        imageKey(absoluteImage(thumbnail)),
+        (Array.isArray(product?.image) ? product.image : [product?.image]).filter(Boolean).map((image) => imageKey(absoluteImage(image))),
+        images(product).map(imageKey),
+      ]);
+    };
 
     for (let index = 0; index < Math.min(swatches.length, 12); index += 1) {
       const currentSwatches = colorNodes();
       const swatch = currentSwatches[index];
       if (!swatch) continue;
-      const beforeKey = capture().images.map(imageKey).join("|");
-      const color = clean(swatch.getAttribute("data-attr_value_name") || swatch.getAttribute("aria-label") || swatch.getAttribute("title") || swatch.querySelector?.("img")?.getAttribute("alt") || swatch.textContent || `Colour ${index + 1}`)
+      const beforeKey = selectedColorSignature();
+      const rawColor = clean(swatch.getAttribute("data-attr_value_name") || swatch.getAttribute("aria-label") || swatch.getAttribute("title") || swatch.querySelector?.("img")?.getAttribute("alt") || swatch.textContent || `Colour ${index + 1}`)
         .replace(/^(?:color|colour)\s*:?\s*/i, "") || `Colour ${index + 1}`;
+      const duplicateNumber = (duplicateColorCounts.get(rawColor.toLowerCase()) || 0) + 1;
+      duplicateColorCounts.set(rawColor.toLowerCase(), duplicateNumber);
+      const color = duplicateNumber === 1 ? rawColor : `${rawColor} ${duplicateNumber}`;
+      const wasSelected = swatch.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(swatch.className));
       swatch.scrollIntoView({ block: "center", inline: "center" });
       swatch.click();
-      await sleep(1600);
+      if (!wasSelected) {
+        const changeStarted = Date.now();
+        while (Date.now() - changeStarted < 15000 && selectedColorSignature() === beforeKey) await sleep(300);
+      }
+
+      // SHEIN updates the active swatch before its schema, stock and lazy gallery
+      // have all finished updating. Require two seconds of stable product data.
+      let stableSignature = selectedColorSignature();
+      let stableChecks = 0;
+      const settleStarted = Date.now();
+      while (Date.now() - settleStarted < 12000 && stableChecks < 4) {
+        await sleep(500);
+        const nextSignature = selectedColorSignature();
+        if (nextSignature === stableSignature) stableChecks += 1;
+        else {
+          stableSignature = nextSignature;
+          stableChecks = 0;
+        }
+      }
       const captured = capture();
-      const afterKey = captured.images.map(imageKey).join("|");
-      if (index > 0 && beforeKey && afterKey && beforeKey === afterKey) continue;
-      const variantData = variants();
+      const afterKey = selectedColorSignature();
+      if (index > 0 && beforeKey === afterKey) continue;
+      const variantData = variants(jsonLdProducts()[0]);
       imageValues.push(...captured.images);
       colorValues.push(color);
       const sizeGroup = variantData.groups.find((group) => /size/i.test(group.name));
