@@ -111,6 +111,27 @@
     return true;
   }
 
+  function sheinGalleryFromDom() {
+    if (!isShein()) return [];
+    const values = [];
+    const seen = new Set();
+    const add = (value) => {
+      const url = absoluteImage(value);
+      const key = imageKey(url);
+      if (url && key && !seen.has(key)) {
+        seen.add(key);
+        values.push(url);
+      }
+    };
+    document.querySelectorAll([
+      'section.main-picture [data-before-crop-src*="_thumbnail_900x" i]',
+      'section[aria-label="Product images" i] [data-before-crop-src*="_thumbnail_900x" i]',
+      'section.main-picture [data-before-crop-src]',
+      'section[aria-label="Product images" i] [data-before-crop-src]',
+    ].join(",")).forEach((element) => add(element.getAttribute("data-before-crop-src")));
+    return values.slice(0, 20);
+  }
+
   function images(product) {
     const values = [];
     const keys = new Set();
@@ -126,16 +147,16 @@
     };
 
     if (isShein()) {
-      // SHEIN's ProductGroup schema contains only the selected colour's real gallery.
-      // It is substantially safer than scanning every image on the page.
+      const active = colorNodes().find((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
+      const activeKey = imageKey(absoluteImage(active?.querySelector?.("[data-before-crop-src]")?.getAttribute("data-before-crop-src") || ""));
+      const domGallery = sheinGalleryFromDom();
+      if (domGallery.length && (!activeKey || imageKey(domGallery[0]) === activeKey)) return domGallery;
+
+      // The schema is a clean fallback on the initial page, but SHEIN can leave it
+      // stale after a colour switch, so only trust it when it matches the swatch.
       add(product?.image);
-      document.querySelectorAll([
-        'section.main-picture [data-before-crop-src*="_thumbnail_900x" i]',
-        'section[aria-label="Product images" i] [data-before-crop-src*="_thumbnail_900x" i]',
-        'section.main-picture [data-before-crop-src]',
-        'section[aria-label="Product images" i] [data-before-crop-src]',
-      ].join(",")).forEach((element) => add(element.getAttribute("data-before-crop-src")));
-      return values.slice(0, 16);
+      if (values.length && (!activeKey || imageKey(values[0]) === activeKey)) return values.slice(0, 20);
+      return domGallery.length ? domGallery : values.slice(0, 20);
     } else {
       add(product?.image);
       add(meta("og:image"));
@@ -169,11 +190,23 @@
 
   function colorNodes() {
     if (isShein()) {
-      return [...document.querySelectorAll([
-        '.product-intro__color [role="radiogroup"][aria-label*="color" i] > [role="radio"]',
-        '.product-intro__color .main-sales-attr__color-container > .radio-container[role="radio"]',
-        '[class*="product-intro__color" i] [role="radiogroup"][aria-label*="color" i] [role="radio"]',
-      ].join(","))].filter((element, index, all) => all.indexOf(element) === index);
+      const groups = [...document.querySelectorAll([
+        '.product-intro__color [role="radiogroup"][aria-label*="color" i]',
+        '.product-intro__color .main-sales-attr__color-container[role="radiogroup"]',
+        '[class*="product-intro__color" i] [role="radiogroup"][aria-label*="color" i]',
+      ].join(","))];
+      const ranked = groups
+        .map((group) => {
+          const rect = group.getBoundingClientRect();
+          const style = getComputedStyle(group);
+          const visible = rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+          return { group, score: visible ? rect.width * rect.height : 0 };
+        })
+        .sort((left, right) => right.score - left.score);
+      const group = ranked[0]?.group;
+      if (!group) return [];
+      return [...group.querySelectorAll(':scope > [role="radio"],:scope > .radio-container[role="radio"]')]
+        .filter((element, index, all) => all.indexOf(element) === index);
     }
 
     const candidates = [...document.querySelectorAll([
@@ -301,45 +334,80 @@
     const colorValues = [];
     const sizeValues = [];
     const soldOutValues = [];
+    const failedColors = [];
     const originalScroll = window.scrollY;
     const duplicateColorCounts = new Map();
 
+    const swatchImageKey = (swatch) => imageKey(absoluteImage(
+      swatch?.querySelector?.("[data-before-crop-src]")?.getAttribute("data-before-crop-src") ||
+      swatch?.querySelector?.("img")?.getAttribute("src") ||
+      ""
+    ));
+    const currentGallerySignature = () => {
+      const domGallery = sheinGalleryFromDom();
+      if (domGallery.length) return JSON.stringify(domGallery.map(imageKey));
+      const product = jsonLdProducts()[0];
+      return JSON.stringify((Array.isArray(product?.image) ? product.image : [product?.image])
+        .filter(Boolean)
+        .map((image) => imageKey(absoluteImage(image))));
+    };
     const selectedColorSignature = () => {
       const active = colorNodes().find((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
-      const thumbnail = active?.querySelector?.("[data-before-crop-src]")?.getAttribute("data-before-crop-src") || active?.querySelector?.("img")?.getAttribute("alt") || "";
-      const product = jsonLdProducts()[0];
       return JSON.stringify([
         clean(active?.getAttribute("aria-label")),
-        imageKey(absoluteImage(thumbnail)),
-        (Array.isArray(product?.image) ? product.image : [product?.image]).filter(Boolean).map((image) => imageKey(absoluteImage(image))),
-        images(product).map(imageKey),
+        swatchImageKey(active),
+        currentGallerySignature(),
       ]);
     };
-
-    for (let index = 0; index < Math.min(swatches.length, 12); index += 1) {
-      const currentSwatches = colorNodes();
-      const swatch = currentSwatches[index];
-      if (!swatch) continue;
-      const beforeKey = selectedColorSignature();
+    const targets = swatches.map((swatch, index) => {
       const rawColor = clean(swatch.getAttribute("data-attr_value_name") || swatch.getAttribute("aria-label") || swatch.getAttribute("title") || swatch.querySelector?.("img")?.getAttribute("alt") || swatch.textContent || `Colour ${index + 1}`)
         .replace(/^(?:color|colour)\s*:?\s*/i, "") || `Colour ${index + 1}`;
       const duplicateNumber = (duplicateColorCounts.get(rawColor.toLowerCase()) || 0) + 1;
       duplicateColorCounts.set(rawColor.toLowerCase(), duplicateNumber);
-      const color = duplicateNumber === 1 ? rawColor : `${rawColor} ${duplicateNumber}`;
+      return {
+        index,
+        key: swatchImageKey(swatch),
+        color: duplicateNumber === 1 ? rawColor : `${rawColor} ${duplicateNumber}`,
+      };
+    }).filter((target, index, all) => all.findIndex((candidate) => candidate.key ? candidate.key === target.key : candidate.index === target.index) === index);
+
+    for (const target of targets.slice(0, 12)) {
+      const currentSwatches = colorNodes();
+      const swatch = currentSwatches.find((candidate) => target.key && swatchImageKey(candidate) === target.key) || currentSwatches[target.index];
+      if (!swatch) continue;
+      const beforeKey = selectedColorSignature();
+      const beforeGallery = currentGallerySignature();
+      const color = target.color;
       const wasSelected = swatch.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(swatch.className));
       swatch.scrollIntoView({ block: "center", inline: "center" });
-      swatch.click();
-      if (!wasSelected) {
-        const changeStarted = Date.now();
-        while (Date.now() - changeStarted < 15000 && selectedColorSignature() === beforeKey) await sleep(300);
+      if (!wasSelected) swatch.click();
+
+      let matchedTarget = wasSelected;
+      const changeStarted = Date.now();
+      while (Date.now() - changeStarted < 25000) {
+        const active = colorNodes().find((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
+        const activeMatches = target.key ? swatchImageKey(active) === target.key : clean(active?.getAttribute("aria-label")) === color;
+        const gallerySignature = currentGallerySignature();
+        const galleryChanged = gallerySignature !== beforeGallery;
+        const galleryMatches = target.key && JSON.parse(gallerySignature || "[]")[0] === target.key;
+        if (activeMatches && (galleryMatches || (wasSelected && Date.now() - changeStarted >= 1000) || (galleryChanged && Date.now() - changeStarted >= 3000))) {
+          matchedTarget = true;
+          break;
+        }
+        await sleep(400);
+      }
+
+      if (!matchedTarget) {
+        failedColors.push(color);
+        continue;
       }
 
       // SHEIN updates the active swatch before its schema, stock and lazy gallery
-      // have all finished updating. Require two seconds of stable product data.
+      // have all finished updating. Require three seconds of stable structured data.
       let stableSignature = selectedColorSignature();
       let stableChecks = 0;
       const settleStarted = Date.now();
-      while (Date.now() - settleStarted < 12000 && stableChecks < 4) {
+      while (Date.now() - settleStarted < 18000 && stableChecks < 6) {
         await sleep(500);
         const nextSignature = selectedColorSignature();
         if (nextSignature === stableSignature) stableChecks += 1;
@@ -350,7 +418,10 @@
       }
       const captured = capture();
       const afterKey = selectedColorSignature();
-      if (index > 0 && beforeKey === afterKey) continue;
+      if (!wasSelected && beforeKey === afterKey) {
+        failedColors.push(color);
+        continue;
+      }
       const variantData = variants(jsonLdProducts()[0]);
       imageValues.push(...captured.images);
       colorValues.push(color);
@@ -378,13 +449,14 @@
 
     return {
       ...baseProduct,
-      images: mergedImages.length ? mergedImages.slice(0, 30) : baseProduct.images.slice(0, 10),
+      images: mergedImages.length ? mergedImages.slice(0, 60) : baseProduct.images.slice(0, 20),
       variants: mergedVariants.length ? mergedVariants : baseProduct.variants,
       inStock: sizes.length ? true : baseProduct.inStock,
       stockNote: byColor.length ? `Captured ${colors.length} colour variant${colors.length === 1 ? "" : "s"}: ${byColor.join("; ")}.` : baseProduct.stockNote,
       warnings: [
         ...(baseProduct.warnings || []),
         ...(soldOutValues.length ? [`Sold-out sizes were excluded by colour: ${soldOutValues.join(", ")}.`] : []),
+        ...(failedColors.length ? [`These colours did not finish loading and were skipped to prevent incorrect duplicates: ${uniq(failedColors).join(", ")}. Try Browser Capture again if they remain missing.`] : []),
       ],
     };
   }
