@@ -10,7 +10,7 @@ import styles from "./production.module.css";
 type Batch = { id: string; name: string; notes: string; status: string; created_at: string; updated_at: string; archived_at?: string | null };
 type Settings = Record<keyof typeof DEFAULT_PRODUCTION_COSTS, number>;
 type Activity = { id: number; batch_id: string; order_id?: string | null; action: string; details: Record<string, unknown>; created_at: string };
-type View = "batches" | "orders" | "production" | "summary";
+type View = "batches" | "orders" | "production" | "calculator" | "summary";
 type Modal = "batch" | "order" | "settings" | "activity" | null;
 
 const emptyOrder = (settings: Settings) => ({
@@ -150,9 +150,10 @@ export default function ProductionClient() {
       {view === "batches" && <BatchesView batches={batches} orders={orders} onOpen={openBatch} onNew={() => openBatchModal()} onEdit={openBatchModal} onDuplicate={duplicateBatch} onArchive={archiveBatch} onDelete={deleteBatch}/>} 
       {view === "orders" && <OrdersView batch={activeBatch} orders={activeOrders} onAdd={() => openOrderModal()} onEdit={openOrderModal} onDelete={deleteOrder} onProduction={() => setView("production")} onExport={() => exportBatch("full")} onImport={() => importRef.current?.click()}/>} 
       {view === "production" && <ProductionView batch={activeBatch} orders={activeOrders} totals={totals} supplier={supplierData} printing={printQueue} onPatch={patchOrder} onEdit={openOrderModal} onHistory={async () => { setModal("activity"); try { const data = await api(); setActivity(data.activity || []); } catch {} }} onExport={(kind: "full" | "audit" | "supplier" | "printing") => exportBatch(kind)}/>} 
+      {view === "calculator" && <LiveCalculatorView batch={activeBatch} orders={activeOrders} totals={totals} onPatch={patchOrder} onEdit={openOrderModal}/>}
       {view === "summary" && <SummaryView batch={activeBatch} orders={activeOrders} totals={totals} onExport={(kind: "full" | "audit" | "supplier" | "printing") => exportBatch(kind)}/>} 
     </div>
-    <nav className={styles.bottomNav}>{(["batches","orders","production","summary"] as View[]).map((item) => <button key={item} className={cn(styles.navBtn,view===item&&styles.navActive)} onClick={() => setView(item)}>{item[0].toUpperCase()+item.slice(1)}</button>)}</nav>
+    <nav className={styles.bottomNav}>{(["batches","orders","production","calculator","summary"] as View[]).map((item) => <button key={item} className={cn(styles.navBtn,view===item&&styles.navActive)} onClick={() => setView(item)}>{item === "calculator" ? "Live Cost" : item[0].toUpperCase()+item.slice(1)}</button>)}</nav>
     <input ref={importRef} hidden type="file" accept="application/json,.json" onChange={importBatch}/>
     {modal === "batch" && <BatchModal value={batchForm} setValue={setBatchForm} onClose={() => setModal(null)} onSave={saveBatch}/>} 
     {modal === "order" && <OrderModal value={orderForm} setValue={updateOrderForm} changeGarmentOrSize={changeGarmentOrSize} onClose={() => setModal(null)} onSave={saveOrder}/>} 
@@ -173,6 +174,56 @@ function OrdersView({ batch, orders, onAdd, onEdit, onDelete, onProduction, onEx
 function ProductionView({ batch, orders, totals, supplier, printing, onPatch, onEdit, onHistory, onExport }: any) {
   if(!batch||!orders.length) return <section className={styles.view}><div className={cn(styles.card,styles.empty)}>Select a batch with orders to open the production board.</div></section>;
   return <section className={styles.view}><div className={styles.stickySummary}><div className={styles.stickyGrid}><div><small>Total cost</small><b>{money(totals.total)}</b></div><div><small>Completed / paid</small><b>{money(totals.paid)}</b></div><div><small>Remaining balance</small><b>{money(totals.remaining)}</b></div><div><small>Orders complete</small><b>{totals.complete} / {orders.length}</b></div></div></div><div className={styles.grid}><div className={cn(styles.card,styles.half)}><div className={styles.sectionHead}><div><h2>Supplier buying list</h2><div className={styles.sub}>Compiled automatically from supplier sizes.</div></div><button className={cn(styles.btn,styles.secondary,styles.small)} onClick={()=>onExport("supplier")}>Export</button></div><SupplierList supplier={supplier}/></div><div className={cn(styles.card,styles.half)}><div className={styles.sectionHead}><div><h2>Printing queue</h2><div className={styles.sub}>Everything in this batch, including print status.</div></div><button className={cn(styles.btn,styles.secondary,styles.small)} onClick={()=>onExport("printing")}>Export</button></div><div className={styles.orderList}>{printing.map((item:any,index:number)=><div className={styles.orderRow} key={index}><div className={styles.orderMain}><div><b>{item.customer} — {item.design}</b><span>{item.colour} {item.garment} • {item.supplier_size} • {item.print_size}</span></div><span className={styles.badge}>{item.printing_status==="Printed"?"PRINTED":item.design_status==="Ready to Print"?"READY":"NEEDS FILE"}</span></div></div>)}</div></div><div className={styles.card}><div className={styles.sectionHead}><div><h2>{batch.name}</h2><div className={styles.sub}>Tick work as paid/completed. Every change saves immediately.</div></div><div className={styles.actions}><button className={cn(styles.btn,styles.secondary,styles.small)} onClick={onHistory}>History</button><button className={cn(styles.btn,styles.secondary,styles.small)} onClick={()=>onExport("audit")}>Export Audit</button></div></div><div className={styles.prodGrid}>{orders.map((order:ProductionOrder,index:number)=><ProductionCard key={order.id} order={order} index={index} onPatch={onPatch} onEdit={onEdit}/>)}</div></div></div></section>;
+}
+
+function LiveCalculatorView({ batch, orders, totals, onPatch, onEdit }: any) {
+  if (!batch || !orders.length) return <section className={styles.view}><div className={cn(styles.card,styles.empty)}>Select a batch with orders to open the live cost calculator.</div></section>;
+  return <section className={cn(styles.view,styles.calculator)}>
+    <div className={styles.calculatorHero}>
+      <div className={styles.calculatorEyebrow}>4REGN • Live production calculator</div>
+      <h2>Tick it.<br/><em>The balance drops.</em></h2>
+      <p>Every cost is pulled from <b>{batch.name}</b>. Tick an item when it is paid or complete and the remaining balance updates instantly. Print size and courier changes save to the batch too.</p>
+    </div>
+    <div className={styles.calculatorLedger}>
+      <div><span>Remaining balance</span><strong>{money(totals.remaining)}</strong></div>
+      <div><span>Current total cost</span><strong>{money(totals.total)}</strong></div>
+      <p>{money(totals.paid)} cleared • {totals.complete} of {orders.length} orders complete</p>
+    </div>
+    <div className={styles.calculatorOrders}>
+      {orders.map((order: ProductionOrder,index: number)=><CalculatorOrderCard key={order.id} order={order} index={index} onPatch={onPatch} onEdit={onEdit}/>) }
+    </div>
+  </section>;
+}
+
+function CalculatorOrderCard({ order, index, onPatch, onEdit }: any) {
+  const totals = orderTotals(order);
+  const components = orderCostComponents(order);
+  const garmentComponents = components.filter((item) => !["printing_complete","delivery_complete"].includes(item.key));
+  const delivery = components.find((item) => item.key === "delivery_complete")!;
+  const toggle = (field: string, checked: boolean) => onPatch(order,field,checked);
+  return <article className={cn(styles.calculatorOrder,totals.complete&&styles.calculatorOrderDone)}>
+    <header className={styles.calculatorOrderHead}>
+      <div><span>Order {String(index+1).padStart(2,"0")}</span><h3>{order.customer_name}</h3><p>{order.colour} {order.garment_type === "hoodie" ? "Hoodie" : "Tee"} • {order.customer_size} → supplier {order.supplier_size}</p></div>
+      <b className={styles.calculatorBalance}>{totals.complete ? "Complete ✓" : `${money(totals.remaining)} left`}</b>
+    </header>
+    <label className={cn(styles.calculatorTask,order.design_ready&&styles.calculatorTaskDone)}>
+      <input type="checkbox" checked={order.design_ready} onChange={(event)=>toggle("design_ready",event.target.checked)}/><span><b>Design ready</b><small>{order.design_name}</small></span><strong>FILE</strong>
+    </label>
+    {garmentComponents.map((item)=><label className={cn(styles.calculatorTask,item.complete&&styles.calculatorTaskDone)} key={item.key}>
+      <input type="checkbox" checked={item.complete} onChange={(event)=>toggle(item.key,event.target.checked)}/><span><b>{item.label}</b><small>{item.detail}</small></span><strong>{money(item.value)}</strong>
+    </label>)}
+    <label className={cn(styles.calculatorTask,delivery.complete&&styles.calculatorTaskDone)}>
+      <input type="checkbox" checked={delivery.complete} onChange={(event)=>toggle("delivery_complete",event.target.checked)}/><span><b>Delivery</b><small>{delivery.detail}</small></span><strong>{money(delivery.value)}</strong>
+    </label>
+    <div className={cn(styles.calculatorPrint,order.printing_complete&&styles.calculatorTaskDone)}>
+      <label className={styles.calculatorPrintCheck}><input type="checkbox" checked={order.printing_complete} onChange={(event)=>toggle("printing_complete",event.target.checked)}/><span><b>Printing complete</b><small>{order.custom_print ? "Custom print" : "Standard print"}</small></span></label>
+      <div className={styles.calculatorPrintOptions}>
+        <label className={order.print_size === "a3_plus" ? styles.calculatorPrintActive : undefined}><input type="radio" name={`print-${order.id}`} checked={order.print_size === "a3_plus"} onChange={()=>onPatch(order,"print_size","a3_plus")}/><span>A3+</span><b>{money(order.a3_plus_cost)}</b></label>
+        <label className={order.print_size === "a4" ? styles.calculatorPrintActive : undefined}><input type="radio" name={`print-${order.id}`} checked={order.print_size === "a4"} onChange={()=>onPatch(order,"print_size","a4")}/><span>A4</span><b>{money(order.a4_cost)}</b></label>
+      </div>
+    </div>
+    <footer className={styles.calculatorOrderFoot}><span>Total {money(totals.total)}</span><button onClick={()=>onEdit(order)}>Edit details</button></footer>
+  </article>;
 }
 
 function ProductionCard({ order, index, onPatch, onEdit }: any) { const totals=orderTotals(order); const components=orderCostComponents(order); const garmentComponents=components.filter((item)=>!["printing_complete","delivery_complete"].includes(item.key)); const doneCount=components.filter((item)=>item.complete).length+(order.design_ready?1:0); const pct=Math.round(doneCount/(components.length+1)*100); return <article className={cn(styles.prodCard,totals.complete&&styles.prodDone)}><div className={styles.prodHead}><div><div className={styles.eyebrow}>#{String(index+1).padStart(2,"0")}</div><h3>{order.customer_name}</h3><p>{order.colour} {order.garment_type==="hoodie"?"Hoodie":"Tee"} • {order.customer_size} → supplier {order.supplier_size}</p></div><span className={styles.orderBal}>{totals.complete?"ORDER COMPLETE ✓":`${money(totals.remaining)} left`}</span></div><CheckRow checked={order.design_ready} label="Print file / design ready" detail={order.design_name} value="✓" onChange={(value: boolean)=>onPatch(order,"design_ready",value)}/>{garmentComponents.map((item)=><CheckRow key={item.key} checked={item.complete} label={item.label} detail={item.detail} value={money(item.value)} onChange={(value: boolean)=>onPatch(order,item.key,value)}/>)}<div className={cn(styles.selectRow,order.delivery_complete&&styles.checked)}><input aria-label="Delivery complete" type="checkbox" checked={order.delivery_complete} onChange={(event)=>onPatch(order,"delivery_complete",event.target.checked)}/><div><b>Delivery</b><span>{order.delivery_method==="paxi"?"PAXI":"Aramex"}</span></div><select aria-label="Delivery method" value={order.delivery_method} onChange={(event)=>onPatch(order,"delivery_method",event.target.value)}><option value="aramex">Aramex • {money(order.aramex_cost)}</option><option value="paxi">PAXI • {money(order.paxi_cost)}</option></select></div><div className={cn(styles.selectRow,order.printing_complete&&styles.checked)}><input aria-label="Printing complete" type="checkbox" checked={order.printing_complete} onChange={(event)=>onPatch(order,"printing_complete",event.target.checked)}/><div><b>Printing</b><span>{order.custom_print?"Custom print":"Standard print"}</span></div><select aria-label="Print size" value={order.print_size} onChange={(event)=>onPatch(order,"print_size",event.target.value)}><option value="a3_plus">A3+ • {money(order.a3_plus_cost)}</option><option value="a4">A4 • {money(order.a4_cost)}</option></select></div><div className={styles.progress}><span style={{width:`${pct}%`}}/></div><div className={styles.actions} style={{marginTop:10}}><button className={cn(styles.btn,styles.secondary,styles.small)} onClick={()=>onEdit(order)}>Edit / override costs</button></div></article>; }
