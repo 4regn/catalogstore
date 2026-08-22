@@ -102,6 +102,7 @@ interface SocialLinks {
 }
 
 interface StoreConfig {
+  four_regn_live_chat_enabled?: boolean;
   show_banner_text: boolean; show_marquee: boolean; show_collections: boolean;
   show_about: boolean; show_trust_bar: boolean; show_policies: boolean;
   show_newsletter: boolean; show_announcement: boolean; announcement: string;
@@ -409,6 +410,7 @@ export default function Dashboard() {
   const [activeConversationMessages, setActiveConversationMessages] = useState<{ id: string; sender: string; body: string; created_at: string }[]>([]);
   const [inboxReply, setInboxReply] = useState("");
   const [inboxReplySending, setInboxReplySending] = useState(false);
+  const [liveChatSaving, setLiveChatSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
@@ -869,27 +871,29 @@ export default function Dashboard() {
     setSubscribersLoaded(true);
   };
 
-  const fetchInbox = async () => {
+  const fetchInbox = async (silent = false) => {
     const token = await getAccessToken();
     if (!token) return;
-    setInboxLoading(true);
+    if (!silent) setInboxLoading(true);
     try {
       const res = await fetch(`/api/seller/support?accessToken=${encodeURIComponent(token)}`);
       const data = await res.json();
       if (res.ok) setInboxConversations(data.conversations || []);
     } catch {}
-    setInboxLoading(false);
+    if (!silent) setInboxLoading(false);
     setInboxLoaded(true);
   };
 
-  const openConversation = async (id: string) => {
-    setActiveConversationId(id);
+  const openConversation = async (id: string, background = false) => {
+    if (!background) setActiveConversationId(id);
     const token = await getAccessToken();
     if (!token) return;
     const res = await fetch(`/api/seller/support/${id}?accessToken=${encodeURIComponent(token)}`);
     const data = await res.json();
-    if (res.ok) setActiveConversationMessages(data.messages || []);
-    setInboxConversations((prev) => prev.map((c) => c.id === id ? { ...c, seller_unread: 0 } : c));
+    if (res.ok) {
+      setActiveConversationMessages(data.messages || []);
+      setInboxConversations((prev) => prev.map((c) => c.id === id ? { ...c, seller_unread: 0 } : c));
+    }
   };
 
   const sendInboxReply = async () => {
@@ -911,6 +915,46 @@ export default function Dashboard() {
     } catch {}
     setInboxReplySending(false);
   };
+
+  const setFourRegnLiveChatEnabled = async (enabled: boolean) => {
+    if (!seller || liveChatSaving) return;
+    setLiveChatSaving(true);
+    const previousSeller = seller;
+    const previousStoreConfig = storeConfig;
+    const nextConfig: StoreConfig = {
+      ...(seller.store_config || storeConfig),
+      four_regn_live_chat_enabled: enabled,
+    };
+
+    // Optimistic UI keeps the switch immediate; a failed save is rolled back.
+    setSeller({ ...seller, store_config: nextConfig });
+    setStoreConfig((current) => ({ ...current, four_regn_live_chat_enabled: enabled }));
+    const { error } = await supabase.from("sellers").update({ store_config: nextConfig }).eq("id", seller.id);
+    if (error) {
+      setSeller(previousSeller);
+      setStoreConfig(previousStoreConfig);
+      alert("Could not update live chat: " + error.message);
+    } else {
+      revalidateMyStore();
+    }
+    setLiveChatSaving(false);
+  };
+
+  // Inbox replies should feel like chat, not email. Refresh the conversation
+  // list and the open thread without flashing the loading screen.
+  useEffect(() => {
+    if (tab !== "inbox" || !seller) return;
+    const refresh = async () => {
+      await fetchInbox(true);
+      if (activeConversationId) await openConversation(activeConversationId, true);
+    };
+    void refresh();
+    const interval = window.setInterval(() => { void refresh(); }, 5_000);
+    return () => window.clearInterval(interval);
+    // These values define which seller/thread is being watched. The helper
+    // functions intentionally use the latest access token on every poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, seller?.id, activeConversationId]);
 
   const refreshDomainStatus = async () => {
     const token = await getAccessToken();
@@ -1634,7 +1678,7 @@ export default function Dashboard() {
         ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Production", icon: "orders" as DashIconName, action: () => router.push("/production") }] : []),
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
         { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
-        ...(seller?.template === "velour" ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
+        ...((seller?.template === "velour" || seller?.template === "4regn" || seller?.subdomain === "4regn") ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
         ...(seller?.template === "unik-labs" ? [{ key: "team" as TabKey, name: "Brand Manager", icon: "affiliate" as DashIconName }] : []),
       ],
     },
@@ -2378,6 +2422,35 @@ export default function Dashboard() {
           {tab === "inbox" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Inbox</h1>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Messages from customers via your storefront&apos;s live chat.</p>
+            {(seller?.template === "4regn" || seller?.subdomain === "4regn") && (() => {
+              const enabled = seller.store_config?.four_regn_live_chat_enabled === true;
+              return (
+                <div style={{ marginBottom: 18, padding: "18px 18px 17px", borderRadius: 18, background: "linear-gradient(135deg,#070707 0%,#151515 72%,#21100e 100%)", color: "#fff", border: "1px solid rgba(255,255,255,.1)", boxShadow: "0 16px 42px rgba(0,0,0,.18)", overflow: "hidden", position: "relative" }}>
+                  <div aria-hidden="true" style={{ position: "absolute", width: 150, height: 150, borderRadius: "50%", border: "1px solid rgba(227,66,52,.3)", right: -70, top: -90, boxShadow: "0 0 0 28px rgba(227,66,52,.035)" }} />
+                  <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: enabled ? "#45c87a" : "rgba(255,255,255,.28)", boxShadow: enabled ? "0 0 0 4px rgba(69,200,122,.12)" : "none" }} />
+                        <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: ".16em", color: enabled ? "#70df9c" : "rgba(255,255,255,.46)", textTransform: "uppercase" as const }}>{enabled ? "Visible on 4REGN" : "Hidden from storefront"}</span>
+                      </div>
+                      <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontStyle: "italic", marginBottom: 5 }}>4REGN Live Chat</div>
+                      <p style={{ margin: 0, maxWidth: 530, fontSize: 11, lineHeight: 1.55, color: "rgba(255,255,255,.58)" }}>{enabled ? "Customers can message 4REGN from the live store. New messages and replies update here automatically." : "Live chat is off by default. Turn it on when you are ready for the button to appear on the storefront."}</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={enabled}
+                      aria-label="Show live chat on the 4REGN storefront"
+                      disabled={liveChatSaving}
+                      onClick={() => void setFourRegnLiveChatEnabled(!enabled)}
+                      style={{ flex: "0 0 auto", width: 58, height: 32, padding: 3, borderRadius: 999, border: enabled ? "1px solid #e34234" : "1px solid rgba(255,255,255,.18)", background: enabled ? "#e34234" : "rgba(255,255,255,.09)", cursor: liveChatSaving ? "wait" : "pointer", opacity: liveChatSaving ? .58 : 1, transition: "all .2s ease" }}
+                    >
+                      <span style={{ display: "block", width: 24, height: 24, borderRadius: "50%", background: "#fff", transform: enabled ? "translateX(26px)" : "translateX(0)", transition: "transform .2s ease", boxShadow: "0 3px 10px rgba(0,0,0,.28)" }} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
             {activeConversationId ? (
               <div style={sectionCard}>
                 <button onClick={() => { setActiveConversationId(null); setActiveConversationMessages([]); }} style={{ background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer", fontSize: 12, fontWeight: 700, marginBottom: 14, padding: 0 }}>&larr; Back to Inbox</button>

@@ -27,6 +27,11 @@ const LightboxGallery = dynamic(() => import("./FourRegnLightbox"), { ssr: false
 // renders at all (see the isHomeView/isCollectionView gate below).
 const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: false });
 
+// Disabled by default and only rendered when the seller turns it on. Keeping
+// it in a separate chunk means stores that leave chat off do not download any
+// of the widget's UI or polling code.
+const FourRegnLiveChat = dynamic(() => import("./FourRegnLiveChat"), { ssr: false });
+
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
 
@@ -50,6 +55,7 @@ type CtaTarget =
   | { type: "url"; url: string }
   | { type: "none" };
 interface StoreConfig {
+  four_regn_live_chat_enabled?: boolean;
   announcement?: string;
   show_announcement?: boolean;
   hero_image_position?: string;
@@ -3085,6 +3091,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             firing every 10s while they're trying to edit. */}
         {(isHomeView || isCollectionView) && !isEditMode && (
           <FourRegnSalesPopup slug={slug} isSubdomain={!!isSubdomain} />
+        )}
+
+        {/* 4REGN customer chat is opt-in. An absent flag is intentionally
+            false, so deploying this feature never changes the live store
+            until the seller enables it from Dashboard -> Inbox. */}
+        {config.four_regn_live_chat_enabled === true && !isEditMode && (
+          <FourRegnLiveChat sellerId={seller.id} />
         )}
 
         {/* NAV */}
