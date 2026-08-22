@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { extractLegacyImportedSizeChart, parseProductSizeChartHtml } from "@/lib/product-size-chart";
@@ -158,7 +158,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
   status: string; sort_order: number; description: string; created_at: string;
-  handle: string | null; source_url: string | null; size_chart_html: string | null;
+  handle: string | null; source_url: string | null; size_chart_html: string | null; tags: string[];
 }
 
 interface ProductUrlPreview {
@@ -230,7 +230,12 @@ interface VelourBooking {
 }
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
-const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url, size_chart_html";
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url, size_chart_html, tags";
+const cleanProductTags = (values: string[]) => Array.from(new Map(values
+  .flatMap((value) => String(value || "").split(","))
+  .map((value) => value.trim().replace(/\s+/g, " ").slice(0, 80))
+  .filter(Boolean)
+  .map((value) => [value.toLowerCase(), value])).values()).slice(0, 40);
 const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
 const displayOrderReference = (order: Pick<Order, "order_number" | "external_id">) =>
   order.external_id ? String(order.external_id).replace(/^#?/, "#") : `#${order.order_number}`;
@@ -439,6 +444,7 @@ export default function Dashboard() {
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState("");
   const [importPreview, setImportPreview] = useState<ProductUrlPreview | null>(null);
+  const [importTags, setImportTags] = useState<string[]>(["imports"]);
   const [browserImporterAvailable, setBrowserImporterAvailable] = useState(false);
   const [browserCaptureNeeded, setBrowserCaptureNeeded] = useState(false);
   const browserCaptureRequestRef = useRef<string | null>(null);
@@ -449,6 +455,7 @@ export default function Dashboard() {
   const [formPrice, setFormPrice] = useState("");
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
+  const [formTags, setFormTags] = useState<string[]>([]);
   const [formDescription, setFormDescription] = useState("");
   const [formSizeChartHtml, setFormSizeChartHtml] = useState("");
   const [formSourceUrl, setFormSourceUrl] = useState("");
@@ -462,6 +469,7 @@ export default function Dashboard() {
   const [positionInput, setPositionInput] = useState<{ id: string; value: string } | null>(null);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formSaving, setFormSaving] = useState(false);
+  const [formSaveError, setFormSaveError] = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editProductParamHandledRef = useRef(false);
@@ -1057,8 +1065,8 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormTags([]); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormSaveError(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormTags(p.tags || []); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
 
   const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
     const key = p.handle || p.id;
@@ -1183,8 +1191,11 @@ export default function Dashboard() {
     });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setFormSaving(true); setUploadProgress("");
-    const { data: { user } } = await supabase.auth.getUser(); if (!user) return;
+    e.preventDefault(); setFormSaving(true); setUploadProgress(""); setFormSaveError("");
+    const { data: { user } } = await supabase.auth.getUser(); if (!user) { setFormSaveError("Your session expired. Sign in again, then save the product."); setFormSaving(false); return; }
+    const cleanTags = cleanProductTags(formTags);
+    const tagCollections = storeCollections.filter((collection) => cleanTags.some((tag) => tag.toLowerCase() === collection.toLowerCase()));
+    const categoryForSave = cleanProductTags([formCategory, ...tagCollections]).join(", ");
     if (editingId) {
       let allImages = [...existingImages];
       let newUrls: string[] = [];
@@ -1193,24 +1204,28 @@ export default function Dashboard() {
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const cleanSourceUrl = formSourceUrl.trim() || null;
       const cleanSizeChartHtml = formSizeChartHtml.trim() || null;
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      if (error) { setFormSaveError(`Product was not saved: ${error.message}`); setFormSaving(false); return; }
+      setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore();
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, size_chart_html: formSizeChartHtml.trim() || null, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, description: formDescription, size_chart_html: formSizeChartHtml.trim() || null, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
       ]);
       const { data, error } = insertResult;
-      if (error || !data) { setFormSaving(false); return; }
+      if (error || !data) { setFormSaveError(`Product was not saved: ${error?.message || "No product was returned."}`); setFormSaving(false); return; }
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, uploadedUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const followUp: Record<string, unknown> = {};
       const allImages = [...existingImages, ...uploadedUrls];
       if (allImages.length > 0) { followUp.images = allImages; followUp.image_url = allImages[0] || null; }
       if (cv.length > 0) { followUp.variants = cv; }
-      if (Object.keys(followUp).length > 0) { await supabase.from("products").update(followUp).eq("id", data.id); }
+      if (Object.keys(followUp).length > 0) {
+        const { error: followUpError } = await supabase.from("products").update(followUp).eq("id", data.id);
+        if (followUpError) { setFormSaveError(`The product was created, but its photos or variants were not saved: ${followUpError.message}`); setFormSaving(false); return; }
+      }
       setProducts([{ ...data, images: allImages, image_url: allImages[0] || null, variants: cv }, ...products]);
       revalidateMyStore();
     }
@@ -1235,7 +1250,7 @@ export default function Dashboard() {
 
   const previewSupplierProduct = async () => {
     if (!importUrl.trim()) { setImportResult("Paste a Shein, Temu, Nike, or Superbalist product link first."); return; }
-    setImportLoading(true); setImportResult(""); setImportPreview(null); setBrowserCaptureNeeded(false);
+    setImportLoading(true); setImportResult(""); setImportPreview(null); setImportTags(["imports"]); setBrowserCaptureNeeded(false);
     try {
       const res = await fetch("/api/product-url-import", {
         method: "POST",
@@ -1279,6 +1294,7 @@ export default function Dashboard() {
     setFormDescription(importPreview.description || "");
     setFormSizeChartHtml(importPreview.sizeChartHtml || "");
     setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
+    setFormTags(cleanProductTags(importTags));
     setFormInStock(importPreview.inStock !== false);
     const capturedImages = (importPreview.images || []).slice(0, maxImages);
     const capturedFiles = capturedImages.map(dataUrlToImageFile).filter(Boolean) as File[];
@@ -1305,6 +1321,7 @@ export default function Dashboard() {
       price: p.price,
       old_price: p.old_price,
       category: p.category,
+      tags: p.tags || [],
       description: p.description,
       size_chart_html: p.size_chart_html,
       in_stock: p.in_stock,
@@ -1615,6 +1632,7 @@ export default function Dashboard() {
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff6b35)";
+  const productTagSuggestions = cleanProductTags(["imports", ...storeCollections, ...products.flatMap((product) => product.tags || [])]).sort((a, b) => a.localeCompare(b));
 
   // ── SHARED PRESENTATION TOKENS (12 inputs / 16 cards / 100 pills) ──────────
   const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" };
@@ -2565,6 +2583,10 @@ export default function Dashboard() {
                     <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{importPreview.price ? `${importPreview.currency === "ZAR" ? "R" : importPreview.currency + " "}${importPreview.price}` : "No price detected — enter your 4REGN selling price manually"}</div>
                     {!!importPreview.stockNote && <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 8 }}>{importPreview.stockNote}</div>}
                     {!!importPreview.warnings?.length && <div style={{ fontSize: 11, color: "#b45309", marginBottom: 10 }}>{importPreview.warnings.join(" ")}</div>}
+                    <div style={{ marginBottom: 12 }}>
+                      <ProductTagPicker value={importTags} onChange={setImportTags} suggestions={productTagSuggestions} accent={N} compact />
+                      <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Choose collection names or product tags now. The imported draft keeps them when you save it.</p>
+                    </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
                       <button type="button" onClick={useSupplierPreview} style={{ padding: "9px 14px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Use as Draft</button>
                       <a href={importPreview.sourceUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 14px", background: "var(--panel-2)", color: "var(--muted)", border: "1px solid var(--border)", borderRadius: 100, fontSize: 10, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Open source</a>
@@ -2791,6 +2813,11 @@ export default function Dashboard() {
                   </span>
                 </label>
 
+                <div style={{ marginBottom: 20, padding: "14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <ProductTagPicker value={formTags} onChange={setFormTags} suggestions={productTagSuggestions} accent={N} />
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 7 }}>Use <b>imports</b> for premium-product shipping. A tag matching a 4REGN collection name also places this product in that collection.</p>
+                </div>
+
                 {/* 6. COLLECTION with auto-create */}
                 <div style={{ marginBottom: 20 }}>
                   <label style={labelStyle}>Collection</label>
@@ -2833,6 +2860,7 @@ export default function Dashboard() {
                 </div>
 
                 {uploadProgress && <div style={{ marginTop: 12, fontSize: 12, color: N }}>{uploadProgress}</div>}
+                {formSaveError && <div role="alert" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626", fontSize: 11, fontWeight: 700 }}>{formSaveError}</div>}
                 {/* 7. SAVE */}
                 <button type="submit" disabled={formSaving} style={{ width: "100%", padding: "14px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: formSaving ? "not-allowed" : "pointer", opacity: formSaving ? 0.6 : 1, marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{formSaving ? "Saving..." : editingId ? "Save Changes" : "Save Product"}</button>
               </form>
@@ -4403,6 +4431,42 @@ export default function Dashboard() {
       )}
     </div>
   );
+}
+
+function ProductTagPicker({ value, onChange, suggestions, accent, compact = false }: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  suggestions: string[];
+  accent: string;
+  compact?: boolean;
+}) {
+  const [draft, setDraft] = useState("");
+  const listId = `product-tags-${useId().replace(/:/g, "")}`;
+  const selectedKeys = new Set(value.map((tag) => tag.toLowerCase()));
+  const visibleSuggestions = suggestions
+    .filter((tag) => !selectedKeys.has(tag.toLowerCase()))
+    .filter((tag) => !draft.trim() || tag.toLowerCase().includes(draft.trim().toLowerCase()))
+    .slice(0, compact ? 8 : 12);
+  const addTag = (tag = draft) => {
+    const next = cleanProductTags([...value, tag]);
+    if (next.length !== value.length || next.some((item, index) => item !== value[index])) onChange(next);
+    setDraft("");
+  };
+  const removeTag = (tag: string) => onChange(value.filter((item) => item.toLowerCase() !== tag.toLowerCase()));
+  return <div>
+    <label style={{ display: "block", fontSize: 10, fontWeight: 800, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 7 }}>Product tags</label>
+    {!!value.length && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 8 }}>
+      {value.map((tag) => <button key={tag.toLowerCase()} type="button" onClick={() => removeTag(tag)} title={`Remove ${tag}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 9px", border: `1px solid ${accent}33`, borderRadius: 100, background: `${accent}12`, color: accent, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>{tag}<span aria-hidden="true">×</span></button>)}
+    </div>}
+    <div style={{ display: "flex", gap: 7 }}>
+      <input list={listId} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === ",") { event.preventDefault(); addTag(); } else if (event.key === "Backspace" && !draft && value.length) removeTag(value[value.length - 1]); }} placeholder="Search or type a tag" style={{ flex: 1, minWidth: 0, padding: compact ? "9px 11px" : "10px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 11, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+      <datalist id={listId}>{suggestions.map((tag) => <option value={tag} key={tag.toLowerCase()} />)}</datalist>
+      <button type="button" onClick={() => addTag()} disabled={!draft.trim()} style={{ padding: "8px 12px", border: 0, borderRadius: 10, background: draft.trim() ? accent : "var(--panel-2)", color: draft.trim() ? "#fff" : "var(--muted-2)", fontSize: 10, fontWeight: 900, cursor: draft.trim() ? "pointer" : "default" }}>Add</button>
+    </div>
+    {!!visibleSuggestions.length && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 7 }}>
+      {visibleSuggestions.map((tag) => <button key={tag.toLowerCase()} type="button" onClick={() => addTag(tag)} style={{ padding: "5px 8px", background: "transparent", border: "1px dashed var(--border)", borderRadius: 100, color: "var(--muted-2)", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>+ {tag}</button>)}
+    </div>}
+  </div>;
 }
 
 /* Velour: one service card in the dashboard Services tab. The media
