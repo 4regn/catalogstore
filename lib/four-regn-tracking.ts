@@ -16,6 +16,7 @@ type TrackingOrder = {
   tracking_updated_at?: string | null;
   created_at?: string | null;
   shipping_option?: string | null;
+  customer_tracking_note?: string | null;
 };
 
 export function buildFourRegnTracking(order: TrackingOrder) {
@@ -30,6 +31,7 @@ export function buildFourRegnTracking(order: TrackingOrder) {
     cancelled,
     updatedAt: order.tracking_updated_at || order.created_at || null,
     shippingOption: order.shipping_option || null,
+    customerNote: String(order.customer_tracking_note || "").trim() || null,
     stages: FOUR_REGN_TRACKING_STAGES.map((stage, index) => ({
       ...stage,
       complete: !cancelled && currentIndex >= 0 && index <= currentIndex,

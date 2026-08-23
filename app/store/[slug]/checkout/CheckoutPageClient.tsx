@@ -40,6 +40,7 @@ export interface Seller {
     // comment.
     stitch_enabled?: boolean;
     float_enabled?: boolean;
+    payment_method_order?: string[];
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
@@ -49,6 +50,11 @@ export interface Seller {
 }
 
 interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; }
+const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
+const normalisePaymentOrder = (value: unknown) => {
+  const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_ORDER[number] => PAYMENT_METHOD_ORDER.includes(key as typeof PAYMENT_METHOD_ORDER[number])) : [];
+  return [...saved, ...PAYMENT_METHOD_ORDER.filter((key) => !saved.includes(key))];
+};
 const checkoutOrderReference = (value: string | number | null | undefined, isFourRegn: boolean) => {
   const raw = String(value || "").replace(/^#/, "");
   return isFourRegn && /^\d+$/.test(raw) ? `#${raw}D` : `#${raw}`;
@@ -656,12 +662,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       }
     } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
-    if (sd?.checkout_config?.yoco_enabled) setPaymentMethod("yoco");
-    else if (sd?.checkout_config?.stitch_enabled !== false) setPaymentMethod("stitch");
-    else if (sd?.checkout_config?.setla_enabled) setPaymentMethod("setla");
-    else if (sd?.checkout_config?.float_enabled) setPaymentMethod("float");
-    else if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
-    else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");
+    const checkoutConfig = sd?.checkout_config || {} as any;
+    const firstAvailablePayment = normalisePaymentOrder(checkoutConfig.payment_method_order).find((method) =>
+      method === "stitch" ? checkoutConfig.stitch_enabled !== false : Boolean(checkoutConfig[`${method}_enabled`])
+    );
+    if (firstAvailablePayment) setPaymentMethod(firstAvailablePayment);
     setLoading(false);
   };
 
@@ -669,6 +674,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   // Stitch is a platform-default payment method. A seller can only remove it
   // by saving an explicit false value from their dashboard.
   const stitchEnabled = cc.stitch_enabled !== false;
+  const paymentMethodOrder = normalisePaymentOrder(cc.payment_method_order);
+  const paymentDisplayOrder = (method: typeof PAYMENT_METHOD_ORDER[number]) => paymentMethodOrder.indexOf(method);
   // An import product forces exactly one premium method. Its configured
   // price/index remain the source of truth, while the customer-facing name
   // and delivery promise are fixed to 4regn's premium-product wording.
@@ -1411,7 +1418,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 <div className="section-head"><div><h2 className="section-title">Payment</h2><div className="section-kicker" style={{ marginTop: 7 }}>All transactions are secure and encrypted.</div></div></div>
                 <div className="choice-stack">
                   {cc.yoco_enabled && (
-                    <div className={"choice" + (paymentMethod === "yoco" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "yoco" ? " active" : "")} style={{ order: paymentDisplayOrder("yoco") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("yoco")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1429,7 +1436,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                   )}
 
                   {stitchEnabled && (
-                    <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")} style={{ order: paymentDisplayOrder("stitch") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("stitch")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1452,7 +1459,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                   )}
 
                   {cc.setla_enabled && (
-                    <div className={"choice" + (paymentMethod === "setla" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "setla" ? " active" : "")} style={{ order: paymentDisplayOrder("setla") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("setla")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1489,7 +1496,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                   )}
 
                   {cc.float_enabled && (
-                    <div className={"choice" + (paymentMethod === "float" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "float" ? " active" : "")} style={{ order: paymentDisplayOrder("float") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("float")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1506,7 +1513,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                   )}
 
                   {cc.eft_enabled && (
-                    <div className={"choice" + (paymentMethod === "eft" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "eft" ? " active" : "")} style={{ order: paymentDisplayOrder("eft") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("eft")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1812,9 +1819,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           {/* PAYMENT */}
           <h2 style={{ fontFamily: T.headFont, fontSize: 24, fontWeight: 400, marginBottom: 8 }}>Payment</h2>
           <p style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>All transactions are secure and encrypted.</p>
-          <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden", marginBottom: 32 }}>
+          <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden", marginBottom: 32, display: "flex", flexDirection: "column" }}>
             {cc.setla_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("setla") }}>
                 <div onClick={() => setPaymentMethod("setla")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "setla" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "setla" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1880,7 +1887,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {cc.yoco_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("yoco") }}>
                 <div onClick={() => setPaymentMethod("yoco")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "yoco" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "yoco" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1898,7 +1905,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {cc.float_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("float") }}>
                 <div onClick={() => setPaymentMethod("float")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "float" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "float" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1914,7 +1921,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {stitchEnabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("stitch") }}>
                 <div onClick={() => setPaymentMethod("stitch")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "stitch" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "stitch" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1934,7 +1941,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {cc.payfast_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("payfast") }}>
                 <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "payfast" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "payfast" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1953,7 +1960,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {cc.eft_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("eft") }}>
                 <div onClick={() => setPaymentMethod("eft")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, background: paymentMethod === "eft" ? T.selectBg : T.card }}>
                   <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "eft" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                   <span style={{ fontSize: 14, fontWeight: paymentMethod === "eft" ? 600 : 400 }}>EFT / Direct Deposit</span>

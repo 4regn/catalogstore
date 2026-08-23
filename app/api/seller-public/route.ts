@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
     // can explicitly turn it off in their dashboard. There are no merchant
     // credentials in this public response.
     stitch_enabled: cc.stitch_enabled !== false,
+    payment_method_order: Array.isArray(cc.payment_method_order) ? cc.payment_method_order : undefined,
     // Float credentials are server-only and shared by the approved 4REGN
     // merchant integration. Only this harmless availability flag is public.
     // Do not advertise Float until both server-side credentials exist in

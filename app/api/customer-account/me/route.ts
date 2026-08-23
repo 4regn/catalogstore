@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       .ilike("customer_email", normalizedEmail);
   }
   const ordersResult = await admin.from("orders")
-    .select("id, order_number, external_id, items, total, status, payment_status, shipping_option, shipping_address, created_at, tracking_updated_at")
+    .select("id, order_number, external_id, items, total, status, payment_status, shipping_option, shipping_address, created_at, tracking_updated_at, customer_tracking_note")
     .eq("seller_id", auth.seller.id)
     .eq("customer_id", auth.account.customer_id)
     .or("payment_status.eq.paid,status.in.(confirmed,processing,shipped,picked_up,in_transit,out_for_delivery,delivered)")

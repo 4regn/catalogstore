@@ -134,6 +134,8 @@ interface CheckoutConfig {
   eft_branch_code: string; eft_account_type: string; eft_instructions: string;
   payfast_enabled: boolean; payfast_merchant_id: string; payfast_merchant_key: string;
   stitch_enabled: boolean;
+  yoco_enabled: boolean; setla_enabled: boolean; float_enabled: boolean;
+  payment_method_order: string[];
   delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
   // is_premium: this option is ONLY offered when the cart contains a
   // product tagged "import"/"imports" (and, symmetrically, hidden from
@@ -201,7 +203,7 @@ interface Order {
   status: string; payment_status: string; created_at: string;
   tracking_updated_at?: string | null;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
-  fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null;
+  fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null; customer_tracking_note?: string | null;
 }
 
 interface LiveVisitor {
@@ -239,7 +241,13 @@ const cleanProductTags = (values: string[]) => Array.from(new Map(values
   .map((value) => value.trim().replace(/\s+/g, " ").slice(0, 80))
   .filter(Boolean)
   .map((value) => [value.toLowerCase(), value])).values()).slice(0, 40);
-const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
+const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes, customer_tracking_note";
+const PAYMENT_METHOD_KEYS = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
+const DEFAULT_PAYMENT_METHOD_ORDER = [...PAYMENT_METHOD_KEYS];
+const normalisePaymentMethodOrder = (value: unknown) => {
+  const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_KEYS[number] => PAYMENT_METHOD_KEYS.includes(key as typeof PAYMENT_METHOD_KEYS[number])) : [];
+  return [...saved, ...DEFAULT_PAYMENT_METHOD_ORDER.filter((key) => !saved.includes(key))];
+};
 const displayOrderReference = (order: Pick<Order, "order_number" | "external_id">) =>
   order.external_id ? String(order.external_id).replace(/^#?/, "#") : `#${order.order_number}`;
 const toDateTimeLocalValue = (iso?: string | null) => {
@@ -553,7 +561,7 @@ export default function Dashboard() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [growDismissed, setGrowDismissed] = useState(() => typeof window !== "undefined" && localStorage.getItem("cs_grow_dismissed") === "1");
   const growSessionCounted = useRef(false);
-  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", stitch_enabled: true, delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
+  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", stitch_enabled: true, yoco_enabled: false, setla_enabled: false, float_enabled: false, payment_method_order: DEFAULT_PAYMENT_METHOD_ORDER, delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
   const [checkoutView, setCheckoutView] = useState<"payments" | "shipping">("payments");
   const [checkoutSaving, setCheckoutSaving] = useState(false);
   const [checkoutSaved, setCheckoutSaved] = useState(false);
@@ -563,6 +571,10 @@ export default function Dashboard() {
   const [newShipPremium, setNewShipPremium] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderPaymentStatusFilter, setOrderPaymentStatusFilter] = useState("all");
+  const [orderFulfillmentStatusFilter, setOrderFulfillmentStatusFilter] = useState("all");
+  const [orderPaymentMethodFilter, setOrderPaymentMethodFilter] = useState("all");
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
   // Real OS-level push notifications for new orders (see lib/push-notify.ts)
   // -- distinct from the Realtime toast/chime above, which only fires while
@@ -700,7 +712,7 @@ export default function Dashboard() {
     // subscription setup -- selecting "free" instead lands as subscription_status
     // "free" (already active, no gate needed).
     if (sd?.subscription_status === "pending") { router.push("/dashboard/billing"); return; }
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c: any = effectiveStoreConfig(sd); setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", privacy_policy: c.privacy_policy || "", terms_of_service: c.terms_of_service || "", free_ship_threshold: c.free_ship_threshold ?? null, collection_images: c.collection_images || {}, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", stitch_enabled: cc.stitch_enabled !== false, delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c: any = effectiveStoreConfig(sd); setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", privacy_policy: c.privacy_policy || "", terms_of_service: c.terms_of_service || "", free_ship_threshold: c.free_ship_threshold ?? null, collection_images: c.collection_images || {}, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", stitch_enabled: cc.stitch_enabled !== false, yoco_enabled: !!cc.yoco_enabled, setla_enabled: !!cc.setla_enabled, float_enabled: !!cc.float_enabled, payment_method_order: normalisePaymentMethodOrder(cc.payment_method_order), delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
     if (pdResult.data) setProducts(pdResult.data);
     if (odResult.data) {
       setOrders(odResult.data);
@@ -1575,6 +1587,16 @@ export default function Dashboard() {
   const isUnpaidGatewayOrder = (o: Order) => UNRESOLVED_PAYMENT_METHODS.includes(o.payment_method) && (o.payment_status === "pending" || o.payment_status === "abandoned" || o.payment_status === "failed");
   const visibleOrders = orders.filter((o) => !isUnpaidGatewayOrder(o));
   const abandonedOrders = orders.filter(isUnpaidGatewayOrder);
+  const filteredVisibleOrders = visibleOrders.filter((order) => {
+    if (orderPaymentStatusFilter !== "all" && order.payment_status !== orderPaymentStatusFilter) return false;
+    if (orderFulfillmentStatusFilter !== "all" && order.status !== orderFulfillmentStatusFilter) return false;
+    if (orderPaymentMethodFilter !== "all" && order.payment_method !== orderPaymentMethodFilter) return false;
+    const query = orderSearch.trim().toLowerCase();
+    if (!query) return true;
+    const itemText = (order.items || []).map((item) => `${item.name || ""} ${item.variant || ""}`).join(" ");
+    const haystack = [displayOrderReference(order), order.order_number, order.external_id, order.customer_name, order.customer_email, order.customer_phone, order.payment_method, order.payment_status, order.status, itemText].join(" ").toLowerCase();
+    return haystack.includes(query);
+  });
   const totalImageSlots = existingImages.length + formImages.length;
   const filteredProducts = products.filter((p) => { const status = p.status || "published"; if (status !== productFilter) return false; if (searchQuery) { const q = searchQuery.toLowerCase(); return p.name.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q); } return true; }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   // Rendering thousands of product rows in one page was the actual
@@ -2668,6 +2690,7 @@ export default function Dashboard() {
                         style={{ width: 80, height: 80, borderRadius: 12, overflow: "hidden", position: "relative" as const, border: (dragImgIdx === combinedIdx || touchDropIdx === combinedIdx) ? "2px solid " + N : "1px solid var(--border)", cursor: "grab", opacity: dragImgIdx === combinedIdx ? 0.5 : 1, transition: "opacity 0.15s, border-color 0.15s", touchAction: "none" }}
                       >
                         <img src={img.src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" as const, pointerEvents: "none" }} />
+                        <a href={img.src} target="_blank" rel="noreferrer" download title="Open image to save" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} style={{ position: "absolute" as const, top: 3, left: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,.7)", color: "#fff", display: "grid", placeItems: "center", textDecoration: "none", fontSize: 12, lineHeight: 1 }}>↗</a>
                         <button type="button" onClick={() => img.type === "existing" ? removeExistingImage(img.idx) : removeNewImage(img.idx)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>
                         {combinedIdx === 0 ? (
                           <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>
@@ -2679,7 +2702,7 @@ export default function Dashboard() {
                     {totalImageSlots < maxImages && (<button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 12, border: "1px dashed var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2 }}><span style={{ fontSize: 20, color: "var(--muted-2)" }}>+</span><span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Photo</span></button>)}
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: "none" }} />
                   </div>
-                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Drag photos to reorder. First photo is the main product image.</p>
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Drag photos to reorder. First photo is the main product image. Tap ↗ to open the original image, then long-press or use your browser&rsquo;s save option.</p>
                 </div>
 
                 {/* 2. NAME & 3. PRICE */}
@@ -3152,11 +3175,15 @@ export default function Dashboard() {
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Orders</h1><p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Track and manage incoming orders.</p></div>
               {selectedOrder && <button onClick={() => setSelectedOrder(null)} style={{ padding: "10px 20px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Orders</button>}
             </div>
+            {!selectedOrder && <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1fr) repeat(3, minmax(125px, auto))", gap: 8, marginBottom: 16 }} className="order-filter-grid">
+              <input value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Search order, customer, email, item, payment…" style={{ minWidth: 0, padding: "11px 13px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+              <select value={orderPaymentStatusFilter} onChange={(event) => setOrderPaymentStatusFilter(event.target.value)} style={{ padding: "11px 10px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12 }}><option value="all">All payments</option>{Array.from(new Set(visibleOrders.map((order) => order.payment_status).filter(Boolean))).map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}</select>
+              <select value={orderFulfillmentStatusFilter} onChange={(event) => setOrderFulfillmentStatusFilter(event.target.value)} style={{ padding: "11px 10px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12 }}><option value="all">All order statuses</option>{Array.from(new Set(visibleOrders.map((order) => order.status).filter(Boolean))).map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}</select>
+              <select value={orderPaymentMethodFilter} onChange={(event) => setOrderPaymentMethodFilter(event.target.value)} style={{ padding: "11px 10px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12 }}><option value="all">All methods</option>{Array.from(new Set(visibleOrders.map((order) => order.payment_method).filter(Boolean))).map((method) => <option key={method} value={method}>{method.replace(/_/g, " ")}</option>)}</select>
+            </div>}
             {!selectedOrder && visibleOrders.length > 0 && (
               <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>
-                {totalOrdersCount !== null && totalOrdersCount > visibleOrders.length
-                  ? `Showing ${visibleOrders.length} of ${totalOrdersCount} orders`
-                  : `${visibleOrders.length} order${visibleOrders.length !== 1 ? "s" : ""}`}
+                {filteredVisibleOrders.length} matching order{filteredVisibleOrders.length !== 1 ? "s" : ""}{totalOrdersCount !== null && totalOrdersCount > visibleOrders.length ? ` · ${visibleOrders.length} loaded of ${totalOrdersCount}` : ""}
               </p>
             )}
             {selectedOrder ? (
@@ -3189,6 +3216,11 @@ export default function Dashboard() {
                       <button key={s} onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ status: s, tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? c.bg : "var(--panel-2)", color: selectedOrder.status === s ? c.fg : "var(--muted-2)" }}>{s.replace(/_/g, " ")}</button>
                       );
                     })}
+                  </div>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 18, maxWidth: 640 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Customer tracking note</label>
+                    <textarea value={selectedOrder.customer_tracking_note || ""} onChange={(event) => { const updated = { ...selectedOrder, customer_tracking_note: event.target.value.slice(0, 1000) }; setSelectedOrder(updated); setOrders(orders.map((order) => order.id === updated.id ? updated : order)); }} placeholder="e.g. Delivery was delayed by the courier. We&rsquo;ll update you again tomorrow." rows={3} style={{ padding: "11px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const }} />
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" as const }}><span style={{ fontSize: 11, color: "var(--muted-2)" }}>Visible in the customer&rsquo;s account and 4REGN tracking page.</span><button type="button" onClick={async () => { const note = (selectedOrder.customer_tracking_note || "").trim() || null; const { error } = await supabase.from("orders").update({ customer_tracking_note: note }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, customer_tracking_note: note }; setSelectedOrder(updated); setOrders(orders.map((order) => order.id === updated.id ? updated : order)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "9px 13px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, cursor: "pointer" }}>Save note</button></div>
                   </div>
                   {seller?.subdomain === "4regn" && (() => {
                     const tracking = buildFourRegnTracking(selectedOrder);
@@ -3236,11 +3268,11 @@ export default function Dashboard() {
                   <div style={{ marginTop: 12, fontSize: 11, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Payment: {selectedOrder.payment_method || "N/A"}</div>
                 </div>
               </div>
-            ) : visibleOrders.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No orders yet</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>Orders will appear here when customers buy from your store.</p></div>
+            ) : filteredVisibleOrders.length === 0 ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>{visibleOrders.length ? "No matching orders" : "No orders yet"}</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>{visibleOrders.length ? "Try clearing or changing your filters." : "Orders will appear here when customers buy from your store."}</p></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {visibleOrders.map((order) => (
+                {filteredVisibleOrders.map((order) => (
                   <div key={order.id} onClick={() => setSelectedOrder(order)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--input-bg)"}>
                     <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const }}>Order {displayOrderReference(order)}</div><div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}><span>{order.customer_name || "Customer"}</span><span>{new Date(order.created_at).toLocaleDateString()}</span></div></div>
                     <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em" }}>R{order.total}</div>
@@ -4367,6 +4399,30 @@ export default function Dashboard() {
             </>)}
             {checkoutView === "payments" && (<>
             <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Checkout payment methods</h3>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14, lineHeight: 1.5 }}>Turn methods on or off, then use the arrows to set the exact checkout order. Only enabled methods appear to customers.</p>
+              {checkoutConfig.payment_method_order.map((key, index) => {
+                const labels: Record<string, { title: string; detail: string; field: keyof CheckoutConfig }> = {
+                  yoco: { title: "Yoco", detail: "Card payments", field: "yoco_enabled" },
+                  stitch: { title: "Stitch Pay Later", detail: "2–6 monthly instalments", field: "stitch_enabled" },
+                  setla: { title: "SETLA", detail: "Buy now, pay later", field: "setla_enabled" },
+                  float: { title: "Float", detail: "Buy now, pay later", field: "float_enabled" },
+                  payfast: { title: "PayFast", detail: "Your connected PayFast account", field: "payfast_enabled" },
+                  eft: { title: "EFT / Direct Deposit", detail: "Manual bank transfer", field: "eft_enabled" },
+                };
+                const method = labels[key];
+                if (!method) return null;
+                const enabled = Boolean(checkoutConfig[method.field]);
+                const move = (to: number) => { const next = [...checkoutConfig.payment_method_order]; [next[index], next[to]] = [next[to], next[index]]; setCheckoutConfig({ ...checkoutConfig, payment_method_order: next }); };
+                return <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderTop: index ? "1px solid var(--border)" : "none" }}>
+                  <button type="button" onClick={() => setCheckoutConfig({ ...checkoutConfig, [method.field]: !enabled })} aria-label={`Toggle ${method.title}`} style={{ width: 44, height: 26, flexShrink: 0, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: enabled ? (key === "stitch" ? "#6d3df5" : N) : "var(--toggle-off)" }}><span style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: enabled ? 21 : 3, transition: "left .2s" }} /></button>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{method.title}</div><div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{method.detail}</div></div>
+                  <span style={{ fontSize: 10, color: enabled ? "#22c55e" : "var(--muted-2)", fontWeight: 800, textTransform: "uppercase" as const }}>{enabled ? "On" : "Off"}</span>
+                  <div style={{ display: "flex", gap: 4 }}><button type="button" disabled={index === 0} onClick={() => move(index - 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === 0 ? "var(--muted-2)" : "var(--text)", cursor: index === 0 ? "not-allowed" : "pointer" }}>↑</button><button type="button" disabled={index === checkoutConfig.payment_method_order.length - 1} onClick={() => move(index + 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === checkoutConfig.payment_method_order.length - 1 ? "var(--muted-2)" : "var(--text)", cursor: index === checkoutConfig.payment_method_order.length - 1 ? "not-allowed" : "pointer" }}>↓</button></div>
+                </div>;
+              })}
+            </div>
+            <div style={sectionCard}>
               <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>EFT / Direct Deposit</h3>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)", marginBottom: 16 }}><span style={{ fontSize: 13 }}>Enable EFT Payments</span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, eft_enabled: !checkoutConfig.eft_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.eft_enabled ? N : "var(--toggle-off)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.eft_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
               {checkoutConfig.eft_enabled && (<div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
@@ -4379,15 +4435,6 @@ export default function Dashboard() {
               <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12 }}>Accept card payments. Enter your PayFast merchant credentials.</p>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)", marginBottom: 16 }}><span style={{ fontSize: 13 }}>Enable PayFast</span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, payfast_enabled: !checkoutConfig.payfast_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.payfast_enabled ? N : "var(--toggle-off)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.payfast_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
               {checkoutConfig.payfast_enabled && (<div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}><div><label style={labelStyle}>Merchant ID</label><input type="text" value={checkoutConfig.payfast_merchant_id} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, payfast_merchant_id: e.target.value })} placeholder="Your PayFast Merchant ID" style={inputStyle} /></div><div><label style={labelStyle}>Merchant Key</label><input type="password" value={checkoutConfig.payfast_merchant_key} onChange={(e) => setCheckoutConfig({ ...checkoutConfig, payfast_merchant_key: e.target.value })} placeholder="Your PayFast Merchant Key" style={inputStyle} /></div><p style={{ fontSize: 11, color: "var(--muted-2)" }}>Find these in your PayFast dashboard under Settings &gt; Integration.</p></div>)}
-            </div>
-            <div style={sectionCard}>
-              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Stitch Pay Later</h3>
-              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 12, lineHeight: 1.5 }}>Offer customers flexible payments over 2–6 monthly instalments through CatalogStore&rsquo;s Stitch account. Platform transaction fees apply.</p>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0" }}>
-                <span style={{ fontSize: 13 }}>Enable Stitch Pay Later</span>
-                <button onClick={() => setCheckoutConfig({ ...checkoutConfig, stitch_enabled: !checkoutConfig.stitch_enabled })} aria-label="Toggle Stitch Pay Later" style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.stitch_enabled ? "#6d3df5" : "var(--toggle-off)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.stitch_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button>
-              </div>
-              <p style={{ fontSize: 11, color: "var(--muted-2)", margin: "4px 0 0", lineHeight: 1.5 }}>Turn this off to hide Stitch at your checkout. A dedicated Stitch account can be connected later.</p>
             </div>
             <div style={{ marginBottom: 24, padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><div><h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>WhatsApp Checkout</h3><p style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 4 }}>Allow customers to place orders via WhatsApp message</p></div><button onClick={() => setCheckoutConfig({ ...checkoutConfig, whatsapp_checkout_enabled: !checkoutConfig.whatsapp_checkout_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.whatsapp_checkout_enabled ? "#25d366" : "var(--toggle-off)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.whatsapp_checkout_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
