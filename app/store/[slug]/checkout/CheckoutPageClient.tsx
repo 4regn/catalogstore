@@ -8,7 +8,7 @@ import { usesCleanStorePaths, storePath } from "../../../../lib/store-url";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
-import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
+import { trackStorefrontEvent, useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
 import { buildCheckoutShippingOptions, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 
 export interface Seller {
@@ -352,7 +352,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<{ order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; _processing?: boolean; _timedOut?: boolean } | null>(null);
+  const [paidOrder, setPaidOrder] = useState<{ id?: string; order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; payment_status?: string; status?: string; _processing?: boolean; _timedOut?: boolean } | null>(null);
   const storefrontCartKey = `catalogstore-cart-v1:${(initialSeller?.subdomain || slug).toLowerCase()}`;
 
   // Keep the saved cart during a cancelled/failed/pending gateway attempt so
@@ -414,6 +414,30 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     customerEmail: email,
     cartItems: cart.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant, image: i.image })),
   });
+
+  useEffect(() => {
+    if (!seller?.id || !paidOrder || paidOrder._processing) return;
+    if (!(paidOrder.payment_status === "paid" || paidOrder.status === "confirmed" || paidOrder.status === "delivered")) return;
+    const orderId = String(paidOrder.id || paidOrder.order_number || "");
+    if (!orderId) return;
+    const attributionKey = `catalogstore-cart-booster-attribution-v1:${slug.toLowerCase()}`;
+    const completionKey = `catalogstore-cart-booster-completed-v1:${orderId}`;
+    try {
+      if (localStorage.getItem(completionKey)) return;
+      const attribution = JSON.parse(localStorage.getItem(attributionKey) || "null");
+      if (!attribution?.addedAt || Date.now() - Number(attribution.addedAt) >= 24 * 60 * 60 * 1000) return;
+      trackStorefrontEvent({
+        sellerId: seller.id,
+        eventType: "order_completed_after_upsell",
+        cartItemCount: (paidOrder.items || []).reduce((sum: number, item: any) => sum + (Number(item.qty) || 0), 0),
+        cartValue: Number(paidOrder.total) || 0,
+        cartItems: paidOrder.items || [],
+        metadata: { ...(attribution.metadata || {}), orderId },
+      });
+      localStorage.setItem(completionKey, "1");
+      localStorage.removeItem(attributionKey);
+    } catch {}
+  }, [paidOrder, seller?.id, slug]);
 
   useEffect(() => { load(); }, [slug]);
 
@@ -649,10 +673,21 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  // Shared BXGY calculator determines the payable merchandise amount used
+  // by both the order summary and 4REGN's R449 delivery qualification.
+  const automaticDiscount = (() => {
+    const rules = seller?.automatic_bxgy_discounts || [];
+    if (!rules.length || !cart.length) return { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
+    const productById = new Map(sellerProducts.map((p) => [p.id, p]));
+    const productByName = new Map(sellerProducts.map((p) => [p.name.toLowerCase(), p]));
+    const priced = cart.map((i) => ({ name: i.name, price: i.price, qty: i.qty, category: (i.id ? productById.get(i.id) : undefined)?.category ?? productByName.get(i.name.toLowerCase())?.category }));
+    return computeAutomaticBxgyDiscount(rules, priced);
+  })();
+  const deliveryQualifyingSubtotal = Math.max(0, subtotal - automaticDiscount.totalDiscount);
   const shippingOptionsConfigured = buildCheckoutShippingOptions(cc.shipping_options, {
     subdomain: seller?.subdomain,
     template: seller?.template,
-    subtotal,
+    subtotal: deliveryQualifyingSubtotal,
     hasImportProduct: cartHasImport,
   });
   const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
@@ -803,28 +838,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       </span>
     );
   };
-
-  // Automatic Buy X Get Y savings -- live preview so the customer sees it
-  // before they even reach place-order, computed with the exact same
-  // function that call makes the real charge with (lib/automatic-discounts.ts),
-  // just fed cart/sellerProducts instead of server-truth line items. Matches
-  // cart items to their category by name, same lookup convention the
-  // existing collection-scoped discount-code math above already uses.
-  const automaticDiscount = (() => {
-    const rules = seller?.automatic_bxgy_discounts || [];
-    if (!rules.length || !cart.length) return { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
-    // Match by id first, not name -- sellerProducts includes every product
-    // row regardless of status (trashed/duplicate-named products included,
-    // same unfiltered query used by the collection-discount-code matching
-    // above), so a name-only Map can silently resolve to the wrong row's
-    // category when two products share a name. Cart items already carry
-    // the real product id (see FourRegnStore.tsx's goToCheckout), so this
-    // is both more correct and a no-op for the common case.
-    const productById = new Map(sellerProducts.map((p) => [p.id, p]));
-    const productByName = new Map(sellerProducts.map((p) => [p.name.toLowerCase(), p]));
-    const priced = cart.map((i) => ({ name: i.name, price: i.price, qty: i.qty, category: (i.id ? productById.get(i.id) : undefined)?.category ?? productByName.get(i.name.toLowerCase())?.category }));
-    return computeAutomaticBxgyDiscount(rules, priced);
-  })();
 
   // Calculate discount based on type
   const calcDiscount = () => {

@@ -3,13 +3,15 @@
 import { useState, useEffect, useLayoutEffect, useRef, useTransition, Fragment, type TouchEvent as ReactTouchEvent } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { parseProductSizeChartHtml } from "@/lib/product-size-chart";
+import { extractLegacyImportedSizeChart, resolveProductSizeChart } from "@/lib/product-size-chart";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
-import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { trackStorefrontEvent, useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../lib/automatic-discounts";
 import { FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM } from "../../../lib/four-regn-shipping";
+import { effectiveProductPrice } from "../../../lib/product-pricing";
+import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
 
 // Only ever rendered after a click/keyboard interaction (see `lightbox`
 // state below) -- never needed for first paint, so it's split into its own
@@ -235,14 +237,17 @@ interface PromoBadge {
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 const fmt = (n: number) => "R " + n.toLocaleString("en-ZA");
-const variantDelta = (product: Product, selected: { [key: string]: string }): number =>
-  (Array.isArray(product.variants) ? product.variants : []).reduce((sum, v) => {
-    const chosen = selected[v.name];
-    const d = chosen ? v.priceDelta?.[chosen] : undefined;
-    return sum + (typeof d === "number" ? d : 0);
-  }, 0);
 const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
-  Math.max(0, product.price + variantDelta(product, selected));
+  effectiveProductPrice(product.price, product.variants, selected);
+
+type CartBoosterResponse = {
+  threshold: number;
+  rawSubtotal: number;
+  payableSubtotal: number;
+  gap: number;
+  unlocked: boolean;
+  recommendations: RankedCartBoosterProduct[];
+};
 // The full photo SET for whichever option value is currently selected
 // (e.g. every photo tagged under the White option of a "Colour" variant
 // group -- a single value can legitimately have several: front, back,
@@ -816,6 +821,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [cartHydrated, setCartHydrated] = useState(false);
   const [automaticBxgyDiscounts, setAutomaticBxgyDiscounts] = useState<AutomaticBxgyDiscount[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cartBooster, setCartBooster] = useState<CartBoosterResponse | null>(null);
+  const [cartBoosterSignature, setCartBoosterSignature] = useState("");
+  const [cartBoosterLoading, setCartBoosterLoading] = useState(false);
+  const [cartBoosterSelections, setCartBoosterSelections] = useState<Record<string, Record<string, string>>>({});
+  const cartBoosterImpressionRef = useRef("");
+  const cartBoosterUnlockedRef = useRef(false);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const wishlistStorageKey = seller?.subdomain ? `catalogstore-wishlist-v1:${seller.subdomain.toLowerCase()}` : null;
@@ -1231,6 +1242,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const changeQty = (idx: number, d: number) =>
     setCart((prev) => prev.map((i, n) => n === idx ? { ...i, qty: Math.max(1, i.qty + d) } : i));
 
+  const cartTrackingItems = () => cart.map((item) => ({
+    id: item.product.id,
+    name: item.product.name,
+    price: effectivePrice(item.product, item.selectedVariants),
+    qty: item.qty,
+    variant: Object.entries(item.selectedVariants).map(([key, value]) => `${key}: ${value}`).join(", "),
+    image: resolveVariantImage(item.product, item.selectedVariants) || item.product.image_url || "",
+  }));
+  const boosterAttributionKey = seller?.subdomain ? `catalogstore-cart-booster-attribution-v1:${seller.subdomain.toLowerCase()}` : null;
+
   const orderViaWhatsApp = () => {
     if (!seller) return;
     const lines = cart.map(i => {
@@ -1353,6 +1374,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // Same base64 `?cart=` encoding every other template uses -- the checkout
   // page decodes this param, not any client-side storage.
   const goToCheckout = () => {
+    if (seller?.id && boosterAttributionKey) {
+      try {
+        const attribution = JSON.parse(localStorage.getItem(boosterAttributionKey) || "null");
+        if (attribution?.addedAt && Date.now() - Number(attribution.addedAt) < 24 * 60 * 60 * 1000) {
+          trackStorefrontEvent({ sellerId: seller.id, eventType: "checkout_started_after_upsell", cartItemCount: cartCount, cartValue: cartPayableMerchandiseTotal, cartItems: cartTrackingItems(), metadata: attribution.metadata || {} });
+        }
+      } catch {}
+    }
     const payload = cart.map((i) => ({
       id: i.product.id,
       name: i.product.name,
@@ -1366,6 +1395,41 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     }));
     const encoded = btoa(JSON.stringify(payload));
     navigate(sp(`/checkout?cart=${encoded}`));
+  };
+
+  const addCartBoosterProduct = (recommendation: RankedCartBoosterProduct) => {
+    if (!seller?.id) return;
+    const selected = cartBoosterSelections[recommendation.id] || {};
+    const variantGroups = Array.isArray(recommendation.variants) ? recommendation.variants as Variant[] : [];
+    if (variantGroups.some((group) => Array.isArray(group.options) && group.options.length > 0 && !selected[group.name])) return;
+    const product: Product = {
+      id: recommendation.id,
+      name: recommendation.name,
+      price: Number(recommendation.price),
+      old_price: recommendation.old_price ?? null,
+      category: recommendation.category || "",
+      image_url: recommendation.image_url || null,
+      images: recommendation.images || [],
+      variants: variantGroups,
+      in_stock: recommendation.in_stock !== false,
+      description: "",
+      sort_order: Number(recommendation.sort_order) || 0,
+      tags: recommendation.tags || [],
+      handle: recommendation.handle || undefined,
+    };
+    const selectedPrice = effectivePrice(product, selected);
+    const metadata = {
+      cartSubtotalBefore: activeCartBooster?.payableSubtotal ?? cartPayableMerchandiseTotal,
+      gap: activeCartBooster?.gap ?? freeShipRem,
+      recommendedProductId: recommendation.id,
+      recommendedProductPrice: selectedPrice,
+      resultingSubtotal: recommendation.resultingSubtotal + (selectedPrice - recommendation.recommendationPrice),
+    };
+    addToCart(product, 1, selected);
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "free_delivery_upsell_add", cartItemCount: cartCount + 1, cartValue: metadata.resultingSubtotal, cartItems: [...cartTrackingItems(), { id: product.id, name: product.name, price: selectedPrice, qty: 1, variant: Object.entries(selected).map(([key, value]) => `${key}: ${value}`).join(", "), image: resolveVariantImage(product, selected) || product.image_url || "" }], metadata });
+    if (boosterAttributionKey) {
+      try { localStorage.setItem(boosterAttributionKey, JSON.stringify({ addedAt: Date.now(), metadata })); } catch {}
+    }
   };
 
   // Opening the cart is a strong checkout signal. Warm the shared checkout
@@ -1543,8 +1607,69 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.product.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
-  const FREE_SHIP = seller?.template === "4regn" ? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM : (seller?.store_config?.free_ship_threshold ?? null);
-  const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
+  const isFourRegnStore = seller?.subdomain === "4regn" || seller?.template === "4regn";
+  const FREE_SHIP = isFourRegnStore ? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM : (seller?.store_config?.free_ship_threshold ?? null);
+  const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartPayableMerchandiseTotal) : 0;
+  const cartBoosterRequestSignature = cart.map((item) => `${item.product.id}:${item.qty}:${JSON.stringify(item.selectedVariants)}`).join("|");
+  const activeCartBooster = cartBoosterSignature === cartBoosterRequestSignature ? cartBooster : null;
+  const boosterSubtotal = activeCartBooster?.payableSubtotal ?? cartPayableMerchandiseTotal;
+  const boosterGap = activeCartBooster?.gap ?? freeShipRem;
+  const boosterThreshold = activeCartBooster?.threshold ?? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM;
+  const boosterUnlocked = activeCartBooster?.unlocked ?? boosterGap <= 0;
+  const boosterProgress = Math.max(0, Math.min(100, (boosterSubtotal / boosterThreshold) * 100));
+
+  useEffect(() => {
+    if (!cartOpen || !cartHydrated || !seller?.subdomain || !cart.length || !isFourRegnStore) {
+      if (!cart.length) setCartBooster(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCartBoosterLoading(true);
+      try {
+        const response = await fetch("/api/storefront/cart-booster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ slug: seller.subdomain, items: cart.map((item) => ({ id: item.product.id, qty: item.qty, selectedVariants: item.selectedVariants })) }),
+        });
+        const data = await response.json().catch(() => null);
+        if (response.ok && data) { setCartBooster(data); setCartBoosterSignature(cartBoosterRequestSignature); }
+      } catch (error: any) {
+        if (error?.name !== "AbortError") setCartBooster(null);
+      } finally {
+        if (!controller.signal.aborted) setCartBoosterLoading(false);
+      }
+    }, 220);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [cartOpen, cartHydrated, seller?.subdomain, isFourRegnStore, cartBoosterRequestSignature]);
+
+  useEffect(() => {
+    if (!seller?.id || !cartOpen || boosterUnlocked || !activeCartBooster?.recommendations?.length) return;
+    const first = activeCartBooster.recommendations[0];
+    const key = `${activeCartBooster.payableSubtotal}:${first.id}`;
+    if (cartBoosterImpressionRef.current === key) return;
+    cartBoosterImpressionRef.current = key;
+    trackStorefrontEvent({
+      sellerId: seller.id,
+      eventType: "free_delivery_upsell_impression",
+      cartItemCount: cartCount,
+      cartValue: activeCartBooster.payableSubtotal,
+      cartItems: cartTrackingItems(),
+      metadata: { cartSubtotalBefore: activeCartBooster.payableSubtotal, gap: activeCartBooster.gap, recommendedProductId: first.id, recommendedProductPrice: first.recommendationPrice, resultingSubtotal: first.resultingSubtotal },
+    });
+  }, [cartOpen, activeCartBooster, boosterUnlocked, seller?.id]);
+
+  useEffect(() => {
+    if (!seller?.id || !activeCartBooster) return;
+    if (!activeCartBooster.unlocked) { cartBoosterUnlockedRef.current = false; return; }
+    if (cartBoosterUnlockedRef.current || !boosterAttributionKey) return;
+    let attribution: any = null;
+    try { attribution = JSON.parse(localStorage.getItem(boosterAttributionKey) || "null"); } catch {}
+    if (!attribution?.addedAt || Date.now() - Number(attribution.addedAt) >= 24 * 60 * 60 * 1000) return;
+    cartBoosterUnlockedRef.current = true;
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "free_delivery_threshold_reached", cartItemCount: cartCount, cartValue: activeCartBooster.payableSubtotal, cartItems: cartTrackingItems(), metadata: { ...(attribution.metadata || {}), resultingSubtotal: activeCartBooster.payableSubtotal } });
+  }, [activeCartBooster, seller?.id, boosterAttributionKey]);
 
   if (loading) {
     return (
@@ -2545,6 +2670,25 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cart-sub-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-cart-sub-amt{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--ink)}
 .fr-cart-ship{font-size:11px;color:rgba(46,42,57,0.55);margin-bottom:18px}
+.fr-cart-booster{margin:14px 0 16px;padding:15px;border:1px solid rgba(46,42,57,.12);border-radius:14px;background:#faf9f7;color:var(--ink)}
+.fr-cart-booster-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.fr-cart-booster-title{font-size:10px;line-height:1;letter-spacing:1.7px;font-weight:900;text-transform:uppercase}
+.fr-cart-booster-value{font-size:10px;color:rgba(46,42,57,.55);white-space:nowrap}
+.fr-cart-booster-track{height:7px;border-radius:999px;background:rgba(46,42,57,.1);overflow:hidden}
+.fr-cart-booster-fill{height:100%;border-radius:inherit;background:#00751f;transition:width .35s ease}
+.fr-cart-booster-status{margin:9px 0 0;font-size:11px;line-height:1.45;font-weight:800;text-transform:uppercase;letter-spacing:.045em;color:#00751f}
+.fr-cart-booster-copy{margin:4px 0 12px;font-size:11px;color:rgba(46,42,57,.62)}
+.fr-cart-booster-list{display:grid;gap:9px}
+.fr-cart-booster-product{display:grid;grid-template-columns:58px 1fr;gap:10px;padding-top:10px;border-top:1px solid rgba(46,42,57,.09)}
+.fr-cart-booster-img{width:58px;height:70px;object-fit:cover;border-radius:8px;background:#eee}
+.fr-cart-booster-name{font-family:var(--serif);font-size:12px;font-weight:800;line-height:1.25;margin:0 0 3px}
+.fr-cart-booster-price{font-size:11px;font-weight:800;margin-bottom:4px}
+.fr-cart-booster-note{font-size:9px;line-height:1.4;color:#00751f;font-weight:700;margin-bottom:6px}
+.fr-cart-booster-selects{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px}
+.fr-cart-booster-select{max-width:100%;min-width:90px;padding:7px 25px 7px 8px;border:1px solid rgba(46,42,57,.16);border-radius:7px;background:#fff;color:var(--ink);font-size:9px}
+.fr-cart-booster-add{width:100%;padding:9px 10px;border:0;border-radius:8px;background:#111;color:#fff;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}
+.fr-cart-booster-add:disabled{opacity:.42;cursor:not-allowed}
+.fr-cart-booster-loading{font-size:10px;color:rgba(46,42,57,.5);padding-top:8px}
 .fr-cart-stitch{margin:12px 0 16px;box-shadow:none}
 .fr-cart-import-note{background:rgba(0,117,31,0.06);border:1px solid rgba(0,117,31,0.2);border-radius:10px;padding:12px 14px;margin-bottom:16px}
 .fr-cart-import-note strong{display:block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#00751f;margin-bottom:4px}
@@ -2966,6 +3110,51 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span style={{ fontWeight: 800, fontSize: 13 }}>-{fmt(cartTotalSavings)}</span>
                 </div>
               )}
+              {isFourRegnStore && (
+                <section className="fr-cart-booster" aria-label="Free delivery progress and recommendations">
+                  <div className="fr-cart-booster-head">
+                    <span className="fr-cart-booster-title">Free delivery</span>
+                    <span className="fr-cart-booster-value">{fmt(boosterSubtotal)} / {fmt(boosterThreshold)}</span>
+                  </div>
+                  <div className="fr-cart-booster-track" role="progressbar" aria-valuemin={0} aria-valuemax={boosterThreshold} aria-valuenow={Math.min(boosterSubtotal, boosterThreshold)}>
+                    <div className="fr-cart-booster-fill" style={{ width: `${boosterProgress}%` }} />
+                  </div>
+                  <p className="fr-cart-booster-status">{boosterUnlocked ? "Free delivery unlocked ✓" : `${fmt(boosterGap)} away from free delivery`}</p>
+                  {!boosterUnlocked && <p className="fr-cart-booster-copy">Complete your order + unlock free delivery</p>}
+                  {!boosterUnlocked && (cartBoosterLoading || !activeCartBooster) && !activeCartBooster?.recommendations?.length && <div className="fr-cart-booster-loading">Finding the best match for your cart…</div>}
+                  {!boosterUnlocked && !!activeCartBooster?.recommendations?.length && (
+                    <div className="fr-cart-booster-list">
+                      {activeCartBooster.recommendations.map((recommendation) => {
+                        const groups = Array.isArray(recommendation.variants) ? recommendation.variants as Variant[] : [];
+                        const selected = cartBoosterSelections[recommendation.id] || {};
+                        const selectedPrice = effectiveProductPrice(recommendation.price, groups, selected);
+                        const allSelected = groups.every((group) => !group.options?.length || selected[group.name]);
+                        const unlocks = recommendation.unlocksFreeDelivery;
+                        const image = recommendation.image_url || recommendation.images?.[0] || "";
+                        const metadata = { cartSubtotalBefore: boosterSubtotal, gap: boosterGap, recommendedProductId: recommendation.id, recommendedProductPrice: selectedPrice, resultingSubtotal: recommendation.resultingSubtotal + (selectedPrice - recommendation.recommendationPrice) };
+                        return (
+                          <article className="fr-cart-booster-product" key={recommendation.id}>
+                            <button type="button" aria-label={`View ${recommendation.name}`} onClick={() => { trackStorefrontEvent({ sellerId: seller.id, eventType: "free_delivery_upsell_click", cartItemCount: cartCount, cartValue: boosterSubtotal, cartItems: cartTrackingItems(), metadata }); setCartOpen(false); navigate(sp(recommendation.handle ? `/products/${recommendation.handle}` : `/p/${recommendation.id}`)); }} style={{ border: 0, padding: 0, background: "none", cursor: "pointer" }}>
+                              {image ? <img className="fr-cart-booster-img" src={image} alt="" loading="lazy" /> : <span className="fr-cart-booster-img" />}
+                            </button>
+                            <div>
+                              <p className="fr-cart-booster-name">{recommendation.name}</p>
+                              <div className="fr-cart-booster-price">{fmt(selectedPrice)}</div>
+                              <div className="fr-cart-booster-note">{unlocks ? (recommendation.effectiveUpgradeCost && selectedPrice === recommendation.recommendationPrice ? `Pay R60 for delivery — or spend ${fmt(recommendation.effectiveUpgradeCost)} more and get this + FREE delivery.` : "Add this and unlock FREE delivery") : `${fmt(Math.max(0, boosterThreshold - recommendation.resultingSubtotal))} left after adding this`}</div>
+                              {groups.length > 0 && (
+                                <div className="fr-cart-booster-selects">
+                                  {groups.map((group) => <select className="fr-cart-booster-select" aria-label={`Choose ${group.name} for ${recommendation.name}`} key={group.name} value={selected[group.name] || ""} onChange={(event) => setCartBoosterSelections((current) => ({ ...current, [recommendation.id]: { ...(current[recommendation.id] || {}), [group.name]: event.target.value } }))}><option value="">Choose {group.name}</option>{group.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>)}
+                                </div>
+                              )}
+                              <button className="fr-cart-booster-add" type="button" disabled={!allSelected} onClick={() => addCartBoosterProduct(recommendation)}>{unlocks ? "Add + unlock free delivery" : "Add to cart"}</button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              )}
               {seller.checkout_config?.stitch_enabled && (
                 <div className="stitch-pay-later-widget fr-cart-stitch" aria-label="Stitch Pay Later cart calculator">
                   <img src="/checkout/stitch.png" alt="Stitch" />
@@ -2976,7 +3165,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   </div>
                 </div>
               )}
-              {FREE_SHIP && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more to unlock free PAXI Standard Delivery` : "Free PAXI Standard Delivery unlocked ✓"}</p>}
+              {FREE_SHIP && !isFourRegnStore && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more to unlock free PAXI Standard Delivery` : "Free PAXI Standard Delivery unlocked ✓"}</p>}
               <button className="fr-cart-checkout" onClick={goToCheckout}>Checkout</button>
               {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
                 <button className="fr-cart-wa" onClick={orderViaWhatsApp}>Order via WhatsApp</button>
@@ -3564,7 +3753,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // navigation/browsing but leaving every affected product's own
           // breadcrumb still announcing it defeats the point of hiding it.
           const firstRealCategory = catTokens.find((t) => !hiddenCollectionsSet.has(t)) || null;
-          const customSizeChart = parseProductSizeChartHtml(p.size_chart_html);
+          const customSizeChart = resolveProductSizeChart(p.size_chart_html, p.description);
+          const displayDescription = extractLegacyImportedSizeChart(p.description).description;
           const sizeChartType = getSizeChartType(p);
           // Sourced from searchProducts (the lazy client-side catalog fetch
           // above), not `products` -- the server route no longer runs a
@@ -3687,7 +3877,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </button>
                     )}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
-                    {p.description && isPromotionalDescription(p) && <DescriptionText text={p.description} promo />}
+                    {displayDescription && isPromotionalDescription(p) && <DescriptionText text={displayDescription} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
                         <button className="fr-pdp-add" disabled>Sold Out</button>
@@ -3703,7 +3893,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
-                    {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
+                    {displayDescription && !isPromotionalDescription(p) && <DescriptionText text={displayDescription} />}
                   </div>
                 </div>
               </div>
@@ -4220,7 +4410,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           overlay/close pattern as the policy modal below; table/tab content
           uses new fr-sc- classes. */}
       {sizeChartOpen && initialActiveProduct && (() => {
-        const customChart = parseProductSizeChartHtml(initialActiveProduct.size_chart_html);
+        const customChart = resolveProductSizeChart(initialActiveProduct.size_chart_html, initialActiveProduct.description);
         const sizeChartType = getSizeChartType(initialActiveProduct);
         const chart = customChart || (sizeChartType ? SIZE_CHARTS[sizeChartType] : null);
         if (!chart) return null;

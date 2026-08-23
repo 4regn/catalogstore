@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 const VISITOR_ID_KEY = "cs-visitor-id";
 const PING_INTERVAL_MS = 20_000;
 
-function getVisitorId(): string {
+export function getStorefrontVisitorId(): string {
   try {
     let id = localStorage.getItem(VISITOR_ID_KEY);
     if (!id) {
@@ -19,6 +19,39 @@ function getVisitorId(): string {
     // page loads, which is a cosmetic loss, not a functional one.
     return "v-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   }
+}
+
+export type StorefrontEventType =
+  | "page_view" | "add_to_cart" | "reached_checkout"
+  | "free_delivery_upsell_impression" | "free_delivery_upsell_click"
+  | "free_delivery_upsell_add" | "free_delivery_threshold_reached"
+  | "checkout_started_after_upsell" | "order_completed_after_upsell";
+
+export function trackStorefrontEvent(args: {
+  sellerId: string;
+  eventType: StorefrontEventType;
+  cartItemCount?: number;
+  cartValue?: number;
+  cartItems?: Array<{ id?: string; name: string; price: number; qty: number; variant?: string; image?: string }>;
+  metadata?: Record<string, unknown>;
+}) {
+  if (typeof window === "undefined" || !args.sellerId) return;
+  fetch("/api/storefront/heartbeat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    keepalive: true,
+    body: JSON.stringify({
+      sellerId: args.sellerId,
+      visitorId: getStorefrontVisitorId(),
+      status: args.cartItemCount ? "active_cart" : "browsing",
+      path: window.location.pathname,
+      cartItemCount: args.cartItemCount || 0,
+      cartValue: args.cartValue || 0,
+      cartItems: (args.cartItems || []).slice(0, 20),
+      eventType: args.eventType,
+      eventMetadata: args.metadata || {},
+    }),
+  }).catch(() => {});
 }
 
 /* Pings /api/storefront/heartbeat so the seller (or UNIK's Brand Manager)
@@ -39,7 +72,7 @@ export function useLiveVisitorPing(
 
   useEffect(() => {
     if (!sellerId) return;
-    if (!visitorIdRef.current) visitorIdRef.current = getVisitorId();
+    if (!visitorIdRef.current) visitorIdRef.current = getStorefrontVisitorId();
 
     const cartSignature = cartItems.map((i) => `${i.id || i.name}:${i.qty}:${i.variant || ""}`).join("|");
 

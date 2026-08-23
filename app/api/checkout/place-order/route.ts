@@ -3,6 +3,7 @@ import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { fetchActiveAutomaticBxgyDiscounts, computeAutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { buildCheckoutShippingOptions, isPremiumShippingOption, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
+import { variantPriceDelta } from "../../../../lib/product-pricing";
 
 /* Server-side order placement.
    The previous flow inserted directly from the browser using client-supplied
@@ -21,25 +22,8 @@ import { buildCheckoutShippingOptions, isPremiumShippingOption, type CheckoutShi
 
 type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string> };
 type ApplyTo = "cart" | "product" | "collection" | "shipping";
-type ProductVariant = { name: string; options: string[]; priceDelta?: Record<string, number> };
-
 const isUuid = (s: unknown): s is string =>
   typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
-
-/* Server-computed variant surcharge — never trust a client-sent price.
-   Sums the priceDelta for each selected option across the product's
-   variant groups; unknown groups/options or missing deltas contribute 0. */
-function variantPriceDelta(productVariants: unknown, selectedVariants: Record<string, string> | undefined): number {
-  if (!selectedVariants || !Array.isArray(productVariants)) return 0;
-  let delta = 0;
-  for (const group of productVariants as ProductVariant[]) {
-    const chosen = selectedVariants[group?.name];
-    if (chosen && group?.priceDelta && typeof group.priceDelta[chosen] === "number") {
-      delta += group.priceDelta[chosen];
-    }
-  }
-  return delta;
-}
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req);
@@ -186,11 +170,15 @@ export async function POST(req: NextRequest) {
   const bxgyRules = await fetchActiveAutomaticBxgyDiscounts(getAdmin(), seller.id);
   const automaticDiscount = bxgyRules.length ? computeAutomaticBxgyDiscount(bxgyRules, lineItems) : { totalDiscount: 0, applied: [] };
 
-  /* Shipping — server picks the price from checkout_config */
+  const payableMerchandiseSubtotal = Math.max(0, subtotal - automaticDiscount.totalDiscount);
+
+  /* Shipping — server picks the price from checkout_config. Free-delivery
+     qualification uses the merchandise total after automatic promotions,
+     exactly like the cart booster, never the compare-at/pre-promo amount. */
   let shippingCost = 0;
   let shippingLabel: string = fulfillment === "pickup" ? "Pickup" : "";
   if (fulfillment === "delivery") {
-    const opts: CheckoutShippingOption[] = buildCheckoutShippingOptions(cc.shipping_options, { subdomain: slug, template: undefined, subtotal, hasImportProduct });
+    const opts: CheckoutShippingOption[] = buildCheckoutShippingOptions(cc.shipping_options, { subdomain: slug, template: undefined, subtotal: payableMerchandiseSubtotal, hasImportProduct });
     const idx = Number(shippingOptionIndex);
     if (!opts.length || !Number.isFinite(idx) || idx < 0 || idx >= opts.length) {
       return NextResponse.json({ error: "Invalid shipping option" }, { status: 400 });

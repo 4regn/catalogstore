@@ -159,6 +159,7 @@ interface Product {
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
   status: string; sort_order: number; description: string; created_at: string;
   handle: string | null; source_url: string | null; size_chart_html: string | null; tags: string[];
+  metafields: Record<string, unknown>;
 }
 
 interface ProductUrlPreview {
@@ -230,7 +231,7 @@ interface VelourBooking {
 }
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
-const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url, size_chart_html, tags";
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url, size_chart_html, tags, metafields";
 const cleanProductTags = (values: string[]) => Array.from(new Map(values
   .flatMap((value) => String(value || "").split(","))
   .map((value) => value.trim().replace(/\s+/g, " ").slice(0, 80))
@@ -456,6 +457,8 @@ export default function Dashboard() {
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
   const [formTags, setFormTags] = useState<string[]>([]);
+  const [formCartBoosterIds, setFormCartBoosterIds] = useState<string[]>([]);
+  const [cartBoosterSearch, setCartBoosterSearch] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formSizeChartHtml, setFormSizeChartHtml] = useState("");
   const [formSourceUrl, setFormSourceUrl] = useState("");
@@ -1065,8 +1068,8 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormTags([]); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormSaveError(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormTags(p.tags || []); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormTags([]); setFormCartBoosterIds([]); setCartBoosterSearch(""); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormSaveError(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); const related = Array.isArray(p.metafields?.cart_booster_product_ids) ? p.metafields.cart_booster_product_ids.map(String) : []; setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormTags(p.tags || []); setFormCartBoosterIds(related); setCartBoosterSearch(""); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
 
   const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
     const key = p.handle || p.id;
@@ -1194,6 +1197,7 @@ export default function Dashboard() {
     e.preventDefault(); setFormSaving(true); setUploadProgress(""); setFormSaveError("");
     const { data: { user } } = await supabase.auth.getUser(); if (!user) { setFormSaveError("Your session expired. Sign in again, then save the product."); setFormSaving(false); return; }
     const cleanTags = cleanProductTags(formTags);
+    const cleanCartBoosterIds = [...new Set(formCartBoosterIds)].filter((id) => id !== editingId && products.some((product) => product.id === id)).slice(0, 20);
     const tagCollections = storeCollections.filter((collection) => cleanTags.some((tag) => tag.toLowerCase() === collection.toLowerCase()));
     const categoryForSave = cleanProductTags([formCategory, ...tagCollections]).join(", ");
     if (editingId) {
@@ -1204,15 +1208,17 @@ export default function Dashboard() {
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const cleanSourceUrl = formSourceUrl.trim() || null;
       const cleanSizeChartHtml = formSizeChartHtml.trim() || null;
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      const currentProduct = products.find((product) => product.id === editingId);
+      const metafields = { ...(currentProduct?.metafields || {}), cart_booster_product_ids: cleanCartBoosterIds };
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, metafields, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
       if (error) { setFormSaveError(`Product was not saved: ${error.message}`); setFormSaving(false); return; }
-      setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore();
+      setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, metafields, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore();
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, description: formDescription, size_chart_html: formSizeChartHtml.trim() || null, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, metafields: { cart_booster_product_ids: cleanCartBoosterIds }, description: formDescription, size_chart_html: formSizeChartHtml.trim() || null, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
       ]);
       const { data, error } = insertResult;
       if (error || !data) { setFormSaveError(`Product was not saved: ${error?.message || "No product was returned."}`); setFormSaving(false); return; }
@@ -1295,6 +1301,8 @@ export default function Dashboard() {
     setFormSizeChartHtml(importPreview.sizeChartHtml || "");
     setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
     setFormTags(cleanProductTags(importTags));
+    setFormCartBoosterIds([]);
+    setCartBoosterSearch("");
     setFormInStock(importPreview.inStock !== false);
     const capturedImages = (importPreview.images || []).slice(0, maxImages);
     const capturedFiles = capturedImages.map(dataUrlToImageFile).filter(Boolean) as File[];
@@ -2818,6 +2826,29 @@ export default function Dashboard() {
                   <ProductTagPicker value={formTags} onChange={setFormTags} suggestions={productTagSuggestions} accent={N} />
                   <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 7 }}>Use <b>imports</b> for premium-product shipping. A tag matching a 4REGN collection name also places this product in that collection.</p>
                 </div>
+
+                {seller?.subdomain === "4regn" && (
+                  <div style={{ marginBottom: 20, padding: "14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                    <label style={labelStyle}>Cart Booster matches</label>
+                    <p style={{ fontSize: 10, color: "var(--muted-2)", margin: "0 0 10px" }}>Choose products that should be recommended first when this item is in the cart below R449.</p>
+                    {formCartBoosterIds.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                        {formCartBoosterIds.map((id) => {
+                          const match = products.find((product) => product.id === id);
+                          return <button key={id} type="button" onClick={() => setFormCartBoosterIds((current) => current.filter((value) => value !== id))} style={{ padding: "7px 10px", borderRadius: 100, border: "1px solid rgba(255,107,53,.25)", background: "rgba(255,107,53,.08)", color: "var(--text)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>{match?.name || "Missing product"} &times;</button>;
+                        })}
+                      </div>
+                    )}
+                    <input value={cartBoosterSearch} onChange={(event) => setCartBoosterSearch(event.target.value)} placeholder="Search for a matched product" style={inputStyle} />
+                    {cartBoosterSearch.trim() && (
+                      <div style={{ marginTop: 6, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                        {products.filter((product) => product.id !== editingId && product.status === "published" && product.in_stock !== false && !formCartBoosterIds.includes(product.id) && product.name.toLowerCase().includes(cartBoosterSearch.trim().toLowerCase())).slice(0, 8).map((product) => (
+                          <button key={product.id} type="button" onClick={() => { setFormCartBoosterIds((current) => [...current, product.id]); setCartBoosterSearch(""); }} style={{ display: "flex", width: "100%", justifyContent: "space-between", gap: 12, padding: "10px 12px", border: "none", borderBottom: "1px solid var(--border)", background: "var(--panel-solid)", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 11 }}><span>{product.name}</span><strong>R{Number(product.price).toLocaleString("en-ZA")}</strong></button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 6. COLLECTION with auto-create */}
                 <div style={{ marginBottom: 20 }}>

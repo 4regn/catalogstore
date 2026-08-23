@@ -6,7 +6,25 @@ import { sastToday } from "../../../../lib/sast-time";
 export const dynamic = "force-dynamic";
 
 const STATUSES = new Set(["browsing", "active_cart", "checkout"]);
-const EVENT_TYPES = new Set(["page_view", "add_to_cart", "reached_checkout"]);
+const EVENT_TYPES = new Set([
+  "page_view", "add_to_cart", "reached_checkout",
+  "free_delivery_upsell_impression", "free_delivery_upsell_click",
+  "free_delivery_upsell_add", "free_delivery_threshold_reached",
+  "checkout_started_after_upsell", "order_completed_after_upsell",
+]);
+
+function safeEventMetadata(value: unknown): Record<string, string | number | boolean | null> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const allowed = new Set(["cartSubtotalBefore", "gap", "recommendedProductId", "recommendedProductPrice", "resultingSubtotal", "orderId"]);
+  const result: Record<string, string | number | boolean | null> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!allowed.has(key)) continue;
+    if (typeof raw === "number" && Number.isFinite(raw)) result[key] = Math.max(-1_000_000, Math.min(1_000_000, raw));
+    else if (typeof raw === "string") result[key] = raw.slice(0, 100);
+    else if (typeof raw === "boolean" || raw === null) result[key] = raw;
+  }
+  return result;
+}
 
 // Vercel populates these on every request that comes through its edge
 // network (both Edge and Node serverless functions), no third-party geo-IP
@@ -48,6 +66,7 @@ export async function POST(req: NextRequest) {
   const customerName = body?.customerName ? String(body.customerName).trim().slice(0, 160) || null : null;
   const customerEmail = body?.customerEmail ? String(body.customerEmail).trim().slice(0, 160) || null : null;
   const eventType = EVENT_TYPES.has(body?.eventType) ? body.eventType : null;
+  const eventMetadata = safeEventMetadata(body?.eventMetadata);
   const cartItems = Array.isArray(body?.cartItems)
     ? body.cartItems.slice(0, 20).map((item: any) => ({
         id: typeof item?.id === "string" ? item.id.slice(0, 80) : undefined,
@@ -161,6 +180,7 @@ export async function POST(req: NextRequest) {
       cart_item_count: cartItemCount,
       cart_value: cartValue,
       cart_items: cartItems,
+      event_metadata: eventMetadata,
       ...geo,
     };
     const { error: eventError } = await admin.from("store_visitor_events").insert(eventRow);
