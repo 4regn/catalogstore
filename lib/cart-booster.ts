@@ -61,6 +61,10 @@ function isAccessory(product: CartBoosterProduct): boolean {
   return /cap|beanie|accessor|bag|sock|belt|wallet|jewel|hat/i.test([product.name, product.category, ...(product.tags || [])].join(" "));
 }
 
+function isImported(product: CartBoosterProduct): boolean {
+  return (product.tags || []).some((tag) => /^imports?$/i.test(String(tag).trim()));
+}
+
 function marginRatio(product: CartBoosterProduct, price: number): number {
   const raw = product.metafields?.cost_price ?? product.metafields?.supplier_cost ?? product.metafields?.cost;
   const cost = Number(raw);
@@ -74,6 +78,7 @@ export function rankCartBoosterProducts(args: {
   threshold?: number;
   limit?: number;
   projectedSubtotal?: (candidate: CartBoosterProduct, recommendationPrice: number) => number;
+  popularityByProductId?: ReadonlyMap<string, number>;
 }): RankedCartBoosterProduct[] {
   const threshold = args.threshold ?? FOUR_REGN_CART_BOOSTER_THRESHOLD;
   const gap = Math.max(0, threshold - args.payableSubtotal);
@@ -83,8 +88,11 @@ export function rankCartBoosterProducts(args: {
   const manualIds = new Set(args.cartProducts.flatMap(cartBoosterRelationshipIds));
   const cartTokens = args.cartProducts.map(tokens);
   const cartCategories = args.cartProducts.map(categories);
+  // A general-product cart must never be encouraged to add an import. That
+  // would unexpectedly turn the whole order into a 7-14 working-day order.
+  const cartHasGeneralProduct = args.cartProducts.some((product) => !isImported(product));
   return args.candidates
-    .filter((candidate) => !cartIds.has(candidate.id) && candidate.in_stock !== false && candidate.status !== "draft")
+    .filter((candidate) => !cartIds.has(candidate.id) && candidate.in_stock !== false && candidate.status !== "draft" && (!cartHasGeneralProduct || !isImported(candidate)))
     .map((candidate) => {
       const price = minimumProductPrice(candidate.price, candidate.variants);
       const candidateTokens = tokens(candidate);
@@ -99,23 +107,27 @@ export function rankCartBoosterProducts(args: {
       const preferredFit = unlocks && price >= gap && price <= gap + 100;
       const variantGroups = Array.isArray(candidate.variants) ? candidate.variants : [];
       const lowFriction = variantGroups.length === 0;
+      const matchTier = manual || sharedTheme > 0 ? 0 : sharedCollection > 0 ? 1 : 2;
+      const popularity = Math.max(0, Number(args.popularityByProductId?.get(candidate.id) || 0));
       const reason: RankedCartBoosterProduct["reason"] = manual ? "manual" : sharedTheme > 0 ? "theme" : sharedCollection > 0 ? "collection" : unlocks ? "gap" : accessory ? "accessory" : "popular";
-      // The cheapest legitimate way to unlock free delivery must always win.
-      // Relationship, category and margin are only tie-breakers after a
-      // product reaches the threshold. This prevents a related R349 hoodie
-      // from displacing a R99 accessory when the customer is R99 away.
+      // A matching product family comes first: a Kelvin Momo item should
+      // offer Kelvin Momo caps before unrelated alphabetically-first items.
+      // Within that family, the cheapest threshold fit wins; popularity only
+      // breaks a genuine price/fit tie.
       const fitGroup = preferredFit ? 0 : unlocks ? 1 : 2;
       const relationshipScore = (manual ? 3 : 0) + sharedTheme * 2 + sharedCollection + (accessory ? 0.25 : 0) + marginRatio(candidate, price) * 0.01;
-      return { candidate, price, resultingSubtotal, unlocks, thresholdOverage, lowFriction, fitGroup, relationshipScore, reason };
+      return { candidate, price, resultingSubtotal, unlocks, thresholdOverage, lowFriction, fitGroup, matchTier, popularity, relationshipScore, reason };
     })
     // The primary upsell must actually unlock delivery. A non-unlocking
     // option is never useful in this flow and would leave the shopper short.
     .filter((entry) => entry.price > 0 && entry.unlocks)
     .sort((a, b) =>
+      a.matchTier - b.matchTier ||
       a.fitGroup - b.fitGroup ||
       a.thresholdOverage - b.thresholdOverage ||
       a.price - b.price ||
       Number(b.lowFriction) - Number(a.lowFriction) ||
+      b.popularity - a.popularity ||
       b.relationshipScore - a.relationshipScore ||
       a.candidate.name.localeCompare(b.candidate.name)
     )

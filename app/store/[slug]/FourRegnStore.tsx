@@ -3158,7 +3158,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         return (
                           <article className="fr-cart-booster-product" key={recommendation.id}>
                             <button type="button" aria-label={`View ${recommendation.name}`} onClick={() => { trackStorefrontEvent({ sellerId: seller.id, eventType: "free_delivery_upsell_click", cartItemCount: cartCount, cartValue: boosterSubtotal, cartItems: cartTrackingItems(), metadata }); setCartOpen(false); navigate(sp(recommendation.handle ? `/products/${recommendation.handle}` : `/p/${recommendation.id}`)); }} style={{ border: 0, padding: 0, background: "none", cursor: "pointer" }}>
-                              {image ? <img className="fr-cart-booster-img" src={image} alt="" loading="lazy" /> : <span className="fr-cart-booster-img" />}
+                              {image ? (image.includes(".supabase.co/storage/") ? <Image className="fr-cart-booster-img" src={image} alt="" width={58} height={70} sizes="58px" quality={60} /> : <img className="fr-cart-booster-img" src={image} alt="" loading="eager" decoding="async" />) : <span className="fr-cart-booster-img" />}
                             </button>
                             <div>
                               <p className="fr-cart-booster-name">{recommendation.name}</p>
