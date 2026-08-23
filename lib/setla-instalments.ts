@@ -90,6 +90,24 @@ export type SetlaFirstChargeMeta = {
   total: string;
 };
 
+/**
+ * Returns the exact amount SETLA collects at checkout for instalment #1.
+ * Keep reconciliation checks on this helper: a Pay Later checkout only
+ * charges the first instalment, not the full order total.
+ */
+export function setlaFirstChargeAmountCents(meta: SetlaFirstChargeMeta): number {
+  if (meta.planType === "laybuy") {
+    return Math.round((Number(meta.depositAmount) || 0) * 100);
+  }
+
+  const financedAmount = Number(meta.financedAmount) || 0;
+  const excessUpfront = Number(meta.excessUpfront) || 0;
+  const schedule = meta.scheduleVariant === "half"
+    ? buildHalfAndHalfSchedule(financedAmount)
+    : buildInstalmentSchedule(financedAmount);
+  return Math.round(((schedule[0]?.amount || 0) + excessUpfront) * 100);
+}
+
 export function buildSetlaFirstChargeMetadata(meta: Omit<SetlaFirstChargeMeta, "kind" | "financedAmount" | "excessUpfront" | "depositAmount" | "subtotal" | "shippingCost" | "total"> & {
   financedAmount: number;
   excessUpfront: number;
@@ -186,7 +204,7 @@ export async function activateSetlaPlanAfterPayment(
     : buildInstalmentSchedule(financedAmount);
   if (schedule && excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
   const firstChargeAmount = isLaybuy ? depositAmount : (schedule as NonNullable<typeof schedule>)[0].amount;
-  const firstChargeExpectedCents = Math.round(firstChargeAmount * 100);
+  const firstChargeExpectedCents = setlaFirstChargeAmountCents(meta);
   if (Math.abs(firstChargeExpectedCents - amountCents) > 1) {
     console.error("activateSetlaPlanAfterPayment: amount mismatch", { orderId: meta.orderId, firstChargeExpectedCents, amountCents });
     return { ok: false, error: "Amount mismatch" };

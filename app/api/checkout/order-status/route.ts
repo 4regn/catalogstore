@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { getYocoCheckout, isYocoCheckoutPaid, YOCO_TERMINAL_FAILURE_STATUSES } from "../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../lib/unik-orders";
-import { activateSetlaPlanAfterPayment, type SetlaFirstChargeMeta } from "../../../../lib/setla-instalments";
+import { activateSetlaPlanAfterPayment, setlaFirstChargeAmountCents, type SetlaFirstChargeMeta } from "../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
 
@@ -77,12 +77,14 @@ export async function GET(req: NextRequest) {
     try {
       const checkout = await getYocoCheckout(order.yoco_checkout_id);
       if (isYocoCheckoutPaid(checkout)) {
-        const expectedCents = Math.round(Number(order.total || 0) * 100);
+        const setlaMeta = order.payment_method === "setla" && (order.setla_pending_stitch_meta as SetlaFirstChargeMeta | null)?.kind === "setla_first_charge"
+          ? order.setla_pending_stitch_meta as SetlaFirstChargeMeta
+          : null;
+        const expectedCents = setlaMeta
+          ? setlaFirstChargeAmountCents(setlaMeta)
+          : Math.round(Number(order.total || 0) * 100);
         const amountMatches = !checkout.amount || Math.abs(expectedCents - Number(checkout.amount || 0)) <= 1;
         if (amountMatches) {
-          const setlaMeta = order.payment_method === "setla" && (order.setla_pending_stitch_meta as SetlaFirstChargeMeta | null)?.kind === "setla_first_charge"
-            ? order.setla_pending_stitch_meta as SetlaFirstChargeMeta
-            : null;
           const result = setlaMeta
             ? ((await activateSetlaPlanAfterPayment(admin, setlaMeta, checkout.paymentId, Number(checkout.amount) || expectedCents, null)).ok ? "paid" : "update_failed")
             : await markUnikOrderPaid(admin, order, checkout.paymentId, null, "yoco");
