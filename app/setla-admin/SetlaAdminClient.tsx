@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { OverviewPanel, ApplicationsPanel, BankAccountsPanel, CustomersPanel, AdminsPanel, AnalyticsPanel } from "./SetlaReviewPanels";
+import { OverviewPanel, ApplicationsPanel, BankAccountsPanel, CustomersPanel, RepaymentsPanel, AdminsPanel, AnalyticsPanel } from "./SetlaReviewPanels";
 
-type Panel = "overview" | "applications" | "bank-accounts" | "customers" | "analytics" | "admins";
+type Panel = "overview" | "applications" | "bank-accounts" | "customers" | "repayments" | "analytics" | "admins";
 
 const PANEL_TITLES: Record<Panel, string> = {
   overview: "Overview",
   applications: "Applications",
   "bank-accounts": "Bank accounts",
   customers: "Customers",
+  repayments: "Purchases & repayments",
   analytics: "Analytics",
   admins: "Admins",
 };
@@ -98,6 +99,7 @@ export default function SetlaAdminClient() {
         {panel === "applications" && <ApplicationsPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "bank-accounts" && <BankAccountsPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "customers" && <CustomersPanel authedFetch={authedFetch} toast={showToast} />}
+        {panel === "repayments" && <RepaymentsPanel authedFetch={authedFetch} toast={showToast} />}
         {panel === "analytics" && <AnalyticsPanel authedFetch={authedFetch} />}
         {panel === "admins" && adminProfile && <AdminsPanel authedFetch={authedFetch} toast={showToast} role={adminProfile.role} />}
       </main>
@@ -161,7 +163,7 @@ export default function SetlaAdminClient() {
         .sad-form-row{display:grid;gap:8px;margin-bottom:12px}
         .sad-form-row label{font-size:10px;color:#9ba29b;text-transform:uppercase;letter-spacing:.06em}
         .sad-toast{position:fixed;right:20px;bottom:20px;padding:13px 18px;border-radius:13px;background:#111511;border:1px solid #1c1f1c;color:#fff;font-size:12px;z-index:50}
-        @media (max-width:850px){.sad-shell{grid-template-columns:1fr}.sad-side{flex-direction:row;align-items:center;padding:14px}.sad-side nav{display:flex;overflow-x:auto}.sad-side-foot{display:none}.sad-main{padding:20px}.sad-detail-grid{grid-template-columns:1fr}}
+        @media (max-width:850px){.sad-shell{grid-template-columns:1fr}.sad-side{flex-direction:row;align-items:center;padding:14px}.sad-side nav{display:flex;overflow-x:auto}.sad-side-foot{display:none}.sad-main{padding:20px}.sad-detail-grid{grid-template-columns:1fr}.sad-repayment-row{grid-template-columns:1fr 1fr!important}.sad-repayment-row .sad-btn-outline{width:100%}}
       `}</style>
     </div>
   );

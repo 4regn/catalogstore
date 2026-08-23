@@ -782,6 +782,124 @@ function CustomerDetail({ id, authedFetch, toast, onBack }: { id: string; authed
 
 // ---------------------------------------------------------------------------
 
+type RepaymentEntry = { id: string; sequenceNumber: number | null; amount: number; dueAt: string | null; paidAt: string | null; status: string; isDeposit: boolean };
+type SetlaPurchase = {
+  id: string; orderId: string; orderReference: string; method: string; total: number; financedAmount: number; paid: number; outstanding: number;
+  status: string; fulfillmentStatus: string; paymentStatus: string; productionLocked: boolean; createdAt: string; overdueCount: number;
+  customer: { id: string; name: string; email: string; phone: string | null } | null;
+  seller: { id: string; name: string; subdomain: string } | null;
+  nextPayment: RepaymentEntry | null; schedule: RepaymentEntry[]; items: Array<{ name?: string; qty?: number; price?: number; variant?: string }>;
+};
+
+function repaymentDate(value: string | null) {
+  return value ? new Date(value).toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+}
+
+export function RepaymentsPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [data, setData] = useState<{ purchases: SetlaPurchase[]; summary: { purchases: number; activePlans: number; collected: number; outstanding: number; overdue: number } } | null>(null);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("active");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [remindingId, setRemindingId] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+
+  const load = useCallback(async () => {
+    const response = await authedFetch("/api/setla/admin/repayments", { cache: "no-store" });
+    const payload = await response.json().catch(() => ({}));
+    setData(response.ok ? payload : { purchases: [], summary: { purchases: 0, activePlans: 0, collected: 0, outstanding: 0, overdue: 0 } });
+    setUpdatedAt(new Date());
+  }, [authedFetch]);
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(load, 30_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  async function sendReminder(instalmentId: string) {
+    setRemindingId(instalmentId);
+    const response = await authedFetch(`/api/setla/admin/instalments/${instalmentId}/remind`, { method: "POST" });
+    const payload = await response.json().catch(() => ({}));
+    setRemindingId(null);
+    if (!response.ok) { toast(payload.error || "Could not send the reminder"); return; }
+    toast("Payment reminder sent");
+  }
+
+  if (!data) return <p className="sad-empty">Loading purchases and repayment schedules…</p>;
+  const needle = search.trim().toLowerCase();
+  const rows = data.purchases.filter((purchase) => {
+    const matchesSearch = !needle || `${purchase.orderReference} ${purchase.customer?.name || ""} ${purchase.customer?.email || ""} ${purchase.customer?.phone || ""}`.toLowerCase().includes(needle);
+    const matchesFilter = filter === "all" || (filter === "overdue" ? purchase.overdueCount > 0 : filter === "completed" ? ["completed", "paid"].includes(purchase.status) : !["completed", "paid", "cancelled", "refunded"].includes(purchase.status));
+    return matchesSearch && matchesFilter;
+  });
+
+  return (
+    <section>
+      <div className="sad-grid-4">
+        <div className="sad-card sad-stat"><strong>{data.summary.purchases}</strong><small>SETLA purchases</small></div>
+        <div className="sad-card sad-stat"><strong>{money(data.summary.collected)}</strong><small>Payments collected</small></div>
+        <div className="sad-card sad-stat"><strong>{money(data.summary.outstanding)}</strong><small>Outstanding balance</small></div>
+        <div className="sad-card sad-stat"><strong style={{ color: data.summary.overdue ? "#ff8b84" : undefined }}>{data.summary.overdue}</strong><small>Overdue instalments</small></div>
+      </div>
+      <div className="sad-card" style={{ padding: 16 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <input className="sad-input" style={{ flex: "1 1 260px" }} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, email, phone or order number…" />
+          <div className="sad-tabs" style={{ margin: 0 }}>
+            {[{ key: "active", label: "Active" }, { key: "overdue", label: "Overdue" }, { key: "completed", label: "Completed" }, { key: "all", label: "All" }].map((option) => (
+              <button key={option.key} type="button" className={`sad-tab${filter === option.key ? " active" : ""}`} onClick={() => setFilter(option.key)}>{option.label}</button>
+            ))}
+          </div>
+          <button type="button" className="sad-btn-outline" onClick={load}>Refresh</button>
+        </div>
+        <small style={{ display: "block", color: "#9ba29b", marginTop: 9 }}>Live sync every 30 seconds{updatedAt ? ` · Updated ${updatedAt.toLocaleTimeString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</small>
+      </div>
+      {rows.length === 0 ? <div className="sad-card"><p className="sad-empty" style={{ margin: 0 }}>No purchases match this view.</p></div> : rows.map((purchase) => {
+        const expanded = openId === purchase.id;
+        const tone = purchase.overdueCount ? "#ff8b84" : ["completed", "paid"].includes(purchase.status) ? "#4ade80" : "#facc15";
+        return (
+          <article key={purchase.id} className="sad-card" style={{ padding: 0, overflow: "hidden" }}>
+            <button type="button" onClick={() => setOpenId(expanded ? null : purchase.id)} style={{ width: "100%", border: 0, background: "transparent", color: "inherit", padding: 20, textAlign: "left", cursor: "pointer" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+                <div><strong style={{ display: "block", fontSize: 16 }}>{purchase.orderReference} · {purchase.customer?.name || "Unknown customer"}</strong><span style={{ display: "block", color: "#9ba29b", fontSize: 11.5, marginTop: 4 }}>{purchase.customer?.email} · {purchase.seller?.name || "Store"} · {purchase.method}</span></div>
+                <div style={{ textAlign: "right" }}><span className="sad-badge" style={{ color: tone, background: `${tone}18` }}>{purchase.overdueCount ? `${purchase.overdueCount} overdue` : purchase.status}</span><span style={{ display: "block", color: "#9ba29b", fontSize: 10.5, marginTop: 6 }}>{repaymentDate(purchase.createdAt)}</span></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 12, marginTop: 18 }}>
+                <div className="sad-field"><small>Purchase total</small>{money(purchase.total)}</div>
+                <div className="sad-field"><small>Collected</small><span style={{ color: "#4ade80" }}>{money(purchase.paid)}</span></div>
+                <div className="sad-field"><small>Outstanding</small>{money(purchase.outstanding)}</div>
+                <div className="sad-field"><small>Next payment</small>{purchase.nextPayment ? `${money(purchase.nextPayment.amount)} · ${dateShort(purchase.nextPayment.dueAt)}` : "Fully settled"}</div>
+              </div>
+            </button>
+            {expanded && (
+              <div style={{ borderTop: "1px solid #1c1f1c", padding: 20 }}>
+                <div className="sad-detail-grid" style={{ marginBottom: 18 }}>
+                  <div className="sad-field"><small>Customer phone</small>{purchase.customer?.phone || "—"}</div>
+                  <div className="sad-field"><small>Fulfilment</small>{purchase.fulfillmentStatus.replaceAll("_", " ")}</div>
+                  <div className="sad-field"><small>Payment status</small>{purchase.paymentStatus.replaceAll("_", " ")}</div>
+                  <div className="sad-field"><small>Production</small>{purchase.productionLocked ? "Locked" : "Released"}</div>
+                </div>
+                <strong style={{ display: "block", fontSize: 12, marginBottom: 10 }}>Purchased products</strong>
+                <div style={{ display: "grid", gap: 7, marginBottom: 20 }}>{purchase.items.map((item, index) => <div key={`${item.name}-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12, color: "#c9cec9" }}><span>{item.name || "Product"} ×{item.qty || 1}{item.variant ? ` · ${item.variant}` : ""}</span><span>{money(Number(item.price || 0) * Number(item.qty || 1))}</span></div>)}</div>
+                <strong style={{ display: "block", fontSize: 12, marginBottom: 10 }}>Repayment timeline</strong>
+                <div style={{ display: "grid", gap: 8 }}>{purchase.schedule.length === 0 ? <p className="sad-empty">No repayment entries recorded.</p> : purchase.schedule.map((payment) => {
+                  const settled = payment.status === "paid" || payment.status === "waived";
+                  const overdue = !settled && (!!payment.dueAt && new Date(payment.dueAt).getTime() < Date.now() || payment.status === "overdue");
+                  return <div key={payment.id} className="sad-repayment-row" style={{ display: "grid", gridTemplateColumns: "minmax(90px,.7fr) minmax(120px,1fr) minmax(90px,.7fr) auto", gap: 10, alignItems: "center", padding: "12px 13px", borderRadius: 12, background: "#0a0c0a", fontSize: 11.5 }}>
+                    <strong>{payment.sequenceNumber ? `Instalment ${payment.sequenceNumber}` : payment.isDeposit ? "Deposit" : "Payment"}</strong>
+                    <span>{repaymentDate(payment.dueAt)}</span><span style={{ color: settled ? "#4ade80" : overdue ? "#ff8b84" : "#facc15", fontWeight: 800 }}>{money(payment.amount)} · {overdue ? "overdue" : payment.status}</span>
+                    {!settled && payment.sequenceNumber ? <button type="button" className="sad-btn-outline" style={{ padding: "7px 10px", fontSize: 10 }} disabled={remindingId === payment.id} onClick={() => sendReminder(payment.id)}>{remindingId === payment.id ? "Sending…" : "Send reminder"}</button> : <span />}
+                  </div>;
+                })}</div>
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 type AdminRow = { id: string; full_name: string; email: string; role: string; active: boolean };
 
 export function AdminsPanel({ authedFetch, toast, role }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; role: "reviewer" | "super_admin" }) {
