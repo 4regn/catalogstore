@@ -68,3 +68,10 @@ export function extractLegacyImportedSizeChart(description?: string | null) {
   const sizeChartHtml = `<table><thead>${rowHtml(rows[0], "th")}</thead><tbody>${rows.slice(1).map((row) => rowHtml(row, "td")).join("")}</tbody></table><p><em>${escapeHtml(notice)}</em></p>`;
   return { description: source.slice(0, markerIndex).trim(), sizeChartHtml };
 }
+
+export function resolveProductSizeChart(sizeChartHtml?: string | null, description?: string | null) {
+  const stored = parseProductSizeChartHtml(sizeChartHtml);
+  if (stored) return stored;
+  const legacy = extractLegacyImportedSizeChart(description);
+  return parseProductSizeChartHtml(legacy.sizeChartHtml);
+}
