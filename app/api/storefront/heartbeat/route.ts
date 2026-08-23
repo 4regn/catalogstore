@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   const cartValue = Math.max(0, Math.min(1_000_000, Number(body?.cartValue) || 0));
   const customerName = body?.customerName ? String(body.customerName).trim().slice(0, 160) || null : null;
   const customerEmail = body?.customerEmail ? String(body.customerEmail).trim().slice(0, 160) || null : null;
-  const eventType = EVENT_TYPES.has(body?.eventType) ? body.eventType : null;
+  let eventType = EVENT_TYPES.has(body?.eventType) ? body.eventType : null;
   const eventMetadata = safeEventMetadata(body?.eventMetadata);
   const cartItems = Array.isArray(body?.cartItems)
     ? body.cartItems.slice(0, 20).map((item: any) => ({
@@ -167,6 +167,24 @@ export async function POST(req: NextRequest) {
       .eq("session_date", sastToday())
       .is("checkout_started_at", null);
     if (checkoutTimeError) console.error("storefront heartbeat checkout timestamp update failed:", checkoutTimeError);
+  }
+
+  // Older storefront bundles (and browsers holding a cached bundle) already
+  // send the regular 20-second heartbeat but do not send `session_activity`.
+  // Create one server-side at most once a minute so their live movement is
+  // visible too; this avoids depending on a client redeploy for the timeline.
+  if (!eventType) {
+    const activitySince = new Date(Date.now() - 60_000).toISOString();
+    const { data: recentActivity, error: recentActivityError } = await admin
+      .from("store_visitor_events")
+      .select("id")
+      .eq("seller_id", sellerId)
+      .eq("visitor_id", visitorId)
+      .gte("created_at", activitySince)
+      .limit(1)
+      .maybeSingle();
+    if (recentActivityError) console.error("storefront heartbeat activity lookup failed:", recentActivityError);
+    if (!recentActivity) eventType = "session_activity";
   }
 
   if (eventType) {
