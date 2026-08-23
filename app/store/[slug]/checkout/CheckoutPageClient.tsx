@@ -555,8 +555,22 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       }
     } catch {}
 
-    // Fetch seller data through safe API (strips merchant keys)
-    const sd = initialSeller;
+    // Checkout payment availability/order is operational configuration, not
+    // presentation data. Always refresh it from the public, redacted endpoint
+    // so a dashboard save takes effect for the very next checkout even if a
+    // previous server-rendered checkout shell is still in a CDN/browser cache.
+    // `initialSeller` remains a safe fallback if the refresh is interrupted.
+    let sd = initialSeller;
+    try {
+      const sellerResponse = await fetch(`/api/seller-public?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
+      if (sellerResponse.ok) {
+        const freshSeller = await sellerResponse.json();
+        if (freshSeller?.id && freshSeller?.checkout_config) sd = freshSeller as Seller;
+      }
+    } catch {
+      // A checkout must still work during a short network interruption; the
+      // server-provided seller data is deliberately retained as the fallback.
+    }
     if (sd) {
       setSeller(sd);
       const ids = cleanCart.map((item) => item.id).filter((id): id is string => !!id);
