@@ -3183,7 +3183,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   )}
                 </section>
               )}
-              {seller.checkout_config?.stitch_enabled && (
+              {seller.checkout_config?.stitch_enabled !== false && (
                 <div className="stitch-pay-later-widget fr-cart-stitch" aria-label="Stitch Pay Later cart calculator">
                   <img src="/checkout/stitch.png" alt="Stitch" />
                   <div>
@@ -3244,7 +3244,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
                     <FreeShippingPill />
-                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
+                    {seller.checkout_config?.stitch_enabled !== false && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -3874,7 +3874,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
                     <FreeShippingPill />
-                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
+                    {seller.checkout_config?.stitch_enabled !== false && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -4381,7 +4381,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <span className="fr-pay-icon" title="Yoco"><Image src="/checkout/yoco.png" alt="Yoco" width={484} height={200} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                     <span className="fr-pay-icon" title="Capitec Pay"><Image src="/checkout/capitecpay.png" alt="Capitec Pay" width={1441} height={585} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   </>)}
-                  {seller.checkout_config?.stitch_enabled && (
+                  {seller.checkout_config?.stitch_enabled !== false && (
                     <span className="fr-pay-icon" title="Stitch"><Image src="/checkout/stitch.png" alt="Stitch" width={550} height={181} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   )}
                   {showSetlaBanner && (

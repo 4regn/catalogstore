@@ -31,7 +31,9 @@ export async function POST(req: NextRequest) {
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
 
     const cc = (seller.checkout_config || {}) as any;
-    if (!cc.stitch_enabled) return NextResponse.json({ error: "Card payment is not enabled for this store" }, { status: 400 });
+    // Sellers are opted in to the shared CatalogStore Stitch account by
+    // default. Only an explicit dashboard opt-out blocks a payment link.
+    if (cc.stitch_enabled === false) return NextResponse.json({ error: "Stitch Pay Later is not enabled for this store" }, { status: 400 });
 
     const { data: order } = await getAdmin().from("orders").select("*").eq("id", orderId).single();
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });

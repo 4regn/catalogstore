@@ -76,7 +76,9 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
       payfast_enabled: !!cc.payfast_enabled,
       yoco_enabled: !!cc.yoco_enabled,
       setla_enabled: !!cc.setla_enabled,
-      stitch_enabled: !!cc.stitch_enabled,
+      // Platform default: expose Stitch unless this seller deliberately
+      // disabled it in Checkout > Payments.
+      stitch_enabled: cc.stitch_enabled !== false,
       float_enabled: !!cc.float_enabled && !!process.env.FLOAT_CLIENT_SECRET && !!process.env.FLOAT_SIGNING_KEY,
       delivery_enabled: cc.delivery_enabled !== false,
       pickup_enabled: !!cc.pickup_enabled,

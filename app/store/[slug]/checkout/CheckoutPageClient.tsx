@@ -657,7 +657,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
     if (sd?.checkout_config?.yoco_enabled) setPaymentMethod("yoco");
-    else if (sd?.checkout_config?.stitch_enabled) setPaymentMethod("stitch");
+    else if (sd?.checkout_config?.stitch_enabled !== false) setPaymentMethod("stitch");
     else if (sd?.checkout_config?.setla_enabled) setPaymentMethod("setla");
     else if (sd?.checkout_config?.float_enabled) setPaymentMethod("float");
     else if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
@@ -666,6 +666,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   };
 
   const cc = seller?.checkout_config || {} as any;
+  // Stitch is a platform-default payment method. A seller can only remove it
+  // by saving an explicit false value from their dashboard.
+  const stitchEnabled = cc.stitch_enabled !== false;
   // An import product forces exactly one premium method. Its configured
   // price/index remain the source of truth, while the customer-facing name
   // and delivery promise are fixed to 4regn's premium-product wording.
@@ -1013,7 +1016,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         return;
       }
 
-      if (effectiveMethod === "stitch" && cc.stitch_enabled) {
+      if (effectiveMethod === "stitch" && stitchEnabled) {
         // Stitch only accepts one of up to 5 pre-registered exact redirect
         // URLs (see lib/stitch.ts's registerStitchRedirectUrl), unlike
         // Yoco's fully dynamic successUrl -- so the order/store context is
@@ -1425,7 +1428,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     </div>
                   )}
 
-                  {cc.stitch_enabled && (
+                  {stitchEnabled && (
                     <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")}>
                       <div className="choice-row" onClick={() => setPaymentMethod("stitch")}>
                         <div className="radio"></div>
@@ -1910,12 +1913,15 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 {paymentMethod === "float" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Float to choose your interest-free payment plan securely.</div>}
               </div>
             )}
-            {cc.stitch_enabled && (
+            {stitchEnabled && (
               <div>
                 <div onClick={() => setPaymentMethod("stitch")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "stitch" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "stitch" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
-                    <span style={{ fontSize: 14, fontWeight: paymentMethod === "stitch" ? 600 : 400 }}>Card (Stitch)</span>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: paymentMethod === "stitch" ? 600 : 400 }}>Stitch Pay Later</div>
+                      <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>Pay over 2–6 monthly instalments, from <strong style={{ color: T.text }}>{formatZARDecimal(total / 6)}</strong></div>
+                    </div>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
@@ -1924,11 +1930,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     </div>
                   </div>
                 </div>
-                {/* Card Consent inherently saves the card for later reuse --
-                    unlike Yoco's plain one-off charge, this needs its own,
-                    stronger disclosure line rather than reusing Yoco's
-                    "redirected to X" copy verbatim. */}
-                {paymentMethod === "stitch" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Stitch to complete your payment. Your card details are securely saved by Stitch for this order.</div>}
+                {paymentMethod === "stitch" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You&rsquo;ll be redirected to Stitch to choose and complete your payment plan securely.</div>}
               </div>
             )}
             {cc.payfast_enabled && (
