@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const STATUSES = new Set(["browsing", "active_cart", "checkout"]);
 const EVENT_TYPES = new Set([
-  "page_view", "add_to_cart", "reached_checkout",
+  "page_view", "add_to_cart", "reached_checkout", "session_activity",
   "free_delivery_upsell_impression", "free_delivery_upsell_click",
   "free_delivery_upsell_add", "free_delivery_threshold_reached",
   "checkout_started_after_upsell", "order_completed_after_upsell",

@@ -23,6 +23,7 @@ export function getStorefrontVisitorId(): string {
 
 export type StorefrontEventType =
   | "page_view" | "add_to_cart" | "reached_checkout"
+  | "session_activity"
   | "free_delivery_upsell_impression" | "free_delivery_upsell_click"
   | "free_delivery_upsell_add" | "free_delivery_threshold_reached"
   | "checkout_started_after_upsell" | "order_completed_after_upsell";
@@ -69,6 +70,7 @@ export function useLiveVisitorPing(
   const lastPathRef = useRef<string>("");
   const lastCartSignatureRef = useRef<string>("");
   const reachedCheckoutRef = useRef(false);
+  const lastTimelineActivityRef = useRef(0);
 
   useEffect(() => {
     if (!sellerId) return;
@@ -76,7 +78,7 @@ export function useLiveVisitorPing(
 
     const cartSignature = cartItems.map((i) => `${i.id || i.name}:${i.qty}:${i.variant || ""}`).join("|");
 
-    const send = (eventType?: "page_view" | "add_to_cart" | "reached_checkout") => {
+    const send = (eventType?: "page_view" | "add_to_cart" | "reached_checkout" | "session_activity") => {
       const status = checkout ? "checkout" : cartItemCount > 0 ? "active_cart" : "browsing";
       fetch("/api/storefront/heartbeat", {
         method: "POST",
@@ -111,7 +113,17 @@ export function useLiveVisitorPing(
     lastCartSignatureRef.current = cartSignature;
 
     send(eventType);
-    const id = setInterval(() => send(), PING_INTERVAL_MS);
+    // The live session table is only a current snapshot. Record one quiet
+    // timeline heartbeat per minute as well, so a customer browsing within a
+    // page does not disappear from the historical timeline until they click
+    // a button or navigate away.
+    lastTimelineActivityRef.current = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      const timelineEvent = now - lastTimelineActivityRef.current >= 60_000 ? "session_activity" : undefined;
+      if (timelineEvent) lastTimelineActivityRef.current = now;
+      send(timelineEvent);
+    }, PING_INTERVAL_MS);
     return () => clearInterval(id);
   }, [sellerId, cartItemCount, cartValue, checkout, customerName, customerEmail, JSON.stringify(cartItems)]);
 }
