@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sastToday, sastDayStartUtc, sastDateOf } from "./sast-time";
+import { fetchAllRows } from "./fetch-all-rows";
 
 const CHART_DAYS = 14;
 const LOCATION_WINDOW_DAYS = 30;
@@ -54,7 +55,7 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   const todayStartIso = sastDayStartUtc(today).toISOString();
   const windowStart = pastNDaysStrings(LOCATION_WINDOW_DAYS, today)[0];
 
-  const [sessionsRes, liveSessionsRes, eventsRes, ordersRes] = await Promise.all([
+  const [sessionsRes, liveSessionsRes, eventRows, ordersRes] = await Promise.all([
     admin
       .from("store_visitor_sessions")
       .select("visitor_id, session_date, country, region, city, had_cart, reached_checkout, cart_started_at, checkout_started_at, last_seen_at, last_path, last_status")
@@ -65,13 +66,12 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
       .select("visitor_id, status, cart_item_count, last_seen_at")
       .eq("seller_id", sellerId)
       .gte("last_seen_at", todayStartIso),
-    admin
-      .from("store_visitor_events")
-      .select("visitor_id, event_type, path, customer_name, customer_email, cart_item_count, cart_value, cart_items, created_at")
-      .eq("seller_id", sellerId)
-      .gte("created_at", todayStartIso)
-      .order("created_at", { ascending: false })
-      .limit(150),
+    // A seller needs the complete day when investigating a journey. PostgREST
+    // caps ordinary selects, so page through every event instead of silently
+    // showing just the newest 150.
+    fetchAllRows<any>(admin, "store_visitor_events", "visitor_id, event_type, path, customer_name, customer_email, cart_item_count, cart_value, cart_items, created_at", (query) =>
+      query.eq("seller_id", sellerId).gte("created_at", todayStartIso).order("created_at", { ascending: false })
+    ),
     admin
       .from("orders")
       .select("id, order_number, external_id, customer_name, customer_email, total, payment_status, payment_method, created_at")
@@ -80,7 +80,6 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   ]);
 
   const sessionRows = sessionsRes.data || [];
-  const eventRows = eventsRes.data || [];
   const paidToday = (ordersRes.data || []).filter((o) => o.payment_status === "paid");
 
   const chartDays = pastNDaysStrings(CHART_DAYS, today);
@@ -158,8 +157,8 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
     dailySessions: chartDays.map((d) => ({ date: d, sessions: dailyCounts.get(d) || 0 })),
     topLocations,
     activity: {
-      addedToCart: (eventAddedToCart.length ? eventAddedToCart : addedToCartActivity).sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 50),
-      reachedCheckout: (eventReachedCheckout.length ? eventReachedCheckout : reachedCheckoutActivity).sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 50),
+      addedToCart: (eventAddedToCart.length ? eventAddedToCart : addedToCartActivity).sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)),
+      reachedCheckout: (eventReachedCheckout.length ? eventReachedCheckout : reachedCheckoutActivity).sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)),
       purchases: paidToday
         .map((o) => ({
           orderId: o.id,
@@ -171,8 +170,7 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
           timestamp: o.created_at,
           paymentMethod: o.payment_method ?? null,
         }))
-        .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))
-        .slice(0, 50),
+        .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)),
       timeline: [
         ...eventRows.map((e: any) => ({
         visitorId: e.visitor_id,
@@ -196,7 +194,7 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
           cartValue: Number(o.total || 0),
           cartItems: [],
         })),
-      ].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 150),
+      ].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)),
     },
   };
 }

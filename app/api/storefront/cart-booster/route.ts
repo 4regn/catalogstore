@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   const manualIds = [...new Set([...cartMap.values()].flatMap(cartBoosterRelationshipIds))];
   const regularCandidates = await fetchAllRows<CartBoosterProduct>(admin, "products", "id, name, price, old_price, category, image_url, images, handle, tags, variants, in_stock, status, sort_order, metafields", (query) =>
-    query.eq("seller_id", seller.id).eq("status", "published").eq("in_stock", true).lte("price", 699).order("sort_order", { ascending: true })
+    query.eq("seller_id", seller.id).eq("status", "published").eq("in_stock", true).order("sort_order", { ascending: true })
   );
   const { data: manualCandidates } = manualIds.length
     ? await admin.from("products").select("id, name, price, old_price, category, image_url, images, handle, tags, variants, in_stock, status, sort_order, metafields").eq("seller_id", seller.id).eq("status", "published").eq("in_stock", true).in("id", manualIds)

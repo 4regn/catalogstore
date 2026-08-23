@@ -26,6 +26,8 @@ export type RankedCartBoosterProduct = CartBoosterProduct & {
   resultingSubtotal: number;
   unlocksFreeDelivery: boolean;
   effectiveUpgradeCost: number | null;
+  thresholdOverage: number;
+  lowFriction: boolean;
   reason: "manual" | "theme" | "collection" | "gap" | "accessory" | "popular";
 };
 
@@ -81,11 +83,8 @@ export function rankCartBoosterProducts(args: {
   const manualIds = new Set(args.cartProducts.flatMap(cartBoosterRelationshipIds));
   const cartTokens = args.cartProducts.map(tokens);
   const cartCategories = args.cartProducts.map(categories);
-  const ordinaryCeiling = Math.min(399, Math.max(149, gap + 100, gap * 2.5));
-  const strongRelationCeiling = Math.min(699, Math.max(349, gap + 250));
-
   return args.candidates
-    .filter((candidate) => !cartIds.has(candidate.id) && candidate.in_stock !== false)
+    .filter((candidate) => !cartIds.has(candidate.id) && candidate.in_stock !== false && candidate.status !== "draft")
     .map((candidate) => {
       const price = minimumProductPrice(candidate.price, candidate.variants);
       const candidateTokens = tokens(candidate);
@@ -94,32 +93,41 @@ export function rankCartBoosterProducts(args: {
       const sharedCollection = Math.max(0, ...cartCategories.map((set) => sharedCount(set, candidateCategories)));
       const manual = manualIds.has(candidate.id);
       const accessory = isAccessory(candidate);
-      const stronglyRelated = manual || sharedTheme > 0 || sharedCollection > 0;
-      const withinCeiling = price <= (stronglyRelated ? strongRelationCeiling : ordinaryCeiling);
       const resultingSubtotal = Math.max(0, args.projectedSubtotal?.(candidate, price) ?? (args.payableSubtotal + price));
       const unlocks = resultingSubtotal >= threshold;
-      const overshoot = Math.max(0, price - gap);
-      const shortfall = Math.max(0, gap - price);
+      const thresholdOverage = Math.max(0, resultingSubtotal - threshold);
+      const preferredFit = unlocks && price >= gap && price <= gap + 100;
+      const variantGroups = Array.isArray(candidate.variants) ? candidate.variants : [];
+      const lowFriction = variantGroups.length === 0;
       const reason: RankedCartBoosterProduct["reason"] = manual ? "manual" : sharedTheme > 0 ? "theme" : sharedCollection > 0 ? "collection" : unlocks ? "gap" : accessory ? "accessory" : "popular";
-      const score =
-        (manual ? 1_000_000 : 0) +
-        sharedTheme * 50_000 + sharedCollection * 25_000 +
-        (unlocks ? 10_000 : 0) +
-        (accessory ? 2_000 : 0) +
-        marginRatio(candidate, price) * 500 -
-        overshoot * 12 - shortfall * 18 -
-        Math.max(0, Number(candidate.sort_order) || 0) * 0.01;
-      return { candidate, price, resultingSubtotal, score, unlocks, withinCeiling, reason };
+      // The cheapest legitimate way to unlock free delivery must always win.
+      // Relationship, category and margin are only tie-breakers after a
+      // product reaches the threshold. This prevents a related R349 hoodie
+      // from displacing a R99 accessory when the customer is R99 away.
+      const fitGroup = preferredFit ? 0 : unlocks ? 1 : 2;
+      const relationshipScore = (manual ? 3 : 0) + sharedTheme * 2 + sharedCollection + (accessory ? 0.25 : 0) + marginRatio(candidate, price) * 0.01;
+      return { candidate, price, resultingSubtotal, unlocks, thresholdOverage, lowFriction, fitGroup, relationshipScore, reason };
     })
-    .filter((entry) => entry.price > 0 && (entry.withinCeiling || entry.reason === "manual"))
-    .sort((a, b) => b.score - a.score || a.price - b.price || a.candidate.name.localeCompare(b.candidate.name))
-    .slice(0, args.limit ?? 3)
-    .map(({ candidate, price, resultingSubtotal, unlocks, reason }) => ({
+    // The primary upsell must actually unlock delivery. A non-unlocking
+    // option is never useful in this flow and would leave the shopper short.
+    .filter((entry) => entry.price > 0 && entry.unlocks)
+    .sort((a, b) =>
+      a.fitGroup - b.fitGroup ||
+      a.thresholdOverage - b.thresholdOverage ||
+      a.price - b.price ||
+      Number(b.lowFriction) - Number(a.lowFriction) ||
+      b.relationshipScore - a.relationshipScore ||
+      a.candidate.name.localeCompare(b.candidate.name)
+    )
+    .slice(0, args.limit ?? 36)
+    .map(({ candidate, price, resultingSubtotal, unlocks, thresholdOverage, lowFriction, reason }) => ({
       ...candidate,
       recommendationPrice: price,
       resultingSubtotal: Math.round(resultingSubtotal * 100) / 100,
       unlocksFreeDelivery: unlocks,
       effectiveUpgradeCost: unlocks && price > FOUR_REGN_STANDARD_DELIVERY_PRICE ? price - FOUR_REGN_STANDARD_DELIVERY_PRICE : null,
+      thresholdOverage: Math.round(thresholdOverage * 100) / 100,
+      lowFriction,
       reason,
     }));
 }

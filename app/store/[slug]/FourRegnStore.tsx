@@ -825,6 +825,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [cartBoosterSignature, setCartBoosterSignature] = useState("");
   const [cartBoosterLoading, setCartBoosterLoading] = useState(false);
   const [cartBoosterSelections, setCartBoosterSelections] = useState<Record<string, Record<string, string>>>({});
+  const [cartBoosterShowAll, setCartBoosterShowAll] = useState(false);
   const cartBoosterImpressionRef = useRef("");
   const cartBoosterUnlockedRef = useRef(false);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
@@ -1601,6 +1602,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     : { totalDiscount: 0, applied: [] as { title: string; amount: number }[], lineDiscounts: [] as { lineIndex: number; amount: number; titles: string[] }[] };
   const cartPayableMerchandiseTotal = Math.max(0, cartTotal - automaticDiscount.totalDiscount);
   const cartStitchMonthly = cartPayableMerchandiseTotal / 6;
+  // The general storefront formatter intentionally uses the South African
+  // locale (e.g. R 1 299). Stitch's payment copy needs a decimal point,
+  // otherwise 58.33 renders as the misleading “58,333”.
+  const cartStitchMonthlyText = `R${cartStitchMonthly.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const cartTotalSavings = compareAtSavings + automaticDiscount.totalDiscount;
   // The note is only useful for a mixed cart: import-only carts already say
   // 7-14 working days in their sole checkout shipping method.
@@ -1634,7 +1639,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           body: JSON.stringify({ slug: seller.subdomain, items: cart.map((item) => ({ id: item.product.id, qty: item.qty, selectedVariants: item.selectedVariants })) }),
         });
         const data = await response.json().catch(() => null);
-        if (response.ok && data) { setCartBooster(data); setCartBoosterSignature(cartBoosterRequestSignature); }
+        if (response.ok && data) { setCartBooster(data); setCartBoosterSignature(cartBoosterRequestSignature); setCartBoosterShowAll(false); }
       } catch (error: any) {
         if (error?.name !== "AbortError") setCartBooster(null);
       } finally {
@@ -1643,6 +1648,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     }, 220);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [cartOpen, cartHydrated, seller?.subdomain, isFourRegnStore, cartBoosterRequestSignature]);
+
+  // The cart is a self-contained drawer: it owns scrolling while open, and
+  // the document behind it must stay still on wheel and touch devices.
+  useEffect(() => {
+    if (!cartOpen) return;
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+    };
+  }, [cartOpen]);
 
   useEffect(() => {
     if (!seller?.id || !cartOpen || boosterUnlocked || !activeCartBooster?.recommendations?.length) return;
@@ -2647,12 +2666,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
 .fr-cart-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;opacity:0;pointer-events:none;transition:opacity 0.3s}
 .fr-cart-overlay.open{opacity:1;pointer-events:all}
-.fr-cart{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;background:#fff;z-index:1001;transform:translateX(100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column}
+.fr-cart{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;height:100dvh;background:#fff;z-index:1001;transform:translateX(100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column;overflow:hidden}
 .fr-cart.open{transform:translateX(0)}
 .fr-cart-h{padding:22px 26px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center}
 .fr-cart-h h3{font-family:var(--serif);font-weight:700;font-size:20px;margin:0;color:var(--ink)}
 .fr-cart-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink);padding:4px}
-.fr-cart-items{flex:1;overflow-y:auto;padding:18px 26px}
+.fr-cart-items{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:18px 26px}
 .fr-cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:rgba(46,42,57,0.5);text-align:center}
 .fr-cart-item{display:grid;grid-template-columns:70px 1fr auto;gap:14px;padding:16px 0;border-bottom:1px solid rgba(0,0,0,0.06);align-items:start}
 .fr-cart-item:last-child{border-bottom:none}
@@ -2665,7 +2684,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-qty-num{font-size:13px;min-width:16px;text-align:center}
 .fr-cart-item-price{font-size:14px;font-weight:700;white-space:nowrap;color:var(--ink)}
 .fr-cart-item-rm{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(46,42,57,0.5);background:none;border:none;cursor:pointer;padding:0;margin-top:6px;display:block}
-.fr-cart-foot{padding:20px 26px 28px;border-top:1px solid rgba(0,0,0,0.08)}
+.fr-cart-foot{flex:0 1 auto;min-height:0;max-height:min(64dvh,640px);padding:14px 26px max(20px, env(safe-area-inset-bottom, 20px));border-top:1px solid rgba(0,0,0,0.08);display:flex;flex-direction:column;background:#fff}
+.fr-cart-summary-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 2px 10px}
+.fr-cart-actions{flex:0 0 auto;padding-top:12px;background:#fff;border-top:1px solid rgba(0,0,0,.07)}
 .fr-cart-sub{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .fr-cart-sub-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-cart-sub-amt{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--ink)}
@@ -2679,6 +2700,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cart-booster-status{margin:9px 0 0;font-size:11px;line-height:1.45;font-weight:800;text-transform:uppercase;letter-spacing:.045em;color:#00751f}
 .fr-cart-booster-copy{margin:4px 0 12px;font-size:11px;color:rgba(46,42,57,.62)}
 .fr-cart-booster-list{display:grid;gap:9px}
+.fr-cart-booster-more{display:block;width:100%;border:1px solid rgba(46,42,57,.18);border-radius:8px;background:#fff;color:var(--ink);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;padding:10px;cursor:pointer}
 .fr-cart-booster-product{display:grid;grid-template-columns:58px 1fr;gap:10px;padding-top:10px;border-top:1px solid rgba(46,42,57,.09)}
 .fr-cart-booster-img{width:58px;height:70px;object-fit:cover;border-radius:8px;background:#eee}
 .fr-cart-booster-name{font-family:var(--serif);font-size:12px;font-weight:800;line-height:1.25;margin:0 0 3px}
@@ -3082,6 +3104,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
           {cart.length > 0 && (
             <div className="fr-cart-foot">
+              <div className="fr-cart-summary-scroll">
               {cartHasMixedFulfillment && (
                 <div className="fr-cart-import-note">
                   <strong>Delivery Note</strong>
@@ -3124,7 +3147,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   {!boosterUnlocked && (cartBoosterLoading || !activeCartBooster) && !activeCartBooster?.recommendations?.length && <div className="fr-cart-booster-loading">Finding the best match for your cart…</div>}
                   {!boosterUnlocked && !!activeCartBooster?.recommendations?.length && (
                     <div className="fr-cart-booster-list">
-                      {activeCartBooster.recommendations.map((recommendation) => {
+                      {(cartBoosterShowAll ? activeCartBooster.recommendations : activeCartBooster.recommendations.slice(0, 3)).map((recommendation, recommendationIndex) => {
                         const groups = Array.isArray(recommendation.variants) ? recommendation.variants as Variant[] : [];
                         const selected = cartBoosterSelections[recommendation.id] || {};
                         const selectedPrice = effectiveProductPrice(recommendation.price, groups, selected);
@@ -3140,7 +3163,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                             <div>
                               <p className="fr-cart-booster-name">{recommendation.name}</p>
                               <div className="fr-cart-booster-price">{fmt(selectedPrice)}</div>
-                              <div className="fr-cart-booster-note">{unlocks ? (recommendation.effectiveUpgradeCost && selectedPrice === recommendation.recommendationPrice ? `Pay R60 for delivery — or spend ${fmt(recommendation.effectiveUpgradeCost)} more and get this + FREE delivery.` : "Add this and unlock FREE delivery") : `${fmt(Math.max(0, boosterThreshold - recommendation.resultingSubtotal))} left after adding this`}</div>
+                              <div className="fr-cart-booster-note">{unlocks ? (recommendationIndex === 0 && recommendation.effectiveUpgradeCost && selectedPrice === recommendation.recommendationPrice ? `Pay R60 for delivery — or spend ${fmt(recommendation.effectiveUpgradeCost)} more and get this + FREE delivery.` : "Add this and unlock FREE delivery") : `${fmt(Math.max(0, boosterThreshold - recommendation.resultingSubtotal))} left after adding this`}</div>
                               {groups.length > 0 && (
                                 <div className="fr-cart-booster-selects">
                                   {groups.map((group) => <select className="fr-cart-booster-select" aria-label={`Choose ${group.name} for ${recommendation.name}`} key={group.name} value={selected[group.name] || ""} onChange={(event) => setCartBoosterSelections((current) => ({ ...current, [recommendation.id]: { ...(current[recommendation.id] || {}), [group.name]: event.target.value } }))}><option value="">Choose {group.name}</option>{group.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>)}
@@ -3151,6 +3174,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                           </article>
                         );
                       })}
+                      {activeCartBooster.recommendations.length > 3 && (
+                        <button type="button" className="fr-cart-booster-more" onClick={() => setCartBoosterShowAll((show) => !show)}>
+                          {cartBoosterShowAll ? "Show fewer options" : "View more options"}
+                        </button>
+                      )}
                     </div>
                   )}
                 </section>
@@ -3160,17 +3188,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <img src="/checkout/stitch.png" alt="Stitch" />
                   <div>
                     <small>STITCH PAY LATER</small>
-                    <p>Or pay <strong>{fmt(cartStitchMonthly)}</strong> over <strong>6 monthly instalments</strong>.</p>
+                    <p>Or pay <strong>{cartStitchMonthlyText}</strong> over <strong>6 monthly instalments</strong>.</p>
                     <StitchPaymentLogoRow />
                   </div>
                 </div>
               )}
+              </div>
+              <div className="fr-cart-actions">
               {FREE_SHIP && !isFourRegnStore && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more to unlock free PAXI Standard Delivery` : "Free PAXI Standard Delivery unlocked ✓"}</p>}
               <button className="fr-cart-checkout" onClick={goToCheckout}>Checkout</button>
               {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
                 <button className="fr-cart-wa" onClick={orderViaWhatsApp}>Order via WhatsApp</button>
               )}
               <button className="fr-cart-cont" onClick={() => setCartOpen(false)}>Continue Browsing</button>
+              </div>
             </div>
           )}
         </aside>
