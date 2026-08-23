@@ -14,6 +14,7 @@ import SupportChat from "../components/SupportChat";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
 import type { FullAnalytics } from "../../lib/store-analytics";
+import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -322,7 +323,7 @@ const UNIK_ORDER_STATUSES = ["pending", "fulfilled", "awaiting_pickup", "picked_
 // status values, so the courier granularity needs to exist here too, not
 // just the coarser confirmed/processing/shipped/delivered set this used
 // to stop at.
-const GENERIC_ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
+const GENERIC_ORDER_STATUSES = ["pending", ...FOUR_REGN_TRACKING_STAGES.map((stage) => stage.key), "cancelled"];
 function orderStatusColors(status: string): { bg: string; fg: string } {
   if (status === "delivered") return { bg: "rgba(34,197,94,0.15)", fg: "#22c55e" };
   if (status === "cancelled") return { bg: "rgba(255,107,53,0.1)", fg: "#ff6b35" };
@@ -3188,6 +3189,13 @@ export default function Dashboard() {
                       );
                     })}
                   </div>
+                  {seller?.subdomain === "4regn" && (() => {
+                    const tracking = buildFourRegnTracking(selectedOrder);
+                    return <div style={{ padding: 16, borderRadius: 14, background: "var(--panel-2)", border: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const, marginBottom: 12 }}><strong style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: ".07em" }}>Customer-facing tracking progress</strong><span style={{ fontSize: 10, color: "var(--muted-2)" }}>{tracking.updatedAt ? `Updated ${new Date(tracking.updatedAt).toLocaleString("en-ZA")}` : "No update time"}</span></div>
+                      {tracking.cancelled ? <div style={{ color: "#ff6b35", fontSize: 11, fontWeight: 800 }}>Order cancelled</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(95px,1fr))", gap: 7 }}>{tracking.stages.map((stage) => <div key={stage.key} style={{ padding: "10px 8px", borderRadius: 10, textAlign: "center" as const, background: stage.complete ? "rgba(34,197,94,.12)" : "var(--panel)", border: `1px solid ${stage.complete ? "rgba(34,197,94,.25)" : "var(--border)"}`, color: stage.complete ? "#22c55e" : "var(--muted-2)", fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{stage.complete ? "✓ " : ""}{stage.label}</div>)}</div>}
+                    </div>;
+                  })()}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div style={{ padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>

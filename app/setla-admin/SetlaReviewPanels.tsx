@@ -789,6 +789,7 @@ type SetlaPurchase = {
   customer: { id: string; name: string; email: string; phone: string | null } | null;
   seller: { id: string; name: string; subdomain: string } | null;
   nextPayment: RepaymentEntry | null; schedule: RepaymentEntry[]; items: Array<{ name?: string; qty?: number; price?: number; variant?: string }>;
+  tracking: { status: string; statusLabel: string; cancelled: boolean; updatedAt: string | null; shippingOption: string | null; stages: Array<{ key: string; label: string; copy: string; complete: boolean; current: boolean }> } | null;
 };
 
 function repaymentDate(value: string | null) {
@@ -859,7 +860,7 @@ export function RepaymentsPanel({ authedFetch, toast }: { authedFetch: (path: st
           <article key={purchase.id} className="sad-card" style={{ padding: 0, overflow: "hidden" }}>
             <button type="button" onClick={() => setOpenId(expanded ? null : purchase.id)} style={{ width: "100%", border: 0, background: "transparent", color: "inherit", padding: 20, textAlign: "left", cursor: "pointer" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-                <div><strong style={{ display: "block", fontSize: 16 }}>{purchase.orderReference} · {purchase.customer?.name || "Unknown customer"}</strong><span style={{ display: "block", color: "#9ba29b", fontSize: 11.5, marginTop: 4 }}>{purchase.customer?.email} · {purchase.seller?.name || "Store"} · {purchase.method}</span></div>
+                <div><strong style={{ display: "block", fontSize: 16 }}>{purchase.orderReference} · {purchase.customer?.name || "Unknown customer"}</strong><span style={{ display: "block", color: "#9ba29b", fontSize: 11.5, marginTop: 4 }}>{purchase.customer?.email} · {purchase.seller?.name || "Store"} · {purchase.method}</span>{purchase.tracking && <span style={{ display: "block", color: purchase.tracking.cancelled ? "#ff8b84" : "#4ade80", fontSize: 10.5, marginTop: 6, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>4REGN tracking · {purchase.tracking.statusLabel}</span>}</div>
                 <div style={{ textAlign: "right" }}><span className="sad-badge" style={{ color: tone, background: `${tone}18` }}>{purchase.overdueCount ? `${purchase.overdueCount} overdue` : purchase.status}</span><span style={{ display: "block", color: "#9ba29b", fontSize: 10.5, marginTop: 6 }}>{repaymentDate(purchase.createdAt)}</span></div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 12, marginTop: 18 }}>
@@ -877,6 +878,10 @@ export function RepaymentsPanel({ authedFetch, toast }: { authedFetch: (path: st
                   <div className="sad-field"><small>Payment status</small>{purchase.paymentStatus.replaceAll("_", " ")}</div>
                   <div className="sad-field"><small>Production</small>{purchase.productionLocked ? "Locked" : "Released"}</div>
                 </div>
+                {purchase.tracking && <div style={{ marginBottom: 22 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "end", flexWrap: "wrap", marginBottom: 11 }}><strong style={{ fontSize: 12 }}>4REGN fulfilment progress</strong><span style={{ color: "#9ba29b", fontSize: 10.5 }}>{purchase.tracking.updatedAt ? `Updated ${repaymentDate(purchase.tracking.updatedAt)}` : "No tracking timestamp yet"}{purchase.tracking.shippingOption ? ` · ${purchase.tracking.shippingOption}` : ""}</span></div>
+                  {purchase.tracking.cancelled ? <div style={{ padding: 13, borderRadius: 12, background: "rgba(239,68,68,.1)", color: "#ff8b84", fontSize: 11.5, fontWeight: 800 }}>Order cancelled</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 7 }}>{purchase.tracking.stages.map((stage) => <div key={stage.key} style={{ padding: "11px 10px", borderRadius: 11, border: `1px solid ${stage.complete ? "rgba(74,222,128,.3)" : "#1c1f1c"}`, background: stage.complete ? "rgba(0,117,23,.12)" : "#0a0c0a" }}><span style={{ display: "block", color: stage.complete ? "#4ade80" : "#777f77", fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" }}>{stage.complete ? "✓ " : ""}{stage.label}</span></div>)}</div>}
+                </div>}
                 <strong style={{ display: "block", fontSize: 12, marginBottom: 10 }}>Purchased products</strong>
                 <div style={{ display: "grid", gap: 7, marginBottom: 20 }}>{purchase.items.map((item, index) => <div key={`${item.name}-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12, color: "#c9cec9" }}><span>{item.name || "Product"} ×{item.qty || 1}{item.variant ? ` · ${item.variant}` : ""}</span><span>{money(Number(item.price || 0) * Number(item.qty || 1))}</span></div>)}</div>
                 <strong style={{ display: "block", fontSize: 12, marginBottom: 10 }}>Repayment timeline</strong>

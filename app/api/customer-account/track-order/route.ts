@@ -8,6 +8,7 @@ import {
   normalizeSouthAfricanPhone,
   parseFourRegnOrderNumber,
 } from "../../../../lib/four-regn-orders";
+import { buildFourRegnTracking, isFourRegnOrderTrackable } from "../../../../lib/four-regn-tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   // Match the customer-account rule: abandoned/unconfirmed rows are not
   // exposed as trackable orders.
-  const confirmed = order.payment_status === "paid" || ["confirmed", "processing", "shipped", "in_transit", "out_for_delivery", "delivered"].includes(order.status);
+  const confirmed = isFourRegnOrderTrackable(order);
   if (!confirmed) return NextResponse.json({ error: GENERIC_ERROR }, { status: 404 });
 
   return NextResponse.json({
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
       shipping_option: order.shipping_option,
       created_at: order.created_at,
       tracking_updated_at: order.tracking_updated_at,
+      tracking: buildFourRegnTracking(order),
     },
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

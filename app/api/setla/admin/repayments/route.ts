@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../lib/setla-admin";
+import { buildFourRegnTracking } from "../../../../../lib/four-regn-tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
   const [{ data: customers }, { data: plans }, { data: orders }] = await Promise.all([
     admin.from("setla_customers").select("id, first_name, last_name, email, phone").in("id", customerIds),
     admin.from("setla_payment_plans").select("id, order_id, plan_type, principal_amount, paid_amount, status, created_at, completed_at").in("order_id", orderIds),
-    admin.from("orders").select("id, seller_id, order_number, external_id, items, total, status, payment_status").in("id", unikOrderIds),
+    admin.from("orders").select("id, seller_id, order_number, external_id, items, total, status, payment_status, shipping_option, tracking_updated_at, created_at").in("id", unikOrderIds),
   ]);
 
   const planIds = (plans || []).map((row) => row.id);
@@ -88,6 +89,7 @@ export async function GET(req: NextRequest) {
       overdueCount: overdue.length,
       items: order?.items || [],
       schedule,
+      tracking: seller?.subdomain === "4regn" && order ? buildFourRegnTracking(order) : null,
     };
   });
 
