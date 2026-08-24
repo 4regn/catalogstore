@@ -37,11 +37,11 @@ export function getCachedFourRegnCatalog(slug: string, sellerId: string) {
         promoBadges: promoBadgesRes.data ?? [],
       };
     },
-    // v2 invalidates the persistent Vercel Data Cache created before the
-    // 4REGN trucker-cap image migration. That cache survives deployments,
-    // so collection pages could keep serving old image_url values even
-    // while product pages and the dashboard already showed the new files.
-    ["four-regn-catalog-v2", slug, sellerId],
+    // v3 invalidates the persistent Vercel Data Cache after restoring the
+    // original 4REGN trucker-cap images. This cache survives deployments,
+    // so the key must change when an out-of-band catalog migration is
+    // rolled back.
+    ["four-regn-catalog-v3", slug, sellerId],
     { revalidate: 3600, tags: [`storefront:${slug}`] }
   )();
 }
