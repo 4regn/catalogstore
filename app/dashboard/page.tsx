@@ -1725,6 +1725,7 @@ export default function Dashboard() {
       items: [
         { key: "live" as TabKey, name: "Live Visitors", icon: "live" as DashIconName, count: liveVisitors.length },
         { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName, count: totalOrdersCount ?? visibleOrders.length },
+        ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Production & Retail", icon: "analytics" as DashIconName, action: () => router.push("/production-retail") }] : []),
         ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Production", icon: "orders" as DashIconName, action: () => router.push("/production") }] : []),
         ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Retail Partners", icon: "store" as DashIconName, action: () => router.push("/retail-pilot") }] : []),
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
