@@ -30,6 +30,7 @@ create table if not exists public.sewing_batches (
   updated_at timestamptz not null default now(),
   unique (seller_id, batch_code)
 );
+alter table public.sewing_batches add column if not exists handover_locked_at timestamptz;
 
 create table if not exists public.sewing_batch_items (
   id uuid primary key default gen_random_uuid(),

@@ -1,0 +1,6 @@
+.dateTimePicker{display:grid;grid-template-columns:minmax(0,1fr) minmax(115px,.65fr) auto;gap:8px;align-items:end}
+.dateTimePicker label>span{display:block;font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;color:#756d63}
+.dateTimePicker input,.presetField input,.presetField select{width:100%;min-height:44px;border:1px solid #ded4c5;border-radius:11px;background:#fff;padding:10px;color:#17150f}
+.dateTimePicker button{min-height:44px;border:1px solid #ded4c5;border-radius:11px;background:#f1e9dd;padding:8px 10px;font-weight:800}
+.presetField{display:grid;gap:5px;min-width:0}
+@media(max-width:650px){.dateTimePicker{grid-template-columns:1fr 1fr}.dateTimePicker button{grid-column:1/-1}.dateTimePicker input,.presetField input,.presetField select{font-size:16px}}
