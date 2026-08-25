@@ -16,8 +16,10 @@ export async function springCampaignHtml() {
 }
 
 export function marketingApiKey() {
-  const key = process.env.FOUR_REGN_RESEND_API_KEY;
-  if (!key) throw new Error("FOUR_REGN_RESEND_API_KEY is not configured");
+  const key = process.env.FOUR_REGN_RESEND_MARKETING_API_KEY;
+  if (!key) {
+    throw new Error("FOUR_REGN_RESEND_MARKETING_API_KEY is not configured. Add a separate Resend Full access key in Vercel for Contacts, Segments and Broadcasts.");
+  }
   return key;
 }
 
