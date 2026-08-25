@@ -4,6 +4,7 @@ import { getAdmin } from "../../../lib/supabase-admin";
 import { canonicalStoreUrl } from "../../../lib/store-url";
 import { sendOrderPushToSeller } from "../../../lib/push-notify";
 import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "../../../lib/four-regn-orders";
+import { getFourRegnResendFrom } from "../../../lib/email";
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIP(req);
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     // 1. Send email notification via Resend (if API key exists)
     const resendKey = isFourRegn ? process.env.FOUR_REGN_RESEND_API_KEY : process.env.RESEND_API_KEY;
     const resendFrom = isFourRegn
-      ? (process.env.FOUR_REGN_RESEND_FROM_EMAIL || "4REGN <info@4regn.com>")
+      ? getFourRegnResendFrom()
       : (process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>");
     if (resendKey && seller.email) {
       try {

@@ -11,6 +11,20 @@
 // own separate free Resend account) needs its own key here -- passing one
 // doesn't touch the default RESEND_API_KEY/orders@catalogstore.co.za path
 // every other caller still uses.
+const DEFAULT_FOUR_REGN_FROM = "4REGN <info@4regn.com>";
+
+export function getFourRegnResendFrom(): string {
+  const configured = process.env.FOUR_REGN_RESEND_FROM_EMAIL?.trim();
+  if (!configured) return DEFAULT_FOUR_REGN_FROM;
+
+  const mailbox = "[^\\s<>@]+@[^\\s<>@]+\\.[^\\s<>@]+";
+  const valid = new RegExp(`^(?:${mailbox}|.+\\s<${mailbox}>)$`).test(configured);
+  if (valid) return configured;
+
+  console.warn("FOUR_REGN_RESEND_FROM_EMAIL is invalid; using the safe 4REGN sender fallback");
+  return DEFAULT_FOUR_REGN_FROM;
+}
+
 export async function sendEmail({
   to,
   from,
@@ -39,7 +53,7 @@ export async function sendEmail({
   const isFourRegn = !apiKey && seller?.subdomain === "4regn";
   const resendKey = apiKey || (isFourRegn ? process.env.FOUR_REGN_RESEND_API_KEY : process.env.RESEND_API_KEY);
   const resolvedFrom = isFourRegn
-    ? (process.env.FOUR_REGN_RESEND_FROM_EMAIL || "4REGN <info@4regn.com>")
+    ? getFourRegnResendFrom()
     : (from || process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>");
   if (!to) return;
   if (!resendKey) {
