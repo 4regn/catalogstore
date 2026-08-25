@@ -187,7 +187,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   shopbygender: { icon: "circle",       label: "Shop by Gender" },
   "ticker-strip":      { icon: "ticker", label: "4regn Ticker Strip" },
   "winter-essentials": { icon: "image",  label: "Winter Essentials" },
-  "winter-sale-marquee": { icon: "image", label: "Winter Sale Marquee" },
+  "winter-sale-marquee": { icon: "image", label: "Spring Sale Marquee" },
   "standard-graphic-hoodies": { icon: "image", label: "Standard Graphic Hoodies" },
 };
 
