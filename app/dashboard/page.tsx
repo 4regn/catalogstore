@@ -11,6 +11,7 @@ import CtaTargetPicker, { type CtaTarget } from "../components/CtaTargetPicker";
 import FocalPointPicker from "../components/FocalPointPicker";
 import Spinner from "../components/Spinner";
 import SupportChat from "../components/SupportChat";
+import CustomersPanel from "./components/CustomersPanel";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
 import type { FullAnalytics } from "../../lib/store-analytics";
@@ -385,7 +386,7 @@ const templatesForSeller = (subdomain?: string | null) => {
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "customers" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -1743,6 +1744,7 @@ export default function Dashboard() {
     {
       label: "Grow",
       items: [
+        { key: "customers" as TabKey, name: "Customers", icon: "account" as DashIconName },
         { key: "analytics" as TabKey, name: "Analytics", icon: "analytics" as DashIconName, pro: true },
         { key: "overview" as TabKey, name: "Share Store", icon: "share" as DashIconName, action: () => setShareModalOpen(true) },
         { key: "qrcode" as TabKey, name: "QR Code", icon: "qrcode" as DashIconName },
@@ -3170,6 +3172,8 @@ export default function Dashboard() {
               </div>
             )}
           </div>)}
+
+          {tab === "customers" && <CustomersPanel />}
 
           {tab === "orders" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
