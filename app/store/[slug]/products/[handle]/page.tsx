@@ -5,7 +5,7 @@ import nextDynamic from "next/dynamic";
 import type { Metadata, Viewport } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
-import { canonicalStoreUrl } from "../../../../../lib/store-url";
+import { canonicalStoreUrlForRequest } from "../../../../../lib/store-canonical-server";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { descriptionToPlainText } from "../../../../../lib/description-plain-text";
@@ -48,7 +48,7 @@ export const viewport: Viewport = {
 };
 
 const SELLER_COLUMNS =
-  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+  "id, store_name, whatsapp_number, subdomain, custom_domain, custom_domain_status, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 // Full columns for the single active product being viewed -- FourRegnStore's
 // PDP render (initialActiveProduct) needs everything: description, the full
 // images array, variants (size/option picker), old_price (sale price row).
@@ -152,11 +152,12 @@ export async function generateMetadata({
   const description = product.description
     ? descriptionToPlainText(product.description).substring(0, 160)
     : `Shop ${product.name} at ${storeName}`;
+  const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/products/${handle}`);
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalStoreUrl(slug, `/products/${handle}`) },
+    alternates: { canonical },
     robots: { index: true, follow: true },
     openGraph: {
       title,
@@ -200,6 +201,7 @@ export default async function ProductHandlePage({
   ]);
 
   if (!activeProduct) notFound();
+  const productUrl = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/products/${handle}`);
 
   // "You Might Also Like" no longer runs a server-side query at all --
   // two attempts at bounding it here (Promise.race, then a real
@@ -225,13 +227,13 @@ export default async function ProductHandlePage({
     description: activeProduct.description ? descriptionToPlainText(activeProduct.description) : undefined,
     image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
     brand: { "@type": "Brand", name: seller.store_name },
-    url: canonicalStoreUrl(slug, `/products/${handle}`),
+    url: productUrl,
     offers: {
       "@type": "Offer",
       priceCurrency: "ZAR",
       price: activeProduct.price,
       availability: activeProduct.in_stock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      url: canonicalStoreUrl(slug, `/products/${handle}`),
+      url: productUrl,
     },
   };
 

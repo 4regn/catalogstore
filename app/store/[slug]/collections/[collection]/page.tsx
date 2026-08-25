@@ -1,10 +1,10 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
-import { canonicalStoreUrl } from "../../../../../lib/store-url";
+import { canonicalStoreUrlForRequest } from "../../../../../lib/store-canonical-server";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
@@ -12,6 +12,7 @@ import { getCachedFourRegnCatalog } from "../../../../../lib/four-regn-catalog-c
 import { sanitizeCollectionDescriptionHtml } from "../../../../../lib/sanitize-collection-description";
 import { FOUR_REGN_SHOPIFY_COLLECTION_DESCRIPTIONS } from "../../../../../lib/four-regn-collection-descriptions";
 import StoreUnavailable from "../../StoreUnavailable";
+import UniversalCollectionPage from "../../UniversalCollectionPage";
 
 // 4regn-only route -- every other template's collection pages still live at
 // /c/{collection} (see ../../c/[collection]/page.tsx). This one exists
@@ -33,7 +34,7 @@ export const dynamic = "force-dynamic";
 const FourRegn = nextDynamic(() => import("../../FourRegnStore"));
 
 const SELLER_COLUMNS =
-  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+  "id, store_name, whatsapp_number, subdomain, custom_domain, custom_domain_status, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 // Same column set/reasoning as ../../c/[collection]/page.tsx's own
 // FOUR_REGN_PRODUCT_COLUMNS -- see that file's comment for why each field
 // is here, including in_stock (ProductCard's Sold Out badge/disabled
@@ -104,11 +105,12 @@ export async function generateMetadata({
 
   const title = `${name} | ${seller.store_name}`;
   const description = `Shop ${name} at ${seller.store_name}.`;
+  const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/collections/${collection}`);
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalStoreUrl(slug, `/collections/${collection}`) },
+    alternates: { canonical },
     openGraph: { title, description },
   };
 }
@@ -142,7 +144,68 @@ export default async function CollectionPage({
   // Heirloom/SoftLuxury's real collection pages still live there.
   const tpl = resolveSellerTemplate(seller);
   if (tpl !== "4regn") {
-    redirect(isSubdomain ? `/c/${collection}` : `/store/${slug}/c/${collection}`);
+    const isAll = collection.toLowerCase() === "all";
+    let matched: string | null = null;
+
+    if (!isAll) {
+      const collections: string[] = Array.isArray(seller.collections) ? seller.collections : [];
+      matched = collections.find((c) => slugify(c) === collection.toLowerCase()) ?? null;
+      if (!matched) {
+        const categoryRows = await fetchAllRows<{ category: string }>(supabaseAdmin, "products", "category", (q) =>
+          q.eq("seller_id", seller.id).eq("status", "published").not("category", "is", null)
+        );
+        const categories = Array.from(new Set(categoryRows.flatMap((row) => (row.category || "").split(",").map((value) => value.trim())).filter(Boolean)));
+        matched = categories.find((value) => slugify(value) === collection.toLowerCase()) ?? null;
+      }
+      if (!matched) notFound();
+    }
+
+    const products = await fetchAllRows<any>(
+      supabaseAdmin,
+      "products",
+      "id, name, price, old_price, category, image_url, images, in_stock, sort_order, created_at, handle",
+      (q) => q.eq("seller_id", seller.id).eq("status", "published").order("sort_order", { ascending: true })
+    );
+    const collectionProducts = isAll
+      ? products
+      : products.filter((product) => (product.category || "").split(",").map((value: string) => value.trim()).includes(matched!));
+    const collectionName = isAll ? "All Products" : matched!;
+    const configuredDescriptions = (seller.store_config || {}).collection_descriptions || {};
+    const description = typeof configuredDescriptions[collectionName] === "string"
+      ? configuredDescriptions[collectionName]
+      : `Shop ${collectionName} at ${seller.store_name}.`;
+    const collectionUrl = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/collections/${collection}`);
+    const storeOrigin = new URL(collectionUrl).origin;
+    const collectionJsonLd = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: `${collectionName} | ${seller.store_name}`,
+      description,
+      url: collectionUrl,
+      mainEntity: {
+        "@type": "ItemList",
+        itemListElement: collectionProducts.map((product, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          name: product.name,
+          url: `${storeOrigin}${product.handle ? `/products/${product.handle}` : `/p/${product.id}`}`,
+        })),
+      },
+    };
+
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
+        <UniversalCollectionPage
+          seller={trimSellerTemplateConfigs(seller, tpl)}
+          products={collectionProducts}
+          collectionName={collectionName}
+          description={description}
+          template={tpl}
+          isSubdomain={isSubdomain}
+        />
+      </>
+    );
   }
 
   // Special-case "all": render every published product without a category filter.
