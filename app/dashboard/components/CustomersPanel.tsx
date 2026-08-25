@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import EmailCampaignPanel from "./EmailCampaignPanel";
 
 type Audience = "all" | "email" | "sms" | "both";
 
@@ -141,6 +142,8 @@ export default function CustomersPanel() {
         <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 7 }}>{card.description}</div>
       </button>)}
     </div>
+
+    <EmailCampaignPanel />
 
     <div style={{ ...cardStyle, padding: 16, marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
