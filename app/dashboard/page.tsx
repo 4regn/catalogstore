@@ -588,7 +588,7 @@ export default function Dashboard() {
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
-  const [subscribers, setSubscribers] = useState<{ email: string; created_at: string }[]>([]);
+  const [subscribers, setSubscribers] = useState<{ first_name: string | null; email: string; created_at: string; consented_at?: string | null }[]>([]);
   const [subscribersLoading, setSubscribersLoading] = useState(false);
   const [subscribersLoaded, setSubscribersLoaded] = useState(false);
   const [productSort, setProductSort] = useState("manual");
@@ -4297,7 +4297,8 @@ export default function Dashboard() {
                   <button onClick={() => void fetchSubscribers()} disabled={subscribersLoading} style={{ padding: "8px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: subscribersLoading ? "default" : "pointer" }}>{subscribersLoading ? "Refreshing…" : "Refresh"}</button>
                   {subscribers.length > 0 && (
                     <button onClick={() => {
-                      const rows = ["email,subscribed_at", ...subscribers.map(s => `${s.email},${s.created_at}`)];
+                      const csvCell = (value: string) => `"${value.replaceAll('"', '""')}"`;
+                      const rows = ["first_name,email,subscribed_at", ...subscribers.map(s => `${csvCell(s.first_name || "")},${csvCell(s.email)},${csvCell(s.consented_at || s.created_at)}`)];
                       const blob = new Blob([rows.join("\n")], { type: "text/csv" });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");
@@ -4315,7 +4316,7 @@ export default function Dashboard() {
                 <div style={{ display: "flex", flexDirection: "column" as const }}>
                   {subscribers.map((s, i) => (
                     <div key={s.email} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 4px", borderBottom: i === subscribers.length - 1 ? "none" : "1px solid var(--border)" }}>
-                      <span style={{ fontSize: 13, color: "var(--text)" }}>{s.email}</span>
+                      <span style={{ fontSize: 13, color: "var(--text)" }}>{s.first_name ? <><strong>{s.first_name}</strong><span style={{ color: "var(--muted)", marginLeft: 8 }}>{s.email}</span></> : s.email}</span>
                       <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{new Date(s.created_at).toLocaleDateString()}</span>
                     </div>
                   ))}

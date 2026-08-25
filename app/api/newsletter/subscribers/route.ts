@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await getAdmin()
       .from("newsletter_subscribers")
-      .select("email, created_at")
+      .select("first_name, email, created_at, consented_at")
       .eq("seller_id", userData.user.id)
       .order("created_at", { ascending: false });
 

@@ -773,6 +773,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [productSort, setProductSort] = useState(currentSort);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
+  const [newsletterFirstName, setNewsletterFirstName] = useState("");
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterStatus, setNewsletterStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [newsletterMessage, setNewsletterMessage] = useState("");
   // Home view's own `products` (see FOUR_REGN_HOME_PRODUCT_COLUMNS in
   // ../page.tsx) is now id/category/image_url only -- name/price/handle
   // (needed for the search overlay's filter/display/routing) are fetched
@@ -2181,6 +2185,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-badge{position:absolute;z-index:3;right:28px;bottom:28px;padding:12px 14px;border:1px solid rgba(255,255,255,0.12);border-radius:15px;background:rgba(5,5,5,0.56);display:flex;align-items:center;gap:9px;color:#d8ddd9;font-family:var(--body);font-size:11px}
 .fr-setla-badge i{display:block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 16px #4ade80}
 .fr-stitch-landing-banner{background:#f4f0ff;padding:0}
+.fr-stitch-landing-banner a{display:block}
 .fr-stitch-landing-banner img{display:block;width:100%;height:auto}
 
 /* TICKER STRIP — ported 1:1 from the real site's ticker-strip.liquid
@@ -2379,6 +2384,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-stitch-message strong{color:#6e2cff}
 .fr-stitch-modal-foot{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:24px 42px 34px;color:#847b8c;font-size:11px}
 .fr-stitch-modal-foot img{height:20px;width:auto;opacity:.85}
+.fr-stitch-modal-foot a{color:#6e2cff;font-weight:800;text-underline-offset:3px}
 @media(max-width:760px){
  .fr-stitch-widget-body{align-items:flex-start;flex-direction:column}
  .fr-stitch-amount-value{text-align:left}
@@ -2586,10 +2592,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-nl-lbl{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6f6f6f;margin-bottom:10px}
 .fr-nl-title{font-family:var(--body);font-weight:500;font-size:clamp(40px,4.2vw,66px);line-height:.95;letter-spacing:-.05em;text-transform:uppercase;color:#080808;margin:0}
 .fr-nl-sub{font-size:13px;color:#666;max-width:500px;margin:14px 0 0;line-height:1.6}
-.fr-nl-form{display:flex;border-bottom:1px solid #050505;padding-bottom:8px;margin:0}
-.fr-nl-form input{flex:1;min-width:0;background:transparent;border:0;outline:none;font-family:var(--body);font-size:13px;padding:15px 4px;color:#080808}
+.fr-nl-signup{min-width:0}
+.fr-nl-form{display:grid;grid-template-columns:minmax(105px,.7fr) minmax(170px,1.3fr) auto;gap:10px;margin:0}
+.fr-nl-form input{min-width:0;background:transparent;border:0;border-bottom:1px solid #050505;outline:none;font-family:var(--body);font-size:13px;padding:15px 4px;color:#080808}
 .fr-nl-form input::placeholder{color:rgba(46,42,57,0.4)}
-.fr-nl-form button{background:#050505;color:#fff;border:0;border-radius:7px;cursor:pointer;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 24px}
+.fr-nl-form button{min-height:48px;background:#050505;color:#fff;border:0;border-radius:7px;cursor:pointer;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 24px}
+.fr-nl-form button:disabled{opacity:.65;cursor:default}
+.fr-nl-consent{font-family:var(--body);font-size:9px;line-height:1.55;color:#777;margin:10px 0 0}
+.fr-nl-status{font-family:var(--body);font-size:11px;font-weight:600;margin:10px 0 0}
 
 .fr-foot{background:#050505;color:#fff;padding:72px max(32px,calc((100vw - 1420px)/2 + 32px)) 28px}
 .fr-foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:56px;max-width:1360px;margin:0 auto 56px}
@@ -2918,6 +2928,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-about{margin-top:48px;padding:80px 20px;grid-template-columns:1fr;gap:35px}
   .fr-about-stats{gap:32px}
   .fr-newsletter{padding:65px 20px;grid-template-columns:1fr;gap:40px}
+  .fr-nl-form{grid-template-columns:1fr}
+  .fr-nl-form button{padding:15px 20px}
   .fr-foot{padding:56px 20px 24px}
   .fr-foot-grid{grid-template-columns:1fr;gap:36px}
   .fr-pdp-grid{grid-template-columns:1fr}
@@ -3543,7 +3555,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {isHomeView && (
           <EditSection id="stitch-pay-later-banner">
             <section className="fr-stitch-landing-banner" aria-label="Stitch Pay Later available at checkout">
-              <img src="/checkout/stitch-pay-later-banner.jpeg" alt="Stitch Pay Later available at checkout. Buy now, pay later." />
+              <a href="/stitch-pay-later" aria-label="Learn how to pay with Stitch Pay Later"><img src="/checkout/stitch-pay-later-banner.jpeg" alt="Stitch Pay Later available at checkout. Buy now, pay later." /></a>
             </section>
           </EditSection>
         )}
@@ -4264,10 +4276,34 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           <EditSection id="newsletter">
             <section className="fr-newsletter">
               <div className="fr-nl-copy"><div className="fr-nl-lbl">Newsletter</div><h2 className="fr-nl-title">{nlTitle}</h2><p className="fr-nl-sub">{nlSub}</p></div>
-              <form className="fr-nl-form" onSubmit={(e) => { e.preventDefault(); (e.currentTarget.querySelector("button") as HTMLButtonElement).textContent = "Joined ✓"; }}>
-                <input type="email" placeholder="your@email.com" required />
-                <button type="submit">Subscribe</button>
-              </form>
+              <div className="fr-nl-signup">
+                <form className="fr-nl-form" onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!seller?.id || newsletterStatus === "loading") return;
+                  setNewsletterStatus("loading");
+                  setNewsletterMessage("");
+                  try {
+                    const response = await fetch("/api/newsletter/subscribe", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ sellerId: seller.id, firstName: newsletterFirstName, email: newsletterEmail }),
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(result.error || "Subscription failed");
+                    setNewsletterStatus("done");
+                    setNewsletterMessage(`Welcome to the 4REGN family, ${newsletterFirstName.trim()}!`);
+                  } catch (subscribeError: any) {
+                    setNewsletterStatus("error");
+                    setNewsletterMessage(subscribeError?.message || "Something went wrong. Please try again.");
+                  }
+                }}>
+                  <input type="text" name="given-name" autoComplete="given-name" maxLength={80} value={newsletterFirstName} onChange={(event) => { setNewsletterFirstName(event.target.value); if (newsletterStatus === "error") setNewsletterStatus("idle"); }} placeholder="First name" required disabled={newsletterStatus === "done"} />
+                  <input type="email" name="email" autoComplete="email" maxLength={254} value={newsletterEmail} onChange={(event) => { setNewsletterEmail(event.target.value); if (newsletterStatus === "error") setNewsletterStatus("idle"); }} placeholder="Email address" required disabled={newsletterStatus === "done"} />
+                  <button type="submit" disabled={newsletterStatus === "loading" || newsletterStatus === "done"}>{newsletterStatus === "loading" ? "Joining…" : newsletterStatus === "done" ? "Joined ✓" : "Subscribe"}</button>
+                </form>
+                <p className="fr-nl-consent">By subscribing, you agree to receive 4REGN collection launches and exclusive offers by email. Unsubscribe anytime.</p>
+                {newsletterMessage && <p className="fr-nl-status" role="status" style={{ color: newsletterStatus === "error" ? "#b42318" : "#177533" }}>{newsletterMessage}</p>}
+              </div>
             </section>
           </EditSection>
         )}
@@ -5272,7 +5308,7 @@ function StitchPayLaterProductWidget({ price }: { price: number }) {
           </section>
           <footer className="fr-stitch-modal-foot">
             <img src="/checkout/stitch.png" alt="Stitch" />
-            <span>Stitch Pay Later available at 4REGN checkout</span>
+            <span>Stitch Pay Later available at 4REGN checkout · <a href="/stitch-pay-later">Open full guide page</a></span>
           </footer>
         </article>
       </div>

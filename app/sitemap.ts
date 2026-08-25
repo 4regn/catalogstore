@@ -64,6 +64,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const origin = `https://${hostname}`;
   const entries: MetadataRoute.Sitemap = [{ url: origin, changeFrequency: "daily", priority: 1 }];
+  if (seller.subdomain === "4regn") {
+    entries.push({ url: `${origin}/stitch-pay-later`, changeFrequency: "monthly", priority: 0.7 });
+  }
 
   {
     // A single .limit() can't exceed the project's own server-side row cap
