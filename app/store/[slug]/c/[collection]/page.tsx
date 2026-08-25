@@ -41,7 +41,7 @@ const SELLER_COLUMNS =
 // collectionProducts filter below). created_at stays for their
 // Newest/Oldest sort option.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 

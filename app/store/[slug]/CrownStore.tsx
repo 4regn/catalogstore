@@ -5,6 +5,8 @@ import { supabase } from "../../../lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { usePersistentStorefrontCart } from "./usePersistentStorefrontCart";
+import StorefrontNavigationProgress from "./StorefrontNavigationProgress";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -73,6 +75,7 @@ interface Seller {
 interface Variant { name: string; options: string[]; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null;
+  handle?: string;
   category: string; image_url: string; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
   sort_order: number;
@@ -196,6 +199,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
 
   /* cart */
   const [cart, setCart]       = useState<CartItem[]>([]);
+  usePersistentStorefrontCart(slug, cart, setCart, !isEditMode);
   const [cartOpen, setCartOpen] = useState(false);
 
   useLiveVisitorPing(seller?.id, {
@@ -804,12 +808,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
         )}
 
         {/* LOADING BAR — thin top progress bar during client-side navigation */}
-        {navigating && (
-          <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 9999, background: "rgba(196,162,101,0.15)", overflow: "hidden", pointerEvents: "none" }} aria-hidden="true">
-            <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", background: gold, borderRadius: "0 2px 2px 0", animation: "cr-progress 0.8s ease-in-out infinite" }} />
-            <style>{`@keyframes cr-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}`}</style>
-          </div>
-        )}
+        <StorefrontNavigationProgress active={navigating} color={gold} />
 
         {/* ── NAV ── */}
         <nav style={{
@@ -1004,7 +1003,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                 const discountPct = p.old_price ? Math.round((1 - p.price / p.old_price) * 100) : null;
                 return (
                   <div key={p.id} className="crown-prod-card"
-                    onClick={() => { if (isEditMode) openProduct(p); else { setNavigating(true); router.push(sp(`/p/${p.id}`)); } }}
+                    onClick={() => { if (isEditMode) openProduct(p); else { setNavigating(true); router.push(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`)); } }}
                     style={{ background: bgCard, cursor: "pointer", border: "1px solid transparent", transition: "border-color 0.4s", animation: `fadeUp 0.5s ease ${i * 0.05}s both` }}>
                     {/* Image */}
                     <div className="crown-prod-img" style={{ position: "relative", overflow: "hidden", aspectRatio: "3/4", background: bgElevated, borderBottom: `1px solid ${border}` }}>
@@ -1249,7 +1248,7 @@ export default function CrownStore({ initialSeller, initialProducts, initialDisc
                     <div style={{ padding: "24px 8px", color: textMuted, fontSize: 13, letterSpacing: "0.06em" }}>No products match "{searchQuery}".</div>
                   ) : (
                     searched.slice(0, 8).map((p) => (
-                      <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) openProduct(p); else { setNavigating(true); router.push(sp(`/p/${p.id}`)); } }}
+                      <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) openProduct(p); else { setNavigating(true); router.push(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`)); } }}
                         style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 8px", borderBottom: `1px solid ${border}`, cursor: "pointer" }}>
                         {p.image_url ? (
                           <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 52, height: 64, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />

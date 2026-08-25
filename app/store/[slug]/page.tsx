@@ -67,7 +67,7 @@ const SELLER_COLUMNS =
 // Crown/Rosefields ignore it but it's cheap to share one constant across
 // all five rather than branch per template here.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
 // 4regn's homepage no longer renders a flat product grid (it was removed --
 // see the "PRODUCTS" section in FourRegnStore.tsx, now gated to collection
 // view only). Traced every remaining isHomeView code path there: it only

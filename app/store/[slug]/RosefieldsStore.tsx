@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { usePersistentStorefrontCart } from "./usePersistentStorefrontCart";
+import StorefrontNavigationProgress from "./StorefrontNavigationProgress";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -63,6 +65,7 @@ interface Seller {
 interface Variant { name: string; options: string[]; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null;
+  handle?: string;
   category: string; image_url: string; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
   sort_order: number;
@@ -119,6 +122,7 @@ const buildInitialPromos = (dcs: any[] | undefined) => {
 
 export default function RosefieldsStore({ initialSeller, initialProducts, initialDiscountCodes, initialProductId, isSubdomain }: StorePageProps = {}) {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const sp = (suffix: string = "") => (isSubdomain ? suffix || "/" : `/store/${slug}${suffix}`);
   // Read via window.location instead of useSearchParams() -- that hook
@@ -135,6 +139,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
   const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
   const [loading, setLoading]   = useState(!initialSeller);
   const [notFound, setNotFound] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
   /* live edit overrides — updated via postMessage from editor */
   const [liveTagline, setLiveTagline]           = useState<string | null>(null);
@@ -171,6 +176,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
 
   /* cart */
   const [cart, setCart]       = useState<CartItem[]>([]);
+  usePersistentStorefrontCart(slug, cart, setCart, !isEditMode);
   const [cartOpen, setCartOpen] = useState(false);
 
   useLiveVisitorPing(seller?.id, {
@@ -363,6 +369,11 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
     setSelectedVariants({});
     setLocalQty(1);
     setVariantError(false);
+  };
+  const viewProduct = (p: Product) => {
+    if (isEditMode) return openProduct(p);
+    setNavigating(true);
+    router.push(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`));
   };
   useEffect(() => {
     if (initialProductId && products.length > 0 && !selectedProduct) {
@@ -695,6 +706,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
         .rf-mobile-nav a,.rf-mobile-nav button{font-family:'Playfair Display',serif;font-size:26px;font-weight:500;color:${ink};background:none;border:none;cursor:pointer;text-decoration:none}
       `}</style>
 
+      <StorefrontNavigationProgress active={navigating} color={burgundyDeep} />
       <div style={{ fontFamily: "'DM Sans', sans-serif", background: paper, color: ink, minHeight: "100vh", overflowX: "hidden" }}>
 
         {/* ── ANNOUNCEMENT BAR ── */}
@@ -904,7 +916,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
                 const imgs = [p.image_url, ...(p.images || [])].filter(Boolean);
                 const discountPct = p.old_price ? Math.round((1 - p.price / p.old_price) * 100) : null;
                 return (
-                  <div key={p.id} className="rf-prod-card" onClick={() => openProduct(p)}
+                  <div key={p.id} className="rf-prod-card" onClick={() => viewProduct(p)}
                     style={{ background: card, borderRadius: 16, overflow: "hidden", cursor: "pointer", border: `1px solid ${border}`, animation: `fadeUp 0.5s ease ${i * 0.04}s both` }}>
                     <div className="rf-prod-img" style={{ position: "relative" as const, aspectRatio: productCardRatio === "auto" ? undefined : productCardRatio, background: paper, overflow: "hidden" }}>
                       {imgs[0] ? (
@@ -924,7 +936,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
                           <span style={{ fontSize: 15.5, fontWeight: 700, color: burgundy }}>{fmt(p.price)}</span>
                           {p.old_price && <span style={{ fontSize: 11.5, color: inkFaint, textDecoration: "line-through" }}>{fmt(p.old_price)}</span>}
                         </div>
-                        <button className="rf-add-btn" onClick={(e) => { e.stopPropagation(); openProduct(p); }}
+                        <button className="rf-add-btn" onClick={(e) => { e.stopPropagation(); viewProduct(p); }}
                           style={{ background: burgundy, color: "#fff", border: "none", borderRadius: "50%", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "background 0.2s" }} aria-label="Add to cart">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
                         </button>
@@ -1062,7 +1074,7 @@ export default function RosefieldsStore({ initialSeller, initialProducts, initia
                   {searched.length === 0 ? (
                     <div style={{ padding: "20px", color: inkFaint, fontSize: 13 }}>No bouquets match "{searchQuery}".</div>
                   ) : searched.slice(0, 8).map((p) => (
-                    <div key={p.id} onClick={() => { openProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", cursor: "pointer" }}>
+                    <div key={p.id} onClick={() => { viewProduct(p); setShowSearch(false); setSearchQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", cursor: "pointer" }}>
                       {p.image_url ? <img src={p.image_url} alt="" onError={hideOnError} style={{ width: 46, height: 46, borderRadius: 10, objectFit: "cover" as const }} /> : <div style={{ width: 46, height: 46, borderRadius: 10, background: paper }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 600, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{p.name}</div>

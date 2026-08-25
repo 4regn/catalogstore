@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import type { Metadata, Viewport } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
@@ -29,6 +29,7 @@ export const dynamic = "force-static";
 // /p/{uuid}; this handle-based route exists purely to match 4regn's real
 // (Shopify-era, already Google-indexed) /products/{handle} URL format.
 const FourRegn = nextDynamic(() => import("../../FourRegnStore"));
+const UniversalProductPage = nextDynamic(() => import("../../UniversalProductPage"));
 
 // Any seller who lands on this route but isn't actually on the 4regn
 // template gets redirect()'d out below before anything renders, so this
@@ -156,10 +157,17 @@ export async function generateMetadata({
     title,
     description,
     alternates: { canonical: canonicalStoreUrl(slug, `/products/${handle}`) },
+    robots: { index: true, follow: true },
     openGraph: {
       title,
       description,
       ...(product.image_url ? { images: [{ url: product.image_url }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(product.image_url ? { images: [product.image_url] } : {}),
     },
   };
 }
@@ -182,13 +190,8 @@ export default async function ProductHandlePage({
 
   const isSubdomain = await isStoreSubdomainRequest();
 
-  // Resolve through the same private-template gate every other 4regn-only
-  // route uses, so a raw `template` column value can't be used to reach
-  // 4regn's private storefront from a seller who isn't allowed to use it.
+  // Resolve through the same private-template gate as the storefront.
   const tpl = resolveSellerTemplate(seller);
-  if (tpl !== "4regn") {
-    redirect(isSubdomain ? "/" : `/store/${slug}`);
-  }
 
   const nowIso = new Date().toISOString();
   const [activeProduct, promotions] = await Promise.all([
@@ -231,6 +234,21 @@ export default async function ProductHandlePage({
       url: canonicalStoreUrl(slug, `/products/${handle}`),
     },
   };
+
+  if (tpl !== "4regn") {
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+        <UniversalProductPage
+          seller={trimSellerTemplateConfigs(seller, tpl)}
+          product={activeProduct}
+          template={tpl}
+          isSubdomain={isSubdomain}
+          descriptionText={activeProduct.description ? descriptionToPlainText(activeProduct.description) : ""}
+        />
+      </>
+    );
+  }
 
   return (
     <>

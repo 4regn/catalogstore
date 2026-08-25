@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { FONT_PAIRS } from "../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { usePersistentStorefrontCart } from "./usePersistentStorefrontCart";
+import StorefrontNavigationProgress from "./StorefrontNavigationProgress";
 
 // Mirror HeirloomStore's collectionSlug. Inlined (not imported) so this
 // bundle doesn't have to drag in the whole other storefront component just
@@ -53,6 +55,7 @@ interface Seller {
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
+  handle?: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean; description: string;
   sort_order: number; created_at: string;
 }
@@ -223,6 +226,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
   const [modalQty, setModalQty] = useState(1);
   const [cart, setCart] = useState<CartItem[]>([]);
+  usePersistentStorefrontCart(slug, cart, setCart, !isEditMode);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
@@ -1113,7 +1117,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
           ) : (
             <div className="sl-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
               {paginatedProducts.map((product) => (
-                <div key={product.id} onClick={() => { if (isEditMode) { openProduct(product); } else { setNavigating(true); router.push(sp(`/p/${product.id}`)); } }} style={{ cursor: "pointer" }}>
+                <div key={product.id} onClick={() => { if (isEditMode) { openProduct(product); } else { setNavigating(true); router.push(sp(product.handle ? `/products/${product.handle}` : `/p/${product.id}`)); } }} style={{ cursor: "pointer" }}>
                   <div style={{ ...(cardRatio !== "auto" ? { aspectRatio: cardRatio } : {}), borderRadius: 16, overflow: "hidden", marginBottom: 16, position: "relative", background: pageBg }}>
                     {product.image_url && (
                       <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" style={{ width: "100%", height: cardRatio === "auto" ? "auto" : "100%", objectFit: cardRatio === "auto" ? "contain" : "cover", display: "block", transition: "transform 0.6s" }}
@@ -1204,12 +1208,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
         </>)}
 
         {/* LOADING BAR — thin top progress bar instead of a full-page spinner overlay */}
-        {navigating && (
-          <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 9999, background: pageMuted + "30", overflow: "hidden", pointerEvents: "none" }} aria-hidden="true">
-            <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", background: accent, borderRadius: "0 2px 2px 0", animation: "sl-progress 0.8s ease-in-out infinite" }} />
-            <style>{`@keyframes sl-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}`}</style>
-          </div>
-        )}
+        <StorefrontNavigationProgress active={navigating} color={accent} />
 
         {/* PRODUCT DETAIL PAGE — full page view when navigated via /p/[productId] */}
         {selectedProduct && initialProductId && !isEditMode && (
@@ -1521,7 +1520,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
             {searched && searched.length > 0 && (
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
-                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) { openProduct(p); } else { setNavigating(true); router.push(sp(`/p/${p.id}`)); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
+                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) { openProduct(p); } else { setNavigating(true); router.push(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`)); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }}>
                     {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 8, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 15 }}>{p.name}</div><div style={{ fontSize: 13, color: accent }}>{fmt(p.price)}</div></div>
                   </div>

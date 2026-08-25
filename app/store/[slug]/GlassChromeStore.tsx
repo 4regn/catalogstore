@@ -5,6 +5,8 @@ import { supabase } from "../../../lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { usePersistentStorefrontCart } from "./usePersistentStorefrontCart";
+import StorefrontNavigationProgress from "./StorefrontNavigationProgress";
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -23,6 +25,7 @@ interface Seller {
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
+  handle?: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean; description: string;
   sort_order: number; created_at: string;
 }
@@ -115,6 +118,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
   const [selectedVariants, setSelectedVariants] = useState<{ [key: string]: string }>({});
   const [modalQty, setModalQty] = useState(1);
   const [cart, setCart] = useState<CartItem[]>([]);
+  usePersistentStorefrontCart(slug, cart, setCart, !isEditMode);
   const [showCart, setShowCart] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
@@ -488,12 +492,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
         )}
 
         {/* LOADING BAR — thin top progress bar during client-side navigation */}
-        {navigating && (
-          <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 9999, background: "rgba(255,255,255,0.08)", overflow: "hidden", pointerEvents: "none" }} aria-hidden="true">
-            <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", background: accentColor, borderRadius: "0 2px 2px 0", animation: "gc-progress 0.8s ease-in-out infinite" }} />
-            <style>{`@keyframes gc-progress{from{transform:translateX(-40%)}to{transform:translateX(250%)}}`}</style>
-          </div>
-        )}
+        <StorefrontNavigationProgress active={navigating} color={accentColor} />
 
         {/* HEADER */}
         <header style={{ position: "sticky", top: 0, zIndex: 100, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 30px", height: 64, background: "rgba(3,3,5,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid " + PB }}>
@@ -658,7 +657,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
           ) : (
             <div className="gc-pgrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
               {filtered.map((product) => (
-                <div key={product.id} onClick={() => { if (isEditMode) openProduct(product); else { setNavigating(true); router.push(sp(`/p/${product.id}`)); } }} style={{ background: P, border: "1px solid " + PB, borderRadius: 12, overflow: "hidden", cursor: "pointer", transition: "transform 0.35s, border-color 0.35s, box-shadow 0.35s", position: "relative" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = PB; e.currentTarget.style.boxShadow = ""; }}>
+                <div key={product.id} onClick={() => { if (isEditMode) openProduct(product); else { setNavigating(true); router.push(sp(product.handle ? `/products/${product.handle}` : `/p/${product.id}`)); } }} style={{ background: P, border: "1px solid " + PB, borderRadius: 12, overflow: "hidden", cursor: "pointer", transition: "transform 0.35s, border-color 0.35s, box-shadow 0.35s", position: "relative" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = PB; e.currentTarget.style.boxShadow = ""; }}>
                   <div style={{ aspectRatio: "3/4", overflow: "hidden", background: "linear-gradient(145deg, #141418, #0c0c10)", position: "relative" }}>
                     {product.image_url && <img src={product.image_url} alt={product.name} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s", filter: "brightness(0.85)" }} />}
                     {product.old_price && <div style={{ position: "absolute", top: 12, left: 12, fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 4, background: "#fff", color: "#000", fontWeight: 600 }}>Sale</div>}
@@ -939,7 +938,7 @@ export default function GlassChromeStore({ initialSeller, initialProducts, initi
             {searched && searched.length > 0 && (
               <div style={{ width: "100%", maxWidth: 600, paddingBottom: 24 }}>
                 {searched.slice(0, 6).map((p) => (
-                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) openProduct(p); else { setNavigating(true); router.push(sp(`/p/${p.id}`)); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid " + PB, cursor: "pointer" }}>
+                  <div key={p.id} onClick={() => { setShowSearch(false); setSearchQuery(""); if (isEditMode) openProduct(p); else { setNavigating(true); router.push(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`)); } }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid " + PB, cursor: "pointer" }}>
                     {p.image_url && <img src={p.image_url} alt="" onError={hideOnError} loading="lazy" decoding="async" style={{ width: 48, height: 60, borderRadius: 6, objectFit: "cover" }} />}
                     <div><div style={{ fontSize: 14 }}>{p.name}</div><div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{fmt(p.price)}</div></div>
                   </div>
