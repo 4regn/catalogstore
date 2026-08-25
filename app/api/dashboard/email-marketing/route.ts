@@ -55,11 +55,17 @@ async function audienceCount(admin: ReturnType<typeof getAdmin>, sellerId: strin
   return (await personalizedAudienceContacts(admin, sellerId)).length;
 }
 
-async function allOptedInCount(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  const { count, error } = await admin.from("customers").select("id", { count: "exact", head: true })
-    .eq("seller_id", sellerId).eq("accepts_email_marketing", true).not("email", "is", null);
-  if (error) throw error;
-  return count || 0;
+async function unnamedAudienceCount(admin: ReturnType<typeof getAdmin>, sellerId: string) {
+  const rows = await allRows<{ email: string; first_name: string | null }>((from, to) => admin.from("customers")
+    .select("email, first_name").eq("seller_id", sellerId).eq("accepts_email_marketing", true)
+    .not("email", "is", null).order("id", { ascending: true }).range(from, to));
+  const namesByEmail = new Map<string, boolean>();
+  for (const contact of rows) {
+    const email = contact.email?.trim().toLowerCase();
+    if (!email) continue;
+    namesByEmail.set(email, (namesByEmail.get(email) || false) || !!contact.first_name?.trim());
+  }
+  return [...namesByEmail.values()].filter((hasName) => !hasName).length;
 }
 
 async function allRows<T>(loadPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>) {
@@ -103,17 +109,17 @@ export async function POST(req: NextRequest) {
     const { admin, seller } = await authenticate(accessToken);
 
     if (action === "overview") {
-      const [settings, count, totalOptedIn, campaignsResult, usedEmails] = await Promise.all([
+      const [settings, count, skippedUnnamedCount, campaignsResult, usedEmails] = await Promise.all([
         getSettings(admin, seller.id),
         audienceCount(admin, seller.id),
-        allOptedInCount(admin, seller.id),
+        unnamedAudienceCount(admin, seller.id),
         admin.from("marketing_email_campaigns")
           .select("id, name, subject, preview_text, resend_broadcast_id, resend_segment_id, batch_number, recipient_count, status, scheduled_at, sent_at, last_error, created_at")
           .eq("seller_id", seller.id).order("created_at", { ascending: false }).limit(20),
         campaignAudienceState(admin, seller.id),
       ]);
       if (campaignsResult.error) throw campaignsResult.error;
-      return NextResponse.json({ ok: true, settings, audienceCount: count, skippedUnnamedCount: Math.max(0, totalOptedIn - count), remainingCount: Math.max(0, count - usedEmails.size), campaigns: campaignsResult.data || [], template: SPRING_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
+      return NextResponse.json({ ok: true, settings, audienceCount: count, skippedUnnamedCount, remainingCount: Math.max(0, count - usedEmails.size), campaigns: campaignsResult.data || [], template: SPRING_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
     }
 
     if (action === "sync") {
