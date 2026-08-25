@@ -568,7 +568,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
   const heroCtaTarget = liveHeroCtaTarget ?? (cfg as any).hero_cta_target ?? { type: "products" };
   const displayHeroCta = liveHeroCta ?? (cfg as any).hero_cta ?? "";
   const heroCtaHref =
-    heroCtaTarget.type === "collection" && heroCtaTarget.collection ? sp(`/c/${heroCtaTarget.collection}`) :
+    heroCtaTarget.type === "collection" && heroCtaTarget.collection ? sp(`/collections/${heroCtaTarget.collection}`) :
     heroCtaTarget.type === "url" && heroCtaTarget.url ? heroCtaTarget.url :
     heroCtaTarget.type === "none" ? null :
     "#products";
@@ -797,7 +797,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 </button>
               </div>
               <div style={{ overflowY: "auto", flex: 1, padding: "8px 0" }}>
-                <a href={sp("/c/all")} onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", textDecoration: "none", color: pageText }}>
+                <a href={sp("/collections/all")} onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", textDecoration: "none", color: pageText }}>
                   <span style={{ width: 44, height: 44, borderRadius: 10, background: `linear-gradient(145deg, ${accent}12, ${accent}28)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                   </span>
@@ -807,7 +807,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                   const collImages = (cfg as any).collection_images || {};
                   const img = collImages[col] || products.find((p) => pInCat(p, col) && p.image_url)?.image_url || "";
                   return (
-                    <a key={col} href={sp(`/c/${collectionSlug(col)}`)} onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", textDecoration: "none", color: pageText }}>
+                    <a key={col} href={sp(`/collections/${collectionSlug(col)}`)} onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", textDecoration: "none", color: pageText }}>
                       <span style={{ width: 44, height: 44, borderRadius: 10, overflow: "hidden", flexShrink: 0, background: `linear-gradient(145deg, ${accent}12, ${accent}28)` }}>
                         {img && <img src={img} alt="" onError={hideOnError} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                       </span>
@@ -959,13 +959,11 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 promo: getCollectionPromo(col),
               }));
               const collectionsLayout = liveCollectionsLayout ?? (cfg as any).collections_layout ?? "lookbook";
-              const goToCollection = (name: string) => { setActiveCategory(name); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); };
-
               if (collectionsLayout === "circles") {
                 return (
                   <div className="sl-cols-circles" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "40px 32px", maxWidth: 600, margin: "0 auto" }}>
                     {colData.map((c) => (
-                      <div key={c.name} onClick={() => goToCollection(c.name)} style={{ textAlign: "center", cursor: "pointer" }}>
+                      <a key={c.name} href={sp(`/collections/${collectionSlug(c.name)}`)} style={{ textAlign: "center", cursor: "pointer", textDecoration: "none", color: "inherit" }}>
                         <div style={{ width: "100%", aspectRatio: "1", borderRadius: "50%", overflow: "hidden", position: "relative", marginBottom: 16, border: `1px solid ${pageText}14` }}>
                           {c.img ? (
                             <img src={c.img} alt={c.name} onError={hideOnError} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -978,7 +976,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                         {c.promo && (
                           <div style={{ marginTop: 8, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: accent, fontWeight: 600 }}>{c.promo.code} {c.promo.type === "percentage" ? c.promo.value + "%" : "R" + c.promo.value} OFF</div>
                         )}
-                      </div>
+                      </a>
                     ))}
                   </div>
                 );
@@ -988,7 +986,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                 return (
                   <div className="sl-cols-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
                     {colData.map((c) => (
-                      <div key={c.name} onClick={() => goToCollection(c.name)} style={{ position: "relative", borderRadius: 12, overflow: "hidden", cursor: "pointer", aspectRatio: "3 / 4" }}>
+                      <a key={c.name} href={sp(`/collections/${collectionSlug(c.name)}`)} style={{ position: "relative", display: "block", borderRadius: 12, overflow: "hidden", cursor: "pointer", aspectRatio: "3 / 4", textDecoration: "none", color: "inherit" }}>
                         {c.img ? (
                           <img src={c.img} alt={c.name} onError={hideOnError} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
@@ -1004,7 +1002,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                             </div>
                           )}
                         </div>
-                      </div>
+                      </a>
                     ))}
                   </div>
                 );
@@ -1015,8 +1013,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               for (let i = 0; i < colData.length; i += 2) pairs.push(colData.slice(i, i + 2));
 
               const renderCard = (c: typeof colData[0], tall: boolean, idx: number) => (
-                <div key={c.name} onClick={() => { setActiveCategory(c.name); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                  style={{ position: "relative", borderRadius: 12, overflow: "hidden", cursor: "pointer", minHeight: tall ? 520 : 340 }}>
+                <a key={c.name} href={sp(`/collections/${collectionSlug(c.name)}`)}
+                  style={{ position: "relative", display: "block", borderRadius: 12, overflow: "hidden", cursor: "pointer", minHeight: tall ? 520 : 340, textDecoration: "none", color: "inherit" }}>
                   {c.img ? (
                     <img src={c.img} alt={c.name} onError={hideOnError} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
@@ -1040,7 +1038,7 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
                       </PromoCountdown>
                     )}
                   </div>
-                </div>
+                </a>
               );
 
               return (
@@ -1291,8 +1289,8 @@ export default function StorePage({ initialSeller, initialProducts, initialDisco
               <div>
                 <h5 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Shop</h5>
                 {collections.slice(0, 4).map((c) => (
-                  <button key={c} onClick={() => { setActiveCategory(c); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
-                    style={{ display: "block", padding: 0, background: "none", border: "none", textAlign: "left", fontSize: 13, opacity: 0.5, color: "inherit", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
+                  <a key={c} href={sp(`/collections/${collectionSlug(c)}`)}
+                    style={{ display: "block", padding: 0, textAlign: "left", fontSize: 13, opacity: 0.5, color: "inherit", marginBottom: 10, fontWeight: 300, cursor: "pointer", fontFamily: "inherit", textDecoration: "none" }}>{c}</a>
                 ))}
               </div>
               <div>
