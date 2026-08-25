@@ -14,10 +14,14 @@ type Campaign = {
   sent_at: string | null;
   created_at: string;
   last_error: string | null;
+  batch_number?: number;
 };
 
 type Overview = {
   audienceCount: number;
+  skippedUnnamedCount: number;
+  remainingCount: number;
+  maxBatchSize: number;
   sellerEmail: string;
   settings: null | { resend_segment_id: string | null; synced_contact_count: number; last_synced_at: string | null };
   campaigns: Campaign[];
@@ -33,7 +37,7 @@ export default function EmailCampaignPanel() {
   const [notice, setNotice] = useState("");
   const [testEmail, setTestEmail] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
+  const [prepareProgress, setPrepareProgress] = useState({ current: 0, total: 0 });
   const [confirmation, setConfirmation] = useState("");
 
   const call = useCallback(async (action: string, extra: Record<string, unknown> = {}) => {
@@ -63,22 +67,25 @@ export default function EmailCampaignPanel() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const syncAudience = async () => {
-    setBusy("sync"); setError(""); setNotice(""); setSyncProgress({ current: 0, total: overview?.audienceCount || 0 });
+  const createDraft = async () => {
+    setBusy("draft"); setError(""); setNotice(""); setPrepareProgress({ current: 0, total: Math.min(600, overview?.remainingCount || 0) });
     try {
-      let offset = 0;
+      const existing = overview?.campaigns.find((campaign) => campaign.status === "preparing");
+      const started = existing
+        ? { campaign: existing, total: existing.recipient_count }
+        : await call("create_draft", { recipient_limit: Math.min(600, overview?.remainingCount || 600) });
+      const campaignId = started.campaign.id;
+      setPrepareProgress({ current: 0, total: started.total });
       let complete = false;
       while (!complete) {
-        const result = await call("sync", { offset });
-        if (result.failed) throw new Error(`${result.failed} contact${result.failed === 1 ? "" : "s"} could not sync. ${result.errors?.[0] || ""}`.trim());
-        offset = result.offset;
+        const result = await call("prepare_draft", { campaign_id: campaignId });
         complete = result.complete;
-        setSyncProgress({ current: Math.min(offset, result.total), total: result.total });
+        setPrepareProgress({ current: result.prepared, total: result.total });
       }
-      setNotice("Your full opted-in audience is synced with Resend.");
+      setNotice(`Batch prepared for ${started.total.toLocaleString("en-ZA")} subscribers. Nothing has been sent yet.`);
       await load();
-    } catch (syncError: any) {
-      setError(syncError?.message || "Audience sync failed.");
+    } catch (draftError: any) {
+      setError(draftError?.message || "Could not prepare the Broadcast batch.");
     } finally { setBusy(""); }
   };
 
@@ -88,16 +95,6 @@ export default function EmailCampaignPanel() {
       await call("test", { to: testEmail });
       setNotice(`Test email sent to ${testEmail}.`);
     } catch (testError: any) { setError(testError?.message || "Test send failed."); }
-    finally { setBusy(""); }
-  };
-
-  const createDraft = async () => {
-    setBusy("draft"); setError(""); setNotice("");
-    try {
-      await call("create_draft");
-      setNotice("Resend Broadcast draft created. Nothing has been sent yet.");
-      await load();
-    } catch (draftError: any) { setError(draftError?.message || "Could not create the Broadcast draft."); }
     finally { setBusy(""); }
   };
 
@@ -114,8 +111,8 @@ export default function EmailCampaignPanel() {
 
   if (!overview && !error) return <div style={{ ...panel, padding: 24, marginBottom: 18, color: "var(--muted-2)", fontSize: 12 }}>Loading email marketing…</div>;
 
-  const audienceReady = !!overview?.settings?.last_synced_at && (overview.settings.synced_contact_count || 0) >= (overview.audienceCount || 0);
   const latestDraft = overview?.campaigns.find((campaign) => campaign.status === "draft");
+  const preparingBatch = overview?.campaigns.find((campaign) => campaign.status === "preparing");
 
   return <>
     <section style={{ ...panel, padding: "clamp(16px,3vw,24px)", marginBottom: 18 }}>
@@ -138,19 +135,20 @@ export default function EmailCampaignPanel() {
           <div style={{ marginTop: 7, color: "var(--muted-2)", fontSize: 11, lineHeight: 1.55 }}>{overview.template.previewText}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 15 }}>
             <span style={statusPill}>From: 4REGN &lt;info@4regn.com&gt;</span>
-            <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} opted in</span>
-            <span style={{ ...statusPill, color: audienceReady ? "#22c55e" : "#fbbf24" }}>{audienceReady ? "Audience synced" : "Sync required"}</span>
+            <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} named subscribers eligible</span>
+            <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} not sent yet</span>
+            {overview.skippedUnnamedCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.skippedUnnamedCount.toLocaleString("en-ZA")} unnamed skipped</span>}
           </div>
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
-          <div style={eyebrow}>1 · Sync audience</div>
-          <p style={stepCopy}>Copies only explicit email opt-ins to a private 4REGN Resend Segment. Existing Resend unsubscribes remain unsubscribed.</p>
-          {busy === "sync" && <div style={{ margin: "12px 0" }}>
-            <div style={{ height: 6, background: "var(--input-bg)", borderRadius: 99, overflow: "hidden" }}><div style={{ height: "100%", width: `${syncProgress.total ? Math.round(syncProgress.current / syncProgress.total * 100) : 0}%`, background: "#a78bfa" }} /></div>
-            <div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 6 }}>{syncProgress.current.toLocaleString("en-ZA")} / {syncProgress.total.toLocaleString("en-ZA")}</div>
+          <div style={eyebrow}>1 · Prepare today&apos;s batch</div>
+          <p style={stepCopy}>Selects up to 600 opted-in subscribers with a first name who have not received this campaign, then creates a private Resend segment. Unnamed contacts are skipped and tomorrow automatically starts with the remaining eligible subscribers.</p>
+          {busy === "draft" && <div style={{ margin: "12px 0" }}>
+            <div style={{ height: 6, background: "var(--input-bg)", borderRadius: 99, overflow: "hidden" }}><div style={{ height: "100%", width: `${prepareProgress.total ? Math.round(prepareProgress.current / prepareProgress.total * 100) : 0}%`, background: "#a78bfa" }} /></div>
+            <div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 6 }}>{prepareProgress.current.toLocaleString("en-ZA")} / {prepareProgress.total.toLocaleString("en-ZA")}</div>
           </div>}
-          <button disabled={!!busy || overview.audienceCount === 0} onClick={syncAudience} style={primaryButton}>{busy === "sync" ? "Syncing — keep this page open…" : audienceReady ? "Refresh Resend audience" : "Sync audience with Resend"}</button>
+          <button disabled={!!busy || (overview.remainingCount === 0 && !preparingBatch) || !!latestDraft} onClick={createDraft} style={primaryButton}>{busy === "draft" ? "Preparing batch — keep this page open…" : preparingBatch ? "Resume batch preparation" : latestDraft ? "Draft ready below" : `Prepare ${Math.min(600, overview.remainingCount).toLocaleString("en-ZA")} subscribers`}</button>
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
@@ -163,14 +161,14 @@ export default function EmailCampaignPanel() {
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
-          <div style={eyebrow}>3 · Create draft</div>
-          <p style={stepCopy}>Creates a Broadcast in Resend for final review. This step does not send the campaign.</p>
-          <button disabled={!!busy || !audienceReady || !!latestDraft} onClick={createDraft} style={primaryButton}>{busy === "draft" ? "Creating draft…" : latestDraft ? "Draft ready below" : "Create Resend draft"}</button>
+          <div style={eyebrow}>3 · Review before sending</div>
+          <p style={stepCopy}>After preparation, the batch appears as a Resend Broadcast draft below. No subscriber receives anything until you type the exact confirmation phrase.</p>
+          <button disabled style={{ ...primaryButton, opacity: .6 }}>{latestDraft ? "Draft ready below" : "Prepare a batch first"}</button>
         </div>
       </div>}
 
-      {!!overview && overview.audienceCount > 1000 && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
-        Your audience has {overview.audienceCount.toLocaleString("en-ZA")} contacts. Resend&apos;s free Marketing plan currently supports up to 1,000 contacts, so confirm that the 4REGN Resend account has a sufficient Marketing plan before the final send. <a href="https://resend.com/pricing?product=marketing" target="_blank" rel="noreferrer" style={{ color: "inherit", fontWeight: 900, textDecoration: "underline" }}>Check Resend pricing</a>.
+      {!!overview && overview.audienceCount > 600 && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
+        Sending is locked to a maximum of 600 recipients per batch. Today&apos;s recipients are recorded, so tomorrow&apos;s batch will exclude them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers currently remain for this campaign.
       </div>}
 
       {latestDraft && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(244,114,182,.35)" }}>
