@@ -3,10 +3,11 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { getYocoCheckout, isYocoCheckoutPaid, YOCO_TERMINAL_FAILURE_STATUSES } from "../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../lib/unik-orders";
 import { activateSetlaPlanAfterPayment, setlaFirstChargeAmountCents, type SetlaFirstChargeMeta } from "../../../../lib/setla-instalments";
+import { getStitchPaymentLink } from "../../../../lib/stitch";
 
 export const dynamic = "force-dynamic";
 
-const ORDER_SELECT = "id, seller_id, order_number, external_id, customer_name, customer_email, customer_phone, items, total, shipping_cost, shipping_option, shipping_address, fulfillment_method, payment_method, payment_status, status, discount_code, yoco_checkout_id, setla_pending_stitch_meta, created_at";
+const ORDER_SELECT = "id, seller_id, order_number, external_id, customer_name, customer_email, customer_phone, items, total, shipping_cost, shipping_option, shipping_address, fulfillment_method, payment_method, payment_status, status, discount_code, yoco_checkout_id, stitch_link_id, setla_pending_stitch_meta, created_at";
 
 type CheckoutOrder = {
   id: string;
@@ -27,14 +28,16 @@ type CheckoutOrder = {
   status?: string | null;
   discount_code?: string | null;
   yoco_checkout_id?: string | null;
+  stitch_link_id?: string | null;
   setla_pending_stitch_meta?: unknown;
   created_at?: string | null;
 };
 
 function publicOrder(order: CheckoutOrder) {
-  const safeOrder = { ...order } as Omit<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "setla_pending_stitch_meta"> & Partial<Pick<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "setla_pending_stitch_meta">>;
+  const safeOrder = { ...order } as Omit<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "stitch_link_id" | "setla_pending_stitch_meta"> & Partial<Pick<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "stitch_link_id" | "setla_pending_stitch_meta">>;
   delete safeOrder.seller_id;
   delete safeOrder.yoco_checkout_id;
+  delete safeOrder.stitch_link_id;
   delete safeOrder.setla_pending_stitch_meta;
   return safeOrder;
 }
@@ -110,6 +113,43 @@ export async function GET(req: NextRequest) {
       }
     } catch (error) {
       console.error("Yoco self-heal failed", { orderId, error });
+    }
+  }
+
+  // Stitch uses the same idempotent confirmation path as its signed webhook,
+  // but also verifies the link directly when the customer returns. This
+  // prevents a successful payment from remaining pending merely because a
+  // webhook was delayed or its endpoint configuration drifted.
+  if (order.payment_status !== "paid" && order.payment_method === "stitch" && order.stitch_link_id) {
+    try {
+      const payment = await getStitchPaymentLink(order.stitch_link_id);
+      if (payment?.status === "PAID") {
+        const expectedCents = Math.round(Number(order.total || 0) * 100);
+        const amountMatches = payment.amountCents > 0 && Math.abs(expectedCents - payment.amountCents) <= 1;
+        const referenceMatches = !payment.merchantReference || payment.merchantReference === order.id;
+        if (amountMatches && referenceMatches) {
+          const result = await markUnikOrderPaid(admin, order, payment.paymentId, null, "stitch");
+          if (result === "paid" || result === "already_paid") {
+            const { data: refreshed } = await admin
+              .from("orders")
+              .select(ORDER_SELECT)
+              .eq("id", orderId)
+              .eq("seller_id", seller.id)
+              .maybeSingle<CheckoutOrder>();
+            if (refreshed) order = refreshed;
+          }
+        } else {
+          console.error("Stitch self-heal verification mismatch", {
+            orderId,
+            expectedCents,
+            stitchAmount: payment.amountCents,
+            merchantReference: payment.merchantReference,
+            linkId: order.stitch_link_id,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Stitch self-heal failed", { orderId, linkId: order.stitch_link_id, error });
     }
   }
 

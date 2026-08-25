@@ -4,6 +4,7 @@ import { sendOrderPushToSeller } from "./push-notify";
 import { activateSetlaPlanAfterPayment, setlaFirstChargeAmountCents, type SetlaFirstChargeMeta, voidStillbornPayLaterPlan } from "./setla-instalments";
 import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "./four-regn-orders";
 import { getYocoCheckout, isYocoCheckoutPaid } from "./yoco";
+import { getStitchPaymentLink } from "./stitch";
 
 // How long a UNIK order can sit unpaid before we stop calling it "pending"
 // (implies "still in progress, fulfilment is coming") and start calling it
@@ -14,6 +15,66 @@ import { getYocoCheckout, isYocoCheckoutPaid } from "./yoco";
 // unconditionally on real confirmation, before this sweep gets a chance to
 // touch it.
 export const ORDER_ABANDON_MS = 60 * 60 * 1000; // 1 hour
+
+/* Fallback for a missed Stitch webhook AND a customer who closes the tab
+   before the checkout return page can self-heal. Every candidate is checked
+   against Stitch server-to-server, with amount and merchant-reference guards,
+   before the normal idempotent paid-order path sends confirmations. */
+export async function recoverPaidStitchOrders(
+  admin: SupabaseClient,
+  sellerId?: string,
+): Promise<{ checked: number; recovered: number }> {
+  const reconciliationWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  let query = admin
+    .from("orders")
+    .select("id, seller_id, total, items, customer_name, customer_email, payment_status, stitch_link_id")
+    .eq("payment_method", "stitch")
+    .in("payment_status", ["pending", "abandoned", "failed"])
+    .not("stitch_link_id", "is", null)
+    .gte("created_at", reconciliationWindow)
+    .order("created_at", { ascending: false })
+    .limit(sellerId ? 20 : 50);
+  if (sellerId) query = query.eq("seller_id", sellerId);
+
+  const { data: candidates, error } = await query;
+  if (error) {
+    console.error("recoverPaidStitchOrders: candidate query failed", error);
+    return { checked: 0, recovered: 0 };
+  }
+
+  let checked = 0;
+  let recovered = 0;
+  for (const order of candidates || []) {
+    if (!order.stitch_link_id) continue;
+    checked += 1;
+    try {
+      const payment = await getStitchPaymentLink(order.stitch_link_id);
+      if (payment?.status !== "PAID") continue;
+      const expectedCents = Math.round(Number(order.total || 0) * 100);
+      const amountMatches = payment.amountCents > 0 && Math.abs(expectedCents - payment.amountCents) <= 1;
+      const referenceMatches = !payment.merchantReference || payment.merchantReference === order.id;
+      if (!amountMatches || !referenceMatches) {
+        console.error("Stitch scheduled recovery verification mismatch", {
+          orderId: order.id,
+          expectedCents,
+          stitchAmount: payment.amountCents,
+          merchantReference: payment.merchantReference,
+          linkId: order.stitch_link_id,
+        });
+        continue;
+      }
+      const result = await markUnikOrderPaid(admin, order, payment.paymentId, null, "stitch");
+      if (result === "paid") recovered += 1;
+    } catch (providerError) {
+      console.error("Stitch scheduled recovery provider check failed", {
+        orderId: order.id,
+        linkId: order.stitch_link_id,
+        error: providerError,
+      });
+    }
+  }
+  return { checked, recovered };
+}
 
 /* Idempotently marks a UNIK order paid + its linked designs paid, and
    emails both sides. Shared between the Yoco webhook (the primary path)
@@ -137,6 +198,11 @@ export async function markUnikOrderFailed(
    read -- it's a plain conditional UPDATE, a no-op when nothing qualifies. */
 export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: string): Promise<void> {
   const cutoff = new Date(Date.now() - ORDER_ABANDON_MS).toISOString();
+
+  // Never label a genuinely paid Stitch order abandoned merely because its
+  // webhook was missed. Dashboard visits provide an additional recovery
+  // trigger alongside the dedicated scheduled job.
+  await recoverPaidStitchOrders(admin, sellerId);
 
   // Recover paid SETLA checkouts before labelling anything abandoned.
   // The gateway only collects instalment #1 here, so verification must use

@@ -51,17 +51,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "error", reason: "invalid body" }, { status: 400 });
   }
 
-  console.log("Stitch webhook received:", { status: event?.status, type: event?.type, id: event?.id, linkId: event?.linkId, consentId: event?.consentId });
+  // Accept both Stitch's documented flat payload and the data-wrapped form
+  // used by some Svix test deliveries, while preserving signature checks.
+  const payload = event?.data?.payment ?? event?.data ?? event;
+  const status = String(payload?.status || "").toUpperCase();
+  const type = String(payload?.type || "").toUpperCase();
+  const normalized = {
+    ...payload,
+    status,
+    type,
+    linkId: payload?.linkId ?? payload?.link_id,
+    consentId: payload?.consentId ?? payload?.consent_id,
+  };
 
-  if (event?.status !== "PAID") {
+  console.log("Stitch webhook received:", { status, type, id: normalized.id, linkId: normalized.linkId, consentId: normalized.consentId });
+
+  if (status !== "PAID") {
     return NextResponse.json({ status: "ignored" });
   }
 
-  if (event?.type === "CONSENT" && event?.consentId) {
-    return handleSetlaFirstCharge(event, svixId || null);
+  if (type === "CONSENT" && normalized.consentId) {
+    return handleSetlaFirstCharge(normalized, svixId || null);
   }
-  if (event?.type === "LINK" && event?.linkId) {
-    return handleGenericCheckoutPayment(event, svixId || null);
+  if (type === "LINK" && normalized.linkId) {
+    return handleGenericCheckoutPayment(normalized, svixId || null);
   }
   return NextResponse.json({ status: "ignored" });
 }
