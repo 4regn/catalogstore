@@ -15,6 +15,22 @@ export type SetlaPlanType = "pay_later" | "laybuy";
 // and the setla_laybuy_payments ledger below instead of PLAN_CONFIG.
 const PAY_LATER_CONFIG = { count: 4, intervalDays: 14 };
 
+type OrderEmailSeller = { subdomain: string | null; store_name: string | null };
+
+async function getSellerForUnikOrder(admin: SupabaseClient, orderId: string | null): Promise<OrderEmailSeller | null> {
+  if (!orderId) return null;
+  const { data: order } = await admin.from("orders").select("seller_id").eq("id", orderId).maybeSingle();
+  if (!order?.seller_id) return null;
+  const { data: seller } = await admin.from("sellers").select("subdomain, store_name").eq("id", order.seller_id).maybeSingle();
+  return seller || null;
+}
+
+export async function getSellerForSetlaOrder(admin: SupabaseClient, setlaOrderId: string | null): Promise<OrderEmailSeller | null> {
+  if (!setlaOrderId) return null;
+  const { data: order } = await admin.from("setla_orders").select("unik_order_id").eq("id", setlaOrderId).maybeSingle();
+  return getSellerForUnikOrder(admin, order?.unik_order_id || null);
+}
+
 /* Server-side port of setla.js's old client-only splitAmount()/dateAfter()
    -- splits to the cent, remainder cents go to the earliest instalments.
    Instalment #1 is always due immediately (paid at checkout itself).
@@ -375,6 +391,7 @@ export async function activateSetlaPlanAfterPayment(
       : `We've received your payment of R${firstChargeAmount.toFixed(2)}. Your order is now confirmed and being prepared.`;
     await admin.from("setla_notifications").insert({ customer_id: customerRow.id, notification_type: isLaybuy ? "laybuy_payment_received" : "instalment_paid", title, body });
     await sendEmail({
+      seller,
       to: customerRow.email,
       from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : "SETLA Payments <orders@catalogstore.co.za>",
       subject: isFourRegn ? `${title} — ${orderReference}` : title,
@@ -384,6 +401,7 @@ export async function activateSetlaPlanAfterPayment(
 
   if (seller?.email) {
     await sendEmail({
+      seller,
       to: seller.email,
       subject: `New paid order (SETLA) -- ${order.customer_name}`,
       html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111"><h2 style="margin:0 0 12px">New Order -- Paid via SETLA</h2><p style="margin:0 0 4px"><strong>${order.customer_name}</strong> (${order.customer_email})</p><p style="margin:12px 0 0;font-size:15px;font-weight:600">Total: R${Math.round(total)}</p></div>`,
@@ -458,6 +476,7 @@ export async function markSetlaInstalmentPaid(
 
   const { data: customer } = await admin.from("setla_customers").select("id, first_name, email").eq("id", plan.customer_id).single();
   if (customer) {
+    const seller = await getSellerForUnikOrder(admin, order.unik_order_id);
     const title = planComplete ? "Your SETLA payment plan is complete" : shouldUnlock ? "Payment received — your order is in production" : "Instalment payment received";
     const body = planComplete
       ? "Your final instalment has been received and your SETLA payment plan is now fully paid. Thank you!"
@@ -465,7 +484,7 @@ export async function markSetlaInstalmentPaid(
       ? `We've received your payment of R${updated.amount.toFixed(2)}. Your order is now confirmed and being prepared.`
       : `We've received your instalment payment of R${updated.amount.toFixed(2)}.`;
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "instalment_paid", title, body });
-    await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
+    await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
   }
 
   return { ok: true };
@@ -522,13 +541,14 @@ export async function markLaybuyPaymentPaid(
 
   const { data: customer } = await admin.from("setla_customers").select("id, first_name, email").eq("id", plan.customer_id).single();
   if (customer) {
+    const seller = await getSellerForUnikOrder(admin, order.unik_order_id);
     const remaining = Math.max(0, Number(plan.principal_amount) - newPaidAmount);
     const title = planComplete ? "Your SETLA Laybuy is fully paid" : "Laybuy payment received";
     const body = planComplete
       ? "Your final Laybuy payment has been received and your order is now confirmed and being prepared."
       : `We've received your payment of R${updated.amount.toFixed(2)}. R${remaining.toFixed(2)} remains -- pay it off in any amount, any time, from your dashboard.`;
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "laybuy_payment_received", title, body });
-    await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
+    await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
   }
 
   return { ok: true };

@@ -146,9 +146,10 @@ export async function POST(req: NextRequest) {
     // Notify the seller by email of a new customer message (best-effort,
     // never blocks the visitor's own send).
     if (!isSellerAuthored && sellerId) {
-      const { data: sellerRow } = await admin.from("sellers").select("email, store_name").eq("id", sellerId).maybeSingle();
+      const { data: sellerRow } = await admin.from("sellers").select("email, store_name, subdomain").eq("id", sellerId).maybeSingle();
       if (sellerRow?.email) {
         await sendEmail({
+          seller: sellerRow,
           to: sellerRow.email,
           subject: `New message from a customer — ${sellerRow.store_name || "your store"}`,
           html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#2A1F18">

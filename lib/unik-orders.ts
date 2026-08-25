@@ -124,6 +124,7 @@ export async function markUnikOrderPaid(
 
   if (seller?.email) {
     await sendEmail({
+      seller,
       to: seller.email,
       subject: `New paid order — ${order.customer_name}`,
       html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
@@ -144,6 +145,7 @@ export async function markUnikOrderPaid(
     const reference = isFourRegn ? fourRegnOrderReference(updated) : "";
     const fourRegnTracking = isFourRegn ? `<div style="background:#eef6ef;border:1px solid #d6ead8;border-radius:12px;padding:20px;margin:18px 0;"><h3 style="font-size:12px;color:#177533;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 16px;font-size:13px;color:#5f6c61;line-height:1.65;">Your order number is <strong>${reference}</strong>. Track it with the email address or mobile number used at checkout. You can enter the number with or without the # and D.</p><a href="${FOUR_REGN_TRACKING_URL}" style="display:block;text-align:center;padding:15px;background:#111;color:#fff;border-radius:100px;text-decoration:none;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Track Order</a></div><a href="${FOUR_REGN_ACCOUNT_URL}" style="display:block;text-align:center;padding:14px;border:1px solid #222;color:#222;border-radius:100px;text-decoration:none;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">View My Account</a>` : "";
     await sendEmail({
+      seller,
       to: order.customer_email,
       from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : undefined,
       subject: `Order confirmed — ${seller?.store_name || "UNIK Labs"}`,

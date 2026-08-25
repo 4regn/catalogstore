@@ -17,6 +17,7 @@ export async function sendEmail({
   subject,
   html,
   apiKey,
+  seller,
   attachments,
 }: {
   to: string;
@@ -24,6 +25,7 @@ export async function sendEmail({
   subject: string;
   html: string;
   apiKey?: string;
+  seller?: { subdomain?: string | null; store_name?: string | null } | null;
   // Inline images (e.g. a logo referenced as <img src="cid:setla-logo">
   // in html) -- content is base64. Most mail clients block remotely
   // hosted images by default until the user opts in, especially for a
@@ -31,10 +33,17 @@ export async function sendEmail({
   // since nothing needs to be fetched to display them.
   attachments?: Array<{ filename: string; content: string; content_id?: string }>;
 }): Promise<void> {
-  const resendKey = apiKey || process.env.RESEND_API_KEY;
+  // A caller-supplied key is authoritative (SETLA has its own Resend
+  // account). Otherwise 4REGN uses its dedicated account and sender while
+  // every other seller remains on the CatalogStore account.
+  const isFourRegn = !apiKey && seller?.subdomain === "4regn";
+  const resendKey = apiKey || (isFourRegn ? process.env.FOUR_REGN_RESEND_API_KEY : process.env.RESEND_API_KEY);
+  const resolvedFrom = isFourRegn
+    ? (process.env.FOUR_REGN_RESEND_FROM_EMAIL || "4REGN <info@4regn.com>")
+    : (from || process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>");
   if (!to) return;
   if (!resendKey) {
-    console.warn("sendEmail: RESEND_API_KEY is not set -- email not sent", { to, subject });
+    console.warn(`sendEmail: ${isFourRegn ? "FOUR_REGN_RESEND_API_KEY" : "RESEND_API_KEY"} is not set -- email not sent`, { to, subject });
     return;
   }
   try {
@@ -42,7 +51,7 @@ export async function sendEmail({
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: from || process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>",
+        from: resolvedFrom,
         to: [to],
         subject,
         html,

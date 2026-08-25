@@ -124,12 +124,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "error", reason: error.message }, { status: 500 });
     }
 
-    const { data: seller } = await supabase.from("sellers").select("store_name, email, logo_url, whatsapp_number").eq("id", booking.seller_id).single();
+    const { data: seller } = await supabase.from("sellers").select("store_name, email, logo_url, whatsapp_number, subdomain").eq("id", booking.seller_id).single();
     const dateLabel = new Date(booking.date + "T00:00:00").toLocaleDateString("en-ZA", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const svcLine = service ? `${service.name} — R${Math.round(service.price)} (paid)` : "Service";
 
     if (seller?.email) {
       await sendEmail({
+        seller,
         to: seller.email,
         subject: `Booking paid & confirmed — ${booking.client_name}`,
         html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#2A1F18">
@@ -142,6 +143,7 @@ export async function POST(req: NextRequest) {
     }
     if (booking.client_email) {
       await sendEmail({
+        seller,
         to: booking.client_email,
         from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : undefined,
         subject: `Booking confirmed — ${seller?.store_name || "Your appointment"}`,

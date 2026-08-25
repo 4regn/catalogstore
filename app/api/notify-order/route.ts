@@ -28,14 +28,17 @@ export async function POST(req: NextRequest) {
     const orderSummary = `New Order ${displayOrderNumber}\n\nCustomer: ${order.customer_name}\nEmail: ${order.customer_email || "N/A"}\nPhone: ${order.customer_phone || "N/A"}\n\nItems:\n${items}\n\nShipping: R${order.shipping_cost || 0}\nTotal: R${order.total}\n\nPayment: ${order.payment_method?.toUpperCase() || "N/A"}\nFulfillment: ${order.fulfillment_method || "delivery"}${order.shipping_address ? "\nAddress: " + order.shipping_address.address + ", " + order.shipping_address.city + ", " + order.shipping_address.province : ""}`;
 
     // 1. Send email notification via Resend (if API key exists)
-    const resendKey = process.env.RESEND_API_KEY;
+    const resendKey = isFourRegn ? process.env.FOUR_REGN_RESEND_API_KEY : process.env.RESEND_API_KEY;
+    const resendFrom = isFourRegn
+      ? (process.env.FOUR_REGN_RESEND_FROM_EMAIL || "4REGN <info@4regn.com>")
+      : (process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>");
     if (resendKey && seller.email) {
       try {
         await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>",
+            from: resendFrom,
             to: [seller.email],
             subject: `New Order ${displayOrderNumber} — R${order.total}`,
             html: `
@@ -86,7 +89,7 @@ export async function POST(req: NextRequest) {
           method: "POST",
           headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: process.env.RESEND_FROM_EMAIL || `${seller.store_name} <orders@catalogstore.co.za>`,
+            from: resendFrom,
             to: [order.customer_email],
             subject: `Order Confirmed — ${displayOrderNumber}`,
             html: `

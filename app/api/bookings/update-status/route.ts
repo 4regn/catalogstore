@@ -38,10 +38,11 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (status === "confirmed" && booking.status !== "confirmed" && booking.client_email) {
-      const { data: seller } = await admin.from("sellers").select("store_name, logo_url").eq("id", booking.seller_id).single();
+      const { data: seller } = await admin.from("sellers").select("store_name, logo_url, subdomain").eq("id", booking.seller_id).single();
       const { data: service } = booking.service_id ? await admin.from("services").select("name, price").eq("id", booking.service_id).single() : { data: null as any };
       const dateLabel = new Date(booking.date + "T00:00:00").toLocaleDateString("en-ZA", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       await sendEmail({
+        seller,
         to: booking.client_email,
         from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : undefined,
         subject: `Booking confirmed — ${seller?.store_name || "Your appointment"}`,

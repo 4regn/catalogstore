@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     if (seller.email) {
       await sendEmail({
+        seller,
         to: seller.email,
         subject: `New booking pending — ${name}`,
         html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#2A1F18">
@@ -107,6 +108,7 @@ export async function POST(req: NextRequest) {
     }
     if (email) {
       await sendEmail({
+        seller,
         to: email,
         from: `${seller.store_name} <orders@catalogstore.co.za>`,
         subject: `Booking received — payment instructions — ${seller.store_name}`,
