@@ -1,11 +1,11 @@
 export const FOUR_REGN_TRACKING_STAGES = [
-  { key: "confirmed", label: "Confirmed", copy: "Your order is confirmed." },
-  { key: "processing", label: "Processing", copy: "Your order is being prepared." },
-  { key: "shipped", label: "Shipped", copy: "Your order has left 4REGN." },
-  { key: "picked_up", label: "Picked up by courier", copy: "A courier has collected your order." },
-  { key: "in_transit", label: "In transit", copy: "Your order is on its way to you." },
-  { key: "out_for_delivery", label: "Out for delivery", copy: "Your order is out for delivery today." },
-  { key: "delivered", label: "Delivered", copy: "Your order has been delivered." },
+  { key: "confirmed", label: "Confirmed", copy: "Your payment was received and your order was successfully confirmed." },
+  { key: "processing", label: "Processing", copy: "Your order moved into preparation and your items are being prepared for dispatch." },
+  { key: "shipped", label: "Shipped", copy: "Your parcel has been packed and marked as shipped by 4REGN. It is now waiting for courier pickup." },
+  { key: "picked_up", label: "Picked up by courier", copy: "The courier has collected your parcel from 4REGN." },
+  { key: "in_transit", label: "In transit", copy: "Your parcel is moving through the courier network toward your delivery area." },
+  { key: "out_for_delivery", label: "Out for delivery", copy: "Your parcel is with the driver and is scheduled for delivery." },
+  { key: "delivered", label: "Delivered", copy: "Your order has been delivered successfully." },
 ] as const;
 
 export const FOUR_REGN_TRACKABLE_STATUSES = FOUR_REGN_TRACKING_STAGES.map((stage) => stage.key);
