@@ -19,6 +19,11 @@ function progress(tabId, requestId, message) {
   chrome.tabs.sendMessage(tabId, { type: "CATALOG_CAPTURE_PROGRESS", requestId, message }).catch(() => {});
 }
 
+function startProgressHeartbeat(tabId, requestId, message) {
+  const interval = setInterval(() => progress(tabId, requestId, message), 20000);
+  return () => clearInterval(interval);
+}
+
 function waitForTab(tabId) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -183,12 +188,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!tab.id) throw new Error("Chrome could not open the supplier tab.");
     await waitForTab(tab.id);
     progress(dashboardTabId, requestId, "Waiting for the rendered photos, price and size controls...");
-    const captured = await sendToTab(tab.id, { type: "CATALOG_CAPTURE_PAGE" });
+    const stopReadingHeartbeat = startProgressHeartbeat(dashboardTabId, requestId, "Still reading colour variants, stock and the size chart…");
+    let captured;
+    try {
+      captured = await sendToTab(tab.id, { type: "CATALOG_CAPTURE_PAGE" });
+    } finally {
+      stopReadingHeartbeat();
+    }
     if (!captured.ok) throw new Error(captured.error || "The rendered product could not be captured.");
     progress(dashboardTabId, requestId, "Copying supplier photos into CatalogStore...");
-    const copied = await downloadImages(captured.product.images || [], (completed, total) => {
-      progress(dashboardTabId, requestId, `Copying supplier photos into CatalogStore (${completed}/${total})...`);
-    });
+    const stopCopyingHeartbeat = startProgressHeartbeat(dashboardTabId, requestId, "Still copying verified high-resolution supplier photos…");
+    let copied;
+    try {
+      copied = await downloadImages(captured.product.images || [], (completed, total) => {
+        progress(dashboardTabId, requestId, `Copying supplier photos into CatalogStore (${completed}/${total})...`);
+      });
+    } finally {
+      stopCopyingHeartbeat();
+    }
     const copiedVariants = (captured.product.variants || []).map((group) => ({
       ...group,
       images: Object.fromEntries(Object.entries(group.images || {}).map(([option, image]) => [

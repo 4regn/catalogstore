@@ -505,7 +505,10 @@ export default function Dashboard() {
           browserCaptureRequestRef.current = null;
           setImportLoading(false);
           setImportResult("Browser capture timed out. Keep the product page open, complete any verification, and try again.");
-        }, 90000);
+        // A full supplier capture can legitimately take several minutes: each
+        // colour must settle before it is read, then every gallery-quality
+        // image is copied. The extension also sends heartbeats while it works.
+        }, 8 * 60 * 1000);
         setImportResult(String(message.message || "Reading the supplier page in Chrome..."));
         return;
       }
