@@ -2,6 +2,8 @@ export interface ProductSizeChart {
   headers: string[];
   rows: string[][];
   note?: string;
+  bodyChart?: { headers: string[]; rows: string[][] };
+  measureImages?: string[];
 }
 
 const ENTITY_MAP: Record<string, string> = {
@@ -33,19 +35,25 @@ function plainCell(value: string) {
 export function parseProductSizeChartHtml(html?: string | null): ProductSizeChart | null {
   if (!html) return null;
   const safeLengthHtml = html.slice(0, 100_000);
-  const table = safeLengthHtml.match(/<table\b[^>]*>([\s\S]*?)<\/table>/i)?.[1];
-  if (!table) return null;
-
-  const parsedRows = [...table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)]
+  const parseRows = (tableHtml: string) => [...tableHtml.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)]
     .map((row) => [...row[1].matchAll(/<(th|td)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((cell) => plainCell(cell[2])).filter(Boolean))
     .filter((row) => row.length > 1);
+  const productSection = safeLengthHtml.match(/<section\b[^>]*data-size-chart=["']product["'][^>]*>([\s\S]*?)<\/section>/i)?.[1] || safeLengthHtml;
+  const table = productSection.match(/<table\b[^>]*>([\s\S]*?)<\/table>/i)?.[1];
+  if (!table) return null;
+  const parsedRows = parseRows(table);
   if (parsedRows.length < 2) return null;
 
-  const tableEnd = safeLengthHtml.search(/<\/table>/i);
-  const afterTable = tableEnd >= 0 ? safeLengthHtml.slice(tableEnd + "</table>".length) : "";
+  const tableEnd = productSection.search(/<\/table>/i);
+  const afterTable = tableEnd >= 0 ? productSection.slice(tableEnd + "</table>".length) : "";
   const note = plainCell(afterTable.match(/<(?:p|em)\b[^>]*>([\s\S]*?)<\/(?:p|em)>/i)?.[1] || "");
+  const bodySection = safeLengthHtml.match(/<section\b[^>]*data-size-chart=["']body["'][^>]*>([\s\S]*?)<\/section>/i)?.[1] || "";
+  const bodyTable = bodySection.match(/<table\b[^>]*>([\s\S]*?)<\/table>/i)?.[1] || "";
+  const bodyRows = bodyTable ? parseRows(bodyTable) : [];
+  const measureSection = safeLengthHtml.match(/<section\b[^>]*data-size-chart-measure-images=["']true["'][^>]*>([\s\S]*?)<\/section>/i)?.[1] || "";
+  const measureImages = [...measureSection.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map((match) => decodeEntities(match[1]).trim()).filter((src) => /^https?:\/\//i.test(src));
 
-  return { headers: parsedRows[0], rows: parsedRows.slice(1), ...(note ? { note } : {}) };
+  return { headers: parsedRows[0], rows: parsedRows.slice(1), ...(note ? { note } : {}), ...(bodyRows.length >= 2 ? { bodyChart: { headers: bodyRows[0], rows: bodyRows.slice(1) } } : {}), ...(measureImages.length ? { measureImages: [...new Set(measureImages)].slice(0, 4) } : {}) };
 }
 
 function escapeHtml(value: string) {

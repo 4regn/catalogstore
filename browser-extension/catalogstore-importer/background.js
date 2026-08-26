@@ -208,10 +208,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     const copiedVariants = (captured.product.variants || []).map((group) => ({
       ...group,
-      images: Object.fromEntries(Object.entries(group.images || {}).map(([option, image]) => [
-        option,
-        copied.copiedByKey[canonicalImageKey(image)] || image,
-      ])),
+      images: Object.fromEntries(Object.entries(group.images || {}).map(([option, image]) => {
+        const gallery = Array.isArray(image) ? image : [image];
+        return [option, gallery.map((item) => copied.copiedByKey[canonicalImageKey(item)] || item).filter(Boolean)];
+      })),
     }));
     sendResponse({
       ok: true,

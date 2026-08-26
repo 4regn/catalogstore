@@ -272,12 +272,18 @@ const resolveVariantImages = (product: Product, selected: { [key: string]: strin
   if (preferredDim) {
     const v = variants.find((v) => v.name === preferredDim);
     const chosen = v && selected[v.name];
-    if (v?.images && chosen && v.images[chosen]?.length) return v.images[chosen];
+    if (v?.images && chosen) {
+      const images = Array.isArray(v.images[chosen]) ? v.images[chosen] : [v.images[chosen]].filter(Boolean);
+      if (images.length) return images;
+    }
   }
   for (const v of variants) {
     if (!v.images) continue;
     const chosen = selected[v.name];
-    if (chosen && v.images[chosen]?.length) return v.images[chosen];
+    if (chosen) {
+      const images = Array.isArray(v.images[chosen]) ? v.images[chosen] : [v.images[chosen]].filter(Boolean);
+      if (images.length) return images;
+    }
   }
   return null;
 };
@@ -2806,6 +2812,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sc-table th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(46,42,57,0.5)}
 .fr-sc-tip{margin:14px 0 0;font-size:12px;font-style:italic;color:rgba(46,42,57,0.6)}
 .fr-sc-measure h4{font-family:var(--serif);font-weight:700;font-size:16px;margin:0 0 14px;color:var(--ink)}
+.fr-sc-body-chart{margin:0 0 18px}.fr-sc-body-chart h5{font-family:var(--body);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;color:rgba(46,42,57,0.62)}
 .fr-sc-measure ol{margin:0;padding-left:20px;font-size:13px;line-height:1.85;color:rgba(46,42,57,0.75)}
 .fr-sc-measure-diagrams{display:flex;gap:16px;margin-bottom:20px}
 .fr-sc-measure-diagram{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -4519,15 +4526,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               ) : (
                 <div className="fr-sc-measure">
                   <h4>How to Measure (cm)</h4>
+                  {customChart?.bodyChart && (
+                    <div className="fr-sc-body-chart fr-sc-table-wrap">
+                      <h5>Body Measurements</h5>
+                      <table className="fr-sc-table">
+                        <thead><tr>{customChart.bodyChart.headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                        <tbody>{customChart.bodyChart.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody>
+                      </table>
+                    </div>
+                  )}
                   <div className="fr-sc-measure-diagrams">
-                    <div className="fr-sc-measure-diagram">
-                      <Image src="/size-chart-measure-female.jpg" alt="Photo showing where to measure arm length, waist, hips and height on a female model" width={828} height={1530} />
-                      <span>Women</span>
-                    </div>
-                    <div className="fr-sc-measure-diagram">
-                      <Image src="/size-chart-measure-male.jpg" alt="Photo showing where to measure arm length, waist, hips and height on a male model" width={828} height={1530} />
-                      <span>Men</span>
-                    </div>
+                    {(customChart?.measureImages?.length ? customChart.measureImages : ["/size-chart-measure-female.jpg", "/size-chart-measure-male.jpg"]).map((src, index) => (
+                      <div className="fr-sc-measure-diagram" key={src}>
+                        <img src={src} alt="How to measure for this product" loading="lazy" />
+                        <span>{customChart?.measureImages?.length ? "How to measure" : index === 0 ? "Women" : "Men"}</span>
+                      </div>
+                    ))}
                   </div>
                   <ol>
                     <li><strong>1. Arm Length</strong> — Measure from the top of your shoulder down to your wrist.</li>

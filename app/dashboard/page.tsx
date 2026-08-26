@@ -98,7 +98,8 @@ const addCat = (current: string, col: string) => {
 const removeCat = (current: string, col: string) =>
   (current || "").split(",").map((c) => c.trim()).filter((c) => c && c !== col).join(",");
 
-interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
+type VariantImage = string | string[];
+interface Variant { name: string; options: string[]; images?: { [option: string]: VariantImage }; priceDelta?: { [option: string]: number }; }
 
 interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string;
@@ -1198,7 +1199,7 @@ export default function Dashboard() {
     return results.filter(Boolean) as string[];
   };
 
-  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {}, priceDelta: x.priceDelta || {} })).filter((x) => x.options.length > 0);
+  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: Object.fromEntries(Object.entries(x.images || {}).map(([option, image]) => [option, (Array.isArray(image) ? image : [image]).filter(Boolean)])), priceDelta: x.priceDelta || {} })).filter((x) => x.options.length > 0);
 
   // The variant-image picker shows existing URLs alongside FileReader base64 previews of newly added files.
   // If the seller picks a fresh-upload preview, that base64 must be remapped to the eventual Storage URL
@@ -1207,15 +1208,11 @@ export default function Dashboard() {
   const remapVariantImages = (variants: Variant[], previewToUrl: Map<string, string>): Variant[] =>
     variants.map((v) => {
       if (!v.images) return v;
-      const next: { [k: string]: string } = {};
+      const next: { [k: string]: string[] } = {};
       for (const [opt, img] of Object.entries(v.images)) {
-        if (typeof img !== "string" || !img) continue;
-        if (img.startsWith("data:")) {
-          const url = previewToUrl.get(img);
-          if (url) next[opt] = url;
-        } else {
-          next[opt] = img;
-        }
+        const gallery = (Array.isArray(img) ? img : [img]).filter(Boolean);
+        const remapped = gallery.map((item) => item.startsWith("data:") ? previewToUrl.get(item) || "" : item).filter(Boolean);
+        if (remapped.length) next[opt] = remapped;
       }
       return { ...v, images: next };
     });
@@ -2799,13 +2796,14 @@ export default function Dashboard() {
                         <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
                           {v.options.filter((o) => o.trim()).map((opt, oi) => {
                             const allImgs = [...existingImages, ...formPreviews];
-                            const currentImg = v.images?.[opt] || "";
+                            const mapped = v.images?.[opt];
+                            const currentImg = Array.isArray(mapped) ? mapped[0] || "" : mapped || "";
                             return (
                               <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <span style={{ fontSize: 12, color: "var(--muted)", minWidth: 60, fontWeight: 600 }}>{opt}</span>
                                 <div style={{ display: "flex", gap: 4, flex: 1, overflowX: "auto" as const }}>
-                                  <div onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = ""; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, border: !currentImg ? "2px solid " + N : "1px solid var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 8, color: "var(--muted-2)" }}>None</div>
-                                  {allImgs.map((img, imgIdx) => (<img key={imgIdx} src={img} alt="" onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = img; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" as const, cursor: "pointer", border: currentImg === img ? "2px solid " + N : "1px solid var(--border)", flexShrink: 0, opacity: currentImg === img ? 1 : 0.5 }} />))}
+                                  <div onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = []; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, border: !currentImg ? "2px solid " + N : "1px solid var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 8, color: "var(--muted-2)" }}>None</div>
+                                  {allImgs.map((img, imgIdx) => (<img key={imgIdx} src={img} alt="" onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = [img]; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" as const, cursor: "pointer", border: currentImg === img ? "2px solid " + N : "1px solid var(--border)", flexShrink: 0, opacity: currentImg === img ? 1 : 0.5 }} />))}
                                 </div>
                               </div>
                             );

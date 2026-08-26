@@ -349,7 +349,10 @@
 
     const byColor = [];
     const imageValues = [];
-    const colorCoverImages = {};
+    // Keep the whole gallery against each colour, not only its cover. The
+    // storefront uses the first image as the swatch cover and leads the PDP
+    // gallery with the complete matching set after a customer changes colour.
+    const colorGalleryImages = {};
     const colorValues = [];
     const sizeValues = [];
     const soldOutValues = [];
@@ -474,7 +477,7 @@
       const variantData = variants(jsonLdProducts()[0]);
       imageValues.push(...captured.images);
       colorValues.push(color);
-      colorCoverImages[color] = captured.images[0];
+      colorGalleryImages[color] = captured.images;
       const sizeGroup = variantData.groups.find((group) => /size/i.test(group.name));
       if (sizeGroup) sizeValues.push(...sizeGroup.options);
       soldOutValues.push(...variantData.soldOutSizes.map((size) => `${color}: ${size}`));
@@ -489,7 +492,7 @@
     if (colors.length) mergedVariants.push({
       name: "Color",
       options: colors,
-      images: Object.fromEntries(colors.filter((color) => colorCoverImages[color]).map((color) => [color, colorCoverImages[color]])),
+      images: Object.fromEntries(colors.filter((color) => colorGalleryImages[color]?.length).map((color) => [color, colorGalleryImages[color]])),
     });
     const mergedImages = [];
     const seen = new Set();
@@ -551,11 +554,12 @@
       chart = largestVisible(document.querySelectorAll('.bsc-common-size-table')) || chart;
     }
 
-    const table = chart.querySelector('.bsc-common-size-table__content table,table');
-    if (!table) return { attempted: true, html: "" };
-    const rows = [...table.querySelectorAll("tr")]
+    const tableRows = (container) => [...container.querySelectorAll('.bsc-common-size-table__content table,table')][0]
+      ? [...container.querySelector('.bsc-common-size-table__content table,table').querySelectorAll("tr")]
       .map((row) => [...row.querySelectorAll("th,td")].map((cell) => clean(cell.textContent)).filter(Boolean))
-      .filter((cells) => cells.length > 1);
+      .filter((cells) => cells.length > 1)
+      : [];
+    const rows = tableRows(chart);
     if (rows.length < 2) return { attempted: true, html: "" };
 
     const notice = [...chart.querySelectorAll('.bsc-size-table__notice')]
@@ -569,9 +573,30 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
     const htmlRow = (row, cell) => `<tr>${row.map((value) => `<${cell}>${escapeHtml(value)}</${cell}>`).join("")}</tr>`;
+    const htmlTable = (values) => `<table><thead>${htmlRow(values[0], "th")}</thead><tbody>${values.slice(1).map((row) => htmlRow(row, "td")).join("")}</tbody></table>`;
+
+    // SHEIN's Body Measurements is a separate tab from Product Chart. Capture
+    // it independently so a customer can compare their own measurements in
+    // the same Size Guide, rather than seeing a generic fallback only.
+    const bodyTab = [...chart.querySelectorAll('[aria-label],.bsc-common-size-table__top_tabs_item')]
+      .find((element) => /body\s*(?:measurement|measurements|size|chart)/i.test(clean(`${element.getAttribute("aria-label")} ${element.textContent}`)));
+    let bodyRows = [];
+    let measureImages = [];
+    if (bodyTab) {
+      bodyTab.click();
+      await sleep(1800);
+      chart = largestVisible(document.querySelectorAll('.bsc-common-size-table')) || chart;
+      bodyRows = tableRows(chart);
+      measureImages = [...chart.querySelectorAll("img")]
+        .map((image) => absoluteImage(bestImageSource(image)))
+        .filter((url) => url && !/logo|icon|avatar|sprite|payment|badge/i.test(url));
+    }
+    measureImages = uniq(measureImages).slice(0, 4);
+    const bodyHtml = bodyRows.length >= 2 ? `<section data-size-chart="body"><h4>Body Measurements</h4>${htmlTable(bodyRows)}</section>` : "";
+    const measureHtml = measureImages.length ? `<section data-size-chart-measure-images="true">${measureImages.map((url) => `<img src="${escapeHtml(url)}" alt="How to measure" loading="lazy">`).join("")}</section>` : "";
     return {
       attempted: true,
-      html: `<table><thead>${htmlRow(rows[0], "th")}</thead><tbody>${rows.slice(1).map((row) => htmlRow(row, "td")).join("")}</tbody></table><p><em>${escapeHtml(notice)}</em></p>`,
+      html: `<section data-size-chart="product">${htmlTable(rows)}<p><em>${escapeHtml(notice)}</em></p></section>${bodyHtml}${measureHtml}`,
     };
   }
 
