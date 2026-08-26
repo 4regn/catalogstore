@@ -427,10 +427,12 @@
         const activeIndex = latestSwatches.findIndex((node) => node.getAttribute("aria-checked") === "true" || /\bactive\b/i.test(clean(node.className)));
         const active = activeIndex >= 0 ? latestSwatches[activeIndex] : null;
         const activeMatches = activeIndex === target.index;
-        const gallerySignature = currentGallerySignature();
-        const galleryKeys = JSON.parse(gallerySignature || "[]");
-        const galleryMatches = !!swatchImageKey(active) && galleryKeys.length > 0 && galleryKeys[0] === swatchImageKey(active);
-        if (activeMatches && galleryMatches) {
+        // A SHEIN swatch is often a cropped colour chip rather than the first
+        // full gallery photograph. Requiring those two image URLs to match
+        // caused legitimate non-default colours to be skipped completely.
+        // The selected radio state plus the later stability check is reliable
+        // enough, while the gallery signature below still prevents duplicates.
+        if (activeMatches) {
           matchedTarget = true;
           break;
         }
