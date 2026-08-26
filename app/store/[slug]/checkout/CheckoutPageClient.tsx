@@ -842,7 +842,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     if (!selectedDeliveryEstimate) return "";
     const from = new Date(selectedDeliveryEstimate.fromAt);
     const to = new Date(selectedDeliveryEstimate.toAt);
-    const formatter = new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short" });
+    // Format in South African time so the weekday/date cannot shift for a
+    // customer browsing from another timezone.
+    const formatter = new Intl.DateTimeFormat("en-ZA", { weekday: "long", day: "numeric", month: "short", timeZone: "Africa/Johannesburg" });
     return { earliest: formatter.format(from), latest: formatter.format(to) };
   })();
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
@@ -1416,8 +1418,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                         </div>
                         {shippingOption === i && selectedDeliveryEstimateDates && (
                           <div className="delivery-estimate">
-                            <strong>Earliest estimated delivery: {selectedDeliveryEstimateDates.earliest}</strong><br />
-                            May arrive by {selectedDeliveryEstimateDates.latest}
+                            <strong>Could arrive as early as {selectedDeliveryEstimateDates.earliest}</strong><br />
+                            Estimated by {selectedDeliveryEstimateDates.latest}
                           </div>
                         )}
                       </div>
