@@ -2,7 +2,11 @@ const SUPPORTED_HOSTS = ["shein.com", "temu.com", "nike.com", "superbalist.com"]
 // Product cards can use modest files, but these are also the source for a
 // full-screen gallery. Preserve verified gallery-quality supplier images.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_TOTAL_IMAGE_BYTES = 45 * 1024 * 1024;
+// A multicolour SHEIN product can have 15–30 genuine gallery photos. The old
+// 45 MB aggregate cap was reached by the first colour's high-res photos, then
+// silently left later colour galleries as supplier links instead of importing
+// them. Keep the individual 8 MB guardrail but allow a complete product set.
+const MAX_TOTAL_IMAGE_BYTES = 120 * 1024 * 1024;
 const MIN_HIGH_RES_EDGE = 900;
 
 function supportedUrl(rawUrl) {
@@ -152,7 +156,7 @@ async function downloadImages(urls, onProgress) {
     try {
       const copied = await copyBestImage(url);
       if (!copied || totalBytes + copied.bytes > MAX_TOTAL_IMAGE_BYTES) {
-        warnings.push("One or more very large supplier photos were skipped.");
+        warnings.push(`A supplier photo could not be copied within the ${Math.round(MAX_TOTAL_IMAGE_BYTES / 1024 / 1024)} MB import limit.`);
       } else {
         const bytes = new Uint8Array(await copied.blob.arrayBuffer());
         totalBytes += bytes.length;
