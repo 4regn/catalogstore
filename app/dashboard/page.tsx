@@ -471,6 +471,7 @@ export default function Dashboard() {
   const [formPrice, setFormPrice] = useState("");
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
+  const [formCollections, setFormCollections] = useState<string[]>([]);
   const [formTags, setFormTags] = useState<string[]>([]);
   const [formCartBoosterIds, setFormCartBoosterIds] = useState<string[]>([]);
   const [cartBoosterSearch, setCartBoosterSearch] = useState("");
@@ -1096,8 +1097,8 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormTags([]); setFormCartBoosterIds([]); setCartBoosterSearch(""); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormSaveError(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); const related = Array.isArray(p.metafields?.cart_booster_product_ids) ? p.metafields.cart_booster_product_ids.map(String) : []; setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormTags(p.tags || []); setFormCartBoosterIds(related); setCartBoosterSearch(""); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormCollections([]); setFormTags([]); setFormCartBoosterIds([]); setCartBoosterSearch(""); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormSaveError(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); const related = Array.isArray(p.metafields?.cart_booster_product_ids) ? p.metafields.cart_booster_product_ids.map(String) : []; const productCollections = storeCollections.filter((collection) => (p.category || "").split(",").some((value) => value.trim().toLowerCase() === collection.toLowerCase())); setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormCollections(productCollections); setFormTags(p.tags || []); setFormCartBoosterIds(related); setCartBoosterSearch(""); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
 
   const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
     const key = p.handle || p.id;
@@ -1223,7 +1224,7 @@ export default function Dashboard() {
     const cleanTags = cleanProductTags(formTags);
     const cleanCartBoosterIds = [...new Set(formCartBoosterIds)].filter((id) => id !== editingId && products.some((product) => product.id === id)).slice(0, 20);
     const tagCollections = storeCollections.filter((collection) => cleanTags.some((tag) => tag.toLowerCase() === collection.toLowerCase()));
-    const categoryForSave = cleanProductTags([formCategory, ...tagCollections]).join(", ");
+    const categoryForSave = cleanProductTags([formCategory, ...formCollections, ...tagCollections]).join(", ");
     if (editingId) {
       let allImages = [...existingImages];
       let newUrls: string[] = [];
@@ -1325,6 +1326,7 @@ export default function Dashboard() {
     setFormSizeChartHtml(importPreview.sizeChartHtml || "");
     setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
     setFormTags(cleanProductTags(importTags));
+    setFormCollections(storeCollections.filter((collection) => importTags.some((tag) => tag.toLowerCase() === collection.toLowerCase())));
     setFormCartBoosterIds([]);
     setCartBoosterSearch("");
     setFormInStock(importPreview.inStock !== false);
@@ -2740,6 +2742,22 @@ export default function Dashboard() {
                       <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 700 }}>{Math.round((1 - parseFloat(formPrice) / parseFloat(formComparePrice)) * 100)}% off — <span style={{ textDecoration: "line-through", color: "var(--muted-2)" }}>R{formComparePrice}</span> → R{formPrice}</span>
                     )}
                   </div>
+                </div>
+
+                {/* Collections are deliberately separate from tags: tags help
+                    search and filtering, while these exact collection names
+                    determine where the product appears on the storefront. */}
+                <div style={{ marginBottom: 20, padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <label style={{ ...labelStyle, marginBottom: 7 }}>Collections</label>
+                  <p style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 10 }}>Choose every collection this product belongs to. A product can appear in more than one.</p>
+                  {storeCollections.length ? (
+                    <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 7 }}>
+                      {storeCollections.map((collection) => {
+                        const selected = formCollections.some((value) => value.toLowerCase() === collection.toLowerCase());
+                        return <button key={collection} type="button" onClick={() => setFormCollections(selected ? formCollections.filter((value) => value.toLowerCase() !== collection.toLowerCase()) : [...formCollections, collection])} style={{ padding: "8px 12px", borderRadius: 100, border: selected ? `1px solid ${N}55` : "1px solid var(--border)", background: selected ? `${N}18` : "var(--panel-2)", color: selected ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{selected ? "✓ " : "+ "}{collection}</button>;
+                      })}
+                    </div>
+                  ) : <p style={{ fontSize: 11, color: "var(--muted-2)" }}>Create collections under My Store first, then they will appear here.</p>}
                 </div>
 
                 {/* 4. VARIANTS */}

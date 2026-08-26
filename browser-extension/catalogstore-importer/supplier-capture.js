@@ -548,8 +548,12 @@
     }
     if (!chart) return { attempted: true, html: "" };
 
-    const productTab = [...chart.querySelectorAll('[aria-label="Product Chart" i],.bsc-common-size-table__top_tabs_item')]
-      .find((element) => /product chart/i.test(clean(`${element.getAttribute("aria-label")} ${element.textContent}`)));
+    // SHEIN labels this tab differently between product types and releases:
+    // "Product Chart", "Product Measurements" and "Product Size" are all
+    // the garment dimensions. If we miss it, SHEIN's default Buyer/Body table
+    // is mistakenly stored as the product size chart.
+    const productTab = [...chart.querySelectorAll('[aria-label],.bsc-common-size-table__top_tabs_item')]
+      .find((element) => /product\s*(?:chart|measurement|measurements|size)/i.test(clean(`${element.getAttribute("aria-label")} ${element.textContent}`)));
     if (productTab && !/\bactive\b/i.test(clean(productTab.className))) {
       productTab.click();
       await sleep(2500);
