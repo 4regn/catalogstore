@@ -188,6 +188,13 @@ interface ProductUrlPreview {
   sizeChartHtml?: string;
 }
 
+interface BulkImportQueueItem {
+  id: string;
+  url: string;
+  status: "queued" | "capturing" | "review" | "saved" | "failed";
+  note?: string;
+}
+
 const CATALOG_IMPORT_APP_SOURCE = "catalogstore-product-importer";
 const CATALOG_IMPORT_EXTENSION_SOURCE = "4regn-catalog-importer-extension";
 
@@ -461,6 +468,9 @@ export default function Dashboard() {
   const [importResult, setImportResult] = useState("");
   const [importPreview, setImportPreview] = useState<ProductUrlPreview | null>(null);
   const [importTags, setImportTags] = useState<string[]>(["imports"]);
+  const [bulkImportText, setBulkImportText] = useState("");
+  const [bulkImportQueue, setBulkImportQueue] = useState<BulkImportQueueItem[]>([]);
+  const [bulkImportActiveId, setBulkImportActiveId] = useState<string | null>(null);
   const [browserImporterAvailable, setBrowserImporterAvailable] = useState(false);
   const [browserCaptureNeeded, setBrowserCaptureNeeded] = useState(false);
   const browserCaptureRequestRef = useRef<string | null>(null);
@@ -521,12 +531,14 @@ export default function Dashboard() {
       browserCaptureRequestRef.current = null;
       setImportLoading(false);
       if (!message.ok || !message.product) {
+        if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "failed", note: message.error || "Capture failed" } : item));
         setImportResult(message.error || "Browser capture could not read this product. Open the supplier page, complete any verification, then try again.");
         return;
       }
       setBrowserImporterAvailable(true);
       setBrowserCaptureNeeded(false);
       setImportPreview(message.product as ProductUrlPreview);
+      if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "review", note: "Ready for draft review" } : item));
       const imageCount = Array.isArray(message.product.images) ? message.product.images.length : 0;
       const variantCount = Array.isArray(message.product.variants)
         ? message.product.variants.reduce((sum: number, group: Variant) => sum + (group.options?.length || 0), 0)
@@ -539,7 +551,7 @@ export default function Dashboard() {
       window.removeEventListener("message", onImporterMessage);
       if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
     };
-  }, []);
+  }, [bulkImportActiveId]);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
   const [storeColor, setStoreColor] = useState("#ff6b35");
@@ -1260,6 +1272,10 @@ export default function Dashboard() {
       setProducts([{ ...data, images: allImages, image_url: allImages[0] || null, variants: cv }, ...products]);
       revalidateMyStore();
     }
+    if (formImportAsDraft && bulkImportActiveId) {
+      setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "saved", note: "Draft saved" } : item));
+      setBulkImportActiveId(null);
+    }
     resetForm(); setFormSaving(false);
   };
 
@@ -1279,33 +1295,37 @@ export default function Dashboard() {
     }, 5000);
   };
 
-  const previewSupplierProduct = async () => {
-    if (!importUrl.trim()) { setImportResult("Paste a Shein, Temu, Nike, or Superbalist product link first."); return; }
+  const previewSupplierProduct = async (requestedUrl = importUrl.trim()) => {
+    if (!requestedUrl) { setImportResult("Paste a Shein, Temu, Nike, or Superbalist product link first."); return; }
     setImportLoading(true); setImportResult(""); setImportPreview(null); setImportTags(["imports"]); setBrowserCaptureNeeded(false);
+    if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "capturing", note: "Reading supplier page" } : item));
     try {
       const res = await fetch("/api/product-url-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: importUrl.trim() }),
+        body: JSON.stringify({ url: requestedUrl }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.browserAssisted) {
           if (data.partialProduct) setImportPreview(data.partialProduct);
           setBrowserCaptureNeeded(true);
-          requestBrowserCapture(importUrl.trim());
+          requestBrowserCapture(requestedUrl);
           return;
         }
+        if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "failed", note: data.error || "Preview failed" } : item));
         setImportResult(data.error || "Could not preview this product."); return;
       }
       setImportPreview(data.product);
       if (data.browserAssisted) {
         setBrowserCaptureNeeded(true);
-        requestBrowserCapture(importUrl.trim());
+        requestBrowserCapture(requestedUrl);
         return;
       }
+      if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "review", note: "Ready for draft review" } : item));
       setImportResult("Server preview ready. Review it, then import it as a draft.");
     } catch (e: any) {
+      if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "failed", note: e?.message || "Preview failed" } : item));
       setImportResult(e?.message || "Could not preview this product.");
     } finally {
       if (!browserCaptureRequestRef.current) setImportLoading(false);
@@ -1340,6 +1360,26 @@ export default function Dashboard() {
     setTimeout(() => {
       document.getElementById("product-edit-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
+  };
+
+  const addBulkImportLinks = () => {
+    const links = [...new Set((bulkImportText.match(/https?:\/\/[^\s"'<>`]+/gi) || [])
+      .map((url) => url.replace(/[),.;]+$/, ""))
+      .filter((url) => /(?:^|\.)\b(?:shein|temu|nike|superbalist)\.com\b/i.test(new URL(url).hostname)))];
+    if (!links.length) { setImportResult("Paste one or more Shein, Temu, Nike or Superbalist links from Notepad first."); return; }
+    setBulkImportQueue((items) => {
+      const existing = new Set(items.map((item) => item.url));
+      return [...items, ...links.filter((url) => !existing.has(url)).map((url) => ({ id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, url, status: "queued" as const }))];
+    });
+    setBulkImportText("");
+  };
+
+  const loadNextBulkImport = () => {
+    const next = bulkImportQueue.find((item) => item.status === "queued" || item.status === "failed");
+    if (!next) { setImportResult("Your bulk import queue is complete."); return; }
+    setBulkImportActiveId(next.id);
+    setImportUrl(next.url);
+    void previewSupplierProduct(next.url);
   };
 
   const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); revalidateMyStore(); };
@@ -2612,6 +2652,30 @@ export default function Dashboard() {
                     Browser Capture
                   </button>
                 )}
+              </div>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 7, flexWrap: "wrap" as const }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: "var(--text)" }}>Bulk draft queue</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Paste links straight from Notepad—one per line or mixed into any text. Each is captured and saved as a reviewable draft.</div>
+                  </div>
+                  <button type="button" onClick={loadNextBulkImport} disabled={importLoading || !bulkImportQueue.some((item) => item.status === "queued" || item.status === "failed")} style={{ padding: "9px 13px", background: "#111", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: importLoading ? "not-allowed" : "pointer", opacity: importLoading || !bulkImportQueue.some((item) => item.status === "queued" || item.status === "failed") ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Capture next</button>
+                </div>
+                <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Paste supplier links here\nhttps://za.shein.com/...\nhttps://www.temu.com/..."} rows={4} style={{ ...inputStyle, minHeight: 92, resize: "vertical" as const, lineHeight: 1.45 }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" as const }}>
+                  <button type="button" onClick={addBulkImportLinks} disabled={!bulkImportText.trim()} style={{ padding: "8px 12px", background: bulkImportText.trim() ? G : "var(--panel-2)", color: bulkImportText.trim() ? "#fff" : "var(--muted-2)", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: bulkImportText.trim() ? "pointer" : "default", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Add links to queue</button>
+                  {!!bulkImportQueue.length && <button type="button" onClick={() => { setBulkImportQueue([]); setBulkImportActiveId(null); }} style={{ padding: "7px 10px", background: "transparent", border: "none", color: "var(--muted-2)", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Clear queue</button>}
+                  {!!bulkImportQueue.length && <span style={{ fontSize: 10, color: "var(--muted-2)", fontWeight: 700 }}>{bulkImportQueue.filter((item) => item.status === "saved").length}/{bulkImportQueue.length} drafts saved</span>}
+                </div>
+                {!!bulkImportQueue.length && <div style={{ marginTop: 10, display: "flex", flexDirection: "column" as const, gap: 5, maxHeight: 170, overflowY: "auto" as const }}>
+                  {bulkImportQueue.map((item, index) => {
+                    const colour = item.status === "saved" ? "#15803d" : item.status === "failed" ? "#b45309" : item.status === "review" ? "#2563eb" : item.status === "capturing" ? "#7c3aed" : "var(--muted-2)";
+                    const label = item.status === "saved" ? "Draft saved" : item.status === "review" ? "Ready to review" : item.status === "capturing" ? "Capturing" : item.status === "failed" ? "Try again" : "Queued";
+                    return <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8, minWidth: 0 }}>
+                      <span style={{ color: "var(--muted-2)", fontSize: 10, fontWeight: 800 }}>{index + 1}</span><span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, fontSize: 10, color: "var(--muted)" }}>{item.url}</span><span style={{ color: colour, fontSize: 9, fontWeight: 900, whiteSpace: "nowrap" as const, textTransform: "uppercase" as const }}>{label}</span>
+                    </div>;
+                  })}
+                </div>}
               </div>
               {importResult && <div style={{ marginTop: 10, fontSize: 12, color: importPreview ? "#16a34a" : "var(--muted)", fontWeight: 700 }}>{importResult}</div>}
               {importPreview && (
