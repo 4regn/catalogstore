@@ -9,7 +9,7 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { trackStorefrontEvent, useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
-import { buildCheckoutShippingOptions, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
+import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 
 export interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -831,6 +831,15 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     stickyBg: `${slBg}f2`, emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
   const selectedShippingOption = shippingOptionsConfigured[shippingOption];
+  const selectedDeliveryEstimate = fulfillment === "delivery" ? calculateFourRegnDeliveryEstimate(cartHasImport ? PREMIUM_SHIPPING_NAME : selectedShippingOption?.name) : null;
+  const selectedDeliveryEstimateText = (() => {
+    if (!selectedDeliveryEstimate) return "";
+    const from = new Date(selectedDeliveryEstimate.fromAt);
+    const to = new Date(selectedDeliveryEstimate.toAt);
+    const month = new Intl.DateTimeFormat("en-ZA", { month: "short" });
+    if (from.toDateString() === to.toDateString()) return `${from.getDate()} ${month.format(to)}`;
+    return from.getMonth() === to.getMonth() ? `${from.getDate()}–${to.getDate()} ${month.format(to)}` : `${from.getDate()} ${month.format(from)} – ${to.getDate()} ${month.format(to)}`;
+  })();
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
   const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
   const shippingDisplayName = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_NAME : (opt?.name || "Delivery");
@@ -1352,6 +1361,10 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       {fulfillment === "pickup" && cc.pickup_instructions && <div className="payment-note" style={{ whiteSpace: "pre-wrap" }}>{cc.pickup_instructions}</div>}
                     </div>
                   </div>
+                  {selectedDeliveryEstimateText && <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 12, background: "rgba(0,117,31,.055)", border: "1px solid rgba(0,117,31,.18)", color: "#176b37", fontSize: 12, lineHeight: 1.5 }}>
+                    <strong style={{ display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em", fontSize: 10 }}>Estimated delivery</strong>
+                    {selectedDeliveryEstimateText} <span style={{ color: "#52705c" }}>· Excludes weekends and South African public holidays.</span>
+                  </div>}
                 </div>
               )}
 

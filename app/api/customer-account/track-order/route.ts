@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   // platform-wide numeric order_number used by other sellers. The numeric
   // fallback covers an order placed just before this migration was applied.
   const candidates = [`#${number}D`, `${number}D`, `#${number}`, String(number)];
-  const columns = "id, order_number, external_id, customer_email, customer_phone, customer_name, items, total, status, payment_status, shipping_option, created_at, tracking_updated_at, customer_tracking_note";
+  const columns = "id, order_number, external_id, customer_email, customer_phone, customer_name, items, total, status, payment_status, shipping_option, created_at, tracking_updated_at, estimated_delivery_from_at, estimated_delivery_at, customer_tracking_note";
   const [externalMatches, numericMatches] = await Promise.all([
     admin.from("orders").select(columns).eq("seller_id", seller.id).in("external_id", candidates).limit(5),
     admin.from("orders").select(columns).eq("seller_id", seller.id).eq("order_number", number).is("external_id", null).limit(5),
@@ -73,6 +73,8 @@ export async function POST(req: NextRequest) {
       shipping_option: order.shipping_option,
       created_at: order.created_at,
       tracking_updated_at: order.tracking_updated_at,
+      estimated_delivery_from_at: order.estimated_delivery_from_at,
+      estimated_delivery_at: order.estimated_delivery_at,
       tracking: buildFourRegnTracking(order),
     },
   }, { headers: { "Cache-Control": "private, no-store" } });

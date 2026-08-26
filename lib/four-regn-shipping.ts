@@ -91,3 +91,66 @@ export function shippingOptionSavings(opt: CheckoutShippingOption | undefined | 
   if (!Number.isFinite(compareAt) || compareAt <= price) return 0;
   return compareAt - price;
 }
+
+type DeliveryWindow = { fromAt: string; toAt: string; businessDays: { min: number; max: number } };
+
+const dateKey = (date: Date) => date.toISOString().slice(0, 10);
+const utcDate = (year: number, month: number, day: number) => new Date(Date.UTC(year, month - 1, day));
+const plusDays = (date: Date, days: number) => new Date(date.getTime() + days * 86_400_000);
+
+function easterSunday(year: number) {
+  // Meeus/Jones/Butcher Gregorian calculation. South African Good Friday and
+  // Family Day are always the Friday and Monday around this date.
+  const a = year % 19; const b = Math.floor(year / 100); const c = year % 100;
+  const d = Math.floor(b / 4); const e = b % 4; const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3); const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4); const k = c % 4; const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451); const month = Math.floor((h + l - 7 * m + 114) / 31);
+  return utcDate(year, month, ((h + l - 7 * m + 114) % 31) + 1);
+}
+
+/** Official statutory South African public holidays for a calendar year.
+ * A public holiday that lands on Sunday is observed on Monday under section
+ * 2(1) of the Public Holidays Act. One-off gazetted days can be added here
+ * when announced without changing delivery calculations elsewhere. */
+export function southAfricanPublicHolidays(year: number) {
+  const fixed = [[1, 1], [3, 21], [4, 27], [5, 1], [6, 16], [8, 9], [9, 24], [12, 16], [12, 25], [12, 26]]
+    .map(([month, day]) => utcDate(year, month, day));
+  const easter = easterSunday(year);
+  const holidays = [...fixed, plusDays(easter, -2), plusDays(easter, 1)];
+  for (const holiday of [...holidays]) if (holiday.getUTCDay() === 0) holidays.push(plusDays(holiday, 1));
+  return new Set(holidays.map(dateKey));
+}
+
+function southAfricanCalendarDate(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
+  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value || 0);
+  return utcDate(part("year"), part("month"), part("day"));
+}
+
+export function addSouthAfricanWorkingDays(from: Date, workingDays: number) {
+  let cursor = southAfricanCalendarDate(from);
+  let remaining = workingDays;
+  // Counting starts on the next calendar day, never on the day an order was placed.
+  while (remaining > 0) {
+    cursor = plusDays(cursor, 1);
+    const weekend = cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6;
+    if (!weekend && !southAfricanPublicHolidays(cursor.getUTCFullYear()).has(dateKey(cursor))) remaining -= 1;
+  }
+  return cursor;
+}
+
+function deliveryTimestamp(day: Date) {
+  // Midday Johannesburg time avoids an accidental previous-day display in UTC.
+  return `${dateKey(day)}T12:00:00+02:00`;
+}
+
+export function calculateFourRegnDeliveryEstimate(shippingOption?: string | null, orderedAt = new Date()): DeliveryWindow | null {
+  const option = String(shippingOption || "").toLowerCase();
+  let min: number; let max: number;
+  if (option.includes("paxi standard")) [min, max] = [7, 9];
+  else if (option.includes("door-to-door") || option.includes("door to door")) [min, max] = [2, 5];
+  else if (option.includes("paxi express")) [min, max] = [3, 5];
+  else return null;
+  return { fromAt: deliveryTimestamp(addSouthAfricanWorkingDays(orderedAt, min)), toAt: deliveryTimestamp(addSouthAfricanWorkingDays(orderedAt, max)), businessDays: { min, max } };
+}

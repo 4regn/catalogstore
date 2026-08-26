@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIP } from "../../../../lib/rate-limit";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { fetchActiveAutomaticBxgyDiscounts, computeAutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
-import { buildCheckoutShippingOptions, isPremiumShippingOption, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
+import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 import { variantPriceDelta } from "../../../../lib/product-pricing";
 
 /* Server-side order placement.
@@ -283,8 +283,18 @@ export async function POST(req: NextRequest) {
     automatic_discount_amount: automaticDiscount.totalDiscount,
     automatic_discount_title: automaticDiscount.applied.map((a) => a.title).join(", ") || null,
   };
+  // Only the three 4REGN local delivery services receive a calculated window.
+  // Imported/premium and pickup orders intentionally stay blank until an admin
+  // supplies an estimate. The dashboard may always override this later.
+  const deliveryEstimate = fulfillment === "delivery" ? calculateFourRegnDeliveryEstimate(shippingLabel) : null;
+  const tier3 = deliveryEstimate ? {
+    estimated_delivery_from_at: deliveryEstimate.fromAt,
+    estimated_delivery_at: deliveryEstimate.toAt,
+    estimated_delivery_manual_override: false,
+  } : {};
 
   const attempts = [
+    { ...coreRow, ...tier1, ...tier2, ...tier3 },
     { ...coreRow, ...tier1, ...tier2 },
     { ...coreRow, ...tier1 },
     coreRow,

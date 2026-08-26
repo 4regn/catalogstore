@@ -203,7 +203,7 @@ interface Order {
   customer_email: string;
   items: { name: string; qty: number; price: number; variant?: string; image?: string }[]; total: number;
   status: string; payment_status: string; created_at: string;
-  tracking_updated_at?: string | null;
+  tracking_updated_at?: string | null; estimated_delivery_from_at?: string | null; estimated_delivery_at?: string | null; estimated_delivery_manual_override?: boolean;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null; customer_tracking_note?: string | null;
 }
@@ -243,7 +243,7 @@ const cleanProductTags = (values: string[]) => Array.from(new Map(values
   .map((value) => value.trim().replace(/\s+/g, " ").slice(0, 80))
   .filter(Boolean)
   .map((value) => [value.toLowerCase(), value])).values()).slice(0, 40);
-const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes, customer_tracking_note";
+const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, estimated_delivery_from_at, estimated_delivery_at, estimated_delivery_manual_override, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes, customer_tracking_note";
 const PAYMENT_METHOD_KEYS = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const DEFAULT_PAYMENT_METHOD_ORDER = [...PAYMENT_METHOD_KEYS];
 const normalisePaymentMethodOrder = (value: unknown) => {
@@ -3225,6 +3225,15 @@ export default function Dashboard() {
                       <button type="button" onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "10px 14px", borderRadius: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", cursor: "pointer", border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", background: "var(--panel-2)", color: "var(--muted)" }}>Save time</button>
                     </div>
                     <span style={{ fontSize: 11, color: "var(--muted-2)" }}>Customers will see this timestamp on the tracking page.</span>
+                  </div>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 18, maxWidth: 360 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Estimated delivery (optional)</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      <input type="datetime-local" value={selectedOrder.estimated_delivery_at ? toDateTimeLocalValue(selectedOrder.estimated_delivery_at) : ""} onChange={(e) => { const updated = { ...selectedOrder, estimated_delivery_at: e.target.value ? fromDateTimeLocalValue(e.target.value) : null }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); }} style={{ flex: "1 1 220px", minWidth: 0, padding: "10px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                      <button type="button" onClick={async () => { const value = selectedOrder.estimated_delivery_at || null; const { error } = await supabase.from("orders").update({ estimated_delivery_at: value, estimated_delivery_manual_override: true }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, estimated_delivery_manual_override: true }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "10px 14px", borderRadius: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", cursor: "pointer", border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", background: "var(--panel-2)", color: "var(--muted)" }}>Save estimate</button>
+                      {selectedOrder.estimated_delivery_at && <button type="button" onClick={async () => { const { error } = await supabase.from("orders").update({ estimated_delivery_at: null, estimated_delivery_from_at: null, estimated_delivery_manual_override: false }).eq("id", selectedOrder.id); if (error) { alert("Failed to clear: " + error.message); return; } const updated = { ...selectedOrder, estimated_delivery_at: null, estimated_delivery_from_at: null, estimated_delivery_manual_override: false }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "10px 12px", borderRadius: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, cursor: "pointer", border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", background: "transparent", color: "var(--muted)" }}>Clear</button>}
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--muted-2)" }}>Leave blank to keep the estimate hidden from the customer. Set it manually for now.</span>
                   </div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Status:</label>
