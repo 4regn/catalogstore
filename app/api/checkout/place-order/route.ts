@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
   let shippingCost = 0;
   let shippingLabel: string = fulfillment === "pickup" ? "Pickup" : "";
   if (fulfillment === "delivery") {
-    const opts: CheckoutShippingOption[] = buildCheckoutShippingOptions(cc.shipping_options, { subdomain: slug, template: undefined, subtotal: payableMerchandiseSubtotal, hasImportProduct });
+    const opts: CheckoutShippingOption[] = buildCheckoutShippingOptions(cc.shipping_options, { subdomain: slug, template: undefined, subtotal: payableMerchandiseSubtotal, hasImportProduct, delivery_method_order: cc.delivery_method_order });
     const idx = Number(shippingOptionIndex);
     if (!opts.length || !Number.isFinite(idx) || idx < 0 || idx >= opts.length) {
       return NextResponse.json({ error: "Invalid shipping option" }, { status: 400 });

@@ -34,6 +34,16 @@ export const FOUR_REGN_PAXI_EXPRESS: CheckoutShippingOption = {
   service_level: "express",
 };
 
+export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["paxi_standard", "aramex", "paxi_express"] as const;
+export type FourRegnDeliveryMethodKey = typeof FOUR_REGN_DELIVERY_METHOD_ORDER[number];
+
+export function normaliseFourRegnDeliveryMethodOrder(value: unknown): FourRegnDeliveryMethodKey[] {
+  const saved = Array.isArray(value)
+    ? value.filter((key): key is FourRegnDeliveryMethodKey => FOUR_REGN_DELIVERY_METHOD_ORDER.includes(key as FourRegnDeliveryMethodKey))
+    : [];
+  return [...saved, ...FOUR_REGN_DELIVERY_METHOD_ORDER.filter((key) => !saved.includes(key))];
+}
+
 const PREMIUM_SHIPPING_NAME = "PREMIUM PRODUCT SHIPMENT";
 export const FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM = 449;
 
@@ -47,7 +57,7 @@ export function isPremiumShippingOption(opt: { name?: string; is_premium?: boole
 
 export function buildCheckoutShippingOptions(
   configured: CheckoutShippingOption[] | undefined | null,
-  seller: { subdomain?: string | null; template?: string | null; subtotal?: number | null; hasImportProduct?: boolean | null }
+  seller: { subdomain?: string | null; template?: string | null; subtotal?: number | null; hasImportProduct?: boolean | null; delivery_method_order?: unknown }
 ): CheckoutShippingOption[] {
   const options = Array.isArray(configured) ? configured : [];
   if (!isFourRegnSeller(seller.subdomain, seller.template)) return options;
@@ -77,12 +87,15 @@ export function buildCheckoutShippingOptions(
     service_level: "premium" as const,
   }];
 
-  return [
-    standardPaxi,
+  const localDeliveryMethods: Record<FourRegnDeliveryMethodKey, CheckoutShippingOption> = {
+    paxi_standard: standardPaxi,
     aramex,
-    ...resolvedPremiumOptions,
-    FOUR_REGN_PAXI_EXPRESS,
-  ];
+    paxi_express: FOUR_REGN_PAXI_EXPRESS,
+  };
+  const orderedLocalDeliveryOptions = normaliseFourRegnDeliveryMethodOrder(seller.delivery_method_order)
+    .map((key) => localDeliveryMethods[key]);
+
+  return [...orderedLocalDeliveryOptions, ...resolvedPremiumOptions];
 }
 
 export function shippingOptionSavings(opt: CheckoutShippingOption | undefined | null) {

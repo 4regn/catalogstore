@@ -16,6 +16,7 @@ import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "..
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
 import type { FullAnalytics } from "../../lib/store-analytics";
 import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
+import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -137,6 +138,7 @@ interface CheckoutConfig {
   stitch_enabled: boolean;
   yoco_enabled: boolean; setla_enabled: boolean; float_enabled: boolean;
   payment_method_order: string[];
+  delivery_method_order?: string[];
   delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
   // is_premium: this option is ONLY offered when the cart contains a
   // product tagged "import"/"imports" (and, symmetrically, hidden from
@@ -566,7 +568,7 @@ export default function Dashboard() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [growDismissed, setGrowDismissed] = useState(() => typeof window !== "undefined" && localStorage.getItem("cs_grow_dismissed") === "1");
   const growSessionCounted = useRef(false);
-  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", stitch_enabled: true, yoco_enabled: false, setla_enabled: false, float_enabled: false, payment_method_order: DEFAULT_PAYMENT_METHOD_ORDER, delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
+  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", stitch_enabled: true, yoco_enabled: false, setla_enabled: false, float_enabled: false, payment_method_order: DEFAULT_PAYMENT_METHOD_ORDER, delivery_method_order: [...FOUR_REGN_DELIVERY_METHOD_ORDER], delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
   const [checkoutView, setCheckoutView] = useState<"payments" | "shipping">("payments");
   const [checkoutSaving, setCheckoutSaving] = useState(false);
   const [checkoutSaved, setCheckoutSaved] = useState(false);
@@ -718,6 +720,12 @@ export default function Dashboard() {
     // "free" (already active, no gate needed).
     if (sd?.subscription_status === "pending") { router.push("/dashboard/billing"); return; }
     if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c: any = effectiveStoreConfig(sd); setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", privacy_policy: c.privacy_policy || "", terms_of_service: c.terms_of_service || "", free_ship_threshold: c.free_ship_threshold ?? null, collection_images: c.collection_images || {}, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", stitch_enabled: cc.stitch_enabled !== false, yoco_enabled: !!cc.yoco_enabled, setla_enabled: !!cc.setla_enabled, float_enabled: !!cc.float_enabled, payment_method_order: normalisePaymentMethodOrder(cc.payment_method_order), delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    // Delivery ordering is intentionally independent of custom shipping
+    // options: it controls the three fixed 4REGN courier choices.
+    if (sd) setCheckoutConfig((current) => ({
+      ...current,
+      delivery_method_order: normaliseFourRegnDeliveryMethodOrder((sd.checkout_config as any)?.delivery_method_order),
+    }));
     if (pdResult.data) setProducts(pdResult.data);
     if (odResult.data) {
       setOrders(odResult.data);
@@ -4356,6 +4364,27 @@ export default function Dashboard() {
               ))}
             </div>
             {checkoutView === "shipping" && (<>
+            {storeTemplate === "4regn" && <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>4REGN delivery method order</h3>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14, lineHeight: 1.5 }}>Use the arrows to arrange the exact order customers see at checkout. Prices and delivery rules remain unchanged.</p>
+              {normaliseFourRegnDeliveryMethodOrder(checkoutConfig.delivery_method_order).map((key, index, order) => {
+                const methods: Record<string, { title: string; detail: string }> = {
+                  paxi_standard: { title: "PAXI Standard Delivery", detail: "7–9 working days" },
+                  aramex: { title: "Aramex Door-to-door", detail: "2–5 working days · Best value" },
+                  paxi_express: { title: "PAXI Express Delivery", detail: "3–5 working days" },
+                };
+                const method = methods[key];
+                const move = (to: number) => {
+                  const next = [...order];
+                  [next[index], next[to]] = [next[to], next[index]];
+                  setCheckoutConfig({ ...checkoutConfig, delivery_method_order: next });
+                };
+                return <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderTop: index ? "1px solid var(--border)" : "none" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{method.title}</div><div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{method.detail}</div></div>
+                  <div style={{ display: "flex", gap: 4 }}><button type="button" disabled={index === 0} onClick={() => move(index - 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === 0 ? "var(--muted-2)" : "var(--text)", cursor: index === 0 ? "not-allowed" : "pointer" }}>↑</button><button type="button" disabled={index === order.length - 1} onClick={() => move(index + 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === order.length - 1 ? "var(--muted-2)" : "var(--text)", cursor: index === order.length - 1 ? "not-allowed" : "pointer" }}>↓</button></div>
+                </div>;
+              })}
+            </div>}
             <div style={sectionCard}>
               <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Shipping Options</h3>
               <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Add delivery options customers can choose at checkout.</p>

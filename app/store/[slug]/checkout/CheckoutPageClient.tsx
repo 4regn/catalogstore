@@ -41,6 +41,7 @@ export interface Seller {
     stitch_enabled?: boolean;
     float_enabled?: boolean;
     payment_method_order?: string[];
+    delivery_method_order?: string[];
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
@@ -717,6 +718,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     template: seller?.template,
     subtotal: deliveryQualifyingSubtotal,
     hasImportProduct: cartHasImport,
+    delivery_method_order: cc.delivery_method_order,
   });
   const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
   // Import shipping is automatic. Prefer a seller-configured premium rate,
