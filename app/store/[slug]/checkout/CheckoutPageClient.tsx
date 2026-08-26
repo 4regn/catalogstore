@@ -170,6 +170,10 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .shipping-provider span{font-size:12.5px;font-weight:800;line-height:1.25}
 .fr-checkout-v2 .shipping-provider.aramex span{color:#e1261c}
 .fr-checkout-v2 .shipping-provider.paxi span{color:#007c89}
+.fr-checkout-v2 .best-value-badge{display:inline-flex;align-items:center;border-radius:999px;background:#111;color:#fff;padding:3px 7px;font-size:9px;font-weight:800;letter-spacing:.06em;line-height:1;vertical-align:middle;margin-left:7px}
+.fr-checkout-v2 .delivery-estimate{margin:8px 0 0 31px;color:#176b37;font-size:11.5px;line-height:1.5}
+.fr-checkout-v2 .delivery-estimate strong{font-weight:700}
+.fr-checkout-v2 .delivery-estimate-note{margin:10px 2px 0;color:#747474;font-size:11px;line-height:1.45}
 .fr-checkout-v2 .payment-title-note{font-weight:400;color:#5f5f5f;font-size:11px;letter-spacing:.015em;white-space:nowrap}
 .fr-checkout-v2 .card-brand-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}
 .fr-checkout-v2 .card-brand{height:23px;min-width:38px;border:1px solid #dedede;border-radius:4px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:3px 5px}
@@ -832,13 +836,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   };
   const selectedShippingOption = shippingOptionsConfigured[shippingOption];
   const selectedDeliveryEstimate = fulfillment === "delivery" ? calculateFourRegnDeliveryEstimate(cartHasImport ? PREMIUM_SHIPPING_NAME : selectedShippingOption?.name) : null;
-  const selectedDeliveryEstimateText = (() => {
+  const selectedDeliveryEstimateDates = (() => {
     if (!selectedDeliveryEstimate) return "";
     const from = new Date(selectedDeliveryEstimate.fromAt);
     const to = new Date(selectedDeliveryEstimate.toAt);
-    const month = new Intl.DateTimeFormat("en-ZA", { month: "short" });
-    if (from.toDateString() === to.toDateString()) return `${from.getDate()} ${month.format(to)}`;
-    return from.getMonth() === to.getMonth() ? `${from.getDate()}–${to.getDate()} ${month.format(to)}` : `${from.getDate()} ${month.format(from)} – ${to.getDate()} ${month.format(to)}`;
+    const formatter = new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short" });
+    return { earliest: formatter.format(from), latest: formatter.format(to) };
   })();
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
   const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
@@ -1406,18 +1409,19 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>
                           <div className="radio"></div>
-                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} /></div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
+                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} />{opt.carrier === "aramex" && <span className="best-value-badge">BEST VALUE</span>}</div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
                           <ShippingPrice opt={opt} />
                         </div>
+                        {shippingOption === i && selectedDeliveryEstimateDates && (
+                          <div className="delivery-estimate">
+                            <strong>Earliest estimated delivery: {selectedDeliveryEstimateDates.earliest}</strong><br />
+                            May arrive by {selectedDeliveryEstimateDates.latest}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
-                  {selectedDeliveryEstimateText && (
-                    <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 12, background: "rgba(0,117,31,.055)", border: "1px solid rgba(0,117,31,.18)", color: "#176b37", fontSize: 12, lineHeight: 1.5 }}>
-                      <strong style={{ display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em", fontSize: 10 }}>Estimated delivery</strong>
-                      {selectedDeliveryEstimateText} <span style={{ color: "#52705c" }}>· Excludes weekends and South African public holidays.</span>
-                    </div>
-                  )}
+                  <p className="delivery-estimate-note">Delivery estimates exclude weekends and South African public holidays.</p>
                 </div>
               )}
 
