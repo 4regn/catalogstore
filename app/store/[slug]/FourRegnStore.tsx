@@ -824,7 +824,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [localQty, setLocalQty] = useState(1);
   const [variantError, setVariantError] = useState(false);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
-  const [sizeChartTab, setSizeChartTab] = useState<"chart" | "measure">("chart");
+  const [sizeChartTab, setSizeChartTab] = useState<"chart" | "body" | "measure">("chart");
 
   /* ─── CART ─── */
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -4499,8 +4499,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   className={"fr-sc-tab" + (sizeChartTab === "chart" ? " active" : "")}
                   onClick={() => setSizeChartTab("chart")}
                 >
-                  Size Chart
+                  Product Chart
                 </button>
+                {customChart?.bodyChart && (
+                  <button
+                    type="button"
+                    className={"fr-sc-tab" + (sizeChartTab === "body" ? " active" : "")}
+                    onClick={() => setSizeChartTab("body")}
+                  >
+                    Body Chart
+                  </button>
+                )}
                 <button
                   type="button"
                   className={"fr-sc-tab" + (sizeChartTab === "measure" ? " active" : "")}
@@ -4523,23 +4532,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   </table>
                   <p className="fr-sc-tip">{customChart?.note || "All measurements in CM. If you are between sizes, we recommend sizing up."}</p>
                 </div>
+              ) : sizeChartTab === "body" && customChart?.bodyChart ? (
+                <div className="fr-sc-body-chart fr-sc-table-wrap">
+                  <table className="fr-sc-table">
+                    <thead><tr>{customChart.bodyChart.headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                    <tbody>{customChart.bodyChart.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody>
+                  </table>
+                  <p className="fr-sc-tip">Body measurements are a guide for choosing the closest product size.</p>
+                </div>
               ) : (
                 <div className="fr-sc-measure">
                   <h4>How to Measure (cm)</h4>
-                  {customChart?.bodyChart && (
-                    <div className="fr-sc-body-chart fr-sc-table-wrap">
-                      <h5>Body Measurements</h5>
-                      <table className="fr-sc-table">
-                        <thead><tr>{customChart.bodyChart.headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
-                        <tbody>{customChart.bodyChart.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody>
-                      </table>
-                    </div>
-                  )}
                   <div className="fr-sc-measure-diagrams">
-                    {(customChart?.measureImages?.length ? customChart.measureImages : ["/size-chart-measure-female.jpg", "/size-chart-measure-male.jpg"]).map((src, index) => (
+                    {["/size-chart-measure-female.jpg", "/size-chart-measure-male.jpg"].map((src, index) => (
                       <div className="fr-sc-measure-diagram" key={src}>
                         <img src={src} alt="How to measure for this product" loading="lazy" />
-                        <span>{customChart?.measureImages?.length ? "How to measure" : index === 0 ? "Women" : "Men"}</span>
+                        <span>{index === 0 ? "Women" : "Men"}</span>
                       </div>
                     ))}
                   </div>
