@@ -122,7 +122,7 @@ function formatZARDecimal(value: number): string {
 // below uses -- this is a reskin, not a second checkout implementation.
 const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2,.fr-checkout-v2 *{box-sizing:border-box}
-.fr-checkout-v2{background:#fff;color:#050505;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+.fr-checkout-v2{background:#fff;color:#050505;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;overflow:visible;touch-action:pan-y}
 .fr-checkout-v2 button,.fr-checkout-v2 input,.fr-checkout-v2 select{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px}
 .fr-checkout-v2 button{cursor:pointer}
 .fr-checkout-v2 .topbar{height:82px;border-bottom:1px solid #e4e4e4;background:#fff;position:sticky;top:0;z-index:20}
@@ -1156,7 +1156,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const reference = checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn);
     return (
       <div className="fr-checkout-v2">
-        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0}`}</style>
+        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch}`}</style>
         <div className="checkout-shell">
           <header className="topbar">
             <div className="topbar-inner">
@@ -1361,10 +1361,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       {fulfillment === "pickup" && cc.pickup_instructions && <div className="payment-note" style={{ whiteSpace: "pre-wrap" }}>{cc.pickup_instructions}</div>}
                     </div>
                   </div>
-                  {selectedDeliveryEstimateText && <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 12, background: "rgba(0,117,31,.055)", border: "1px solid rgba(0,117,31,.18)", color: "#176b37", fontSize: 12, lineHeight: 1.5 }}>
-                    <strong style={{ display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em", fontSize: 10 }}>Estimated delivery</strong>
-                    {selectedDeliveryEstimateText} <span style={{ color: "#52705c" }}>· Excludes weekends and South African public holidays.</span>
-                  </div>}
                 </div>
               )}
 
@@ -1416,6 +1412,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       </div>
                     ))}
                   </div>
+                  {selectedDeliveryEstimateText && (
+                    <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 12, background: "rgba(0,117,31,.055)", border: "1px solid rgba(0,117,31,.18)", color: "#176b37", fontSize: 12, lineHeight: 1.5 }}>
+                      <strong style={{ display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em", fontSize: 10 }}>Estimated delivery</strong>
+                      {selectedDeliveryEstimateText} <span style={{ color: "#52705c" }}>· Excludes weekends and South African public holidays.</span>
+                    </div>
+                  )}
                 </div>
               )}
 
