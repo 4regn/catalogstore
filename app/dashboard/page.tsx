@@ -181,6 +181,7 @@ interface ProductUrlPreview {
   stockNote?: string;
   captureMethod?: "server" | "browser";
   warnings?: string[];
+  imageDetails?: { width: number; height: number; bytes: number; sourceUrl?: string }[];
   sizeChartHtml?: string;
 }
 
@@ -2618,6 +2619,15 @@ export default function Dashboard() {
                     <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 4, lineHeight: 1.25 }}>{importPreview.title}</div>
                     <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{importPreview.price ? `${importPreview.currency === "ZAR" ? "R" : importPreview.currency + " "}${importPreview.price}` : "No price detected — enter your 4REGN selling price manually"}</div>
                     {!!importPreview.stockNote && <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 8 }}>{importPreview.stockNote}</div>}
+                    {!!importPreview.imageDetails?.length && (() => {
+                      const edges = importPreview.imageDetails.map((image) => Math.max(image.width || 0, image.height || 0)).filter(Boolean);
+                      const smallest = edges.length ? Math.min(...edges) : 0;
+                      const largest = edges.length ? Math.max(...edges) : 0;
+                      const range = smallest && largest ? `${smallest}${largest !== smallest ? `–${largest}` : ""}px` : "dimensions unavailable";
+                      return <div style={{ fontSize: 11, color: smallest >= 900 ? "#15803d" : "#b45309", marginBottom: 8, fontWeight: 700 }}>
+                        {smallest >= 900 ? `High-resolution photos ready · ${importPreview.imageDetails.length} verified (${range}).` : `Photo quality check · ${importPreview.imageDetails.length} copied (${range}). Review before publishing.`}
+                      </div>;
+                    })()}
                     {!!importPreview.warnings?.length && <div style={{ fontSize: 11, color: "#b45309", marginBottom: 10 }}>{importPreview.warnings.join(" ")}</div>}
                     <div style={{ marginBottom: 12 }}>
                       <ProductTagPicker value={importTags} onChange={setImportTags} suggestions={productTagSuggestions} accent={N} compact />

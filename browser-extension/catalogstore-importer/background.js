@@ -1,6 +1,9 @@
 const SUPPORTED_HOSTS = ["shein.com", "temu.com", "nike.com", "superbalist.com"];
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024;
+// Product cards can use modest files, but these are also the source for a
+// full-screen gallery. Preserve verified gallery-quality supplier images.
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 45 * 1024 * 1024;
+const MIN_HIGH_RES_EDGE = 900;
 
 function supportedUrl(rawUrl) {
   try {
@@ -84,10 +87,51 @@ async function fetchImage(url) {
   }
 }
 
+function sheinImageCandidates(value) {
+  try {
+    const url = new URL(value);
+    if (!/(?:^|\.)ltwebstatic\.com$/i.test(url.hostname)) return [url.toString()];
+    const candidates = [1200, 900].map((width) => {
+      const candidate = new URL(url.toString());
+      candidate.pathname = candidate.pathname.replace(/_thumbnail_\d+x\d*\.(?:jpe?g|png|webp)$/i, `_thumbnail_${width}x.webp`);
+      return candidate.toString();
+    });
+    return [...new Set([...candidates, url.toString()])];
+  } catch {
+    return [value];
+  }
+}
+
+async function decodedImageSize(blob) {
+  if (typeof createImageBitmap !== "function") return { width: 0, height: 0 };
+  const bitmap = await createImageBitmap(blob);
+  const size = { width: bitmap.width, height: bitmap.height };
+  bitmap.close?.();
+  return size;
+}
+
+async function copyBestImage(url) {
+  let bestLowResolution = null;
+  for (const candidate of sheinImageCandidates(url)) {
+    const response = await fetchImage(candidate);
+    if (!response.ok) continue;
+    const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+    if (!type.startsWith("image/")) continue;
+    const blob = await response.blob();
+    if (!blob.size || blob.size > MAX_IMAGE_BYTES) continue;
+    const dimensions = await decodedImageSize(blob).catch(() => ({ width: 0, height: 0 }));
+    const record = { candidate, type, bytes: blob.size, dimensions, blob };
+    if (Math.max(dimensions.width, dimensions.height) >= MIN_HIGH_RES_EDGE) return record;
+    if (!bestLowResolution || Math.max(dimensions.width, dimensions.height) > Math.max(bestLowResolution.dimensions.width, bestLowResolution.dimensions.height)) bestLowResolution = record;
+  }
+  return bestLowResolution;
+}
+
 async function downloadImages(urls, onProgress) {
   const images = [];
   const copiedByKey = {};
   const warnings = [];
+  const imageDetails = [];
   let totalBytes = 0;
   const seen = new Set();
   const uniqueUrls = urls.filter((url) => {
@@ -101,16 +145,17 @@ async function downloadImages(urls, onProgress) {
     const key = canonicalImageKey(url);
     let copiedImage = url;
     try {
-      const response = await fetchImage(url);
-      if (!response.ok) throw new Error(String(response.status));
-      const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-      if (!type.startsWith("image/")) throw new Error("not an image");
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (!bytes.length || bytes.length > MAX_IMAGE_BYTES || totalBytes + bytes.length > MAX_TOTAL_IMAGE_BYTES) {
+      const copied = await copyBestImage(url);
+      if (!copied || totalBytes + copied.bytes > MAX_TOTAL_IMAGE_BYTES) {
         warnings.push("One or more very large supplier photos were skipped.");
       } else {
+        const bytes = new Uint8Array(await copied.blob.arrayBuffer());
         totalBytes += bytes.length;
-        copiedImage = `data:${type};base64,${bytesToBase64(bytes)}`;
+        copiedImage = `data:${copied.type};base64,${bytesToBase64(bytes)}`;
+        imageDetails.push({ width: copied.dimensions.width, height: copied.dimensions.height, bytes: copied.bytes, sourceUrl: copied.candidate });
+        if (Math.max(copied.dimensions.width, copied.dimensions.height) < MIN_HIGH_RES_EDGE) {
+          warnings.push("One or more supplier photos are below the high-resolution threshold; review them before publishing.");
+        }
       }
     } catch {
       warnings.push("One or more supplier photos could not be copied; their original URLs were kept for review.");
@@ -119,7 +164,7 @@ async function downloadImages(urls, onProgress) {
     copiedByKey[key] = copiedImage;
     onProgress?.(index + 1, uniqueUrls.length);
   }
-  return { images, copiedByKey, warnings: [...new Set(warnings)] };
+  return { images, copiedByKey, imageDetails, warnings: [...new Set(warnings)] };
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -156,6 +201,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       product: {
         ...captured.product,
         images: copied.images,
+        imageDetails: copied.imageDetails,
         variants: copiedVariants,
         warnings: [...new Set([...(captured.product.warnings || []), ...copied.warnings])],
       },

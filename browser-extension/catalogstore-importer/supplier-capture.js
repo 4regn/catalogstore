@@ -78,6 +78,12 @@
       if (!value || /^data:/i.test(value)) return "";
       const url = new URL(value.startsWith("//") ? "https:" + value : value, location.href);
       if (!/^https?:$/.test(url.protocol)) return "";
+      // SHEIN exposes both small card thumbnails and larger gallery renditions
+      // under the same stable image id. The background worker verifies the
+      // decoded pixels before the image is allowed into an import.
+      if (isShein() && /(?:^|\.)ltwebstatic\.com$/i.test(url.hostname)) {
+        url.pathname = url.pathname.replace(/_thumbnail_\d+x\d*\.(?:jpe?g|png|webp)$/i, "_thumbnail_1200x.webp");
+      }
       return url.toString();
     } catch { return ""; }
   }
@@ -136,7 +142,7 @@
     const gallery = ranked[0]?.section;
     if (!gallery) return [];
     gallery.querySelectorAll([
-      '[data-before-crop-src*="_thumbnail_900x" i]',
+      '[data-before-crop-src*="_thumbnail_" i]',
       '[data-before-crop-src]',
     ].join(",")).forEach((element) => add(element.getAttribute("data-before-crop-src")));
     return values.slice(0, 20);
