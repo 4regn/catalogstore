@@ -1534,7 +1534,7 @@ export default function Dashboard() {
   // legacy SHEIN URLs are included too.
   const isSheinSourceProduct = (product: Product) => (product.source_url || "").toLowerCase().includes("shein");
 
-  const applySheinStockAudit = async (productId: string, audit: SheinStockAudit) => {
+  async function applySheinStockAudit(productId: string, audit: SheinStockAudit) {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
     const auditedColours = Object.values(audit.stockByColor || {});
@@ -1573,7 +1573,7 @@ export default function Dashboard() {
     sheinAuditCurrentIdRef.current = null;
     sheinAuditRequestIdRef.current = null;
     setSheinAuditCurrentId(null);
-  };
+  }
 
   const startSheinStockAudit = (productIds?: string[]) => {
     if (!browserImporterAvailable) { setSheinAuditProgress("Reload the CatalogStore Browser Product Importer extension, then refresh this dashboard before starting the stock audit."); return; }
@@ -2930,7 +2930,7 @@ export default function Dashboard() {
                     <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: "#6d28d9" }}>SHEIN Stock Auditor</div>
                     <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Checks every colour and size using Chrome. Fully sold-out products are safely moved to Draft; availability is saved for future restock checks.</div>
                   </div>
-                  <button type="button" onClick={startSheinStockAudit} disabled={sheinAuditRunning || !browserImporterAvailable || !products.some((product) => product.status !== "trashed" && isSheinSourceProduct(product))} style={{ padding: "9px 13px", background: "#6d28d9", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: sheinAuditRunning ? "not-allowed" : "pointer", opacity: sheinAuditRunning || !browserImporterAvailable ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{sheinAuditRunning ? "Auditing stock..." : browserImporterAvailable ? "Audit all SHEIN products" : "Reload Chrome extension"}</button>
+                  <button type="button" onClick={() => startSheinStockAudit()} disabled={sheinAuditRunning || !browserImporterAvailable || !products.some((product) => product.status !== "trashed" && isSheinSourceProduct(product))} style={{ padding: "9px 13px", background: "#6d28d9", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: sheinAuditRunning ? "not-allowed" : "pointer", opacity: sheinAuditRunning || !browserImporterAvailable ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{sheinAuditRunning ? "Auditing stock..." : browserImporterAvailable ? "Audit all SHEIN products" : "Reload Chrome extension"}</button>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" as const, marginTop: 11, paddingTop: 11, borderTop: "1px solid rgba(124,58,237,0.14)" }}>
                   <textarea value={sheinManualAuditText} onChange={(event) => setSheinManualAuditText(event.target.value)} placeholder={"Test selected existing products first — paste one or more exact SHEIN Product Source URLs\nhttps://za.shein.com/..."} rows={2} style={{ ...inputStyle, flex: "1 1 360px", minHeight: 58, fontSize: 11, lineHeight: 1.4, resize: "vertical" as const }} />
