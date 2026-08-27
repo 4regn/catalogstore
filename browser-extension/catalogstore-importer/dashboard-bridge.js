@@ -10,6 +10,18 @@
       post({ type: "PONG", version: chrome.runtime.getManifest().version });
       return;
     }
+    if (event.data.type === "AUDIT_SHEIN_STOCK") {
+      const { requestId, url } = event.data;
+      post({ type: "STOCK_AUDIT_PROGRESS", requestId, message: "Browser stock auditor detected. Opening the SHEIN product..." });
+      chrome.runtime.sendMessage({ type: "CATALOG_AUDIT_STOCK_START", requestId, url }, (response) => {
+        if (chrome.runtime.lastError) {
+          post({ type: "STOCK_AUDIT_RESULT", requestId, ok: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        post({ type: "STOCK_AUDIT_RESULT", requestId, ...(response || { ok: false, error: "The stock auditor did not respond." }) });
+      });
+      return;
+    }
     if (event.data.type !== "CAPTURE_PRODUCT") return;
     const { requestId, url } = event.data;
     post({ type: "CAPTURE_PROGRESS", requestId, message: "Browser capture extension detected. Opening the supplier page..." });
@@ -25,5 +37,6 @@
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type !== "CATALOG_CAPTURE_PROGRESS") return;
     post({ type: "CAPTURE_PROGRESS", requestId: message.requestId, message: message.message });
+    post({ type: "STOCK_AUDIT_PROGRESS", requestId: message.requestId, message: message.message });
   });
 })();

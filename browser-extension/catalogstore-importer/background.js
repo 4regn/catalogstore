@@ -177,6 +177,35 @@ async function downloadImages(urls, onProgress) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "CATALOG_AUDIT_STOCK_START") {
+    const dashboardTabId = sender.tab?.id;
+    const requestId = String(message.requestId || "");
+    const url = String(message.url || "");
+    if (!dashboardTabId || !requestId || !/^https:\/\/(?:[\w-]+\.)?shein\.com\//i.test(url)) {
+      sendResponse({ ok: false, error: "Use a valid SHEIN product URL for a stock audit." });
+      return;
+    }
+    (async () => {
+      progress(dashboardTabId, requestId, "Opening the SHEIN product and checking each colour and size...");
+      const tab = await chrome.tabs.create({ url, active: false });
+      if (!tab.id) throw new Error("Chrome could not open the supplier tab.");
+      try {
+        await waitForTab(tab.id);
+        const stopHeartbeat = startProgressHeartbeat(dashboardTabId, requestId, "Still checking colour variants and available sizes…");
+        let captured;
+        try {
+          captured = await sendToTab(tab.id, { type: "CATALOG_AUDIT_STOCK_PAGE" });
+        } finally {
+          stopHeartbeat();
+        }
+        if (!captured.ok || !captured.audit) throw new Error(captured.error || "The supplier stock could not be checked.");
+        sendResponse({ ok: true, audit: captured.audit });
+      } finally {
+        chrome.tabs.remove(tab.id).catch(() => {});
+      }
+    })().catch((error) => sendResponse({ ok: false, error: error?.message || "SHEIN stock audit failed." }));
+    return true;
+  }
   if (message?.type !== "CATALOG_CAPTURE_START") return;
   const dashboardTabId = sender.tab?.id;
   const requestId = String(message.requestId || "");

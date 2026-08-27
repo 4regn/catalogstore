@@ -353,6 +353,7 @@
     // storefront uses the first image as the swatch cover and leads the PDP
     // gallery with the complete matching set after a customer changes colour.
     const colorGalleryImages = {};
+    const stockByColor = {};
     const colorValues = [];
     const sizeValues = [];
     const soldOutValues = [];
@@ -483,6 +484,11 @@
       const sizeGroup = variantData.groups.find((group) => /size/i.test(group.name));
       if (sizeGroup) sizeValues.push(...sizeGroup.options);
       soldOutValues.push(...variantData.soldOutSizes.map((size) => `${color}: ${size}`));
+      stockByColor[color] = {
+        availableSizes: variantData.availableSizes,
+        soldOutSizes: variantData.soldOutSizes,
+        detectedSizes: variantData.allSizes,
+      };
       byColor.push(`${color} (${captured.images.length} photo${captured.images.length === 1 ? "" : "s"}, ${sizeGroup?.options.length || 0} available size${sizeGroup?.options.length === 1 ? "" : "s"})`);
     }
 
@@ -512,6 +518,7 @@
       variants: mergedVariants.length ? mergedVariants : baseProduct.variants,
       inStock: sizes.length ? true : baseProduct.inStock,
       stockNote: byColor.length ? `Captured ${colors.length} colour variant${colors.length === 1 ? "" : "s"}: ${byColor.join("; ")}.` : baseProduct.stockNote,
+      stockByColor,
       warnings: [
         ...(baseProduct.warnings || []),
         ...(soldOutValues.length ? [`Sold-out sizes were excluded by colour: ${soldOutValues.join(", ")}.`] : []),
@@ -644,9 +651,31 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== "CATALOG_CAPTURE_PAGE") return;
+    if (message?.type !== "CATALOG_CAPTURE_PAGE" && message?.type !== "CATALOG_AUDIT_STOCK_PAGE") return;
     captureWhenReady()
-      .then((product) => sendResponse({ ok: true, product }))
+      .then((product) => {
+        if (message.type === "CATALOG_AUDIT_STOCK_PAGE") {
+          const defaultSizeGroup = (product.variants || []).find((group) => /size/i.test(group.name));
+          const stockByColor = Object.keys(product.stockByColor || {}).length
+            ? product.stockByColor
+            : { "Default colour": { availableSizes: defaultSizeGroup?.options || [], soldOutSizes: [], detectedSizes: defaultSizeGroup?.options || [] } };
+          const colourEntries = Object.values(stockByColor);
+          const inStock = colourEntries.length
+            ? colourEntries.some((entry) => Array.isArray(entry?.availableSizes) && entry.availableSizes.length > 0)
+            : product.inStock;
+          sendResponse({ ok: true, audit: {
+            sourceUrl: product.sourceUrl,
+            supplier: product.supplier,
+            title: product.title,
+            inStock,
+            stockByColor,
+            stockNote: product.stockNote,
+            warnings: product.warnings || [],
+          } });
+          return;
+        }
+        sendResponse({ ok: true, product });
+      })
       .catch((error) => sendResponse({ ok: false, error: error?.message || "Could not capture this product page." }));
     return true;
   });

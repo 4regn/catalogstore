@@ -195,6 +195,16 @@ interface BulkImportQueueItem {
   note?: string;
 }
 
+interface SheinStockAudit {
+  sourceUrl: string;
+  supplier: string;
+  title: string;
+  inStock: boolean;
+  stockByColor: Record<string, { availableSizes?: string[]; soldOutSizes?: string[]; detectedSizes?: string[] }>;
+  stockNote?: string;
+  warnings?: string[];
+}
+
 const CATALOG_IMPORT_APP_SOURCE = "catalogstore-product-importer";
 const CATALOG_IMPORT_EXTENSION_SOURCE = "4regn-catalog-importer-extension";
 
@@ -473,6 +483,13 @@ export default function Dashboard() {
   const [bulkImportActiveId, setBulkImportActiveId] = useState<string | null>(null);
   const [bulkImportAutoRunning, setBulkImportAutoRunning] = useState(false);
   const bulkImportActiveIdRef = useRef<string | null>(null);
+  const [sheinAuditRunning, setSheinAuditRunning] = useState(false);
+  const [sheinAuditCurrentId, setSheinAuditCurrentId] = useState<string | null>(null);
+  const [sheinAuditProgress, setSheinAuditProgress] = useState("");
+  const [sheinAuditResults, setSheinAuditResults] = useState<{ checked: number; inStock: number; drafted: number; failed: number }>({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
+  const sheinAuditCurrentIdRef = useRef<string | null>(null);
+  const sheinAuditRequestIdRef = useRef<string | null>(null);
+  const sheinAuditedIdsRef = useRef<Set<string>>(new Set());
   const [browserImporterAvailable, setBrowserImporterAvailable] = useState(false);
   const [browserCaptureNeeded, setBrowserCaptureNeeded] = useState(false);
   const browserCaptureRequestRef = useRef<string | null>(null);
@@ -511,6 +528,24 @@ export default function Dashboard() {
       const message = event.data;
       if (message.type === "PONG") {
         setBrowserImporterAvailable(true);
+        return;
+      }
+      if (message.type === "STOCK_AUDIT_PROGRESS" && message.requestId === sheinAuditRequestIdRef.current) {
+        setSheinAuditProgress(String(message.message || "Checking supplier stock..."));
+        return;
+      }
+      if (message.type === "STOCK_AUDIT_RESULT" && message.requestId === sheinAuditRequestIdRef.current) {
+        const productId = sheinAuditCurrentIdRef.current;
+        if (!productId) return;
+        if (!message.ok || !message.audit) {
+          setSheinAuditResults((current) => ({ ...current, failed: current.failed + 1 }));
+          setSheinAuditProgress(message.error || "Stock check failed; continuing with the next product.");
+          sheinAuditCurrentIdRef.current = null;
+          sheinAuditRequestIdRef.current = null;
+          setSheinAuditCurrentId(null);
+          return;
+        }
+        void applySheinStockAudit(productId, message.audit as SheinStockAudit);
         return;
       }
       if (!browserCaptureRequestRef.current || message.requestId !== browserCaptureRequestRef.current) return;
@@ -567,7 +602,7 @@ export default function Dashboard() {
       window.removeEventListener("message", onImporterMessage);
       if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
     };
-  }, [bulkImportAutoRunning]);
+  }, [bulkImportAutoRunning, sheinAuditRunning]);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
   const [storeColor, setStoreColor] = useState("#ff6b35");
@@ -1491,6 +1526,79 @@ export default function Dashboard() {
     }
     loadNextBulkImport();
   }, [bulkImportAutoRunning, bulkImportQueue, bulkImportActiveId, importLoading, formSaving]);
+
+  const isSheinSourceProduct = (product: Product) => {
+    try { return /(?:^|\.)shein\.com$/i.test(new URL(product.source_url || "").hostname); }
+    catch { return false; }
+  };
+
+  const applySheinStockAudit = async (productId: string, audit: SheinStockAudit) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product) return;
+    const auditedColours = Object.values(audit.stockByColor || {});
+    const isFullySoldOut = audit.inStock === false || (auditedColours.length > 0 && auditedColours.every((colour) => (colour.availableSizes || []).length === 0));
+    const stockAudit = {
+      supplier: "SHEIN",
+      audited_at: new Date().toISOString(),
+      source_url: audit.sourceUrl || product.source_url,
+      in_stock: !isFullySoldOut,
+      by_color: audit.stockByColor || {},
+      note: audit.stockNote || "",
+    };
+    const metafields = { ...(product.metafields || {}), supplier_stock_audit: stockAudit };
+    const updates = {
+      metafields,
+      in_stock: !isFullySoldOut,
+      // A fully sold-out supplier product must never remain purchasable. Draft
+      // retains it safely for a later restock audit instead of deleting it.
+      status: isFullySoldOut ? "draft" : product.status,
+    };
+    const { error } = await supabase.from("products").update(updates).eq("id", productId);
+    if (error) {
+      setSheinAuditResults((current) => ({ ...current, failed: current.failed + 1 }));
+      setSheinAuditProgress(`Could not save ${product.name}: ${error.message}`);
+    } else {
+      setProducts((items) => items.map((item) => item.id === productId ? { ...item, ...updates } : item));
+      setSheinAuditResults((current) => ({
+        checked: current.checked + 1,
+        inStock: current.inStock + (isFullySoldOut ? 0 : 1),
+        drafted: current.drafted + (isFullySoldOut ? 1 : 0),
+        failed: current.failed,
+      }));
+      setSheinAuditProgress(isFullySoldOut ? `${product.name} is fully sold out and was moved to Draft.` : `${product.name} stock saved. Continuing...`);
+      revalidateMyStore();
+    }
+    sheinAuditCurrentIdRef.current = null;
+    sheinAuditRequestIdRef.current = null;
+    setSheinAuditCurrentId(null);
+  };
+
+  const startSheinStockAudit = () => {
+    if (!browserImporterAvailable) { setSheinAuditProgress("Reload the CatalogStore Browser Product Importer extension, then refresh this dashboard before starting the stock audit."); return; }
+    const sheinProducts = products.filter((product) => product.status !== "trashed" && isSheinSourceProduct(product));
+    if (!sheinProducts.length) { setSheinAuditProgress("No products with a SHEIN source URL were found."); return; }
+    sheinAuditedIdsRef.current = new Set();
+    setSheinAuditResults({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
+    setSheinAuditProgress(`Preparing to audit ${sheinProducts.length} SHEIN product${sheinProducts.length === 1 ? "" : "s"}...`);
+    setSheinAuditRunning(true);
+  };
+
+  useEffect(() => {
+    if (!sheinAuditRunning || sheinAuditCurrentId) return;
+    const next = products.find((product) => product.status !== "trashed" && isSheinSourceProduct(product) && !sheinAuditedIdsRef.current.has(product.id));
+    if (!next) {
+      setSheinAuditRunning(false);
+      setSheinAuditProgress("SHEIN stock audit complete. Availability was saved automatically; fully sold-out products are now drafts.");
+      return;
+    }
+    const requestId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    sheinAuditedIdsRef.current.add(next.id);
+    sheinAuditCurrentIdRef.current = next.id;
+    sheinAuditRequestIdRef.current = requestId;
+    setSheinAuditCurrentId(next.id);
+    setSheinAuditProgress(`Checking ${next.name}...`);
+    window.postMessage({ source: CATALOG_IMPORT_APP_SOURCE, type: "AUDIT_SHEIN_STOCK", requestId, url: next.source_url }, window.location.origin);
+  }, [sheinAuditRunning, sheinAuditCurrentId, products]);
 
   const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); revalidateMyStore(); };
   const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); revalidateMyStore(); };
@@ -2785,6 +2893,19 @@ export default function Dashboard() {
                       <span style={{ color: "var(--muted-2)", fontSize: 10, fontWeight: 800 }}>{index + 1}</span><span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, fontSize: 10, color: "var(--muted)" }}>{item.url}</span><span style={{ color: colour, fontSize: 9, fontWeight: 900, whiteSpace: "nowrap" as const, textTransform: "uppercase" as const }}>{label}</span>
                     </div>;
                   })}
+                </div>}
+              </div>
+              <div style={{ marginTop: 16, padding: 13, border: "1px solid rgba(124,58,237,0.22)", borderRadius: 12, background: "rgba(124,58,237,0.035)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: "#6d28d9" }}>SHEIN Stock Auditor</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Checks every colour and size using Chrome. Fully sold-out products are safely moved to Draft; availability is saved for future restock checks.</div>
+                  </div>
+                  <button type="button" onClick={startSheinStockAudit} disabled={sheinAuditRunning || !browserImporterAvailable || !products.some((product) => product.status !== "trashed" && isSheinSourceProduct(product))} style={{ padding: "9px 13px", background: "#6d28d9", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: sheinAuditRunning ? "not-allowed" : "pointer", opacity: sheinAuditRunning || !browserImporterAvailable ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{sheinAuditRunning ? "Auditing stock..." : browserImporterAvailable ? "Audit all SHEIN products" : "Reload Chrome extension"}</button>
+                </div>
+                {(sheinAuditProgress || sheinAuditResults.checked > 0) && <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.45 }}>
+                  <strong style={{ color: "var(--text)" }}>{sheinAuditResults.checked} checked</strong> · {sheinAuditResults.inStock} in stock · {sheinAuditResults.drafted} moved to draft · {sheinAuditResults.failed} failed
+                  {sheinAuditProgress ? <div style={{ marginTop: 3, color: "var(--muted-2)" }}>{sheinAuditProgress}</div> : null}
                 </div>}
               </div>
               {importResult && <div style={{ marginTop: 10, fontSize: 12, color: importPreview ? "#16a34a" : "var(--muted)", fontWeight: 700 }}>{importResult}</div>}
