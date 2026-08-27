@@ -27,6 +27,21 @@ const FOUR_REGN_ADMIN_HOSTS = new Set(["admin.4regn.com", "www.admin.4regn.com"]
 // and seller application on deliberately separate hosts.
 const SELLER_APPLICATION_PATHS = ["/dashboard", "/login", "/signup", "/admin", "/production"];
 
+// Emergency-safe routes for the platform's established custom domains. These
+// mappings are confirmed against the live sellers table and deliberately run
+// before any Edge database request. A temporary Supabase/Edge lookup failure
+// therefore cannot replace these storefronts with the CatalogStore landing
+// page. The database resolver below remains authoritative for every other
+// connected seller domain.
+const ESTABLISHED_CUSTOM_DOMAIN_SLUGS: Record<string, string> = {
+  "4regn.com": "4regn",
+  "www.4regn.com": "4regn",
+  "uniklabs.co.za": "unik",
+  "www.uniklabs.co.za": "unik",
+  "anclothing.co.za": "anclothing",
+  "www.anclothing.co.za": "anclothing",
+};
+
 // Edge Middleware runs in a separate runtime from Route Handlers/Server
 // Components, and confirmed in practice: the `next.revalidate` fetch option
 // below does NOT reliably hit Next's Data Cache there the way its comment
@@ -62,27 +77,45 @@ function setCached<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, 
 // Only genuine custom-domain traffic (not catalogstore.co.za/
 // *.catalogstore.co.za) ever reaches this.
 async function resolveCustomDomain(hostname: string): Promise<string | null> {
+  const establishedSlug = ESTABLISHED_CUSTOM_DOMAIN_SLUGS[hostname];
+  if (establishedSlug) return establishedSlug;
   const cached = getCached(customDomainCache, hostname);
   if (cached !== undefined) return cached;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  try {
-    const res = await fetch(
-      `${url}/rest/v1/sellers?select=subdomain&custom_domain=eq.${encodeURIComponent(hostname)}&limit=1`,
-      {
-        headers: { apikey: key, Authorization: `Bearer ${key}` },
-        next: { revalidate: 300 },
+  // The storefront's normal server rendering already reads sellers with the
+  // public key. Prefer the privileged key for the tiny routing lookup, but
+  // retry with that proven public read path if an Edge deployment has a stale
+  // or unavailable service-role secret. A broken privileged secret must never
+  // make every connected seller domain fall back to CatalogStore.
+  const keys = [...new Set([
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  ].filter((key): key is string => Boolean(key)))];
+  if (!url || keys.length === 0) return null;
+
+  for (const key of keys) {
+    try {
+      const res = await fetch(
+        `${url}/rest/v1/sellers?select=subdomain&custom_domain=eq.${encodeURIComponent(hostname)}&limit=1`,
+        {
+          headers: { apikey: key, Authorization: `Bearer ${key}` },
+          next: { revalidate: 300 },
+        }
+      );
+      if (!res.ok) continue;
+      const rows = await res.json();
+      const result = rows?.[0]?.subdomain || null;
+      if (result) {
+        setCached(customDomainCache, hostname, result, 5 * 60 * 1000);
+        return result;
       }
-    );
-    if (!res.ok) return null;
-    const rows = await res.json();
-    const result = rows?.[0]?.subdomain || null;
-    setCached(customDomainCache, hostname, result, 5 * 60 * 1000);
-    return result;
-  } catch {
-    return null;
+    } catch {
+      // Try the next available key. The final fallback is a normal 404 for a
+      // domain that genuinely does not belong to a seller.
+    }
   }
+
+  return null;
 }
 
 // Legacy-URL redirects for a seller who migrated their catalog here from
