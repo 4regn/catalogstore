@@ -43,14 +43,18 @@ const SELLER_COLUMNS =
 function getCachedSeller(slug: string) {
   return unstable_cache(
     async () => {
-      const { data } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from("sellers")
         .select(SELLER_COLUMNS)
         .eq("subdomain", slug)
         .maybeSingle();
+      // A temporary credential/network failure must not be cached as a
+      // genuine missing seller. That previously poisoned every collection
+      // URL for an hour after the Supabase server key was corrected.
+      if (error) throw error;
       return data;
     },
-    ["four-regn-collection-seller-v1", slug],
+    ["four-regn-collection-seller-v2", slug],
     { revalidate: 3600, tags: [`storefront:${slug}`] }
   )();
 }
