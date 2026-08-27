@@ -1527,10 +1527,10 @@ export default function Dashboard() {
     loadNextBulkImport();
   }, [bulkImportAutoRunning, bulkImportQueue, bulkImportActiveId, importLoading, formSaving]);
 
-  const isSheinSourceProduct = (product: Product) => {
-    try { return /(?:^|\.)shein\.com$/i.test(new URL(product.source_url || "").hostname); }
-    catch { return false; }
-  };
+  // The audit intentionally operates on products already in this seller's
+  // catalogue. A source URL merely needs to contain "shein" so regional and
+  // legacy SHEIN URLs are included too.
+  const isSheinSourceProduct = (product: Product) => (product.source_url || "").toLowerCase().includes("shein");
 
   const applySheinStockAudit = async (productId: string, audit: SheinStockAudit) => {
     const product = products.find((item) => item.id === productId);
