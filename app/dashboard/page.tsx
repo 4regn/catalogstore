@@ -485,11 +485,13 @@ export default function Dashboard() {
   const bulkImportActiveIdRef = useRef<string | null>(null);
   const [sheinAuditRunning, setSheinAuditRunning] = useState(false);
   const [sheinAuditCurrentId, setSheinAuditCurrentId] = useState<string | null>(null);
+  const [sheinManualAuditText, setSheinManualAuditText] = useState("");
   const [sheinAuditProgress, setSheinAuditProgress] = useState("");
   const [sheinAuditResults, setSheinAuditResults] = useState<{ checked: number; inStock: number; drafted: number; failed: number }>({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
   const sheinAuditCurrentIdRef = useRef<string | null>(null);
   const sheinAuditRequestIdRef = useRef<string | null>(null);
   const sheinAuditedIdsRef = useRef<Set<string>>(new Set());
+  const sheinAuditScopeIdsRef = useRef<Set<string> | null>(null);
   const [browserImporterAvailable, setBrowserImporterAvailable] = useState(false);
   const [browserCaptureNeeded, setBrowserCaptureNeeded] = useState(false);
   const browserCaptureRequestRef = useRef<string | null>(null);
@@ -1573,21 +1575,48 @@ export default function Dashboard() {
     setSheinAuditCurrentId(null);
   };
 
-  const startSheinStockAudit = () => {
+  const startSheinStockAudit = (productIds?: string[]) => {
     if (!browserImporterAvailable) { setSheinAuditProgress("Reload the CatalogStore Browser Product Importer extension, then refresh this dashboard before starting the stock audit."); return; }
-    const sheinProducts = products.filter((product) => product.status !== "trashed" && isSheinSourceProduct(product));
+    const scope = productIds?.length ? new Set(productIds) : null;
+    const sheinProducts = products.filter((product) => product.status !== "trashed" && isSheinSourceProduct(product) && (!scope || scope.has(product.id)));
     if (!sheinProducts.length) { setSheinAuditProgress("No products with a SHEIN source URL were found."); return; }
+    sheinAuditScopeIdsRef.current = scope;
     sheinAuditedIdsRef.current = new Set();
     setSheinAuditResults({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
     setSheinAuditProgress(`Preparing to audit ${sheinProducts.length} SHEIN product${sheinProducts.length === 1 ? "" : "s"}...`);
     setSheinAuditRunning(true);
   };
 
+  const normaliseSupplierUrl = (value: string) => {
+    try {
+      const url = new URL(value);
+      return `${url.hostname.toLowerCase()}${url.pathname.replace(/\/+$/, "").toLowerCase()}`;
+    } catch { return value.trim().replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase(); }
+  };
+
+  const startManualSheinStockAudit = () => {
+    const links = [...new Set((sheinManualAuditText.match(/https?:\/\/[^\s"'<>`]+/gi) || [])
+      .map((link) => link.replace(/[),.;]+$/, ""))
+      .filter((link) => link.toLowerCase().includes("shein")))];
+    if (!links.length) { setSheinAuditProgress("Paste one or more SHEIN product source URLs first."); return; }
+    const wanted = new Set(links.map(normaliseSupplierUrl));
+    const matchingIds = products
+      .filter((product) => product.status !== "trashed" && isSheinSourceProduct(product) && wanted.has(normaliseSupplierUrl(product.source_url || "")))
+      .map((product) => product.id);
+    if (!matchingIds.length) {
+      setSheinAuditProgress("None of those links matched an existing product's Product Source URL. Paste the exact SHEIN source link saved on the product.");
+      return;
+    }
+    setSheinManualAuditText("");
+    startSheinStockAudit(matchingIds);
+  };
+
   useEffect(() => {
     if (!sheinAuditRunning || sheinAuditCurrentId) return;
-    const next = products.find((product) => product.status !== "trashed" && isSheinSourceProduct(product) && !sheinAuditedIdsRef.current.has(product.id));
+    const next = products.find((product) => product.status !== "trashed" && isSheinSourceProduct(product) && (!sheinAuditScopeIdsRef.current || sheinAuditScopeIdsRef.current.has(product.id)) && !sheinAuditedIdsRef.current.has(product.id));
     if (!next) {
       setSheinAuditRunning(false);
+      sheinAuditScopeIdsRef.current = null;
       setSheinAuditProgress("SHEIN stock audit complete. Availability was saved automatically; fully sold-out products are now drafts.");
       return;
     }
@@ -2902,6 +2931,10 @@ export default function Dashboard() {
                     <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Checks every colour and size using Chrome. Fully sold-out products are safely moved to Draft; availability is saved for future restock checks.</div>
                   </div>
                   <button type="button" onClick={startSheinStockAudit} disabled={sheinAuditRunning || !browserImporterAvailable || !products.some((product) => product.status !== "trashed" && isSheinSourceProduct(product))} style={{ padding: "9px 13px", background: "#6d28d9", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: sheinAuditRunning ? "not-allowed" : "pointer", opacity: sheinAuditRunning || !browserImporterAvailable ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{sheinAuditRunning ? "Auditing stock..." : browserImporterAvailable ? "Audit all SHEIN products" : "Reload Chrome extension"}</button>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" as const, marginTop: 11, paddingTop: 11, borderTop: "1px solid rgba(124,58,237,0.14)" }}>
+                  <textarea value={sheinManualAuditText} onChange={(event) => setSheinManualAuditText(event.target.value)} placeholder={"Test selected existing products first — paste one or more exact SHEIN Product Source URLs\nhttps://za.shein.com/..."} rows={2} style={{ ...inputStyle, flex: "1 1 360px", minHeight: 58, fontSize: 11, lineHeight: 1.4, resize: "vertical" as const }} />
+                  <button type="button" onClick={startManualSheinStockAudit} disabled={sheinAuditRunning || !browserImporterAvailable || !sheinManualAuditText.trim()} style={{ alignSelf: "center", padding: "9px 13px", background: "transparent", color: "#6d28d9", border: "1px solid rgba(124,58,237,0.35)", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: sheinAuditRunning || !sheinManualAuditText.trim() ? "not-allowed" : "pointer", opacity: sheinAuditRunning || !browserImporterAvailable || !sheinManualAuditText.trim() ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Audit pasted links</button>
                 </div>
                 {(sheinAuditProgress || sheinAuditResults.checked > 0) && <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.45 }}>
                   <strong style={{ color: "var(--text)" }}>{sheinAuditResults.checked} checked</strong> · {sheinAuditResults.inStock} in stock · {sheinAuditResults.drafted} moved to draft · {sheinAuditResults.failed} failed
