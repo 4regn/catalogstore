@@ -1403,6 +1403,29 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     </div>
                   )}
 
+                  {cc.stitch_enabled && (
+                    <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")}>
+                      <div className="choice-row" onClick={() => setPaymentMethod("stitch")}>
+                        <div className="radio"></div>
+                        <div className="choice-main">
+                          <div className="choice-name">Stitch Express <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
+                          <div className="choice-sub stitch-paylater-copy">
+                            <span className="paylater-label">Pay Later</span>
+                            <span className="paylater-line">Pay over 2&ndash;6 instalments, from <strong>{stitchFrom}</strong></span>
+                          </div>
+                          <div className="card-brand-row">
+                            <span className="card-brand"><img alt="Visa" src="/checkout/visa.png" /></span>
+                            <span className="card-brand"><img alt="Mastercard" src="/checkout/mastercard.png" /></span>
+                            <span className="card-brand"><img alt="Capitec Pay" src="/checkout/capitecpay.png" /></span>
+                            <span className="card-brand apple"><img alt="Apple Pay" src="/checkout/applepay.png" /></span>
+                          </div>
+                        </div>
+                        <div className="payment-provider-art"><div className="provider-logo stitch"><img alt="Stitch" src="/checkout/stitch.png" /></div></div>
+                      </div>
+                      {paymentMethod === "stitch" && <div className="payment-note">You&rsquo;ll be redirected to Stitch Express to complete your payment securely.</div>}
+                    </div>
+                  )}
+
                   {cc.setla_enabled && (
                     <div className={"choice" + (paymentMethod === "setla" ? " active" : "")}>
                       <div className="choice-row" onClick={() => setPaymentMethod("setla")}>
@@ -1454,29 +1477,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                         <div className="payment-provider-art"><div className="provider-logo float"><img alt="Float" src="/checkout/float.png" /></div></div>
                       </div>
                       {paymentMethod === "float" && <div className="payment-note">You&rsquo;ll be redirected to Float to choose your payment plan securely.</div>}
-                    </div>
-                  )}
-
-                  {cc.stitch_enabled && (
-                    <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")}>
-                      <div className="choice-row" onClick={() => setPaymentMethod("stitch")}>
-                        <div className="radio"></div>
-                        <div className="choice-main">
-                          <div className="choice-name">Stitch Express <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
-                          <div className="choice-sub stitch-paylater-copy">
-                            <span className="paylater-label">Pay Later</span>
-                            <span className="paylater-line">Pay over 2&ndash;6 instalments, from <strong>{stitchFrom}</strong></span>
-                          </div>
-                          <div className="card-brand-row">
-                            <span className="card-brand"><img alt="Visa" src="/checkout/visa.png" /></span>
-                            <span className="card-brand"><img alt="Mastercard" src="/checkout/mastercard.png" /></span>
-                            <span className="card-brand"><img alt="Capitec Pay" src="/checkout/capitecpay.png" /></span>
-                            <span className="card-brand apple"><img alt="Apple Pay" src="/checkout/applepay.png" /></span>
-                          </div>
-                        </div>
-                        <div className="payment-provider-art"><div className="provider-logo stitch"><img alt="Stitch" src="/checkout/stitch.png" /></div></div>
-                      </div>
-                      {paymentMethod === "stitch" && <div className="payment-note">You&rsquo;ll be redirected to Stitch Express to complete your payment securely.</div>}
                     </div>
                   )}
 

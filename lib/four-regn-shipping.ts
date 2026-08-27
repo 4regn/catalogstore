@@ -58,8 +58,8 @@ export function buildCheckoutShippingOptions(
   }));
 
   return [
-    FOUR_REGN_AR_MAILER,
     FOUR_REGN_PAXI_STANDARD,
+    FOUR_REGN_AR_MAILER,
     FOUR_REGN_PAXI_EXPRESS,
     ...premiumOptions,
   ];
