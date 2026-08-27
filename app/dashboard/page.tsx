@@ -471,6 +471,11 @@ export default function Dashboard() {
   const [bulkMode, setBulkMode] = useState<"percent" | "flat" | "set">("percent");
   const [bulkDirection, setBulkDirection] = useState<"increase" | "decrease">("increase");
   const [bulkValue, setBulkValue] = useState("");
+  const [bulkEditSellingPrice, setBulkEditSellingPrice] = useState(true);
+  const [bulkEditOriginalPrice, setBulkEditOriginalPrice] = useState(false);
+  const [bulkOriginalPrice, setBulkOriginalPrice] = useState("");
+  const [bulkEditDescription, setBulkEditDescription] = useState(false);
+  const [bulkDescription, setBulkDescription] = useState("");
   const [bulkApplying, setBulkApplying] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
@@ -1721,32 +1726,50 @@ export default function Dashboard() {
   };
 
   const applyBulkPrice = async () => {
+    if (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) { alert("Choose at least one field to update."); return; }
     const value = parseFloat(bulkValue);
-    if (!Number.isFinite(value) || value < 0) { alert("Enter a valid number."); return; }
+    if (bulkEditSellingPrice && (!Number.isFinite(value) || value < 0)) { alert("Enter a valid selling price adjustment."); return; }
+    const originalPrice = bulkOriginalPrice.trim() === "" ? null : parseFloat(bulkOriginalPrice);
+    if (bulkEditOriginalPrice && originalPrice !== null && (!Number.isFinite(originalPrice) || originalPrice < 0)) { alert("Enter a valid original price, or leave it empty to remove the original price."); return; }
     const targets = products.filter((p) => selectedProductIds.has(p.id));
     if (targets.length === 0) return;
+    if (bulkEditDescription && bulkDescription === "" && !confirm(`Remove the entire description from ${targets.length} selected product${targets.length === 1 ? "" : "s"}?`)) return;
     setBulkApplying(true);
     try {
       const updates = targets.map((p) => {
         let newPrice = p.price;
-        if (bulkMode === "percent") {
+        if (bulkEditSellingPrice && bulkMode === "percent") {
           const factor = value / 100;
           newPrice = bulkDirection === "increase" ? p.price * (1 + factor) : p.price * (1 - factor);
-        } else if (bulkMode === "flat") {
+        } else if (bulkEditSellingPrice && bulkMode === "flat") {
           newPrice = bulkDirection === "increase" ? p.price + value : p.price - value;
-        } else {
+        } else if (bulkEditSellingPrice) {
           newPrice = value;
         }
         newPrice = Math.max(0, Math.round(newPrice * 100) / 100);
-        return { id: p.id, price: newPrice };
+        const changes: Record<string, any> = {};
+        if (bulkEditSellingPrice) changes.price = newPrice;
+        if (bulkEditOriginalPrice) changes.old_price = originalPrice;
+        if (bulkEditDescription) changes.description = bulkDescription;
+        return { id: p.id, changes };
       });
-      await Promise.all(updates.map((u) => supabase.from("products").update({ price: u.price }).eq("id", u.id)));
-      const priceById = new Map(updates.map((u) => [u.id, u.price]));
-      setProducts(products.map((p) => priceById.has(p.id) ? { ...p, price: priceById.get(p.id)! } : p));
+      const results = await Promise.all(updates.map((u) => supabase.from("products").update(u.changes).eq("id", u.id)));
+      const failed = results.find((result) => result.error);
+      if (failed?.error) throw failed.error;
+      const changesById = new Map(updates.map((u) => [u.id, u.changes]));
+      setProducts(products.map((p) => changesById.has(p.id) ? { ...p, ...changesById.get(p.id)! } : p));
       revalidateMyStore();
       setShowBulkPrice(false);
       setSelectedProductIds(new Set());
       setBulkValue("");
+      setBulkOriginalPrice("");
+      setBulkDescription("");
+      setBulkEditSellingPrice(true);
+      setBulkEditOriginalPrice(false);
+      setBulkEditDescription(false);
+    } catch (error: any) {
+      console.error("Bulk product update failed", error);
+      alert(`Bulk update failed: ${error?.message || "unknown error"}`);
     } finally {
       setBulkApplying(false);
     }
@@ -3066,7 +3089,7 @@ export default function Dashboard() {
               {selectedProductIds.size > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px 8px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: N }}>{selectedProductIds.size} selected</span>
-                  <button onClick={() => setShowBulkPrice(true)} style={{ padding: "8px 16px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Bulk Edit Prices</button>
+                  <button onClick={() => setShowBulkPrice(true)} style={{ padding: "8px 16px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Bulk Edit Products</button>
                   <button onClick={() => setSelectedProductIds(new Set())} style={{ padding: "8px 12px", background: "transparent", border: "none", color: "var(--muted)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Clear</button>
                 </div>
               )}
@@ -3458,34 +3481,64 @@ export default function Dashboard() {
 
             {showBulkPrice && (
               <div onClick={() => setShowBulkPrice(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-                <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 20, maxWidth: 420, width: "100%", padding: "28px 24px" }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.02em", marginBottom: 4 }}>Bulk Edit Prices</h3>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 20, maxWidth: 560, width: "100%", padding: "28px 24px", maxHeight: "90vh", overflowY: "auto" }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.02em", marginBottom: 4 }}>Bulk Edit Products</h3>
                   <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>Applies to {selectedProductIds.size} selected product{selectedProductIds.size !== 1 ? "s" : ""}.</p>
 
-                  <label style={{ ...labelStyle, marginBottom: 8 }}>Adjustment type</label>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                    {([{ key: "percent", label: "Percentage" }, { key: "flat", label: "Flat Amount" }, { key: "set", label: "Set Price" }] as const).map((m) => (
-                      <button key={m.key} onClick={() => setBulkMode(m.key)} style={{ flex: 1, padding: "10px 8px", background: bulkMode === m.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkMode === m.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkMode === m.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{m.label}</button>
-                    ))}
-                  </div>
-
-                  {bulkMode !== "set" && (
-                    <>
-                      <label style={{ ...labelStyle, marginBottom: 8 }}>Direction</label>
+                  <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, marginBottom: 14 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: bulkEditSellingPrice ? 16 : 0 }}>
+                      <input type="checkbox" checked={bulkEditSellingPrice} onChange={(e) => setBulkEditSellingPrice(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const }}>Update selling price</span>
+                    </label>
+                    {bulkEditSellingPrice && <>
+                      <label style={{ ...labelStyle, marginBottom: 8 }}>Adjustment type</label>
                       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                        {([{ key: "increase", label: "Increase" }, { key: "decrease", label: "Decrease" }] as const).map((d) => (
-                          <button key={d.key} onClick={() => setBulkDirection(d.key)} style={{ flex: 1, padding: "10px 8px", background: bulkDirection === d.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkDirection === d.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkDirection === d.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{d.label}</button>
+                        {([{ key: "percent", label: "Percentage" }, { key: "flat", label: "Flat Amount" }, { key: "set", label: "Set Price" }] as const).map((m) => (
+                          <button key={m.key} onClick={() => setBulkMode(m.key)} style={{ flex: 1, padding: "10px 8px", background: bulkMode === m.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkMode === m.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkMode === m.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{m.label}</button>
                         ))}
                       </div>
-                    </>
-                  )}
 
-                  <label style={labelStyle}>{bulkMode === "percent" ? "Percentage (%)" : bulkMode === "flat" ? "Amount (R)" : "New price (R)"}</label>
-                  <input type="number" min="0" step="0.01" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkMode === "percent" ? "e.g. 10" : "e.g. 50"} style={inputStyle} />
+                      {bulkMode !== "set" && <>
+                        <label style={{ ...labelStyle, marginBottom: 8 }}>Direction</label>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                          {([{ key: "increase", label: "Increase" }, { key: "decrease", label: "Decrease" }] as const).map((d) => (
+                            <button key={d.key} onClick={() => setBulkDirection(d.key)} style={{ flex: 1, padding: "10px 8px", background: bulkDirection === d.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkDirection === d.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkDirection === d.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{d.label}</button>
+                          ))}
+                        </div>
+                      </>}
+
+                      <label style={labelStyle}>{bulkMode === "percent" ? "Percentage (%)" : bulkMode === "flat" ? "Amount (R)" : "New selling price (R)"}</label>
+                      <input type="number" min="0" step="0.01" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkMode === "percent" ? "e.g. 10" : "e.g. 350"} style={inputStyle} />
+                    </>}
+                  </div>
+
+                  <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, marginBottom: 14 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: bulkEditOriginalPrice ? 14 : 0 }}>
+                      <input type="checkbox" checked={bulkEditOriginalPrice} onChange={(e) => setBulkEditOriginalPrice(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const }}>Update original price</span>
+                    </label>
+                    {bulkEditOriginalPrice && <>
+                      <label style={labelStyle}>New original price (R)</label>
+                      <input type="number" min="0" step="0.01" value={bulkOriginalPrice} onChange={(e) => setBulkOriginalPrice(e.target.value)} placeholder="e.g. 599" style={inputStyle} />
+                      <p style={{ fontSize: 10, color: "var(--muted-2)", margin: "8px 0 0" }}>Leave empty to remove the crossed-out original price from all selected products.</p>
+                    </>}
+                  </div>
+
+                  <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: bulkEditDescription ? 14 : 0 }}>
+                      <input type="checkbox" checked={bulkEditDescription} onChange={(e) => setBulkEditDescription(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const }}>Update description</span>
+                    </label>
+                    {bulkEditDescription && <>
+                      <label style={labelStyle}>Description for all selected products</label>
+                      <textarea value={bulkDescription} onChange={(e) => setBulkDescription(e.target.value)} rows={7} placeholder="Enter the shared product description, or leave this completely empty to remove the descriptions." style={{ ...inputStyle, resize: "vertical", lineHeight: 1.55 }} />
+                      <p style={{ fontSize: 10, color: bulkDescription === "" ? "#fbbf24" : "var(--muted-2)", margin: "8px 0 0", lineHeight: 1.5 }}>{bulkDescription === "" ? "Empty description selected: applying this will clear the entire description field on every selected product." : "This exact description will replace the current description on every selected product."}</p>
+                    </>}
+                  </div>
 
                   <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                     <button onClick={() => setShowBulkPrice(false)} style={{ flex: 1, padding: "12px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Cancel</button>
-                    <button onClick={applyBulkPrice} disabled={bulkApplying || !bulkValue} style={{ flex: 1, padding: "12px", background: G, border: "none", borderRadius: 100, color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bulkApplying || !bulkValue ? "not-allowed" : "pointer", opacity: bulkApplying || !bulkValue ? 0.6 : 1, textTransform: "uppercase" as const }}>{bulkApplying ? "Applying..." : "Apply"}</button>
+                    <button onClick={applyBulkPrice} disabled={bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) || (bulkEditSellingPrice && !bulkValue)} style={{ flex: 1, padding: "12px", background: G, border: "none", borderRadius: 100, color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bulkApplying ? "not-allowed" : "pointer", opacity: bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) || (bulkEditSellingPrice && !bulkValue) ? 0.6 : 1, textTransform: "uppercase" as const }}>{bulkApplying ? "Applying..." : "Apply changes"}</button>
                   </div>
                 </div>
               </div>
