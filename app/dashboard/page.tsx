@@ -471,6 +471,8 @@ export default function Dashboard() {
   const [bulkImportText, setBulkImportText] = useState("");
   const [bulkImportQueue, setBulkImportQueue] = useState<BulkImportQueueItem[]>([]);
   const [bulkImportActiveId, setBulkImportActiveId] = useState<string | null>(null);
+  const [bulkImportAutoRunning, setBulkImportAutoRunning] = useState(false);
+  const bulkImportActiveIdRef = useRef<string | null>(null);
   const [browserImporterAvailable, setBrowserImporterAvailable] = useState(false);
   const [browserCaptureNeeded, setBrowserCaptureNeeded] = useState(false);
   const browserCaptureRequestRef = useRef<string | null>(null);
@@ -518,6 +520,10 @@ export default function Dashboard() {
           if (browserCaptureRequestRef.current !== message.requestId) return;
           browserCaptureRequestRef.current = null;
           setImportLoading(false);
+          const activeQueueItemId = bulkImportActiveIdRef.current;
+          if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: "Browser capture timed out" } : item));
+          bulkImportActiveIdRef.current = null;
+          setBulkImportActiveId(null);
           setImportResult("Browser capture timed out. Keep the product page open, complete any verification, and try again.");
         // A full supplier capture can legitimately take several minutes: each
         // colour must settle before it is read, then every gallery-quality
@@ -531,14 +537,24 @@ export default function Dashboard() {
       browserCaptureRequestRef.current = null;
       setImportLoading(false);
       if (!message.ok || !message.product) {
-        if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "failed", note: message.error || "Capture failed" } : item));
+        const activeQueueItemId = bulkImportActiveIdRef.current;
+        if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: message.error || "Capture failed" } : item));
+        bulkImportActiveIdRef.current = null;
+        setBulkImportActiveId(null);
         setImportResult(message.error || "Browser capture could not read this product. Open the supplier page, complete any verification, then try again.");
         return;
       }
       setBrowserImporterAvailable(true);
       setBrowserCaptureNeeded(false);
       setImportPreview(message.product as ProductUrlPreview);
-      if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "review", note: "Ready for draft review" } : item));
+      const activeQueueItemId = bulkImportActiveIdRef.current;
+      if (activeQueueItemId) {
+        if (bulkImportAutoRunning) {
+          void saveBulkPreviewAsDraft(message.product as ProductUrlPreview, activeQueueItemId);
+        } else {
+          setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "review", note: "Ready for draft review" } : item));
+        }
+      }
       const imageCount = Array.isArray(message.product.images) ? message.product.images.length : 0;
       const variantCount = Array.isArray(message.product.variants)
         ? message.product.variants.reduce((sum: number, group: Variant) => sum + (group.options?.length || 0), 0)
@@ -551,7 +567,7 @@ export default function Dashboard() {
       window.removeEventListener("message", onImporterMessage);
       if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
     };
-  }, [bulkImportActiveId]);
+  }, [bulkImportAutoRunning]);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
   const [storeColor, setStoreColor] = useState("#ff6b35");
@@ -1230,6 +1246,75 @@ export default function Dashboard() {
       return { ...v, images: next };
     });
 
+  // Bulk imports deliberately bypass the edit form after a successful capture.
+  // They remain drafts, but retain the exact same image, colour-gallery,
+  // variant, source-link and size-chart handling as a manually saved import.
+  const saveBulkPreviewAsDraft = async (preview: ProductUrlPreview, queueItemId: string) => {
+    if (!preview.title?.trim()) throw new Error("The supplier page did not provide a product title.");
+    setFormSaving(true);
+    setUploadProgress("Saving captured product as a draft...");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Your session expired. Sign in again, then restart the queue.");
+
+      const capturedImages = (preview.images || []).slice(0, maxImages);
+      const capturedFiles = capturedImages.map(dataUrlToImageFile).filter(Boolean) as File[];
+      const externalImages = capturedImages.filter((image) => !image.startsWith("data:image/"));
+      const temporaryProductId = `bulk-${Date.now()}-${queueItemId}`;
+      const uploadedUrls = await Promise.all(capturedFiles.map(async (file, index) => {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `${user.id}/${temporaryProductId}/${Date.now()}-${index}.${ext}`;
+        const { error } = await supabase.storage.from("product-images").upload(path, file);
+        if (error) throw new Error(`Image ${index + 1} could not be uploaded: ${error.message}`);
+        return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+      }));
+
+      const previewToUrl = new Map<string, string>();
+      let uploadedIndex = 0;
+      capturedImages.forEach((image) => {
+        if (image.startsWith("data:image/")) previewToUrl.set(image, uploadedUrls[uploadedIndex++] || "");
+      });
+      const variants = remapVariantImages(cleanVariants(preview.variants || []), previewToUrl);
+      const tags = cleanProductTags(importTags);
+      const tagCollections = storeCollections.filter((collection) => tags.some((tag) => tag.toLowerCase() === collection.toLowerCase()));
+      const category = cleanProductTags(tagCollections).join(", ");
+      const images = [...externalImages, ...uploadedUrls];
+      const { data, error } = await supabase.from("products").insert({
+        seller_id: user.id,
+        name: preview.title.trim(),
+        price: typeof preview.price === "number" && Number.isFinite(preview.price) ? preview.price : 0,
+        old_price: typeof preview.compareAtPrice === "number" && Number.isFinite(preview.compareAtPrice) ? preview.compareAtPrice : null,
+        category,
+        tags,
+        metafields: { cart_booster_product_ids: [] },
+        description: preview.description || "",
+        size_chart_html: preview.sizeChartHtml || null,
+        source_url: preview.sourceUrl || importUrl.trim() || null,
+        in_stock: preview.inStock !== false,
+        status: "draft",
+        images,
+        image_url: images[0] || null,
+        variants,
+      }).select().single();
+      if (error || !data) throw new Error(error?.message || "The draft could not be created.");
+
+      setProducts((items) => [{ ...data, images, image_url: images[0] || null, variants }, ...items]);
+      revalidateMyStore();
+      setBulkImportQueue((items) => items.map((item) => item.id === queueItemId ? { ...item, status: "saved", note: "Draft saved automatically" } : item));
+      setImportResult(`Draft saved automatically: ${preview.title}`);
+    } catch (error: any) {
+      const message = error?.message || "Draft could not be saved.";
+      setBulkImportQueue((items) => items.map((item) => item.id === queueItemId ? { ...item, status: "failed", note: message } : item));
+      setImportResult(`Automatic draft save failed: ${message}`);
+    } finally {
+      bulkImportActiveIdRef.current = null;
+      setBulkImportActiveId(null);
+      setImportPreview(null);
+      setUploadProgress("");
+      setFormSaving(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setFormSaving(true); setUploadProgress(""); setFormSaveError("");
     const { data: { user } } = await supabase.auth.getUser(); if (!user) { setFormSaveError("Your session expired. Sign in again, then save the product."); setFormSaving(false); return; }
@@ -1298,7 +1383,8 @@ export default function Dashboard() {
   const previewSupplierProduct = async (requestedUrl = importUrl.trim()) => {
     if (!requestedUrl) { setImportResult("Paste a Shein, Temu, Nike, or Superbalist product link first."); return; }
     setImportLoading(true); setImportResult(""); setImportPreview(null); setImportTags(["imports"]); setBrowserCaptureNeeded(false);
-    if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "capturing", note: "Reading supplier page" } : item));
+    const activeQueueItemId = bulkImportActiveIdRef.current;
+    if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "capturing", note: "Reading supplier page" } : item));
     try {
       const res = await fetch("/api/product-url-import", {
         method: "POST",
@@ -1313,7 +1399,9 @@ export default function Dashboard() {
           requestBrowserCapture(requestedUrl);
           return;
         }
-        if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "failed", note: data.error || "Preview failed" } : item));
+        if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: data.error || "Preview failed" } : item));
+        bulkImportActiveIdRef.current = null;
+        setBulkImportActiveId(null);
         setImportResult(data.error || "Could not preview this product."); return;
       }
       setImportPreview(data.product);
@@ -1322,10 +1410,16 @@ export default function Dashboard() {
         requestBrowserCapture(requestedUrl);
         return;
       }
-      if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "review", note: "Ready for draft review" } : item));
+      if (activeQueueItemId && bulkImportAutoRunning) {
+        await saveBulkPreviewAsDraft(data.product as ProductUrlPreview, activeQueueItemId);
+        return;
+      }
+      if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "review", note: "Ready for draft review" } : item));
       setImportResult("Server preview ready. Review it, then import it as a draft.");
     } catch (e: any) {
-      if (bulkImportActiveId) setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "failed", note: e?.message || "Preview failed" } : item));
+      if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: e?.message || "Preview failed" } : item));
+      bulkImportActiveIdRef.current = null;
+      setBulkImportActiveId(null);
       setImportResult(e?.message || "Could not preview this product.");
     } finally {
       if (!browserCaptureRequestRef.current) setImportLoading(false);
@@ -1375,12 +1469,28 @@ export default function Dashboard() {
   };
 
   const loadNextBulkImport = () => {
-    const next = bulkImportQueue.find((item) => item.status === "queued" || item.status === "failed");
+    if (bulkImportActiveIdRef.current || importLoading || formSaving) return;
+    const next = bulkImportQueue.find((item) => item.status === "queued");
     if (!next) { setImportResult("Your bulk import queue is complete."); return; }
+    bulkImportActiveIdRef.current = next.id;
     setBulkImportActiveId(next.id);
     setImportUrl(next.url);
     void previewSupplierProduct(next.url);
   };
+
+  useEffect(() => {
+    if (!bulkImportAutoRunning || importLoading || formSaving || bulkImportActiveId) return;
+    const hasQueuedItem = bulkImportQueue.some((item) => item.status === "queued");
+    if (!hasQueuedItem) {
+      const hasActiveWork = bulkImportQueue.some((item) => item.status === "capturing");
+      if (!hasActiveWork) {
+        setBulkImportAutoRunning(false);
+        setImportResult("Automatic bulk import is complete. Failed links remain in the queue so you can retry them later.");
+      }
+      return;
+    }
+    loadNextBulkImport();
+  }, [bulkImportAutoRunning, bulkImportQueue, bulkImportActiveId, importLoading, formSaving]);
 
   const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); revalidateMyStore(); };
   const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); revalidateMyStore(); };
@@ -2657,14 +2767,14 @@ export default function Dashboard() {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 7, flexWrap: "wrap" as const }}>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: "var(--text)" }}>Bulk draft queue</div>
-                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Paste links straight from Notepad—one per line or mixed into any text. Each is captured and saved as a reviewable draft.</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Paste links straight from Notepad—one per line or mixed into any text. Automatic import captures each link, saves it as a draft, then moves to the next one.</div>
                   </div>
-                  <button type="button" onClick={loadNextBulkImport} disabled={importLoading || !bulkImportQueue.some((item) => item.status === "queued" || item.status === "failed")} style={{ padding: "9px 13px", background: "#111", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: importLoading ? "not-allowed" : "pointer", opacity: importLoading || !bulkImportQueue.some((item) => item.status === "queued" || item.status === "failed") ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Capture next</button>
+                  <button type="button" onClick={() => setBulkImportAutoRunning(true)} disabled={bulkImportAutoRunning || !bulkImportQueue.some((item) => item.status === "queued")} style={{ padding: "9px 13px", background: "#111", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: bulkImportAutoRunning ? "not-allowed" : "pointer", opacity: bulkImportAutoRunning || !bulkImportQueue.some((item) => item.status === "queued") ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{bulkImportAutoRunning ? "Importing queue..." : "Start automatic import"}</button>
                 </div>
                 <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Paste supplier links here\nhttps://za.shein.com/...\nhttps://www.temu.com/..."} rows={4} style={{ ...inputStyle, minHeight: 92, resize: "vertical" as const, lineHeight: 1.45 }} />
                 <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" as const }}>
                   <button type="button" onClick={addBulkImportLinks} disabled={!bulkImportText.trim()} style={{ padding: "8px 12px", background: bulkImportText.trim() ? G : "var(--panel-2)", color: bulkImportText.trim() ? "#fff" : "var(--muted-2)", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: bulkImportText.trim() ? "pointer" : "default", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Add links to queue</button>
-                  {!!bulkImportQueue.length && <button type="button" onClick={() => { setBulkImportQueue([]); setBulkImportActiveId(null); }} style={{ padding: "7px 10px", background: "transparent", border: "none", color: "var(--muted-2)", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Clear queue</button>}
+                  {!!bulkImportQueue.length && <button type="button" onClick={() => { setBulkImportAutoRunning(false); bulkImportActiveIdRef.current = null; setBulkImportQueue([]); setBulkImportActiveId(null); }} style={{ padding: "7px 10px", background: "transparent", border: "none", color: "var(--muted-2)", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Clear queue</button>}
                   {!!bulkImportQueue.length && <span style={{ fontSize: 10, color: "var(--muted-2)", fontWeight: 700 }}>{bulkImportQueue.filter((item) => item.status === "saved").length}/{bulkImportQueue.length} drafts saved</span>}
                 </div>
                 {!!bulkImportQueue.length && <div style={{ marginTop: 10, display: "flex", flexDirection: "column" as const, gap: 5, maxHeight: 170, overflowY: "auto" as const }}>
