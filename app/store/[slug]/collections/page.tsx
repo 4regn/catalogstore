@@ -1,9 +1,9 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../lib/store-host";
-import { canonicalStoreUrl } from "../../../../lib/store-url";
+import { canonicalStoreUrlForRequest } from "../../../../lib/store-canonical-server";
 import { resolveSellerTemplate } from "../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../lib/template-config";
 import { fetchAllRows } from "../../../../lib/fetch-all-rows";
@@ -26,7 +26,7 @@ export const dynamic = "force-static";
 const FourRegn = nextDynamic(() => import("../FourRegnStore"));
 
 const SELLER_COLUMNS =
-  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+  "id, store_name, whatsapp_number, subdomain, custom_domain, custom_domain_status, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 // The index tiles only need these three fields. Search now loads its richer
 // catalogue lazily when the overlay is opened, matching the homepage, so
 // browsing /collections no longer serializes names/prices/handles for the
@@ -42,7 +42,7 @@ export async function generateMetadata({
 
   const { data: seller } = await supabaseAdmin
     .from("sellers")
-    .select("store_name")
+    .select("store_name, custom_domain, custom_domain_status")
     .eq("subdomain", slug)
     .maybeSingle();
 
@@ -50,11 +50,12 @@ export async function generateMetadata({
 
   const title = `All Collections | ${seller.store_name}`;
   const description = `Browse every collection at ${seller.store_name}.`;
+  const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, "/collections");
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalStoreUrl(slug, "/collections") },
+    alternates: { canonical },
     openGraph: { title, description },
   };
 }
@@ -88,7 +89,7 @@ export default async function CollectionsIndexPage({
   // visitor home.
   const tpl = resolveSellerTemplate(seller);
   if (tpl !== "4regn") {
-    redirect(isSubdomain ? "/" : `/store/${slug}`);
+    permanentRedirect(isSubdomain ? "/collections/all" : `/store/${slug}/collections/all`);
   }
 
   // Real product rows are needed even though this page renders no product

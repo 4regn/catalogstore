@@ -37,7 +37,11 @@ export function getCachedFourRegnCatalog(slug: string, sellerId: string) {
         promoBadges: promoBadgesRes.data ?? [],
       };
     },
-    ["four-regn-catalog-v1", slug, sellerId],
+    // v3 invalidates the persistent Vercel Data Cache after restoring the
+    // original 4REGN trucker-cap images. This cache survives deployments,
+    // so the key must change when an out-of-band catalog migration is
+    // rolled back.
+    ["four-regn-catalog-v3", slug, sellerId],
     { revalidate: 3600, tags: [`storefront:${slug}`] }
   )();
 }

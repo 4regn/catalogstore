@@ -3,6 +3,7 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { requireSetlaCustomer } from "../../../../lib/setla-customer";
 import { formatInstalmentDueDate } from "../../../../lib/setla-instalments";
 import { computeProgress, DOCUMENT_TYPES } from "../../../../lib/setla-application-progress";
+import { buildFourRegnTracking } from "../../../../lib/four-regn-tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       // file's orderStatus()/scheduleCard() -- both directly reported as
       // showing "Confirmed"/UNIK branding on a 4regn order that hadn't
       // even been paid yet).
-      admin.from("orders").select("id, order_number, items, seller_id, status, payment_status").in("id", unikOrderIds),
+      admin.from("orders").select("id, order_number, external_id, items, seller_id, status, payment_status, shipping_option, tracking_updated_at, created_at").in("id", unikOrderIds),
       planIds.length ? admin.from("setla_instalments").select("id, plan_id, sequence_number, amount, due_at, status").in("plan_id", planIds).order("sequence_number", { ascending: true }) : Promise.resolve({ data: [] }),
       // Laybuy has no fixed schedule -- this is the ledger of actual
       // payments made against the plan instead (paid: what's been
@@ -114,7 +115,7 @@ export async function GET(req: NextRequest) {
       }
 
       return {
-        id: unikOrder?.order_number || row.id,
+        id: unikOrder?.external_id || unikOrder?.order_number || row.id,
         methodCode: isLaybuy ? "laybuy" : "pay_later",
         method: isLaybuy ? "SETLA Laybuy" : "SETLA Pay Later",
         total: Number(row.total),
@@ -131,6 +132,7 @@ export async function GET(req: NextRequest) {
         fulfillmentStatus: unikOrder?.status || "pending",
         paymentStatus: unikOrder?.payment_status || "pending",
         planStatus: plan?.status || null,
+        tracking: isGeneric && unikOrder ? buildFourRegnTracking(unikOrder) : null,
       };
     });
   }

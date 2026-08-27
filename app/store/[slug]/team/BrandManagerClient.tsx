@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
-import { OverviewPanel as SetlaOverviewPanel, ApplicationsPanel as SetlaApplicationsPanel, BankAccountsPanel as SetlaBankAccountsPanel, CustomersPanel as SetlaCustomersPanel, AdminsPanel as SetlaAdminsPanel, AnalyticsPanel as SetlaAnalyticsPanel } from "../../../setla-admin/SetlaReviewPanels";
+import { OverviewPanel as SetlaOverviewPanel, ApplicationsPanel as SetlaApplicationsPanel, BankAccountsPanel as SetlaBankAccountsPanel, CustomersPanel as SetlaCustomersPanel, RepaymentsPanel as SetlaRepaymentsPanel, AdminsPanel as SetlaAdminsPanel, AnalyticsPanel as SetlaAnalyticsPanel } from "../../../setla-admin/SetlaReviewPanels";
 
 type Manager = {
   fullName: string;
@@ -1725,13 +1725,14 @@ function SendPartnerEmailCard({ partners, busyId, onSend }: { partners: PartnerR
   );
 }
 
-type SetlaSubPanel = "overview" | "applications" | "bank-accounts" | "customers" | "analytics" | "admins";
+type SetlaSubPanel = "overview" | "applications" | "bank-accounts" | "customers" | "repayments" | "analytics" | "admins";
 
 const SETLA_SUB_PANEL_LABELS: Record<SetlaSubPanel, string> = {
   overview: "Overview",
   applications: "Applications",
   "bank-accounts": "Bank accounts",
   customers: "Customers",
+  repayments: "Purchases & repayments",
   analytics: "Analytics",
   admins: "Admins",
 };
@@ -1772,6 +1773,7 @@ function SetlaPanel({ authedFetch, toast }: { authedFetch: (path: string, init?:
       {sub === "applications" && <SetlaApplicationsPanel authedFetch={authedFetch} toast={toast} />}
       {sub === "bank-accounts" && <SetlaBankAccountsPanel authedFetch={authedFetch} toast={toast} />}
       {sub === "customers" && <SetlaCustomersPanel authedFetch={authedFetch} toast={toast} />}
+      {sub === "repayments" && <SetlaRepaymentsPanel authedFetch={authedFetch} toast={toast} />}
       {sub === "analytics" && <SetlaAnalyticsPanel authedFetch={authedFetch} />}
       {sub === "admins" && <SetlaAdminsPanel authedFetch={authedFetch} toast={toast} role="super_admin" />}
 
@@ -1812,6 +1814,7 @@ function SetlaPanel({ authedFetch, toast }: { authedFetch: (path: string, init?:
         .sad-textarea{min-height:80px;padding:10px 12px}
         .sad-form-row{display:grid;gap:8px;margin-bottom:12px}
         .sad-form-row label{font-size:10px;color:#999994;text-transform:uppercase;letter-spacing:.06em}
+        @media (max-width:700px){.sad-repayment-row{grid-template-columns:1fr 1fr!important}.sad-repayment-row .sad-btn-outline{width:100%}}
       `}</style>
     </section>
   );

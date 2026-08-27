@@ -180,3 +180,9 @@
 .app-timeline-step:last-child small{text-align:right}
 @media(max-width:590px){.app-timeline-dot{width:26px;height:26px;font-size:10px}.app-timeline-step small{font-size:9px;max-width:76px}.app-timeline-track{margin:0 13px}.app-timeline-row{margin-top:-13px}}
 .dash-loading{padding:40px 24px;text-align:center;color:var(--muted);font-size:12.5px;letter-spacing:.04em}
+.tracking-updated{margin:9px 0 0;color:#7f897f;font-size:11px}
+.tracking-updated strong{color:#d6ddd6}
+.tracking-delivery{margin:12px 0 0}
+.tracking-delivery small,.tracking-delivery strong{display:block}
+.tracking-delivery small{color:#7f897f;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+.tracking-delivery strong{margin-top:4px;font-size:11px}

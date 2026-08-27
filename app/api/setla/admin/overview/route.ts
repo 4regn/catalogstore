@@ -13,10 +13,11 @@ export async function GET(req: NextRequest) {
   if ("response" in auth) return auth.response;
 
   const admin = getAdmin();
-  const [{ count: pendingApplications }, { count: pendingBankReviews }, { count: pendingAppeals }, { count: totalSignups }, { count: applicationsStarted }, { count: applicationsSubmitted }] = await Promise.all([
+  const [{ count: pendingApplications }, { count: pendingBankReviews }, { count: pendingAppeals }, { count: overdueInstalments }, { count: totalSignups }, { count: applicationsStarted }, { count: applicationsSubmitted }] = await Promise.all([
     admin.from("setla_applications").select("id", { count: "exact", head: true }).in("status", ["pending", "manual_review"]),
     admin.from("setla_bank_accounts").select("id", { count: "exact", head: true }).eq("review_status", "pending"),
     admin.from("setla_appeals").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    admin.from("setla_instalments").select("id", { count: "exact", head: true }).in("status", ["scheduled", "processing", "overdue"]).lt("due_at", new Date().toISOString()),
     // Every account created (setla_customers gets a row at signup, before
     // any application exists) vs. how many of those actually went on to
     // submit an application -- the drop-off the customer detail view
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     pendingApplications: pendingApplications || 0,
     pendingBankReviews: pendingBankReviews || 0,
     pendingAppeals: pendingAppeals || 0,
-    overdueInstalments: 0,
+    overdueInstalments: overdueInstalments || 0,
     openSupportConversations: 0,
     totalSignups: totalSignups || 0,
     applicationsStarted: applicationsStarted || 0,

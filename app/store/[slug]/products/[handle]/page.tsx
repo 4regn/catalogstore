@@ -1,11 +1,11 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import type { Metadata, Viewport } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
-import { canonicalStoreUrl } from "../../../../../lib/store-url";
+import { canonicalStoreUrlForRequest } from "../../../../../lib/store-canonical-server";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { descriptionToPlainText } from "../../../../../lib/description-plain-text";
@@ -29,6 +29,7 @@ export const dynamic = "force-static";
 // /p/{uuid}; this handle-based route exists purely to match 4regn's real
 // (Shopify-era, already Google-indexed) /products/{handle} URL format.
 const FourRegn = nextDynamic(() => import("../../FourRegnStore"));
+const UniversalProductPage = nextDynamic(() => import("../../UniversalProductPage"));
 
 // Any seller who lands on this route but isn't actually on the 4regn
 // template gets redirect()'d out below before anything renders, so this
@@ -47,12 +48,12 @@ export const viewport: Viewport = {
 };
 
 const SELLER_COLUMNS =
-  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+  "id, store_name, whatsapp_number, subdomain, custom_domain, custom_domain_status, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 // Full columns for the single active product being viewed -- FourRegnStore's
 // PDP render (initialActiveProduct) needs everything: description, the full
 // images array, variants (size/option picker), old_price (sale price row).
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, status, handle";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, size_chart_html, sort_order, created_at, status, handle";
 // "You Might Also Like" (relatedProducts in FourRegnStore.tsx) no longer
 // has a server-side fetch here at all -- it now reads off the same lazy
 // client-side catalog fetch the header/mobile-dock search overlay already
@@ -151,15 +152,23 @@ export async function generateMetadata({
   const description = product.description
     ? descriptionToPlainText(product.description).substring(0, 160)
     : `Shop ${product.name} at ${storeName}`;
+  const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/products/${handle}`);
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalStoreUrl(slug, `/products/${handle}`) },
+    alternates: { canonical },
+    robots: { index: true, follow: true },
     openGraph: {
       title,
       description,
       ...(product.image_url ? { images: [{ url: product.image_url }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(product.image_url ? { images: [product.image_url] } : {}),
     },
   };
 }
@@ -182,13 +191,8 @@ export default async function ProductHandlePage({
 
   const isSubdomain = await isStoreSubdomainRequest();
 
-  // Resolve through the same private-template gate every other 4regn-only
-  // route uses, so a raw `template` column value can't be used to reach
-  // 4regn's private storefront from a seller who isn't allowed to use it.
+  // Resolve through the same private-template gate as the storefront.
   const tpl = resolveSellerTemplate(seller);
-  if (tpl !== "4regn") {
-    redirect(isSubdomain ? "/" : `/store/${slug}`);
-  }
 
   const nowIso = new Date().toISOString();
   const [activeProduct, promotions] = await Promise.all([
@@ -197,6 +201,7 @@ export default async function ProductHandlePage({
   ]);
 
   if (!activeProduct) notFound();
+  const productUrl = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/products/${handle}`);
 
   // "You Might Also Like" no longer runs a server-side query at all --
   // two attempts at bounding it here (Promise.race, then a real
@@ -222,15 +227,30 @@ export default async function ProductHandlePage({
     description: activeProduct.description ? descriptionToPlainText(activeProduct.description) : undefined,
     image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
     brand: { "@type": "Brand", name: seller.store_name },
-    url: canonicalStoreUrl(slug, `/products/${handle}`),
+    url: productUrl,
     offers: {
       "@type": "Offer",
       priceCurrency: "ZAR",
       price: activeProduct.price,
       availability: activeProduct.in_stock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      url: canonicalStoreUrl(slug, `/products/${handle}`),
+      url: productUrl,
     },
   };
+
+  if (tpl !== "4regn") {
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+        <UniversalProductPage
+          seller={trimSellerTemplateConfigs(seller, tpl)}
+          product={activeProduct}
+          template={tpl}
+          isSubdomain={isSubdomain}
+          descriptionText={activeProduct.description ? descriptionToPlainText(activeProduct.description) : ""}
+        />
+      </>
+    );
+  }
 
   return (
     <>

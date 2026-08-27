@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "CatalogStore Browser Product Importer",
+  "version": "1.0.19",
+  "description": "Captures rendered supplier product data for CatalogStore without server-side scraping.",
+  "permissions": ["tabs"],
+  "host_permissions": [
+    "https://*.shein.com/*",
+    "https://*.ltwebstatic.com/*",
+    "https://*.temu.com/*",
+    "https://*.nike.com/*",
+    "https://*.superbalist.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://4regn.com/dashboard*",
+        "https://www.4regn.com/dashboard*",
+        "https://catalogstore.co.za/dashboard*",
+        "https://www.catalogstore.co.za/dashboard*",
+        "http://localhost:3000/dashboard*",
+        "http://127.0.0.1:3000/dashboard*"
+      ],
+      "js": ["dashboard-bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.shein.com/*",
+        "https://*.temu.com/*",
+        "https://*.nike.com/*",
+        "https://*.superbalist.com/*"
+      ],
+      "js": ["supplier-capture.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "CatalogStore Browser Product Importer"
+  }
+}

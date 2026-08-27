@@ -3,11 +3,15 @@
 import { useState, useEffect, useLayoutEffect, useRef, useTransition, Fragment, type TouchEvent as ReactTouchEvent } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import { extractLegacyImportedSizeChart, resolveProductSizeChart } from "@/lib/product-size-chart";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
-import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { trackStorefrontEvent, useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../lib/automatic-discounts";
+import { FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM } from "../../../lib/four-regn-shipping";
+import { effectiveProductPrice } from "../../../lib/product-pricing";
+import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
 
 // Only ever rendered after a click/keyboard interaction (see `lightbox`
 // state below) -- never needed for first paint, so it's split into its own
@@ -24,6 +28,11 @@ const LightboxGallery = dynamic(() => import("./FourRegnLightbox"), { ssr: false
 // initial bundle for every visitor, including ones on modes where it never
 // renders at all (see the isHomeView/isCollectionView gate below).
 const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: false });
+
+// Disabled by default and only rendered when the seller turns it on. Keeping
+// it in a separate chunk means stores that leave chat off do not download any
+// of the widget's UI or polling code.
+const FourRegnLiveChat = dynamic(() => import("./FourRegnLiveChat"), { ssr: false });
 
 const pInCat = (p: { category: string }, cat: string) =>
   (p.category || "").split(",").map((c) => c.trim()).includes(cat);
@@ -48,6 +57,7 @@ type CtaTarget =
   | { type: "url"; url: string }
   | { type: "none" };
 interface StoreConfig {
+  four_regn_live_chat_enabled?: boolean;
   announcement?: string;
   show_announcement?: boolean;
   hero_image_position?: string;
@@ -196,6 +206,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
+  size_chart_html?: string | null;
   sort_order: number; created_at?: string; tags?: string[];
   // SEO-friendly Shopify-derived handle, once backfilled -- see
   // goToProduct() below. Optional: not every product has one yet (a fresh
@@ -226,14 +237,17 @@ interface PromoBadge {
 
 /* ─── HELPERS ────────────────────────────────────────────── */
 const fmt = (n: number) => "R " + n.toLocaleString("en-ZA");
-const variantDelta = (product: Product, selected: { [key: string]: string }): number =>
-  (Array.isArray(product.variants) ? product.variants : []).reduce((sum, v) => {
-    const chosen = selected[v.name];
-    const d = chosen ? v.priceDelta?.[chosen] : undefined;
-    return sum + (typeof d === "number" ? d : 0);
-  }, 0);
 const effectivePrice = (product: Product, selected: { [key: string]: string }): number =>
-  Math.max(0, product.price + variantDelta(product, selected));
+  effectiveProductPrice(product.price, product.variants, selected);
+
+type CartBoosterResponse = {
+  threshold: number;
+  rawSubtotal: number;
+  payableSubtotal: number;
+  gap: number;
+  unlocked: boolean;
+  recommendations: RankedCartBoosterProduct[];
+};
 // The full photo SET for whichever option value is currently selected
 // (e.g. every photo tagged under the White option of a "Colour" variant
 // group -- a single value can legitimately have several: front, back,
@@ -258,12 +272,18 @@ const resolveVariantImages = (product: Product, selected: { [key: string]: strin
   if (preferredDim) {
     const v = variants.find((v) => v.name === preferredDim);
     const chosen = v && selected[v.name];
-    if (v?.images && chosen && v.images[chosen]?.length) return v.images[chosen];
+    if (v?.images && chosen) {
+      const images = Array.isArray(v.images[chosen]) ? v.images[chosen] : [v.images[chosen]].filter(Boolean);
+      if (images.length) return images;
+    }
   }
   for (const v of variants) {
     if (!v.images) continue;
     const chosen = selected[v.name];
-    if (chosen && v.images[chosen]?.length) return v.images[chosen];
+    if (chosen) {
+      const images = Array.isArray(v.images[chosen]) ? v.images[chosen] : [v.images[chosen]].filter(Boolean);
+      if (images.length) return images;
+    }
   }
   return null;
 };
@@ -272,6 +292,19 @@ const resolveVariantImages = (product: Product, selected: { [key: string]: strin
 // resolved set, same as resolveVariantImages but never a list.
 const resolveVariantImage = (product: Product, selected: { [key: string]: string }): string | null =>
   resolveVariantImages(product, selected)?.[0] || null;
+const uniqueImageList = (...groups: Array<string | null | undefined | Array<string | null | undefined>>): string[] => {
+  const out: string[] = [];
+  for (const group of groups) {
+    const items = Array.isArray(group) ? group : [group];
+    for (const raw of items) {
+      const img = typeof raw === "string" ? raw.trim() : "";
+      if (img && !out.includes(img)) out.push(img);
+    }
+  }
+  return out;
+};
+const productBaseImages = (product: Product): string[] =>
+  uniqueImageList(product.image_url, Array.isArray(product.images) ? product.images : []);
 const pad = (n: number) => String(n).padStart(2, "0");
 const initials = (s: string) => (s || "").trim().slice(0, 1).toUpperCase();
 
@@ -730,6 +763,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveAboutStat2Value, setLiveAboutStat2Value] = useState<string | null>(null);
   const [liveAboutStat2Label, setLiveAboutStat2Label] = useState<string | null>(null);
   const [liveAboutCtaLabel, setLiveAboutCtaLabel] = useState<string | null>(null);
+  const [liveCollectionImages, setLiveCollectionImages] = useState<Record<string, string> | null>(null);
+  const [liveHiddenCollections, setLiveHiddenCollections] = useState<string[] | null>(null);
+  const [liveCollOrder, setLiveCollOrder] = useState<string[] | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
@@ -743,6 +779,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [productSort, setProductSort] = useState(currentSort);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
+  const [newsletterFirstName, setNewsletterFirstName] = useState("");
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterStatus, setNewsletterStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [newsletterMessage, setNewsletterMessage] = useState("");
   // Home view's own `products` (see FOUR_REGN_HOME_PRODUCT_COLUMNS in
   // ../page.tsx) is now id/category/image_url only -- name/price/handle
   // (needed for the search overlay's filter/display/routing) are fetched
@@ -784,13 +824,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [localQty, setLocalQty] = useState(1);
   const [variantError, setVariantError] = useState(false);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
-  const [sizeChartTab, setSizeChartTab] = useState<"chart" | "measure">("chart");
+  const [sizeChartTab, setSizeChartTab] = useState<"chart" | "body" | "measure">("chart");
 
   /* ─── CART ─── */
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartHydrated, setCartHydrated] = useState(false);
   const [automaticBxgyDiscounts, setAutomaticBxgyDiscounts] = useState<AutomaticBxgyDiscount[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cartBooster, setCartBooster] = useState<CartBoosterResponse | null>(null);
+  const [cartBoosterSignature, setCartBoosterSignature] = useState("");
+  const [cartBoosterLoading, setCartBoosterLoading] = useState(false);
+  const [cartBoosterSelections, setCartBoosterSelections] = useState<Record<string, Record<string, string>>>({});
+  const [cartBoosterShowAll, setCartBoosterShowAll] = useState(false);
+  const cartBoosterImpressionRef = useRef("");
+  const cartBoosterUnlockedRef = useRef(false);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const wishlistStorageKey = seller?.subdomain ? `catalogstore-wishlist-v1:${seller.subdomain.toLowerCase()}` : null;
@@ -875,6 +922,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   useLiveVisitorPing(seller?.id, {
     cartItemCount: cart.reduce((sum, i) => sum + i.qty, 0),
     cartValue: cart.reduce((sum, i) => sum + i.product.price * i.qty, 0),
+    cartItems: cart.map((i) => ({
+      id: i.product.id,
+      name: i.product.name,
+      price: effectivePrice(i.product, i.selectedVariants),
+      qty: i.qty,
+      variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
+      image: resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url || "",
+    })),
   });
 
   /* ─── NAV ─── */
@@ -1006,6 +1061,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     if (categories.includes("STANDARD GRAPHIC HOODIES")) {
       return { label: "BUY 2 FOR R599", scope: "collection", product_id: null, collection_name: "STANDARD GRAPHIC HOODIES" };
     }
+    if (categories.includes("OVERSIZED PREMIUM TEES")) {
+      return { label: "BUY 2 FOR R449", scope: "collection", product_id: null, collection_name: "OVERSIZED PREMIUM TEES" };
+    }
     return promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
   };
 
@@ -1121,6 +1179,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (e.data.aboutStat2Value !== undefined) setLiveAboutStat2Value(e.data.aboutStat2Value);
       if (e.data.aboutStat2Label !== undefined) setLiveAboutStat2Label(e.data.aboutStat2Label);
       if (e.data.aboutCtaLabel !== undefined) setLiveAboutCtaLabel(e.data.aboutCtaLabel);
+      if (e.data.collectionImages !== undefined) setLiveCollectionImages(e.data.collectionImages || {});
+      if (e.data.hiddenCollections !== undefined) setLiveHiddenCollections(e.data.hiddenCollections || []);
+      if (e.data.collOrder !== undefined) setLiveCollOrder(e.data.collOrder || []);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -1191,6 +1252,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const removeFromCart = (idx: number) => setCart((prev) => prev.filter((_, i) => i !== idx));
   const changeQty = (idx: number, d: number) =>
     setCart((prev) => prev.map((i, n) => n === idx ? { ...i, qty: Math.max(1, i.qty + d) } : i));
+
+  const cartTrackingItems = () => cart.map((item) => ({
+    id: item.product.id,
+    name: item.product.name,
+    price: effectivePrice(item.product, item.selectedVariants),
+    qty: item.qty,
+    variant: Object.entries(item.selectedVariants).map(([key, value]) => `${key}: ${value}`).join(", "),
+    image: resolveVariantImage(item.product, item.selectedVariants) || item.product.image_url || "",
+  }));
+  const boosterAttributionKey = seller?.subdomain ? `catalogstore-cart-booster-attribution-v1:${seller.subdomain.toLowerCase()}` : null;
 
   const orderViaWhatsApp = () => {
     if (!seller) return;
@@ -1314,6 +1385,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // Same base64 `?cart=` encoding every other template uses -- the checkout
   // page decodes this param, not any client-side storage.
   const goToCheckout = () => {
+    if (seller?.id && boosterAttributionKey) {
+      try {
+        const attribution = JSON.parse(localStorage.getItem(boosterAttributionKey) || "null");
+        if (attribution?.addedAt && Date.now() - Number(attribution.addedAt) < 24 * 60 * 60 * 1000) {
+          trackStorefrontEvent({ sellerId: seller.id, eventType: "checkout_started_after_upsell", cartItemCount: cartCount, cartValue: cartPayableMerchandiseTotal, cartItems: cartTrackingItems(), metadata: attribution.metadata || {} });
+        }
+      } catch {}
+    }
     const payload = cart.map((i) => ({
       id: i.product.id,
       name: i.product.name,
@@ -1327,6 +1406,41 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     }));
     const encoded = btoa(JSON.stringify(payload));
     navigate(sp(`/checkout?cart=${encoded}`));
+  };
+
+  const addCartBoosterProduct = (recommendation: RankedCartBoosterProduct) => {
+    if (!seller?.id) return;
+    const selected = cartBoosterSelections[recommendation.id] || {};
+    const variantGroups = Array.isArray(recommendation.variants) ? recommendation.variants as Variant[] : [];
+    if (variantGroups.some((group) => Array.isArray(group.options) && group.options.length > 0 && !selected[group.name])) return;
+    const product: Product = {
+      id: recommendation.id,
+      name: recommendation.name,
+      price: Number(recommendation.price),
+      old_price: recommendation.old_price ?? null,
+      category: recommendation.category || "",
+      image_url: recommendation.image_url || null,
+      images: recommendation.images || [],
+      variants: variantGroups,
+      in_stock: recommendation.in_stock !== false,
+      description: "",
+      sort_order: Number(recommendation.sort_order) || 0,
+      tags: recommendation.tags || [],
+      handle: recommendation.handle || undefined,
+    };
+    const selectedPrice = effectivePrice(product, selected);
+    const metadata = {
+      cartSubtotalBefore: activeCartBooster?.payableSubtotal ?? cartPayableMerchandiseTotal,
+      gap: activeCartBooster?.gap ?? freeShipRem,
+      recommendedProductId: recommendation.id,
+      recommendedProductPrice: selectedPrice,
+      resultingSubtotal: recommendation.resultingSubtotal + (selectedPrice - recommendation.recommendationPrice),
+    };
+    addToCart(product, 1, selected);
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "free_delivery_upsell_add", cartItemCount: cartCount + 1, cartValue: metadata.resultingSubtotal, cartItems: [...cartTrackingItems(), { id: product.id, name: product.name, price: selectedPrice, qty: 1, variant: Object.entries(selected).map(([key, value]) => `${key}: ${value}`).join(", "), image: resolveVariantImage(product, selected) || product.image_url || "" }], metadata });
+    if (boosterAttributionKey) {
+      try { localStorage.setItem(boosterAttributionKey, JSON.stringify({ addedAt: Date.now(), metadata })); } catch {}
+    }
   };
 
   // Opening the cart is a strong checkout signal. Warm the shared checkout
@@ -1346,13 +1460,49 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // buckets below so every place that renders a browsable collection list
   // can filter out collections that currently match 0 products (sold out,
   // unpublished, or just not tagged to anything) before anything renders.
-  const catImage = (cat: string) => {
-    const override = config.collection_images?.[cat];
-    if (override) return override;
-    const p = products.find((p) => pInCat(p, cat) && p.image_url);
-    return p?.image_url || null;
+  const normalizeCollectionName = (value: string) => value.trim().toLowerCase();
+  const genderPrefix = (value: string) => {
+    const match = /^(men|women)\s+/i.exec(value.trim());
+    return match ? match[1].toLowerCase() : null;
   };
-  const catCount = (cat: string) => products.filter((p) => pInCat(p, cat)).length;
+  const stripGenderPrefix = (value: string) => value.trim().replace(/^(men|women)\s+/i, "").toLowerCase();
+  const categoryTokens = (p: Product) => (p.category || "").split(",").map((token) => token.trim()).filter(Boolean);
+  const catTokenMatches = (token: string, cat: string) => {
+    const cleanToken = normalizeCollectionName(token);
+    const cleanCat = normalizeCollectionName(cat);
+    if (cleanToken === cleanCat) return true;
+    const tokenGender = genderPrefix(token);
+    const catGender = genderPrefix(cat);
+    if (catGender || tokenGender) return tokenGender === catGender && stripGenderPrefix(token) === stripGenderPrefix(cat);
+    return stripGenderPrefix(token) === stripGenderPrefix(cat);
+  };
+  const productInCatAlias = (p: Product, cat: string) => {
+    const tokens = categoryTokens(p);
+    if (tokens.some((token) => catTokenMatches(token, cat))) return true;
+    const catGender = genderPrefix(cat);
+    if (!catGender) return false;
+    const shortCat = stripGenderPrefix(cat);
+    const hasGenderToken = tokens.some((token) => normalizeCollectionName(token) === catGender);
+    const hasShortToken = tokens.some((token) => stripGenderPrefix(token) === shortCat);
+    const nameHasGender = normalizeCollectionName(p.name || "").includes(catGender);
+    return hasShortToken && (hasGenderToken || nameHasGender);
+  };
+  const catImage = (cat: string) => {
+    const scopedImages = seller?.template_configs?.[seller.template || ""]?.collection_images || {};
+    const globalImages = seller?.store_config?.collection_images || {};
+    const images = { ...globalImages, ...scopedImages, ...(config.collection_images || {}), ...(liveCollectionImages || {}) };
+    const normalizedCat = normalizeCollectionName(cat);
+    const override = images[cat]
+      || Object.entries(images).find(([key]) => normalizeCollectionName(key) === normalizedCat)?.[1]
+      || (!genderPrefix(cat) ? Object.entries(images).find(([key]) => stripGenderPrefix(key) === normalizedCat)?.[1] : undefined);
+    if (override) return override;
+    const exact = products.find((p) => pInCat(p, cat) && p.image_url);
+    if (exact?.image_url) return exact.image_url;
+    const p = products.find((p) => productInCatAlias(p, cat) && p.image_url);
+    if (p?.image_url) return p.image_url;
+    return null;
+  };
+  const catCount = (cat: string) => products.filter((p) => productInCatAlias(p, cat)).length;
   // "Shop by Collection" grid: the seller's real, explicitly-ordered
   // collections list is the source of truth here (same list the nav/footer
   // already use below) so this grid can never drift from what the seller
@@ -1371,8 +1521,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // effectiveStoreConfig() is called directly rather than via the `config`
   // const below since that's defined later in this component and only
   // depends on `seller`, which is already in scope here.
-  const hiddenCollectionsSet = new Set(seller ? ((effectiveStoreConfig(seller) as StoreConfig).hidden_collections || []) : []);
-  const sellerCollections = (seller?.collections || []).filter(Boolean).filter((c) => !hiddenCollectionsSet.has(c));
+  const hiddenCollectionsSet = new Set(liveHiddenCollections ?? (seller ? ((effectiveStoreConfig(seller) as StoreConfig).hidden_collections || []) : []));
+  const sellerCollections = (liveCollOrder ?? seller?.collections ?? []).filter(Boolean).filter((c) => !hiddenCollectionsSet.has(c));
   const categoryList = (sellerCollections.length > 0 ? sellerCollections : allCategories.filter((c) => c !== "All").slice(0, 8)).filter((cat) => catCount(cat) > 0);
   // Nav / menu links come straight from the seller's collections list -- no
   // fixed menu structure baked in here. "All" has no real per-collection
@@ -1460,14 +1610,95 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const automaticDiscount = automaticBxgyDiscounts.length && cart.length
     ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
     : { totalDiscount: 0, applied: [] as { title: string; amount: number }[], lineDiscounts: [] as { lineIndex: number; amount: number; titles: string[] }[] };
+  const cartPayableMerchandiseTotal = Math.max(0, cartTotal - automaticDiscount.totalDiscount);
+  const cartStitchMonthly = cartPayableMerchandiseTotal / 6;
+  // The general storefront formatter intentionally uses the South African
+  // locale (e.g. R 1 299). Stitch's payment copy needs a decimal point,
+  // otherwise 58.33 renders as the misleading “58,333”.
+  const cartStitchMonthlyText = `R${cartStitchMonthly.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const cartTotalSavings = compareAtSavings + automaticDiscount.totalDiscount;
   // The note is only useful for a mixed cart: import-only carts already say
   // 7-14 working days in their sole checkout shipping method.
   const cartHasImport = cart.some((i) => hasImportTag(i.product.tags));
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.product.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
-  const FREE_SHIP = seller?.store_config?.free_ship_threshold ?? null;
-  const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartTotal) : 0;
+  const isFourRegnStore = seller?.subdomain === "4regn" || seller?.template === "4regn";
+  const FREE_SHIP = isFourRegnStore ? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM : (seller?.store_config?.free_ship_threshold ?? null);
+  const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartPayableMerchandiseTotal) : 0;
+  const cartBoosterRequestSignature = cart.map((item) => `${item.product.id}:${item.qty}:${JSON.stringify(item.selectedVariants)}`).join("|");
+  const activeCartBooster = cartBoosterSignature === cartBoosterRequestSignature ? cartBooster : null;
+  const boosterSubtotal = activeCartBooster?.payableSubtotal ?? cartPayableMerchandiseTotal;
+  const boosterGap = activeCartBooster?.gap ?? freeShipRem;
+  const boosterThreshold = activeCartBooster?.threshold ?? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM;
+  const boosterUnlocked = activeCartBooster?.unlocked ?? boosterGap <= 0;
+  const boosterProgress = Math.max(0, Math.min(100, (boosterSubtotal / boosterThreshold) * 100));
+
+  useEffect(() => {
+    if (!cartOpen || !cartHydrated || !seller?.subdomain || !cart.length || !isFourRegnStore) {
+      if (!cart.length) setCartBooster(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCartBoosterLoading(true);
+      try {
+        const response = await fetch("/api/storefront/cart-booster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ slug: seller.subdomain, items: cart.map((item) => ({ id: item.product.id, qty: item.qty, selectedVariants: item.selectedVariants })) }),
+        });
+        const data = await response.json().catch(() => null);
+        if (response.ok && data) { setCartBooster(data); setCartBoosterSignature(cartBoosterRequestSignature); setCartBoosterShowAll(false); }
+      } catch (error: any) {
+        if (error?.name !== "AbortError") setCartBooster(null);
+      } finally {
+        if (!controller.signal.aborted) setCartBoosterLoading(false);
+      }
+    }, 220);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [cartOpen, cartHydrated, seller?.subdomain, isFourRegnStore, cartBoosterRequestSignature]);
+
+  // The cart is a self-contained drawer: it owns scrolling while open, and
+  // the document behind it must stay still on wheel and touch devices.
+  useEffect(() => {
+    if (!cartOpen) return;
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+    };
+  }, [cartOpen]);
+
+  useEffect(() => {
+    if (!seller?.id || !cartOpen || boosterUnlocked || !activeCartBooster?.recommendations?.length) return;
+    const first = activeCartBooster.recommendations[0];
+    const key = `${activeCartBooster.payableSubtotal}:${first.id}`;
+    if (cartBoosterImpressionRef.current === key) return;
+    cartBoosterImpressionRef.current = key;
+    trackStorefrontEvent({
+      sellerId: seller.id,
+      eventType: "free_delivery_upsell_impression",
+      cartItemCount: cartCount,
+      cartValue: activeCartBooster.payableSubtotal,
+      cartItems: cartTrackingItems(),
+      metadata: { cartSubtotalBefore: activeCartBooster.payableSubtotal, gap: activeCartBooster.gap, recommendedProductId: first.id, recommendedProductPrice: first.recommendationPrice, resultingSubtotal: first.resultingSubtotal },
+    });
+  }, [cartOpen, activeCartBooster, boosterUnlocked, seller?.id]);
+
+  useEffect(() => {
+    if (!seller?.id || !activeCartBooster) return;
+    if (!activeCartBooster.unlocked) { cartBoosterUnlockedRef.current = false; return; }
+    if (cartBoosterUnlockedRef.current || !boosterAttributionKey) return;
+    let attribution: any = null;
+    try { attribution = JSON.parse(localStorage.getItem(boosterAttributionKey) || "null"); } catch {}
+    if (!attribution?.addedAt || Date.now() - Number(attribution.addedAt) >= 24 * 60 * 60 * 1000) return;
+    cartBoosterUnlockedRef.current = true;
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "free_delivery_threshold_reached", cartItemCount: cartCount, cartValue: activeCartBooster.payableSubtotal, cartItems: cartTrackingItems(), metadata: { ...(attribution.metadata || {}), resultingSubtotal: activeCartBooster.payableSubtotal } });
+  }, [activeCartBooster, seller?.id, boosterAttributionKey]);
 
   if (loading) {
     return (
@@ -1510,8 +1741,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const displayHeroHeadline = liveHeroHeadline ?? config.hero_headline ?? seller.tagline ?? seller.store_name;
   const displayHeroBody = liveHeroBody ?? config.hero_body ?? seller.description ?? "";
   const displayHeroDisclaimer = liveHeroDisclaimer ?? config.hero_disclaimer ?? "";
-  const displayHeroOfferHeadline = liveHeroOfferHeadline ?? config.hero_offer_headline ?? "";
-  const displayHeroOfferNote = liveHeroOfferNote ?? config.hero_offer_note ?? "";
+  const displayHeroOfferHeadline = normalizeOversizedTeePromoCopy(liveHeroOfferHeadline ?? config.hero_offer_headline ?? "");
+  const displayHeroOfferNote = normalizeOversizedTeePromoCopy(liveHeroOfferNote ?? config.hero_offer_note ?? "");
   const showAbout = liveShowAbout ?? config.show_about ?? true;
   const aboutEyebrow = liveAboutEyebrow ?? config.about_eyebrow ?? "Est. 2019 — South Africa";
   const aboutHeading = liveAboutHeading ?? config.about_heading ?? "Built for the Culture";
@@ -1573,7 +1804,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // unlike Newsletter/Shop by Gender above: an empty label would otherwise
   // render an empty pill by default on every seller's storefront.
   const showHeroPill = (liveShowHeroPill ?? config.show_hero_pill ?? false) && !!(liveHeroPillLabel ?? config.hero_pill_label);
-  const heroPillLabel = liveHeroPillLabel ?? config.hero_pill_label ?? "";
+  const heroPillLabel = normalizeOversizedTeePromoCopy(liveHeroPillLabel ?? config.hero_pill_label ?? "");
   const sbgEyebrow = liveShopByGenderEyebrow ?? config.shopbygender_eyebrow ?? `${seller.store_name} Collection`;
   const sbgHeading = liveShopByGenderHeading ?? config.shopbygender_heading ?? "Shop by Category";
   // partitionGenderCollections only partitions by name convention -- it has
@@ -1959,6 +2190,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-plan span{display:block;font-family:var(--body);color:#929c94;font-size:10px}
 .fr-setla-badge{position:absolute;z-index:3;right:28px;bottom:28px;padding:12px 14px;border:1px solid rgba(255,255,255,0.12);border-radius:15px;background:rgba(5,5,5,0.56);display:flex;align-items:center;gap:9px;color:#d8ddd9;font-family:var(--body);font-size:11px}
 .fr-setla-badge i{display:block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 16px #4ade80}
+.fr-stitch-landing-banner{background:#f4f0ff;padding:0}
+.fr-stitch-landing-banner a{display:block}
+.fr-stitch-landing-banner img{display:block;width:100%;height:auto}
 
 /* TICKER STRIP — ported 1:1 from the real site's ticker-strip.liquid
    section (same 5 default items, same infinite-marquee mechanics): black
@@ -2077,24 +2311,116 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla-widget-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.22);margin-top:4px;padding-top:14px;gap:10px}
 .fr-setla-widget-foot span{font-size:10.5px;color:rgba(255,255,255,0.72)}
 .fr-setla-widget-foot a{font-size:11.5px;font-weight:600;color:#fff;text-decoration:underline;text-underline-offset:3px}
-.fr-stitch-widget{margin-top:12px;padding:18px;border-radius:16px;background:linear-gradient(145deg,#161020 0%,#24123f 55%,#321568 100%);border:1px solid rgba(119,52,255,.42);box-shadow:0 14px 34px rgba(45,18,91,.16);font-family:var(--body);color:#fff}
-.fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:15px}
+.fr-free-shipping-pill{width:100%;height:64px;display:flex;align-items:center;margin-top:14px;background:#0a7f4f;border-radius:999px;padding:6px 18px 6px 7px;color:#fff;font-family:Arial,Helvetica,sans-serif;box-shadow:0 12px 28px rgba(10,127,79,.16)}
+.fr-free-shipping-icon{width:52px;height:52px;min-width:52px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;margin-right:18px}
+.fr-free-shipping-icon svg{width:25px;height:25px;stroke:#0a7f4f}
+.fr-free-shipping-copy{display:grid;gap:2px;white-space:nowrap;font-size:15px;font-weight:800;letter-spacing:.045em}
+.fr-free-shipping-copy-main{display:flex;align-items:center;gap:15px}
+.fr-free-shipping-note{font-size:11px;font-weight:500;font-style:italic;letter-spacing:.02em;text-transform:none;opacity:.9}
+.fr-free-shipping-copy .diamond{width:7px;height:7px;background:rgba(255,255,255,.8);transform:rotate(45deg);border-radius:1px}
+.fr-free-shipping-copy .nationwide{font-size:13px;font-weight:800}
+.fr-free-shipping-country{margin-left:auto;height:36px;padding-left:22px;border-left:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center}
+.fr-free-shipping-flag{width:34px;height:23px;display:block;overflow:hidden;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.fr-stitch-widget,.stitch-pay-later-widget{margin-top:12px;padding:15px 16px;border-radius:16px;background:#fff;border:1px solid rgba(21,17,24,.11);box-shadow:0 12px 28px rgba(21,17,24,.07);font-family:var(--body);color:#211b27}
+.stitch-pay-later-widget{display:flex;align-items:center;gap:14px}
+.stitch-pay-later-widget>img{width:78px;height:auto;object-fit:contain;flex:0 0 auto}
+.stitch-pay-later-widget>div{min-width:0}
+.stitch-pay-later-widget small{display:block;margin-bottom:4px;font-size:9.5px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#6e2cff}
+.stitch-pay-later-widget p{margin:0;color:#5f5865;font-size:12.5px;line-height:1.45}
+.stitch-pay-later-widget p strong{color:#161218;font-weight:900}
+.stitch-pay-later-widget a{display:inline-flex;margin-top:6px;color:#6e2cff;text-decoration:underline;text-underline-offset:3px;font-size:11.5px;font-weight:800}
+.stitch-pay-later-widget a:hover{color:#1d1328}
+.stitch-pay-later-widget .fr-stitch-payment-logos{margin-top:9px;padding:0;border:0;background:transparent;gap:5px;flex-wrap:nowrap}
+.stitch-pay-later-widget .fr-stitch-payment-logo{height:26px;min-width:0;flex:0 1 25%;padding:4px 6px;border-radius:9px;box-shadow:0 5px 12px rgba(28,18,43,.05)}
+.stitch-pay-later-widget .fr-stitch-payment-logo img{max-height:15px;max-width:48px}
+.fr-stitch-widget-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
 .fr-stitch-widget-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:8px;padding:6px 9px;line-height:0}
 .fr-stitch-widget-logo img{display:block;width:auto;height:17px}
-.fr-stitch-widget-tag{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#cdb8ff;text-align:right}
-.fr-stitch-widget-title{font-family:var(--serif);font-size:20px;line-height:1.15;margin:0 0 5px;color:#fff}
-.fr-stitch-widget-copy{font-size:11px;line-height:1.5;color:rgba(255,255,255,.68);margin:0 0 14px}
-.fr-stitch-terms{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
-.fr-stitch-term{min-width:0;padding:9px 3px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.055);color:rgba(255,255,255,.72);font-family:var(--body);font-size:10px;font-weight:700;cursor:pointer;transition:background .18s ease,border-color .18s ease,transform .18s ease}
-.fr-stitch-term:hover{transform:translateY(-1px);border-color:rgba(142,85,255,.8)}
-.fr-stitch-term.active{background:#6c2cff;border-color:#8a57ff;color:#fff;box-shadow:0 7px 18px rgba(108,44,255,.3)}
-.fr-stitch-amount{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:13px 14px;border-radius:12px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.1)}
-.fr-stitch-amount-label{font-size:10px;line-height:1.4;color:rgba(255,255,255,.62)}
+.fr-stitch-widget-tag{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#6e2cff;text-align:right}
+.fr-stitch-widget-body{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;border-radius:14px;background:rgba(110,44,255,.06);border:1px solid rgba(110,44,255,.12)}
+.fr-stitch-widget-copy{font-size:12px;line-height:1.45;color:#5f5865;margin:0}
+.fr-stitch-widget-copy strong{display:block;color:#161218;font-size:13px;margin-bottom:3px}
 .fr-stitch-amount-value{text-align:right;white-space:nowrap}
-.fr-stitch-amount-value strong{display:block;font-family:var(--serif);font-size:21px;line-height:1;color:#fff}
-.fr-stitch-amount-value span{display:block;margin-top:4px;font-size:9px;color:#cdb8ff;text-transform:uppercase;letter-spacing:.09em}
-.fr-stitch-widget-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:9.5px;line-height:1.45;color:rgba(255,255,255,.56)}
-.fr-stitch-widget-foot strong{font-weight:700;color:#cdb8ff}
+.fr-stitch-amount-value strong{display:block;font-family:var(--serif);font-size:24px;line-height:1;color:#161218}
+.fr-stitch-amount-value span{display:block;margin-top:4px;font-size:9px;color:#6e2cff;text-transform:uppercase;letter-spacing:.1em}
+.fr-stitch-widget-link{display:inline-flex;margin-top:13px;color:#6e2cff;text-decoration:underline;text-underline-offset:4px;font-size:11.5px;font-weight:700}
+.fr-stitch-widget-link:hover{color:#1d1328}
+.fr-stitch-modal-shell{position:fixed;inset:0;z-index:120;display:none;align-items:flex-start;justify-content:center;background:rgba(7,5,10,.82);backdrop-filter:blur(10px);overflow:auto;padding:28px}
+.fr-stitch-modal-shell.open{display:flex}
+.fr-stitch-modal{position:relative;width:min(1040px,100%);background:#fbf9ff;color:#1b1028;border-radius:32px;overflow:hidden;box-shadow:0 30px 100px rgba(0,0,0,.42);font-family:var(--body)}
+.fr-stitch-close{position:sticky;top:18px;float:right;margin:18px 18px -70px 0;z-index:4;width:46px;height:46px;border:0;border-radius:999px;background:rgba(255,255,255,.9);box-shadow:0 10px 28px rgba(0,0,0,.18);display:grid;place-items:center;cursor:pointer;color:#1f1230}
+.fr-stitch-close svg{width:22px;height:22px}
+.fr-stitch-hero{min-height:520px;padding:42px 44px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(circle at 82% 18%,rgba(211,191,255,.42),transparent 30%),linear-gradient(145deg,#100817 0%,#201032 48%,#6e2cff 100%);color:#fff}
+.fr-stitch-hero-top{display:flex;justify-content:space-between;gap:18px;align-items:center}
+.fr-stitch-hero-logo{background:#fff;border-radius:12px;padding:9px 13px}
+.fr-stitch-hero-logo img{height:22px;width:auto}
+.fr-stitch-eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:#dccfff;font-weight:800}
+.fr-stitch-hero h2{font-family:var(--serif);font-size:clamp(48px,8vw,90px);line-height:.92;letter-spacing:-.05em;margin:0 0 18px;max-width:760px}
+.fr-stitch-hero h2 span{color:#d9c8ff;font-style:italic}
+.fr-stitch-hero p{max-width:660px;margin:0;color:rgba(255,255,255,.74);font-size:15px;line-height:1.65}
+.fr-stitch-hero-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.fr-stitch-hero-pills span{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.09);border-radius:999px;padding:9px 12px;font-size:11px;font-weight:700;color:#fff}
+.fr-stitch-content{padding:42px}
+.fr-stitch-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:#6e2cff;font-weight:900;margin-bottom:10px}
+.fr-stitch-content h2{font-family:var(--serif);font-size:clamp(34px,5vw,58px);line-height:1;margin:0 0 12px;color:#1b1028}
+.fr-stitch-intro{max-width:680px;color:#6b6174;line-height:1.65;font-size:14px;margin:0 0 24px}
+.fr-stitch-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fr-stitch-step{min-height:210px;border:1px solid #e5dff0;background:#fff;border-radius:22px;padding:18px}
+.fr-stitch-step-num{font-size:11px;color:#6e2cff;font-weight:900;margin-bottom:14px}
+.fr-stitch-step-icon{width:50px;height:50px;border-radius:16px;background:#f0e8ff;color:#6e2cff;display:grid;place-items:center;margin-bottom:16px}
+.fr-stitch-step-icon svg{width:25px;height:25px}
+.fr-stitch-step h3{margin:0 0 8px;font-size:15px;color:#21162d}
+.fr-stitch-step p{margin:0;color:#73687d;font-size:12.5px;line-height:1.55}
+.fr-stitch-plan,.fr-stitch-approval,.fr-stitch-message{margin-top:28px;border-radius:26px;padding:28px;border:1px solid #e5dff0;background:#fff}
+.fr-stitch-plan{background:linear-gradient(145deg,#1a0c2d,#6e2cff);color:#fff;border:0}
+.fr-stitch-plan .fr-stitch-kicker{color:#d9c8ff}
+.fr-stitch-plan h2{color:#fff}
+.fr-stitch-plan p{color:rgba(255,255,255,.72);line-height:1.6;font-size:13px;max-width:690px}
+.fr-stitch-months{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:18px}
+.fr-stitch-month{border-radius:16px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);padding:15px 6px;text-align:center}
+.fr-stitch-month strong{display:block;font-family:var(--serif);font-size:30px}
+.fr-stitch-month span{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+.fr-stitch-approval-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}
+.fr-stitch-req{display:flex;align-items:center;gap:10px;border-radius:15px;background:#f5f0ff;padding:12px;font-size:12px;font-weight:700;color:#2a1d38}
+.fr-stitch-req i{width:28px;height:28px;border-radius:999px;background:#e7dcff;color:#6e2cff;display:grid;place-items:center;font-style:normal;flex:0 0 28px}
+.fr-stitch-payment-logos{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;padding:14px;border:1px solid #e5dff0;border-radius:18px;background:#fbf9ff}
+.fr-stitch-payment-logo{height:42px;min-width:72px;padding:8px 12px;border-radius:14px;background:#fff;border:1px solid #ece6f5;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(28,18,43,.05)}
+.fr-stitch-payment-logo img{display:block;max-height:24px;max-width:86px;width:auto;height:auto;object-fit:contain}
+.fr-stitch-message{background:#e9ddff;position:relative;overflow:hidden}
+.fr-stitch-message strong{color:#6e2cff}
+.fr-stitch-modal-foot{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:24px 42px 34px;color:#847b8c;font-size:11px}
+.fr-stitch-modal-foot img{height:20px;width:auto;opacity:.85}
+.fr-stitch-modal-foot a{color:#6e2cff;font-weight:800;text-underline-offset:3px}
+@media(max-width:760px){
+ .fr-stitch-widget-body{align-items:flex-start;flex-direction:column}
+ .fr-stitch-amount-value{text-align:left}
+ .fr-stitch-modal-shell{padding:0;background:#0a0a0a}
+ .fr-stitch-modal{min-height:100vh;border-radius:0}
+ .fr-stitch-close{top:12px;margin:12px 12px -58px 0}
+ .fr-stitch-hero{min-height:500px;padding:30px 22px}
+ .fr-stitch-hero-top{align-items:flex-start;flex-direction:column}
+ .fr-stitch-content{padding:28px 18px}
+ .fr-stitch-steps{grid-template-columns:1fr}
+ .fr-stitch-step{min-height:auto;display:grid;grid-template-columns:42px 54px 1fr;gap:12px;align-items:start}
+ .fr-stitch-step-num{margin-top:8px}
+ .fr-stitch-step-icon{width:52px;height:52px;margin:0}
+ .fr-stitch-months{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+ .fr-stitch-month{border-radius:13px;padding:12px 3px}
+ .fr-stitch-month strong{font-size:23px}
+ .fr-stitch-approval-grid{grid-template-columns:1fr 1fr;gap:8px}
+ .fr-stitch-req{font-size:11px;padding:10px}
+ .fr-stitch-modal-foot{padding:22px 18px 30px}
+ .fr-free-shipping-pill{height:52px;padding:5px 13px 5px 6px}
+ .fr-free-shipping-icon{width:42px;height:42px;min-width:42px;margin-right:12px}
+ .fr-free-shipping-icon svg{width:21px;height:21px}
+ .fr-free-shipping-copy{gap:1px;font-size:12px}
+ .fr-free-shipping-copy-main{gap:9px}
+ .fr-free-shipping-note{font-size:9.5px}
+ .fr-free-shipping-copy .nationwide{font-size:11px}
+ .fr-free-shipping-copy .diamond{width:5px;height:5px}
+ .fr-free-shipping-country{padding-left:13px}
+ .fr-free-shipping-flag{width:28px;height:19px}
+}
 
 /* Float BNPL widget container -- the widget itself renders its own DOM
    (see FloatWidget's own comment for why this is a plain imperative
@@ -2117,7 +2443,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sbd-rail::-webkit-scrollbar{display:none}
 .fr-sbd-card{flex:0 0 156px;text-align:center;scroll-snap-align:start;text-decoration:none;color:inherit}
 .fr-sbd-circle{width:156px;height:156px;border-radius:50%;overflow:hidden;background:#f3f3f3;margin-bottom:13px;border:1px solid #ededed;position:relative}
-.fr-sbd-circle img{width:100%;height:100%;object-fit:cover;transition:transform .3s ease}
+.fr-sbd-circle img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s ease}
 .fr-sbd-card:hover .fr-sbd-circle img{transform:scale(1.05)}
 .fr-sbd-label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .fr-sbd-divider{height:1px;background:#dcdcdc;max-width:1420px;margin:0 auto}
@@ -2272,10 +2598,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-nl-lbl{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6f6f6f;margin-bottom:10px}
 .fr-nl-title{font-family:var(--body);font-weight:500;font-size:clamp(40px,4.2vw,66px);line-height:.95;letter-spacing:-.05em;text-transform:uppercase;color:#080808;margin:0}
 .fr-nl-sub{font-size:13px;color:#666;max-width:500px;margin:14px 0 0;line-height:1.6}
-.fr-nl-form{display:flex;border-bottom:1px solid #050505;padding-bottom:8px;margin:0}
-.fr-nl-form input{flex:1;min-width:0;background:transparent;border:0;outline:none;font-family:var(--body);font-size:13px;padding:15px 4px;color:#080808}
+.fr-nl-signup{min-width:0}
+.fr-nl-form{display:grid;grid-template-columns:minmax(105px,.7fr) minmax(170px,1.3fr) auto;gap:10px;margin:0}
+.fr-nl-form input{min-width:0;background:transparent;border:0;border-bottom:1px solid #050505;outline:none;font-family:var(--body);font-size:13px;padding:15px 4px;color:#080808}
 .fr-nl-form input::placeholder{color:rgba(46,42,57,0.4)}
-.fr-nl-form button{background:#050505;color:#fff;border:0;border-radius:7px;cursor:pointer;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 24px}
+.fr-nl-form button{min-height:48px;background:#050505;color:#fff;border:0;border-radius:7px;cursor:pointer;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 24px}
+.fr-nl-form button:disabled{opacity:.65;cursor:default}
+.fr-nl-consent{font-family:var(--body);font-size:9px;line-height:1.55;color:#777;margin:10px 0 0}
+.fr-nl-status{font-family:var(--body);font-size:11px;font-weight:600;margin:10px 0 0}
 
 .fr-foot{background:#050505;color:#fff;padding:72px max(32px,calc((100vw - 1420px)/2 + 32px)) 28px}
 .fr-foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:56px;max-width:1360px;margin:0 auto 56px}
@@ -2352,12 +2682,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
 .fr-cart-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;opacity:0;pointer-events:none;transition:opacity 0.3s}
 .fr-cart-overlay.open{opacity:1;pointer-events:all}
-.fr-cart{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;background:#fff;z-index:1001;transform:translateX(100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column}
+.fr-cart{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;height:100dvh;background:#fff;z-index:1001;transform:translateX(100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column;overflow:hidden}
 .fr-cart.open{transform:translateX(0)}
 .fr-cart-h{padding:22px 26px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center}
 .fr-cart-h h3{font-family:var(--serif);font-weight:700;font-size:20px;margin:0;color:var(--ink)}
 .fr-cart-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink);padding:4px}
-.fr-cart-items{flex:1;overflow-y:auto;padding:18px 26px}
+.fr-cart-items{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:18px 26px}
 .fr-cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:rgba(46,42,57,0.5);text-align:center}
 .fr-cart-item{display:grid;grid-template-columns:70px 1fr auto;gap:14px;padding:16px 0;border-bottom:1px solid rgba(0,0,0,0.06);align-items:start}
 .fr-cart-item:last-child{border-bottom:none}
@@ -2370,11 +2700,34 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-qty-num{font-size:13px;min-width:16px;text-align:center}
 .fr-cart-item-price{font-size:14px;font-weight:700;white-space:nowrap;color:var(--ink)}
 .fr-cart-item-rm{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(46,42,57,0.5);background:none;border:none;cursor:pointer;padding:0;margin-top:6px;display:block}
-.fr-cart-foot{padding:20px 26px 28px;border-top:1px solid rgba(0,0,0,0.08)}
+.fr-cart-foot{flex:0 1 auto;min-height:0;max-height:min(64dvh,640px);padding:14px 26px max(20px, env(safe-area-inset-bottom, 20px));border-top:1px solid rgba(0,0,0,0.08);display:flex;flex-direction:column;background:#fff}
+.fr-cart-summary-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 2px 10px}
+.fr-cart-actions{flex:0 0 auto;padding-top:12px;background:#fff;border-top:1px solid rgba(0,0,0,.07)}
 .fr-cart-sub{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .fr-cart-sub-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-cart-sub-amt{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--ink)}
 .fr-cart-ship{font-size:11px;color:rgba(46,42,57,0.55);margin-bottom:18px}
+.fr-cart-booster{margin:14px 0 16px;padding:15px;border:1px solid rgba(46,42,57,.12);border-radius:14px;background:#faf9f7;color:var(--ink)}
+.fr-cart-booster-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.fr-cart-booster-title{font-size:10px;line-height:1;letter-spacing:1.7px;font-weight:900;text-transform:uppercase}
+.fr-cart-booster-value{font-size:10px;color:rgba(46,42,57,.55);white-space:nowrap}
+.fr-cart-booster-track{height:7px;border-radius:999px;background:rgba(46,42,57,.1);overflow:hidden}
+.fr-cart-booster-fill{height:100%;border-radius:inherit;background:#00751f;transition:width .35s ease}
+.fr-cart-booster-status{margin:9px 0 0;font-size:11px;line-height:1.45;font-weight:800;text-transform:uppercase;letter-spacing:.045em;color:#00751f}
+.fr-cart-booster-copy{margin:4px 0 12px;font-size:11px;color:rgba(46,42,57,.62)}
+.fr-cart-booster-list{display:grid;gap:9px}
+.fr-cart-booster-more{display:block;width:100%;border:1px solid rgba(46,42,57,.18);border-radius:8px;background:#fff;color:var(--ink);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;padding:10px;cursor:pointer}
+.fr-cart-booster-product{display:grid;grid-template-columns:58px 1fr;gap:10px;padding-top:10px;border-top:1px solid rgba(46,42,57,.09)}
+.fr-cart-booster-img{width:58px;height:70px;object-fit:cover;border-radius:8px;background:#eee}
+.fr-cart-booster-name{font-family:var(--serif);font-size:12px;font-weight:800;line-height:1.25;margin:0 0 3px}
+.fr-cart-booster-price{font-size:11px;font-weight:800;margin-bottom:4px}
+.fr-cart-booster-note{font-size:9px;line-height:1.4;color:#00751f;font-weight:700;margin-bottom:6px}
+.fr-cart-booster-selects{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px}
+.fr-cart-booster-select{max-width:100%;min-width:90px;padding:7px 25px 7px 8px;border:1px solid rgba(46,42,57,.16);border-radius:7px;background:#fff;color:var(--ink);font-size:9px}
+.fr-cart-booster-add{width:100%;padding:9px 10px;border:0;border-radius:8px;background:#111;color:#fff;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}
+.fr-cart-booster-add:disabled{opacity:.42;cursor:not-allowed}
+.fr-cart-booster-loading{font-size:10px;color:rgba(46,42,57,.5);padding-top:8px}
+.fr-cart-stitch{margin:12px 0 16px;box-shadow:none}
 .fr-cart-import-note{background:rgba(0,117,31,0.06);border:1px solid rgba(0,117,31,0.2);border-radius:10px;padding:12px 14px;margin-bottom:16px}
 .fr-cart-import-note strong{display:block;font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#00751f;margin-bottom:4px}
 .fr-cart-import-note p{margin:0;font-size:12px;line-height:1.6;color:var(--ink)}
@@ -2390,10 +2743,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pdp-h{position:sticky;top:0;background:#fff;z-index:5;padding:18px 30px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center}
 .fr-pdp-bread{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(46,42,57,0.55)}
 .fr-pdp-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink)}
-.fr-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1}
-.fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:20px;gap:10px;border-right:1px solid rgba(0,0,0,0.06)}
-.fr-pdp-main{flex:1;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;border-radius:var(--card-radius)}
-.fr-pdp-main img{width:100%;height:100%;object-fit:contain;display:block}
+.fr-pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;min-width:0}
+.fr-pdp-gal{background:#fff;min-height:600px;display:flex;flex-direction:column;padding:20px;gap:10px;border-right:1px solid rgba(0,0,0,0.06);min-width:0}
+.fr-pdp-main{flex:1;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;position:relative;background-color:#f5f5f5;cursor:zoom-in;overflow:hidden;width:100%;max-width:100%;border-radius:var(--card-radius);min-width:0}
+.fr-pdp-main img{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;display:block}
 .fr-pdp-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(245,245,245,0.6);z-index:2;pointer-events:none}
 .fr-pdp-loading-spin{width:26px;height:26px;border:2px solid rgba(0,0,0,0.1);border-top-color:rgba(0,0,0,0.4);border-radius:50%;animation:fr-spin 0.9s linear infinite}
 .fr-pdp-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.7);color:#1a1a1a;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;padding-bottom:2px;box-shadow:0 1px 6px rgba(0,0,0,0.12);transition:all 0.2s;z-index:1}
@@ -2432,7 +2785,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    breadcrumb are new; everything inside .fr-pdp-grid reuses the slide-over
    PDP's own fr-pdp-* classes above verbatim so the two stay visually
    identical. */
-.fr-pdp2-page{max-width:1360px;margin:0 auto;padding:40px 40px 0}
+.fr-pdp2-page{max-width:1360px;margin:0 auto;padding:40px 40px 0;overflow-x:hidden}
 /* Reuses .fr-coll-back's text treatment (the collection page's own "← Back"
    link) verbatim for visual consistency; this override just left-aligns it
    since .fr-coll-back's centering comes from its own parent
@@ -2459,6 +2812,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sc-table th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(46,42,57,0.5)}
 .fr-sc-tip{margin:14px 0 0;font-size:12px;font-style:italic;color:rgba(46,42,57,0.6)}
 .fr-sc-measure h4{font-family:var(--serif);font-weight:700;font-size:16px;margin:0 0 14px;color:var(--ink)}
+.fr-sc-body-chart{margin:0 0 18px}.fr-sc-body-chart h5{font-family:var(--body);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;color:rgba(46,42,57,0.62)}
 .fr-sc-measure ol{margin:0;padding-left:20px;font-size:13px;line-height:1.85;color:rgba(46,42,57,0.75)}
 .fr-sc-measure-diagrams{display:flex;gap:16px;margin-bottom:20px}
 .fr-sc-measure-diagram{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -2581,13 +2935,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-about{margin-top:48px;padding:80px 20px;grid-template-columns:1fr;gap:35px}
   .fr-about-stats{gap:32px}
   .fr-newsletter{padding:65px 20px;grid-template-columns:1fr;gap:40px}
+  .fr-nl-form{grid-template-columns:1fr}
+  .fr-nl-form button{padding:15px 20px}
   .fr-foot{padding:56px 20px 24px}
   .fr-foot-grid{grid-template-columns:1fr;gap:36px}
   .fr-pdp-grid{grid-template-columns:1fr}
   .fr-pdp-gal{min-height:auto;padding:16px;border-right:none;border-bottom:1px solid rgba(0,0,0,0.06)}
+  .fr-pdp-main{flex:none;aspect-ratio:auto;height:min(72vh,540px);max-height:540px}
+  .fr-pdp-main img{width:100%;height:100%;object-fit:contain}
   .fr-pdp-info{padding:28px 22px}
   .fr-pdp-name{font-size:26px}
-  .fr-pdp2-page{padding:24px 20px 0}
+  .fr-pdp2-page{width:100%;max-width:100vw;padding:24px 20px 0}
   .fr-policy-page{padding:48px 20px 64px}
   .fr-cart{width:100vw}
   .fr-root{padding-bottom:78px}
@@ -2765,6 +3123,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
           {cart.length > 0 && (
             <div className="fr-cart-foot">
+              <div className="fr-cart-summary-scroll">
               {cartHasMixedFulfillment && (
                 <div className="fr-cart-import-note">
                   <strong>Delivery Note</strong>
@@ -2793,12 +3152,75 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span style={{ fontWeight: 800, fontSize: 13 }}>-{fmt(cartTotalSavings)}</span>
                 </div>
               )}
-              {FREE_SHIP && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more for free shipping` : "Free shipping unlocked ✓"}</p>}
+              {isFourRegnStore && (
+                <section className="fr-cart-booster" aria-label="Free delivery progress and recommendations">
+                  <div className="fr-cart-booster-head">
+                    <span className="fr-cart-booster-title">Free delivery</span>
+                    <span className="fr-cart-booster-value">{fmt(boosterSubtotal)} / {fmt(boosterThreshold)}</span>
+                  </div>
+                  <div className="fr-cart-booster-track" role="progressbar" aria-valuemin={0} aria-valuemax={boosterThreshold} aria-valuenow={Math.min(boosterSubtotal, boosterThreshold)}>
+                    <div className="fr-cart-booster-fill" style={{ width: `${boosterProgress}%` }} />
+                  </div>
+                  <p className="fr-cart-booster-status">{boosterUnlocked ? "Free delivery unlocked ✓" : `${fmt(boosterGap)} away from free delivery`}</p>
+                  {!boosterUnlocked && <p className="fr-cart-booster-copy">Complete your order + unlock free delivery</p>}
+                  {!boosterUnlocked && (cartBoosterLoading || !activeCartBooster) && !activeCartBooster?.recommendations?.length && <div className="fr-cart-booster-loading">Finding the best match for your cart…</div>}
+                  {!boosterUnlocked && !!activeCartBooster?.recommendations?.length && (
+                    <div className="fr-cart-booster-list">
+                      {(cartBoosterShowAll ? activeCartBooster.recommendations : activeCartBooster.recommendations.slice(0, 3)).map((recommendation, recommendationIndex) => {
+                        const groups = Array.isArray(recommendation.variants) ? recommendation.variants as Variant[] : [];
+                        const selected = cartBoosterSelections[recommendation.id] || {};
+                        const selectedPrice = effectiveProductPrice(recommendation.price, groups, selected);
+                        const allSelected = groups.every((group) => !group.options?.length || selected[group.name]);
+                        const unlocks = recommendation.unlocksFreeDelivery;
+                        const image = recommendation.image_url || recommendation.images?.[0] || "";
+                        const metadata = { cartSubtotalBefore: boosterSubtotal, gap: boosterGap, recommendedProductId: recommendation.id, recommendedProductPrice: selectedPrice, resultingSubtotal: recommendation.resultingSubtotal + (selectedPrice - recommendation.recommendationPrice) };
+                        return (
+                          <article className="fr-cart-booster-product" key={recommendation.id}>
+                            <button type="button" aria-label={`View ${recommendation.name}`} onClick={() => { trackStorefrontEvent({ sellerId: seller.id, eventType: "free_delivery_upsell_click", cartItemCount: cartCount, cartValue: boosterSubtotal, cartItems: cartTrackingItems(), metadata }); setCartOpen(false); navigate(sp(recommendation.handle ? `/products/${recommendation.handle}` : `/p/${recommendation.id}`)); }} style={{ border: 0, padding: 0, background: "none", cursor: "pointer" }}>
+                              {image ? <img className="fr-cart-booster-img" src={image} alt="" loading="eager" decoding="async" fetchPriority="high" /> : <span className="fr-cart-booster-img" />}
+                            </button>
+                            <div>
+                              <p className="fr-cart-booster-name">{recommendation.name}</p>
+                              <div className="fr-cart-booster-price">{fmt(selectedPrice)}</div>
+                              <div className="fr-cart-booster-note">{unlocks ? (recommendationIndex === 0 && recommendation.effectiveUpgradeCost && selectedPrice === recommendation.recommendationPrice ? `Pay R60 for delivery — or spend ${fmt(recommendation.effectiveUpgradeCost)} more and get this + FREE delivery.` : "Add this and unlock FREE delivery") : `${fmt(Math.max(0, boosterThreshold - recommendation.resultingSubtotal))} left after adding this`}</div>
+                              {groups.length > 0 && (
+                                <div className="fr-cart-booster-selects">
+                                  {groups.map((group) => <select className="fr-cart-booster-select" aria-label={`Choose ${group.name} for ${recommendation.name}`} key={group.name} value={selected[group.name] || ""} onChange={(event) => setCartBoosterSelections((current) => ({ ...current, [recommendation.id]: { ...(current[recommendation.id] || {}), [group.name]: event.target.value } }))}><option value="">Choose {group.name}</option>{group.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>)}
+                                </div>
+                              )}
+                              <button className="fr-cart-booster-add" type="button" disabled={!allSelected} onClick={() => addCartBoosterProduct(recommendation)}>{unlocks ? "Add + unlock free delivery" : "Add to cart"}</button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                      {activeCartBooster.recommendations.length > 3 && (
+                        <button type="button" className="fr-cart-booster-more" onClick={() => setCartBoosterShowAll((show) => !show)}>
+                          {cartBoosterShowAll ? "Show fewer options" : "View more options"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )}
+              {seller.checkout_config?.stitch_enabled !== false && (
+                <div className="stitch-pay-later-widget fr-cart-stitch" aria-label="Stitch Pay Later cart calculator">
+                  <img src="/checkout/stitch.png" alt="Stitch" />
+                  <div>
+                    <small>STITCH PAY LATER</small>
+                    <p>Or pay <strong>{cartStitchMonthlyText}</strong> over <strong>6 monthly instalments</strong>.</p>
+                    <StitchPaymentLogoRow />
+                  </div>
+                </div>
+              )}
+              </div>
+              <div className="fr-cart-actions">
+              {FREE_SHIP && !isFourRegnStore && <p className="fr-cart-ship">{freeShipRem > 0 ? `Add ${fmt(freeShipRem)} more to unlock free PAXI Standard Delivery` : "Free PAXI Standard Delivery unlocked ✓"}</p>}
               <button className="fr-cart-checkout" onClick={goToCheckout}>Checkout</button>
               {seller.checkout_config?.whatsapp_checkout_enabled && seller.whatsapp_number && (
                 <button className="fr-cart-wa" onClick={orderViaWhatsApp}>Order via WhatsApp</button>
               )}
               <button className="fr-cart-cont" onClick={() => setCartOpen(false)}>Continue Browsing</button>
+              </div>
             </div>
           )}
         </aside>
@@ -2808,7 +3230,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <aside className={"fr-pdp" + (selectedProduct ? " open" : "")}>
           {selectedProduct && (() => {
             const p = selectedProduct;
-            const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+            const baseImgs = productBaseImages(p);
             // The full photo set for the currently-selected option (e.g.
             // every White photo) leads the gallery -- see
             // resolveVariantImages' own comment. Falls back to the plain
@@ -2840,6 +3262,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    <FreeShippingPill />
+                    {seller.checkout_config?.stitch_enabled !== false && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -2880,7 +3304,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
-                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
                     {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
                   </div>
                 </div>
@@ -2907,6 +3330,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             firing every 10s while they're trying to edit. */}
         {(isHomeView || isCollectionView) && !isEditMode && (
           <FourRegnSalesPopup slug={slug} isSubdomain={!!isSubdomain} />
+        )}
+
+        {/* 4REGN customer chat is opt-in. An absent flag is intentionally
+            false, so deploying this feature never changes the live store
+            until the seller enables it from Dashboard -> Inbox. */}
+        {config.four_regn_live_chat_enabled === true && !isEditMode && (
+          <FourRegnLiveChat sellerId={seller.id} />
         )}
 
         {/* NAV */}
@@ -3130,6 +3560,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             banner and before the rest of the homepage content, matching
             templates/index.json's real section order on the live store. */}
         {isHomeView && (
+          <EditSection id="stitch-pay-later-banner">
+            <section className="fr-stitch-landing-banner" aria-label="Stitch Pay Later available at checkout">
+              <a href="/stitch-pay-later" aria-label="Learn how to pay with Stitch Pay Later"><img src="/checkout/stitch-pay-later-banner.jpeg" alt="Stitch Pay Later available at checkout. Buy now, pay later." /></a>
+            </section>
+          </EditSection>
+        )}
+
+        {isHomeView && (
           <EditSection id="ticker-strip">
             <TickerStrip />
           </EditSection>
@@ -3335,7 +3773,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             {collectionName && config.collection_descriptions?.[collectionName] && (
               <div
                 className="fr-coll-desc"
-                dangerouslySetInnerHTML={{ __html: config.collection_descriptions[collectionName] }}
+                dangerouslySetInnerHTML={{ __html: withFreeDeliveryThreshold(config.collection_descriptions[collectionName]) }}
               />
             )}
           </div>
@@ -3349,7 +3787,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             Also Like" row the slide-over doesn't have. */}
         {isProductView && initialActiveProduct && (() => {
           const p = initialActiveProduct;
-          const baseImgs = (Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image_url]).filter(Boolean) as string[];
+          const baseImgs = productBaseImages(p);
           // Same variant-leads-the-gallery logic as the slide-over PDP --
           // see resolveVariantImages' own comment.
           const variantImgs = resolveVariantImages(p, selectedVariants, activeImageDim);
@@ -3365,6 +3803,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // navigation/browsing but leaving every affected product's own
           // breadcrumb still announcing it defeats the point of hiding it.
           const firstRealCategory = catTokens.find((t) => !hiddenCollectionsSet.has(t)) || null;
+          const customSizeChart = resolveProductSizeChart(p.size_chart_html, p.description);
+          const displayDescription = extractLegacyImportedSizeChart(p.description).description;
           const sizeChartType = getSizeChartType(p);
           // Sourced from searchProducts (the lazy client-side catalog fetch
           // above), not `products` -- the server route no longer runs a
@@ -3452,6 +3892,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    <FreeShippingPill />
+                    {seller.checkout_config?.stitch_enabled !== false && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
                       <div className="fr-pdp-section" key={v.name}>
                         <div className="fr-pdp-section-lbl">{v.name}</div>
@@ -3468,7 +3910,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         </div>
                       </div>
                     ))}
-                    {sizeChartType && (
+                    {(customSizeChart || sizeChartType) && (
                       // Was a small underlined text link, easy to miss --
                       // matches the real site's own bordered, icon+chevron
                       // "SIZE CHART" button now (reported directly: "you can
@@ -3485,7 +3927,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </button>
                     )}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
-                    {p.description && isPromotionalDescription(p) && <DescriptionText text={p.description} promo />}
+                    {displayDescription && isPromotionalDescription(p) && <DescriptionText text={displayDescription} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
                         <button className="fr-pdp-add" disabled>Sold Out</button>
@@ -3501,8 +3943,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       )}
                     </div>
                     <SetlaProductWidget price={effectivePrice(p, selectedVariants)} />
-                    {seller.checkout_config?.stitch_enabled && <StitchPayLaterWidget price={effectivePrice(p, selectedVariants)} />}
-                    {p.description && !isPromotionalDescription(p) && <DescriptionText text={p.description} />}
+                    {displayDescription && !isPromotionalDescription(p) && <DescriptionText text={displayDescription} />}
                   </div>
                 </div>
               </div>
@@ -3842,10 +4283,34 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           <EditSection id="newsletter">
             <section className="fr-newsletter">
               <div className="fr-nl-copy"><div className="fr-nl-lbl">Newsletter</div><h2 className="fr-nl-title">{nlTitle}</h2><p className="fr-nl-sub">{nlSub}</p></div>
-              <form className="fr-nl-form" onSubmit={(e) => { e.preventDefault(); (e.currentTarget.querySelector("button") as HTMLButtonElement).textContent = "Joined ✓"; }}>
-                <input type="email" placeholder="your@email.com" required />
-                <button type="submit">Subscribe</button>
-              </form>
+              <div className="fr-nl-signup">
+                <form className="fr-nl-form" onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!seller?.id || newsletterStatus === "loading") return;
+                  setNewsletterStatus("loading");
+                  setNewsletterMessage("");
+                  try {
+                    const response = await fetch("/api/newsletter/subscribe", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ sellerId: seller.id, firstName: newsletterFirstName, email: newsletterEmail }),
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(result.error || "Subscription failed");
+                    setNewsletterStatus("done");
+                    setNewsletterMessage(`Welcome to the 4REGN family, ${newsletterFirstName.trim()}!`);
+                  } catch (subscribeError: any) {
+                    setNewsletterStatus("error");
+                    setNewsletterMessage(subscribeError?.message || "Something went wrong. Please try again.");
+                  }
+                }}>
+                  <input type="text" name="given-name" autoComplete="given-name" maxLength={80} value={newsletterFirstName} onChange={(event) => { setNewsletterFirstName(event.target.value); if (newsletterStatus === "error") setNewsletterStatus("idle"); }} placeholder="First name" required disabled={newsletterStatus === "done"} />
+                  <input type="email" name="email" autoComplete="email" maxLength={254} value={newsletterEmail} onChange={(event) => { setNewsletterEmail(event.target.value); if (newsletterStatus === "error") setNewsletterStatus("idle"); }} placeholder="Email address" required disabled={newsletterStatus === "done"} />
+                  <button type="submit" disabled={newsletterStatus === "loading" || newsletterStatus === "done"}>{newsletterStatus === "loading" ? "Joining…" : newsletterStatus === "done" ? "Joined ✓" : "Subscribe"}</button>
+                </form>
+                <p className="fr-nl-consent">By subscribing, you agree to receive 4REGN collection launches and exclusive offers by email. Unsubscribe anytime.</p>
+                {newsletterMessage && <p className="fr-nl-status" role="status" style={{ color: newsletterStatus === "error" ? "#b42318" : "#177533" }}>{newsletterMessage}</p>}
+              </div>
             </section>
           </EditSection>
         )}
@@ -3959,7 +4424,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <span className="fr-pay-icon" title="Yoco"><Image src="/checkout/yoco.png" alt="Yoco" width={484} height={200} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                     <span className="fr-pay-icon" title="Capitec Pay"><Image src="/checkout/capitecpay.png" alt="Capitec Pay" width={1441} height={585} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   </>)}
-                  {seller.checkout_config?.stitch_enabled && (
+                  {seller.checkout_config?.stitch_enabled !== false && (
                     <span className="fr-pay-icon" title="Stitch"><Image src="/checkout/stitch.png" alt="Stitch" width={550} height={181} style={{ height: 16, width: "auto", objectFit: "contain" }} /></span>
                   )}
                   {showSetlaBanner && (
@@ -4019,9 +4484,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           overlay/close pattern as the policy modal below; table/tab content
           uses new fr-sc- classes. */}
       {sizeChartOpen && initialActiveProduct && (() => {
+        const customChart = resolveProductSizeChart(initialActiveProduct.size_chart_html, initialActiveProduct.description);
         const sizeChartType = getSizeChartType(initialActiveProduct);
-        if (!sizeChartType) return null;
-        const chart = SIZE_CHARTS[sizeChartType];
+        const chart = customChart || (sizeChartType ? SIZE_CHARTS[sizeChartType] : null);
+        if (!chart) return null;
         return (
           <div className="fr-modal-overlay" onClick={() => setSizeChartOpen(false)}>
             <div className="fr-modal" onClick={(e) => e.stopPropagation()}>
@@ -4033,8 +4499,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   className={"fr-sc-tab" + (sizeChartTab === "chart" ? " active" : "")}
                   onClick={() => setSizeChartTab("chart")}
                 >
-                  Size Chart
+                  Product Chart
                 </button>
+                {customChart?.bodyChart && (
+                  <button
+                    type="button"
+                    className={"fr-sc-tab" + (sizeChartTab === "body" ? " active" : "")}
+                    onClick={() => setSizeChartTab("body")}
+                  >
+                    Body Chart
+                  </button>
+                )}
                 <button
                   type="button"
                   className={"fr-sc-tab" + (sizeChartTab === "measure" ? " active" : "")}
@@ -4055,20 +4530,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       ))}
                     </tbody>
                   </table>
-                  <p className="fr-sc-tip">All measurements in CM. If you are between sizes, we recommend sizing up.</p>
+                  <p className="fr-sc-tip">{customChart?.note || "All measurements in CM. If you are between sizes, we recommend sizing up."}</p>
+                </div>
+              ) : sizeChartTab === "body" && customChart?.bodyChart ? (
+                <div className="fr-sc-body-chart fr-sc-table-wrap">
+                  <table className="fr-sc-table">
+                    <thead><tr>{customChart.bodyChart.headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+                    <tbody>{customChart.bodyChart.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody>
+                  </table>
+                  <p className="fr-sc-tip">Body measurements are a guide for choosing the closest product size.</p>
                 </div>
               ) : (
                 <div className="fr-sc-measure">
                   <h4>How to Measure (cm)</h4>
                   <div className="fr-sc-measure-diagrams">
-                    <div className="fr-sc-measure-diagram">
-                      <Image src="/size-chart-measure-female.jpg" alt="Photo showing where to measure arm length, waist, hips and height on a female model" width={828} height={1530} />
-                      <span>Women</span>
-                    </div>
-                    <div className="fr-sc-measure-diagram">
-                      <Image src="/size-chart-measure-male.jpg" alt="Photo showing where to measure arm length, waist, hips and height on a male model" width={828} height={1530} />
-                      <span>Men</span>
-                    </div>
+                    {["/size-chart-measure-female.jpg", "/size-chart-measure-male.jpg"].map((src, index) => (
+                      <div className="fr-sc-measure-diagram" key={src}>
+                        <img src={src} alt="How to measure for this product" loading="lazy" />
+                        <span>{index === 0 ? "Women" : "Men"}</span>
+                      </div>
+                    ))}
                   </div>
                   <ol>
                     <li><strong>1. Arm Length</strong> — Measure from the top of your shoulder down to your wrist.</li>
@@ -4261,8 +4742,26 @@ function isPromotionalDescription(product: Product): boolean {
   return /standard graphic hood|front\s*(?:&|and)?\s*back printed hood|back\s*(?:&|and)?\s*front printed hood|oversized premium tee/.test(haystack);
 }
 
+const FREE_DELIVERY_COPY_RE = /\bfree\s+(delivery|shipping)\b/i;
+const FREE_DELIVERY_THRESHOLD_RE = /starting\s+from\s+r?449/i;
+
+function withFreeDeliveryThreshold(html: string) {
+  const promoSafeHtml = normalizeOversizedTeePromoCopy(html);
+  if (!FREE_DELIVERY_COPY_RE.test(promoSafeHtml) || FREE_DELIVERY_THRESHOLD_RE.test(promoSafeHtml)) return promoSafeHtml;
+  return promoSafeHtml.replace(/(<\/p>)/i, '$1\n<p><em>starting from R449</em></p>');
+}
+
+function normalizeOversizedTeePromoCopy(text: string) {
+  return text
+    .replace(/BUY\s*ANY\s*2\s*OVERSIZED\s*GRAPHIC\s*TEES\s*GET\s*A\s*3RD\s*TEE\s*FREE/gi, "BUY 2 FOR R449!")
+    .replace(/BUY\s*2\s*GET\s*1\s*FREE\s*(?:—|-)?\s*3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
+    .replace(/BUY\s*2\s*,?\s*GET\s*A?\s*3(?:RD|RD)?\s*TEE\s*FREE!!!?/gi, "BUY 2 FOR R449!")
+    .replace(/3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
+    .replace(/R350\s*EACH\s*BUY\s*3\s*FOR\s*2/gi, "BUY 2 FOR R449!");
+}
+
 function DescriptionText({ text, promo = false }: { text: string; promo?: boolean }) {
-  const paragraphs = text.split(/\n\n+/);
+  const paragraphs = normalizeOversizedTeePromoCopy(text).split(/\n\n+/);
   return (
     <div className={`fr-pdp-desc${promo ? " is-promo" : ""}`}>
       {paragraphs.map((para, pi) => {
@@ -4284,6 +4783,7 @@ function DescriptionText({ text, promo = false }: { text: string; promo?: boolea
           const rowsText = trimmed.slice("[[table]]".length, -"[[/table]]".length);
           return <DescriptionTable key={pi} rowsText={rowsText} keyPrefix={`${pi}`} />;
         }
+        const needsFreeDeliveryThreshold = FREE_DELIVERY_COPY_RE.test(trimmed) && !FREE_DELIVERY_THRESHOLD_RE.test(trimmed);
         return (
           <p key={pi} className="fr-pdp-desc-p">
             {para.split("\n").map((line, li) => (
@@ -4292,6 +4792,12 @@ function DescriptionText({ text, promo = false }: { text: string; promo?: boolea
                 {parseInlineMarkup(line, `${pi}-${li}`)}
               </Fragment>
             ))}
+            {needsFreeDeliveryThreshold && (
+              <>
+                <br />
+                <em>starting from R449</em>
+              </>
+            )}
           </p>
         );
       })}
@@ -4306,7 +4812,7 @@ function DescriptionText({ text, promo = false }: { text: string; promo?: boolea
 // the copy without a code change).
 const TICKER_ITEMS = [
   "Trusted by 110,000+ Happy Customers",
-  "Free Standard Delivery Nationwide",
+  "Free Standard Delivery Nationwide — Starting From R449",
   "Sale — Up to 50% Off",
   "Pay in 4 with SETLA",
   "Luxury Streetwear Brand",
@@ -4575,7 +5081,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
           <div>
             <div className="fr-fwm-rowhead">
               <div className="fr-fwm-rowtitle">OVERSIZED PREMIUM TEES</div>
-              <span className="fr-fwm-deal">BUY 2 GET 1 FREE<small>3 TEES FOR R700</small></span>
+              <span className="fr-fwm-deal">BUY 2 FOR R449<small>MIX ANY 2</small></span>
             </div>
             <div className="fr-fwm-track">
               <div className="fr-fwm-marquee reverse">
@@ -4592,7 +5098,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
       <div className="fr-fwm-cta">
         <div className="fr-fwm-buttons">
           <a href={hoodieHref} className="fr-fwm-btn">SHOP HOODIES<small>2 FOR R699</small></a>
-          <a href={teeHref} className="fr-fwm-btn fr-fwm-btn-outline">SHOP TEES<small>BUY 2 GET 1 FREE</small></a>
+          <a href={teeHref} className="fr-fwm-btn fr-fwm-btn-outline">SHOP TEES<small>2 FOR R449</small></a>
         </div>
         <div className="fr-fwm-note">Winter Only · Ships Nationwide</div>
       </div>
@@ -4608,6 +5114,45 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
 // price splitting unevenly) -- the leftover cent(s) from the integer
 // division get folded into the LAST instalment, same as the Liquid
 // version's own remainder handling.
+function FreeShippingPill() {
+  return (
+    <div className="fr-free-shipping-pill" aria-label="Free shipping nationwide">
+      <div className="fr-free-shipping-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3.5 8.5H19.5V21H3.5V8.5Z" />
+          <path d="M19.5 13H24.2L28.5 17.2V21H19.5V13Z" />
+          <path d="M23 13V17H28" />
+          <circle cx="9" cy="22" r="2.4" />
+          <circle cx="24" cy="22" r="2.4" />
+          <path d="M5.5 22H6.5" />
+          <path d="M11.5 22H21.5" />
+          <path d="M26.5 22H28" />
+        </svg>
+      </div>
+      <div className="fr-free-shipping-copy">
+        <span className="fr-free-shipping-copy-main">
+          <span>FREE SHIPPING</span>
+          <span className="diamond" />
+          <span className="nationwide">NATIONWIDE</span>
+        </span>
+        <span className="fr-free-shipping-note">starting from R449</span>
+      </div>
+      <div className="fr-free-shipping-country" aria-hidden="true">
+        <svg className="fr-free-shipping-flag" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+          <clipPath id="frFreeShippingFlagClip"><rect width="900" height="600" /></clipPath>
+          <g clipPath="url(#frFreeShippingFlagClip)">
+            <rect width="900" height="300" fill="#DE3831" />
+            <rect y="300" width="900" height="300" fill="#002395" />
+            <path d="M0 0 L360 300 L900 300 M0 600 L360 300" fill="none" stroke="#FFFFFF" strokeWidth="150" strokeLinejoin="miter" />
+            <path d="M0 0 L360 300 L900 300 M0 600 L360 300" fill="none" stroke="#007A4D" strokeWidth="90" strokeLinejoin="miter" />
+            <polygon points="0,0 350,300 0,600" fill="#FFB612" />
+            <polygon points="0,65 275,300 0,535" fill="#000000" />
+          </g>
+        </svg>
+      </div>
+    </div>
+  );
+}
 function SetlaProductWidget({ price }: { price: number }) {
   if (!(price > 0)) return null;
   const cents = Math.round(price * 100);
@@ -4654,6 +5199,7 @@ function SetlaProductWidget({ price }: { price: number }) {
 // customers can understand every available term before entering checkout.
 // Cents are split with any remainder added to the final payment, avoiding
 // a displayed schedule that is a cent short of the actual product price.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function StitchPayLaterWidget({ price }: { price: number }) {
   const [months, setMonths] = useState(6);
   if (!(price > 0)) return null;
@@ -4686,6 +5232,134 @@ function StitchPayLaterWidget({ price }: { price: number }) {
       </div>
     </div>
   );
+}
+
+function StitchPayLaterProductWidget({ price }: { price: number }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  if (!(price > 0)) return null;
+  const monthly = price / 6;
+  const money = (value: number) => value.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <>
+      <div className="stitch-pay-later-widget" aria-labelledby="stitchpaylater-title">
+        <img src="/checkout/stitch.png" alt="Stitch" />
+        <div>
+          <small>STITCH PAY LATER</small>
+          <p id="stitchpaylater-title">
+            Or pay <strong id="stitchMonthly">R{money(monthly)}</strong>{" "}
+            over <strong>6 monthly instalments</strong>.
+          </p>
+          <a href="#stitchpaylater" onClick={(event) => { event.preventDefault(); setOpen(true); }}>
+            How to pay with Stitch Pay Later
+          </a>
+          <StitchPaymentLogoRow />
+        </div>
+      </div>
+      <div id="stitchpaylater" className={`fr-stitch-modal-shell${open ? " open" : ""}`} aria-hidden={!open} onClick={() => setOpen(false)}>
+        <article className="fr-stitch-modal" role="dialog" aria-modal={open} aria-label="How to pay with Stitch Pay Later" onClick={(event) => event.stopPropagation()}>
+          <button className="fr-stitch-close" type="button" onClick={() => setOpen(false)} aria-label="Close Stitch Pay Later guide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+          <section className="fr-stitch-hero">
+            <div className="fr-stitch-hero-top">
+              <span className="fr-stitch-hero-logo"><img src="/checkout/stitch.png" alt="Stitch" /></span>
+              <span className="fr-stitch-eyebrow">Pay Later on 4REGN</span>
+            </div>
+            <div>
+              <h2>How to pay with <span>Stitch Pay Later</span></h2>
+              <p>Shop 4REGN today and split your purchase into flexible monthly instalments with Stitch Pay Later. Your available spend and repayment options are shown at checkout before you commit.</p>
+              <div className="fr-stitch-hero-pills">
+                <span>2-6 monthly instalments</span>
+                <span>Clear payment schedule</span>
+                <span>Available at checkout</span>
+              </div>
+            </div>
+          </section>
+          <section className="fr-stitch-content">
+            <div className="fr-stitch-kicker">How it works</div>
+            <h2>Checkout stays simple.</h2>
+            <p className="fr-stitch-intro">You shop 4REGN exactly as normal. Stitch only steps in when you&apos;re ready to choose how you want to pay.</p>
+            <div className="fr-stitch-steps">
+              {[
+                ["01", "cart", "Add your products", "Choose your size, colour and quantity, then continue to secure checkout."],
+                ["02", "card", "Choose Stitch Pay Later", "Select Stitch at payment and follow the guided approval flow."],
+                ["03", "check", "Confirm your plan", "Review your instalment schedule, confirm, and complete your 4REGN order."]
+              ].map(([num, icon, title, copy]) => (
+                <article className="fr-stitch-step" key={num}>
+                  <div className="fr-stitch-step-num">{num}</div>
+                  <div className="fr-stitch-step-icon"><StitchGuideIcon icon={icon} /></div>
+                  <div><h3>{title}</h3><p>{copy}</p></div>
+                </article>
+              ))}
+            </div>
+            <section className="fr-stitch-plan">
+              <div className="fr-stitch-kicker">Your plan is personal</div>
+              <h2>Pick what fits.</h2>
+              <p>Stitch can show different repayment options depending on your approval and checkout total. The product page shows the 6-month estimate so you can plan before checkout.</p>
+              <div className="fr-stitch-months" aria-label="Possible instalment lengths">
+                {[2, 3, 4, 5, 6].map((term) => <div className="fr-stitch-month" key={term}><strong>{term}</strong><span>Instalments</span></div>)}
+              </div>
+            </section>
+            <section className="fr-stitch-approval">
+              <div className="fr-stitch-kicker">Before you start</div>
+              <h2>Have the basics ready.</h2>
+              <p className="fr-stitch-intro">The checkout flow is designed to be quick. Have your basic details ready so Stitch can complete the account and approval process.</p>
+              <div className="fr-stitch-approval-grid">
+                {["South African resident", "Valid South African ID", "Valid email address", "Complete approval at checkout"].map((item) => <div className="fr-stitch-req" key={item}><i>✓</i><span>{item}</span></div>)}
+              </div>
+              <StitchPaymentLogoRow />
+            </section>
+            <section className="fr-stitch-message">
+              <div className="fr-stitch-kicker">The 4REGN way</div>
+              <h2>Decide with confidence.</h2>
+              <p className="fr-stitch-intro">Find the product you want, see what Stitch can offer you, review the full repayment schedule and decide from there. No guessing what comes next.</p>
+            </section>
+          </section>
+          <footer className="fr-stitch-modal-foot">
+            <img src="/checkout/stitch.png" alt="Stitch" />
+            <span>Stitch Pay Later available at 4REGN checkout · <a href="/stitch-pay-later">Open full guide page</a></span>
+          </footer>
+        </article>
+      </div>
+    </>
+  );
+}
+function StitchPaymentLogoRow() {
+  return (
+    <div className="fr-stitch-payment-logos" aria-label="Stitch Pay Later supported payment logos">
+      {[
+        { src: "/checkout/visa.png", alt: "Visa" },
+        { src: "/checkout/mastercard.png", alt: "Mastercard" },
+        { src: "/checkout/applepay.png", alt: "Apple Pay" },
+        { src: "/checkout/capitecpay.png", alt: "Capitec Pay" },
+      ].map((logo) => (
+        <span className="fr-stitch-payment-logo" key={logo.alt}>
+          <img src={logo.src} alt={logo.alt} />
+        </span>
+      ))}
+    </div>
+  );
+}
+function StitchGuideIcon({ icon }: { icon: string }) {
+  if (icon === "cart") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3.5 5.5h2l1.7 9.1a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 1.9-1.4l1.2-5.2H7.2" /><circle cx="10" cy="19" r="1" /><circle cx="17" cy="19" r="1" /></svg>;
+  if (icon === "card") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3.5" y="5" width="17" height="14" rx="2.5" /><path d="M3.5 9h17" /></svg>;
+  if (icon === "user") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" /></svg>;
+  if (icon === "shield") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 2.8l6.8 3v5.1c0 4.4-2.7 8-6.8 10.3-4.1-2.3-6.8-5.9-6.8-10.3V5.8l6.8-3z" /><path d="M8.8 11.7l2.1 2.1 4.4-4.6" /></svg>;
+  if (icon === "plan") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M7 3.5h10v17H7z" /><path d="M9.5 7h5M9.5 10.5h5M9.5 14h3" /><path d="M15.5 16.5l1.5 1.5 2.7-3" /></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 12l5 5L20 6" /><circle cx="12" cy="12" r="9" /></svg>;
 }
 
 // Float (checkout.float.co.za) buy-now-pay-later widget -- same embed the
@@ -4754,8 +5428,14 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
 }) {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const imgsKey = imgs.join("|");
+  const [failedImgState, setFailedImgState] = useState<{ key: string; failed: Set<string> }>(() => ({ key: imgsKey, failed: new Set() }));
   const imgRef = useRef<HTMLImageElement>(null);
-  const mainImg = imgs[activeIndex];
+  const failedImgs = failedImgState.key === imgsKey ? failedImgState.failed : new Set<string>();
+  const activeImg = imgs[activeIndex];
+  const mainImg = activeImg && !failedImgs.has(activeImg)
+    ? activeImg
+    : (imgs.find((img) => img && !failedImgs.has(img)) || activeImg || imgs[0]);
 
   // Reset the loading indicator whenever the active image changes -- the
   // <img>'s onLoad below flips it back to true once the new image is
@@ -4771,9 +5451,7 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
   // Prefetch the images on either side of the active one so swiping/tapping
   // the arrows repeatedly doesn't feel "frozen" on a slow connection --
   // by the time the user reaches a neighbor, the browser has likely already
-  // cached it. Uses the global window.Image constructor (this file already
-  // imports `Image` from next/image for its <Image> components, so that
-  // name is taken -- window.Image avoids the collision).
+  // cached it. Uses the browser's native Image constructor.
   useEffect(() => {
     const preload = (url: string | undefined) => {
       if (!url) return;
@@ -4793,6 +5471,23 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
     if (dx < 0 && activeIndex < imgs.length - 1) onIndexChange(activeIndex + 1);
     else if (dx > 0 && activeIndex > 0) onIndexChange(activeIndex - 1);
   };
+  const handleMainImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!mainImg) {
+      onImgError(e);
+      return;
+    }
+    const fallbackIndex = imgs.findIndex((img) => img && img !== mainImg && !failedImgs.has(img));
+    setFailedImgState((prev) => {
+      const next = prev.key === imgsKey ? new Set(prev.failed) : new Set<string>();
+      next.add(mainImg);
+      return { key: imgsKey, failed: next };
+    });
+    if (fallbackIndex !== -1) {
+      onIndexChange(fallbackIndex);
+    } else {
+      onImgError(e);
+    }
+  };
 
   return (
     <div
@@ -4808,20 +5503,15 @@ function ProductGallery({ imgs, activeIndex, onIndexChange, onOpenLightbox, onIm
       {badges}
       {mainImg ? (
         <>
-          <Image
+          <img
             ref={imgRef}
             src={mainImg}
             alt={alt}
-            fill
-            sizes="(max-width: 900px) 100vw, 50vw"
-            style={{ objectFit: "contain" }}
-            // Only the image actually visible on first paint (index 0) --
-            // this is the real LCP (Largest Contentful Paint) element on a
-            // product page, so it should preload ahead of everything else
-            // instead of competing on the same priority as offscreen/
-            // not-yet-swiped-to images.
-            priority={activeIndex === 0}
-            onError={onImgError}
+            loading={activeIndex === 0 ? "eager" : "lazy"}
+            fetchPriority={activeIndex === 0 ? "high" : "auto"}
+            decoding="async"
+            draggable={false}
+            onError={handleMainImgError}
             onLoad={() => setImgLoaded(true)}
           />
           <span className="fr-p-mark" style={{ display: "none" }}>{initials(alt)}</span>
@@ -4912,12 +5602,11 @@ function ShopByDepartmentBlock({
               <div className="fr-sbd-circle">
                 {img ? (
                   <>
-                    <Image
+                    <img
                       src={img}
                       alt={cat.label}
-                      fill
-                      sizes="(max-width: 900px) 40vw, 156px"
-                      style={{ objectFit: "cover" }}
+                      loading="lazy"
+                      decoding="async"
                       onError={handleImgError}
                     />
                     <span className="fr-cat-mark" style={{ display: "none" }}>{cat.label}</span>

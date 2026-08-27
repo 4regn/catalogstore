@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCustomerAccount } from "../../../../lib/customer-account";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { isNewFourRegnTrackingOrder } from "../../../../lib/four-regn-orders";
+import { buildFourRegnTracking } from "../../../../lib/four-regn-tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -28,16 +29,16 @@ export async function GET(req: NextRequest) {
       .ilike("customer_email", normalizedEmail);
   }
   const ordersResult = await admin.from("orders")
-    .select("id, order_number, external_id, items, total, status, payment_status, shipping_option, shipping_address, created_at")
+    .select("id, order_number, external_id, items, total, status, payment_status, shipping_option, shipping_address, created_at, tracking_updated_at, customer_tracking_note")
     .eq("seller_id", auth.seller.id)
     .eq("customer_id", auth.account.customer_id)
-    .or("payment_status.eq.paid,status.in.(confirmed,processing,shipped,in_transit,out_for_delivery,delivered)")
+    .or("payment_status.eq.paid,status.in.(confirmed,processing,shipped,picked_up,in_transit,out_for_delivery,delivered)")
     .order("created_at", { ascending: false })
     .limit(50);
   const visibleOrders = (ordersResult.data || []).filter((order: any) => auth.seller.subdomain !== "4regn" || isNewFourRegnTrackingOrder(order));
   return NextResponse.json({
     customer: customerResult.data,
-    orders: visibleOrders,
+    orders: visibleOrders.map((order: any) => ({ ...order, tracking: auth.seller.subdomain === "4regn" ? buildFourRegnTracking(order) : null })),
     wishlist: (wishlistResult.data || []).map((row: any) => row.products).filter(Boolean),
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

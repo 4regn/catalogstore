@@ -26,6 +26,15 @@ export async function getYocoCheckout(checkoutId: string): Promise<{ id: string;
   }
 }
 
+const YOCO_PAID_CHECKOUT_STATUSES = new Set(["paid", "succeeded", "successful", "success", "completed", "complete"]);
+export const YOCO_TERMINAL_FAILURE_STATUSES = new Set(["failed", "cancelled", "canceled", "expired", "declined"]);
+
+export function isYocoCheckoutPaid(checkout: { status?: string | null; paymentId?: string | null } | null | undefined): checkout is { status?: string | null; paymentId: string } {
+  if (!checkout?.paymentId) return false;
+  const status = (checkout.status || "").trim().toLowerCase();
+  return YOCO_PAID_CHECKOUT_STATUSES.has(status);
+}
+
 export type YocoLineItem = {
   displayName: string;
   quantity: number;

@@ -15,6 +15,22 @@ export type SetlaPlanType = "pay_later" | "laybuy";
 // and the setla_laybuy_payments ledger below instead of PLAN_CONFIG.
 const PAY_LATER_CONFIG = { count: 4, intervalDays: 14 };
 
+type OrderEmailSeller = { subdomain: string | null; store_name: string | null };
+
+async function getSellerForUnikOrder(admin: SupabaseClient, orderId: string | null): Promise<OrderEmailSeller | null> {
+  if (!orderId) return null;
+  const { data: order } = await admin.from("orders").select("seller_id").eq("id", orderId).maybeSingle();
+  if (!order?.seller_id) return null;
+  const { data: seller } = await admin.from("sellers").select("subdomain, store_name").eq("id", order.seller_id).maybeSingle();
+  return seller || null;
+}
+
+export async function getSellerForSetlaOrder(admin: SupabaseClient, setlaOrderId: string | null): Promise<OrderEmailSeller | null> {
+  if (!setlaOrderId) return null;
+  const { data: order } = await admin.from("setla_orders").select("unik_order_id").eq("id", setlaOrderId).maybeSingle();
+  return getSellerForUnikOrder(admin, order?.unik_order_id || null);
+}
+
 /* Server-side port of setla.js's old client-only splitAmount()/dateAfter()
    -- splits to the cent, remainder cents go to the earliest instalments.
    Instalment #1 is always due immediately (paid at checkout itself).
@@ -90,6 +106,24 @@ export type SetlaFirstChargeMeta = {
   total: string;
 };
 
+/**
+ * Returns the exact amount SETLA collects at checkout for instalment #1.
+ * Keep reconciliation checks on this helper: a Pay Later checkout only
+ * charges the first instalment, not the full order total.
+ */
+export function setlaFirstChargeAmountCents(meta: SetlaFirstChargeMeta): number {
+  if (meta.planType === "laybuy") {
+    return Math.round((Number(meta.depositAmount) || 0) * 100);
+  }
+
+  const financedAmount = Number(meta.financedAmount) || 0;
+  const excessUpfront = Number(meta.excessUpfront) || 0;
+  const schedule = meta.scheduleVariant === "half"
+    ? buildHalfAndHalfSchedule(financedAmount)
+    : buildInstalmentSchedule(financedAmount);
+  return Math.round(((schedule[0]?.amount || 0) + excessUpfront) * 100);
+}
+
 export function buildSetlaFirstChargeMetadata(meta: Omit<SetlaFirstChargeMeta, "kind" | "financedAmount" | "excessUpfront" | "depositAmount" | "subtotal" | "shippingCost" | "total"> & {
   financedAmount: number;
   excessUpfront: number;
@@ -151,8 +185,14 @@ export async function activateSetlaPlanAfterPayment(
   eventId: string | null,
   providerInfo: SetlaFirstChargeProvider = { provider: "yoco" }
 ): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; error: string }> {
-  const { data: existing } = await admin.from("setla_orders").select("id").eq("unik_order_id", meta.orderId).maybeSingle();
-  if (existing) return { ok: true, alreadyProcessed: true };
+  const { data: existing } = await admin.from("setla_orders").select("id, status").eq("unik_order_id", meta.orderId).maybeSingle();
+  // A previous activation could have been interrupted after creating the
+  // order/plan but before its schedule was saved. The abandonment sweep
+  // correctly cancels that partial shell. If the provider later verifies
+  // the payment, resume that cancelled shell instead of treating its mere
+  // existence as proof that activation already completed.
+  const repairingCancelledActivation = existing?.status === "cancelled";
+  if (existing && !repairingCancelledActivation) return { ok: true, alreadyProcessed: true };
 
   const { data: order } = await admin
     .from("orders")
@@ -186,46 +226,62 @@ export async function activateSetlaPlanAfterPayment(
     : buildInstalmentSchedule(financedAmount);
   if (schedule && excessUpfront > 0) schedule[0].amount = Math.round((schedule[0].amount + excessUpfront) * 100) / 100;
   const firstChargeAmount = isLaybuy ? depositAmount : (schedule as NonNullable<typeof schedule>)[0].amount;
-  const firstChargeExpectedCents = Math.round(firstChargeAmount * 100);
+  const firstChargeExpectedCents = setlaFirstChargeAmountCents(meta);
   if (Math.abs(firstChargeExpectedCents - amountCents) > 1) {
     console.error("activateSetlaPlanAfterPayment: amount mismatch", { orderId: meta.orderId, firstChargeExpectedCents, amountCents });
     return { ok: false, error: "Amount mismatch" };
   }
 
-  const { data: setlaOrder, error: setlaOrderErr } = await admin
-    .from("setla_orders")
-    .insert({
-      customer_id: meta.customerId,
-      unik_order_id: order.id,
-      payment_method: meta.planType,
-      subtotal,
-      delivery_amount: shippingCost,
-      total,
-      order_snapshot: { items: order.items, shippingLabel: order.shipping_option, fulfillmentMethod: order.fulfillment_method },
-      production_locked: true,
-    })
-    .select("id")
-    .single();
+  let setlaOrder: { id: string } | null = existing ? { id: existing.id } : null;
+  let setlaOrderErr: { code?: string; message?: string } | null = null;
+  if (!setlaOrder) {
+    const inserted = await admin
+      .from("setla_orders")
+      .insert({
+        customer_id: meta.customerId,
+        unik_order_id: order.id,
+        payment_method: meta.planType,
+        subtotal,
+        delivery_amount: shippingCost,
+        total,
+        order_snapshot: { items: order.items, shippingLabel: order.shipping_option, fulfillmentMethod: order.fulfillment_method },
+        production_locked: true,
+      })
+      .select("id")
+      .single();
+    setlaOrder = inserted.data;
+    setlaOrderErr = inserted.error;
+  }
   if (setlaOrderErr || !setlaOrder) {
     if (setlaOrderErr?.code === "23505") return { ok: true, alreadyProcessed: true };
     console.error("activateSetlaPlanAfterPayment: setla_orders insert failed", setlaOrderErr);
     return { ok: false, error: setlaOrderErr?.message || "Could not create SETLA order" };
   }
 
-  const { data: plan, error: planErr } = await admin
-    .from("setla_payment_plans")
-    .insert({
-      customer_id: meta.customerId,
-      order_id: setlaOrder.id,
-      plan_type: meta.planType,
-      principal_amount: isLaybuy ? total : financedAmount,
-      min_deposit_amount: isLaybuy ? minLaybuyDeposit(total) : null,
-      paid_amount: firstChargeAmount,
-      stitch_consent_id: providerInfo.provider === "stitch" ? providerInfo.consentId : null,
-      stitch_consent_status: providerInfo.provider === "stitch" ? "active" : null,
-    })
-    .select("id")
-    .single();
+  let plan: { id: string } | null = null;
+  let planErr: { message?: string } | null = null;
+  if (repairingCancelledActivation) {
+    const existingPlan = await admin.from("setla_payment_plans").select("id").eq("order_id", setlaOrder.id).maybeSingle();
+    plan = existingPlan.data;
+    planErr = existingPlan.error;
+  } else {
+    const insertedPlan = await admin
+      .from("setla_payment_plans")
+      .insert({
+        customer_id: meta.customerId,
+        order_id: setlaOrder.id,
+        plan_type: meta.planType,
+        principal_amount: isLaybuy ? total : financedAmount,
+        min_deposit_amount: isLaybuy ? minLaybuyDeposit(total) : null,
+        paid_amount: firstChargeAmount,
+        stitch_consent_id: providerInfo.provider === "stitch" ? providerInfo.consentId : null,
+        stitch_consent_status: providerInfo.provider === "stitch" ? "active" : null,
+      })
+      .select("id")
+      .single();
+    plan = insertedPlan.data;
+    planErr = insertedPlan.error;
+  }
   if (planErr || !plan) {
     console.error("activateSetlaPlanAfterPayment: setla_payment_plans insert failed", planErr);
     return { ok: false, error: planErr?.message || "Could not create SETLA plan" };
@@ -254,15 +310,22 @@ export async function activateSetlaPlanAfterPayment(
     // the full balance is paid).
     newSetlaOrderStatus = "partially_paid";
   } else {
-    const { error: instalErr } = await admin.from("setla_instalments").insert(
-      (schedule as NonNullable<typeof schedule>).map((row, i) => ({
-        plan_id: plan.id,
-        sequence_number: row.sequenceNumber,
-        amount: row.amount,
-        due_at: row.dueAt.toISOString(),
-        ...(i === 0 ? { status: "paid", paid_at: now, payment_provider_reference: paymentId, yoco_event_id: eventId } : {}),
-      }))
-    );
+    const scheduleRows = (schedule as NonNullable<typeof schedule>).map((row, i) => ({
+      plan_id: plan.id,
+      sequence_number: row.sequenceNumber,
+      amount: row.amount,
+      due_at: row.dueAt.toISOString(),
+      status: i === 0 ? "paid" : "scheduled",
+      paid_at: i === 0 ? now : null,
+      payment_provider_reference: i === 0 ? paymentId : null,
+      yoco_event_id: i === 0 ? eventId : null,
+    }));
+    // PostgREST bulk inserts require identical object keys on every row.
+    // Previously only row #1 carried payment fields, causing the entire
+    // four-row schedule insert to fail after the plan had been created.
+    const { error: instalErr } = repairingCancelledActivation
+      ? await admin.from("setla_instalments").upsert(scheduleRows, { onConflict: "plan_id,sequence_number" })
+      : await admin.from("setla_instalments").insert(scheduleRows);
     if (instalErr) {
       console.error("activateSetlaPlanAfterPayment: setla_instalments insert failed", instalErr);
       return { ok: false, error: instalErr.message || "Could not create instalment schedule" };
@@ -271,9 +334,25 @@ export async function activateSetlaPlanAfterPayment(
     // the customer has already genuinely paid by this point, so a
     // concurrent limit adjustment landing in this narrow window shouldn't
     // ever cause a paid order to be treated as failed. Simple deduction.
-    const { data: customer } = await admin.from("setla_customers").select("available_limit").eq("id", meta.customerId).single();
-    if (customer) {
-      await admin.from("setla_customers").update({ available_limit: Number(customer.available_limit) - financedAmount }).eq("id", meta.customerId);
+    if (repairingCancelledActivation) {
+      await admin.from("setla_payment_plans").update({ status: "active", paid_amount: firstChargeAmount, completed_at: null }).eq("id", plan.id);
+      // The old cleanup path restored principal even when schedule creation
+      // failed before the limit had ever been deducted. Rebuild availability
+      // from the approved limit and real active plans so repairing that shell
+      // cannot preserve an inflated balance or double-deduct valid credit.
+      const [{ data: customer }, { data: otherActivePlans }] = await Promise.all([
+        admin.from("setla_customers").select("approved_limit").eq("id", meta.customerId).single(),
+        admin.from("setla_payment_plans").select("principal_amount").eq("customer_id", meta.customerId).eq("status", "active").neq("id", plan.id),
+      ]);
+      if (customer) {
+        const otherClaimed = (otherActivePlans || []).reduce((sum, row) => sum + Number(row.principal_amount || 0), 0);
+        await admin.from("setla_customers").update({ available_limit: Math.max(0, Number(customer.approved_limit) - otherClaimed - financedAmount) }).eq("id", meta.customerId);
+      }
+    } else {
+      const { data: customer } = await admin.from("setla_customers").select("available_limit").eq("id", meta.customerId).single();
+      if (customer) {
+        await admin.from("setla_customers").update({ available_limit: Number(customer.available_limit) - financedAmount }).eq("id", meta.customerId);
+      }
     }
     // Pay Later unlocks the moment instalment #1 clears -- same reasoning
     // as markSetlaInstalmentPaid's shouldUnlock for sequence_number===1.
@@ -295,7 +374,7 @@ export async function activateSetlaPlanAfterPayment(
     .from("orders")
     .update({ status: "confirmed", payment_status: "paid", payment_method: meta.planType === "pay_later" ? "setla_pay_later" : "setla_laybuy", ...providerColumns })
     .eq("id", order.id)
-    .eq("payment_status", "pending");
+    .in("payment_status", ["pending", "abandoned", "failed"]);
 
   const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url, subdomain").eq("id", order.seller_id).maybeSingle();
   const isFourRegn = seller?.subdomain === "4regn";
@@ -312,6 +391,7 @@ export async function activateSetlaPlanAfterPayment(
       : `We've received your payment of R${firstChargeAmount.toFixed(2)}. Your order is now confirmed and being prepared.`;
     await admin.from("setla_notifications").insert({ customer_id: customerRow.id, notification_type: isLaybuy ? "laybuy_payment_received" : "instalment_paid", title, body });
     await sendEmail({
+      seller,
       to: customerRow.email,
       from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : "SETLA Payments <orders@catalogstore.co.za>",
       subject: isFourRegn ? `${title} — ${orderReference}` : title,
@@ -321,6 +401,7 @@ export async function activateSetlaPlanAfterPayment(
 
   if (seller?.email) {
     await sendEmail({
+      seller,
       to: seller.email,
       subject: `New paid order (SETLA) -- ${order.customer_name}`,
       html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111"><h2 style="margin:0 0 12px">New Order -- Paid via SETLA</h2><p style="margin:0 0 4px"><strong>${order.customer_name}</strong> (${order.customer_email})</p><p style="margin:12px 0 0;font-size:15px;font-weight:600">Total: R${Math.round(total)}</p></div>`,
@@ -395,6 +476,7 @@ export async function markSetlaInstalmentPaid(
 
   const { data: customer } = await admin.from("setla_customers").select("id, first_name, email").eq("id", plan.customer_id).single();
   if (customer) {
+    const seller = await getSellerForUnikOrder(admin, order.unik_order_id);
     const title = planComplete ? "Your SETLA payment plan is complete" : shouldUnlock ? "Payment received — your order is in production" : "Instalment payment received";
     const body = planComplete
       ? "Your final instalment has been received and your SETLA payment plan is now fully paid. Thank you!"
@@ -402,7 +484,7 @@ export async function markSetlaInstalmentPaid(
       ? `We've received your payment of R${updated.amount.toFixed(2)}. Your order is now confirmed and being prepared.`
       : `We've received your instalment payment of R${updated.amount.toFixed(2)}.`;
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "instalment_paid", title, body });
-    await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
+    await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
   }
 
   return { ok: true };
@@ -459,13 +541,14 @@ export async function markLaybuyPaymentPaid(
 
   const { data: customer } = await admin.from("setla_customers").select("id, first_name, email").eq("id", plan.customer_id).single();
   if (customer) {
+    const seller = await getSellerForUnikOrder(admin, order.unik_order_id);
     const remaining = Math.max(0, Number(plan.principal_amount) - newPaidAmount);
     const title = planComplete ? "Your SETLA Laybuy is fully paid" : "Laybuy payment received";
     const body = planComplete
       ? "Your final Laybuy payment has been received and your order is now confirmed and being prepared."
       : `We've received your payment of R${updated.amount.toFixed(2)}. R${remaining.toFixed(2)} remains -- pay it off in any amount, any time, from your dashboard.`;
     await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "laybuy_payment_received", title, body });
-    await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
+    await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
   }
 
   return { ok: true };

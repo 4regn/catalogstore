@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../lib/store-template-access";
 import { trimSellerTemplateConfigs, effectiveStoreConfig } from "../../../lib/template-config";
-import { canonicalStoreUrl } from "../../../lib/store-url";
+import { canonicalStoreUrlForRequest } from "../../../lib/store-canonical-server";
 import { fetchAllRows } from "../../../lib/fetch-all-rows";
 import StoreUnavailable from "./StoreUnavailable";
 
@@ -51,7 +51,7 @@ const Velour      = nextDynamic(() => import("./VelourStore"));
 const UnikLabs    = nextDynamic(() => import("./UnikLabsStore"));
 
 const SELLER_COLUMNS =
-  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+  "id, store_name, whatsapp_number, subdomain, custom_domain, custom_domain_status, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 // Crown/GlassChrome/Heirloom/Rosefields/SoftLuxury all render this fetched
 // list two ways off one array: the home grid (ProductCard reads id/name/
 // price/old_price/category/image_url) AND the same array entry's full
@@ -67,7 +67,7 @@ const SELLER_COLUMNS =
 // Crown/Rosefields ignore it but it's cheap to share one constant across
 // all five rather than branch per template here.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
 // 4regn's homepage no longer renders a flat product grid (it was removed --
 // see the "PRODUCTS" section in FourRegnStore.tsx, now gated to collection
 // view only). Traced every remaining isHomeView code path there: it only
@@ -87,7 +87,7 @@ const PRODUCT_COLUMNS =
 // them is gone). This narrower set is 4regn-specific -- every other
 // template's homepage still renders a full product grid and needs the full
 // PRODUCT_COLUMNS above, so this is only swapped in for tpl === "4regn".
-const FOUR_REGN_HOME_PRODUCT_COLUMNS = "id, category, image_url";
+const FOUR_REGN_HOME_PRODUCT_COLUMNS = "id, name, category, image_url";
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
 
@@ -118,11 +118,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const description =
     seller.tagline || seller.description || `Shop ${seller.store_name}'s online store.`;
   const image = seller.logo_url || seller.banner_url;
+  const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status);
 
   return {
     title,
     description,
-    alternates: { canonical: canonicalStoreUrl(slug) },
+    alternates: { canonical },
     openGraph: {
       type: "website",
       siteName: seller.store_name,
@@ -142,13 +143,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 // Store-wide identity schema (not product-specific -- that lives on the
 // product page itself). One of these per storefront, regardless of which
 // template renders the body, so it's built once here rather than per branch.
-function OrgJsonLd({ seller, slug }: { seller: { store_name: string; tagline: string | null; logo_url: string | null }; slug: string }) {
+function OrgJsonLd({ seller, storeUrl }: { seller: { store_name: string; tagline: string | null; logo_url: string | null }; storeUrl: string }) {
   const json = {
     "@context": "https://schema.org",
     "@type": "OnlineStore",
     name: seller.store_name,
     description: seller.tagline || undefined,
-    url: canonicalStoreUrl(slug),
+    url: storeUrl,
     logo: seller.logo_url || undefined,
   };
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(json) }} />;
@@ -168,11 +169,12 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   }
 
   const tpl = resolveSellerTemplate(seller);
+  const storeUrl = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status);
 
   if (tpl === UNIK_TEMPLATE_ID) {
     return (
       <>
-        <OrgJsonLd seller={seller} slug={slug} />
+        <OrgJsonLd seller={seller} storeUrl={storeUrl} />
         <UnikLabs initialSeller={seller} />
       </>
     );
@@ -196,7 +198,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     const isSubdomain = await isStoreSubdomainRequest();
     return (
       <>
-        <OrgJsonLd seller={seller} slug={slug} />
+        <OrgJsonLd seller={seller} storeUrl={storeUrl} />
         <Velour
           initialSeller={trimSellerTemplateConfigs(seller, tpl)}
           initialServices={servicesRes.data ?? []}
@@ -245,7 +247,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
   return (
     <>
-      <OrgJsonLd seller={seller} slug={slug} />
+      <OrgJsonLd seller={seller} storeUrl={storeUrl} />
       <StoreComponent {...props} />
     </>
   );

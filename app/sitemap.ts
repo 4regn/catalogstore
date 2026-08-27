@@ -6,16 +6,6 @@ import { fetchAllRows } from "../lib/fetch-all-rows";
 
 export const revalidate = 3600;
 
-// Real per-product pages only render correctly for these templates today
-// (app/store/[slug]/p/[productId]/page.tsx's own dispatch) -- anything else
-// (unik-labs, rosefields, velour) has no product-detail route worth
-// listing, so it's deliberately left out rather than pointing crawlers at
-// a page that doesn't represent that product.
-const PRODUCT_PAGE_TEMPLATES = new Set(["crown", "glass-futuristic", "glass-chrome", "heirloom", "soft-luxury", "4regn"]);
-// Same story for collection pages (app/store/[slug]/c/[collection]/page.tsx
-// redirects every other template straight back to the store root).
-const COLLECTION_PAGE_TEMPLATES = new Set(["heirloom", "soft-luxury", "4regn"]);
-
 const slugify = (s: string) => s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
 type SellerRow = {
@@ -74,8 +64,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const origin = `https://${hostname}`;
   const entries: MetadataRoute.Sitemap = [{ url: origin, changeFrequency: "daily", priority: 1 }];
+  if (seller.subdomain === "4regn") {
+    entries.push({ url: `${origin}/stitch-pay-later`, changeFrequency: "monthly", priority: 0.7 });
+  }
 
-  if (PRODUCT_PAGE_TEMPLATES.has(seller.template)) {
+  {
     // A single .limit() can't exceed the project's own server-side row cap
     // (confirmed elsewhere in this codebase: requesting more than the cap
     // just gets silently truncated to it), so a seller with more published
@@ -102,19 +95,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     );
 
     for (const p of products) {
-      // 4regn's real, already-Google-indexed URL shape once a product has a
-      // handle; every other product (no handle backfilled, or any other
-      // template) keeps the existing /p/{uuid} form unchanged.
+      // Every seller uses the same readable canonical URL. The UUID path is
+      // retained only as a legacy entry point and permanently redirects.
       const path = p.handle ? `/products/${p.handle}` : `/p/${p.id}`;
       entries.push({ url: `${origin}${path}`, lastModified: p.created_at || undefined, changeFrequency: "weekly", priority: 0.8 });
     }
   }
 
-  if (COLLECTION_PAGE_TEMPLATES.has(seller.template)) {
-    // 4regn's collection pages live at /collections/{slug}, matching
-    // Shopify's own URL shape (see app/store/[slug]/collections/[collection]/page.tsx's
-    // own comment) -- every other template still uses /c/{slug}.
-    const collectionPrefix = seller.template === "4regn" ? "/collections" : "/c";
+  {
+    const collectionPrefix = "/collections";
     const collections = Array.isArray(seller.collections) ? (seller.collections as string[]) : [];
     entries.push({ url: `${origin}${collectionPrefix}/all`, changeFrequency: "daily", priority: 0.7 });
     for (const c of collections) {

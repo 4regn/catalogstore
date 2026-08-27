@@ -1,8 +1,10 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "./email";
 import { sendOrderPushToSeller } from "./push-notify";
-import { voidStillbornPayLaterPlan } from "./setla-instalments";
+import { activateSetlaPlanAfterPayment, setlaFirstChargeAmountCents, type SetlaFirstChargeMeta, voidStillbornPayLaterPlan } from "./setla-instalments";
 import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference } from "./four-regn-orders";
+import { getYocoCheckout, isYocoCheckoutPaid } from "./yoco";
+import { getStitchPaymentLink } from "./stitch";
 
 // How long a UNIK order can sit unpaid before we stop calling it "pending"
 // (implies "still in progress, fulfilment is coming") and start calling it
@@ -13,6 +15,66 @@ import { FOUR_REGN_ACCOUNT_URL, FOUR_REGN_TRACKING_URL, fourRegnOrderReference }
 // unconditionally on real confirmation, before this sweep gets a chance to
 // touch it.
 export const ORDER_ABANDON_MS = 60 * 60 * 1000; // 1 hour
+
+/* Fallback for a missed Stitch webhook AND a customer who closes the tab
+   before the checkout return page can self-heal. Every candidate is checked
+   against Stitch server-to-server, with amount and merchant-reference guards,
+   before the normal idempotent paid-order path sends confirmations. */
+export async function recoverPaidStitchOrders(
+  admin: SupabaseClient,
+  sellerId?: string,
+): Promise<{ checked: number; recovered: number }> {
+  const reconciliationWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  let query = admin
+    .from("orders")
+    .select("id, seller_id, total, items, customer_name, customer_email, payment_status, stitch_link_id")
+    .eq("payment_method", "stitch")
+    .in("payment_status", ["pending", "abandoned", "failed"])
+    .not("stitch_link_id", "is", null)
+    .gte("created_at", reconciliationWindow)
+    .order("created_at", { ascending: false })
+    .limit(sellerId ? 20 : 50);
+  if (sellerId) query = query.eq("seller_id", sellerId);
+
+  const { data: candidates, error } = await query;
+  if (error) {
+    console.error("recoverPaidStitchOrders: candidate query failed", error);
+    return { checked: 0, recovered: 0 };
+  }
+
+  let checked = 0;
+  let recovered = 0;
+  for (const order of candidates || []) {
+    if (!order.stitch_link_id) continue;
+    checked += 1;
+    try {
+      const payment = await getStitchPaymentLink(order.stitch_link_id);
+      if (payment?.status !== "PAID") continue;
+      const expectedCents = Math.round(Number(order.total || 0) * 100);
+      const amountMatches = payment.amountCents > 0 && Math.abs(expectedCents - payment.amountCents) <= 1;
+      const referenceMatches = !payment.merchantReference || payment.merchantReference === order.id;
+      if (!amountMatches || !referenceMatches) {
+        console.error("Stitch scheduled recovery verification mismatch", {
+          orderId: order.id,
+          expectedCents,
+          stitchAmount: payment.amountCents,
+          merchantReference: payment.merchantReference,
+          linkId: order.stitch_link_id,
+        });
+        continue;
+      }
+      const result = await markUnikOrderPaid(admin, order, payment.paymentId, null, "stitch");
+      if (result === "paid") recovered += 1;
+    } catch (providerError) {
+      console.error("Stitch scheduled recovery provider check failed", {
+        orderId: order.id,
+        linkId: order.stitch_link_id,
+        error: providerError,
+      });
+    }
+  }
+  return { checked, recovered };
+}
 
 /* Idempotently marks a UNIK order paid + its linked designs paid, and
    emails both sides. Shared between the Yoco webhook (the primary path)
@@ -62,6 +124,7 @@ export async function markUnikOrderPaid(
 
   if (seller?.email) {
     await sendEmail({
+      seller,
       to: seller.email,
       subject: `New paid order — ${order.customer_name}`,
       html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
@@ -82,6 +145,7 @@ export async function markUnikOrderPaid(
     const reference = isFourRegn ? fourRegnOrderReference(updated) : "";
     const fourRegnTracking = isFourRegn ? `<div style="background:#eef6ef;border:1px solid #d6ead8;border-radius:12px;padding:20px;margin:18px 0;"><h3 style="font-size:12px;color:#177533;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 16px;font-size:13px;color:#5f6c61;line-height:1.65;">Your order number is <strong>${reference}</strong>. Track it with the email address or mobile number used at checkout. You can enter the number with or without the # and D.</p><a href="${FOUR_REGN_TRACKING_URL}" style="display:block;text-align:center;padding:15px;background:#111;color:#fff;border-radius:100px;text-decoration:none;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Track Order</a></div><a href="${FOUR_REGN_ACCOUNT_URL}" style="display:block;text-align:center;padding:14px;border:1px solid #222;color:#222;border-radius:100px;text-decoration:none;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">View My Account</a>` : "";
     await sendEmail({
+      seller,
       to: order.customer_email,
       from: seller ? `${seller.store_name} <orders@catalogstore.co.za>` : undefined,
       subject: `Order confirmed — ${seller?.store_name || "UNIK Labs"}`,
@@ -136,6 +200,59 @@ export async function markUnikOrderFailed(
    read -- it's a plain conditional UPDATE, a no-op when nothing qualifies. */
 export async function sweepAbandonedOrders(admin: SupabaseClient, sellerId: string): Promise<void> {
   const cutoff = new Date(Date.now() - ORDER_ABANDON_MS).toISOString();
+
+  // Never label a genuinely paid Stitch order abandoned merely because its
+  // webhook was missed. Dashboard visits provide an additional recovery
+  // trigger alongside the dedicated scheduled job.
+  await recoverPaidStitchOrders(admin, sellerId);
+
+  // Recover paid SETLA checkouts before labelling anything abandoned.
+  // The gateway only collects instalment #1 here, so verification must use
+  // the SETLA schedule amount rather than the full order total. This also
+  // covers customers who paid successfully but closed the return page while
+  // a Yoco webhook was delayed or missed: opening the seller dashboard will
+  // now create the real plan, confirm the order and send both emails through
+  // activateSetlaPlanAfterPayment's normal idempotent path.
+  const reconciliationWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: unresolvedSetla } = await admin
+    .from("orders")
+    .select("id, yoco_checkout_id, setla_pending_stitch_meta")
+    .eq("seller_id", sellerId)
+    .eq("payment_method", "setla")
+    .in("payment_status", ["pending", "abandoned", "failed"])
+    .not("yoco_checkout_id", "is", null)
+    .gte("created_at", reconciliationWindow)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  for (const candidate of unresolvedSetla || []) {
+    const meta = candidate.setla_pending_stitch_meta as SetlaFirstChargeMeta | null;
+    if (!candidate.yoco_checkout_id || meta?.kind !== "setla_first_charge") continue;
+    try {
+      const checkout = await getYocoCheckout(candidate.yoco_checkout_id);
+      if (!isYocoCheckoutPaid(checkout)) continue;
+      const expectedCents = setlaFirstChargeAmountCents(meta);
+      if (checkout.amount && Math.abs(expectedCents - Number(checkout.amount)) > 1) {
+        console.error("SETLA reconciliation amount mismatch", {
+          orderId: candidate.id,
+          expectedCents,
+          yocoAmount: checkout.amount,
+          checkoutId: candidate.yoco_checkout_id,
+        });
+        continue;
+      }
+      const result = await activateSetlaPlanAfterPayment(
+        admin,
+        meta,
+        checkout.paymentId,
+        Number(checkout.amount) || expectedCents,
+        null
+      );
+      if (!result.ok) console.error("SETLA reconciliation failed", { orderId: candidate.id, error: result.error });
+    } catch (error) {
+      console.error("SETLA reconciliation provider check failed", { orderId: candidate.id, error });
+    }
+  }
 
   // Historical cleanup only: app/api/checkout/setla-create/route.ts and
   // app/api/setla/checkout/create/route.ts no longer claim available_limit

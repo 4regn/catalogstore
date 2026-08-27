@@ -8,8 +8,8 @@ import { usesCleanStorePaths, storePath } from "../../../../lib/store-url";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
-import { useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
-import { buildCheckoutShippingOptions, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
+import { trackStorefrontEvent, useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
+import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 
 export interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -40,6 +40,8 @@ export interface Seller {
     // comment.
     stitch_enabled?: boolean;
     float_enabled?: boolean;
+    payment_method_order?: string[];
+    delivery_method_order?: string[];
     delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
     // is_premium: only offered when the cart has an import-tagged product,
     // and hidden from every other cart -- see hasImportTag's own comment
@@ -49,6 +51,11 @@ export interface Seller {
 }
 
 interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; }
+const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
+const normalisePaymentOrder = (value: unknown) => {
+  const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_ORDER[number] => PAYMENT_METHOD_ORDER.includes(key as typeof PAYMENT_METHOD_ORDER[number])) : [];
+  return [...saved, ...PAYMENT_METHOD_ORDER.filter((key) => !saved.includes(key))];
+};
 const checkoutOrderReference = (value: string | number | null | undefined, isFourRegn: boolean) => {
   const raw = String(value || "").replace(/^#/, "");
   return isFourRegn && /^\d+$/.test(raw) ? `#${raw}D` : `#${raw}`;
@@ -116,7 +123,7 @@ function formatZARDecimal(value: number): string {
 // below uses -- this is a reskin, not a second checkout implementation.
 const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2,.fr-checkout-v2 *{box-sizing:border-box}
-.fr-checkout-v2{background:#fff;color:#050505;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+.fr-checkout-v2{background:#fff;color:#050505;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;overflow:visible;touch-action:pan-y}
 .fr-checkout-v2 button,.fr-checkout-v2 input,.fr-checkout-v2 select{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px}
 .fr-checkout-v2 button{cursor:pointer}
 .fr-checkout-v2 .topbar{height:82px;border-bottom:1px solid #e4e4e4;background:#fff;position:sticky;top:0;z-index:20}
@@ -164,6 +171,10 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .shipping-provider span{font-size:12.5px;font-weight:800;line-height:1.25}
 .fr-checkout-v2 .shipping-provider.aramex span{color:#e1261c}
 .fr-checkout-v2 .shipping-provider.paxi span{color:#007c89}
+.fr-checkout-v2 .best-value-badge{display:inline-flex;align-items:center;border-radius:999px;background:#111;color:#fff;padding:3px 7px;font-size:9px;font-weight:800;letter-spacing:.06em;line-height:1;vertical-align:middle;margin-left:7px}
+.fr-checkout-v2 .delivery-estimate{margin:8px 0 0 31px;color:#176b37;font-size:11.5px;line-height:1.5}
+.fr-checkout-v2 .delivery-estimate strong{font-weight:700}
+.fr-checkout-v2 .delivery-estimate-note{margin:10px 2px 0;color:#747474;font-size:11px;line-height:1.45}
 .fr-checkout-v2 .payment-title-note{font-weight:400;color:#5f5f5f;font-size:11px;letter-spacing:.015em;white-space:nowrap}
 .fr-checkout-v2 .card-brand-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}
 .fr-checkout-v2 .card-brand{height:23px;min-width:38px;border:1px solid #dedede;border-radius:4px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:3px 5px}
@@ -242,6 +253,9 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .total-row.grand span:first-child{font-size:17px;font-weight:500}
 .fr-checkout-v2 .total-row.grand strong{font-size:27px;font-weight:500;letter-spacing:-.03em}
 .fr-checkout-v2 .currency{font-size:10px;color:#888;margin-right:5px;font-weight:400}
+.fr-checkout-v2 .shipping-saving-stack{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.fr-checkout-v2 .shipping-saving-stack .was{color:#9b9b9b;text-decoration:line-through}
+.fr-checkout-v2 .shipping-saving-stack .now{color:#050505}
 .fr-checkout-v2 .summary-foot{margin-top:22px;padding:0 4px}
 .fr-checkout-v2 .mini-trust{border-top:1px solid #dedede;padding-top:13px;font-size:11px;color:#707070;line-height:1.55}
 .fr-checkout-v2 .mini-trust strong{display:block;color:#050505;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;font-weight:600}
@@ -349,7 +363,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<{ order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; _processing?: boolean; _timedOut?: boolean } | null>(null);
+  const [paidOrder, setPaidOrder] = useState<{ id?: string; order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; payment_status?: string; status?: string; _processing?: boolean; _timedOut?: boolean } | null>(null);
   const storefrontCartKey = `catalogstore-cart-v1:${(initialSeller?.subdomain || slug).toLowerCase()}`;
 
   // Keep the saved cart during a cancelled/failed/pending gateway attempt so
@@ -409,7 +423,32 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     checkout: true,
     customerName: [firstName, lastName].filter(Boolean).join(" "),
     customerEmail: email,
+    cartItems: cart.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant, image: i.image })),
   });
+
+  useEffect(() => {
+    if (!seller?.id || !paidOrder || paidOrder._processing) return;
+    if (!(paidOrder.payment_status === "paid" || paidOrder.status === "confirmed" || paidOrder.status === "delivered")) return;
+    const orderId = String(paidOrder.id || paidOrder.order_number || "");
+    if (!orderId) return;
+    const attributionKey = `catalogstore-cart-booster-attribution-v1:${slug.toLowerCase()}`;
+    const completionKey = `catalogstore-cart-booster-completed-v1:${orderId}`;
+    try {
+      if (localStorage.getItem(completionKey)) return;
+      const attribution = JSON.parse(localStorage.getItem(attributionKey) || "null");
+      if (!attribution?.addedAt || Date.now() - Number(attribution.addedAt) >= 24 * 60 * 60 * 1000) return;
+      trackStorefrontEvent({
+        sellerId: seller.id,
+        eventType: "order_completed_after_upsell",
+        cartItemCount: (paidOrder.items || []).reduce((sum: number, item: any) => sum + (Number(item.qty) || 0), 0),
+        cartValue: Number(paidOrder.total) || 0,
+        cartItems: paidOrder.items || [],
+        metadata: { ...(attribution.metadata || {}), orderId },
+      });
+      localStorage.setItem(completionKey, "1");
+      localStorage.removeItem(attributionKey);
+    } catch {}
+  }, [paidOrder, seller?.id, slug]);
 
   useEffect(() => { load(); }, [slug]);
 
@@ -521,8 +560,22 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       }
     } catch {}
 
-    // Fetch seller data through safe API (strips merchant keys)
-    const sd = initialSeller;
+    // Checkout payment availability/order is operational configuration, not
+    // presentation data. Always refresh it from the public, redacted endpoint
+    // so a dashboard save takes effect for the very next checkout even if a
+    // previous server-rendered checkout shell is still in a CDN/browser cache.
+    // `initialSeller` remains a safe fallback if the refresh is interrupted.
+    let sd = initialSeller;
+    try {
+      const sellerResponse = await fetch(`/api/seller-public?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
+      if (sellerResponse.ok) {
+        const freshSeller = await sellerResponse.json();
+        if (freshSeller?.id && freshSeller?.checkout_config) sd = freshSeller as Seller;
+      }
+    } catch {
+      // A checkout must still work during a short network interruption; the
+      // server-provided seller data is deliberately retained as the fallback.
+    }
     if (sd) {
       setSeller(sd);
       const ids = cleanCart.map((item) => item.id).filter((id): id is string => !!id);
@@ -628,24 +681,44 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       }
     } catch {}
     if (!sd?.checkout_config?.delivery_enabled && sd?.checkout_config?.pickup_enabled) setFulfillment("pickup");
-    if (sd?.checkout_config?.yoco_enabled) setPaymentMethod("yoco");
-    else if (sd?.checkout_config?.float_enabled) setPaymentMethod("float");
-    else if (sd?.checkout_config?.stitch_enabled) setPaymentMethod("stitch");
-    else if (sd?.checkout_config?.payfast_enabled) setPaymentMethod("payfast");
-    else if (sd?.checkout_config?.eft_enabled) setPaymentMethod("eft");
+    const checkoutConfig = sd?.checkout_config || {} as any;
+    const firstAvailablePayment = normalisePaymentOrder(checkoutConfig.payment_method_order).find((method) =>
+      method === "stitch" ? checkoutConfig.stitch_enabled !== false : Boolean(checkoutConfig[`${method}_enabled`])
+    );
+    if (firstAvailablePayment) setPaymentMethod(firstAvailablePayment);
     setLoading(false);
   };
 
   const cc = seller?.checkout_config || {} as any;
+  // Stitch is a platform-default payment method. A seller can only remove it
+  // by saving an explicit false value from their dashboard.
+  const stitchEnabled = cc.stitch_enabled !== false;
+  const paymentMethodOrder = normalisePaymentOrder(cc.payment_method_order);
+  const paymentDisplayOrder = (method: typeof PAYMENT_METHOD_ORDER[number]) => paymentMethodOrder.indexOf(method);
   // An import product forces exactly one premium method. Its configured
   // price/index remain the source of truth, while the customer-facing name
   // and delivery promise are fixed to 4regn's premium-product wording.
   const cartHasImport = cart.some((i) => hasImportTag(i.tags));
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  // Shared BXGY calculator determines the payable merchandise amount used
+  // by both the order summary and 4REGN's R449 delivery qualification.
+  const automaticDiscount = (() => {
+    const rules = seller?.automatic_bxgy_discounts || [];
+    if (!rules.length || !cart.length) return { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
+    const productById = new Map(sellerProducts.map((p) => [p.id, p]));
+    const productByName = new Map(sellerProducts.map((p) => [p.name.toLowerCase(), p]));
+    const priced = cart.map((i) => ({ name: i.name, price: i.price, qty: i.qty, category: (i.id ? productById.get(i.id) : undefined)?.category ?? productByName.get(i.name.toLowerCase())?.category }));
+    return computeAutomaticBxgyDiscount(rules, priced);
+  })();
+  const deliveryQualifyingSubtotal = Math.max(0, subtotal - automaticDiscount.totalDiscount);
   const shippingOptionsConfigured = buildCheckoutShippingOptions(cc.shipping_options, {
     subdomain: seller?.subdomain,
     template: seller?.template,
+    subtotal: deliveryQualifyingSubtotal,
+    hasImportProduct: cartHasImport,
+    delivery_method_order: cc.delivery_method_order,
   });
   const explicitlyPremiumShippingIndex = shippingOptionsConfigured.findIndex(isPremiumShippingOption);
   // Import shipping is automatic. Prefer a seller-configured premium rate,
@@ -763,8 +836,17 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     badgeBg: slMuted, badgeText: "#fff",
     stickyBg: `${slBg}f2`, emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const selectedShippingOption = shippingOptionsConfigured[shippingOption];
+  const selectedDeliveryEstimate = fulfillment === "delivery" ? calculateFourRegnDeliveryEstimate(cartHasImport ? PREMIUM_SHIPPING_NAME : selectedShippingOption?.name) : null;
+  const selectedDeliveryEstimateDates = (() => {
+    if (!selectedDeliveryEstimate) return "";
+    const from = new Date(selectedDeliveryEstimate.fromAt);
+    const to = new Date(selectedDeliveryEstimate.toAt);
+    // Format in South African time so the weekday/date cannot shift for a
+    // customer browsing from another timezone.
+    const formatter = new Intl.DateTimeFormat("en-ZA", { weekday: "long", day: "numeric", month: "short", timeZone: "Africa/Johannesburg" });
+    return { earliest: formatter.format(from), latest: formatter.format(to) };
+  })();
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
   const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
   const shippingDisplayName = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_NAME : (opt?.name || "Delivery");
@@ -796,28 +878,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       </span>
     );
   };
-
-  // Automatic Buy X Get Y savings -- live preview so the customer sees it
-  // before they even reach place-order, computed with the exact same
-  // function that call makes the real charge with (lib/automatic-discounts.ts),
-  // just fed cart/sellerProducts instead of server-truth line items. Matches
-  // cart items to their category by name, same lookup convention the
-  // existing collection-scoped discount-code math above already uses.
-  const automaticDiscount = (() => {
-    const rules = seller?.automatic_bxgy_discounts || [];
-    if (!rules.length || !cart.length) return { totalDiscount: 0, applied: [] as { title: string; amount: number }[] };
-    // Match by id first, not name -- sellerProducts includes every product
-    // row regardless of status (trashed/duplicate-named products included,
-    // same unfiltered query used by the collection-discount-code matching
-    // above), so a name-only Map can silently resolve to the wrong row's
-    // category when two products share a name. Cart items already carry
-    // the real product id (see FourRegnStore.tsx's goToCheckout), so this
-    // is both more correct and a no-op for the common case.
-    const productById = new Map(sellerProducts.map((p) => [p.id, p]));
-    const productByName = new Map(sellerProducts.map((p) => [p.name.toLowerCase(), p]));
-    const priced = cart.map((i) => ({ name: i.name, price: i.price, qty: i.qty, category: (i.id ? productById.get(i.id) : undefined)?.category ?? productByName.get(i.name.toLowerCase())?.category }));
-    return computeAutomaticBxgyDiscount(rules, priced);
-  })();
 
   // Calculate discount based on type
   const calcDiscount = () => {
@@ -854,8 +914,10 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const originalPrice = Number(item.old_price) || 0;
     return sum + Math.max(0, originalPrice - item.price) * item.qty;
   }, 0);
-  const totalSavings = compareAtSavings + automaticDiscount.totalDiscount + discountAmount + deliverySavings;
   const isShippingDiscount = discountApplied?.applies_to === "shipping";
+  const merchandiseSavings = compareAtSavings + automaticDiscount.totalDiscount + (isShippingDiscount ? 0 : discountAmount);
+  const totalSavings = merchandiseSavings + deliverySavings;
+  const summarySubtotal = subtotal + compareAtSavings;
   const total = isShippingDiscount
     ? Math.max(0, subtotal + shipping - discountAmount - automaticDiscount.totalDiscount)
     : Math.max(0, subtotal - discountAmount - automaticDiscount.totalDiscount + shipping);
@@ -991,7 +1053,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         return;
       }
 
-      if (effectiveMethod === "stitch" && cc.stitch_enabled) {
+      if (effectiveMethod === "stitch" && stitchEnabled) {
         // Stitch only accepts one of up to 5 pre-registered exact redirect
         // URLs (see lib/stitch.ts's registerStitchRedirectUrl), unlike
         // Yoco's fully dynamic successUrl -- so the order/store context is
@@ -1101,7 +1163,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const reference = checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn);
     return (
       <div className="fr-checkout-v2">
-        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0}`}</style>
+        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch}`}</style>
         <div className="checkout-shell">
           <header className="topbar">
             <div className="topbar-inner">
@@ -1351,12 +1413,19 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>
                           <div className="radio"></div>
-                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} /></div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
+                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} />{opt.carrier === "aramex" && <span className="best-value-badge">BEST VALUE</span>}</div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
                           <ShippingPrice opt={opt} />
                         </div>
+                        {shippingOption === i && selectedDeliveryEstimateDates && (
+                          <div className="delivery-estimate">
+                            <strong>Could arrive as early as {selectedDeliveryEstimateDates.earliest}</strong><br />
+                            Estimated by {selectedDeliveryEstimateDates.latest}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
+                  <p className="delivery-estimate-note">Delivery estimates exclude weekends and South African public holidays.</p>
                 </div>
               )}
 
@@ -1386,7 +1455,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 <div className="section-head"><div><h2 className="section-title">Payment</h2><div className="section-kicker" style={{ marginTop: 7 }}>All transactions are secure and encrypted.</div></div></div>
                 <div className="choice-stack">
                   {cc.yoco_enabled && (
-                    <div className={"choice" + (paymentMethod === "yoco" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "yoco" ? " active" : "")} style={{ order: paymentDisplayOrder("yoco") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("yoco")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1403,8 +1472,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     </div>
                   )}
 
-                  {cc.stitch_enabled && (
-                    <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")}>
+                  {stitchEnabled && (
+                    <div className={"choice" + (paymentMethod === "stitch" ? " active" : "")} style={{ order: paymentDisplayOrder("stitch") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("stitch")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1427,7 +1496,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                   )}
 
                   {cc.setla_enabled && (
-                    <div className={"choice" + (paymentMethod === "setla" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "setla" ? " active" : "")} style={{ order: paymentDisplayOrder("setla") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("setla")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1464,7 +1533,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                   )}
 
                   {cc.float_enabled && (
-                    <div className={"choice" + (paymentMethod === "float" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "float" ? " active" : "")} style={{ order: paymentDisplayOrder("float") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("float")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1481,7 +1550,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                   )}
 
                   {cc.eft_enabled && (
-                    <div className={"choice" + (paymentMethod === "eft" ? " active" : "")}>
+                    <div className={"choice" + (paymentMethod === "eft" ? " active" : "")} style={{ order: paymentDisplayOrder("eft") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("eft")}>
                         <div className="radio"></div>
                         <div className="choice-main">
@@ -1559,16 +1628,16 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     </div>
                   ))}
                   <div className="totals">
-                    <div className="total-row"><span>Subtotal &middot; {itemCount} item{itemCount !== 1 ? "s" : ""}</span><span>R{subtotal.toLocaleString("en-ZA")}</span></div>
-                    {discountApplied && discountAmount > 0 && (
+                    <div className="total-row"><span>Subtotal &middot; {itemCount} item{itemCount !== 1 ? "s" : ""}</span><span>R{summarySubtotal.toLocaleString("en-ZA")}</span></div>
+                    {discountApplied && discountAmount > 0 && !isShippingDiscount && (
                       <div className="total-row discount"><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>&minus;R{discountAmount.toFixed(0)}</span></div>
                     )}
                     {automaticDiscount.applied.map((a) => (
                       <div className="total-row discount" key={a.title}><span>{a.title}</span><span>&minus;R{a.amount.toFixed(0)}</span></div>
                     ))}
-                    {deliverySavings > 0 && <div className="total-row discount"><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>&minus;R{deliverySavings.toFixed(0)}</span></div>}
+                    {compareAtSavings > 0 && <div className="total-row discount"><span>Sale discount</span><span>&minus;R{compareAtSavings.toFixed(0)}</span></div>}
                     {totalSavings > 0 && <div className="total-row discount" style={{ fontWeight: 800 }}><span>Total savings</span><span>&minus;R{totalSavings.toFixed(0)}</span></div>}
-                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
+                    <div className="total-row"><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (deliverySavings > 0 ? <span className="shipping-saving-stack"><span className="was">R{Number(selectedShippingOption?.compare_at_price || shipping + deliverySavings).toFixed(0)}</span><span className="now">{shippingPriceLabel(selectedShippingOption)}</span></span> : shippingPriceLabel(selectedShippingOption))}</span></div>
                     <div className="total-row grand"><span>Total</span><strong><span className="currency">ZAR</span>R{total.toLocaleString("en-ZA")}</strong></div>
                   </div>
                 </div>
@@ -1787,9 +1856,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           {/* PAYMENT */}
           <h2 style={{ fontFamily: T.headFont, fontSize: 24, fontWeight: 400, marginBottom: 8 }}>Payment</h2>
           <p style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>All transactions are secure and encrypted.</p>
-          <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden", marginBottom: 32 }}>
+          <div style={{ border: "1px solid " + T.border, borderRadius: 14, overflow: "hidden", marginBottom: 32, display: "flex", flexDirection: "column" }}>
             {cc.setla_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("setla") }}>
                 <div onClick={() => setPaymentMethod("setla")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "setla" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "setla" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1855,7 +1924,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {cc.yoco_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("yoco") }}>
                 <div onClick={() => setPaymentMethod("yoco")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "yoco" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "yoco" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1873,7 +1942,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {cc.float_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("float") }}>
                 <div onClick={() => setPaymentMethod("float")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "float" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "float" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1888,12 +1957,15 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 {paymentMethod === "float" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Float to choose your interest-free payment plan securely.</div>}
               </div>
             )}
-            {cc.stitch_enabled && (
-              <div>
+            {stitchEnabled && (
+              <div style={{ order: paymentDisplayOrder("stitch") }}>
                 <div onClick={() => setPaymentMethod("stitch")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "stitch" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "stitch" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
-                    <span style={{ fontSize: 14, fontWeight: paymentMethod === "stitch" ? 600 : 400 }}>Card (Stitch)</span>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: paymentMethod === "stitch" ? 600 : 400 }}>Stitch Pay Later</div>
+                      <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>Pay over 2–6 monthly instalments, from <strong style={{ color: T.text }}>{formatZARDecimal(total / 6)}</strong></div>
+                    </div>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
@@ -1902,15 +1974,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                     </div>
                   </div>
                 </div>
-                {/* Card Consent inherently saves the card for later reuse --
-                    unlike Yoco's plain one-off charge, this needs its own,
-                    stronger disclosure line rather than reusing Yoco's
-                    "redirected to X" copy verbatim. */}
-                {paymentMethod === "stitch" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You'll be redirected to Stitch to complete your payment. Your card details are securely saved by Stitch for this order.</div>}
+                {paymentMethod === "stitch" && <div style={{ padding: "16px 20px", background: T.selectBg, fontSize: 13, color: T.muted, borderBottom: "1px solid " + T.summaryBorder }}>You&rsquo;ll be redirected to Stitch to choose and complete your payment plan securely.</div>}
               </div>
             )}
             {cc.payfast_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("payfast") }}>
                 <div onClick={() => setPaymentMethod("payfast")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", background: paymentMethod === "payfast" ? T.selectBg : T.card, borderBottom: "1px solid " + T.summaryBorder }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "payfast" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
@@ -1929,7 +1997,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               </div>
             )}
             {cc.eft_enabled && (
-              <div>
+              <div style={{ order: paymentDisplayOrder("eft") }}>
                 <div onClick={() => setPaymentMethod("eft")} style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, background: paymentMethod === "eft" ? T.selectBg : T.card }}>
                   <div style={{ width: 20, height: 20, borderRadius: "50%", border: paymentMethod === "eft" ? "6px solid #22c55e" : "2px solid " + T.muted }} />
                   <span style={{ fontSize: 14, fontWeight: paymentMethod === "eft" ? 600 : 400 }}>EFT / Direct Deposit</span>
@@ -1987,14 +2055,14 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             );
           })}
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, marginTop: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{subtotal.toFixed(0)}</span></div>
-            {discountApplied && discountAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})</span><span>R{summarySubtotal.toFixed(0)}</span></div>
+            {discountApplied && discountAmount > 0 && !isShippingDiscount && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{discountApplied.code} {discountApplied.applies_to !== "cart" ? "(" + discountApplied.applies_to + ")" : ""}</span><span>-R{discountAmount.toFixed(0)}</span></div>}
             {automaticDiscount.applied.map((a) => (
               <div key={a.title} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{a.title}</span><span>-R{a.amount.toFixed(0)}</span></div>
             ))}
-            {deliverySavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>{selectedShippingOption?.carrier === "paxi" ? "PAXI standard delivery discount" : "Delivery discount"}</span><span>-R{deliverySavings.toFixed(0)}</span></div>}
+            {compareAtSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#22c55e" }}><span>Sale discount</span><span>-R{compareAtSavings.toFixed(0)}</span></div>}
             {totalSavings > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: "#168233", fontWeight: 800 }}><span>Total savings</span><span>-R{totalSavings.toFixed(0)}</span></div>}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : shippingPriceLabel(selectedShippingOption)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14, color: T.muted }}><span>Shipping</span><span>{fulfillment === "pickup" ? "Pickup" : (deliverySavings > 0 ? <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}><span style={{ color: T.muted, textDecoration: "line-through" }}>R{Number(selectedShippingOption?.compare_at_price || shipping + deliverySavings).toFixed(0)}</span><span style={{ color: T.text }}>{shippingPriceLabel(selectedShippingOption)}</span></span> : shippingPriceLabel(selectedShippingOption))}</span></div>
           </div>
           <div style={{ borderTop: "1px solid " + T.summaryBorder, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 16, fontWeight: 600 }}>Total</span>

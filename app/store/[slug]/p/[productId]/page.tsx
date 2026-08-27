@@ -24,11 +24,8 @@ export const revalidate = 3600;
 // generateStaticParams to avoid its documented dynamicParams/404 footgun.
 export const dynamic = "force-static";
 
-const SoftLuxury  = nextDynamic(() => import("../../SoftLuxuryStore"));
-const GlassChrome = nextDynamic(() => import("../../GlassChromeStore"));
-const Crown       = nextDynamic(() => import("../../CrownStore"));
-const Heirloom    = nextDynamic(() => import("../../HeirloomStore"));
 const FourRegn    = nextDynamic(() => import("../../FourRegnStore"));
+const UniversalProductPage = nextDynamic(() => import("../../UniversalProductPage"));
 
 const SELLER_COLUMNS =
   "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
@@ -46,7 +43,7 @@ const SELLER_COLUMNS =
 // /products/{handle} page, so dropping it would break that redirect.
 // created_at stays for Heirloom/SoftLuxury's Newest/Oldest sort.
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, sort_order, created_at, handle";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, size_chart_html, sort_order, created_at, handle";
 // 4regn-only: "You Might Also Like" (relatedProducts in FourRegnStore.tsx)
 // has no server-side fetch on this route either, same as
 // ../../products/[handle]/page.tsx -- it reads off the header/mobile-dock
@@ -258,32 +255,22 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     );
   }
 
-  const [productsRes, discountsRes] = await Promise.all([
-    supabaseAdmin
-      .from("products")
-      .select(PRODUCT_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("in_stock", true)
-      .eq("status", "published")
-      .order("sort_order", { ascending: true }),
-    supabaseAdmin
-      .from("discount_codes")
-      .select(DISCOUNT_COLUMNS)
-      .eq("seller_id", seller.id)
-      .eq("active", true)
-      .eq("show_countdown", true)
-      .not("expires_at", "is", null),
-  ]);
+  // Legacy UUID URLs now fetch one row and immediately consolidate onto the
+  // crawlable handle URL. This avoids downloading a seller's whole catalog
+  // merely to render one product and gives search engines one canonical URL.
+  const { data: activeProduct } = await supabaseAdmin
+    .from("products")
+    .select(PRODUCT_COLUMNS)
+    .eq("seller_id", seller.id)
+    .eq("id", productId)
+    .eq("status", "published")
+    .maybeSingle();
 
-  const initialProducts = productsRes.data ?? [];
-  const initialDiscountCodes = discountsRes.data ?? [];
-
-  const activeProduct = initialProducts.find((p: { id: string }) => p.id === productId);
-  // A dedicated product page with nothing to show for a bad/expired id no
-  // longer makes sense once 4regn renders a real page here instead of a
-  // slide-over on top of the homepage (which used to just silently fall
-  // back to home with nothing open).
   if (!activeProduct) notFound();
+
+  if (activeProduct.handle) {
+    permanentRedirect(isSubdomain ? `/products/${activeProduct.handle}` : `/store/${slug}/products/${activeProduct.handle}`);
+  }
 
   // Product schema, sourced from the same row already fetched for the page
   // body -- gives Google a price/availability/image it can surface directly
@@ -292,8 +279,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     "@context": "https://schema.org",
     "@type": "Product",
     name: activeProduct.name,
-    description: activeProduct.description || undefined,
+    description: activeProduct.description ? descriptionToPlainText(activeProduct.description) : undefined,
     image: activeProduct.image_url || activeProduct.images?.[0] || undefined,
+    brand: { "@type": "Brand", name: seller.store_name },
     url: canonicalStoreUrl(slug, `/p/${productId}`),
     offers: {
       "@type": "Offer",
@@ -304,13 +292,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     },
   };
 
-  const props = { initialSeller: trimSellerTemplateConfigs(seller, tpl), initialProducts, initialDiscountCodes, initialProductId: productId, isSubdomain };
-  const StoreComponent = tpl === "crown" ? Crown : (tpl === "glass-futuristic" || tpl === "glass-chrome") ? GlassChrome : tpl === "heirloom" ? Heirloom : SoftLuxury;
-
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
-      <StoreComponent {...props} />
+      <UniversalProductPage
+        seller={trimSellerTemplateConfigs(seller, tpl)}
+        product={activeProduct}
+        template={tpl}
+        isSubdomain={isSubdomain}
+        descriptionText={activeProduct.description ? descriptionToPlainText(activeProduct.description) : ""}
+      />
     </>
   );
 }

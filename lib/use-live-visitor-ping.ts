@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 const VISITOR_ID_KEY = "cs-visitor-id";
 const PING_INTERVAL_MS = 20_000;
 
-function getVisitorId(): string {
+export function getStorefrontVisitorId(): string {
   try {
     let id = localStorage.getItem(VISITOR_ID_KEY);
     if (!id) {
@@ -21,6 +21,40 @@ function getVisitorId(): string {
   }
 }
 
+export type StorefrontEventType =
+  | "page_view" | "add_to_cart" | "reached_checkout"
+  | "session_activity"
+  | "free_delivery_upsell_impression" | "free_delivery_upsell_click"
+  | "free_delivery_upsell_add" | "free_delivery_threshold_reached"
+  | "checkout_started_after_upsell" | "order_completed_after_upsell";
+
+export function trackStorefrontEvent(args: {
+  sellerId: string;
+  eventType: StorefrontEventType;
+  cartItemCount?: number;
+  cartValue?: number;
+  cartItems?: Array<{ id?: string; name: string; price: number; qty: number; variant?: string; image?: string }>;
+  metadata?: Record<string, unknown>;
+}) {
+  if (typeof window === "undefined" || !args.sellerId) return;
+  fetch("/api/storefront/heartbeat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    keepalive: true,
+    body: JSON.stringify({
+      sellerId: args.sellerId,
+      visitorId: getStorefrontVisitorId(),
+      status: args.cartItemCount ? "active_cart" : "browsing",
+      path: window.location.pathname,
+      cartItemCount: args.cartItemCount || 0,
+      cartValue: args.cartValue || 0,
+      cartItems: (args.cartItems || []).slice(0, 20),
+      eventType: args.eventType,
+      eventMetadata: args.metadata || {},
+    }),
+  }).catch(() => {});
+}
+
 /* Pings /api/storefront/heartbeat so the seller (or UNIK's Brand Manager)
    can see who's live on the store right now -- browsing, has an active
    cart, or is at checkout. One call per storefront template's top-level
@@ -29,16 +63,22 @@ function getVisitorId(): string {
    store.js since it renders inside an iframe outside this React tree. */
 export function useLiveVisitorPing(
   sellerId: string | undefined,
-  opts: { cartItemCount?: number; cartValue?: number; checkout?: boolean; customerName?: string; customerEmail?: string }
+  opts: { cartItemCount?: number; cartValue?: number; checkout?: boolean; customerName?: string; customerEmail?: string; cartItems?: Array<{ id?: string; name: string; price: number; qty: number; variant?: string; image?: string }> }
 ) {
-  const { cartItemCount = 0, cartValue = 0, checkout = false, customerName, customerEmail } = opts;
+  const { cartItemCount = 0, cartValue = 0, checkout = false, customerName, customerEmail, cartItems = [] } = opts;
   const visitorIdRef = useRef<string | null>(null);
+  const lastPathRef = useRef<string>("");
+  const lastCartSignatureRef = useRef<string>("");
+  const reachedCheckoutRef = useRef(false);
+  const lastTimelineActivityRef = useRef(0);
 
   useEffect(() => {
     if (!sellerId) return;
-    if (!visitorIdRef.current) visitorIdRef.current = getVisitorId();
+    if (!visitorIdRef.current) visitorIdRef.current = getStorefrontVisitorId();
 
-    const send = () => {
+    const cartSignature = cartItems.map((i) => `${i.id || i.name}:${i.qty}:${i.variant || ""}`).join("|");
+
+    const send = (eventType?: "page_view" | "add_to_cart" | "reached_checkout" | "session_activity") => {
       const status = checkout ? "checkout" : cartItemCount > 0 ? "active_cart" : "browsing";
       fetch("/api/storefront/heartbeat", {
         method: "POST",
@@ -53,12 +93,37 @@ export function useLiveVisitorPing(
           cartValue,
           customerName: customerName || undefined,
           customerEmail: customerEmail || undefined,
+          cartItems: cartItems.slice(0, 20),
+          eventType,
         }),
       }).catch(() => {});
     };
 
-    send();
-    const id = setInterval(send, PING_INTERVAL_MS);
+    const currentPath = window.location.pathname;
+    let eventType: "page_view" | "add_to_cart" | "reached_checkout" | undefined;
+    if (checkout && !reachedCheckoutRef.current) {
+      eventType = "reached_checkout";
+      reachedCheckoutRef.current = true;
+    } else if (cartItemCount > 0 && cartSignature && cartSignature !== lastCartSignatureRef.current) {
+      eventType = "add_to_cart";
+    } else if (currentPath !== lastPathRef.current) {
+      eventType = "page_view";
+    }
+    lastPathRef.current = currentPath;
+    lastCartSignatureRef.current = cartSignature;
+
+    send(eventType);
+    // The live session table is only a current snapshot. Record one quiet
+    // timeline heartbeat per minute as well, so a customer browsing within a
+    // page does not disappear from the historical timeline until they click
+    // a button or navigate away.
+    lastTimelineActivityRef.current = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      const timelineEvent = now - lastTimelineActivityRef.current >= 60_000 ? "session_activity" : undefined;
+      if (timelineEvent) lastTimelineActivityRef.current = now;
+      send(timelineEvent);
+    }, PING_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [sellerId, cartItemCount, cartValue, checkout, customerName, customerEmail]);
+  }, [sellerId, cartItemCount, cartValue, checkout, customerName, customerEmail, JSON.stringify(cartItems)]);
 }

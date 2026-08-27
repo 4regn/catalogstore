@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import { extractLegacyImportedSizeChart, parseProductSizeChartHtml } from "@/lib/product-size-chart";
 import { revalidateStore } from "../actions/revalidate-store";
 import { canonicalStoreUrl } from "../../lib/store-url";
 import { FONT_PAIRS, DEFAULT_FONT_PAIR_KEY } from "../../lib/font-pairs";
@@ -10,9 +11,12 @@ import CtaTargetPicker, { type CtaTarget } from "../components/CtaTargetPicker";
 import FocalPointPicker from "../components/FocalPointPicker";
 import Spinner from "../components/Spinner";
 import SupportChat from "../components/SupportChat";
+import CustomersPanel from "./components/CustomersPanel";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
 import type { FullAnalytics } from "../../lib/store-analytics";
+import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
+import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -94,13 +98,15 @@ const addCat = (current: string, col: string) => {
 const removeCat = (current: string, col: string) =>
   (current || "").split(",").map((c) => c.trim()).filter((c) => c && c !== col).join(",");
 
-interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
+type VariantImage = string | string[];
+interface Variant { name: string; options: string[]; images?: { [option: string]: VariantImage }; priceDelta?: { [option: string]: number }; }
 
 interface SocialLinks {
   whatsapp?: string; instagram?: string; tiktok?: string; facebook?: string; twitter?: string;
 }
 
 interface StoreConfig {
+  four_regn_live_chat_enabled?: boolean;
   show_banner_text: boolean; show_marquee: boolean; show_collections: boolean;
   show_about: boolean; show_trust_bar: boolean; show_policies: boolean;
   show_newsletter: boolean; show_announcement: boolean; announcement: string;
@@ -123,12 +129,17 @@ interface StoreConfig {
   font_pair?: string;
   hero_image_position?: string;
   hero_image_behavior?: string;
+  collection_images?: Record<string, string>;
 }
 
 interface CheckoutConfig {
   eft_enabled: boolean; eft_bank_name: string; eft_account_number: string; eft_account_name: string;
   eft_branch_code: string; eft_account_type: string; eft_instructions: string;
   payfast_enabled: boolean; payfast_merchant_id: string; payfast_merchant_key: string;
+  stitch_enabled: boolean;
+  yoco_enabled: boolean; setla_enabled: boolean; float_enabled: boolean;
+  payment_method_order: string[];
+  delivery_method_order?: string[];
   delivery_enabled: boolean; pickup_enabled: boolean; pickup_address: string; pickup_instructions: string;
   // is_premium: this option is ONLY offered when the cart contains a
   // product tagged "import"/"imports" (and, symmetrically, hidden from
@@ -155,6 +166,56 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null; category: string;
   image_url: string | null; images: string[]; variants: Variant[]; in_stock: boolean;
   status: string; sort_order: number; description: string; created_at: string;
+  handle: string | null; source_url: string | null; size_chart_html: string | null; tags: string[];
+  metafields: Record<string, unknown>;
+}
+
+interface ProductUrlPreview {
+  sourceUrl: string;
+  supplier: string;
+  title: string;
+  price: number | null;
+  compareAtPrice: number | null;
+  currency: string;
+  description: string;
+  images: string[];
+  variants?: Variant[];
+  inStock?: boolean | null;
+  stockNote?: string;
+  captureMethod?: "server" | "browser";
+  warnings?: string[];
+  imageDetails?: { width: number; height: number; bytes: number; sourceUrl?: string }[];
+  sizeChartHtml?: string;
+}
+
+interface BulkImportQueueItem {
+  id: string;
+  url: string;
+  status: "queued" | "capturing" | "review" | "saved" | "failed";
+  note?: string;
+}
+
+interface SheinStockAudit {
+  sourceUrl: string;
+  supplier: string;
+  title: string;
+  inStock: boolean;
+  stockByColor: Record<string, { availableSizes?: string[]; soldOutSizes?: string[]; detectedSizes?: string[] }>;
+  stockNote?: string;
+  warnings?: string[];
+}
+
+const CATALOG_IMPORT_APP_SOURCE = "catalogstore-product-importer";
+const CATALOG_IMPORT_EXTENSION_SOURCE = "4regn-catalog-importer-extension";
+
+function dataUrlToImageFile(dataUrl: string, index: number) {
+  const match = dataUrl.match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
+  if (!match) return null;
+  const bytes = atob(match[2]);
+  const array = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) array[i] = bytes.charCodeAt(i);
+  const ext = match[1].split("/")[1].replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "jpg";
+  return new File([array], `supplier-product-${index + 1}.${ext}`, { type: match[1] });
 }
 
 interface Order {
@@ -162,8 +223,9 @@ interface Order {
   customer_email: string;
   items: { name: string; qty: number; price: number; variant?: string; image?: string }[]; total: number;
   status: string; payment_status: string; created_at: string;
+  tracking_updated_at?: string | null; estimated_delivery_from_at?: string | null; estimated_delivery_at?: string | null; estimated_delivery_manual_override?: boolean;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
-  fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null;
+  fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null; customer_tracking_note?: string | null;
 }
 
 interface LiveVisitor {
@@ -173,9 +235,15 @@ interface LiveVisitor {
 }
 
 interface SessionAnalytics {
-  sessionsToday: number; ordersToday: number; salesToday: number;
+  sessionsToday: number; addedToCartToday?: number; reachedCheckoutToday?: number; completedCheckoutToday?: number; ordersToday: number; salesToday: number;
   dailySessions: { date: string; sessions: number }[];
   topLocations: { country: string; region: string; city: string; count: number }[];
+  activity?: {
+    addedToCart: { visitorId: string; timestamp: string; path: string | null; status: string | null; customerName: string | null; customerEmail: string | null; cartItemCount: number; cartValue: number; cartItems: { id?: string; name: string; price: number; qty: number; variant?: string; image?: string }[] }[];
+    reachedCheckout: { visitorId: string; timestamp: string; path: string | null; status: string | null; customerName: string | null; customerEmail: string | null; cartItemCount: number; cartValue: number; cartItems: { id?: string; name: string; price: number; qty: number; variant?: string; image?: string }[] }[];
+    purchases: { orderId: string; orderNumber: number | null; externalId: string | null; customerName: string | null; customerEmail: string | null; total: number; timestamp: string; paymentMethod: string | null }[];
+    timeline: { visitorId: string; eventType: string; timestamp: string; path: string | null; customerName: string | null; customerEmail: string | null; cartItemCount: number; cartValue: number; cartItems: { id?: string; name: string; price: number; qty: number; variant?: string; image?: string }[] }[];
+  };
 }
 
 interface VelourService {
@@ -189,10 +257,31 @@ interface VelourBooking {
 }
 
 const SELLER_COLUMNS = "id, email, store_name, whatsapp_number, subdomain, template, plan, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_plan, subscription_grace_until, trial_ends_at, subscription_started_at, payfast_subscription_token, custom_domain, custom_domain_status";
-const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at";
-const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes";
+const PRODUCT_COLUMNS = "id, name, price, old_price, category, image_url, images, variants, in_stock, status, sort_order, description, created_at, handle, source_url, size_chart_html, tags, metafields";
+const cleanProductTags = (values: string[]) => Array.from(new Map(values
+  .flatMap((value) => String(value || "").split(","))
+  .map((value) => value.trim().replace(/\s+/g, " ").slice(0, 80))
+  .filter(Boolean)
+  .map((value) => [value.toLowerCase(), value])).values()).slice(0, 40);
+const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, estimated_delivery_from_at, estimated_delivery_at, estimated_delivery_manual_override, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes, customer_tracking_note";
+const PAYMENT_METHOD_KEYS = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
+const DEFAULT_PAYMENT_METHOD_ORDER = [...PAYMENT_METHOD_KEYS];
+const normalisePaymentMethodOrder = (value: unknown) => {
+  const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_KEYS[number] => PAYMENT_METHOD_KEYS.includes(key as typeof PAYMENT_METHOD_KEYS[number])) : [];
+  return [...saved, ...DEFAULT_PAYMENT_METHOD_ORDER.filter((key) => !saved.includes(key))];
+};
 const displayOrderReference = (order: Pick<Order, "order_number" | "external_id">) =>
   order.external_id ? String(order.external_id).replace(/^#?/, "#") : `#${order.order_number}`;
+const toDateTimeLocalValue = (iso?: string | null) => {
+  const date = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+const fromDateTimeLocalValue = (value: string) => {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+};
 const DISCOUNT_COLUMNS = "id, code, type, value, min_order, max_uses, used_count, active, expires_at, created_at, applies_to, product_ids, collection_names, show_countdown, description";
 const VELOUR_SERVICE_COLUMNS = "id, category, name, price, media_url, media_type, sort_order";
 const VELOUR_BOOKING_COLUMNS = "id, service_id, date, time_slot, booking_type, status, client_name, client_phone, payment_method, amount, created_at";
@@ -265,7 +354,7 @@ const UNIK_ORDER_STATUSES = ["pending", "fulfilled", "awaiting_pickup", "picked_
 // status values, so the courier granularity needs to exist here too, not
 // just the coarser confirmed/processing/shipped/delivered set this used
 // to stop at.
-const GENERIC_ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "picked_up", "in_transit", "out_for_delivery", "delivered", "cancelled"];
+const GENERIC_ORDER_STATUSES = ["pending", ...FOUR_REGN_TRACKING_STAGES.map((stage) => stage.key), "cancelled"];
 function orderStatusColors(status: string): { bg: string; fg: string } {
   if (status === "delivered") return { bg: "rgba(34,197,94,0.15)", fg: "#22c55e" };
   if (status === "cancelled") return { bg: "rgba(255,107,53,0.1)", fg: "#ff6b35" };
@@ -318,7 +407,7 @@ const templatesForSeller = (subdomain?: string | null) => {
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "customers" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -359,10 +448,12 @@ export default function Dashboard() {
   const [activeConversationMessages, setActiveConversationMessages] = useState<{ id: string; sender: string; body: string; created_at: string }[]>([]);
   const [inboxReply, setInboxReply] = useState("");
   const [inboxReplySending, setInboxReplySending] = useState(false);
+  const [liveChatSaving, setLiveChatSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
+  const [liveActivityPanel, setLiveActivityPanel] = useState<"addedToCart" | "reachedCheckout" | "purchases" | "timeline" | null>(null);
   const [fullAnalytics, setFullAnalytics] = useState<FullAnalytics | null>(null);
   const [fullAnalyticsLoading, setFullAnalyticsLoading] = useState(false);
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
@@ -382,12 +473,44 @@ export default function Dashboard() {
   const [showForm, setShowForm] = useState(false);
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvResult, setCsvResult] = useState("");
+  const [importUrl, setImportUrl] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState("");
+  const [importPreview, setImportPreview] = useState<ProductUrlPreview | null>(null);
+  const [importTags, setImportTags] = useState<string[]>(["imports"]);
+  const [bulkImportText, setBulkImportText] = useState("");
+  const [bulkImportQueue, setBulkImportQueue] = useState<BulkImportQueueItem[]>([]);
+  const [bulkImportActiveId, setBulkImportActiveId] = useState<string | null>(null);
+  const [bulkImportAutoRunning, setBulkImportAutoRunning] = useState(false);
+  const bulkImportActiveIdRef = useRef<string | null>(null);
+  const [sheinAuditRunning, setSheinAuditRunning] = useState(false);
+  const [sheinAuditCurrentId, setSheinAuditCurrentId] = useState<string | null>(null);
+  const [sheinManualAuditText, setSheinManualAuditText] = useState("");
+  const [sheinAuditProgress, setSheinAuditProgress] = useState("");
+  const [sheinAuditResults, setSheinAuditResults] = useState<{ checked: number; inStock: number; drafted: number; failed: number }>({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
+  const [sheinAuditFailures, setSheinAuditFailures] = useState<{ productId: string; productName: string; reason: string }[]>([]);
+  const sheinAuditCurrentIdRef = useRef<string | null>(null);
+  const sheinAuditRequestIdRef = useRef<string | null>(null);
+  const sheinAuditedIdsRef = useRef<Set<string>>(new Set());
+  const sheinAuditScopeIdsRef = useRef<Set<string> | null>(null);
+  const [browserImporterAvailable, setBrowserImporterAvailable] = useState(false);
+  const [browserCaptureNeeded, setBrowserCaptureNeeded] = useState(false);
+  const browserCaptureRequestRef = useRef<string | null>(null);
+  const browserCaptureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [formImportAsDraft, setFormImportAsDraft] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formPrice, setFormPrice] = useState("");
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCategory, setFormCategory] = useState("");
+  const [formCollections, setFormCollections] = useState<string[]>([]);
+  const [formTags, setFormTags] = useState<string[]>([]);
+  const [formCartBoosterIds, setFormCartBoosterIds] = useState<string[]>([]);
+  const [cartBoosterSearch, setCartBoosterSearch] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formSizeChartHtml, setFormSizeChartHtml] = useState("");
+  const [formSourceUrl, setFormSourceUrl] = useState("");
+  const [formInStock, setFormInStock] = useState(true);
   const [formImages, setFormImages] = useState<File[]>([]);
   const [formPreviews, setFormPreviews] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -397,8 +520,95 @@ export default function Dashboard() {
   const [positionInput, setPositionInput] = useState<{ id: string; value: string } | null>(null);
   const [formVariants, setFormVariants] = useState<Variant[]>([]);
   const [formSaving, setFormSaving] = useState(false);
+  const [formSaveError, setFormSaveError] = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editProductParamHandledRef = useRef(false);
+
+  useEffect(() => {
+    const onImporterMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.data?.source !== CATALOG_IMPORT_EXTENSION_SOURCE) return;
+      const message = event.data;
+      if (message.type === "PONG") {
+        setBrowserImporterAvailable(true);
+        return;
+      }
+      if (message.type === "STOCK_AUDIT_PROGRESS" && message.requestId === sheinAuditRequestIdRef.current) {
+        setSheinAuditProgress(String(message.message || "Checking supplier stock..."));
+        return;
+      }
+      if (message.type === "STOCK_AUDIT_RESULT" && message.requestId === sheinAuditRequestIdRef.current) {
+        const productId = sheinAuditCurrentIdRef.current;
+        if (!productId) return;
+        if (!message.ok || !message.audit) {
+          const productName = products.find((product) => product.id === productId)?.name || "Unknown product";
+          const reason = String(message.error || "The browser worker returned no stock data.");
+          setSheinAuditResults((current) => ({ ...current, failed: current.failed + 1 }));
+          setSheinAuditFailures((items) => [...items, { productId, productName, reason }]);
+          setSheinAuditProgress(`${productName}: ${reason}`);
+          sheinAuditCurrentIdRef.current = null;
+          sheinAuditRequestIdRef.current = null;
+          setSheinAuditCurrentId(null);
+          return;
+        }
+        void applySheinStockAudit(productId, message.audit as SheinStockAudit);
+        return;
+      }
+      if (!browserCaptureRequestRef.current || message.requestId !== browserCaptureRequestRef.current) return;
+      if (message.type === "CAPTURE_PROGRESS") {
+        if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+        browserCaptureTimeoutRef.current = setTimeout(() => {
+          if (browserCaptureRequestRef.current !== message.requestId) return;
+          browserCaptureRequestRef.current = null;
+          setImportLoading(false);
+          const activeQueueItemId = bulkImportActiveIdRef.current;
+          if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: "Browser capture timed out" } : item));
+          bulkImportActiveIdRef.current = null;
+          setBulkImportActiveId(null);
+          setImportResult("Browser capture timed out. Keep the product page open, complete any verification, and try again.");
+        // A full supplier capture can legitimately take several minutes: each
+        // colour must settle before it is read, then every gallery-quality
+        // image is copied. The extension also sends heartbeats while it works.
+        }, 8 * 60 * 1000);
+        setImportResult(String(message.message || "Reading the supplier page in Chrome..."));
+        return;
+      }
+      if (message.type !== "CAPTURE_RESULT") return;
+      if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+      browserCaptureRequestRef.current = null;
+      setImportLoading(false);
+      if (!message.ok || !message.product) {
+        const activeQueueItemId = bulkImportActiveIdRef.current;
+        if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: message.error || "Capture failed" } : item));
+        bulkImportActiveIdRef.current = null;
+        setBulkImportActiveId(null);
+        setImportResult(message.error || "Browser capture could not read this product. Open the supplier page, complete any verification, then try again.");
+        return;
+      }
+      setBrowserImporterAvailable(true);
+      setBrowserCaptureNeeded(false);
+      setImportPreview(message.product as ProductUrlPreview);
+      const activeQueueItemId = bulkImportActiveIdRef.current;
+      if (activeQueueItemId) {
+        if (bulkImportAutoRunning) {
+          void saveBulkPreviewAsDraft(message.product as ProductUrlPreview, activeQueueItemId);
+        } else {
+          setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "review", note: "Ready for draft review" } : item));
+        }
+      }
+      const imageCount = Array.isArray(message.product.images) ? message.product.images.length : 0;
+      const variantCount = Array.isArray(message.product.variants)
+        ? message.product.variants.reduce((sum: number, group: Variant) => sum + (group.options?.length || 0), 0)
+        : 0;
+      setImportResult(`Browser capture complete: ${imageCount} photo${imageCount === 1 ? "" : "s"} and ${variantCount} variant option${variantCount === 1 ? "" : "s"} found. Review before saving.`);
+    };
+    window.addEventListener("message", onImporterMessage);
+    window.postMessage({ source: CATALOG_IMPORT_APP_SOURCE, type: "PING" }, window.location.origin);
+    return () => {
+      window.removeEventListener("message", onImporterMessage);
+      if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+    };
+  }, [bulkImportAutoRunning, sheinAuditRunning]);
 
   const [storeTemplate, setStoreTemplate] = useState("soft-luxury");
   const [storeColor, setStoreColor] = useState("#ff6b35");
@@ -429,7 +639,7 @@ export default function Dashboard() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [growDismissed, setGrowDismissed] = useState(() => typeof window !== "undefined" && localStorage.getItem("cs_grow_dismissed") === "1");
   const growSessionCounted = useRef(false);
-  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
+  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>({ eft_enabled: false, eft_bank_name: "", eft_account_number: "", eft_account_name: "", eft_branch_code: "", eft_account_type: "", eft_instructions: "", payfast_enabled: false, payfast_merchant_id: "", payfast_merchant_key: "", stitch_enabled: true, yoco_enabled: false, setla_enabled: false, float_enabled: false, payment_method_order: DEFAULT_PAYMENT_METHOD_ORDER, delivery_method_order: [...FOUR_REGN_DELIVERY_METHOD_ORDER], delivery_enabled: true, pickup_enabled: false, pickup_address: "", pickup_instructions: "", shipping_options: [], whatsapp_checkout_enabled: true });
   const [checkoutView, setCheckoutView] = useState<"payments" | "shipping">("payments");
   const [checkoutSaving, setCheckoutSaving] = useState(false);
   const [checkoutSaved, setCheckoutSaved] = useState(false);
@@ -439,6 +649,10 @@ export default function Dashboard() {
   const [newShipPremium, setNewShipPremium] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderPaymentStatusFilter, setOrderPaymentStatusFilter] = useState("all");
+  const [orderFulfillmentStatusFilter, setOrderFulfillmentStatusFilter] = useState("all");
+  const [orderPaymentMethodFilter, setOrderPaymentMethodFilter] = useState("all");
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
   // Real OS-level push notifications for new orders (see lib/push-notify.ts)
   // -- distinct from the Realtime toast/chime above, which only fires while
@@ -451,7 +665,7 @@ export default function Dashboard() {
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
-  const [subscribers, setSubscribers] = useState<{ email: string; created_at: string }[]>([]);
+  const [subscribers, setSubscribers] = useState<{ first_name: string | null; email: string; created_at: string; consented_at?: string | null }[]>([]);
   const [subscribersLoading, setSubscribersLoading] = useState(false);
   const [subscribersLoaded, setSubscribersLoaded] = useState(false);
   const [productSort, setProductSort] = useState("manual");
@@ -576,7 +790,13 @@ export default function Dashboard() {
     // subscription setup -- selecting "free" instead lands as subscription_status
     // "free" (already active, no gate needed).
     if (sd?.subscription_status === "pending") { router.push("/dashboard/billing"); return; }
-    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c: any = effectiveStoreConfig(sd); setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", privacy_policy: c.privacy_policy || "", terms_of_service: c.terms_of_service || "", free_ship_threshold: c.free_ship_threshold ?? null, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    if (sd) { setSeller(sd); setStoreTemplate(sd.template || "soft-luxury"); setStoreColor(sd.primary_color || "#ff6b35"); setStoreTagline(sd.tagline || ""); setStoreDescription(sd.description || ""); setLogoPreview(sd.logo_url || ""); setBannerPreview(sd.banner_url || ""); setStoreCollections(sd.collections || []); setSocialLinks(sd.social_links || {}); const c: any = effectiveStoreConfig(sd); setStoreConfig({ show_banner_text: c.show_banner_text !== false, show_marquee: c.show_marquee !== false, show_collections: c.show_collections !== false, show_about: c.show_about !== false, show_trust_bar: c.show_trust_bar !== false, show_policies: c.show_policies !== false, show_newsletter: !!c.show_newsletter, show_announcement: !!c.show_announcement, announcement: c.announcement || "", marquee_texts: c.marquee_texts?.length ? c.marquee_texts : ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: c.trust_items?.length ? c.trust_items : [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: c.policy_items?.length ? c.policy_items : [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy." }, { title: "Payment", desc: "Cards via Yoco + WhatsApp checkout." }], footer_about: c.footer_about || "", test_checkout_passed: !!c.test_checkout_passed, contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", operating_hours: c.operating_hours || "", physical_address: c.physical_address || "", shipping_policy: c.shipping_policy || "", return_policy: c.return_policy || "", privacy_policy: c.privacy_policy || "", terms_of_service: c.terms_of_service || "", free_ship_threshold: c.free_ship_threshold ?? null, collection_images: c.collection_images || {}, hero_title: c.hero_title !== undefined ? c.hero_title : (sd.store_name || ""), hero_cta: c.hero_cta || "", hero_cta_target: c.hero_cta_target || { type: "products" }, font_pair: c.font_pair || DEFAULT_FONT_PAIR_KEY, hero_image_position: c.hero_image_position || "center", hero_image_behavior: c.hero_image_behavior || "still" }); const cc = sd.checkout_config || {} as any; setCheckoutConfig({ eft_enabled: !!cc.eft_enabled, eft_bank_name: cc.eft_bank_name || "", eft_account_number: cc.eft_account_number || "", eft_account_name: cc.eft_account_name || "", eft_branch_code: cc.eft_branch_code || "", eft_account_type: cc.eft_account_type || "", eft_instructions: cc.eft_instructions || "", payfast_enabled: !!cc.payfast_enabled, payfast_merchant_id: cc.payfast_merchant_id || "", payfast_merchant_key: cc.payfast_merchant_key || "", stitch_enabled: cc.stitch_enabled !== false, yoco_enabled: !!cc.yoco_enabled, setla_enabled: !!cc.setla_enabled, float_enabled: !!cc.float_enabled, payment_method_order: normalisePaymentMethodOrder(cc.payment_method_order), delivery_enabled: cc.delivery_enabled !== false, pickup_enabled: !!cc.pickup_enabled, pickup_address: cc.pickup_address || "", pickup_instructions: cc.pickup_instructions || "", shipping_options: cc.shipping_options || [], whatsapp_checkout_enabled: cc.whatsapp_checkout_enabled !== false }); }
+    // Delivery ordering is intentionally independent of custom shipping
+    // options: it controls the three fixed 4REGN courier choices.
+    if (sd) setCheckoutConfig((current) => ({
+      ...current,
+      delivery_method_order: normaliseFourRegnDeliveryMethodOrder((sd.checkout_config as any)?.delivery_method_order),
+    }));
     if (pdResult.data) setProducts(pdResult.data);
     if (odResult.data) {
       setOrders(odResult.data);
@@ -760,27 +980,29 @@ export default function Dashboard() {
     setSubscribersLoaded(true);
   };
 
-  const fetchInbox = async () => {
+  const fetchInbox = async (silent = false) => {
     const token = await getAccessToken();
     if (!token) return;
-    setInboxLoading(true);
+    if (!silent) setInboxLoading(true);
     try {
       const res = await fetch(`/api/seller/support?accessToken=${encodeURIComponent(token)}`);
       const data = await res.json();
       if (res.ok) setInboxConversations(data.conversations || []);
     } catch {}
-    setInboxLoading(false);
+    if (!silent) setInboxLoading(false);
     setInboxLoaded(true);
   };
 
-  const openConversation = async (id: string) => {
-    setActiveConversationId(id);
+  const openConversation = async (id: string, background = false) => {
+    if (!background) setActiveConversationId(id);
     const token = await getAccessToken();
     if (!token) return;
     const res = await fetch(`/api/seller/support/${id}?accessToken=${encodeURIComponent(token)}`);
     const data = await res.json();
-    if (res.ok) setActiveConversationMessages(data.messages || []);
-    setInboxConversations((prev) => prev.map((c) => c.id === id ? { ...c, seller_unread: 0 } : c));
+    if (res.ok) {
+      setActiveConversationMessages(data.messages || []);
+      setInboxConversations((prev) => prev.map((c) => c.id === id ? { ...c, seller_unread: 0 } : c));
+    }
   };
 
   const sendInboxReply = async () => {
@@ -802,6 +1024,46 @@ export default function Dashboard() {
     } catch {}
     setInboxReplySending(false);
   };
+
+  const setFourRegnLiveChatEnabled = async (enabled: boolean) => {
+    if (!seller || liveChatSaving) return;
+    setLiveChatSaving(true);
+    const previousSeller = seller;
+    const previousStoreConfig = storeConfig;
+    const nextConfig: StoreConfig = {
+      ...(seller.store_config || storeConfig),
+      four_regn_live_chat_enabled: enabled,
+    };
+
+    // Optimistic UI keeps the switch immediate; a failed save is rolled back.
+    setSeller({ ...seller, store_config: nextConfig });
+    setStoreConfig((current) => ({ ...current, four_regn_live_chat_enabled: enabled }));
+    const { error } = await supabase.from("sellers").update({ store_config: nextConfig }).eq("id", seller.id);
+    if (error) {
+      setSeller(previousSeller);
+      setStoreConfig(previousStoreConfig);
+      alert("Could not update live chat: " + error.message);
+    } else {
+      revalidateMyStore();
+    }
+    setLiveChatSaving(false);
+  };
+
+  // Inbox replies should feel like chat, not email. Refresh the conversation
+  // list and the open thread without flashing the loading screen.
+  useEffect(() => {
+    if (tab !== "inbox" || !seller) return;
+    const refresh = async () => {
+      await fetchInbox(true);
+      if (activeConversationId) await openConversation(activeConversationId, true);
+    };
+    void refresh();
+    const interval = window.setInterval(() => { void refresh(); }, 5_000);
+    return () => window.clearInterval(interval);
+    // These values define which seller/thread is being watched. The helper
+    // functions intentionally use the latest access token on every poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, seller?.id, activeConversationId]);
 
   const refreshDomainStatus = async () => {
     const token = await getAccessToken();
@@ -904,8 +1166,36 @@ export default function Dashboard() {
     setStoreSaving(false);
   };
 
-  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormDescription(""); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setEditingId(null); setShowForm(false); };
-  const startEdit = (p: Product) => { setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormDescription(p.description || ""); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setShowForm(true); };
+  const resetForm = () => { setFormName(""); setFormPrice(""); setFormComparePrice(""); setFormCategory(""); setFormCollections([]); setFormTags([]); setFormCartBoosterIds([]); setCartBoosterSearch(""); setFormDescription(""); setFormSizeChartHtml(""); setFormSourceUrl(""); setFormInStock(true); setFormImages([]); setFormPreviews([]); setExistingImages([]); setFormVariants([]); setUploadProgress(""); setFormSaveError(""); setFormImportAsDraft(false); setEditingId(null); setShowForm(false); };
+  const startEdit = (p: Product) => { const legacy = p.size_chart_html ? null : extractLegacyImportedSizeChart(p.description); const related = Array.isArray(p.metafields?.cart_booster_product_ids) ? p.metafields.cart_booster_product_ids.map(String) : []; const productCollections = storeCollections.filter((collection) => (p.category || "").split(",").some((value) => value.trim().toLowerCase() === collection.toLowerCase())); setEditingId(p.id); setFormName(p.name); setFormPrice(String(p.price)); setFormComparePrice(p.old_price ? String(p.old_price) : ""); setFormCategory(p.category || ""); setFormCollections(productCollections); setFormTags(p.tags || []); setFormCartBoosterIds(related); setCartBoosterSearch(""); setFormDescription(legacy?.description ?? p.description ?? ""); setFormSizeChartHtml(p.size_chart_html || legacy?.sizeChartHtml || ""); setFormSourceUrl(p.source_url || ""); setFormInStock(p.in_stock); setFormImages([]); setFormPreviews([]); setExistingImages(p.images || []); setFormVariants(p.variants || []); setFormImportAsDraft(false); setShowForm(true); };
+
+  const adminProductEditUrl = (p: Pick<Product, "handle" | "id">) => {
+    const key = p.handle || p.id;
+    const adminOrigin = process.env.NEXT_PUBLIC_APP_URL || "https://catalogstore.co.za";
+    return `${adminOrigin.replace(/\/$/, "")}/dashboard?tab=products&editProductHandle=${encodeURIComponent(key)}`;
+  };
+
+  useEffect(() => {
+    if (editProductParamHandledRef.current || products.length === 0 || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    const productKey = params.get("editProductHandle") || params.get("editProduct") || params.get("product");
+    if (tabParam === "products") switchTab("products");
+    if (!productKey) return;
+    const decodedKey = decodeURIComponent(productKey).trim().toLowerCase();
+    const product = products.find((p) =>
+      p.id.toLowerCase() === decodedKey ||
+      (p.handle || "").toLowerCase() === decodedKey
+    );
+    if (!product) return;
+    editProductParamHandledRef.current = true;
+    setProductFilter((product.status || "published") === "trashed" ? "trashed" : (product.status === "draft" ? "draft" : "published"));
+    switchTab("products");
+    startEdit(product);
+    setTimeout(() => {
+      document.getElementById("product-edit-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }, [products]);
 
   const addVariant = () => setFormVariants([...formVariants, { name: "", options: [""] }]);
   const removeVariant = (i: number) => setFormVariants(formVariants.filter((_, idx) => idx !== i));
@@ -979,7 +1269,7 @@ export default function Dashboard() {
     return results.filter(Boolean) as string[];
   };
 
-  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: x.images || {}, priceDelta: x.priceDelta || {} })).filter((x) => x.options.length > 0);
+  const cleanVariants = (v: Variant[]): Variant[] => v.filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), options: x.options.filter((o) => o.trim()).map((o) => o.trim()), images: Object.fromEntries(Object.entries(x.images || {}).map(([option, image]) => [option, (Array.isArray(image) ? image : [image]).filter(Boolean)])), priceDelta: x.priceDelta || {} })).filter((x) => x.options.length > 0);
 
   // The variant-image picker shows existing URLs alongside FileReader base64 previews of newly added files.
   // If the seller picks a fresh-upload preview, that base64 must be remapped to the eventual Storage URL
@@ -988,50 +1278,363 @@ export default function Dashboard() {
   const remapVariantImages = (variants: Variant[], previewToUrl: Map<string, string>): Variant[] =>
     variants.map((v) => {
       if (!v.images) return v;
-      const next: { [k: string]: string } = {};
+      const next: { [k: string]: string[] } = {};
       for (const [opt, img] of Object.entries(v.images)) {
-        if (typeof img !== "string" || !img) continue;
-        if (img.startsWith("data:")) {
-          const url = previewToUrl.get(img);
-          if (url) next[opt] = url;
-        } else {
-          next[opt] = img;
-        }
+        const gallery = (Array.isArray(img) ? img : [img]).filter(Boolean);
+        const remapped = gallery.map((item) => item.startsWith("data:") ? previewToUrl.get(item) || "" : item).filter(Boolean);
+        if (remapped.length) next[opt] = remapped;
       }
       return { ...v, images: next };
     });
 
+  // Bulk imports deliberately bypass the edit form after a successful capture.
+  // They remain drafts, but retain the exact same image, colour-gallery,
+  // variant, source-link and size-chart handling as a manually saved import.
+  const saveBulkPreviewAsDraft = async (preview: ProductUrlPreview, queueItemId: string) => {
+    if (!preview.title?.trim()) throw new Error("The supplier page did not provide a product title.");
+    setFormSaving(true);
+    setUploadProgress("Saving captured product as a draft...");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Your session expired. Sign in again, then restart the queue.");
+
+      const capturedImages = (preview.images || []).slice(0, maxImages);
+      const capturedFiles = capturedImages.map(dataUrlToImageFile).filter(Boolean) as File[];
+      const externalImages = capturedImages.filter((image) => !image.startsWith("data:image/"));
+      const temporaryProductId = `bulk-${Date.now()}-${queueItemId}`;
+      const uploadedUrls = await Promise.all(capturedFiles.map(async (file, index) => {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `${user.id}/${temporaryProductId}/${Date.now()}-${index}.${ext}`;
+        const { error } = await supabase.storage.from("product-images").upload(path, file);
+        if (error) throw new Error(`Image ${index + 1} could not be uploaded: ${error.message}`);
+        return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+      }));
+
+      const previewToUrl = new Map<string, string>();
+      let uploadedIndex = 0;
+      capturedImages.forEach((image) => {
+        if (image.startsWith("data:image/")) previewToUrl.set(image, uploadedUrls[uploadedIndex++] || "");
+      });
+      const variants = remapVariantImages(cleanVariants(preview.variants || []), previewToUrl);
+      const tags = cleanProductTags(importTags);
+      const tagCollections = storeCollections.filter((collection) => tags.some((tag) => tag.toLowerCase() === collection.toLowerCase()));
+      const category = cleanProductTags(tagCollections).join(", ");
+      const images = [...externalImages, ...uploadedUrls];
+      const { data, error } = await supabase.from("products").insert({
+        seller_id: user.id,
+        name: preview.title.trim(),
+        price: typeof preview.price === "number" && Number.isFinite(preview.price) ? preview.price : 0,
+        old_price: typeof preview.compareAtPrice === "number" && Number.isFinite(preview.compareAtPrice) ? preview.compareAtPrice : null,
+        category,
+        tags,
+        metafields: { cart_booster_product_ids: [] },
+        description: preview.description || "",
+        size_chart_html: preview.sizeChartHtml || null,
+        source_url: preview.sourceUrl || importUrl.trim() || null,
+        in_stock: preview.inStock !== false,
+        status: "draft",
+        images,
+        image_url: images[0] || null,
+        variants,
+      }).select().single();
+      if (error || !data) throw new Error(error?.message || "The draft could not be created.");
+
+      setProducts((items) => [{ ...data, images, image_url: images[0] || null, variants }, ...items]);
+      revalidateMyStore();
+      setBulkImportQueue((items) => items.map((item) => item.id === queueItemId ? { ...item, status: "saved", note: "Draft saved automatically" } : item));
+      setImportResult(`Draft saved automatically: ${preview.title}`);
+    } catch (error: any) {
+      const message = error?.message || "Draft could not be saved.";
+      setBulkImportQueue((items) => items.map((item) => item.id === queueItemId ? { ...item, status: "failed", note: message } : item));
+      setImportResult(`Automatic draft save failed: ${message}`);
+    } finally {
+      bulkImportActiveIdRef.current = null;
+      setBulkImportActiveId(null);
+      setImportPreview(null);
+      setUploadProgress("");
+      setFormSaving(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setFormSaving(true); setUploadProgress("");
-    const { data: { user } } = await supabase.auth.getUser(); if (!user) return;
+    e.preventDefault(); setFormSaving(true); setUploadProgress(""); setFormSaveError("");
+    const { data: { user } } = await supabase.auth.getUser(); if (!user) { setFormSaveError("Your session expired. Sign in again, then save the product."); setFormSaving(false); return; }
+    const cleanTags = cleanProductTags(formTags);
+    const cleanCartBoosterIds = [...new Set(formCartBoosterIds)].filter((id) => id !== editingId && products.some((product) => product.id === id)).slice(0, 20);
+    const tagCollections = storeCollections.filter((collection) => cleanTags.some((tag) => tag.toLowerCase() === collection.toLowerCase()));
+    const categoryForSave = cleanProductTags([formCategory, ...formCollections, ...tagCollections]).join(", ");
     if (editingId) {
       let allImages = [...existingImages];
       let newUrls: string[] = [];
       if (formImages.length > 0) { newUrls = await uploadImages(user.id, editingId); allImages = [...allImages, ...newUrls]; }
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, newUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
-      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
-      if (!error) { setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore(); }
+      const cleanSourceUrl = formSourceUrl.trim() || null;
+      const cleanSizeChartHtml = formSizeChartHtml.trim() || null;
+      const currentProduct = products.find((product) => product.id === editingId);
+      const metafields = { ...(currentProduct?.metafields || {}), cart_booster_product_ids: cleanCartBoosterIds };
+      const { error } = await supabase.from("products").update({ name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, metafields, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv }).eq("id", editingId);
+      if (error) { setFormSaveError(`Product was not saved: ${error.message}`); setFormSaving(false); return; }
+      setProducts(products.map((p) => p.id === editingId ? { ...p, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, metafields, description: formDescription, size_chart_html: cleanSizeChartHtml, source_url: cleanSourceUrl, in_stock: formInStock, images: allImages, image_url: allImages[0] || null, variants: cv } : p)); revalidateMyStore();
     } else {
       // ── PARALLEL: upload images and insert product at the same time ──────────
       const tempId = Date.now().toString();
       const [uploadedUrls, insertResult] = await Promise.all([
         formImages.length > 0 ? uploadImages(user.id, tempId) : Promise.resolve([]),
-        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: formCategory, description: formDescription, in_stock: true, variants: [], status: "published", images: [], image_url: null }).select().single(),
+        supabase.from("products").insert({ seller_id: user.id, name: formName, price: parseFloat(formPrice), old_price: formComparePrice ? parseFloat(formComparePrice) : null, category: categoryForSave, tags: cleanTags, metafields: { cart_booster_product_ids: cleanCartBoosterIds }, description: formDescription, size_chart_html: formSizeChartHtml.trim() || null, source_url: formSourceUrl.trim() || null, in_stock: formInStock, variants: [], status: formImportAsDraft ? "draft" : "published", images: existingImages, image_url: existingImages[0] || null }).select().single(),
       ]);
       const { data, error } = insertResult;
-      if (error || !data) { setFormSaving(false); return; }
+      if (error || !data) { setFormSaveError(`Product was not saved: ${error?.message || "No product was returned."}`); setFormSaving(false); return; }
       const previewToUrl = new Map<string, string>(formPreviews.map((p, i) => [p, uploadedUrls[i] || ""] as [string, string]));
       const cv = remapVariantImages(cleanVariants(formVariants), previewToUrl);
       const followUp: Record<string, unknown> = {};
-      if (uploadedUrls.length > 0) { followUp.images = uploadedUrls; followUp.image_url = uploadedUrls[0] || null; }
+      const allImages = [...existingImages, ...uploadedUrls];
+      if (allImages.length > 0) { followUp.images = allImages; followUp.image_url = allImages[0] || null; }
       if (cv.length > 0) { followUp.variants = cv; }
-      if (Object.keys(followUp).length > 0) { await supabase.from("products").update(followUp).eq("id", data.id); }
-      setProducts([{ ...data, images: uploadedUrls, image_url: uploadedUrls[0] || null, variants: cv }, ...products]);
+      if (Object.keys(followUp).length > 0) {
+        const { error: followUpError } = await supabase.from("products").update(followUp).eq("id", data.id);
+        if (followUpError) { setFormSaveError(`The product was created, but its photos or variants were not saved: ${followUpError.message}`); setFormSaving(false); return; }
+      }
+      setProducts([{ ...data, images: allImages, image_url: allImages[0] || null, variants: cv }, ...products]);
       revalidateMyStore();
+    }
+    if (formImportAsDraft && bulkImportActiveId) {
+      setBulkImportQueue((items) => items.map((item) => item.id === bulkImportActiveId ? { ...item, status: "saved", note: "Draft saved" } : item));
+      setBulkImportActiveId(null);
     }
     resetForm(); setFormSaving(false);
   };
+
+  const requestBrowserCapture = (url = importUrl.trim()) => {
+    if (!url) { setImportResult("Paste a supplier product link first."); return; }
+    const requestId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    browserCaptureRequestRef.current = requestId;
+    setImportLoading(true);
+    setBrowserCaptureNeeded(true);
+    setImportResult("Opening the supplier page in Chrome. Complete any supplier verification if it appears; capture will continue automatically.");
+    window.postMessage({ source: CATALOG_IMPORT_APP_SOURCE, type: "CAPTURE_PRODUCT", requestId, url }, window.location.origin);
+    if (browserCaptureTimeoutRef.current) clearTimeout(browserCaptureTimeoutRef.current);
+    browserCaptureTimeoutRef.current = setTimeout(() => {
+      if (browserCaptureRequestRef.current !== requestId) return;
+      setImportLoading(false);
+      setImportResult("Browser capture extension was not detected. Install or reload the 4REGN capture extension, refresh this dashboard, then try Browser Capture again.");
+    }, 5000);
+  };
+
+  const previewSupplierProduct = async (requestedUrl = importUrl.trim()) => {
+    if (!requestedUrl) { setImportResult("Paste a Shein, Temu, Nike, or Superbalist product link first."); return; }
+    setImportLoading(true); setImportResult(""); setImportPreview(null); setImportTags(["imports"]); setBrowserCaptureNeeded(false);
+    const activeQueueItemId = bulkImportActiveIdRef.current;
+    if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "capturing", note: "Reading supplier page" } : item));
+    try {
+      const res = await fetch("/api/product-url-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: requestedUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.browserAssisted) {
+          if (data.partialProduct) setImportPreview(data.partialProduct);
+          setBrowserCaptureNeeded(true);
+          requestBrowserCapture(requestedUrl);
+          return;
+        }
+        if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: data.error || "Preview failed" } : item));
+        bulkImportActiveIdRef.current = null;
+        setBulkImportActiveId(null);
+        setImportResult(data.error || "Could not preview this product."); return;
+      }
+      setImportPreview(data.product);
+      if (data.browserAssisted) {
+        setBrowserCaptureNeeded(true);
+        requestBrowserCapture(requestedUrl);
+        return;
+      }
+      if (activeQueueItemId && bulkImportAutoRunning) {
+        await saveBulkPreviewAsDraft(data.product as ProductUrlPreview, activeQueueItemId);
+        return;
+      }
+      if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "review", note: "Ready for draft review" } : item));
+      setImportResult("Server preview ready. Review it, then import it as a draft.");
+    } catch (e: any) {
+      if (activeQueueItemId) setBulkImportQueue((items) => items.map((item) => item.id === activeQueueItemId ? { ...item, status: "failed", note: e?.message || "Preview failed" } : item));
+      bulkImportActiveIdRef.current = null;
+      setBulkImportActiveId(null);
+      setImportResult(e?.message || "Could not preview this product.");
+    } finally {
+      if (!browserCaptureRequestRef.current) setImportLoading(false);
+    }
+  };
+
+  const useSupplierPreview = () => {
+    if (!importPreview) return;
+    if (!canAddProduct) { alert(`You've reached your plan limit of ${planLimits.products} products.` + (isFreePlan ? " Upgrade to Pro for unlimited products." : "")); return; }
+    resetForm();
+    setProductFilter("draft");
+    setShowForm(true);
+    setFormImportAsDraft(true);
+    setFormName(importPreview.title || "");
+    setFormPrice(importPreview.price ? String(importPreview.price) : "");
+    setFormComparePrice(importPreview.compareAtPrice ? String(importPreview.compareAtPrice) : "");
+    setFormDescription(importPreview.description || "");
+    setFormSizeChartHtml(importPreview.sizeChartHtml || "");
+    setFormSourceUrl(importPreview.sourceUrl || importUrl.trim());
+    setFormTags(cleanProductTags(importTags));
+    setFormCollections(storeCollections.filter((collection) => importTags.some((tag) => tag.toLowerCase() === collection.toLowerCase())));
+    setFormCartBoosterIds([]);
+    setCartBoosterSearch("");
+    setFormInStock(importPreview.inStock !== false);
+    const capturedImages = (importPreview.images || []).slice(0, maxImages);
+    const capturedFiles = capturedImages.map(dataUrlToImageFile).filter(Boolean) as File[];
+    setFormImages(capturedFiles);
+    setFormPreviews(capturedImages.filter((image) => image.startsWith("data:image/")));
+    setExistingImages(capturedImages.filter((image) => !image.startsWith("data:image/")));
+    setFormVariants(importPreview.variants || []);
+    setImportResult("Imported into the form as a draft. Confirm your selling price, photos, sizes and stock before saving.");
+    setTimeout(() => {
+      document.getElementById("product-edit-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
+
+  const addBulkImportLinks = () => {
+    const links = [...new Set((bulkImportText.match(/https?:\/\/[^\s"'<>`]+/gi) || [])
+      .map((url) => url.replace(/[),.;]+$/, ""))
+      .filter((url) => /(?:^|\.)\b(?:shein|temu|nike|superbalist)\.com\b/i.test(new URL(url).hostname)))];
+    if (!links.length) { setImportResult("Paste one or more Shein, Temu, Nike or Superbalist links from Notepad first."); return; }
+    setBulkImportQueue((items) => {
+      const existing = new Set(items.map((item) => item.url));
+      return [...items, ...links.filter((url) => !existing.has(url)).map((url) => ({ id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, url, status: "queued" as const }))];
+    });
+    setBulkImportText("");
+  };
+
+  const loadNextBulkImport = () => {
+    if (bulkImportActiveIdRef.current || importLoading || formSaving) return;
+    const next = bulkImportQueue.find((item) => item.status === "queued");
+    if (!next) { setImportResult("Your bulk import queue is complete."); return; }
+    bulkImportActiveIdRef.current = next.id;
+    setBulkImportActiveId(next.id);
+    setImportUrl(next.url);
+    void previewSupplierProduct(next.url);
+  };
+
+  useEffect(() => {
+    if (!bulkImportAutoRunning || importLoading || formSaving || bulkImportActiveId) return;
+    const hasQueuedItem = bulkImportQueue.some((item) => item.status === "queued");
+    if (!hasQueuedItem) {
+      const hasActiveWork = bulkImportQueue.some((item) => item.status === "capturing");
+      if (!hasActiveWork) {
+        setBulkImportAutoRunning(false);
+        setImportResult("Automatic bulk import is complete. Failed links remain in the queue so you can retry them later.");
+      }
+      return;
+    }
+    loadNextBulkImport();
+  }, [bulkImportAutoRunning, bulkImportQueue, bulkImportActiveId, importLoading, formSaving]);
+
+  // The audit intentionally operates on products already in this seller's
+  // catalogue. A source URL merely needs to contain "shein" so regional and
+  // legacy SHEIN URLs are included too.
+  const isSheinSourceProduct = (product: Product) => (product.source_url || "").toLowerCase().includes("shein");
+
+  async function applySheinStockAudit(productId: string, audit: SheinStockAudit) {
+    const product = products.find((item) => item.id === productId);
+    if (!product) return;
+    const auditedColours = Object.values(audit.stockByColor || {});
+    const isFullySoldOut = audit.inStock === false || (auditedColours.length > 0 && auditedColours.every((colour) => (colour.availableSizes || []).length === 0));
+    const stockAudit = {
+      supplier: "SHEIN",
+      audited_at: new Date().toISOString(),
+      source_url: audit.sourceUrl || product.source_url,
+      in_stock: !isFullySoldOut,
+      by_color: audit.stockByColor || {},
+      note: audit.stockNote || "",
+    };
+    const metafields = { ...(product.metafields || {}), supplier_stock_audit: stockAudit };
+    const updates = {
+      metafields,
+      in_stock: !isFullySoldOut,
+      // A fully sold-out supplier product must never remain purchasable. Draft
+      // retains it safely for a later restock audit instead of deleting it.
+      status: isFullySoldOut ? "draft" : product.status,
+    };
+    const { error } = await supabase.from("products").update(updates).eq("id", productId);
+    if (error) {
+      const reason = error.message || "The stock result could not be saved.";
+      setSheinAuditResults((current) => ({ ...current, failed: current.failed + 1 }));
+      setSheinAuditFailures((items) => [...items, { productId, productName: product.name, reason }]);
+      setSheinAuditProgress(`Could not save ${product.name}: ${reason}`);
+    } else {
+      setProducts((items) => items.map((item) => item.id === productId ? { ...item, ...updates } : item));
+      setSheinAuditResults((current) => ({
+        checked: current.checked + 1,
+        inStock: current.inStock + (isFullySoldOut ? 0 : 1),
+        drafted: current.drafted + (isFullySoldOut ? 1 : 0),
+        failed: current.failed,
+      }));
+      setSheinAuditProgress(isFullySoldOut ? `${product.name} is fully sold out and was moved to Draft.` : `${product.name} stock saved. Continuing...`);
+      revalidateMyStore();
+    }
+    sheinAuditCurrentIdRef.current = null;
+    sheinAuditRequestIdRef.current = null;
+    setSheinAuditCurrentId(null);
+  }
+
+  const startSheinStockAudit = (productIds?: string[]) => {
+    if (!browserImporterAvailable) { setSheinAuditProgress("Reload the CatalogStore Browser Product Importer extension, then refresh this dashboard before starting the stock audit."); return; }
+    const scope = productIds?.length ? new Set(productIds) : null;
+    const sheinProducts = products.filter((product) => product.status !== "trashed" && isSheinSourceProduct(product) && (!scope || scope.has(product.id)));
+    if (!sheinProducts.length) { setSheinAuditProgress("No products with a SHEIN source URL were found."); return; }
+    sheinAuditScopeIdsRef.current = scope;
+    sheinAuditedIdsRef.current = new Set();
+    setSheinAuditResults({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
+    setSheinAuditFailures([]);
+    setSheinAuditProgress(`Preparing to audit ${sheinProducts.length} SHEIN product${sheinProducts.length === 1 ? "" : "s"}...`);
+    setSheinAuditRunning(true);
+  };
+
+  const normaliseSupplierUrl = (value: string) => {
+    try {
+      const url = new URL(value);
+      return `${url.hostname.toLowerCase()}${url.pathname.replace(/\/+$/, "").toLowerCase()}`;
+    } catch { return value.trim().replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase(); }
+  };
+
+  const startManualSheinStockAudit = () => {
+    const links = [...new Set((sheinManualAuditText.match(/https?:\/\/[^\s"'<>`]+/gi) || [])
+      .map((link) => link.replace(/[),.;]+$/, ""))
+      .filter((link) => link.toLowerCase().includes("shein")))];
+    if (!links.length) { setSheinAuditProgress("Paste one or more SHEIN product source URLs first."); return; }
+    const wanted = new Set(links.map(normaliseSupplierUrl));
+    const matchingIds = products
+      .filter((product) => product.status !== "trashed" && isSheinSourceProduct(product) && wanted.has(normaliseSupplierUrl(product.source_url || "")))
+      .map((product) => product.id);
+    if (!matchingIds.length) {
+      setSheinAuditProgress("None of those links matched an existing product's Product Source URL. Paste the exact SHEIN source link saved on the product.");
+      return;
+    }
+    setSheinManualAuditText("");
+    startSheinStockAudit(matchingIds);
+  };
+
+  useEffect(() => {
+    if (!sheinAuditRunning || sheinAuditCurrentId) return;
+    const next = products.find((product) => product.status !== "trashed" && isSheinSourceProduct(product) && (!sheinAuditScopeIdsRef.current || sheinAuditScopeIdsRef.current.has(product.id)) && !sheinAuditedIdsRef.current.has(product.id));
+    if (!next) {
+      setSheinAuditRunning(false);
+      sheinAuditScopeIdsRef.current = null;
+      setSheinAuditProgress("SHEIN stock audit complete. Availability was saved automatically; fully sold-out products are now drafts. Any failures are listed below.");
+      return;
+    }
+    const requestId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    sheinAuditedIdsRef.current.add(next.id);
+    sheinAuditCurrentIdRef.current = next.id;
+    sheinAuditRequestIdRef.current = requestId;
+    setSheinAuditCurrentId(next.id);
+    setSheinAuditProgress(`Checking ${next.name}...`);
+    window.postMessage({ source: CATALOG_IMPORT_APP_SOURCE, type: "AUDIT_SHEIN_STOCK", requestId, url: next.source_url }, window.location.origin);
+  }, [sheinAuditRunning, sheinAuditCurrentId, products]);
 
   const toggleStock = async (id: string, cur: boolean) => { await supabase.from("products").update({ in_stock: !cur }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, in_stock: !cur } : p)); revalidateMyStore(); };
   const trashProduct = async (id: string) => { await supabase.from("products").update({ status: "trashed" }).eq("id", id); setProducts(products.map((p) => p.id === id ? { ...p, status: "trashed" } : p)); revalidateMyStore(); };
@@ -1046,7 +1649,9 @@ export default function Dashboard() {
       price: p.price,
       old_price: p.old_price,
       category: p.category,
+      tags: p.tags || [],
       description: p.description,
+      size_chart_html: p.size_chart_html,
       in_stock: p.in_stock,
       variants: p.variants || [],
       status: "draft",
@@ -1134,6 +1739,28 @@ export default function Dashboard() {
     const updates = arr.map((p, i) => ({ id: p.id, sort_order: slots[i] }));
     await Promise.all(updates.map((u) => supabase.from("products").update({ sort_order: u.sort_order }).eq("id", u.id)));
     setProducts(products.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, sort_order: u.sort_order } : p; }));
+    revalidateMyStore();
+  };
+  const saveCollectionCover = async (collectionName: string, imageUrl: string | null) => {
+    if (!seller) return;
+    const nextImages = { ...(storeConfig.collection_images || {}) };
+    if (imageUrl) nextImages[collectionName] = imageUrl; else delete nextImages[collectionName];
+    const nextConfig = { ...storeConfig, collection_images: nextImages };
+    setStoreConfig(nextConfig);
+    const { error } = await supabase.from("sellers").update({ store_config: nextConfig }).eq("id", seller.id);
+    if (error) { alert("Failed to save collection cover: " + error.message); return; }
+    setSeller({ ...seller, store_config: nextConfig });
+    revalidateMyStore();
+  };
+  const moveCollection = async (fromIndex: number, toIndex: number) => {
+    if (!seller || toIndex < 0 || toIndex >= storeCollections.length || fromIndex === toIndex) return;
+    const updated = [...storeCollections];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+    setStoreCollections(updated);
+    const { error } = await supabase.from("sellers").update({ collections: updated }).eq("id", seller.id);
+    if (error) { alert("Failed to reorder collections: " + error.message); return; }
+    setSeller({ ...seller, collections: updated });
     revalidateMyStore();
   };
   const initSortOrders = async () => {
@@ -1266,6 +1893,16 @@ export default function Dashboard() {
   const isUnpaidGatewayOrder = (o: Order) => UNRESOLVED_PAYMENT_METHODS.includes(o.payment_method) && (o.payment_status === "pending" || o.payment_status === "abandoned" || o.payment_status === "failed");
   const visibleOrders = orders.filter((o) => !isUnpaidGatewayOrder(o));
   const abandonedOrders = orders.filter(isUnpaidGatewayOrder);
+  const filteredVisibleOrders = visibleOrders.filter((order) => {
+    if (orderPaymentStatusFilter !== "all" && order.payment_status !== orderPaymentStatusFilter) return false;
+    if (orderFulfillmentStatusFilter !== "all" && order.status !== orderFulfillmentStatusFilter) return false;
+    if (orderPaymentMethodFilter !== "all" && order.payment_method !== orderPaymentMethodFilter) return false;
+    const query = orderSearch.trim().toLowerCase();
+    if (!query) return true;
+    const itemText = (order.items || []).map((item) => `${item.name || ""} ${item.variant || ""}`).join(" ");
+    const haystack = [displayOrderReference(order), order.order_number, order.external_id, order.customer_name, order.customer_email, order.customer_phone, order.payment_method, order.payment_status, order.status, itemText].join(" ").toLowerCase();
+    return haystack.includes(query);
+  });
   const totalImageSlots = existingImages.length + formImages.length;
   const filteredProducts = products.filter((p) => { const status = p.status || "published"; if (status !== productFilter) return false; if (searchQuery) { const q = searchQuery.toLowerCase(); return p.name.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q); } return true; }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   // Rendering thousands of product rows in one page was the actual
@@ -1333,6 +1970,7 @@ export default function Dashboard() {
 
   const N = "#ff6b35";
   const G = "linear-gradient(135deg, #ff6b35, #ff6b35)";
+  const productTagSuggestions = cleanProductTags(["imports", ...storeCollections, ...products.flatMap((product) => product.tags || [])]).sort((a, b) => a.localeCompare(b));
 
   // ── SHARED PRESENTATION TOKENS (12 inputs / 16 cards / 100 pills) ──────────
   const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" };
@@ -1393,9 +2031,12 @@ export default function Dashboard() {
       items: [
         { key: "live" as TabKey, name: "Live Visitors", icon: "live" as DashIconName, count: liveVisitors.length },
         { key: "orders" as TabKey, name: "Orders", icon: "orders" as DashIconName, count: totalOrdersCount ?? visibleOrders.length },
+        ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Production & Retail", icon: "analytics" as DashIconName, action: () => router.push("/production-retail") }] : []),
+        ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Production", icon: "orders" as DashIconName, action: () => router.push("/production") }] : []),
+        ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Retail Partners", icon: "store" as DashIconName, action: () => router.push("/retail-pilot") }] : []),
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
         { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
-        ...(seller?.template === "velour" ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
+        ...((seller?.template === "velour" || seller?.template === "4regn" || seller?.subdomain === "4regn") ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
         ...(seller?.template === "unik-labs" ? [{ key: "team" as TabKey, name: "Brand Manager", icon: "affiliate" as DashIconName }] : []),
       ],
     },
@@ -1408,6 +2049,7 @@ export default function Dashboard() {
     {
       label: "Grow",
       items: [
+        { key: "customers" as TabKey, name: "Customers", icon: "account" as DashIconName },
         { key: "analytics" as TabKey, name: "Analytics", icon: "analytics" as DashIconName, pro: true },
         { key: "overview" as TabKey, name: "Share Store", icon: "share" as DashIconName, action: () => setShareModalOpen(true) },
         { key: "qrcode" as TabKey, name: "QR Code", icon: "qrcode" as DashIconName },
@@ -2139,6 +2781,35 @@ export default function Dashboard() {
           {tab === "inbox" && (<div>
             <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Inbox</h1>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Messages from customers via your storefront&apos;s live chat.</p>
+            {(seller?.template === "4regn" || seller?.subdomain === "4regn") && (() => {
+              const enabled = seller.store_config?.four_regn_live_chat_enabled === true;
+              return (
+                <div style={{ marginBottom: 18, padding: "18px 18px 17px", borderRadius: 18, background: "linear-gradient(135deg,#070707 0%,#151515 72%,#21100e 100%)", color: "#fff", border: "1px solid rgba(255,255,255,.1)", boxShadow: "0 16px 42px rgba(0,0,0,.18)", overflow: "hidden", position: "relative" }}>
+                  <div aria-hidden="true" style={{ position: "absolute", width: 150, height: 150, borderRadius: "50%", border: "1px solid rgba(227,66,52,.3)", right: -70, top: -90, boxShadow: "0 0 0 28px rgba(227,66,52,.035)" }} />
+                  <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: enabled ? "#45c87a" : "rgba(255,255,255,.28)", boxShadow: enabled ? "0 0 0 4px rgba(69,200,122,.12)" : "none" }} />
+                        <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: ".16em", color: enabled ? "#70df9c" : "rgba(255,255,255,.46)", textTransform: "uppercase" as const }}>{enabled ? "Visible on 4REGN" : "Hidden from storefront"}</span>
+                      </div>
+                      <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontStyle: "italic", marginBottom: 5 }}>4REGN Live Chat</div>
+                      <p style={{ margin: 0, maxWidth: 530, fontSize: 11, lineHeight: 1.55, color: "rgba(255,255,255,.58)" }}>{enabled ? "Customers can message 4REGN from the live store. New messages and replies update here automatically." : "Live chat is off by default. Turn it on when you are ready for the button to appear on the storefront."}</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={enabled}
+                      aria-label="Show live chat on the 4REGN storefront"
+                      disabled={liveChatSaving}
+                      onClick={() => void setFourRegnLiveChatEnabled(!enabled)}
+                      style={{ flex: "0 0 auto", width: 58, height: 32, padding: 3, borderRadius: 999, border: enabled ? "1px solid #e34234" : "1px solid rgba(255,255,255,.18)", background: enabled ? "#e34234" : "rgba(255,255,255,.09)", cursor: liveChatSaving ? "wait" : "pointer", opacity: liveChatSaving ? .58 : 1, transition: "all .2s ease" }}
+                    >
+                      <span style={{ display: "block", width: 24, height: 24, borderRadius: "50%", background: "#fff", transform: enabled ? "translateX(26px)" : "translateX(0)", transition: "transform .2s ease", boxShadow: "0 3px 10px rgba(0,0,0,.28)" }} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
             {activeConversationId ? (
               <div style={sectionCard}>
                 <button onClick={() => { setActiveConversationId(null); setActiveConversationMessages([]); }} style={{ background: "none", border: "none", color: "var(--muted-2)", cursor: "pointer", fontSize: 12, fontWeight: 700, marginBottom: 14, padding: 0 }}>&larr; Back to Inbox</button>
@@ -2200,6 +2871,125 @@ export default function Dashboard() {
               </div>
             )}
 
+            <div style={{ padding: "18px", background: "linear-gradient(135deg, rgba(255,107,53,0.08), rgba(37,99,235,0.04))", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 18 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 4 }}>Supplier URL Importer</h3>
+                  <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>Paste a Shein, Temu, Nike, or Superbalist product link. CatalogStore tries a quick server preview first, then uses Chrome when the supplier hides photos or sizes.</p>
+                </div>
+                <span style={{ padding: "6px 10px", borderRadius: 100, background: "rgba(0,0,0,0.06)", color: "var(--muted)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Draft-first</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                <input
+                  type="url"
+                  placeholder="https://www.shein.com/..."
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void previewSupplierProduct(); }}
+                  style={{ ...inputStyle, flex: "1 1 340px", minWidth: 0 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void previewSupplierProduct()}
+                  disabled={importLoading}
+                  style={{ padding: "11px 18px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 900, cursor: importLoading ? "not-allowed" : "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", opacity: importLoading ? 0.65 : 1 }}
+                >
+                  {importLoading ? "Checking..." : "Preview Product"}
+                </button>
+                {(browserImporterAvailable || browserCaptureNeeded) && (
+                  <button
+                    type="button"
+                    onClick={() => requestBrowserCapture()}
+                    disabled={importLoading}
+                    style={{ padding: "11px 18px", background: "rgba(37,99,235,0.08)", color: "#2563eb", border: "1px solid rgba(37,99,235,0.18)", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 900, cursor: importLoading ? "not-allowed" : "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", opacity: importLoading ? 0.65 : 1 }}
+                  >
+                    Browser Capture
+                  </button>
+                )}
+              </div>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 7, flexWrap: "wrap" as const }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: "var(--text)" }}>Bulk draft queue</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Paste links straight from Notepad—one per line or mixed into any text. Automatic import captures each link, saves it as a draft, then moves to the next one.</div>
+                  </div>
+                  <button type="button" onClick={() => setBulkImportAutoRunning(true)} disabled={bulkImportAutoRunning || !bulkImportQueue.some((item) => item.status === "queued")} style={{ padding: "9px 13px", background: "#111", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: bulkImportAutoRunning ? "not-allowed" : "pointer", opacity: bulkImportAutoRunning || !bulkImportQueue.some((item) => item.status === "queued") ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{bulkImportAutoRunning ? "Importing queue..." : "Start automatic import"}</button>
+                </div>
+                <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Paste supplier links here\nhttps://za.shein.com/...\nhttps://www.temu.com/..."} rows={4} style={{ ...inputStyle, minHeight: 92, resize: "vertical" as const, lineHeight: 1.45 }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" as const }}>
+                  <button type="button" onClick={addBulkImportLinks} disabled={!bulkImportText.trim()} style={{ padding: "8px 12px", background: bulkImportText.trim() ? G : "var(--panel-2)", color: bulkImportText.trim() ? "#fff" : "var(--muted-2)", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: bulkImportText.trim() ? "pointer" : "default", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Add links to queue</button>
+                  {!!bulkImportQueue.length && <button type="button" onClick={() => { setBulkImportAutoRunning(false); bulkImportActiveIdRef.current = null; setBulkImportQueue([]); setBulkImportActiveId(null); }} style={{ padding: "7px 10px", background: "transparent", border: "none", color: "var(--muted-2)", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Clear queue</button>}
+                  {!!bulkImportQueue.length && <span style={{ fontSize: 10, color: "var(--muted-2)", fontWeight: 700 }}>{bulkImportQueue.filter((item) => item.status === "saved").length}/{bulkImportQueue.length} drafts saved</span>}
+                </div>
+                {!!bulkImportQueue.length && <div style={{ marginTop: 10, display: "flex", flexDirection: "column" as const, gap: 5, maxHeight: 170, overflowY: "auto" as const }}>
+                  {bulkImportQueue.map((item, index) => {
+                    const colour = item.status === "saved" ? "#15803d" : item.status === "failed" ? "#b45309" : item.status === "review" ? "#2563eb" : item.status === "capturing" ? "#7c3aed" : "var(--muted-2)";
+                    const label = item.status === "saved" ? "Draft saved" : item.status === "review" ? "Ready to review" : item.status === "capturing" ? "Capturing" : item.status === "failed" ? "Try again" : "Queued";
+                    return <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8, minWidth: 0 }}>
+                      <span style={{ color: "var(--muted-2)", fontSize: 10, fontWeight: 800 }}>{index + 1}</span><span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, fontSize: 10, color: "var(--muted)" }}>{item.url}</span><span style={{ color: colour, fontSize: 9, fontWeight: 900, whiteSpace: "nowrap" as const, textTransform: "uppercase" as const }}>{label}</span>
+                    </div>;
+                  })}
+                </div>}
+              </div>
+              <div style={{ marginTop: 16, padding: 13, border: "1px solid rgba(124,58,237,0.22)", borderRadius: 12, background: "rgba(124,58,237,0.035)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: "#6d28d9" }}>SHEIN Stock Auditor</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>Checks every colour and size using Chrome. Fully sold-out products are safely moved to Draft; availability is saved for future restock checks.</div>
+                  </div>
+                  <button type="button" onClick={() => startSheinStockAudit()} disabled={sheinAuditRunning || !browserImporterAvailable || !products.some((product) => product.status !== "trashed" && isSheinSourceProduct(product))} style={{ padding: "9px 13px", background: "#6d28d9", color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: sheinAuditRunning ? "not-allowed" : "pointer", opacity: sheinAuditRunning || !browserImporterAvailable ? 0.6 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{sheinAuditRunning ? "Auditing stock..." : browserImporterAvailable ? "Audit all SHEIN products" : "Reload Chrome extension"}</button>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" as const, marginTop: 11, paddingTop: 11, borderTop: "1px solid rgba(124,58,237,0.14)" }}>
+                  <textarea value={sheinManualAuditText} onChange={(event) => setSheinManualAuditText(event.target.value)} placeholder={"Test selected existing products first — paste one or more exact SHEIN Product Source URLs\nhttps://za.shein.com/..."} rows={2} style={{ ...inputStyle, flex: "1 1 360px", minHeight: 58, fontSize: 11, lineHeight: 1.4, resize: "vertical" as const }} />
+                  <button type="button" onClick={startManualSheinStockAudit} disabled={sheinAuditRunning || !browserImporterAvailable || !sheinManualAuditText.trim()} style={{ alignSelf: "center", padding: "9px 13px", background: "transparent", color: "#6d28d9", border: "1px solid rgba(124,58,237,0.35)", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: sheinAuditRunning || !sheinManualAuditText.trim() ? "not-allowed" : "pointer", opacity: sheinAuditRunning || !browserImporterAvailable || !sheinManualAuditText.trim() ? 0.5 : 1, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Audit pasted links</button>
+                </div>
+                {(sheinAuditProgress || sheinAuditResults.checked > 0) && <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.45 }}>
+                  <strong style={{ color: "var(--text)" }}>{sheinAuditResults.checked} checked</strong> · {sheinAuditResults.inStock} in stock · {sheinAuditResults.drafted} moved to draft · {sheinAuditResults.failed} failed
+                  {sheinAuditProgress ? <div style={{ marginTop: 3, color: "var(--muted-2)" }}>{sheinAuditProgress}</div> : null}
+                </div>}
+                {!!sheinAuditFailures.length && <div style={{ marginTop: 9, display: "flex", flexDirection: "column" as const, gap: 5 }}>
+                  {sheinAuditFailures.map((failure) => <div key={`${failure.productId}-${failure.reason}`} style={{ padding: "8px 9px", borderRadius: 8, background: "rgba(185,28,28,0.055)", border: "1px solid rgba(185,28,28,0.16)", color: "#991b1b", fontSize: 10, lineHeight: 1.4 }}><strong>{failure.productName}</strong><br />{failure.reason}</div>)}
+                </div>}
+              </div>
+              {importResult && <div style={{ marginTop: 10, fontSize: 12, color: importPreview ? "#16a34a" : "var(--muted)", fontWeight: 700 }}>{importResult}</div>}
+              {importPreview && (
+                <div style={{ marginTop: 14, padding: 14, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, display: "grid", gridTemplateColumns: "96px 1fr", gap: 14 }}>
+                  {importPreview.images?.[0] ? <img src={importPreview.images[0]} alt="" style={{ width: 96, height: 96, objectFit: "cover" as const, borderRadius: 12, background: "var(--panel-2)" }} /> : <div style={{ width: 96, height: 96, borderRadius: 12, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted-2)", fontSize: 11 }}>No image</div>}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" as const, marginBottom: 6 }}>
+                      <span style={{ padding: "4px 8px", background: "rgba(37,99,235,0.08)", color: "#2563eb", borderRadius: 100, fontSize: 10, fontWeight: 900, textTransform: "uppercase" as const }}>{importPreview.supplier}</span>
+                      <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{importPreview.images.length} image{importPreview.images.length === 1 ? "" : "s"} found</span>
+                      {!!importPreview.variants?.length && <span style={{ fontSize: 11, color: "var(--muted-2)" }}>· {importPreview.variants.map((v) => `${v.name}: ${v.options.length}`).join(", ")}</span>}
+                      {importPreview.inStock !== undefined && importPreview.inStock !== null && <span style={{ fontSize: 11, color: importPreview.inStock ? "#16a34a" : "#dc2626", fontWeight: 800 }}>· {importPreview.inStock ? "In stock" : "Sold out"}</span>}
+                      {!!importPreview.sizeChartHtml && <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 800 }}>· Size chart ready</span>}
+                      {importPreview.captureMethod && <span style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const }}>· {importPreview.captureMethod} capture</span>}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 4, lineHeight: 1.25 }}>{importPreview.title}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{importPreview.price ? `${importPreview.currency === "ZAR" ? "R" : importPreview.currency + " "}${importPreview.price}` : "No price detected — enter your 4REGN selling price manually"}</div>
+                    {!!importPreview.stockNote && <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 8 }}>{importPreview.stockNote}</div>}
+                    {!!importPreview.imageDetails?.length && (() => {
+                      const edges = importPreview.imageDetails.map((image) => Math.max(image.width || 0, image.height || 0)).filter(Boolean);
+                      const smallest = edges.length ? Math.min(...edges) : 0;
+                      const largest = edges.length ? Math.max(...edges) : 0;
+                      const range = smallest && largest ? `${smallest}${largest !== smallest ? `–${largest}` : ""}px` : "dimensions unavailable";
+                      return <div style={{ fontSize: 11, color: smallest >= 900 ? "#15803d" : "#b45309", marginBottom: 8, fontWeight: 700 }}>
+                        {smallest >= 900 ? `High-resolution photos ready · ${importPreview.imageDetails.length} verified (${range}).` : `Photo quality check · ${importPreview.imageDetails.length} copied (${range}). Review before publishing.`}
+                      </div>;
+                    })()}
+                    {!!importPreview.warnings?.length && <div style={{ fontSize: 11, color: "#b45309", marginBottom: 10 }}>{importPreview.warnings.join(" ")}</div>}
+                    <div style={{ marginBottom: 12 }}>
+                      <ProductTagPicker value={importTags} onChange={setImportTags} suggestions={productTagSuggestions} accent={N} compact />
+                      <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Choose collection names or product tags now. The imported draft keeps them when you save it.</p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      <button type="button" onClick={useSupplierPreview} style={{ padding: "9px 14px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 900, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Use as Draft</button>
+                      <a href={importPreview.sourceUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 14px", background: "var(--panel-2)", color: "var(--muted)", border: "1px solid var(--border)", borderRadius: 100, fontSize: 10, fontWeight: 800, textDecoration: "none", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Open source</a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" as const }}>
               {([{ key: "published" as const, label: "Published", count: publishedCount }, { key: "draft" as const, label: "Drafts", count: draftCount }, { key: "trashed" as const, label: "Trash", count: trashedCount }]).map((f) => (
                 <button key={f.key} onClick={() => { setProductFilter(f.key); setSearchQuery(""); }} style={{ padding: "8px 16px", background: productFilter === f.key ? "rgba(255,107,53,0.08)" : "var(--panel)", border: productFilter === f.key ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", borderRadius: 100, color: productFilter === f.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", display: "flex", gap: 6, alignItems: "center" }}>
@@ -2225,8 +3015,21 @@ export default function Dashboard() {
               </div>
             )}
 
-            {showForm && (<div style={{ padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 24 }}>
+            {showForm && (<div id="product-edit-form" style={{ padding: "24px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 24 }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", marginBottom: 16 }}>{editingId ? "Edit Product" : "New Product"}</h3>
+              {editingId && (() => {
+                const product = products.find((p) => p.id === editingId);
+                const url = product ? adminProductEditUrl(product) : "";
+                return url ? (
+                  <div style={{ marginBottom: 16, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 3 }}>Admin edit URL</div>
+                      <a href={url} style={{ color: N, fontSize: 12, fontWeight: 700, wordBreak: "break-all", textDecoration: "none" }}>{url}</a>
+                    </div>
+                    <button type="button" onClick={() => navigator.clipboard?.writeText(url)} style={{ padding: "8px 12px", background: "transparent", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Copy</button>
+                  </div>
+                ) : null;
+              })()}
               <form onSubmit={handleSubmit}>
 
                 {/* 1. PHOTOS FIRST */}
@@ -2248,6 +3051,7 @@ export default function Dashboard() {
                         style={{ width: 80, height: 80, borderRadius: 12, overflow: "hidden", position: "relative" as const, border: (dragImgIdx === combinedIdx || touchDropIdx === combinedIdx) ? "2px solid " + N : "1px solid var(--border)", cursor: "grab", opacity: dragImgIdx === combinedIdx ? 0.5 : 1, transition: "opacity 0.15s, border-color 0.15s", touchAction: "none" }}
                       >
                         <img src={img.src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" as const, pointerEvents: "none" }} />
+                        <a href={img.src} target="_blank" rel="noreferrer" download title="Open image to save" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} style={{ position: "absolute" as const, top: 3, left: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,.7)", color: "#fff", display: "grid", placeItems: "center", textDecoration: "none", fontSize: 12, lineHeight: 1 }}>↗</a>
                         <button type="button" onClick={() => img.type === "existing" ? removeExistingImage(img.idx) : removeNewImage(img.idx)} style={{ position: "absolute" as const, top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&#10005;</button>
                         {combinedIdx === 0 ? (
                           <div style={{ position: "absolute" as const, bottom: 3, left: 3, padding: "1px 6px", background: N, color: "#fff", borderRadius: 4, fontSize: 8, fontWeight: 700, textTransform: "uppercase" as const }}>Main</div>
@@ -2259,7 +3063,7 @@ export default function Dashboard() {
                     {totalImageSlots < maxImages && (<button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 12, border: "1px dashed var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", gap: 2 }}><span style={{ fontSize: 20, color: "var(--muted-2)" }}>+</span><span style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, fontWeight: 700 }}>Photo</span></button>)}
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: "none" }} />
                   </div>
-                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Drag photos to reorder. First photo is the main product image.</p>
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Drag photos to reorder. First photo is the main product image. Tap ↗ to open the original image, then long-press or use your browser&rsquo;s save option.</p>
                 </div>
 
                 {/* 2. NAME & 3. PRICE */}
@@ -2276,6 +3080,22 @@ export default function Dashboard() {
                       <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 700 }}>{Math.round((1 - parseFloat(formPrice) / parseFloat(formComparePrice)) * 100)}% off — <span style={{ textDecoration: "line-through", color: "var(--muted-2)" }}>R{formComparePrice}</span> → R{formPrice}</span>
                     )}
                   </div>
+                </div>
+
+                {/* Collections are deliberately separate from tags: tags help
+                    search and filtering, while these exact collection names
+                    determine where the product appears on the storefront. */}
+                <div style={{ marginBottom: 20, padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <label style={{ ...labelStyle, marginBottom: 7 }}>Collections</label>
+                  <p style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 10 }}>Choose every collection this product belongs to. A product can appear in more than one.</p>
+                  {storeCollections.length ? (
+                    <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 7 }}>
+                      {storeCollections.map((collection) => {
+                        const selected = formCollections.some((value) => value.toLowerCase() === collection.toLowerCase());
+                        return <button key={collection} type="button" onClick={() => setFormCollections(selected ? formCollections.filter((value) => value.toLowerCase() !== collection.toLowerCase()) : [...formCollections, collection])} style={{ padding: "8px 12px", borderRadius: 100, border: selected ? `1px solid ${N}55` : "1px solid var(--border)", background: selected ? `${N}18` : "var(--panel-2)", color: selected ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>{selected ? "✓ " : "+ "}{collection}</button>;
+                      })}
+                    </div>
+                  ) : <p style={{ fontSize: 11, color: "var(--muted-2)" }}>Create collections under My Store first, then they will appear here.</p>}
                 </div>
 
                 {/* 4. VARIANTS */}
@@ -2332,13 +3152,14 @@ export default function Dashboard() {
                         <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
                           {v.options.filter((o) => o.trim()).map((opt, oi) => {
                             const allImgs = [...existingImages, ...formPreviews];
-                            const currentImg = v.images?.[opt] || "";
+                            const mapped = v.images?.[opt];
+                            const currentImg = Array.isArray(mapped) ? mapped[0] || "" : mapped || "";
                             return (
                               <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <span style={{ fontSize: 12, color: "var(--muted)", minWidth: 60, fontWeight: 600 }}>{opt}</span>
                                 <div style={{ display: "flex", gap: 4, flex: 1, overflowX: "auto" as const }}>
-                                  <div onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = ""; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, border: !currentImg ? "2px solid " + N : "1px solid var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 8, color: "var(--muted-2)" }}>None</div>
-                                  {allImgs.map((img, imgIdx) => (<img key={imgIdx} src={img} alt="" onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = img; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" as const, cursor: "pointer", border: currentImg === img ? "2px solid " + N : "1px solid var(--border)", flexShrink: 0, opacity: currentImg === img ? 1 : 0.5 }} />))}
+                                  <div onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = []; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, border: !currentImg ? "2px solid " + N : "1px solid var(--border)", background: "var(--panel)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 8, color: "var(--muted-2)" }}>None</div>
+                                  {allImgs.map((img, imgIdx) => (<img key={imgIdx} src={img} alt="" onClick={() => { const u = [...formVariants]; if (!u[vi].images) u[vi].images = {}; u[vi].images![opt] = [img]; setFormVariants(u); }} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" as const, cursor: "pointer", border: currentImg === img ? "2px solid " + N : "1px solid var(--border)", flexShrink: 0, opacity: currentImg === img ? 1 : 0.5 }} />))}
                                 </div>
                               </div>
                             );
@@ -2361,6 +3182,76 @@ export default function Dashboard() {
                     style={{ ...inputStyle, resize: "vertical" as const, lineHeight: 1.5 }}
                   />
                 </div>
+
+                {/* Supplier-specific size guide. Stored separately from the
+                    shopper-facing description so importing a table cannot
+                    flatten or clutter normal product copy. */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 8 }}>Size chart HTML (admin only)</label>
+                  <textarea
+                    placeholder="Imported supplier size charts appear here automatically."
+                    value={formSizeChartHtml}
+                    onChange={(e) => setFormSizeChartHtml(e.target.value)}
+                    rows={5}
+                    style={{ ...inputStyle, resize: "vertical" as const, lineHeight: 1.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11 }}
+                  />
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Customers see this through the Size Chart popup, not inside the product description.</p>
+                  {(() => {
+                    const preview = parseProductSizeChartHtml(formSizeChartHtml);
+                    if (!preview) return formSizeChartHtml.trim() ? <p style={{ fontSize: 10, color: "#dc2626", marginTop: 8, fontWeight: 700 }}>The HTML does not contain a readable table yet.</p> : null;
+                    return <div style={{ marginTop: 10, overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}><thead><tr>{preview.headers.map((header) => <th key={header} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{header}</th>)}</tr></thead><tbody>{preview.rows.slice(0, 4).map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} style={{ padding: 8, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{cell}</td>)}</tr>)}</tbody></table></div>;
+                  })()}
+                </div>
+
+                {/* Admin-only product provenance. This stays in the dashboard
+                    and is never selected by the storefront/public routes. */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, marginBottom: 8 }}>Product source URL (admin only)</label>
+                  <input
+                    type="url"
+                    placeholder="https://supplier.com/product-page"
+                    value={formSourceUrl}
+                    onChange={(e) => setFormSourceUrl(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 6 }}>Use this to check supplier availability. Customers do not see this URL.</p>
+                </div>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={formInStock} onChange={(e) => setFormInStock(e.target.checked)} />
+                  <span>
+                    <span style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text)", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Product is in stock</span>
+                    <span style={{ display: "block", fontSize: 10, color: "var(--muted-2)", marginTop: 2 }}>Browser capture sets this from the supplier page; confirm it before publishing.</span>
+                  </span>
+                </label>
+
+                <div style={{ marginBottom: 20, padding: "14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <ProductTagPicker value={formTags} onChange={setFormTags} suggestions={productTagSuggestions} accent={N} />
+                  <p style={{ fontSize: 10, color: "var(--muted-2)", marginTop: 7 }}>Use <b>imports</b> for premium-product shipping. A tag matching a 4REGN collection name also places this product in that collection.</p>
+                </div>
+
+                {seller?.subdomain === "4regn" && (
+                  <div style={{ marginBottom: 20, padding: "14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                    <label style={labelStyle}>Cart Booster matches</label>
+                    <p style={{ fontSize: 10, color: "var(--muted-2)", margin: "0 0 10px" }}>Choose products that should be recommended first when this item is in the cart below R449.</p>
+                    {formCartBoosterIds.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                        {formCartBoosterIds.map((id) => {
+                          const match = products.find((product) => product.id === id);
+                          return <button key={id} type="button" onClick={() => setFormCartBoosterIds((current) => current.filter((value) => value !== id))} style={{ padding: "7px 10px", borderRadius: 100, border: "1px solid rgba(255,107,53,.25)", background: "rgba(255,107,53,.08)", color: "var(--text)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>{match?.name || "Missing product"} &times;</button>;
+                        })}
+                      </div>
+                    )}
+                    <input value={cartBoosterSearch} onChange={(event) => setCartBoosterSearch(event.target.value)} placeholder="Search for a matched product" style={inputStyle} />
+                    {cartBoosterSearch.trim() && (
+                      <div style={{ marginTop: 6, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                        {products.filter((product) => product.id !== editingId && product.status === "published" && product.in_stock !== false && !formCartBoosterIds.includes(product.id) && product.name.toLowerCase().includes(cartBoosterSearch.trim().toLowerCase())).slice(0, 8).map((product) => (
+                          <button key={product.id} type="button" onClick={() => { setFormCartBoosterIds((current) => [...current, product.id]); setCartBoosterSearch(""); }} style={{ display: "flex", width: "100%", justifyContent: "space-between", gap: 12, padding: "10px 12px", border: "none", borderBottom: "1px solid var(--border)", background: "var(--panel-solid)", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 11 }}><span>{product.name}</span><strong>R{Number(product.price).toLocaleString("en-ZA")}</strong></button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 6. COLLECTION with auto-create */}
                 <div style={{ marginBottom: 20 }}>
@@ -2404,6 +3295,7 @@ export default function Dashboard() {
                 </div>
 
                 {uploadProgress && <div style={{ marginTop: 12, fontSize: 12, color: N }}>{uploadProgress}</div>}
+                {formSaveError && <div role="alert" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#dc2626", fontSize: 11, fontWeight: 700 }}>{formSaveError}</div>}
                 {/* 7. SAVE */}
                 <button type="submit" disabled={formSaving} style={{ width: "100%", padding: "14px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: formSaving ? "not-allowed" : "pointer", opacity: formSaving ? 0.6 : 1, marginTop: 8, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{formSaving ? "Saving..." : editingId ? "Save Changes" : "Save Product"}</button>
               </form>
@@ -2546,6 +3438,25 @@ export default function Dashboard() {
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 900, textTransform: "uppercase" as const, marginBottom: 4 }}>{selectedCollection}</h2>
                 <p style={{ fontSize: 13, color: "var(--muted-2)", marginBottom: 20 }}>{products.filter((p) => productInCat(selectedCollection!, p) && (p.status || "published") !== "trashed").length} products in this collection</p>
+                {(() => {
+                  const fallbackCover = products.find((p) => productInCat(selectedCollection!, p) && p.image_url)?.image_url || "";
+                  const coverUrl = storeConfig.collection_images?.[selectedCollection!] || fallbackCover;
+                  return (
+                    <div style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 14, marginBottom: 20 }}>
+                      <h3 style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 10, color: N }}>Collection cover image</h3>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {coverUrl ? <img src={coverUrl} alt="" style={{ width: 72, height: 72, borderRadius: 12, objectFit: "cover", background: "var(--input-bg)" }} /> : <div style={{ width: 72, height: 72, borderRadius: 12, background: "var(--input-bg)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted-2)", fontSize: 11, fontWeight: 800 }}>No cover</div>}
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 12, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>This image is used for Shop by Department and collection tiles. Use the product list below to set a specific product image as the cover.</p>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 10 }}>
+                            <button onClick={() => { const nextUrl = prompt("Paste the image URL for this collection cover:", storeConfig.collection_images?.[selectedCollection!] || ""); if (nextUrl !== null) saveCollectionCover(selectedCollection!, nextUrl.trim() || null); }} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>Paste image URL</button>
+                            {storeConfig.collection_images?.[selectedCollection!] && <button onClick={() => saveCollectionCover(selectedCollection!, null)} style={{ padding: "7px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>Clear custom cover</button>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" as const }}>
                   {[{ k: "manual", l: "Manual" }, { k: "az", l: "A-Z" }, { k: "za", l: "Z-A" }, { k: "latest", l: "Latest" }, { k: "oldest", l: "Oldest" }, { k: "price-asc", l: "Price Low" }, { k: "price-desc", l: "Price High" }].map((s) => (
                     <button key={s.k} onClick={() => setProductSort(s.k)} style={{ padding: "6px 14px", borderRadius: 100, background: productSort === s.k ? "rgba(255,107,53,0.08)" : "var(--panel)", border: productSort === s.k ? "1px solid rgba(255,107,53,0.15)" : "1px solid var(--border)", color: productSort === s.k ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>{s.l}</button>
@@ -2575,7 +3486,10 @@ export default function Dashboard() {
                             {p.image_url ? <img src={p.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--input-bg)" }} />}
                             <div><div style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase" as const }}>{p.name}</div><div style={{ fontSize: 11, color: "var(--muted-2)" }}>R{p.price}</div></div>
                           </div>
-                          <button onClick={async () => { const updated = removeCat(p.category, selectedCollection!); await supabase.from("products").update({ category: updated }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: updated } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" as const }}>
+                            {p.image_url && <button onClick={() => saveCollectionCover(selectedCollection!, p.image_url!)} style={{ padding: "6px 12px", background: storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "rgba(34,197,94,0.1)" : "var(--panel-2)", border: storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "1px solid rgba(34,197,94,0.25)" : "1px solid var(--border)", borderRadius: 8, color: storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "#16a34a" : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>{storeConfig.collection_images?.[selectedCollection!] === p.image_url ? "Cover" : "Set cover"}</button>}
+                            <button onClick={async () => { const updated = removeCat(p.category, selectedCollection!); await supabase.from("products").update({ category: updated }).eq("id", p.id); setProducts(products.map((x) => x.id === p.id ? { ...x, category: updated } : x)); revalidateMyStore(); }} style={{ padding: "6px 12px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.12)", borderRadius: 8, color: "#ff6b35", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Remove</button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2612,13 +3526,16 @@ export default function Dashboard() {
                     {storeCollections.map((col, i) => {
                       const count = products.filter((p) => productInCat(col, p) && (p.status || "published") !== "trashed").length;
                       const thumb = products.find((p) => productInCat(col, p) && p.image_url);
+                      const coverUrl = storeConfig.collection_images?.[col] || thumb?.image_url || "";
                       return (
                         <div key={i} onClick={() => setSelectedCollection(col)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--input-bg)"}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            {thumb?.image_url ? <img src={thumb.image_url} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--input-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 16, color: "var(--muted-2)" }}>&#9633;</span></div>}
+                            {coverUrl ? <img src={coverUrl} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} /> : <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--input-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 16, color: "var(--muted-2)" }}>&#9633;</span></div>}
                             <div><div style={{ fontSize: 14, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 2 }}>{col}</div><div style={{ fontSize: 11, color: "var(--muted-2)" }}>{count} product{count !== 1 ? "s" : ""}</div></div>
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <button disabled={i === 0} onClick={(e) => { e.stopPropagation(); moveCollection(i, i - 1); }} style={{ width: 28, height: 28, borderRadius: "50%", background: i === 0 ? "var(--input-bg)" : "var(--panel-2)", border: "1px solid var(--border)", color: i === 0 ? "var(--muted-2)" : "var(--muted)", fontSize: 12, cursor: i === 0 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&uarr;</button>
+                            <button disabled={i === storeCollections.length - 1} onClick={(e) => { e.stopPropagation(); moveCollection(i, i + 1); }} style={{ width: 28, height: 28, borderRadius: "50%", background: i === storeCollections.length - 1 ? "var(--input-bg)" : "var(--panel-2)", border: "1px solid var(--border)", color: i === storeCollections.length - 1 ? "var(--muted-2)" : "var(--muted)", fontSize: 12, cursor: i === storeCollections.length - 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&darr;</button>
                             <span style={{ fontSize: 12, color: "var(--muted-2)" }}>&rarr;</span>
                             <button onClick={async (e) => { e.stopPropagation(); const updated = storeCollections.filter((_, idx) => idx !== i); setStoreCollections(updated); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); }} style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,107,53,0.06)", border: "none", color: "#ff6b35", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
                           </div>
@@ -2631,16 +3548,22 @@ export default function Dashboard() {
             )}
           </div>)}
 
+          {tab === "customers" && <CustomersPanel />}
+
           {tab === "orders" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Orders</h1><p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Track and manage incoming orders.</p></div>
               {selectedOrder && <button onClick={() => setSelectedOrder(null)} style={{ padding: "10px 20px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Orders</button>}
             </div>
+            {!selectedOrder && <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1fr) repeat(3, minmax(125px, auto))", gap: 8, marginBottom: 16 }} className="order-filter-grid">
+              <input value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Search order, customer, email, item, payment…" style={{ minWidth: 0, padding: "11px 13px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+              <select value={orderPaymentStatusFilter} onChange={(event) => setOrderPaymentStatusFilter(event.target.value)} style={{ padding: "11px 10px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12 }}><option value="all">All payments</option>{Array.from(new Set(visibleOrders.map((order) => order.payment_status).filter(Boolean))).map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}</select>
+              <select value={orderFulfillmentStatusFilter} onChange={(event) => setOrderFulfillmentStatusFilter(event.target.value)} style={{ padding: "11px 10px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12 }}><option value="all">All order statuses</option>{Array.from(new Set(visibleOrders.map((order) => order.status).filter(Boolean))).map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}</select>
+              <select value={orderPaymentMethodFilter} onChange={(event) => setOrderPaymentMethodFilter(event.target.value)} style={{ padding: "11px 10px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12 }}><option value="all">All methods</option>{Array.from(new Set(visibleOrders.map((order) => order.payment_method).filter(Boolean))).map((method) => <option key={method} value={method}>{method.replace(/_/g, " ")}</option>)}</select>
+            </div>}
             {!selectedOrder && visibleOrders.length > 0 && (
               <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>
-                {totalOrdersCount !== null && totalOrdersCount > visibleOrders.length
-                  ? `Showing ${visibleOrders.length} of ${totalOrdersCount} orders`
-                  : `${visibleOrders.length} order${visibleOrders.length !== 1 ? "s" : ""}`}
+                {filteredVisibleOrders.length} matching order{filteredVisibleOrders.length !== 1 ? "s" : ""}{totalOrdersCount !== null && totalOrdersCount > visibleOrders.length ? ` · ${visibleOrders.length} loaded of ${totalOrdersCount}` : ""}
               </p>
             )}
             {selectedOrder ? (
@@ -2657,15 +3580,44 @@ export default function Dashboard() {
                       <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ payment_status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, payment_status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.payment_status === s ? (s === "paid" ? "rgba(34,197,94,0.15)" : s === "refunded" ? "rgba(255,107,53,0.1)" : "rgba(251,191,36,0.1)") : "var(--panel-2)", color: selectedOrder.payment_status === s ? (s === "paid" ? "#22c55e" : s === "refunded" ? "#ff6b35" : "#fbbf24") : "var(--muted-2)" }}>{s.replace("_", " ")}</button>
                     ))}
                   </div>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 18, maxWidth: 360 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Tracking update date & time</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      <input type="datetime-local" value={toDateTimeLocalValue(selectedOrder.tracking_updated_at || selectedOrder.created_at)} onChange={(e) => { const updated = { ...selectedOrder, tracking_updated_at: fromDateTimeLocalValue(e.target.value) }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); }} style={{ flex: "1 1 220px", minWidth: 0, padding: "10px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                      <button type="button" onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "10px 14px", borderRadius: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", cursor: "pointer", border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", background: "var(--panel-2)", color: "var(--muted)" }}>Save time</button>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--muted-2)" }}>Customers will see this timestamp on the tracking page.</span>
+                  </div>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 18, maxWidth: 360 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Estimated delivery (optional)</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                      <input type="datetime-local" value={selectedOrder.estimated_delivery_at ? toDateTimeLocalValue(selectedOrder.estimated_delivery_at) : ""} onChange={(e) => { const updated = { ...selectedOrder, estimated_delivery_at: e.target.value ? fromDateTimeLocalValue(e.target.value) : null }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); }} style={{ flex: "1 1 220px", minWidth: 0, padding: "10px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                      <button type="button" onClick={async () => { const value = selectedOrder.estimated_delivery_at || null; const { error } = await supabase.from("orders").update({ estimated_delivery_at: value, estimated_delivery_manual_override: true }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, estimated_delivery_manual_override: true }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "10px 14px", borderRadius: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", cursor: "pointer", border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", background: "var(--panel-2)", color: "var(--muted)" }}>Save estimate</button>
+                      {selectedOrder.estimated_delivery_at && <button type="button" onClick={async () => { const { error } = await supabase.from("orders").update({ estimated_delivery_at: null, estimated_delivery_from_at: null, estimated_delivery_manual_override: false }).eq("id", selectedOrder.id); if (error) { alert("Failed to clear: " + error.message); return; } const updated = { ...selectedOrder, estimated_delivery_at: null, estimated_delivery_from_at: null, estimated_delivery_manual_override: false }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "10px 12px", borderRadius: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, cursor: "pointer", border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", background: "transparent", color: "var(--muted)" }}>Clear</button>}
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--muted-2)" }}>Leave blank to keep the estimate hidden from the customer. Set it manually for now.</span>
+                  </div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" as const }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "center", marginRight: 4 }}>Status:</label>
                     {(seller?.template === "unik-labs" ? UNIK_ORDER_STATUSES : GENERIC_ORDER_STATUSES).map((s) => {
                       const c = orderStatusColors(s);
                       return (
-                      <button key={s} onClick={async () => { const { error } = await supabase.from("orders").update({ status: s }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? c.bg : "var(--panel-2)", color: selectedOrder.status === s ? c.fg : "var(--muted-2)" }}>{s.replace(/_/g, " ")}</button>
+                      <button key={s} onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ status: s, tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? c.bg : "var(--panel-2)", color: selectedOrder.status === s ? c.fg : "var(--muted-2)" }}>{s.replace(/_/g, " ")}</button>
                       );
                     })}
                   </div>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 18, maxWidth: 640 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Customer tracking note</label>
+                    <textarea value={selectedOrder.customer_tracking_note || ""} onChange={(event) => { const updated = { ...selectedOrder, customer_tracking_note: event.target.value.slice(0, 1000) }; setSelectedOrder(updated); setOrders(orders.map((order) => order.id === updated.id ? updated : order)); }} placeholder="e.g. Delivery was delayed by the courier. We&rsquo;ll update you again tomorrow." rows={3} style={{ padding: "11px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", resize: "vertical" as const }} />
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" as const }}><span style={{ fontSize: 11, color: "var(--muted-2)" }}>Visible in the customer&rsquo;s account and 4REGN tracking page.</span><button type="button" onClick={async () => { const note = (selectedOrder.customer_tracking_note || "").trim() || null; const { error } = await supabase.from("orders").update({ customer_tracking_note: note }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, customer_tracking_note: note }; setSelectedOrder(updated); setOrders(orders.map((order) => order.id === updated.id ? updated : order)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "9px 13px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, cursor: "pointer" }}>Save note</button></div>
+                  </div>
+                  {seller?.subdomain === "4regn" && (() => {
+                    const tracking = buildFourRegnTracking(selectedOrder);
+                    return <div style={{ padding: 16, borderRadius: 14, background: "var(--panel-2)", border: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const, marginBottom: 12 }}><strong style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: ".07em" }}>Customer-facing tracking progress</strong><span style={{ fontSize: 10, color: "var(--muted-2)" }}>{tracking.updatedAt ? `Updated ${new Date(tracking.updatedAt).toLocaleString("en-ZA")}` : "No update time"}</span></div>
+                      {tracking.cancelled ? <div style={{ color: "#ff6b35", fontSize: 11, fontWeight: 800 }}>Order cancelled</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(95px,1fr))", gap: 7 }}>{tracking.stages.map((stage) => <div key={stage.key} style={{ padding: "10px 8px", borderRadius: 10, textAlign: "center" as const, background: stage.complete ? "rgba(34,197,94,.12)" : "var(--panel)", border: `1px solid ${stage.complete ? "rgba(34,197,94,.25)" : "var(--border)"}`, color: stage.complete ? "#22c55e" : "var(--muted-2)", fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{stage.complete ? "✓ " : ""}{stage.label}</div>)}</div>}
+                    </div>;
+                  })()}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div style={{ padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
@@ -2705,11 +3657,11 @@ export default function Dashboard() {
                   <div style={{ marginTop: 12, fontSize: 11, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Payment: {selectedOrder.payment_method || "N/A"}</div>
                 </div>
               </div>
-            ) : visibleOrders.length === 0 ? (
-              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No orders yet</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>Orders will appear here when customers buy from your store.</p></div>
+            ) : filteredVisibleOrders.length === 0 ? (
+              <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>{visibleOrders.length ? "No matching orders" : "No orders yet"}</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>{visibleOrders.length ? "Try clearing or changing your filters." : "Orders will appear here when customers buy from your store."}</p></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {visibleOrders.map((order) => (
+                {filteredVisibleOrders.map((order) => (
                   <div key={order.id} onClick={() => setSelectedOrder(order)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, flexWrap: "wrap" as const, gap: 12, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,107,53,0.15)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--input-bg)"}>
                     <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 3, textTransform: "uppercase" as const }}>Order {displayOrderReference(order)}</div><div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 600 }}><span>{order.customer_name || "Customer"}</span><span>{new Date(order.created_at).toLocaleDateString()}</span></div></div>
                     <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: "-0.03em" }}>R{order.total}</div>
@@ -2734,7 +3686,7 @@ export default function Dashboard() {
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Who's on your store right now -- browsing, has an active cart, or is at checkout. Refreshes every 10 seconds.</p>
 
             {/* HERO: live-now count, oversized, with the rest of today's numbers alongside it */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }} className="stats-grid">
+            <div style={{ display: "grid", gridTemplateColumns: "1.3fr repeat(7, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
               <div style={{ position: "relative" as const, padding: "20px 22px", background: "linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.02))", border: "1px solid rgba(34,197,94,0.22)", borderRadius: 16, overflow: "hidden" }}>
                 <div style={{ position: "absolute" as const, top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: "rgba(34,197,94,0.12)", filter: "blur(2px)" }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -2746,18 +3698,98 @@ export default function Dashboard() {
               </div>
               {[
                 { label: "Sessions today", value: sessionAnalytics?.sessionsToday ?? "—", icon: "eye" as DashIconName, color: "#60a5fa" },
+                { label: "Added to cart", value: sessionAnalytics?.addedToCartToday ?? "—", icon: "cart" as DashIconName, color: "#22c55e", panel: "addedToCart" as const },
+                { label: "Reached checkout", value: sessionAnalytics?.reachedCheckoutToday ?? "—", icon: "payment" as DashIconName, color: "#a78bfa", panel: "reachedCheckout" as const },
+                { label: "Completed", value: sessionAnalytics?.completedCheckoutToday ?? sessionAnalytics?.ordersToday ?? "—", icon: "check" as DashIconName, color: "#16a34a", panel: "purchases" as const },
+                { label: "Timeline", value: sessionAnalytics?.activity?.timeline?.length ?? "—", icon: "live" as DashIconName, color: "#fb7185", panel: "timeline" as const },
                 { label: "Orders today", value: sessionAnalytics?.ordersToday ?? "—", icon: "orders" as DashIconName, color: "#fbbf24" },
                 { label: "Sales today", value: "R" + Math.round(sessionAnalytics?.salesToday ?? 0), icon: "trend-up" as DashIconName, color: "#ff6b35" },
               ].map((s) => (
-                <div key={s.label} style={{ padding: "20px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                <div
+                  key={s.label}
+                  onClick={() => s.panel && setLiveActivityPanel(liveActivityPanel === s.panel ? null : s.panel)}
+                  style={{ padding: "20px 20px", background: liveActivityPanel === s.panel ? "rgba(255,107,53,0.07)" : "var(--panel)", border: liveActivityPanel === s.panel ? "1px solid rgba(255,107,53,0.22)" : "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", cursor: s.panel ? "pointer" : "default" }}
+                >
                   <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
                     <DashIcon name={s.icon} size={15} stroke={1.8} />
                   </div>
                   <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1 }}>{s.value}</div>
                   <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.05em", fontWeight: 700, marginTop: 6 }}>{s.label}</div>
+                  {s.panel && <div style={{ fontSize: 9, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginTop: 8 }}>{liveActivityPanel === s.panel ? "Hide details" : "View details"}</div>}
                 </div>
               ))}
             </div>
+
+            {sessionAnalytics && liveActivityPanel && (
+              <div style={{ padding: "18px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+                      {liveActivityPanel === "addedToCart" ? "Added to cart today" : liveActivityPanel === "reachedCheckout" ? "Reached checkout today" : liveActivityPanel === "timeline" ? "Live session timeline today" : "Completed purchases today"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 4 }}>Newest activity first, using South African time.</div>
+                  </div>
+                  <button onClick={() => setLiveActivityPanel(null)} style={{ border: "none", background: "transparent", color: "var(--muted-2)", cursor: "pointer", fontSize: 18 }}>&times;</button>
+                </div>
+                {liveActivityPanel === "purchases" ? (
+                  (sessionAnalytics.activity?.purchases || []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No completed purchases today yet.</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {(sessionAnalytics.activity?.purchases || []).map((o) => (
+                        <div key={o.orderId} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800 }}>{o.externalId ? String(o.externalId).replace(/^#?/, "#") : o.orderNumber ? `#${o.orderNumber}` : "Order"} · {o.customerName || o.customerEmail || "Customer"}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>{new Date(o.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}{o.paymentMethod ? ` · ${o.paymentMethod}` : ""}</div>
+                          </div>
+                          <div style={{ fontSize: 14, fontWeight: 900 }}>R{Math.round(o.total).toLocaleString("en-ZA")}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : liveActivityPanel === "timeline" ? (
+                  (sessionAnalytics.activity?.timeline || []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No timeline events have been recorded today yet.</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {(sessionAnalytics.activity?.timeline || []).map((v) => (
+                        <div key={v.visitorId + v.eventType + v.timestamp} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const, marginBottom: 3 }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{v.eventType.replace(/_/g, " ")}</span>
+                              <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{v.customerName || v.customerEmail || `Visitor ${v.visitorId.slice(0, 10)}`}</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{v.path || "/"}</div>
+                            {v.cartItems.length > 0 && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{v.cartItems.map((item) => `${item.qty}× ${item.name}${item.variant ? ` (${item.variant})` : ""}`).join(" · ")}</div>}
+                          </div>
+                          <div style={{ textAlign: "right" as const }}>
+                            <div style={{ fontSize: 11, color: "var(--muted)" }}>{new Date(v.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}</div>
+                            {v.cartValue > 0 && <div style={{ fontSize: 12, fontWeight: 900, marginTop: 4 }}>R{Math.round(v.cartValue).toLocaleString("en-ZA")}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  ((liveActivityPanel === "addedToCart" ? sessionAnalytics.activity?.addedToCart : sessionAnalytics.activity?.reachedCheckout) || []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No visitor activity in this stage today yet.</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {((liveActivityPanel === "addedToCart" ? sessionAnalytics.activity?.addedToCart : sessionAnalytics.activity?.reachedCheckout) || []).map((v) => (
+                        <div key={v.visitorId + v.timestamp} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800 }}>{v.customerName || v.customerEmail || `Visitor ${v.visitorId.slice(0, 10)}`}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{v.path || "/"}{v.status ? ` · ${v.status.replace("_", " ")}` : ""}</div>
+                            {v.cartItems.length > 0 && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{v.cartItems.map((item) => `${item.qty}× ${item.name}${item.variant ? ` (${item.variant})` : ""}`).join(" · ")}</div>}
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "right" as const }}>{new Date(v.timestamp).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}{v.cartValue > 0 && <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text)", marginTop: 4 }}>R{Math.round(v.cartValue).toLocaleString("en-ZA")}</div>}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
             {sessionAnalytics && (
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 24 }} className="overview-panels-grid">
@@ -3464,12 +4496,15 @@ export default function Dashboard() {
               return (
                 <>
                   {/* HERO STATS */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
                     {[
                       { label: "Revenue", value: money(fa.totals.revenue), icon: "trend-up" as DashIconName, color: "#22c55e" },
                       { label: "Orders", value: String(fa.totals.orders), icon: "orders" as DashIconName, color: "#fbbf24" },
+                      { label: "Sessions", value: String(fa.totals.sessions), icon: "eye" as DashIconName, color: "#60a5fa" },
+                      { label: "Added to cart", value: `${fa.totals.addedToCart} (${fa.totals.cartRate.toFixed(0)}%)`, icon: "cart" as DashIconName, color: "#22c55e" },
+                      { label: "Reached checkout", value: `${fa.totals.reachedCheckout} (${fa.totals.checkoutRate.toFixed(0)}%)`, icon: "payment" as DashIconName, color: "#a78bfa" },
                       { label: "Conversion rate", value: fa.totals.conversionRate.toFixed(1) + "%", icon: "sparkle" as DashIconName, color: "#60a5fa" },
-                      { label: "Avg. order value", value: money(fa.totals.averageOrderValue), icon: "cart" as DashIconName, color: "#ff6b35" },
+                      { label: "Avg. order value", value: money(fa.totals.averageOrderValue), icon: "payment" as DashIconName, color: "#ff6b35" },
                     ].map((s) => (
                       <div key={s.label} style={{ padding: "20px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
                         <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
@@ -3646,7 +4681,8 @@ export default function Dashboard() {
                   <button onClick={() => void fetchSubscribers()} disabled={subscribersLoading} style={{ padding: "8px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: subscribersLoading ? "default" : "pointer" }}>{subscribersLoading ? "Refreshing…" : "Refresh"}</button>
                   {subscribers.length > 0 && (
                     <button onClick={() => {
-                      const rows = ["email,subscribed_at", ...subscribers.map(s => `${s.email},${s.created_at}`)];
+                      const csvCell = (value: string) => `"${value.replaceAll('"', '""')}"`;
+                      const rows = ["first_name,email,subscribed_at", ...subscribers.map(s => `${csvCell(s.first_name || "")},${csvCell(s.email)},${csvCell(s.consented_at || s.created_at)}`)];
                       const blob = new Blob([rows.join("\n")], { type: "text/csv" });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");
@@ -3664,7 +4700,7 @@ export default function Dashboard() {
                 <div style={{ display: "flex", flexDirection: "column" as const }}>
                   {subscribers.map((s, i) => (
                     <div key={s.email} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 4px", borderBottom: i === subscribers.length - 1 ? "none" : "1px solid var(--border)" }}>
-                      <span style={{ fontSize: 13, color: "var(--text)" }}>{s.email}</span>
+                      <span style={{ fontSize: 13, color: "var(--text)" }}>{s.first_name ? <><strong>{s.first_name}</strong><span style={{ color: "var(--muted)", marginLeft: 8 }}>{s.email}</span></> : s.email}</span>
                       <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{new Date(s.created_at).toLocaleDateString()}</span>
                     </div>
                   ))}
@@ -3682,6 +4718,27 @@ export default function Dashboard() {
               ))}
             </div>
             {checkoutView === "shipping" && (<>
+            {storeTemplate === "4regn" && <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>4REGN delivery method order</h3>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14, lineHeight: 1.5 }}>Use the arrows to arrange the exact order customers see at checkout. Prices and delivery rules remain unchanged.</p>
+              {normaliseFourRegnDeliveryMethodOrder(checkoutConfig.delivery_method_order).map((key, index, order) => {
+                const methods: Record<string, { title: string; detail: string }> = {
+                  paxi_standard: { title: "PAXI Standard Delivery", detail: "7–9 working days" },
+                  aramex: { title: "Aramex Door-to-door", detail: "2–5 working days · Best value" },
+                  paxi_express: { title: "PAXI Express Delivery", detail: "3–5 working days" },
+                };
+                const method = methods[key];
+                const move = (to: number) => {
+                  const next = [...order];
+                  [next[index], next[to]] = [next[to], next[index]];
+                  setCheckoutConfig({ ...checkoutConfig, delivery_method_order: next });
+                };
+                return <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderTop: index ? "1px solid var(--border)" : "none" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{method.title}</div><div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{method.detail}</div></div>
+                  <div style={{ display: "flex", gap: 4 }}><button type="button" disabled={index === 0} onClick={() => move(index - 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === 0 ? "var(--muted-2)" : "var(--text)", cursor: index === 0 ? "not-allowed" : "pointer" }}>↑</button><button type="button" disabled={index === order.length - 1} onClick={() => move(index + 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === order.length - 1 ? "var(--muted-2)" : "var(--text)", cursor: index === order.length - 1 ? "not-allowed" : "pointer" }}>↓</button></div>
+                </div>;
+              })}
+            </div>}
             <div style={sectionCard}>
               <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Shipping Options</h3>
               <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Add delivery options customers can choose at checkout.</p>
@@ -3753,6 +4810,30 @@ export default function Dashboard() {
             </>)}
             {checkoutView === "payments" && (<>
             <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Checkout payment methods</h3>
+              <p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 14, lineHeight: 1.5 }}>Turn methods on or off, then use the arrows to set the exact checkout order. Only enabled methods appear to customers.</p>
+              {checkoutConfig.payment_method_order.map((key, index) => {
+                const labels: Record<string, { title: string; detail: string; field: keyof CheckoutConfig }> = {
+                  yoco: { title: "Yoco", detail: "Card payments", field: "yoco_enabled" },
+                  stitch: { title: "Stitch Pay Later", detail: "2–6 monthly instalments", field: "stitch_enabled" },
+                  setla: { title: "SETLA", detail: "Buy now, pay later", field: "setla_enabled" },
+                  float: { title: "Float", detail: "Buy now, pay later", field: "float_enabled" },
+                  payfast: { title: "PayFast", detail: "Your connected PayFast account", field: "payfast_enabled" },
+                  eft: { title: "EFT / Direct Deposit", detail: "Manual bank transfer", field: "eft_enabled" },
+                };
+                const method = labels[key];
+                if (!method) return null;
+                const enabled = Boolean(checkoutConfig[method.field]);
+                const move = (to: number) => { const next = [...checkoutConfig.payment_method_order]; [next[index], next[to]] = [next[to], next[index]]; setCheckoutConfig({ ...checkoutConfig, payment_method_order: next }); };
+                return <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderTop: index ? "1px solid var(--border)" : "none" }}>
+                  <button type="button" onClick={() => setCheckoutConfig({ ...checkoutConfig, [method.field]: !enabled })} aria-label={`Toggle ${method.title}`} style={{ width: 44, height: 26, flexShrink: 0, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: enabled ? (key === "stitch" ? "#6d3df5" : N) : "var(--toggle-off)" }}><span style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: enabled ? 21 : 3, transition: "left .2s" }} /></button>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{method.title}</div><div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{method.detail}</div></div>
+                  <span style={{ fontSize: 10, color: enabled ? "#22c55e" : "var(--muted-2)", fontWeight: 800, textTransform: "uppercase" as const }}>{enabled ? "On" : "Off"}</span>
+                  <div style={{ display: "flex", gap: 4 }}><button type="button" disabled={index === 0} onClick={() => move(index - 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === 0 ? "var(--muted-2)" : "var(--text)", cursor: index === 0 ? "not-allowed" : "pointer" }}>↑</button><button type="button" disabled={index === checkoutConfig.payment_method_order.length - 1} onClick={() => move(index + 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: index === checkoutConfig.payment_method_order.length - 1 ? "var(--muted-2)" : "var(--text)", cursor: index === checkoutConfig.payment_method_order.length - 1 ? "not-allowed" : "pointer" }}>↓</button></div>
+                </div>;
+              })}
+            </div>
+            <div style={sectionCard}>
               <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>EFT / Direct Deposit</h3>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)", marginBottom: 16 }}><span style={{ fontSize: 13 }}>Enable EFT Payments</span><button onClick={() => setCheckoutConfig({ ...checkoutConfig, eft_enabled: !checkoutConfig.eft_enabled })} style={{ width: 48, height: 28, borderRadius: 100, border: "none", cursor: "pointer", position: "relative" as const, background: checkoutConfig.eft_enabled ? N : "var(--toggle-off)" }}><div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute" as const, top: 3, left: checkoutConfig.eft_enabled ? 23 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} /></button></div>
               {checkoutConfig.eft_enabled && (<div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
@@ -3776,11 +4857,11 @@ export default function Dashboard() {
                 setCheckoutSaving(true); setCheckoutSaved(false);
                 // Merge onto whatever's actually in the DB right now, not a
                 // blind overwrite with just this form's own fields -- this
-                // form's own CheckoutConfig type deliberately doesn't include
-                // yoco_enabled/setla_enabled/stitch_enabled (non-self-serve,
-                // only ever set directly via SQL, see those fields' own
-                // comments in CheckoutPageClient.tsx), so a plain overwrite here was
-                // silently wiping them back out on every save from this page
+                // Yoco and SETLA remain platform-managed fields that this form
+                // must preserve. Stitch is included in CheckoutConfig because
+                // sellers can opt out of the platform-default payment option.
+                // A plain overwrite here was previously silently wiping
+                // platform-managed fields back out on every save from this page
                 // -- confirmed as a real regression (Yoco stopped working
                 // for a seller after they saved a shipping-option change
                 // here). Re-fetches the current row instead of trusting
@@ -3858,6 +4939,42 @@ export default function Dashboard() {
       )}
     </div>
   );
+}
+
+function ProductTagPicker({ value, onChange, suggestions, accent, compact = false }: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  suggestions: string[];
+  accent: string;
+  compact?: boolean;
+}) {
+  const [draft, setDraft] = useState("");
+  const listId = `product-tags-${useId().replace(/:/g, "")}`;
+  const selectedKeys = new Set(value.map((tag) => tag.toLowerCase()));
+  const visibleSuggestions = suggestions
+    .filter((tag) => !selectedKeys.has(tag.toLowerCase()))
+    .filter((tag) => !draft.trim() || tag.toLowerCase().includes(draft.trim().toLowerCase()))
+    .slice(0, compact ? 8 : 12);
+  const addTag = (tag = draft) => {
+    const next = cleanProductTags([...value, tag]);
+    if (next.length !== value.length || next.some((item, index) => item !== value[index])) onChange(next);
+    setDraft("");
+  };
+  const removeTag = (tag: string) => onChange(value.filter((item) => item.toLowerCase() !== tag.toLowerCase()));
+  return <div>
+    <label style={{ display: "block", fontSize: 10, fontWeight: 800, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 7 }}>Product tags</label>
+    {!!value.length && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 8 }}>
+      {value.map((tag) => <button key={tag.toLowerCase()} type="button" onClick={() => removeTag(tag)} title={`Remove ${tag}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 9px", border: `1px solid ${accent}33`, borderRadius: 100, background: `${accent}12`, color: accent, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>{tag}<span aria-hidden="true">×</span></button>)}
+    </div>}
+    <div style={{ display: "flex", gap: 7 }}>
+      <input list={listId} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === ",") { event.preventDefault(); addTag(); } else if (event.key === "Backspace" && !draft && value.length) removeTag(value[value.length - 1]); }} placeholder="Search or type a tag" style={{ flex: 1, minWidth: 0, padding: compact ? "9px 11px" : "10px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 11, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+      <datalist id={listId}>{suggestions.map((tag) => <option value={tag} key={tag.toLowerCase()} />)}</datalist>
+      <button type="button" onClick={() => addTag()} disabled={!draft.trim()} style={{ padding: "8px 12px", border: 0, borderRadius: 10, background: draft.trim() ? accent : "var(--panel-2)", color: draft.trim() ? "#fff" : "var(--muted-2)", fontSize: 10, fontWeight: 900, cursor: draft.trim() ? "pointer" : "default" }}>Add</button>
+    </div>
+    {!!visibleSuggestions.length && <div style={{ display: "flex", gap: 5, flexWrap: "wrap" as const, marginTop: 7 }}>
+      {visibleSuggestions.map((tag) => <button key={tag.toLowerCase()} type="button" onClick={() => addTag(tag)} style={{ padding: "5px 8px", background: "transparent", border: "1px dashed var(--border)", borderRadius: 100, color: "var(--muted-2)", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>+ {tag}</button>)}
+    </div>}
+  </div>;
 }
 
 /* Velour: one service card in the dashboard Services tab. The media

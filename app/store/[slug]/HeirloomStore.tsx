@@ -7,6 +7,8 @@ import { supabase } from "../../../lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
+import { usePersistentStorefrontCart } from "./usePersistentStorefrontCart";
+import StorefrontNavigationProgress from "./StorefrontNavigationProgress";
 
 // Only ever rendered after a click/keyboard interaction (see `lightbox`
 // state below) -- never needed for first paint, so it's split into its own
@@ -84,6 +86,7 @@ interface Seller {
 interface Variant { name: string; options: string[]; images?: { [option: string]: string }; priceDelta?: { [option: string]: number }; }
 interface Product {
   id: string; name: string; price: number; old_price: number | null;
+  handle?: string;
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
   sort_order: number; created_at?: string;
@@ -239,6 +242,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 
   /* ─── CART ─── */
   const [cart, setCart] = useState<CartItem[]>([]);
+  usePersistentStorefrontCart(slug, cart, setCart, !isEditMode);
   const [cartOpen, setCartOpen] = useState(false);
 
   useLiveVisitorPing(seller?.id, {
@@ -399,6 +403,9 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
     setLocalQty(1);
     setVariantError(false);
   };
+  const viewProduct = (p: Product) => isEditMode
+    ? openProduct(p)
+    : navigate(sp(p.handle ? `/products/${p.handle}` : `/p/${p.id}`));
   useEffect(() => {
     if (initialProductId && products.length > 0 && !selectedProduct) {
       const p = products.find((pr) => pr.id === initialProductId);
@@ -904,8 +911,8 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
 }
       `}</style>
 
-      <div className="hl-root" style={isNavigating ? { opacity: 0.6, pointerEvents: "none", transition: "opacity 0.2s" } : undefined}>
-        {isNavigating && <div className="hl-progress" aria-hidden="true" />}
+      <div className="hl-root">
+        <StorefrontNavigationProgress active={isNavigating} color="#1a1715" />
         {displayAnnouncement && (
           <div style={{ background: "#1a1715", color: "#f0e8d8", padding: "8px 16px", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", textAlign: "center" }}>
             {displayAnnouncement}
@@ -1181,7 +1188,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
               )}
             </div>
             {featuredProduct && (
-              <button className="hl-pill" onClick={() => openProduct(featuredProduct)}>
+              <button className="hl-pill" onClick={() => viewProduct(featuredProduct)}>
                 <div className="hl-pill-label">{displayHeroLabel}</div>
                 <div className="hl-pill-name">{featuredProduct.name}</div>
                 <div className="hl-pill-price">{fmt(featuredProduct.price)}</div>
@@ -1290,7 +1297,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 const promo = getProductPromo(p.id);
                 const fallbackPat = `hl-pat-${imgPatternIdx(idx)}`;
                 return (
-                  <div key={p.id} className="hl-pcard" onClick={() => openProduct(p)}>
+                  <div key={p.id} className="hl-pcard" onClick={() => viewProduct(p)}>
                     {promo && <span className="hl-ptag low">{promo.type === "percentage" ? `-${promo.value}%` : "Sale"}</span>}
                     {!promo && onSale && <span className="hl-ptag low">Sale</span>}
                     {!promo && !onSale && idx === 0 && <span className="hl-ptag">New</span>}
@@ -1313,7 +1320,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                     <button
                       className="hl-pwa"
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); openProduct(p); }}
+                      onClick={(e) => { e.stopPropagation(); viewProduct(p); }}
                     >
                       Add to Bag
                     </button>
@@ -1353,7 +1360,7 @@ export default function HeirloomStore({ initialSeller, initialProducts, initialD
                 {flashSaleProducts.map((p, i) => {
                   const pat = `hl-pat-${imgPatternIdx(i + 4)}`;
                   return (
-                    <button key={p.id} className="hl-flash-card" onClick={() => openProduct(p)}>
+                    <button key={p.id} className="hl-flash-card" onClick={() => viewProduct(p)}>
                       <div className="hl-flash-img">
                         {p.image_url ? (
                           <img

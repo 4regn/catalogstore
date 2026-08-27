@@ -225,6 +225,7 @@ export async function POST(req: NextRequest) {
       }],
     });
 
+    await admin.from("orders").update({ yoco_checkout_id: checkout.id, setla_pending_stitch_meta: firstChargeMeta }).eq("id", order.id);
     return NextResponse.json({ ok: true, orderId: order.id, redirectUrl: checkout.redirectUrl });
   } catch (err) {
     console.error("SETLA generic checkout: Yoco checkout creation failed:", err);

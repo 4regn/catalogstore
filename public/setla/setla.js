@@ -652,12 +652,18 @@
     if(!order.isGeneric){
       return `${step1}${step2}<div class="track-step"><i>3</i><div><strong>UNIK Labs production</strong><p>Your personalised garment is created and quality checked.</p></div></div><div class="track-step"><i>4</i><div><strong>Delivery</strong><p>Courier details appear when the order is dispatched.</p></div></div>`;
     }
-    if(order.fulfillmentStatus==='cancelled'){
+    if(order.tracking?.cancelled||order.fulfillmentStatus==='cancelled'){
       return `${step1}${step2}<div class="track-step failed"><i>3</i><div><strong>Order cancelled</strong><p>This order was cancelled by the seller.</p></div></div>`;
     }
-    const idx=Math.max(0,GENERIC_TRACK_STAGES.findIndex(stage=>stage.key===order.fulfillmentStatus));
-    const courierSteps=GENERIC_TRACK_STAGES.map((stage,i)=>`<div class="track-step ${i<=idx?'done':''}"><i>${i+3}</i><div><strong>${stage.label}</strong><p>${stage.copy}</p></div></div>`).join('');
+    const trackingStages=order.tracking?.stages||GENERIC_TRACK_STAGES.map((stage,i)=>({...stage,complete:i<=Math.max(0,GENERIC_TRACK_STAGES.findIndex(item=>item.key===order.fulfillmentStatus)),current:stage.key===order.fulfillmentStatus}));
+    const courierSteps=trackingStages.map((stage,i)=>`<div class="track-step ${stage.complete?'done':stage.current?'current':''}"><i>${i+3}</i><div><strong>${escapeHTML(stage.label)}</strong><p>${escapeHTML(stage.copy)}</p></div></div>`).join('');
     return `${step1}${step2}${courierSteps}`;
+  }
+  function trackingCard(order){
+    const firstItem=order.items?.[0]||{};
+    const updatedAt=order.tracking?.updatedAt?new Date(order.tracking.updatedAt).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    const delivery=order.tracking?.shippingOption?`<p class="tracking-delivery"><small>Delivery method</small><strong>${escapeHTML(order.tracking.shippingOption)}</strong></p>`:'';
+    return `<section class="card tracking-card"><div class="track-order-head"><div><small>${escapeHTML(order.sellerName||'Order')} · Order ${escapeHTML(order.id)}</small><h2>${escapeHTML(itemTitle(firstItem))}</h2>${updatedAt?`<p class="tracking-updated">Latest update: <strong>${escapeHTML(updatedAt)}</strong></p>`:''}${delivery}</div><span class="status-badge ${order.tracking?.cancelled?'failed':'good'}">${escapeHTML(order.tracking?.statusLabel||order.fulfillmentStatus||'Order received')}</span></div><div class="track-line">${trackSteps(order)}</div></section>`;
   }
   function scheduleCard(order){
     const nextRow=(order.schedule||[]).find(row=>row.isNext);
@@ -808,7 +814,7 @@
     document.getElementById('view-plans').innerHTML=payLater.length?`<div class="view-head"><div><div class="eyebrow">Payments</div><h1>Active plans.</h1><p>Your SETLA Pay Later schedules.</p></div><span class="account-pill">${payLater.length} active</span></div>${payLater.map(scheduleCard).join('')}`:emptyView('Payments','Active plans.','Your Pay Later schedules will appear after an eligible checkout.');
     document.getElementById('view-laybuy').innerHTML=laybuy.length?`<div class="view-head"><div><div class="eyebrow">SETLA Laybuy</div><h1>Pay first.<br>We create next.</h1><p>Complete your schedule to unlock production.</p></div></div>${laybuy.map(scheduleCard).join('')}`:emptyView('SETLA Laybuy','Pay first. We create next.','Your Laybuy orders will appear here.');
     document.getElementById('view-history').innerHTML=orders.length?`<div class="view-head"><div><div class="eyebrow">Purchases</div><h1>Order history.</h1><p>Every SETLA order connected to your account.</p></div></div><section class="card history-card"><div class="history-table"><div class="history-row history-head"><span>Order</span><span>Date</span><span>Total</span><span>Status</span><span></span></div>${orders.map(order=>`<div class="history-row"><span><strong>${escapeHTML(order.id)}</strong><small>${escapeHTML(itemTitle(order.items?.[0]||{}))}</small></span><span>${new Date(order.createdAt).toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}</span><span>${money(order.total)}</span><span><b class="status-badge ${orderStatusBadgeClass(order)}">${orderStatus(order)}</b></span><span><button data-view="${order.methodCode==='laybuy'?'laybuy':'plans'}">View</button></span></div>`).join('')}</div></section>`:emptyView('Purchases','Order history.','Your completed and active orders will appear here.');
-    document.getElementById('view-track').innerHTML=latest?`<div class="view-head"><div><div class="eyebrow">Order tracking</div><h1>Made for you.</h1><p>Follow your latest order.</p></div><span class="status-badge ${orderStatusBadgeClass(latest)}">${orderStatus(latest)}</span></div><section class="card tracking-card"><div class="track-order-head"><div><small>Order ${escapeHTML(latest.id)}</small><h2>${escapeHTML(itemTitle(latest.items?.[0]||{}))}</h2></div></div><div class="track-line">${trackSteps(latest)}</div></section>`:emptyView('Order tracking','Made for you.','Your latest order journey will appear here.');
+    document.getElementById('view-track').innerHTML=orders.length?`<div class="view-head"><div><div class="eyebrow">Order tracking</div><h1>Follow every order.</h1><p>Live 4REGN fulfilment updates appear here automatically.</p></div><span class="account-pill">${orders.length} order${orders.length===1?'':'s'}</span></div>${orders.map(trackingCard).join('')}`:emptyView('Order tracking','Made for you.','Your order journey will appear here.');
     document.getElementById('view-notifications').innerHTML=`<div class="view-head"><div><div class="eyebrow">Updates</div><h1>Notifications.</h1><p>Account, payment and order updates from SETLA and UNIK Labs.</p></div></div>${pending?'<article class="card notification unread"><div><strong>Application received</strong><p>Your SETLA application is being reviewed. We will email you when a decision is ready.</p></div></article>':latest?`<article class="card notification unread"><div><strong>Order connected</strong><p>Order ${escapeHTML(latest.id)} is now available in your SETLA dashboard.</p></div></article>`:'<section class="card empty-state"><h2>No notifications</h2><p>Your account updates will appear here.</p></section>'}`;
     const initials=fullName.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();document.getElementById('profileInitials').textContent=initials||'—';document.getElementById('profileName').textContent=fullName;document.getElementById('profileContact').textContent=[account.email,account.phone].filter(Boolean).join(' · ');document.getElementById('profileLimit').textContent=money(approvedLimit);document.getElementById('profileMemberSince').textContent=new Date(account.createdAt||Date.now()).toLocaleDateString('en-ZA',{month:'long',year:'numeric'});document.getElementById('profilePaymentStatus').textContent=orders.length?'Plan active':'No active plan';document.getElementById('detailName').textContent=fullName;document.getElementById('detailEmail').textContent=account.email||'—';document.getElementById('detailPhone').textContent=account.phone||'—';document.getElementById('detailAddress').textContent=account.address||'Not supplied';document.getElementById('profileBadge').textContent=approved?'Verified customer':pending?'Verification in review':'Application required';document.getElementById('identityStatus').textContent=approved?'Identity verified':pending?'Verification in review':'Verification required';
     const bank=account.application?.bank,last4=account.application?.accountLast4;document.getElementById('bankType').textContent=bank?`${bank} · Verification ${approved?'approved':'pending'}`:'No verified bank account';document.getElementById('bankAccount').textContent=bank&&last4?`${fullName} · •••• ${last4}`:'Add your banking details during your application.';document.getElementById('bankStatus').textContent=bank?(approved?'Approved':'Under review'):'Not verified';
@@ -817,7 +823,22 @@
     // still-pending customer.
     const appealPanel=document.getElementById('appeal');if(appealPanel)appealPanel.hidden=status!=='declined';
   }
-  if(protectedPage==='dashboard'&&profile)renderDashboard(profile);
+  if(protectedPage==='dashboard'&&profile){
+    renderDashboard(profile);
+    const refreshDashboard=async()=>{
+      if(document.visibilityState!=='visible')return;
+      const response=await fetch('/api/setla/dashboard',{credentials:'include',cache:'no-store'}).catch(()=>null);
+      if(!response?.ok)return;
+      const fresh=await response.json().catch(()=>null);
+      if(!fresh)return;
+      resolvedAccount=fresh;
+      const currentView=location.hash.replace('#','')||'overview';
+      if(currentView==='support'||currentView==='profile')return;
+      renderDashboard(fresh);
+    };
+    setInterval(refreshDashboard,30000);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshDashboard()});
+  }
   if(new URLSearchParams(location.search).has('submitted'))setTimeout(()=>setlaToast('Application received. We will email you when your review is complete.'),300);
   document.querySelectorAll('[data-panel]').forEach(link=>link.addEventListener('click',()=>{
     const panel=document.getElementById(link.dataset.panel);
@@ -838,7 +859,6 @@
   document.getElementById('continueSETLA')?.addEventListener('click',()=>{const choice=document.querySelector('input[name="plan"]:checked')?.value;if(choice==='limit'&&!profile){location.href='apply.html';return}setlaToast(choice==='laybuy'?'Laybuy selected. Your payment schedule is the next step.':'Your approved SETLA limit will be verified securely.')});
 
   const dashboardViews=[...document.querySelectorAll('.dashboard-view')];
-  const viewControls=[...document.querySelectorAll('[data-view]')];
   function showDashboardView(name,scroll=true){
     const next=document.getElementById(`view-${name}`);
     if(!next)return;
@@ -847,10 +867,12 @@
     history.replaceState(null,'',`#${name}`);
     if(scroll)window.scrollTo({top:0,behavior:'smooth'});
   }
-  viewControls.forEach(control=>control.addEventListener('click',event=>{
+  document.addEventListener('click',event=>{
+    const control=event.target.closest?.('[data-view]');
+    if(!control)return;
     if(control.tagName==='A')event.preventDefault();
     showDashboardView(control.dataset.view);
-  }));
+  });
   const initialView=location.hash.replace('#','');
   if(initialView&&document.getElementById(`view-${initialView}`))showDashboardView(initialView,false);
 

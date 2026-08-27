@@ -63,6 +63,41 @@ export type StitchPaymentLink = {
   status: StitchPaymentLinkStatus;
 };
 
+export type StitchPaymentLinkLookup = {
+  id: string;
+  paymentId: string;
+  status: StitchPaymentLinkStatus;
+  amountCents: number;
+  merchantReference?: string;
+};
+
+/* Provider-side verification used when Svix webhook delivery is late or
+   misconfigured. A redirect query string is never trusted as proof of
+   payment: this makes an authenticated server-to-server request instead. */
+export async function getStitchPaymentLink(paymentLinkId: string): Promise<StitchPaymentLinkLookup | null> {
+  const token = await getStitchToken(PAYMENT_REQUEST_SCOPE);
+  const res = await fetch(`${STITCH_BASE_URL}/payment-links/${encodeURIComponent(paymentLinkId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const json = await res.json().catch(() => null);
+  const payment = json?.data?.payment ?? json?.data?.paymentLink ?? json?.data;
+  if (!payment) return null;
+
+  const paidTransaction = (Array.isArray(payment.payments) ? payment.payments : [])
+    .find((entry: any) => String(entry?.status || "").toUpperCase() === "PAID");
+  const status = String(payment.status || paidTransaction?.status || "PENDING").toUpperCase() as StitchPaymentLinkStatus;
+  const amountCents = Number(payment.amount ?? payment.amountCents ?? paidTransaction?.amount ?? 0);
+  return {
+    id: String(payment.id || paymentLinkId),
+    paymentId: String(payment.paymentId || payment.latestPayment?.id || paidTransaction?.id || payment.id || paymentLinkId),
+    status,
+    amountCents,
+    merchantReference: payment.merchantReference ? String(payment.merchantReference) : undefined,
+  };
+}
+
 // One-time charge -- this is what the generic storefront checkout
 // (app/api/checkout/stitch-redirect) actually uses today. Only needs the
 // default client_paymentrequest scope (no special approval), unlike

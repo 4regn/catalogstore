@@ -187,7 +187,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   shopbygender: { icon: "circle",       label: "Shop by Gender" },
   "ticker-strip":      { icon: "ticker", label: "4regn Ticker Strip" },
   "winter-essentials": { icon: "image",  label: "Winter Essentials" },
-  "winter-sale-marquee": { icon: "image", label: "Winter Sale Marquee" },
+  "winter-sale-marquee": { icon: "image", label: "Spring Sale Marquee" },
   "standard-graphic-hoodies": { icon: "image", label: "Standard Graphic Hoodies" },
 };
 
@@ -460,7 +460,7 @@ export default function StoreEditor() {
   // "add" picker is clicked) -- already-saved product-id slides need it
   // too, to resolve their thumbnails.
   useEffect(() => {
-    if ((activeSection !== "winter-essentials" && activeSection !== "winter-sale-marquee" && activeSection !== "standard-graphic-hoodies") || pickerProducts || !seller) return;
+    if ((activeSection !== "shopbygender" && activeSection !== "winter-essentials" && activeSection !== "winter-sale-marquee" && activeSection !== "standard-graphic-hoodies") || pickerProducts || !seller) return;
     setPickerLoading(true);
     supabase.from("products").select("id, name, image_url, category").eq("seller_id", seller.id).not("image_url", "is", null)
       .then(({ data }) => { setPickerProducts(data || []); setPickerLoading(false); });
@@ -501,6 +501,33 @@ export default function StoreEditor() {
     const u = [...hoursStructured];
     u[idx] = { ...u[idx], ...patch };
     setHoursStructured(u);
+  };
+  const persistCollectionSettings = async (
+    nextImages = collectionImages,
+    nextOrder = collOrder,
+    nextHidden = hiddenCollections
+  ) => {
+    if (!seller) return;
+    const editedFields = {
+      collection_images: nextImages,
+      hidden_collections: nextHidden,
+    };
+    const newStoreConfig = { ...omitTemplateFields(seller.store_config || {}), ...omitTemplateFields(editedFields) };
+    const newTemplateConfigs = {
+      ...(seller.template_configs || {}),
+      [seller.template]: {
+        ...(seller.template_configs?.[seller.template] || pickTemplateFields(seller.store_config || {})),
+        ...pickTemplateFields(editedFields),
+      },
+    };
+    const nextCollections = nextOrder.length > 0 ? nextOrder : seller.collections;
+    await supabase.from("sellers").update({
+      collections: nextCollections,
+      store_config: newStoreConfig,
+      template_configs: newTemplateConfigs,
+    }).eq("id", seller.id);
+    setSeller({ ...seller, collections: nextCollections, store_config: newStoreConfig, template_configs: newTemplateConfigs });
+    if (seller.subdomain) void revalidateStore(seller.subdomain).catch(() => {});
   };
 
   /* ─── LOAD ─── */
@@ -776,6 +803,8 @@ export default function StoreEditor() {
   useEffect(() => { postUpdate({ shopByGenderHeading }); }, [shopByGenderHeading]);
   useEffect(() => { postUpdate({ newsletterCopyright }); }, [newsletterCopyright]);
   useEffect(() => { if (collOrder.length > 0) postUpdate({ collOrder }); }, [collOrder]);
+  useEffect(() => { postUpdate({ collectionImages }); }, [collectionImages]);
+  useEffect(() => { postUpdate({ hiddenCollections }); }, [hiddenCollections]);
   useEffect(() => { postUpdate({ heroImage: heroImagePreview }); }, [heroImagePreview]);
   useEffect(() => { postUpdate({ heroVideo: heroVideoUrl }); }, [heroVideoUrl]);
   useEffect(() => { postUpdate({ marqueeTexts }); }, [marqueeTexts]);
@@ -2034,8 +2063,70 @@ export default function StoreEditor() {
                   <input value={shopByGenderHeading} onChange={e => setShopByGenderHeading(e.target.value)} placeholder="Shop by Category" style={inputStyle} />
                 </div>
 
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8 }}>
+                  <label style={labelStyle}>Department collection order & covers</label>
+                  <div style={{ fontSize: 12, color: "rgba(245,245,245,0.42)", marginBottom: 10, lineHeight: 1.5 }}>These controls update the circles in this Shop by Department section. Use Up/Down to reorder; upload an image or choose one from the collection&apos;s products.</div>
+                  {collOrder.filter(col => /^(men|women)\s+/i.test(col)).length === 0 ? (
+                    <div style={{ fontSize: 12, color: "rgba(245,245,245,0.35)" }}>No Men/Women collections found yet. Create collections like &quot;Men Accessories&quot; or &quot;Women Shoes&quot; first.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {collOrder.filter(col => /^(men|women)\s+/i.test(col)).map((col) => {
+                        const i = collOrder.indexOf(col);
+                        const label = col.replace(/^(men|women)\s+/i, "");
+                        const matches = (pickerProducts || []).filter(p => (p.category || "").split(",").map(c => c.trim()).includes(col));
+                        const uploadCover = async (file: File | undefined) => {
+                          if (!file || !seller) return;
+                          const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+                          const path = `${seller.id}/shopbydepartment_${col.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.${ext}`;
+                          const { error } = await supabase.storage.from("store-assets").upload(path, file, { upsert: true });
+                          if (!error) {
+                            const { data } = supabase.storage.from("store-assets").getPublicUrl(path);
+                            const nextImages = { ...collectionImages, [col]: data.publicUrl };
+                            setCollectionImages(nextImages);
+                            await persistCollectionSettings(nextImages, collOrder, hiddenCollections);
+                          }
+                        };
+                        return (
+                          <div key={col} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", userSelect: "none" }}>
+                              <span style={{ color: "rgba(245,245,245,0.3)", fontSize: 11, letterSpacing: "0.08em" }}>ORDER</span>
+                              <span style={{ flex: 1, fontSize: 13 }}>{col}<span style={{ color: "rgba(245,245,245,0.35)" }}> / {label}</span></span>
+                              <div style={{ display: "flex", gap: 4 }}>
+                                <button type="button" onClick={() => { if (i === 0) return; const u = [...collOrder]; [u[i - 1], u[i]] = [u[i], u[i - 1]]; setCollOrder(u); void persistCollectionSettings(collectionImages, u, hiddenCollections); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.62)", cursor: i === 0 ? "not-allowed" : "pointer", fontSize: 10, padding: "5px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Up</button>
+                                <button type="button" onClick={() => { if (i === collOrder.length - 1) return; const u = [...collOrder]; [u[i], u[i + 1]] = [u[i + 1], u[i]]; setCollOrder(u); void persistCollectionSettings(collectionImages, u, hiddenCollections); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 4, color: "rgba(245,245,245,0.62)", cursor: i === collOrder.length - 1 ? "not-allowed" : "pointer", fontSize: 10, padding: "5px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Down</button>
+                              </div>
+                            </div>
+                            <div style={{ padding: "0 12px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+                              <label style={{ width: 48, height: 48, borderRadius: "50%", overflow: "hidden", background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(245,245,245,0.35)", cursor: "pointer", flexShrink: 0 }} title={collectionImages[col] ? "Change image" : "Upload image"}>
+                                {collectionImages[col] ? <img src={collectionImages[col]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "+"}
+                                <input type="file" accept="image/*" onChange={async (e) => { await uploadCover(e.target.files?.[0]); e.currentTarget.value = ""; }} style={{ display: "none" }} />
+                              </label>
+                              <div style={{ flex: 1, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                <label style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                  {collectionImages[col] ? "Change image" : "Upload image"}
+                                  <input type="file" accept="image/*" onChange={async (e) => { await uploadCover(e.target.files?.[0]); e.currentTarget.value = ""; }} style={{ display: "none" }} />
+                                </label>
+                                <button type="button" onClick={() => openCoverPicker(coverPickerFor === col ? "" : col)} style={{ fontSize: 12, color: "rgba(245,245,245,0.45)", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Choose from product</button>
+                                {collectionImages[col] && <button type="button" onClick={() => { const nextImages = { ...collectionImages }; delete nextImages[col]; setCollectionImages(nextImages); void persistCollectionSettings(nextImages, collOrder, hiddenCollections); }} style={{ fontSize: 12, color: "#ff6b35", background: "none", border: "none", cursor: "pointer", padding: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Remove</button>}
+                              </div>
+                            </div>
+                            {coverPickerFor === col && (
+                              <div style={{ padding: "0 12px 12px" }}>
+                                {pickerLoading ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>Loading your products...</div> : matches.length === 0 ? <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", padding: "8px 0" }}>No products with an image in this collection yet. Use Upload image instead.</div> : (
+                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 8, maxHeight: 240, overflowY: "auto", padding: 8, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                                    {matches.map(p => <button key={p.id} type="button" title={p.name} onClick={() => { const nextImages = { ...collectionImages, [col]: p.image_url! }; setCollectionImages(nextImages); setCoverPickerFor(null); void persistCollectionSettings(nextImages, collOrder, hiddenCollections); }} style={{ padding: 0, display: "flex", flexDirection: "column", gap: 0, border: collectionImages[col] === p.image_url ? "2px solid #9c7c62" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", overflow: "hidden", background: "rgba(255,255,255,0.02)" }}><img src={p.image_url!} alt={p.name} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} /><span style={{ fontSize: 10, lineHeight: 1.3, color: "rgba(245,245,245,0.6)", padding: "4px 6px", textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{p.name}</span></button>)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
-                  The MEN and WOMEN category tiles come from your real Collections list — add collections named &quot;Men Tops&quot;, &quot;Women Dresses&quot;, etc. (and &quot;ALL MEN&quot; / &quot;ALL WOMEN&quot; for the Shop All buttons) from <strong>Dashboard → Collections</strong>. A gender panel only appears once it has at least one matching collection.
+                  The MEN and WOMEN category tiles come from your real Collections list. Add collections named &quot;Men Tops&quot;, &quot;Women Dresses&quot;, etc. plus &quot;ALL MEN&quot; / &quot;ALL WOMEN&quot; for the Shop All buttons. A gender panel only appears once it has at least one matching collection.
                 </div>
               </div>
             )}

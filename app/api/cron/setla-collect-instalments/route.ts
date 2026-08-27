@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import { initiateStitchConsentPayment } from "../../../../lib/stitch";
-import { markSetlaInstalmentPaid } from "../../../../lib/setla-instalments";
+import { getSellerForSetlaOrder, markSetlaInstalmentPaid } from "../../../../lib/setla-instalments";
 import { sendEmail } from "../../../../lib/email";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const planIds = [...new Set(dueInstalments.map((i) => i.plan_id))];
   const { data: plans, error: plansErr } = await admin
     .from("setla_payment_plans")
-    .select("id, customer_id, stitch_consent_id, stitch_consent_status")
+    .select("id, customer_id, order_id, stitch_consent_id, stitch_consent_status")
     .in("id", planIds)
     .not("stitch_consent_id", "is", null)
     .eq("stitch_consent_status", "active");
@@ -89,16 +89,16 @@ export async function GET(req: NextRequest) {
       // the customer directly since this is the one failure mode where
       // silence would just mean the same failure repeating every day.
       await admin.from("setla_payment_plans").update({ stitch_consent_status: "reauth_required" }).eq("id", plan.id);
-      await notifyCustomer(admin, plan.customer_id, instalment.sequence_number, "reauth");
+      await notifyCustomer(admin, plan.customer_id, plan.order_id, instalment.sequence_number, "reauth");
     } else if (newRetryCount >= MAX_AUTO_RETRY_ATTEMPTS) {
-      await notifyCustomer(admin, plan.customer_id, instalment.sequence_number, "gave_up");
+      await notifyCustomer(admin, plan.customer_id, plan.order_id, instalment.sequence_number, "gave_up");
     }
   }
 
   return NextResponse.json({ status: "ok", attempted: dueInstalments.length, paid, failed, skipped });
 }
 
-async function notifyCustomer(admin: ReturnType<typeof getAdmin>, customerId: string, sequenceNumber: number, reason: "reauth" | "gave_up") {
+async function notifyCustomer(admin: ReturnType<typeof getAdmin>, customerId: string, setlaOrderId: string, sequenceNumber: number, reason: "reauth" | "gave_up") {
   const { data: customer } = await admin.from("setla_customers").select("id, first_name, email").eq("id", customerId).maybeSingle();
   if (!customer) return;
   const title = reason === "reauth" ? "Please re-verify your card for SETLA" : "We couldn't collect your SETLA instalment automatically";
@@ -106,5 +106,6 @@ async function notifyCustomer(admin: ReturnType<typeof getAdmin>, customerId: st
     ? `Your bank needs you to re-verify instalment ${sequenceNumber} before we can charge your saved card again. Please pay it manually from your dashboard, and re-link your card if asked to.`
     : `We tried a few times to automatically collect instalment ${sequenceNumber} and it didn't go through. Please pay it manually from your dashboard.`;
   await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "instalment_paid", title, body });
-  await sendEmail({ to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
+  const seller = await getSellerForSetlaOrder(admin, setlaOrderId);
+  await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
 }
