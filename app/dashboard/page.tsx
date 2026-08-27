@@ -488,6 +488,7 @@ export default function Dashboard() {
   const [sheinManualAuditText, setSheinManualAuditText] = useState("");
   const [sheinAuditProgress, setSheinAuditProgress] = useState("");
   const [sheinAuditResults, setSheinAuditResults] = useState<{ checked: number; inStock: number; drafted: number; failed: number }>({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
+  const [sheinAuditFailures, setSheinAuditFailures] = useState<{ productId: string; productName: string; reason: string }[]>([]);
   const sheinAuditCurrentIdRef = useRef<string | null>(null);
   const sheinAuditRequestIdRef = useRef<string | null>(null);
   const sheinAuditedIdsRef = useRef<Set<string>>(new Set());
@@ -540,8 +541,11 @@ export default function Dashboard() {
         const productId = sheinAuditCurrentIdRef.current;
         if (!productId) return;
         if (!message.ok || !message.audit) {
+          const productName = products.find((product) => product.id === productId)?.name || "Unknown product";
+          const reason = String(message.error || "The browser worker returned no stock data.");
           setSheinAuditResults((current) => ({ ...current, failed: current.failed + 1 }));
-          setSheinAuditProgress(message.error || "Stock check failed; continuing with the next product.");
+          setSheinAuditFailures((items) => [...items, { productId, productName, reason }]);
+          setSheinAuditProgress(`${productName}: ${reason}`);
           sheinAuditCurrentIdRef.current = null;
           sheinAuditRequestIdRef.current = null;
           setSheinAuditCurrentId(null);
@@ -1557,8 +1561,10 @@ export default function Dashboard() {
     };
     const { error } = await supabase.from("products").update(updates).eq("id", productId);
     if (error) {
+      const reason = error.message || "The stock result could not be saved.";
       setSheinAuditResults((current) => ({ ...current, failed: current.failed + 1 }));
-      setSheinAuditProgress(`Could not save ${product.name}: ${error.message}`);
+      setSheinAuditFailures((items) => [...items, { productId, productName: product.name, reason }]);
+      setSheinAuditProgress(`Could not save ${product.name}: ${reason}`);
     } else {
       setProducts((items) => items.map((item) => item.id === productId ? { ...item, ...updates } : item));
       setSheinAuditResults((current) => ({
@@ -1583,6 +1589,7 @@ export default function Dashboard() {
     sheinAuditScopeIdsRef.current = scope;
     sheinAuditedIdsRef.current = new Set();
     setSheinAuditResults({ checked: 0, inStock: 0, drafted: 0, failed: 0 });
+    setSheinAuditFailures([]);
     setSheinAuditProgress(`Preparing to audit ${sheinProducts.length} SHEIN product${sheinProducts.length === 1 ? "" : "s"}...`);
     setSheinAuditRunning(true);
   };
@@ -1617,7 +1624,7 @@ export default function Dashboard() {
     if (!next) {
       setSheinAuditRunning(false);
       sheinAuditScopeIdsRef.current = null;
-      setSheinAuditProgress("SHEIN stock audit complete. Availability was saved automatically; fully sold-out products are now drafts.");
+      setSheinAuditProgress("SHEIN stock audit complete. Availability was saved automatically; fully sold-out products are now drafts. Any failures are listed below.");
       return;
     }
     const requestId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -2939,6 +2946,9 @@ export default function Dashboard() {
                 {(sheinAuditProgress || sheinAuditResults.checked > 0) && <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.45 }}>
                   <strong style={{ color: "var(--text)" }}>{sheinAuditResults.checked} checked</strong> · {sheinAuditResults.inStock} in stock · {sheinAuditResults.drafted} moved to draft · {sheinAuditResults.failed} failed
                   {sheinAuditProgress ? <div style={{ marginTop: 3, color: "var(--muted-2)" }}>{sheinAuditProgress}</div> : null}
+                </div>}
+                {!!sheinAuditFailures.length && <div style={{ marginTop: 9, display: "flex", flexDirection: "column" as const, gap: 5 }}>
+                  {sheinAuditFailures.map((failure) => <div key={`${failure.productId}-${failure.reason}`} style={{ padding: "8px 9px", borderRadius: 8, background: "rgba(185,28,28,0.055)", border: "1px solid rgba(185,28,28,0.16)", color: "#991b1b", fontSize: 10, lineHeight: 1.4 }}><strong>{failure.productName}</strong><br />{failure.reason}</div>)}
                 </div>}
               </div>
               {importResult && <div style={{ marginTop: 10, fontSize: 12, color: importPreview ? "#16a34a" : "var(--muted)", fontWeight: 700 }}>{importResult}</div>}
