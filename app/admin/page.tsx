@@ -96,6 +96,7 @@ const redBadge = badge("rgba(255,61,110,0.08)", "#ff3d6e");
 export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [adminLoadError, setAdminLoadError] = useState("");
   const [pinLocked, setPinLocked] = useState(true);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
@@ -148,16 +149,36 @@ export default function AdminDashboard() {
   };
 
   const checkAdmin = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.email !== ADMIN_EMAIL) { router.push("/login"); return; }
+    setLoading(true);
+    setAdminLoadError("");
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      router.replace("/login?reason=session-expired");
+      return;
+    }
+    if (user.email !== ADMIN_EMAIL) { router.replace("/dashboard"); return; }
     setAuthorized(true);
 
-    const { data: sd } = await supabase.from("sellers").select("*").order("created_at", { ascending: false });
-    if (sd) setSellers(sd);
-    const { data: pd } = await supabase.from("products").select("*").order("created_at", { ascending: false });
-    if (pd) setAllProducts(pd);
-    const { data: od } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
-    if (od) setAllOrders(od);
+    const [sellerResult, productResult, orderResult] = await Promise.all([
+      supabase.from("sellers").select("*").order("created_at", { ascending: false }),
+      supabase.from("products").select("*").order("created_at", { ascending: false }),
+      supabase.from("orders").select("*").order("created_at", { ascending: false }),
+    ]);
+    const failed = [
+      ["sellers", sellerResult.error],
+      ["products", productResult.error],
+      ["orders", orderResult.error],
+    ].filter((entry) => entry[1]);
+    if (failed.length > 0) {
+      console.error("Admin dashboard data failed to load", failed);
+      setAdminLoadError(`The admin account is authenticated, but ${failed.map(([name]) => name).join(", ")} could not be loaded. Nothing has been deleted.`);
+      setLoading(false);
+      return;
+    }
+    setSellers(sellerResult.data || []);
+    setAllProducts(productResult.data || []);
+    setAllOrders(orderResult.data || []);
     setLoading(false);
   };
 
@@ -346,6 +367,18 @@ export default function AdminDashboard() {
   );
 
   if (!authorized) return null;
+
+  if (adminLoadError) return (
+    <div data-theme={theme} style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: F, color: "var(--text)" }}>
+      <style>{THEME_CSS}</style>
+      <div style={{ ...card, width: "100%", maxWidth: 520, padding: 28, textAlign: "center" }}>
+        <h1 style={{ margin: "0 0 10px", fontSize: 18, textTransform: "uppercase" }}>Admin data is safe</h1>
+        <p style={{ margin: "0 0 22px", color: "var(--muted)", lineHeight: 1.65 }}>{adminLoadError}</p>
+        <button type="button" onClick={() => void checkAdmin()} style={{ width: "100%", padding: "14px 18px", border: 0, borderRadius: 100, background: N, color: "#fff", fontWeight: 800, cursor: "pointer", marginBottom: 10 }}>Try loading again</button>
+        <button type="button" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }} style={{ width: "100%", padding: "13px 18px", borderRadius: 100, background: "transparent", border: "1px solid var(--border)", color: "var(--text)", fontWeight: 700, cursor: "pointer" }}>Sign out and sign in again</button>
+      </div>
+    </div>
+  );
 
   if (pinLocked) return (
     <div data-theme={theme} style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: F, padding: "40px 24px" }}>

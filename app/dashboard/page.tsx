@@ -304,18 +304,19 @@ const ORDERS_LIMIT = 100;
 // actually imported, even after PRODUCTS_LIMIT was raised well past that
 // (a client-requested limit can't exceed the server's own cap). Pages
 // through via .range() until a page comes back short.
-async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null }> {
+async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null; error: { message: string } | null }> {
   const all: any[] = [];
   const PAGE = 1000;
   let from = 0;
   while (all.length < PRODUCTS_LIMIT) {
     const { data, error } = await supabase.from("products").select(PRODUCT_COLUMNS).eq("seller_id", sellerId).order("sort_order", { ascending: true }).range(from, from + PAGE - 1);
-    if (error || !data) break;
+    if (error) return { data: null, error };
+    if (!data) return { data: null, error: { message: "No product data was returned." } };
     all.push(...data);
     if (data.length < PAGE) break;
     from += PAGE;
   }
-  return { data: all };
+  return { data: all, error: null };
 }
 
 // Real financial reporting (today/yesterday/week/month/year/custom range)
@@ -327,7 +328,7 @@ async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null 
 // thousand orders -- this is a lightweight aggregation dataset, not the
 // full order objects the list view and detail panel need.
 type OrderStatsRow = { total: number; payment_status: string; payment_method: string; created_at: string };
-async function fetchAllOrderStats(sellerId: string): Promise<OrderStatsRow[]> {
+async function fetchAllOrderStats(sellerId: string): Promise<{ data: OrderStatsRow[]; error: { message: string } | null }> {
   const all: OrderStatsRow[] = [];
   const PAGE = 1000;
   let from = 0;
@@ -337,12 +338,13 @@ async function fetchAllOrderStats(sellerId: string): Promise<OrderStatsRow[]> {
       .select("total, payment_status, payment_method, created_at")
       .eq("seller_id", sellerId)
       .range(from, from + PAGE - 1);
-    if (error || !data) break;
+    if (error) return { data: [], error };
+    if (!data) return { data: [], error: { message: "No order statistics were returned." } };
     all.push(...(data as OrderStatsRow[]));
     if (data.length < PAGE) break;
     from += PAGE;
   }
-  return all;
+  return { data: all, error: null };
 }
 const DISCOUNTS_LIMIT = 100;
 
@@ -450,6 +452,7 @@ export default function Dashboard() {
   const [inboxReplySending, setInboxReplySending] = useState(false);
   const [liveChatSaving, setLiveChatSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [dashboardLoadError, setDashboardLoadError] = useState("");
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
@@ -750,11 +753,31 @@ export default function Dashboard() {
   };
 
   const checkAuth = async () => {
-    // getSession() reads from local storage — no network round-trip,
-    // unlike getUser() which validates the JWT against Supabase.
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) { router.push("/login"); return; }
+    setLoading(true);
+    setDashboardLoadError("");
+
+    // Never build a dashboard from localStorage alone. A stale cached session
+    // previously made every failed RLS query look like a new, empty store.
+    let { data: sessionData } = await supabase.auth.getSession();
+    let session = sessionData.session;
+    let { data: userData, error: userError } = await supabase.auth.getUser();
+
+    // Supabase can normally refresh an expired access token without asking the
+    // seller to sign in again. Try that once before treating the session as bad.
+    if ((!userData.user || userError) && session?.refresh_token) {
+      const refreshed = await supabase.auth.refreshSession();
+      session = refreshed.data.session;
+      const validated = await supabase.auth.getUser();
+      userData = validated.data;
+      userError = validated.error;
+    }
+
+    const user = userData.user;
+    if (!user || userError || !session) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      router.replace("/login?reason=session-expired");
+      return;
+    }
     // Relabels any order past ORDER_ABANDON_MS with no payment confirmation
     // as "abandoned" instead of leaving it "pending" forever -- awaited
     // before the orders query below so this load already reflects it,
@@ -783,8 +806,36 @@ export default function Dashboard() {
       supabase.from("orders").select("*", { count: "exact", head: true }).eq("seller_id", user.id),
       fetchAllOrderStats(user.id),
     ]);
+
+    if (sellerRes.error || !sellerRes.data) {
+      console.error("Dashboard seller lookup failed", sellerRes.error);
+      setDashboardLoadError(
+        sellerRes.error
+          ? `We could not load your store account: ${sellerRes.error.message}`
+          : "No store account is linked to this login."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const failedSections = [
+      ["products", pdResult.error],
+      ["orders", odResult.error],
+      ["discounts", dcResult.error],
+      ["automatic discounts", bxgyResult.error],
+      ["services", svcResult.error],
+      ["bookings", bkResult.error],
+      ["order count", ordersCountRes.error],
+      ["order statistics", orderStats.error],
+    ].filter((entry) => entry[1]);
+    if (failedSections.length > 0) {
+      console.error("Dashboard sections failed to load", failedSections);
+      setDashboardLoadError(`Your store account was found, but ${failedSections.map(([name]) => name).join(", ")} could not be loaded. Nothing has been deleted.`);
+      setLoading(false);
+      return;
+    }
     if (ordersCountRes.count !== null) setTotalOrdersCount(ordersCountRes.count);
-    setAllOrderStats(orderStats);
+    setAllOrderStats(orderStats.data);
     const sd = sellerRes.data;
     // Pro signups don't get dashboard access until they've completed PayFast
     // subscription setup -- selecting "free" instead lands as subscription_status
@@ -1812,6 +1863,18 @@ export default function Dashboard() {
   };
 
   if (loading) return <Spinner fullscreen label="Loading dashboard" />;
+
+  if (dashboardLoadError) return (
+    <div data-theme={theme} style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+      <style>{`[data-theme="dark"] { ${themeVars("dark")} color-scheme: dark; } [data-theme="light"] { ${themeVars("light")} color-scheme: light; }`}</style>
+      <div style={{ width: "100%", maxWidth: 520, padding: 28, borderRadius: 20, background: "var(--panel)", border: "1px solid var(--border)", textAlign: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>Your store data is safe</div>
+        <p style={{ margin: "0 auto 22px", color: "var(--muted)", lineHeight: 1.65 }}>{dashboardLoadError}</p>
+        <button type="button" onClick={() => void checkAuth()} style={{ width: "100%", padding: "14px 18px", border: 0, borderRadius: 100, background: "#ff6b35", color: "#fff", fontWeight: 800, cursor: "pointer", marginBottom: 10 }}>Try loading again</button>
+        <button type="button" onClick={handleLogout} style={{ width: "100%", padding: "13px 18px", borderRadius: 100, background: "transparent", border: "1px solid var(--border)", color: "var(--text)", fontWeight: 700, cursor: "pointer" }}>Sign out and sign in again</button>
+      </div>
+    </div>
+  );
 
   const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
