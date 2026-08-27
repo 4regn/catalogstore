@@ -20,6 +20,12 @@ const SUBDOMAIN_SUFFIX_LENGTH = SUBDOMAIN_SUFFIX.length;
 const FOUR_REGN_LEGACY_HOST = `4regn.${STORE_ROOT_DOMAIN}`;
 const FOUR_REGN_PRIMARY_HOST = "4regn.com";
 const FOUR_REGN_ADMIN_HOSTS = new Set(["admin.4regn.com", "www.admin.4regn.com"]);
+// A connected storefront domain must never accidentally render the seller
+// application. Without this guard, /dashboard on 4regn.com is eligible for
+// the generic custom-domain rewrite below, which can put an authenticated
+// owner in a confusing empty/wrong store context. Keep the public storefront
+// and seller application on deliberately separate hosts.
+const SELLER_APPLICATION_PATHS = ["/dashboard", "/login", "/signup", "/admin", "/production"];
 
 // Edge Middleware runs in a separate runtime from Route Handlers/Server
 // Components, and confirmed in practice: the `next.revalidate` fetch option
@@ -48,7 +54,11 @@ function setCached<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, 
   cache.set(key, { value, expires: Date.now() + ttlMs });
 }
 
-// Looks up which seller (by subdomain slug) owns a verified custom domain.
+// Looks up which seller (by subdomain slug) owns a connected custom domain.
+// DNS/Vercel has already established that the request reached this app, so
+// `custom_domain` is the durable routing source of truth. The dashboard's
+// status badge is operational metadata and must not be allowed to take every
+// existing storefront offline if a verification refresh ever becomes stale.
 // Only genuine custom-domain traffic (not catalogstore.co.za/
 // *.catalogstore.co.za) ever reaches this.
 async function resolveCustomDomain(hostname: string): Promise<string | null> {
@@ -59,7 +69,7 @@ async function resolveCustomDomain(hostname: string): Promise<string | null> {
   if (!url || !key) return null;
   try {
     const res = await fetch(
-      `${url}/rest/v1/sellers?select=subdomain&custom_domain=eq.${encodeURIComponent(hostname)}&custom_domain_status=eq.verified&limit=1`,
+      `${url}/rest/v1/sellers?select=subdomain&custom_domain=eq.${encodeURIComponent(hostname)}&limit=1`,
       {
         headers: { apikey: key, Authorization: `Bearer ${key}` },
         next: { revalidate: 300 },
@@ -167,6 +177,21 @@ export async function middleware(req: NextRequest) {
     destination.hostname = FOUR_REGN_PRIMARY_HOST;
     destination.port = "";
     return NextResponse.redirect(destination, 308);
+  }
+
+  // 4REGN's customer storefront belongs on 4regn.com. Its seller dashboard
+  // belongs on the CatalogStore application host, where the seller session
+  // and owner record are resolved. Do this before custom-domain routing so an
+  // admin URL cannot be rewritten as a 4REGN storefront route.
+  if (
+    hostname === FOUR_REGN_PRIMARY_HOST &&
+    SELLER_APPLICATION_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  ) {
+    const destination = req.nextUrl.clone();
+    destination.protocol = "https:";
+    destination.hostname = STORE_ROOT_DOMAIN;
+    destination.port = "";
+    return NextResponse.redirect(destination, 307);
   }
 
   const isStaticFile = STATIC_FILE_PATTERN.test(pathname);
