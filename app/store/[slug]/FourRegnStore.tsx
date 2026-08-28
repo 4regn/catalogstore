@@ -3670,7 +3670,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             collection is the source of truth, so only the R499 pants in
             BUY 2 FOR R699! appear here and new qualifying pants flow into
             the section automatically once added to that collection. */}
-        {false && isHomeView && (() => {
+        {isHomeView && (() => {
           const promoCollection = "BUY 2 FOR R699!";
           const images = products
             // The homepage query already sends published products only. Its
