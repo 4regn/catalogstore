@@ -4947,12 +4947,16 @@ function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[
                 pointerEvents: depth === 0 ? "auto" : "none",
               }}
             >
-              <Image
+              {/* Keep campaign slides off Vercel's image optimiser. Product
+                  photos are already served from Supabase Storage and the
+                  optimiser can return a billing error, leaving a campaign
+                  section blank even though the original photo is available. */}
+              <img
                 src={images[imageIndex]}
                 alt={`Standard Graphic Hoodie look ${imageIndex + 1}`}
-                width={320}
-                height={427}
-                sizes="(max-width: 533px) 60vw, 320px"
+                loading={depth === 0 ? "eager" : "lazy"}
+                fetchPriority={depth === 0 ? "high" : "auto"}
+                decoding="async"
               />
             </a>
           ))}
@@ -5062,17 +5066,12 @@ function WinterCoverflow({
                   per-slide label in `images` (just raw URLs), so this falls
                   back to the section's own heading context rather than
                   leaving it blank. */}
-              {/* Real PageSpeed trace flagged this whole carousel as the
-                  next-biggest image-payload offender after the footer logo
-                  above -- 14 unique plain <img> slides (doubled for the
-                  seamless-loop track, see slides below), each shipping the
-                  raw ~828-2885px-wide uploaded photo for a card that only
-                  ever renders 220-360px wide (sizeCards() below). next/image
-                  resizes to what's actually on screen and serves WebP/AVIF;
-                  `sizes` mirrors sizeCards()'s own `vw*0.42` clamp(220,360)
-                  so the generated srcset matches the real rendered width. */}
+              {/* These slide images load directly from public storage rather
+                  than through Next/Vercel's optimiser. This keeps the
+                  campaign visible if the optimiser is unavailable or has
+                  reached an account billing limit. */}
               <a className="fr-cef-card" href={href}>
-                <Image src={src} alt={`${altPrefix} look ${i + 1}`} width={360} height={480} sizes="(max-width: 524px) 42vw, (max-width: 857px) 220px, 360px" />
+                <img src={src} alt={`${altPrefix} look ${(i % images.length) + 1}`} loading={i < 3 ? "eager" : "lazy"} fetchPriority={i < 2 ? "high" : "auto"} decoding="async" />
               </a>
             </div>
           ))}
@@ -5121,7 +5120,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
               <div className="fr-fwm-marquee">
                 {hoodieSlides.map((src, i) => (
                   <a key={i} className="fr-fwm-card" href={hoodieHref}>
-                    <Image src={src} alt={`Hoodie ${(i % hoodieImages.length) + 1}`} width={175} height={233} sizes="(max-width: 699px) 150px, 175px" />
+                    <img src={src} alt={`Hoodie ${(i % hoodieImages.length) + 1}`} loading={i < 3 ? "eager" : "lazy"} decoding="async" />
                   </a>
                 ))}
               </div>
@@ -5138,7 +5137,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
               <div className="fr-fwm-marquee reverse">
                 {teeSlides.map((src, i) => (
                   <a key={i} className="fr-fwm-card" href={teeHref}>
-                    <Image src={src} alt={`Oversized tee ${(i % teeImages.length) + 1}`} width={175} height={233} sizes="(max-width: 699px) 150px, 175px" />
+                    <img src={src} alt={`Oversized tee ${(i % teeImages.length) + 1}`} loading={i < 3 ? "eager" : "lazy"} decoding="async" />
                   </a>
                 ))}
               </div>
