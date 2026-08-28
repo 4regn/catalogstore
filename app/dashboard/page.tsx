@@ -2155,9 +2155,14 @@ export default function Dashboard() {
       <span style={{ width: size, height: size, borderRadius: "50%", background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize, fontWeight: 800, flexShrink: 0 }}>{storeInitials}</span>
     );
   const isFreePlan = seller?.subscription_status === "free";
+  // 4REGN is CatalogStore's first-party flagship storefront and maintains a
+  // much larger merchandising taxonomy than merchant plans permit. Keep the
+  // exemption pinned to its immutable seller id so another store cannot gain
+  // it by choosing a similar name or subdomain.
+  const hasUnlimitedCollections = seller?.id === "b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a";
   const planLimits = isFreePlan
-    ? { products: 15, images: 5, collections: 10, templates: 1 }
-    : { products: Infinity, images: 50, collections: 10, templates: 5 };
+    ? { products: 15, images: 5, collections: hasUnlimitedCollections ? Infinity : 10, templates: 1 }
+    : { products: Infinity, images: 50, collections: hasUnlimitedCollections ? Infinity : 10, templates: 5 };
   const activeProductCount = products.filter((p) => p.status !== "trashed").length;
   const canAddProduct = activeProductCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
