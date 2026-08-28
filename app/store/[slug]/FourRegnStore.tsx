@@ -206,7 +206,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
-  size_chart_html?: string | null;
+  size_chart_html?: string | null; status?: string;
   sort_order: number; created_at?: string; tags?: string[];
   // SEO-friendly Shopify-derived handle, once backfilled -- see
   // goToProduct() below. Optional: not every product has one yet (a fresh
