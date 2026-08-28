@@ -624,6 +624,8 @@ export default function Dashboard() {
   const [storeDescription, setStoreDescription] = useState("");
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
+  const [collectionSaving, setCollectionSaving] = useState(false);
+  const [collectionFeedback, setCollectionFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
   const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, show_announcement: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }], footer_about: "", test_checkout_passed: false, hero_title: "", hero_cta: "", hero_cta_target: { type: "products" }, font_pair: DEFAULT_FONT_PAIR_KEY, hero_image_position: "center", hero_image_behavior: "still" });
   const [storeSaving, setStoreSaving] = useState(false);
@@ -2168,6 +2170,56 @@ export default function Dashboard() {
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;
 
+  const createCollection = async (rawName: string): Promise<boolean> => {
+    const name = rawName.trim();
+    setCollectionFeedback(null);
+    if (!name) {
+      setCollectionFeedback({ type: "error", text: "Enter a collection name first." });
+      return false;
+    }
+    const existing = storeCollections.find((collection) => collection.trim().toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setCollectionFeedback({ type: "error", text: `“${existing}” already exists.` });
+      return false;
+    }
+    if (!seller) {
+      setCollectionFeedback({ type: "error", text: "Your store account is still loading. Please try again." });
+      return false;
+    }
+    if (!canAddCollection) {
+      setCollectionFeedback({ type: "error", text: "Your current plan’s collection limit has been reached." });
+      return false;
+    }
+
+    setCollectionSaving(true);
+    const updated = [...storeCollections, name];
+    const { data, error } = await supabase.from("sellers")
+      .update({ collections: updated })
+      .eq("id", seller.id)
+      .select("collections")
+      .single();
+    setCollectionSaving(false);
+
+    if (error || !data) {
+      const message = error?.message || "The database did not confirm the update.";
+      setCollectionFeedback({ type: "error", text: `Collection was not created: ${message}` });
+      return false;
+    }
+
+    const savedCollections = Array.isArray(data.collections) ? data.collections : updated;
+    if (!savedCollections.some((collection: string) => collection.trim().toLowerCase() === name.toLowerCase())) {
+      setCollectionFeedback({ type: "error", text: "Collection was not saved. Please try again." });
+      return false;
+    }
+
+    setStoreCollections(savedCollections);
+    setNewCollection("");
+    setSeller({ ...seller, collections: savedCollections });
+    setCollectionFeedback({ type: "success", text: `“${name}” was created successfully.` });
+    revalidateMyStore();
+    return true;
+  };
+
   // ── GROW YOUR BUSINESS ── plan-aware upsell list shown once launch is
   // complete. Pro sellers already have templates/product limits unlocked,
   // so those items are swapped for informational copy instead of an
@@ -3636,10 +3688,11 @@ export default function Dashboard() {
               </div>
             ) : (
               <div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } } }} style={{ flex: 1, padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                  <button onClick={async () => { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
+                <div style={{ display: "flex", gap: 8, marginBottom: collectionFeedback ? 8 : 24 }}>
+                  <input type="text" placeholder="New collection name..." value={newCollection} disabled={collectionSaving} onChange={(e) => { setNewCollection(e.target.value); if (collectionFeedback) setCollectionFeedback(null); }} onKeyDown={async (e) => { if (e.key === "Enter") { e.preventDefault(); await createCollection(newCollection); } }} style={{ flex: 1, padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", opacity: collectionSaving ? 0.65 : 1 }} />
+                  <button type="button" disabled={collectionSaving} onClick={() => void createCollection(newCollection)} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: collectionSaving ? "wait" : "pointer", opacity: collectionSaving ? 0.65 : 1, textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{collectionSaving ? "Saving..." : "+ Create"}</button>
                 </div>
+                {collectionFeedback && <div role={collectionFeedback.type === "error" ? "alert" : "status"} style={{ marginBottom: 24, padding: "10px 12px", borderRadius: 10, background: collectionFeedback.type === "success" ? "rgba(34,197,94,0.08)" : "rgba(220,38,38,0.08)", border: `1px solid ${collectionFeedback.type === "success" ? "rgba(34,197,94,0.2)" : "rgba(220,38,38,0.2)"}`, color: collectionFeedback.type === "success" ? "#16a34a" : "#dc2626", fontSize: 11, fontWeight: 700 }}>{collectionFeedback.text}</div>}
                 {storeCollections.length === 0 ? (
                   <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No collections yet</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>Create your first collection to organize your products.</p></div>
                 ) : (
