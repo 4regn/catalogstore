@@ -3664,7 +3664,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {isHomeView && (() => {
           const promoCollection = "BUY 2 FOR R699!";
           const images = products
-            .filter((p) => pInCat(p, promoCollection) && p.image_url && p.status === "published" && p.in_stock !== false)
+            // The homepage query already sends published products only. Its
+            // intentionally compact payload does not include status/in_stock.
+            .filter((p) => pInCat(p, promoCollection) && p.image_url)
             .map((p) => p.image_url!)
             .slice(0, 16);
           if (images.length === 0) return null;
