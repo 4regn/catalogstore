@@ -183,7 +183,10 @@ function renderOfferLine(line: string, keyPrefix: string) {
     if (/^free[.,!]?$/i.test(word)) {
       return <strong key={`${keyPrefix}-${i}`} className="fr-hero-offer-pulse">{word}</strong>;
     }
-    if (/^\d/.test(word)) {
+    // Highlight quantities ("2") and the advertised Rand price ("R449")
+    // in the same accent red. The punctuation is kept inside the span so a
+    // final exclamation mark doesn't create an awkward visual gap.
+    if (/^\d/.test(word) || /^R\d+(?:[.,]\d+)?[!,.)]?$/i.test(word)) {
       return <span key={`${keyPrefix}-${i}`} className="fr-hero-offer-accent">{word}</span>;
     }
     return word;
@@ -1746,6 +1749,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const displayHeroDisclaimer = liveHeroDisclaimer ?? config.hero_disclaimer ?? "";
   const displayHeroOfferHeadline = normalizeOversizedTeePromoCopy(liveHeroOfferHeadline ?? config.hero_offer_headline ?? "");
   const displayHeroOfferNote = normalizeOversizedTeePromoCopy(liveHeroOfferNote ?? config.hero_offer_note ?? "");
+  const heroOfferLines = displayHeroOfferHeadline.split("\n");
+  const heroUsesSpringSalePill = /^spring sale!?$/i.test(heroOfferLines[0]?.trim() || "");
+  const visibleHeroOfferHeadline = heroUsesSpringSalePill ? heroOfferLines.slice(1).join("\n").trim() : displayHeroOfferHeadline;
   const showAbout = liveShowAbout ?? config.show_about ?? true;
   const aboutEyebrow = liveAboutEyebrow ?? config.about_eyebrow ?? "Est. 2019 — South Africa";
   const aboutHeading = liveAboutHeading ?? config.about_heading ?? "Built for the Culture";
@@ -2161,6 +2167,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla{position:relative;min-height:560px;overflow:hidden;background:#050505;isolation:isolate}
 .fr-setla::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(5,5,5,.99) 0%,rgba(5,5,5,.95) 30%,rgba(5,5,5,.6) 47%,rgba(5,5,5,.1) 68%,rgba(5,5,5,.1) 100%);z-index:1}
 .fr-setla-photo{position:absolute;inset:0 0 0 39%;z-index:0}
+.fr-setla-photo img{width:100%;height:100%;display:block;object-fit:cover}
 .fr-setla-glow{position:absolute;z-index:1;width:380px;height:380px;border-radius:50%;background:rgba(0,117,23,.24);filter:blur(120px);left:18%;bottom:-160px;pointer-events:none}
 /* This is flex with no flex-direction -- meaning its 5 direct children
    (eyebrow, h1, lead paragraph, cta row, note) were laid out as a
@@ -3464,11 +3471,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               )}
               <div className="fr-hero-overlay" />
               <div className="fr-hero-inner">
-                {showHeroPill && <div className="fr-hero-pill">{heroPillLabel}</div>}
+                {heroUsesSpringSalePill ? (
+                  <div className="fr-hero-pill">SPRING SALE!</div>
+                ) : showHeroPill ? <div className="fr-hero-pill">{heroPillLabel}</div> : null}
                 {displayHeroLabel && <div className="fr-hero-label">{displayHeroLabel}</div>}
-                {displayHeroOfferHeadline && (
+                {visibleHeroOfferHeadline && (
                   <p className="fr-hero-offer">
-                    {displayHeroOfferHeadline.split("\n").map((line, i, arr) => (
+                    {visibleHeroOfferHeadline.split("\n").map((line, i, arr) => (
                       <Fragment key={i}>
                         {renderOfferLine(line, `offer-${i}`)}
                         {i < arr.length - 1 && <br />}
@@ -3523,7 +3532,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             component they're fixed text rather than editable fields --
             matches the real section, which doesn't expose them as settings
             either. */}
-        {isHomeView && showSetlaBanner && (
+        {false && isHomeView && showSetlaBanner && (
           <EditSection id="setla">
             <section className="fr-setla">
               {setlaPhotoUrl && (
@@ -3616,16 +3625,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           );
         })()}
 
-        {/* WINTER ESSENTIALS COVERFLOW — only on landing page, right after
-            the ticker strip. Images come from whatever products are
-            actually tagged "WINTER ESSENTIALS" (see WinterCoverflow's own
-            comment for why) -- renders nothing at all if that collection
-            is currently empty, same "hide empty collections" precedent
-            the rest of this file already follows elsewhere. All-caps to
-            match this store's actual category value (confirmed against
-            real product rows -- most of this store's own category tags
-            are stored upper-case, e.g. "JACKETS"/"GRAPHIC HOODIES"). */}
-        {isHomeView && (() => {
+        {/* WINTER ESSENTIALS COVERFLOW — paused for the Spring Sale so the
+            pants campaign occupies this position and the homepage has fewer
+            competing image requests. The saved editor setup remains intact. */}
+        {false && isHomeView && (() => {
           // Dashboard-curated order/selection (Editor -> Winter Essentials)
           // wins if set -- each entry is either a product id (resolved
           // against this seller's current products, live, so a later photo
@@ -3664,14 +3667,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             collection is the source of truth, so only the R499 pants in
             BUY 2 FOR R699! appear here and new qualifying pants flow into
             the section automatically once added to that collection. */}
-        {isHomeView && (() => {
+        {false && isHomeView && (() => {
           const promoCollection = "BUY 2 FOR R699!";
           const images = products
             // The homepage query already sends published products only. Its
             // intentionally compact payload does not include status/in_stock.
             .filter((p) => pInCat(p, promoCollection) && p.image_url)
             .map((p) => p.image_url!)
-            .slice(0, 16);
+            // Eight distinct covers is enough for a seamless loop. Keeping
+            // the campaign compact prevents it competing with the hero for
+            // bandwidth on the first homepage visit.
+            .slice(0, 8);
           if (images.length === 0) return null;
           return (
             <EditSection id="spring-pants-sale">
@@ -4277,6 +4283,45 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
         ))}
 
+        {/* SETLA sits directly before the brand story so customers see the
+            payment option after browsing the product campaigns, then move
+            naturally into the 4REGN story. */}
+        {isHomeView && showSetlaBanner && (
+          <EditSection id="setla">
+            <section className="fr-setla">
+              {setlaPhotoUrl && (
+                <div className="fr-setla-photo">
+                  <img src={campaignImageUrl(setlaPhotoUrl, 1200)} alt="" loading="lazy" decoding="async" />
+                </div>
+              )}
+              <div className="fr-setla-glow" />
+              <div className="fr-setla-inner">
+                <div className="fr-setla-eyebrow">{setlaEyebrow}</div>
+                <h2 className="fr-setla-h1" aria-label="Buy now, pay later">
+                  <span aria-hidden="true">
+                    <span className="fr-setla-beat" style={{ animationDelay: "0s" }}>Buy</span>{" "}
+                    <span className="fr-setla-beat" style={{ animationDelay: "0.5s" }}>now,</span>
+                    <br />
+                    <span className="fr-setla-beat" style={{ animationDelay: "1s" }}>Pay</span>{" "}
+                    <span className="fr-setla-beat" style={{ animationDelay: "1.5s" }}>Later</span>
+                  </span>
+                </h2>
+                <p className="fr-setla-lead">{setlaLead}</p>
+                <div className="fr-cta-row">
+                  <a className="fr-setla-btn fr-setla-btn-primary" href="https://setla.4regn.com/signup.html" target="_blank" rel="noopener noreferrer">{setlaCtaPrimary} →</a>
+                  <a className="fr-setla-btn fr-setla-btn-secondary" href="https://setla.4regn.com/faq.html" target="_blank" rel="noopener noreferrer">{setlaCtaSecondary}</a>
+                </div>
+                <p className="fr-setla-note">{setlaNote}</p>
+              </div>
+              <div className="fr-setla-plans" aria-label="SETLA payment options">
+                <div className="fr-setla-plan"><div className="fr-setla-plan-num">4</div><div><strong>4 instalments</strong><span>Over 6 weeks</span></div></div>
+                <div className="fr-setla-plan"><div className="fr-setla-plan-num">2</div><div><strong>2 instalments</strong><span>Monthly</span></div></div>
+              </div>
+              <div className="fr-setla-badge"><i />{setlaBadge}</div>
+            </section>
+          </EditSection>
+        )}
+
         {/* ABOUT — "Built for the Culture" brand story, only on landing
             page, directly above the newsletter (matches the real Shopify
             site's section order). */}
@@ -4794,6 +4839,15 @@ function normalizeOversizedTeePromoCopy(text: string) {
     .replace(/R350\s*EACH\s*BUY\s*3\s*FOR\s*2/gi, "BUY 2 FOR R449!");
 }
 
+// Campaign slides only render at card size. Supabase's image-transform
+// endpoint keeps their initial download small without touching the original
+// product photos used on the PDP/gallery.
+function campaignImageUrl(source: string, width = 720) {
+  const match = source.match(/^(https:\/\/[^/]+\.supabase\.co)\/storage\/v1\/object\/public\/(.+)$/);
+  if (!match) return source;
+  return `${match[1]}/storage/v1/render/image/public/${match[2]}?width=${width}&quality=72&resize=contain`;
+}
+
 function DescriptionText({ text, promo = false }: { text: string; promo?: boolean }) {
   const paragraphs = normalizeOversizedTeePromoCopy(text).split(/\n\n+/);
   return (
@@ -4955,7 +5009,7 @@ function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[
                   optimiser can return a billing error, leaving a campaign
                   section blank even though the original photo is available. */}
               <img
-                src={images[imageIndex]}
+                src={campaignImageUrl(images[imageIndex], 720)}
                 alt={`Standard Graphic Hoodie look ${imageIndex + 1}`}
                 loading={depth === 0 ? "eager" : "lazy"}
                 fetchPriority={depth === 0 ? "high" : "auto"}
@@ -5074,7 +5128,7 @@ function WinterCoverflow({
                   campaign visible if the optimiser is unavailable or has
                   reached an account billing limit. */}
               <a className="fr-cef-card" href={href}>
-                <img src={src} alt={`${altPrefix} look ${(i % images.length) + 1}`} loading={i < 3 ? "eager" : "lazy"} fetchPriority={i < 2 ? "high" : "auto"} decoding="async" />
+                <img src={campaignImageUrl(src, 720)} alt={`${altPrefix} look ${(i % images.length) + 1}`} loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : "auto"} decoding="async" />
               </a>
             </div>
           ))}
@@ -5123,7 +5177,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
               <div className="fr-fwm-marquee">
                 {hoodieSlides.map((src, i) => (
                   <a key={i} className="fr-fwm-card" href={hoodieHref}>
-                    <img src={src} alt={`Hoodie ${(i % hoodieImages.length) + 1}`} loading={i < 3 ? "eager" : "lazy"} decoding="async" />
+                    <img src={campaignImageUrl(src, 420)} alt={`Hoodie ${(i % hoodieImages.length) + 1}`} loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                   </a>
                 ))}
               </div>
@@ -5140,7 +5194,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
               <div className="fr-fwm-marquee reverse">
                 {teeSlides.map((src, i) => (
                   <a key={i} className="fr-fwm-card" href={teeHref}>
-                    <img src={src} alt={`Oversized tee ${(i % teeImages.length) + 1}`} loading={i < 3 ? "eager" : "lazy"} decoding="async" />
+                    <img src={campaignImageUrl(src, 420)} alt={`Oversized tee ${(i % teeImages.length) + 1}`} loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                   </a>
                 ))}
               </div>
