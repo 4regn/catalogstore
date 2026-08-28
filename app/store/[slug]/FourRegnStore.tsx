@@ -148,6 +148,9 @@ interface StoreConfig {
   // scroll speed, same range as the Liquid version's own setting
   // (0.2-2, default 0.6).
   winter_essentials_speed?: number;
+  // Spring Sale pants uses the same coverflow but keeps an independent
+  // speed so seasonal sections can be tuned separately.
+  spring_pants_sale_speed?: number;
   // Ordered slide list -- each entry is EITHER a product id (its image_url
   // is looked up live against this seller's current products, so it stays
   // correct if that product's photo changes later) OR a direct image URL
@@ -3675,7 +3678,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <WinterCoverflow
                 images={images}
                 href={sp(`/collections/${collectionSlug(promoCollection)}`)}
-                speed={config.winter_essentials_speed ?? 0.6}
+                speed={config.spring_pants_sale_speed ?? 0.6}
                 eyebrow="SPRING SALE!"
                 title="PANTS"
                 deal="R499 EACH · BUY 2 FOR R699!"
