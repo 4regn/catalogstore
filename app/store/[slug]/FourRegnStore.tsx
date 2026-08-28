@@ -3656,6 +3656,35 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           );
         })()}
 
+        {/* SPRING SALE PANTS COVERFLOW — intentionally uses the identical
+            center-coverflow mechanics as Winter Essentials. The promo
+            collection is the source of truth, so only the R499 pants in
+            BUY 2 FOR R699! appear here and new qualifying pants flow into
+            the section automatically once added to that collection. */}
+        {isHomeView && (() => {
+          const promoCollection = "BUY 2 FOR R699!";
+          const images = products
+            .filter((p) => pInCat(p, promoCollection) && p.image_url && p.status === "published" && p.in_stock !== false)
+            .map((p) => p.image_url!)
+            .slice(0, 16);
+          if (images.length === 0) return null;
+          return (
+            <EditSection id="spring-pants-sale">
+              <WinterCoverflow
+                images={images}
+                href={sp(`/collections/${collectionSlug(promoCollection)}`)}
+                speed={config.winter_essentials_speed ?? 0.6}
+                eyebrow="SPRING SALE!"
+                title="PANTS"
+                deal="R499 EACH · BUY 2 FOR R699!"
+                buttonText="SHOP PANTS"
+                note="Mix & Match · Buy 2 For R699 · Ships Nationwide"
+                altPrefix="Spring Sale pants"
+              />
+            </EditSection>
+          );
+        })()}
+
         {/* SHOP BY DEPARTMENT — landing-page section matched to the HTML
             reference you sent: clean editorial layout, slim borders, stacked
             department blocks, and circular category rails. */}
@@ -4935,7 +4964,27 @@ function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[
   );
 }
 
-function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href: string; speed?: number }) {
+function WinterCoverflow({
+  images,
+  href,
+  speed = 0.6,
+  eyebrow = "Winter Essentials",
+  title = "BUNDLE UP.",
+  deal = "7 YEAR ANNIVERSARY SALE — UP TO 70% OFF!",
+  buttonText = "SHOP WINTER ESSENTIALS",
+  note = "Up to 70% Off · Anniversary Sale · Ships Nationwide",
+  altPrefix = "Winter Essentials",
+}: {
+  images: string[];
+  href: string;
+  speed?: number;
+  eyebrow?: string;
+  title?: string;
+  deal?: string;
+  buttonText?: string;
+  note?: string;
+  altPrefix?: string;
+}) {
   const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const slides = images.length > 0 ? [...images, ...images] : [];
@@ -4995,9 +5044,9 @@ function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href
   return (
     <div className="fr-cef">
       <div className="fr-cef-head">
-        <div className="fr-cef-eyebrow">Winter Essentials</div>
-        <h2 className="fr-cef-title">BUNDLE UP.</h2>
-        <div className="fr-cef-sub">7 YEAR ANNIVERSARY SALE — UP TO 70% OFF!</div>
+        <div className="fr-cef-eyebrow">{eyebrow}</div>
+        <h2 className="fr-cef-title">{title}</h2>
+        <div className="fr-cef-sub">{deal}</div>
       </div>
       <div className="fr-cef-stage" ref={stageRef}>
         <div className="fr-cef-track" ref={trackRef}>
@@ -5021,15 +5070,15 @@ function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href
                   `sizes` mirrors sizeCards()'s own `vw*0.42` clamp(220,360)
                   so the generated srcset matches the real rendered width. */}
               <a className="fr-cef-card" href={href}>
-                <Image src={src} alt={`Winter Essentials look ${i + 1}`} width={360} height={480} sizes="(max-width: 524px) 42vw, (max-width: 857px) 220px, 360px" />
+                <Image src={src} alt={`${altPrefix} look ${i + 1}`} width={360} height={480} sizes="(max-width: 524px) 42vw, (max-width: 857px) 220px, 360px" />
               </a>
             </div>
           ))}
         </div>
       </div>
       <div className="fr-cef-cta">
-        <a href={href} className="fr-cef-btn">SHOP WINTER ESSENTIALS</a>
-        <div className="fr-cef-note">Up to 70% Off · Anniversary Sale · Ships Nationwide</div>
+        <a href={href} className="fr-cef-btn">{buttonText}</a>
+        <div className="fr-cef-note">{note}</div>
       </div>
     </div>
   );
