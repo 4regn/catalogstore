@@ -1736,7 +1736,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // hydration so loading a page with an already-qualifying saved cart
   // doesn't replay the unlock moment.
   useEffect(() => {
-    if (!cartHydrated || !flashCapActive) { flashCapPrevEligibleRef.current = flashCapEligibleSubtotal; return; }
+    // Every route change remounts this whole component fresh, and the
+    // pre-hydration render always sees an empty cart (subtotal 0) for a
+    // moment before localStorage's saved cart loads in. Writing that 0 into
+    // the ref here was the actual bug: it made the ref non-null before
+    // hydration ever finished, so the FIRST real post-hydration value
+    // (e.g. a restored R650 cart) looked like a fresh 0 -> 650 crossing on
+    // every single page load, popping the unlock sheet again and again
+    // just from navigating, not from any real cart change. Only start
+    // tracking prev once hydration has actually completed at least once.
+    if (!flashCapActive || !cartHydrated) return;
     const prev = flashCapPrevEligibleRef.current;
     flashCapPrevEligibleRef.current = flashCapEligibleSubtotal;
     if (prev === null) return;
