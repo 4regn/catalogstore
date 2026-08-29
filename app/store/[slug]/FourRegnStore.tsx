@@ -93,6 +93,8 @@ interface StoreConfig {
   physical_address?: string;
   products_heading?: string;
   show_setla_banner?: boolean;
+  show_flash_weekend_campaign?: boolean;
+  flash_weekend_campaign_image?: string;
   setla_eyebrow?: string;
   setla_lead?: string;
   setla_badge?: string;
@@ -779,6 +781,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveHiddenCollections, setLiveHiddenCollections] = useState<string[] | null>(null);
   const [liveCollOrder, setLiveCollOrder] = useState<string[] | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
+  const [flashWeekendOpen, setFlashWeekendOpen] = useState(true);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
   /* ─── PROMO ─── */
@@ -1791,6 +1794,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // not a per-seller-editable link, since it's platform routing, not brand
   // content.
   const showSetlaBanner = config.show_setla_banner ?? true;
+  const flashWeekendImage = config.flash_weekend_campaign_image ?? "";
+  const showFlashWeekendCampaign = isHomeView && config.show_flash_weekend_campaign === true && !!flashWeekendImage;
+  const flashWeekendHref = sp(`/collections/${collectionSlug("TRUCKER CAPS & BEANIES")}`);
   const setlaEyebrow = config.setla_eyebrow ?? `Flexible payments on ${seller.store_name}`;
   const setlaLead = config.setla_lead ?? "Eligible customers can shop with SETLA and split selected purchases into interest-free instalments — with your payment plan shown clearly before you commit.";
   const setlaBadge = config.setla_badge ?? "Interest-free SETLA payment options";
@@ -2137,6 +2143,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cart-count{position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:999px;background:var(--brown);color:var(--cream);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--body)}
 
 .fr-hero{position:relative;width:100%;min-height:560px;height:88vh;overflow:hidden;display:flex;align-items:flex-end;background:linear-gradient(160deg,#1a1715 0%,#000 100%)}
+.fr-flash-banner{width:100%;background:#f7f7f5;line-height:0;overflow:hidden}
+.fr-flash-banner a{display:block}
+.fr-flash-banner img{display:block;width:100%;height:auto;max-height:760px;object-fit:cover;object-position:center}
+.fr-flash-popup-backdrop{position:fixed;inset:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(10,10,10,.58);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.fr-flash-popup{position:relative;width:min(92vw,900px);max-height:88vh;background:#fff;box-shadow:0 25px 90px rgba(0,0,0,.42);overflow:hidden;border-radius:4px;line-height:0}
+.fr-flash-popup a{display:block}
+.fr-flash-popup img{display:block;width:100%;height:auto;max-height:88vh;object-fit:contain}
+.fr-flash-popup-close{position:absolute;z-index:2;top:12px;right:12px;width:36px;height:36px;border:0;border-radius:50%;background:rgba(0,0,0,.78);color:#fff;font-size:27px;line-height:32px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.22)}
 .fr-hero-bgimg{position:absolute;inset:0;z-index:0}
 /* Top stop bumped from 0.12 -> 0.32 -- previously nearly clear, which
    worked fine when the top of the hero only ever sat under a solid black
@@ -3036,6 +3050,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 @media(max-width:480px){.regn-flash-countdown__inner{border-radius:16px}.regn-flash-countdown__end{font-size:7px}.regn-flash-countdown__end strong{font-size:8px}}
 @media(max-width:768px){.fr-coll-promo-countdown{padding:0 20px 22px}}
 @media(prefers-reduced-motion:reduce){.regn-flash-countdown__inner::before{animation:none}.regn-flash-countdown{animation:none}}
+@media(max-width:640px){.fr-flash-popup-backdrop{padding:12px}.fr-flash-popup{width:100%;max-height:82vh}.fr-flash-popup img{max-height:82vh}.fr-flash-popup-close{top:8px;right:8px;width:32px;height:32px;font-size:24px;line-height:28px}}
       `}</style>
 
       <NavigationProgress active={isNavigating} />
@@ -3562,6 +3577,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               </div>
             </section>
           </EditSection>
+        )}
+
+        {showFlashWeekendCampaign && (
+          <>
+            <section className="fr-flash-banner" aria-label="Flash Weekend sale">
+              <a href={flashWeekendHref}>
+                <img src={flashWeekendImage} alt="Flash Weekend sale — free trucker cap from R499. Shop now." loading="eager" decoding="async" />
+              </a>
+            </section>
+            {flashWeekendOpen && (
+              <div className="fr-flash-popup-backdrop" role="dialog" aria-modal="true" aria-label="Flash Weekend sale">
+                <div className="fr-flash-popup">
+                  <button className="fr-flash-popup-close" onClick={() => setFlashWeekendOpen(false)} aria-label="Close sale popup">×</button>
+                  <a href={flashWeekendHref} aria-label="Shop Flash Weekend trucker caps">
+                    <img src={flashWeekendImage} alt="Flash Weekend sale — Shop now." />
+                  </a>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* SETLA PROMO STRIP — only on landing page. Ported from the real
