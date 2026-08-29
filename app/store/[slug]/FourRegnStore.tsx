@@ -799,6 +799,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveCollOrder, setLiveCollOrder] = useState<string[] | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [flashWeekendOpen, setFlashWeekendOpen] = useState(true);
+  const [flashWeekendNow, setFlashWeekendNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setFlashWeekendNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
   /* ─── PROMO ─── */
@@ -1971,7 +1977,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // content.
   const showSetlaBanner = config.show_setla_banner ?? true;
   const flashWeekendImage = config.flash_weekend_campaign_image ?? "";
-  const showFlashWeekendCampaign = isHomeView && config.show_flash_weekend_campaign === true && !!flashWeekendImage;
+  // 31 August 23:59 in South African time (SAST is UTC+2). This mirrors the
+  // server-side checkout guard, so expired sale artwork can never linger on
+  // the homepage after the offer has stopped applying.
+  const flashWeekendEndsAt = Date.parse("2026-08-31T21:59:00.000Z");
+  const showFlashWeekendCampaign = isHomeView && config.show_flash_weekend_campaign === true && !!flashWeekendImage && flashWeekendNow <= flashWeekendEndsAt;
   const flashWeekendHref = sp(`/collections/${collectionSlug("TRUCKER CAPS & BEANIES")}`);
   const setlaEyebrow = config.setla_eyebrow ?? `Flexible payments on ${seller.store_name}`;
   const setlaLead = config.setla_lead ?? "Eligible customers can shop with SETLA and split selected purchases into interest-free instalments — with your payment plan shown clearly before you commit.";
