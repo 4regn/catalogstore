@@ -29,6 +29,12 @@ const LightboxGallery = dynamic(() => import("./FourRegnLightbox"), { ssr: false
 // renders at all (see the isHomeView/isCollectionView gate below).
 const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: false });
 
+// Same reasoning again -- it renders nothing until its own client-side
+// countdown tick confirms the sale hasn't expired (see
+// FourRegnPromoCountdown.tsx), which is itself what prevents any flash of
+// stale/expired content, so there's no SSR markup worth producing here either.
+const FourRegnPromoCountdown = dynamic(() => import("./FourRegnPromoCountdown"), { ssr: false });
+
 // Disabled by default and only rendered when the seller turns it on. Keeping
 // it in a separate chunk means stores that leave chat off do not download any
 // of the widget's UI or polling code.
@@ -2993,6 +2999,43 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .regn-popup-bar.running{animation:regn-drain var(--dur, 10s) linear forwards}
 @keyframes regn-drain{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 @media(max-width:480px){#regn-popup-wrapper{left:10px;right:10px;width:auto;top:72px}}
+
+/* Flash Weekend Sale countdown -- see FourRegnPromoCountdown.tsx. Scoped
+   entirely under the regn-flash-countdown prefix so it can't touch any
+   other UI; lives here rather than in that file to match every other
+   one-off 4regn widget in this file (regn-popup-*, etc), which all keep
+   their CSS in this shared block instead of a per-component <style> tag. */
+.regn-flash-countdown{--regn-ink:#2e2938;--regn-muted:#8f8c94;--regn-green:#118a45;--regn-green-dark:#0a6f36;--regn-border:rgba(70,69,75,0.18);width:100%;margin:16px 0;animation:regnFlashFadeIn 220ms ease}
+@keyframes regnFlashFadeIn{from{opacity:0}to{opacity:1}}
+.regn-flash-countdown,.regn-flash-countdown *{box-sizing:border-box}
+.regn-flash-countdown__inner{position:relative;overflow:hidden;padding:13px 14px 12px;border:1px solid var(--regn-border);border-radius:18px;background:linear-gradient(135deg,rgba(255,255,255,0.99),rgba(244,244,246,0.90) 52%,rgba(255,255,255,0.99));box-shadow:0 10px 28px rgba(28,25,32,0.08),inset 0 1px 0 #fff}
+.regn-flash-countdown__inner::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 10%,rgba(255,255,255,0.82) 32%,transparent 54%);transform:translateX(-120%);animation:regnFlashShine 5.5s ease-in-out infinite}
+.regn-flash-countdown__inner::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.72)}
+@keyframes regnFlashShine{0%,58%{transform:translateX(-120%)}76%,100%{transform:translateX(135%)}}
+.regn-flash-countdown__header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.regn-flash-countdown__offer{display:flex;align-items:center;gap:8px;min-width:0}
+.regn-flash-countdown__bolt{flex:0 0 23px;width:23px;height:23px;display:grid;place-items:center;border-radius:7px;background:#ecf8f0;color:var(--regn-green-dark);font-size:14px;font-weight:900}
+.regn-flash-countdown__eyebrow{color:var(--regn-green-dark);font-size:10px;line-height:1.1;font-weight:800;letter-spacing:0.12em;text-transform:uppercase}
+.regn-flash-countdown__copy{margin-top:3px;color:#26232b;font-size:11px;line-height:1.25;font-weight:700}
+.regn-flash-countdown__copy strong{color:var(--regn-green-dark);font-weight:850}
+.regn-flash-countdown__end{flex:0 0 auto;text-align:right;color:var(--regn-muted);font-size:8px;line-height:1.2;letter-spacing:0.06em}
+.regn-flash-countdown__end strong{display:block;margin-top:2px;color:#4b4850;font-size:9px;font-weight:750;letter-spacing:0}
+.regn-flash-countdown__timer{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+.regn-flash-countdown__unit{min-width:0;padding:7px 3px 6px;text-align:center;border:1px solid #dad9dc;border-radius:10px;background:linear-gradient(180deg,#ffffff,#f2f2f3);box-shadow:inset 0 1px 0 #fff,0 2px 5px rgba(0,0,0,0.04)}
+.regn-flash-countdown__number{display:block;color:#183d29;font-size:18px;line-height:1;font-weight:850;letter-spacing:-0.04em;font-variant-numeric:tabular-nums}
+.regn-flash-countdown__label{display:block;margin-top:4px;color:var(--regn-muted);font-size:7px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase}
+.regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__inner{padding:10px 12px 11px;border-radius:15px}
+.regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__copy{max-width:240px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10px}
+.regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__timer{gap:5px;margin-top:8px}
+.regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__unit{padding:5px 2px 4px;border-radius:8px}
+.regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__number{font-size:15px}
+.regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__label{margin-top:3px;font-size:6px}
+.regn-flash-countdown[data-variant="product"] .regn-collection-copy{display:none}
+.regn-flash-countdown[data-variant="collection"] .regn-product-copy{display:none}
+.fr-coll-promo-countdown{max-width:1360px;margin:0 auto;padding:0 40px 28px}
+@media(max-width:480px){.regn-flash-countdown__inner{border-radius:16px}.regn-flash-countdown__end{font-size:7px}.regn-flash-countdown__end strong{font-size:8px}}
+@media(max-width:768px){.fr-coll-promo-countdown{padding:0 20px 22px}}
+@media(prefers-reduced-motion:reduce){.regn-flash-countdown__inner::before{animation:none}.regn-flash-countdown{animation:none}}
       `}</style>
 
       <NavigationProgress active={isNavigating} />
@@ -3822,6 +3865,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
         )}
 
+        {isCollectionView && (
+          <div className="fr-coll-promo-countdown">
+            <FourRegnPromoCountdown variant="collection" />
+          </div>
+        )}
+
         {/* PRODUCT DETAIL — dedicated /p/<id> page (mode="product"). Real
             full page, not the slide-over: breadcrumb, then the exact same
             gallery/info/variant/actions markup + state the slide-over PDP
@@ -3935,6 +3984,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    <FourRegnPromoCountdown variant="product" />
                     <FreeShippingPill />
                     {seller.checkout_config?.stitch_enabled !== false && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
