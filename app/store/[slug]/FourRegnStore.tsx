@@ -12,6 +12,11 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM } from "../../../lib/four-regn-shipping";
 import { effectiveProductPrice } from "../../../lib/product-pricing";
 import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
+import {
+  FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_THRESHOLD,
+  isFlashCapActive, isFlashCapEligibleProduct, computeFlashCapState,
+  flashCapAmountAway as flashCapAmountAwayFn, flashCapProgressPct as flashCapProgressPctFn,
+} from "../../../lib/four-regn-flash-cap";
 
 // Only ever rendered after a click/keyboard interaction (see `lightbox`
 // state below) -- never needed for first paint, so it's split into its own
@@ -34,6 +39,12 @@ const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: 
 // FourRegnPromoCountdown.tsx), which is itself what prevents any flash of
 // stale/expired content, so there's no SSR markup worth producing here either.
 const FourRegnPromoCountdown = dynamic(() => import("./FourRegnPromoCountdown"), { ssr: false });
+
+// Cart-state-driven, same "nothing worth rendering server-side" reasoning
+// as the two dynamic imports above.
+const FlashCapProgress = dynamic(() => import("./FourRegnFlashCapUI").then((m) => m.FlashCapProgress), { ssr: false });
+const FlashCapUnlockSheet = dynamic(() => import("./FourRegnFlashCapUI").then((m) => m.FlashCapUnlockSheet), { ssr: false });
+const FlashCapCheckoutWarningSheet = dynamic(() => import("./FourRegnFlashCapUI").then((m) => m.FlashCapCheckoutWarningSheet), { ssr: false });
 
 // Disabled by default and only rendered when the seller turns it on. Keeping
 // it in a separate chunk means stores that leave chat off do not download any
@@ -231,6 +242,12 @@ interface Product {
 interface CartItem {
   product: Product; qty: number;
   selectedVariants: { [key: string]: string };
+  // Flash Weekend free trucker cap promotion marker -- see
+  // lib/four-regn-flash-cap.ts. Only ever "flash_weekend_cap" or absent;
+  // typed as a plain optional string (not the literal union) so this file
+  // doesn't need to import the constant just to type the field, matching
+  // every other loosely-typed cart/product field in this interface.
+  giftTag?: string;
 }
 type WishlistItem = Pick<Product, "id" | "name" | "price" | "old_price" | "image_url" | "handle" | "in_stock" | "category">;
 interface PromoDiscount {
@@ -851,6 +868,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [cartBoosterLoading, setCartBoosterLoading] = useState(false);
   const [cartBoosterSelections, setCartBoosterSelections] = useState<Record<string, Record<string, string>>>({});
   const [cartBoosterShowAll, setCartBoosterShowAll] = useState(false);
+  /* ─── FLASH WEEKEND FREE TRUCKER CAP ─── */
+  const [flashCapUnlockSheetOpen, setFlashCapUnlockSheetOpen] = useState(false);
+  const [flashCapCheckoutWarningOpen, setFlashCapCheckoutWarningOpen] = useState(false);
+  const [flashCapCheckoutWarningDismissed, setFlashCapCheckoutWarningDismissed] = useState(false);
+  const [flashCapPickerOpen, setFlashCapPickerOpen] = useState(false);
+  const flashCapPrevEligibleRef = useRef<number | null>(null);
+  const flashCapSeenTrackedRef = useRef(false);
   const cartBoosterImpressionRef = useRef("");
   const cartBoosterUnlockedRef = useRef(false);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
@@ -902,6 +926,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               product: { ...item.product, ...(currentProduct || {}), price: Number(item.product.price) },
               qty: Math.max(1, Math.floor(Number(item.qty))),
               selectedVariants: item.selectedVariants && typeof item.selectedVariants === "object" ? item.selectedVariants : {},
+              ...(typeof item.giftTag === "string" ? { giftTag: item.giftTag } : {}),
             };
           });
           setCart(restored);
@@ -918,7 +943,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     try {
       // Product descriptions and full gallery arrays are not needed by the
       // cart; excluding them keeps mobile localStorage safely below quota.
-      const compactCart = cart.map(({ product, qty, selectedVariants }) => ({
+      const compactCart = cart.map(({ product, qty, selectedVariants, giftTag }) => ({
         product: {
           id: product.id, name: product.name, price: product.price,
           old_price: product.old_price, category: product.category,
@@ -927,6 +952,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         },
         qty,
         selectedVariants,
+        ...(giftTag ? { giftTag } : {}),
       }));
       localStorage.setItem(cartStorageKey, JSON.stringify(compactCart));
     } catch {
@@ -1256,15 +1282,39 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   }, [pathname, mode, currentPage, currentSort]);
 
   /* ─── CART OPS ─── */
-  const addToCart = (product: Product, qty: number, variants: { [k: string]: string }) => {
+  // giftTag is part of the merge key so a Flash Weekend gift line (always
+  // qty 1, always its own line -- see claimFlashCapGift below) never
+  // silently merges into a shopper's own separately-added, fully-paid
+  // unit of the same cap/variant.
+  const addToCart = (product: Product, qty: number, variants: { [k: string]: string }, giftTag?: string) => {
     setCart((prev) => {
-      const key = product.id + JSON.stringify(variants);
-      const existing = prev.find((i) => i.product.id + JSON.stringify(i.selectedVariants) === key);
+      const key = product.id + JSON.stringify(variants) + (giftTag || "");
+      const existing = prev.find((i) => i.product.id + JSON.stringify(i.selectedVariants) + (i.giftTag || "") === key);
       if (existing) return prev.map((i) => i === existing ? { ...i, qty: i.qty + qty } : i);
-      return [...prev, { product, qty, selectedVariants: variants }];
+      return [...prev, { product, qty, selectedVariants: variants, ...(giftTag ? { giftTag } : {}) }];
     });
   };
   const removeFromCart = (idx: number) => setCart((prev) => prev.filter((_, i) => i !== idx));
+  // Claiming a gift replaces any previously-claimed one (only one eligible
+  // cap ever gets the free promotion) rather than adding a second free
+  // line -- "choose another cap" and "make this my free cap" are both this
+  // same call, just for a different product. Always qty 1, always its own
+  // line via the giftTag-aware merge key above, regardless of whether the
+  // shopper already has that exact cap/variant in cart as a paid item.
+  const claimFlashCapGift = (product: Product, variants: { [k: string]: string } = {}) => {
+    const isChange = !!flashCapGiftItem && flashCapGiftItem.product.id !== product.id;
+    setCart((prev) => prev.filter((i) => i.giftTag !== FLASH_CAP_GIFT_TAG));
+    addToCart(product, 1, variants, FLASH_CAP_GIFT_TAG);
+    if (seller?.id) {
+      trackStorefrontEvent({
+        sellerId: seller.id,
+        eventType: isChange ? "flash_cap_changed" : "flash_cap_selected",
+        cartItemCount: cartCount, cartValue: flashCapEligibleSubtotal,
+        metadata: { productId: product.id, productName: product.name },
+      });
+    }
+  };
+  const releaseFlashCapGift = () => setCart((prev) => prev.filter((i) => i.giftTag !== FLASH_CAP_GIFT_TAG));
   const changeQty = (idx: number, d: number) =>
     setCart((prev) => prev.map((i, n) => n === idx ? { ...i, qty: Math.max(1, i.qty + d) } : i));
 
@@ -1357,6 +1407,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setVariantError(false);
     }
   }, [mode, initialActiveProduct?.id]);
+  // True exactly when this product's own Add to Cart button should become
+  // "Choose as Free Cap" instead -- eligible cap, sale genuinely active,
+  // and the shopper either hasn't claimed a gift yet or is switching to a
+  // different one (claiming again on the SAME product they've already
+  // claimed is a no-op, so this stays false for that one).
+  const isFlashCapClaimMoment = (product: Product) =>
+    flashCapActive && isFlashCapEligibleProduct(product)
+    && (flashCapState === "ELIGIBLE_UNCLAIMED" || (flashCapState === "ELIGIBLE_CLAIMED" && flashCapGiftItem?.product.id !== product.id));
   const handleAddToCart = () => {
     if (!selectedProduct || selectedProduct.in_stock === false) return;
     const validVariants = (Array.isArray(selectedProduct.variants) ? selectedProduct.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
@@ -1365,7 +1423,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setVariantError(true);
       return;
     }
-    addToCart(selectedProduct, localQty, selectedVariants);
+    if (isFlashCapClaimMoment(selectedProduct)) claimFlashCapGift(selectedProduct, selectedVariants);
+    else addToCart(selectedProduct, localQty, selectedVariants);
     setSelectedProduct(null);
     setCartOpen(true);
   };
@@ -1381,6 +1440,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setVariantError(true);
       return;
     }
+    if (isFlashCapClaimMoment(product)) { claimFlashCapGift(product, selectedVariants); setCartOpen(true); return; }
     addToCart(product, localQty, selectedVariants);
     setCartOpen(true);
   };
@@ -1399,7 +1459,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   /* ─── CHECKOUT (redirect to existing route) ─── */
   // Same base64 `?cart=` encoding every other template uses -- the checkout
   // page decodes this param, not any client-side storage.
-  const goToCheckout = () => {
+  const proceedToCheckout = () => {
     if (seller?.id && boosterAttributionKey) {
       try {
         const attribution = JSON.parse(localStorage.getItem(boosterAttributionKey) || "null");
@@ -1411,16 +1471,36 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const payload = cart.map((i) => ({
       id: i.product.id,
       name: i.product.name,
-      price: effectivePrice(i.product, i.selectedVariants),
+      // Client-supplied price is never trusted for the actual charge --
+      // place-order re-fetches by id and, for a giftTag line, re-validates
+      // eligibility from scratch server-side (lib/four-regn-flash-cap.ts)
+      // before honouring the R0 price. Sending 0 here is purely so the
+      // checkout page's own on-screen total isn't misleading pre-submit.
+      price: i.giftTag ? 0 : effectivePrice(i.product, i.selectedVariants),
       old_price: i.product.old_price,
       qty: i.qty,
       variant: Object.entries(i.selectedVariants).map(([k, v]) => k + ": " + v).join(", "),
       image: resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url || "",
       selectedVariants: i.selectedVariants,
       tags: i.product.tags || [],
+      ...(i.giftTag ? { giftTag: i.giftTag } : {}),
     }));
     const encoded = btoa(JSON.stringify(payload));
     navigate(sp(`/checkout?cart=${encoded}`));
+  };
+
+  // Gate in front of proceedToCheckout: an unclaimed-but-eligible gift gets
+  // one last lightweight nudge ("DON'T FORGET YOUR FREE CAP") before
+  // actually leaving for checkout -- never a second time in the same
+  // session once dismissed, and never blocking, per the spec's "never
+  // block checkout permanently".
+  const goToCheckout = () => {
+    if (flashCapActive && flashCapState === "ELIGIBLE_UNCLAIMED" && !flashCapCheckoutWarningDismissed) {
+      if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_checkout_warning_seen", cartItemCount: cartCount, cartValue: cartPayableMerchandiseTotal, cartItems: cartTrackingItems() });
+      setFlashCapCheckoutWarningOpen(true);
+      return;
+    }
+    proceedToCheckout();
   };
 
   const addCartBoosterProduct = (recommendation: RankedCartBoosterProduct) => {
@@ -1611,8 +1691,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         return groups;
       })()
     : null;
-  const cartTotal = cart.reduce((s, i) => s + effectivePrice(i.product, i.selectedVariants) * i.qty, 0);
+  // Flash Weekend gift line is worth R0 in every merchandise-value
+  // calculation below (cart total, savings, BXGY qualification) -- it's a
+  // bonus, not something the shopper "bought" or "saved" on, and letting
+  // it count toward compareAtSavings/BXGY would double up with its own
+  // explicit FREE/struck-through display in the cart line itself.
+  // Flash Weekend free trucker cap -- see lib/four-regn-flash-cap.ts. 4regn
+  // only, same as the countdown/homepage campaign this pairs with.
+  // isFourRegnStore itself isn't declared until further down (it's not
+  // needed there this early normally), so it's inlined here rather than
+  // moving that whole declaration up just for this.
+  const flashCapActive = (seller?.subdomain === "4regn" || seller?.template === "4regn") && isFlashCapActive();
+  const flashCapGiftIndex = cart.findIndex((i) => i.giftTag === FLASH_CAP_GIFT_TAG);
+  const flashCapGiftItem = flashCapGiftIndex !== -1 ? cart[flashCapGiftIndex] : null;
+  const cartTotal = cart.reduce((s, i) => s + (i.giftTag ? 0 : effectivePrice(i.product, i.selectedVariants) * i.qty), 0);
   const compareAtSavings = cart.reduce((sum, item) => {
+    if (item.giftTag) return sum;
     const sellingPrice = effectivePrice(item.product, item.selectedVariants);
     const originalPrice = Number(item.product.old_price) || 0;
     return sum + Math.max(0, originalPrice - sellingPrice) * item.qty;
@@ -1623,9 +1717,77 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // lib/automatic-discounts.ts's own comment on why both sides share one
   // implementation).
   const automaticDiscount = automaticBxgyDiscounts.length && cart.length
-    ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
+    ? computeAutomaticBxgyDiscount(automaticBxgyDiscounts, cart.filter((i) => !i.giftTag).map((i) => ({ name: i.product.name, price: effectivePrice(i.product, i.selectedVariants), qty: i.qty, category: i.product.category })))
     : { totalDiscount: 0, applied: [] as { title: string; amount: number }[], lineDiscounts: [] as { lineIndex: number; amount: number; titles: string[] }[] };
   const cartPayableMerchandiseTotal = Math.max(0, cartTotal - automaticDiscount.totalDiscount);
+  // cartTotal already excludes the gift line's own value (see above), so
+  // this IS "merchandise subtotal after discounts, before shipping,
+  // excluding the promotional gift itself" with no further adjustment.
+  const flashCapEligibleSubtotal = cartPayableMerchandiseTotal;
+  const flashCapState = computeFlashCapState({ active: flashCapActive, eligibleSubtotal: flashCapEligibleSubtotal, hasGiftInCart: !!flashCapGiftItem });
+  const flashCapAmountAway = flashCapAmountAwayFn(flashCapEligibleSubtotal);
+  const flashCapProgressPct = flashCapProgressPctFn(flashCapEligibleSubtotal);
+
+  // Detects the LOCKED -> qualifies transition (any cart change that
+  // crosses R499, not just a fresh Add to Cart click -- a quantity bump
+  // qualifies too) to pop the unlock sheet exactly once per crossing, and
+  // the reverse transition while a gift is already claimed to fire
+  // flash_cap_qualification_lost. Skips the very first run after
+  // hydration so loading a page with an already-qualifying saved cart
+  // doesn't replay the unlock moment.
+  useEffect(() => {
+    if (!cartHydrated || !flashCapActive) { flashCapPrevEligibleRef.current = flashCapEligibleSubtotal; return; }
+    const prev = flashCapPrevEligibleRef.current;
+    flashCapPrevEligibleRef.current = flashCapEligibleSubtotal;
+    if (prev === null) return;
+    const wasQualified = prev >= FLASH_CAP_THRESHOLD;
+    const isQualified = flashCapEligibleSubtotal >= FLASH_CAP_THRESHOLD;
+    if (!wasQualified && isQualified && !flashCapGiftItem) {
+      setFlashCapUnlockSheetOpen(true);
+      if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_unlocked", cartItemCount: cartCount, cartValue: flashCapEligibleSubtotal, cartItems: cartTrackingItems() });
+    }
+    if (wasQualified && !isQualified && flashCapGiftItem) {
+      if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_qualification_lost", cartItemCount: cartCount, cartValue: flashCapEligibleSubtotal, cartItems: cartTrackingItems() });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flashCapEligibleSubtotal, flashCapActive, cartHydrated]);
+
+  const flashCapCollectionHref = sp(`/collections/${collectionSlug(FLASH_CAP_COLLECTION)}`);
+  const flashCapOnTruckerCapsPage = isCollectionView && collectionName === FLASH_CAP_COLLECTION;
+
+  // "Seen" here means rendered for this page view, same impression-style
+  // semantics as the existing free_delivery_upsell_impression event this
+  // mirrors -- not real viewport-intersection tracking.
+  useEffect(() => {
+    if (!flashCapActive || !seller?.id) return;
+    if ((mode === "product" || isCollectionView) && !flashCapSeenTrackedRef.current) {
+      flashCapSeenTrackedRef.current = true;
+      trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_promo_seen", metadata: { mode } });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flashCapActive, mode, isCollectionView, seller?.id]);
+
+  useEffect(() => {
+    if (!flashCapActive || !flashCapOnTruckerCapsPage || !seller?.id) return;
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_collection_visited", metadata: { flashCapState } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flashCapActive, flashCapOnTruckerCapsPage, seller?.id]);
+
+  // Every "go choose/change your cap" CTA across the progress module, the
+  // unlock sheet, and the checkout-warning sheet funnels through here so
+  // the analytics + sheet-closing + navigation stay in one place.
+  const goToFlashCapPicker = (source: "progress" | "unlock_sheet" | "checkout_warning" | "cart") => {
+    if (seller?.id) {
+      if (source === "progress") trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_progress_clicked", cartItemCount: cartCount, cartValue: flashCapEligibleSubtotal, cartItems: cartTrackingItems() });
+      trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_picker_opened", cartItemCount: cartCount, cartValue: flashCapEligibleSubtotal, cartItems: cartTrackingItems(), metadata: { source } });
+    }
+    setFlashCapUnlockSheetOpen(false);
+    if (source === "checkout_warning") setFlashCapCheckoutWarningDismissed(true);
+    setFlashCapCheckoutWarningOpen(false);
+    setCartOpen(false);
+    navigate(flashCapCollectionHref);
+  };
+
   const cartStitchMonthly = cartPayableMerchandiseTotal / 6;
   // The general storefront formatter intentionally uses the South African
   // locale (e.g. R 1 299). Stitch's payment copy needs a decimal point,
@@ -1638,6 +1800,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const cartHasGeneral = cart.some((i) => !hasImportTag(i.product.tags));
   const cartHasMixedFulfillment = cartHasImport && cartHasGeneral;
   const isFourRegnStore = seller?.subdomain === "4regn" || seller?.template === "4regn";
+
   const FREE_SHIP = isFourRegnStore ? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM : (seller?.store_config?.free_ship_threshold ?? null);
   const freeShipRem = FREE_SHIP ? Math.max(0, FREE_SHIP - cartPayableMerchandiseTotal) : 0;
   const cartBoosterRequestSignature = cart.map((item) => `${item.product.id}:${item.qty}:${JSON.stringify(item.selectedVariants)}`).join("|");
@@ -1905,6 +2068,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const onSale = p.old_price && p.old_price > p.price;
     const salePct = onSale ? Math.round((1 - p.price / p.old_price!) * 100) : 0;
     const badge = getProductPromoBadge(p);
+    // Gift-selection mode: only on the Trucker Caps collection page itself,
+    // only for caps, only while genuinely eligible to claim (or already
+    // holding a different one -- ELIGIBLE_CLAIMED still shows "choose as
+    // free cap" on every OTHER eligible cap so switching is one tap).
+    const flashCapCardEligible = flashCapActive && flashCapOnTruckerCapsPage && isFlashCapEligibleProduct(p)
+      && (flashCapState === "ELIGIBLE_UNCLAIMED" || flashCapState === "ELIGIBLE_CLAIMED");
     const promo = getProductPromo(p.id);
     return (
       <div className="fr-pcard" onClick={() => goToProduct(p)}>
@@ -1932,16 +2101,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         <div className="fr-pinfo">
           <div className="fr-pname">{p.name}</div>
           <div className="fr-pprice">
-            {onSale && <span className="was">{fmt(p.old_price!)}</span>}
-            {fmt(p.price)}
+            {flashCapCardEligible ? (
+              <>
+                <span className="was">{fmt(p.price)}</span>
+                <span style={{ color: "#0a6f36", fontWeight: 850 }}>FREE</span>
+              </>
+            ) : (
+              <>
+                {onSale && <span className="was">{fmt(p.old_price!)}</span>}
+                {fmt(p.price)}
+              </>
+            )}
           </div>
           <button
             className="fr-pwa"
             type="button"
             disabled={p.in_stock === false}
+            style={flashCapCardEligible ? { background: "#0a6f36", borderColor: "#0a6f36", color: "#fff" } : undefined}
             onClick={(e) => { e.stopPropagation(); if (p.in_stock === false) return; goToProduct(p); }}
           >
-            {p.in_stock === false ? "Sold Out" : "Add to Cart"}
+            {p.in_stock === false ? "Sold Out" : flashCapCardEligible ? "Choose as Free Cap" : "Add to Cart"}
           </button>
         </div>
       </div>
@@ -3051,6 +3230,42 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 @media(max-width:768px){.fr-coll-promo-countdown{padding:0 20px 22px}}
 @media(prefers-reduced-motion:reduce){.regn-flash-countdown__inner::before{animation:none}.regn-flash-countdown{animation:none}}
 @media(max-width:640px){.fr-flash-popup-backdrop{padding:12px}.fr-flash-popup{width:100%;max-height:82vh}.fr-flash-popup img{max-height:82vh}.fr-flash-popup-close{top:8px;right:8px;width:32px;height:32px;font-size:24px;line-height:28px}}
+
+/* Flash Weekend free trucker cap reward system -- FourRegnFlashCapUI.tsx.
+   Same light/chrome-glass/dark-green language as .regn-flash-countdown
+   above, scoped entirely under regn-fcap so it can't leak into anything
+   else on the page. */
+.regn-fcap{width:100%;margin:10px 0 0;padding:11px 13px;border:1px solid rgba(70,69,75,0.16);border-radius:16px;background:linear-gradient(135deg,#ffffff,#f6f6f7 60%,#ffffff);box-shadow:0 6px 18px rgba(28,25,32,0.06),inset 0 1px 0 #fff}
+.regn-fcap__row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.regn-fcap__text{font-size:11.5px;font-weight:700;color:#26232b;line-height:1.3}
+.regn-fcap__text strong{color:#0a6f36;font-weight:850}
+.regn-fcap__text--won{color:#0a6f36}
+.regn-fcap__track{margin-top:8px;height:6px;border-radius:999px;background:#e7e6e8;overflow:hidden}
+.regn-fcap__fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#118a45,#0a6f36);transition:width 320ms ease}
+.regn-fcap__cta{flex:0 0 auto;padding:8px 14px;border:none;border-radius:100px;background:#0a6f36;color:#fff;font-size:10px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer}
+.regn-fcap__link{flex:0 0 auto;background:none;border:none;padding:0;color:#0a6f36;font-size:11px;font-weight:800;text-decoration:underline;cursor:pointer}
+.regn-fcap--compact{padding:8px 12px;border-radius:14px;margin:0}
+.regn-fcap--compact .regn-fcap__text{font-size:10.5px}
+.regn-fcap--banner{text-align:center;padding:13px}
+.regn-fcap--banner .regn-fcap__text{font-size:12.5px;text-transform:uppercase;letter-spacing:0.04em;width:100%;text-align:center}
+
+/* Compact mobile status strip sitting just above .fr-dock (z-index 150) --
+   see that class's own comment for the fixed-bottom-nav z-index stack. */
+.regn-fcap-dockbar{position:fixed;left:0;right:0;bottom:0;z-index:149;display:none;padding:8px 14px calc(8px + env(safe-area-inset-bottom, 0px));background:rgba(255,255,255,0.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid rgba(70,69,75,0.14)}
+
+.regn-fcap-sheet-backdrop{position:fixed;inset:0;z-index:1600;display:flex;align-items:flex-end;justify-content:center;background:rgba(20,18,24,0.42);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:regnFcapFade 180ms ease}
+@keyframes regnFcapFade{from{opacity:0}to{opacity:1}}
+.regn-fcap-sheet{width:100%;max-width:480px;background:#fff;border:1px solid rgba(70,69,75,0.16);border-top-left-radius:20px;border-top-right-radius:20px;padding:22px 22px calc(22px + env(safe-area-inset-bottom, 0px));text-align:center;box-shadow:0 -12px 40px rgba(20,18,24,0.18);animation:regnFcapSheetUp 260ms cubic-bezier(0.16,1,0.3,1)}
+@media(min-width:769px){.regn-fcap-sheet{border-radius:20px;margin-bottom:40px}}
+@keyframes regnFcapSheetUp{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
+.regn-fcap-sheet__icon{font-size:34px;line-height:1;margin-bottom:8px}
+.regn-fcap-sheet__title{font-family:var(--serif);font-weight:700;font-size:19px;letter-spacing:-0.01em;color:#111;text-transform:uppercase;margin-bottom:6px}
+.regn-fcap-sheet__body{font-size:13px;color:#5b5860;line-height:1.5;margin:0 0 18px}
+.regn-fcap-sheet--compact .regn-fcap-sheet__title{margin-bottom:16px}
+.regn-fcap-sheet__primary{display:block;width:100%;padding:14px;border:none;border-radius:100px;background:#0a6f36;color:#fff;font-size:12px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;margin-bottom:10px}
+.regn-fcap-sheet__secondary{display:block;width:100%;padding:12px;border:none;background:none;color:#8f8c94;font-size:11.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer}
+@media(max-width:768px){.regn-fcap-dockbar{display:block}}
+@media(prefers-reduced-motion:reduce){.regn-fcap-sheet-backdrop,.regn-fcap-sheet{animation:none}.regn-fcap__fill{transition:none}}
       `}</style>
 
       <NavigationProgress active={isNavigating} />
@@ -3160,20 +3375,30 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 const saleSaving = Math.max(0, compareAtOriginal - lineOriginal);
                 const lineDiscount = automaticDiscount.lineDiscounts.find((discount) => discount.lineIndex === idx);
                 const lineFinal = Math.max(0, lineOriginal - (lineDiscount?.amount || 0));
+                const isFlashCapGiftLine = i.giftTag === FLASH_CAP_GIFT_TAG;
                 return (
                   <div key={idx} className="fr-cart-item">
                     <div className="fr-cart-item-img" style={cartImg ? { backgroundImage: `url("${cartImg}")` } : {}} />
                     <div>
                       <div className="fr-cart-item-name">{i.product.name}</div>
                       {varStr && <div className="fr-cart-item-var">{varStr}</div>}
-                      <div className="fr-cart-item-qty">
-                        <button className="fr-qty-btn" onClick={() => changeQty(idx, -1)}>−</button>
-                        <span className="fr-qty-num">{i.qty}</span>
-                        <button className="fr-qty-btn" onClick={() => changeQty(idx, 1)}>+</button>
-                      </div>
+                      {isFlashCapGiftLine ? (
+                        <div style={{ marginTop: 4, display: "inline-block", padding: "2px 8px", borderRadius: 100, background: "#ecf8f0", color: "#0a6f36", fontSize: 8.5, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase" as const }}>Flash Weekend Gift</div>
+                      ) : (
+                        <div className="fr-cart-item-qty">
+                          <button className="fr-qty-btn" onClick={() => changeQty(idx, -1)}>−</button>
+                          <span className="fr-qty-num">{i.qty}</span>
+                          <button className="fr-qty-btn" onClick={() => changeQty(idx, 1)}>+</button>
+                        </div>
+                      )}
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      {(saleSaving > 0 || lineDiscount) ? (
+                      {isFlashCapGiftLine ? (
+                        <>
+                          <div style={{ fontSize: 11, color: "rgba(46,42,57,.48)", textDecoration: "line-through", marginBottom: 2 }}>{fmt(effectivePrice(i.product, i.selectedVariants))}</div>
+                          <div className="fr-cart-item-price" style={{ color: "#0a6f36" }}>FREE</div>
+                        </>
+                      ) : (saleSaving > 0 || lineDiscount) ? (
                         <>
                           {saleSaving > 0 && <div style={{ fontSize: 11, color: "rgba(46,42,57,.48)", textDecoration: "line-through", marginBottom: 2 }}>{fmt(compareAtOriginal)}</div>}
                           {lineDiscount && <div style={{ fontSize: 11, color: "rgba(46,42,57,.48)", textDecoration: "line-through", marginBottom: 2 }}>{fmt(lineOriginal)}</div>}
@@ -3219,6 +3444,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span className="fr-cart-sub-lbl" style={{ color: "#00751f", fontWeight: 800 }}>Total savings</span>
                   <span style={{ fontWeight: 800, fontSize: 13 }}>-{fmt(cartTotalSavings)}</span>
                 </div>
+              )}
+              {flashCapActive && (
+                <FlashCapProgress
+                  state={flashCapState}
+                  amountAway={flashCapAmountAway}
+                  progressPct={flashCapProgressPct}
+                  giftName={flashCapGiftItem?.product.name}
+                  onCta={() => goToFlashCapPicker("cart")}
+                />
               )}
               {isFourRegnStore && (
                 <section className="fr-cart-booster" aria-label="Free delivery progress and recommendations">
@@ -3355,8 +3589,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         <button className="fr-pdp-add" disabled>Sold Out</button>
                       ) : (
                         <>
-                          <button className="fr-pdp-add" onClick={handleAddToCart}>
-                            Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                          <button className="fr-pdp-add" style={isFlashCapClaimMoment(p) ? { background: "#0a6f36", borderColor: "#0a6f36" } : undefined} onClick={handleAddToCart}>
+                            {isFlashCapClaimMoment(p) ? "Choose as Free Cap" : `Add to Cart — ${fmt(effectivePrice(p, selectedVariants) * localQty)}`}
                           </button>
                           <button className="fr-pdp-buynow" onClick={() => {
                             const validVariants = (Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0);
@@ -3903,6 +4137,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {isCollectionView && (
           <div className="fr-coll-promo-countdown">
             <FourRegnPromoCountdown variant="collection" />
+            {flashCapActive && flashCapOnTruckerCapsPage && (flashCapState === "ELIGIBLE_UNCLAIMED" || flashCapState === "ELIGIBLE_CLAIMED") ? (
+              <div className="regn-fcap regn-fcap--banner">
+                <span className="regn-fcap__text regn-fcap__text--won">Your Free Cap Is Unlocked &mdash; Choose One</span>
+              </div>
+            ) : flashCapActive && (
+              <FlashCapProgress
+                state={flashCapState}
+                amountAway={flashCapAmountAway}
+                progressPct={flashCapProgressPct}
+                giftName={flashCapGiftItem?.product.name}
+                onCta={() => goToFlashCapPicker("progress")}
+              />
+            )}
           </div>
         )}
 
@@ -4020,6 +4267,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
                     <FourRegnPromoCountdown variant="product" />
+                    {flashCapActive && (
+                      <FlashCapProgress
+                        state={flashCapState}
+                        amountAway={flashCapAmountAway}
+                        progressPct={flashCapProgressPct}
+                        giftName={flashCapGiftItem?.product.name}
+                        onCta={() => goToFlashCapPicker("progress")}
+                      />
+                    )}
                     <FreeShippingPill />
                     {seller.checkout_config?.stitch_enabled !== false && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
@@ -4061,8 +4317,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         <button className="fr-pdp-add" disabled>Sold Out</button>
                       ) : (
                         <>
-                          <button className="fr-pdp-add" onClick={() => addProductToCart(p)}>
-                            Add to Cart — {fmt(effectivePrice(p, selectedVariants) * localQty)}
+                          <button className="fr-pdp-add" style={isFlashCapClaimMoment(p) ? { background: "#0a6f36", borderColor: "#0a6f36" } : undefined} onClick={() => addProductToCart(p)}>
+                            {isFlashCapClaimMoment(p) ? "Choose as Free Cap" : `Add to Cart — ${fmt(effectivePrice(p, selectedVariants) * localQty)}`}
                           </button>
                           <button className="fr-pdp-buynow" onClick={() => buyNowFor(p)}>
                             Buy Now
@@ -4619,6 +4875,22 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </footer>
         </EditSection>
 
+        {/* Compact mobile status strip -- only while the cart has items,
+            sits just above the fixed bottom dock (never inside/behind it,
+            see .regn-fcap-dockbar's own z-index comment). */}
+        {flashCapActive && cart.length > 0 && flashCapState !== "EXPIRED" && (
+          <div className="regn-fcap-dockbar">
+            <FlashCapProgress
+              state={flashCapState}
+              amountAway={flashCapAmountAway}
+              progressPct={flashCapProgressPct}
+              giftName={flashCapGiftItem?.product.name}
+              compact
+              onCta={() => goToFlashCapPicker("cart")}
+            />
+          </div>
+        )}
+
         {/* MOBILE BOTTOM DOCK */}
         <nav className="fr-dock" aria-label="Mobile navigation">
           <button type="button" className={"fr-dock-item" + (isHomeView ? " active" : "")} onClick={() => navigate(sp())}>
@@ -4644,6 +4916,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             Account
           </button>
         </nav>
+
+        {flashCapActive && (
+          <>
+            <FlashCapUnlockSheet
+              open={flashCapUnlockSheetOpen}
+              onChoose={() => goToFlashCapPicker("unlock_sheet")}
+              onKeepShopping={() => setFlashCapUnlockSheetOpen(false)}
+            />
+            <FlashCapCheckoutWarningSheet
+              open={flashCapCheckoutWarningOpen}
+              onChoose={() => goToFlashCapPicker("checkout_warning")}
+              onContinue={() => {
+                setFlashCapCheckoutWarningOpen(false);
+                setFlashCapCheckoutWarningDismissed(true);
+                if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_checkout_without_gift", cartItemCount: cartCount, cartValue: flashCapEligibleSubtotal, cartItems: cartTrackingItems() });
+                proceedToCheckout();
+              }}
+            />
+          </>
+        )}
       </div>
 
       {/* Size chart modal -- opened from the dedicated product page's Size

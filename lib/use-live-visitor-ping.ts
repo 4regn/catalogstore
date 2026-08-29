@@ -26,7 +26,14 @@ export type StorefrontEventType =
   | "session_activity"
   | "free_delivery_upsell_impression" | "free_delivery_upsell_click"
   | "free_delivery_upsell_add" | "free_delivery_threshold_reached"
-  | "checkout_started_after_upsell" | "order_completed_after_upsell";
+  | "checkout_started_after_upsell" | "order_completed_after_upsell"
+  // 4regn Flash Weekend free trucker cap promotion -- see
+  // lib/four-regn-flash-cap.ts for the state machine these correspond to.
+  | "flash_cap_promo_seen" | "flash_cap_progress_clicked" | "flash_cap_unlocked"
+  | "flash_cap_picker_opened" | "flash_cap_collection_visited" | "flash_cap_selected"
+  | "flash_cap_changed" | "flash_cap_qualification_lost"
+  | "flash_cap_checkout_warning_seen" | "flash_cap_checkout_without_gift"
+  | "flash_cap_order_completed";
 
 export function trackStorefrontEvent(args: {
   sellerId: string;
