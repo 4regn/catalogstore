@@ -50,7 +50,7 @@ export interface Seller {
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; }
+interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; }
 const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const normalisePaymentOrder = (value: unknown) => {
   const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_ORDER[number] => PAYMENT_METHOD_ORDER.includes(key as typeof PAYMENT_METHOD_ORDER[number])) : [];
@@ -555,6 +555,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           image: typeof i.image === "string" ? i.image : "",
           selectedVariants: i.selectedVariants && typeof i.selectedVariants === "object" ? i.selectedVariants : undefined,
           tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
+          giftTag: typeof i.giftTag === "string" ? i.giftTag : undefined,
+          giftOriginalPrice: Number.isFinite(Number(i.giftOriginalPrice)) ? Number(i.giftOriginalPrice) : undefined,
         })).filter((i: CartItem) => i.name);
         if (cleanCart.length) setCart(cleanCart);
       }
@@ -675,6 +677,8 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             image: typeof i.image === "string" ? i.image : "",
             selectedVariants: i.selectedVariants && typeof i.selectedVariants === "object" ? i.selectedVariants : undefined,
             tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
+          giftTag: typeof i.giftTag === "string" ? i.giftTag : undefined,
+          giftOriginalPrice: Number.isFinite(Number(i.giftOriginalPrice)) ? Number(i.giftOriginalPrice) : undefined,
           }))
           .filter((i: any) => i.name);
         if (clean.length > 0) setCart(clean);
@@ -981,7 +985,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug,
-          items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image, selectedVariants: i.selectedVariants })),
+          items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image, selectedVariants: i.selectedVariants, ...(i.giftTag ? { giftTag: i.giftTag } : {}) })),
           customer: { firstName, lastName, email, phone },
           address: fulfillment === "delivery"
             ? { address, apartment, city, province, postal_code: postalCode }
@@ -1002,6 +1006,16 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       const orderId: string = json.orderId;
       setOrderNumber(json.orderNumber);
       setOrderPlaced(true);
+
+      // Best-effort client-side signal: fires whenever this checkout's own
+      // cart included a Flash Weekend gift claim. place-order independently
+      // re-validates and may still reject an illegitimate claim server-side
+      // (see that route's own comment) -- this event reflects intent, not
+      // proof the discount was actually honoured, same as every other
+      // fire-and-forget analytics call in this file.
+      if (seller?.id && cart.some((i) => i.giftTag === "flash_weekend_cap")) {
+        trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_order_completed", cartItemCount: cart.reduce((s, i) => s + i.qty, 0), cartValue: total });
+      }
 
       // Notify seller (non-blocking) -- but not for PayFast/Yoco/Stitch/
       // Float/SETLA orders yet: this row is still payment_status "pending" and
@@ -1602,6 +1616,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 <div className="summary-label">Your order</div>
                 <div className="product-card">
                   {cart.map((item, i) => {
+                    const isFlashCapGift = item.giftTag === "flash_weekend_cap";
                     const originalLine = (Number(item.old_price) || 0) * item.qty;
                     const lineTotal = item.price * item.qty;
                     const saleSaving = Math.max(0, originalLine - lineTotal);
@@ -1611,8 +1626,19 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                           {item.image ? <img alt={item.name} src={item.image} /> : null}
                           <span className="qty">{item.qty}</span>
                         </div>
-                        <div><div className="product-name">{item.name}</div>{item.variant && <div className="product-meta">{item.variant}</div>}{saleSaving > 0 && <div className="product-sale-saving">You save R{saleSaving.toLocaleString("en-ZA")}</div>}</div>
-                        {saleSaving > 0 ? (
+                        <div>
+                          <div className="product-name">{item.name}</div>
+                          {item.variant && <div className="product-meta">{item.variant}</div>}
+                          {isFlashCapGift ? (
+                            <div className="product-sale-saving">Flash Weekend Gift</div>
+                          ) : saleSaving > 0 && <div className="product-sale-saving">You save R{saleSaving.toLocaleString("en-ZA")}</div>}
+                        </div>
+                        {isFlashCapGift ? (
+                          <div className="product-price-stack">
+                            <div className="product-price-was">R{Math.round(item.giftOriginalPrice ?? 0).toLocaleString("en-ZA")}</div>
+                            <div className="product-price-now">FREE</div>
+                          </div>
+                        ) : saleSaving > 0 ? (
                           <div className="product-price-stack">
                             <div className="product-price-was">R{originalLine.toLocaleString("en-ZA")}</div>
                             <div className="product-price-now">R{lineTotal.toLocaleString("en-ZA")}</div>

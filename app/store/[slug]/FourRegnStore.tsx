@@ -1483,7 +1483,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       image: resolveVariantImage(i.product, i.selectedVariants) || i.product.image_url || "",
       selectedVariants: i.selectedVariants,
       tags: i.product.tags || [],
-      ...(i.giftTag ? { giftTag: i.giftTag } : {}),
+      ...(i.giftTag ? { giftTag: i.giftTag, giftOriginalPrice: effectivePrice(i.product, i.selectedVariants) } : {}),
     }));
     const encoded = btoa(JSON.stringify(payload));
     navigate(sp(`/checkout?cart=${encoded}`));
@@ -1754,6 +1754,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
   const flashCapCollectionHref = sp(`/collections/${collectionSlug(FLASH_CAP_COLLECTION)}`);
   const flashCapOnTruckerCapsPage = isCollectionView && collectionName === FLASH_CAP_COLLECTION;
+  // "EXISTING CAP" case -- a cap the shopper added normally, before
+  // crossing R499, sitting in cart as a full-price line. Offer converting
+  // it in place instead of only ever sending them off to pick a fresh one.
+  const flashCapExistingCartCap = cart.find((i) => !i.giftTag && isFlashCapEligibleProduct(i.product));
 
   // "Seen" here means rendered for this page view, same impression-style
   // semantics as the existing free_delivery_upsell_impression event this
@@ -3445,7 +3449,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span style={{ fontWeight: 800, fontSize: 13 }}>-{fmt(cartTotalSavings)}</span>
                 </div>
               )}
-              {flashCapActive && (
+              {flashCapActive && flashCapState === "ELIGIBLE_UNCLAIMED" && flashCapExistingCartCap ? (
+                <div className="regn-fcap">
+                  <div className="regn-fcap__row">
+                    <span className="regn-fcap__text regn-fcap__text--won">Make {flashCapExistingCartCap.product.name} your <strong>FREE</strong> cap?</span>
+                  </div>
+                  <div className="regn-fcap__row" style={{ marginTop: 8, gap: 8 }}>
+                    <button type="button" className="regn-fcap__cta" onClick={() => claimFlashCapGift(flashCapExistingCartCap.product, flashCapExistingCartCap.selectedVariants)}>Make This My Free Cap</button>
+                    <button type="button" className="regn-fcap__link" onClick={() => goToFlashCapPicker("cart")}>Choose another cap</button>
+                  </div>
+                </div>
+              ) : flashCapActive && (
                 <FlashCapProgress
                   state={flashCapState}
                   amountAway={flashCapAmountAway}

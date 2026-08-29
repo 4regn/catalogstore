@@ -4,6 +4,7 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { fetchActiveAutomaticBxgyDiscounts, computeAutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
 import { variantPriceDelta } from "../../../../lib/product-pricing";
+import { FLASH_CAP_GIFT_TAG, FLASH_CAP_THRESHOLD, isFlashCapActive, isFlashCapEligibleProduct } from "../../../../lib/four-regn-flash-cap";
 
 /* Server-side order placement.
    The previous flow inserted directly from the browser using client-supplied
@@ -20,7 +21,7 @@ import { variantPriceDelta } from "../../../../lib/product-pricing";
      server says it owes
 */
 
-type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string> };
+type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string>; giftTag?: string };
 type ApplyTo = "cart" | "product" | "collection" | "shipping";
 const isUuid = (s: unknown): s is string =>
   typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
   const byNameMap = new Map<string, any>((byName.data || []).map((p) => [p.name.toLowerCase(), p]));
 
   /* Build the line items with server-truth prices */
-  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string; category?: string | null }[] = [];
+  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string; category?: string | null; giftTag?: string }[] = [];
   // A product tagged "import"/"imports" (singular or plural, case-
   // insensitive) restricts delivery to whichever shipping option(s) the
   // seller marked is_premium -- see the shipping-option validation below.
@@ -150,11 +151,42 @@ export async function POST(req: NextRequest) {
       variant: typeof raw.variant === "string" ? raw.variant.slice(0, 200) : "",
       image: typeof raw.image === "string" ? raw.image.slice(0, 500) : "",
       category: product.category ?? null,
+      giftTag: typeof raw.giftTag === "string" ? raw.giftTag : undefined,
     });
   }
 
   if (hasImportProduct && fulfillment !== "delivery") {
     return NextResponse.json({ error: "Premium products require premium product shipment" }, { status: 400 });
+  }
+
+  /* Flash Weekend free trucker cap -- server is the only source of truth
+     for this discount. A client can send any giftTag it likes; it only
+     actually becomes free here, and only once, after re-checking every
+     condition against server-computed data: sale still running, the SKU
+     is really in the Trucker Caps collection, exactly one unit claimed,
+     and the REST of the cart (excluding the gift line itself) genuinely
+     clears R499. Anything that fails validation is just charged at its
+     real price -- never removed from the order, never blocking checkout,
+     matching the same "don't silently drop the item" rule the storefront
+     UI follows. Only the first gift-tagged line can ever qualify, so a
+     tampered request tagging two lines can't get two free caps either. */
+  const nonGiftSubtotal = lineItems.filter((i) => !i.giftTag).reduce((s, i) => s + i.price * i.qty, 0);
+  let flashCapGiftGranted = false;
+  for (const li of lineItems) {
+    if (li.giftTag !== FLASH_CAP_GIFT_TAG) continue;
+    const eligible = !flashCapGiftGranted
+      && isFlashCapActive()
+      && li.qty === 1
+      && isFlashCapEligibleProduct({ category: li.category })
+      && nonGiftSubtotal >= FLASH_CAP_THRESHOLD;
+    if (eligible) {
+      li.price = 0;
+      flashCapGiftGranted = true;
+    } else {
+      // Not a legitimate free claim -- charge full price, and don't tag it
+      // as a gift in the stored order (it isn't one).
+      delete li.giftTag;
+    }
   }
 
   const subtotal = lineItems.reduce((s, i) => s + i.price * i.qty, 0);
@@ -265,7 +297,7 @@ export async function POST(req: NextRequest) {
     customer_name: `${customer.firstName} ${customer.lastName}`.trim(),
     customer_email: normalizedCustomerEmail,
     customer_phone: customer.phone || null,
-    items: lineItems.map(({ id, name, price, qty, variant, image }) => ({ id, name, price, qty, variant, image })),
+    items: lineItems.map(({ id, name, price, qty, variant, image, giftTag }) => ({ id, name, price, qty, variant, image, ...(giftTag ? { giftTag } : {}) })),
     total,
     shipping_address: fulfillment === "delivery" ? address : null,
     shipping_cost: shippingCost,
