@@ -304,18 +304,19 @@ const ORDERS_LIMIT = 100;
 // actually imported, even after PRODUCTS_LIMIT was raised well past that
 // (a client-requested limit can't exceed the server's own cap). Pages
 // through via .range() until a page comes back short.
-async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null }> {
+async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null; error: { message: string } | null }> {
   const all: any[] = [];
   const PAGE = 1000;
   let from = 0;
   while (all.length < PRODUCTS_LIMIT) {
     const { data, error } = await supabase.from("products").select(PRODUCT_COLUMNS).eq("seller_id", sellerId).order("sort_order", { ascending: true }).range(from, from + PAGE - 1);
-    if (error || !data) break;
+    if (error) return { data: null, error };
+    if (!data) return { data: null, error: { message: "No product data was returned." } };
     all.push(...data);
     if (data.length < PAGE) break;
     from += PAGE;
   }
-  return { data: all };
+  return { data: all, error: null };
 }
 
 // Real financial reporting (today/yesterday/week/month/year/custom range)
@@ -327,7 +328,7 @@ async function fetchAllProducts(sellerId: string): Promise<{ data: any[] | null 
 // thousand orders -- this is a lightweight aggregation dataset, not the
 // full order objects the list view and detail panel need.
 type OrderStatsRow = { total: number; payment_status: string; payment_method: string; created_at: string };
-async function fetchAllOrderStats(sellerId: string): Promise<OrderStatsRow[]> {
+async function fetchAllOrderStats(sellerId: string): Promise<{ data: OrderStatsRow[]; error: { message: string } | null }> {
   const all: OrderStatsRow[] = [];
   const PAGE = 1000;
   let from = 0;
@@ -337,12 +338,13 @@ async function fetchAllOrderStats(sellerId: string): Promise<OrderStatsRow[]> {
       .select("total, payment_status, payment_method, created_at")
       .eq("seller_id", sellerId)
       .range(from, from + PAGE - 1);
-    if (error || !data) break;
+    if (error) return { data: [], error };
+    if (!data) return { data: [], error: { message: "No order statistics were returned." } };
     all.push(...(data as OrderStatsRow[]));
     if (data.length < PAGE) break;
     from += PAGE;
   }
-  return all;
+  return { data: all, error: null };
 }
 const DISCOUNTS_LIMIT = 100;
 
@@ -450,6 +452,7 @@ export default function Dashboard() {
   const [inboxReplySending, setInboxReplySending] = useState(false);
   const [liveChatSaving, setLiveChatSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [dashboardLoadError, setDashboardLoadError] = useState("");
   const [tab, setTab] = useState<TabKey>("overview");
   const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
   const [sessionAnalytics, setSessionAnalytics] = useState<SessionAnalytics | null>(null);
@@ -468,6 +471,11 @@ export default function Dashboard() {
   const [bulkMode, setBulkMode] = useState<"percent" | "flat" | "set">("percent");
   const [bulkDirection, setBulkDirection] = useState<"increase" | "decrease">("increase");
   const [bulkValue, setBulkValue] = useState("");
+  const [bulkEditSellingPrice, setBulkEditSellingPrice] = useState(true);
+  const [bulkEditOriginalPrice, setBulkEditOriginalPrice] = useState(false);
+  const [bulkOriginalPrice, setBulkOriginalPrice] = useState("");
+  const [bulkEditDescription, setBulkEditDescription] = useState(false);
+  const [bulkDescription, setBulkDescription] = useState("");
   const [bulkApplying, setBulkApplying] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
@@ -616,6 +624,8 @@ export default function Dashboard() {
   const [storeDescription, setStoreDescription] = useState("");
   const [storeCollections, setStoreCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState("");
+  const [collectionSaving, setCollectionSaving] = useState(false);
+  const [collectionFeedback, setCollectionFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
   const [storeConfig, setStoreConfig] = useState<StoreConfig>({ show_banner_text: true, show_marquee: true, show_collections: true, show_about: true, show_trust_bar: true, show_policies: true, show_newsletter: false, show_announcement: false, announcement: "", marquee_texts: ["Premium Collection", "Free Delivery Over R500", "Designed in South Africa"], trust_items: [{ icon: "star", title: "Premium Quality", desc: "Carefully sourced" }, { icon: "truck", title: "Fast Delivery", desc: "Nationwide shipping" }, { icon: "refresh", title: "Easy Returns", desc: "14-day policy" }, { icon: "lock", title: "Secure Payment", desc: "Card & WhatsApp" }], policy_items: [{ title: "Shipping", desc: "Standard delivery 3-5 business days." }, { title: "Returns", desc: "14-day return policy on unworn items." }, { title: "Payment", desc: "All major cards via Yoco + WhatsApp checkout." }], footer_about: "", test_checkout_passed: false, hero_title: "", hero_cta: "", hero_cta_target: { type: "products" }, font_pair: DEFAULT_FONT_PAIR_KEY, hero_image_position: "center", hero_image_behavior: "still" });
   const [storeSaving, setStoreSaving] = useState(false);
@@ -750,11 +760,31 @@ export default function Dashboard() {
   };
 
   const checkAuth = async () => {
-    // getSession() reads from local storage — no network round-trip,
-    // unlike getUser() which validates the JWT against Supabase.
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) { router.push("/login"); return; }
+    setLoading(true);
+    setDashboardLoadError("");
+
+    // Never build a dashboard from localStorage alone. A stale cached session
+    // previously made every failed RLS query look like a new, empty store.
+    let { data: sessionData } = await supabase.auth.getSession();
+    let session = sessionData.session;
+    let { data: userData, error: userError } = await supabase.auth.getUser();
+
+    // Supabase can normally refresh an expired access token without asking the
+    // seller to sign in again. Try that once before treating the session as bad.
+    if ((!userData.user || userError) && session?.refresh_token) {
+      const refreshed = await supabase.auth.refreshSession();
+      session = refreshed.data.session;
+      const validated = await supabase.auth.getUser();
+      userData = validated.data;
+      userError = validated.error;
+    }
+
+    const user = userData.user;
+    if (!user || userError || !session) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      router.replace("/login?reason=session-expired");
+      return;
+    }
     // Relabels any order past ORDER_ABANDON_MS with no payment confirmation
     // as "abandoned" instead of leaving it "pending" forever -- awaited
     // before the orders query below so this load already reflects it,
@@ -783,8 +813,36 @@ export default function Dashboard() {
       supabase.from("orders").select("*", { count: "exact", head: true }).eq("seller_id", user.id),
       fetchAllOrderStats(user.id),
     ]);
+
+    if (sellerRes.error || !sellerRes.data) {
+      console.error("Dashboard seller lookup failed", sellerRes.error);
+      setDashboardLoadError(
+        sellerRes.error
+          ? `We could not load your store account: ${sellerRes.error.message}`
+          : "No store account is linked to this login."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const failedSections = [
+      ["products", pdResult.error],
+      ["orders", odResult.error],
+      ["discounts", dcResult.error],
+      ["automatic discounts", bxgyResult.error],
+      ["services", svcResult.error],
+      ["bookings", bkResult.error],
+      ["order count", ordersCountRes.error],
+      ["order statistics", orderStats.error],
+    ].filter((entry) => entry[1]);
+    if (failedSections.length > 0) {
+      console.error("Dashboard sections failed to load", failedSections);
+      setDashboardLoadError(`Your store account was found, but ${failedSections.map(([name]) => name).join(", ")} could not be loaded. Nothing has been deleted.`);
+      setLoading(false);
+      return;
+    }
     if (ordersCountRes.count !== null) setTotalOrdersCount(ordersCountRes.count);
-    setAllOrderStats(orderStats);
+    setAllOrderStats(orderStats.data);
     const sd = sellerRes.data;
     // Pro signups don't get dashboard access until they've completed PayFast
     // subscription setup -- selecting "free" instead lands as subscription_status
@@ -1676,32 +1734,50 @@ export default function Dashboard() {
   };
 
   const applyBulkPrice = async () => {
+    if (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) { alert("Choose at least one field to update."); return; }
     const value = parseFloat(bulkValue);
-    if (!Number.isFinite(value) || value < 0) { alert("Enter a valid number."); return; }
+    if (bulkEditSellingPrice && (!Number.isFinite(value) || value < 0)) { alert("Enter a valid selling price adjustment."); return; }
+    const originalPrice = bulkOriginalPrice.trim() === "" ? null : parseFloat(bulkOriginalPrice);
+    if (bulkEditOriginalPrice && originalPrice !== null && (!Number.isFinite(originalPrice) || originalPrice < 0)) { alert("Enter a valid original price, or leave it empty to remove the original price."); return; }
     const targets = products.filter((p) => selectedProductIds.has(p.id));
     if (targets.length === 0) return;
+    if (bulkEditDescription && bulkDescription === "" && !confirm(`Remove the entire description from ${targets.length} selected product${targets.length === 1 ? "" : "s"}?`)) return;
     setBulkApplying(true);
     try {
       const updates = targets.map((p) => {
         let newPrice = p.price;
-        if (bulkMode === "percent") {
+        if (bulkEditSellingPrice && bulkMode === "percent") {
           const factor = value / 100;
           newPrice = bulkDirection === "increase" ? p.price * (1 + factor) : p.price * (1 - factor);
-        } else if (bulkMode === "flat") {
+        } else if (bulkEditSellingPrice && bulkMode === "flat") {
           newPrice = bulkDirection === "increase" ? p.price + value : p.price - value;
-        } else {
+        } else if (bulkEditSellingPrice) {
           newPrice = value;
         }
         newPrice = Math.max(0, Math.round(newPrice * 100) / 100);
-        return { id: p.id, price: newPrice };
+        const changes: Record<string, any> = {};
+        if (bulkEditSellingPrice) changes.price = newPrice;
+        if (bulkEditOriginalPrice) changes.old_price = originalPrice;
+        if (bulkEditDescription) changes.description = bulkDescription;
+        return { id: p.id, changes };
       });
-      await Promise.all(updates.map((u) => supabase.from("products").update({ price: u.price }).eq("id", u.id)));
-      const priceById = new Map(updates.map((u) => [u.id, u.price]));
-      setProducts(products.map((p) => priceById.has(p.id) ? { ...p, price: priceById.get(p.id)! } : p));
+      const results = await Promise.all(updates.map((u) => supabase.from("products").update(u.changes).eq("id", u.id)));
+      const failed = results.find((result) => result.error);
+      if (failed?.error) throw failed.error;
+      const changesById = new Map(updates.map((u) => [u.id, u.changes]));
+      setProducts(products.map((p) => changesById.has(p.id) ? { ...p, ...changesById.get(p.id)! } : p));
       revalidateMyStore();
       setShowBulkPrice(false);
       setSelectedProductIds(new Set());
       setBulkValue("");
+      setBulkOriginalPrice("");
+      setBulkDescription("");
+      setBulkEditSellingPrice(true);
+      setBulkEditOriginalPrice(false);
+      setBulkEditDescription(false);
+    } catch (error: any) {
+      console.error("Bulk product update failed", error);
+      alert(`Bulk update failed: ${error?.message || "unknown error"}`);
     } finally {
       setBulkApplying(false);
     }
@@ -1818,6 +1894,18 @@ export default function Dashboard() {
   };
 
   if (loading) return <Spinner fullscreen label="Loading dashboard" />;
+
+  if (dashboardLoadError) return (
+    <div data-theme={theme} style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+      <style>{`[data-theme="dark"] { ${themeVars("dark")} color-scheme: dark; } [data-theme="light"] { ${themeVars("light")} color-scheme: light; }`}</style>
+      <div style={{ width: "100%", maxWidth: 520, padding: 28, borderRadius: 20, background: "var(--panel)", border: "1px solid var(--border)", textAlign: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>Your store data is safe</div>
+        <p style={{ margin: "0 auto 22px", color: "var(--muted)", lineHeight: 1.65 }}>{dashboardLoadError}</p>
+        <button type="button" onClick={() => void checkAuth()} style={{ width: "100%", padding: "14px 18px", border: 0, borderRadius: 100, background: "#ff6b35", color: "#fff", fontWeight: 800, cursor: "pointer", marginBottom: 10 }}>Try loading again</button>
+        <button type="button" onClick={handleLogout} style={{ width: "100%", padding: "13px 18px", borderRadius: 100, background: "transparent", border: "1px solid var(--border)", color: "var(--text)", fontWeight: 700, cursor: "pointer" }}>Sign out and sign in again</button>
+      </div>
+    </div>
+  );
 
   const trialActive = seller?.subscription_status === "trial" && seller?.trial_ends_at && new Date(seller.trial_ends_at) > new Date();
   const trialDaysLeft = seller?.trial_ends_at ? Math.max(0, Math.ceil((new Date(seller.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
@@ -2075,13 +2163,68 @@ export default function Dashboard() {
       <span style={{ width: size, height: size, borderRadius: "50%", background: G, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize, fontWeight: 800, flexShrink: 0 }}>{storeInitials}</span>
     );
   const isFreePlan = seller?.subscription_status === "free";
+  // 4REGN is CatalogStore's first-party flagship storefront and maintains a
+  // much larger merchandising taxonomy than merchant plans permit. Keep the
+  // exemption pinned to its immutable seller id so another store cannot gain
+  // it by choosing a similar name or subdomain.
+  const hasUnlimitedCollections = seller?.id === "b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a";
   const planLimits = isFreePlan
-    ? { products: 15, images: 5, collections: 10, templates: 1 }
-    : { products: Infinity, images: 50, collections: 10, templates: 5 };
+    ? { products: 15, images: 5, collections: hasUnlimitedCollections ? Infinity : 10, templates: 1 }
+    : { products: Infinity, images: 50, collections: hasUnlimitedCollections ? Infinity : 10, templates: 5 };
   const activeProductCount = products.filter((p) => p.status !== "trashed").length;
   const canAddProduct = activeProductCount < planLimits.products;
   const canAddCollection = storeCollections.length < planLimits.collections;
   const maxImages = planLimits.images;
+
+  const createCollection = async (rawName: string): Promise<boolean> => {
+    const name = rawName.trim();
+    setCollectionFeedback(null);
+    if (!name) {
+      setCollectionFeedback({ type: "error", text: "Enter a collection name first." });
+      return false;
+    }
+    const existing = storeCollections.find((collection) => collection.trim().toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setCollectionFeedback({ type: "error", text: `“${existing}” already exists.` });
+      return false;
+    }
+    if (!seller) {
+      setCollectionFeedback({ type: "error", text: "Your store account is still loading. Please try again." });
+      return false;
+    }
+    if (!canAddCollection) {
+      setCollectionFeedback({ type: "error", text: "Your current plan’s collection limit has been reached." });
+      return false;
+    }
+
+    setCollectionSaving(true);
+    const updated = [...storeCollections, name];
+    const { data, error } = await supabase.from("sellers")
+      .update({ collections: updated })
+      .eq("id", seller.id)
+      .select("collections")
+      .single();
+    setCollectionSaving(false);
+
+    if (error || !data) {
+      const message = error?.message || "The database did not confirm the update.";
+      setCollectionFeedback({ type: "error", text: `Collection was not created: ${message}` });
+      return false;
+    }
+
+    const savedCollections = Array.isArray(data.collections) ? data.collections : updated;
+    if (!savedCollections.some((collection: string) => collection.trim().toLowerCase() === name.toLowerCase())) {
+      setCollectionFeedback({ type: "error", text: "Collection was not saved. Please try again." });
+      return false;
+    }
+
+    setStoreCollections(savedCollections);
+    setNewCollection("");
+    setSeller({ ...seller, collections: savedCollections });
+    setCollectionFeedback({ type: "success", text: `“${name}” was created successfully.` });
+    revalidateMyStore();
+    return true;
+  };
 
   // ── GROW YOUR BUSINESS ── plan-aware upsell list shown once launch is
   // complete. Pro sellers already have templates/product limits unlocked,
@@ -3009,7 +3152,7 @@ export default function Dashboard() {
               {selectedProductIds.size > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px 8px 16px", background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 100 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: N }}>{selectedProductIds.size} selected</span>
-                  <button onClick={() => setShowBulkPrice(true)} style={{ padding: "8px 16px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Bulk Edit Prices</button>
+                  <button onClick={() => setShowBulkPrice(true)} style={{ padding: "8px 16px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Bulk Edit Products</button>
                   <button onClick={() => setSelectedProductIds(new Set())} style={{ padding: "8px 12px", background: "transparent", border: "none", color: "var(--muted)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Clear</button>
                 </div>
               )}
@@ -3401,34 +3544,64 @@ export default function Dashboard() {
 
             {showBulkPrice && (
               <div onClick={() => setShowBulkPrice(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-                <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 20, maxWidth: 420, width: "100%", padding: "28px 24px" }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.02em", marginBottom: 4 }}>Bulk Edit Prices</h3>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 20, maxWidth: 560, width: "100%", padding: "28px 24px", maxHeight: "90vh", overflowY: "auto" }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.02em", marginBottom: 4 }}>Bulk Edit Products</h3>
                   <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>Applies to {selectedProductIds.size} selected product{selectedProductIds.size !== 1 ? "s" : ""}.</p>
 
-                  <label style={{ ...labelStyle, marginBottom: 8 }}>Adjustment type</label>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                    {([{ key: "percent", label: "Percentage" }, { key: "flat", label: "Flat Amount" }, { key: "set", label: "Set Price" }] as const).map((m) => (
-                      <button key={m.key} onClick={() => setBulkMode(m.key)} style={{ flex: 1, padding: "10px 8px", background: bulkMode === m.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkMode === m.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkMode === m.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{m.label}</button>
-                    ))}
-                  </div>
-
-                  {bulkMode !== "set" && (
-                    <>
-                      <label style={{ ...labelStyle, marginBottom: 8 }}>Direction</label>
+                  <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, marginBottom: 14 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: bulkEditSellingPrice ? 16 : 0 }}>
+                      <input type="checkbox" checked={bulkEditSellingPrice} onChange={(e) => setBulkEditSellingPrice(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const }}>Update selling price</span>
+                    </label>
+                    {bulkEditSellingPrice && <>
+                      <label style={{ ...labelStyle, marginBottom: 8 }}>Adjustment type</label>
                       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                        {([{ key: "increase", label: "Increase" }, { key: "decrease", label: "Decrease" }] as const).map((d) => (
-                          <button key={d.key} onClick={() => setBulkDirection(d.key)} style={{ flex: 1, padding: "10px 8px", background: bulkDirection === d.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkDirection === d.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkDirection === d.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{d.label}</button>
+                        {([{ key: "percent", label: "Percentage" }, { key: "flat", label: "Flat Amount" }, { key: "set", label: "Set Price" }] as const).map((m) => (
+                          <button key={m.key} onClick={() => setBulkMode(m.key)} style={{ flex: 1, padding: "10px 8px", background: bulkMode === m.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkMode === m.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkMode === m.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{m.label}</button>
                         ))}
                       </div>
-                    </>
-                  )}
 
-                  <label style={labelStyle}>{bulkMode === "percent" ? "Percentage (%)" : bulkMode === "flat" ? "Amount (R)" : "New price (R)"}</label>
-                  <input type="number" min="0" step="0.01" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkMode === "percent" ? "e.g. 10" : "e.g. 50"} style={inputStyle} />
+                      {bulkMode !== "set" && <>
+                        <label style={{ ...labelStyle, marginBottom: 8 }}>Direction</label>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                          {([{ key: "increase", label: "Increase" }, { key: "decrease", label: "Decrease" }] as const).map((d) => (
+                            <button key={d.key} onClick={() => setBulkDirection(d.key)} style={{ flex: 1, padding: "10px 8px", background: bulkDirection === d.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkDirection === d.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkDirection === d.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{d.label}</button>
+                          ))}
+                        </div>
+                      </>}
+
+                      <label style={labelStyle}>{bulkMode === "percent" ? "Percentage (%)" : bulkMode === "flat" ? "Amount (R)" : "New selling price (R)"}</label>
+                      <input type="number" min="0" step="0.01" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkMode === "percent" ? "e.g. 10" : "e.g. 350"} style={inputStyle} />
+                    </>}
+                  </div>
+
+                  <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, marginBottom: 14 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: bulkEditOriginalPrice ? 14 : 0 }}>
+                      <input type="checkbox" checked={bulkEditOriginalPrice} onChange={(e) => setBulkEditOriginalPrice(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const }}>Update original price</span>
+                    </label>
+                    {bulkEditOriginalPrice && <>
+                      <label style={labelStyle}>New original price (R)</label>
+                      <input type="number" min="0" step="0.01" value={bulkOriginalPrice} onChange={(e) => setBulkOriginalPrice(e.target.value)} placeholder="e.g. 599" style={inputStyle} />
+                      <p style={{ fontSize: 10, color: "var(--muted-2)", margin: "8px 0 0" }}>Leave empty to remove the crossed-out original price from all selected products.</p>
+                    </>}
+                  </div>
+
+                  <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: bulkEditDescription ? 14 : 0 }}>
+                      <input type="checkbox" checked={bulkEditDescription} onChange={(e) => setBulkEditDescription(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const }}>Update description</span>
+                    </label>
+                    {bulkEditDescription && <>
+                      <label style={labelStyle}>Description for all selected products</label>
+                      <textarea value={bulkDescription} onChange={(e) => setBulkDescription(e.target.value)} rows={7} placeholder="Enter the shared product description, or leave this completely empty to remove the descriptions." style={{ ...inputStyle, resize: "vertical", lineHeight: 1.55 }} />
+                      <p style={{ fontSize: 10, color: bulkDescription === "" ? "#fbbf24" : "var(--muted-2)", margin: "8px 0 0", lineHeight: 1.5 }}>{bulkDescription === "" ? "Empty description selected: applying this will clear the entire description field on every selected product." : "This exact description will replace the current description on every selected product."}</p>
+                    </>}
+                  </div>
 
                   <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                     <button onClick={() => setShowBulkPrice(false)} style={{ flex: 1, padding: "12px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Cancel</button>
-                    <button onClick={applyBulkPrice} disabled={bulkApplying || !bulkValue} style={{ flex: 1, padding: "12px", background: G, border: "none", borderRadius: 100, color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bulkApplying || !bulkValue ? "not-allowed" : "pointer", opacity: bulkApplying || !bulkValue ? 0.6 : 1, textTransform: "uppercase" as const }}>{bulkApplying ? "Applying..." : "Apply"}</button>
+                    <button onClick={applyBulkPrice} disabled={bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) || (bulkEditSellingPrice && !bulkValue)} style={{ flex: 1, padding: "12px", background: G, border: "none", borderRadius: 100, color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bulkApplying ? "not-allowed" : "pointer", opacity: bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) || (bulkEditSellingPrice && !bulkValue) ? 0.6 : 1, textTransform: "uppercase" as const }}>{bulkApplying ? "Applying..." : "Apply changes"}</button>
                   </div>
                 </div>
               </div>
@@ -3521,10 +3694,11 @@ export default function Dashboard() {
               </div>
             ) : (
               <div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-                  <input type="text" placeholder="New collection name..." value={newCollection} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } } }} style={{ flex: 1, padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
-                  <button onClick={async () => { if (!canAddCollection) { alert("Plan limit reached."); return; } const name = newCollection.trim(); if (name && !storeCollections.includes(name)) { const updated = [...storeCollections, name]; setStoreCollections(updated); setNewCollection(""); await supabase.from("sellers").update({ collections: updated }).eq("id", seller!.id); setSeller({ ...seller!, collections: updated }); revalidateMyStore(); } }} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>+ Create</button>
+                <div style={{ display: "flex", gap: 8, marginBottom: collectionFeedback ? 8 : 24 }}>
+                  <input type="text" placeholder="New collection name..." value={newCollection} disabled={collectionSaving} onChange={(e) => { setNewCollection(e.target.value); if (collectionFeedback) setCollectionFeedback(null); }} onKeyDown={async (e) => { if (e.key === "Enter") { e.preventDefault(); await createCollection(newCollection); } }} style={{ flex: 1, padding: "12px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none", opacity: collectionSaving ? 0.65 : 1 }} />
+                  <button type="button" disabled={collectionSaving} onClick={() => void createCollection(newCollection)} style={{ padding: "12px 24px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: collectionSaving ? "wait" : "pointer", opacity: collectionSaving ? 0.65 : 1, textTransform: "uppercase" as const, letterSpacing: "0.04em", whiteSpace: "nowrap" as const }}>{collectionSaving ? "Saving..." : "+ Create"}</button>
                 </div>
+                {collectionFeedback && <div role={collectionFeedback.type === "error" ? "alert" : "status"} style={{ marginBottom: 24, padding: "10px 12px", borderRadius: 10, background: collectionFeedback.type === "success" ? "rgba(34,197,94,0.08)" : "rgba(220,38,38,0.08)", border: `1px solid ${collectionFeedback.type === "success" ? "rgba(34,197,94,0.2)" : "rgba(220,38,38,0.2)"}`, color: collectionFeedback.type === "success" ? "#16a34a" : "#dc2626", fontSize: 11, fontWeight: 700 }}>{collectionFeedback.text}</div>}
                 {storeCollections.length === 0 ? (
                   <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 16, fontWeight: 800, textTransform: "uppercase" as const, marginBottom: 8 }}>No collections yet</p><p style={{ fontSize: 13, color: "var(--muted-2)" }}>Create your first collection to organize your products.</p></div>
                 ) : (

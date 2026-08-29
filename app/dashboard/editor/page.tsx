@@ -146,6 +146,7 @@ interface Seller {
     products_collapsed?: boolean;
     product_card_ratio?: string;
     collections_collapsed?: boolean;
+    spring_pants_sale_speed?: number;
     operating_hours_structured?: DayHours[];
   };
 }
@@ -163,7 +164,7 @@ type ActiveSection =
   | "announcement" | "logo" | "hero" | "ticker" | "circle" | "products" | "collections"
   | "policies" | "promise" | "about" | "testimonials" | "cta" | "trust" | "footer" | "occasions"
   | "setla" | "newsletter" | "shopbygender" | "ticker-strip" | "winter-essentials"
-  | "winter-sale-marquee" | "standard-graphic-hoodies"
+  | "winter-sale-marquee" | "standard-graphic-hoodies" | "spring-pants-sale"
   | null;
 
 const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
@@ -187,6 +188,7 @@ const SECTION_LABELS: Record<string, { icon: IconName; label: string }> = {
   shopbygender: { icon: "circle",       label: "Shop by Gender" },
   "ticker-strip":      { icon: "ticker", label: "4regn Ticker Strip" },
   "winter-essentials": { icon: "image",  label: "Winter Essentials" },
+  "spring-pants-sale": { icon: "image",  label: "Spring Sale Pants" },
   "winter-sale-marquee": { icon: "image", label: "Spring Sale Marquee" },
   "standard-graphic-hoodies": { icon: "image", label: "Standard Graphic Hoodies" },
 };
@@ -449,6 +451,7 @@ export default function StoreEditor() {
   // picker (see the effect below, which also covers resolving thumbnails
   // for already-saved product-id slides -- not just the "add" picker).
   const [winterSpeed, setWinterSpeed] = useState(0.6);
+  const [springPantsSpeed, setSpringPantsSpeed] = useState(0.6);
   const [winterSlides, setWinterSlides] = useState<string[]>([]);
   const [winterPickerOpen, setWinterPickerOpen] = useState(false);
   const [winterDragIdx, setWinterDragIdx] = useState<number | null>(null);
@@ -710,6 +713,7 @@ export default function StoreEditor() {
       if (cfg?.collection_descriptions) setCollectionDescriptions(cfg.collection_descriptions);
       if (cfg?.hidden_collections) setHiddenCollections(cfg.hidden_collections);
       if (cfg?.winter_essentials_speed !== undefined) setWinterSpeed(cfg.winter_essentials_speed);
+      if (cfg?.spring_pants_sale_speed !== undefined) setSpringPantsSpeed(cfg.spring_pants_sale_speed);
       if (cfg?.winter_essentials_slides) setWinterSlides(cfg.winter_essentials_slides);
       if ((cfg as any)?.standard_graphic_hoodies_interval !== undefined) setHoodieDeckInterval((cfg as any).standard_graphic_hoodies_interval);
       if ((cfg as any)?.standard_graphic_hoodies_slides) setHoodieDeckSlides((cfg as any).standard_graphic_hoodies_slides);
@@ -1076,6 +1080,7 @@ export default function StoreEditor() {
       collection_descriptions: collectionDescriptions,
       hidden_collections: hiddenCollections,
       winter_essentials_speed: winterSpeed,
+      spring_pants_sale_speed: springPantsSpeed,
       winter_essentials_slides: winterSlides,
       standard_graphic_hoodies_interval: hoodieDeckInterval,
       standard_graphic_hoodies_slides: hoodieDeckSlides,
@@ -2127,6 +2132,27 @@ export default function StoreEditor() {
                 </div>
                 <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.35)", lineHeight: 1.6 }}>
                   The MEN and WOMEN category tiles come from your real Collections list. Add collections named &quot;Men Tops&quot;, &quot;Women Dresses&quot;, etc. plus &quot;ALL MEN&quot; / &quot;ALL WOMEN&quot; for the Shop All buttons. A gender panel only appears once it has at least one matching collection.
+                </div>
+              </div>
+            )}
+
+            {/* SPRING SALE PANTS COVERFLOW — keeps its own speed instead of
+                sharing the Winter Essentials setting. Products continue to
+                be managed from the BUY 2 FOR R699! collection. */}
+            {activeSection === "spring-pants-sale" && seller?.template === "4regn" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Scroll Speed</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input type="range" min={0.2} max={2} step={0.1} value={springPantsSpeed}
+                      onChange={e => setSpringPantsSpeed(parseFloat(e.target.value))}
+                      style={{ flex: 1, accentColor: "#9c7c62" }} />
+                    <span style={{ fontSize: 12, color: "rgba(245,245,245,0.5)", width: 32, textAlign: "right" }}>{springPantsSpeed.toFixed(1)}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(245,245,245,0.4)", marginTop: 4 }}>Higher is faster. Default 0.6.</div>
+                </div>
+                <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, fontSize: 12, color: "rgba(245,245,245,0.4)", lineHeight: 1.55 }}>
+                  The images come automatically from products in your <strong style={{ color: "rgba(245,245,245,0.7)" }}>BUY 2 FOR R699!</strong> collection.
                 </div>
               </div>
             )}

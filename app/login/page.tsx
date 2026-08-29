@@ -24,7 +24,8 @@ export default function Login() {
     const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
     const safeNext = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : null;
     const isFourRegnAdminHost = typeof window !== "undefined" && ["admin.4regn.com", "www.admin.4regn.com"].includes(window.location.hostname);
-    router.push(safeNext || (isFourRegnAdminHost ? "/production" : "/dashboard"));
+    const isPlatformAdmin = email.trim().toLowerCase() === "info@4regn.com";
+    router.push(safeNext || (isFourRegnAdminHost ? "/production" : isPlatformAdmin ? "/admin" : "/dashboard"));
   };
 
   const handleReset = async () => {

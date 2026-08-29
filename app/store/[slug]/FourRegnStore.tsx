@@ -148,6 +148,9 @@ interface StoreConfig {
   // scroll speed, same range as the Liquid version's own setting
   // (0.2-2, default 0.6).
   winter_essentials_speed?: number;
+  // Spring Sale pants uses the same coverflow but keeps an independent
+  // speed so seasonal sections can be tuned separately.
+  spring_pants_sale_speed?: number;
   // Ordered slide list -- each entry is EITHER a product id (its image_url
   // is looked up live against this seller's current products, so it stays
   // correct if that product's photo changes later) OR a direct image URL
@@ -180,7 +183,10 @@ function renderOfferLine(line: string, keyPrefix: string) {
     if (/^free[.,!]?$/i.test(word)) {
       return <strong key={`${keyPrefix}-${i}`} className="fr-hero-offer-pulse">{word}</strong>;
     }
-    if (/^\d/.test(word)) {
+    // Highlight quantities ("2") and the advertised Rand price ("R449")
+    // in the same accent red. The punctuation is kept inside the span so a
+    // final exclamation mark doesn't create an awkward visual gap.
+    if (/^\d/.test(word) || /^R\d+(?:[.,]\d+)?[!,.)]?$/i.test(word)) {
       return <span key={`${keyPrefix}-${i}`} className="fr-hero-offer-accent">{word}</span>;
     }
     return word;
@@ -206,7 +212,7 @@ interface Product {
   id: string; name: string; price: number; old_price: number | null;
   category: string; image_url: string | null; images: string[];
   variants: Variant[]; in_stock: boolean; description: string;
-  size_chart_html?: string | null;
+  size_chart_html?: string | null; status?: string;
   sort_order: number; created_at?: string; tags?: string[];
   // SEO-friendly Shopify-derived handle, once backfilled -- see
   // goToProduct() below. Optional: not every product has one yet (a fresh
@@ -1743,6 +1749,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const displayHeroDisclaimer = liveHeroDisclaimer ?? config.hero_disclaimer ?? "";
   const displayHeroOfferHeadline = normalizeOversizedTeePromoCopy(liveHeroOfferHeadline ?? config.hero_offer_headline ?? "");
   const displayHeroOfferNote = normalizeOversizedTeePromoCopy(liveHeroOfferNote ?? config.hero_offer_note ?? "");
+  const heroOfferLines = displayHeroOfferHeadline.split("\n");
+  const heroUsesSpringSalePill = /^spring sale!?$/i.test(heroOfferLines[0]?.trim() || "");
+  const visibleHeroOfferHeadline = heroUsesSpringSalePill ? heroOfferLines.slice(1).join("\n").trim() : displayHeroOfferHeadline;
   const showAbout = liveShowAbout ?? config.show_about ?? true;
   const aboutEyebrow = liveAboutEyebrow ?? config.about_eyebrow ?? "Est. 2019 — South Africa";
   const aboutHeading = liveAboutHeading ?? config.about_heading ?? "Built for the Culture";
@@ -2158,6 +2167,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-setla{position:relative;min-height:560px;overflow:hidden;background:#050505;isolation:isolate}
 .fr-setla::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(5,5,5,.99) 0%,rgba(5,5,5,.95) 30%,rgba(5,5,5,.6) 47%,rgba(5,5,5,.1) 68%,rgba(5,5,5,.1) 100%);z-index:1}
 .fr-setla-photo{position:absolute;inset:0 0 0 39%;z-index:0}
+.fr-setla-photo img{width:100%;height:100%;display:block;object-fit:cover}
 .fr-setla-glow{position:absolute;z-index:1;width:380px;height:380px;border-radius:50%;background:rgba(0,117,23,.24);filter:blur(120px);left:18%;bottom:-160px;pointer-events:none}
 /* This is flex with no flex-direction -- meaning its 5 direct children
    (eyebrow, h1, lead paragraph, cta row, note) were laid out as a
@@ -3461,11 +3471,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               )}
               <div className="fr-hero-overlay" />
               <div className="fr-hero-inner">
-                {showHeroPill && <div className="fr-hero-pill">{heroPillLabel}</div>}
+                {heroUsesSpringSalePill ? (
+                  <div className="fr-hero-pill">SPRING SALE!</div>
+                ) : showHeroPill ? <div className="fr-hero-pill">{heroPillLabel}</div> : null}
                 {displayHeroLabel && <div className="fr-hero-label">{displayHeroLabel}</div>}
-                {displayHeroOfferHeadline && (
+                {visibleHeroOfferHeadline && (
                   <p className="fr-hero-offer">
-                    {displayHeroOfferHeadline.split("\n").map((line, i, arr) => (
+                    {visibleHeroOfferHeadline.split("\n").map((line, i, arr) => (
                       <Fragment key={i}>
                         {renderOfferLine(line, `offer-${i}`)}
                         {i < arr.length - 1 && <br />}
@@ -3520,7 +3532,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             component they're fixed text rather than editable fields --
             matches the real section, which doesn't expose them as settings
             either. */}
-        {isHomeView && showSetlaBanner && (
+        {false && isHomeView && showSetlaBanner && (
           <EditSection id="setla">
             <section className="fr-setla">
               {setlaPhotoUrl && (
@@ -3613,23 +3625,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           );
         })()}
 
-        {/* WINTER ESSENTIALS COVERFLOW — only on landing page, right after
-            the ticker strip. Images come from whatever products are
-            actually tagged "WINTER ESSENTIALS" (see WinterCoverflow's own
-            comment for why) -- renders nothing at all if that collection
-            is currently empty, same "hide empty collections" precedent
-            the rest of this file already follows elsewhere. All-caps to
-            match this store's actual category value (confirmed against
-            real product rows -- most of this store's own category tags
-            are stored upper-case, e.g. "JACKETS"/"GRAPHIC HOODIES"). */}
-        {isHomeView && (() => {
+        {/* WINTER ESSENTIALS COVERFLOW — paused for the Spring Sale so the
+            pants campaign occupies this position and the homepage has fewer
+            competing image requests. The saved editor setup remains intact. */}
+        {false && isHomeView && (() => {
           // Dashboard-curated order/selection (Editor -> Winter Essentials)
           // wins if set -- each entry is either a product id (resolved
           // against this seller's current products, live, so a later photo
           // change stays correct) or a direct upload URL. Falls back to
           // every WINTER ESSENTIALS-tagged product in catalog order when
           // nothing's been curated yet.
-          const configuredSlides = config.winter_essentials_slides;
+          // Settings from older stores may not have this key yet. Normalise
+          // it once so the optional dashboard field can never block a build
+          // (or the storefront) when Winter Essentials is switched on again.
+          const configuredSlides = config.winter_essentials_slides ?? [];
           // Capped at 16 -- WinterCoverflow duplicates whatever it's given
           // to build the seamless-loop track (see its own comment), so an
           // uncapped list here doubles straight into <img> tag count. This
@@ -3638,7 +3647,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // homepage load was a real, confirmed hit to page weight and
           // Core Web Vitals, not just a theoretical one. 16 is already
           // generous for a coverflow no one scrubs through end to end.
-          const images = (configuredSlides && configuredSlides.length > 0
+          const images = (configuredSlides.length > 0
             ? configuredSlides
                 .map((entry) => (entry.startsWith("http") || entry.startsWith("/")) ? entry : products.find((p) => p.id === entry)?.image_url)
                 .filter((url): url is string => !!url)
@@ -3651,6 +3660,40 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 images={images}
                 href={sp(`/collections/${collectionSlug("WINTER ESSENTIALS")}`)}
                 speed={config.winter_essentials_speed ?? 0.6}
+              />
+            </EditSection>
+          );
+        })()}
+
+        {/* SPRING SALE PANTS COVERFLOW — intentionally uses the identical
+            center-coverflow mechanics as Winter Essentials. The promo
+            collection is the source of truth, so only the R499 pants in
+            BUY 2 FOR R699! appear here and new qualifying pants flow into
+            the section automatically once added to that collection. */}
+        {isHomeView && (() => {
+          const promoCollection = "BUY 2 FOR R699!";
+          const images = products
+            // The homepage query already sends published products only. Its
+            // intentionally compact payload does not include status/in_stock.
+            .filter((p) => pInCat(p, promoCollection) && p.image_url)
+            .map((p) => p.image_url!)
+            // Eight distinct covers is enough for a seamless loop. Keeping
+            // the campaign compact prevents it competing with the hero for
+            // bandwidth on the first homepage visit.
+            .slice(0, 8);
+          if (images.length === 0) return null;
+          return (
+            <EditSection id="spring-pants-sale">
+              <WinterCoverflow
+                images={images}
+                href={sp(`/collections/${collectionSlug(promoCollection)}`)}
+                speed={config.spring_pants_sale_speed ?? 0.6}
+                eyebrow="SPRING SALE!"
+                title="PANTS"
+                deal="R499 EACH · BUY 2 FOR R699!"
+                buttonText="SHOP PANTS"
+                note="Mix & Match · Buy 2 For R699 · Ships Nationwide"
+                altPrefix="Spring Sale pants"
               />
             </EditSection>
           );
@@ -4243,6 +4286,45 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
         ))}
 
+        {/* SETLA sits directly before the brand story so customers see the
+            payment option after browsing the product campaigns, then move
+            naturally into the 4REGN story. */}
+        {isHomeView && showSetlaBanner && (
+          <EditSection id="setla">
+            <section className="fr-setla">
+              {setlaPhotoUrl && (
+                <div className="fr-setla-photo">
+                  <img src={campaignImageUrl(setlaPhotoUrl, 1200)} alt="" loading="lazy" decoding="async" />
+                </div>
+              )}
+              <div className="fr-setla-glow" />
+              <div className="fr-setla-inner">
+                <div className="fr-setla-eyebrow">{setlaEyebrow}</div>
+                <h2 className="fr-setla-h1" aria-label="Buy now, pay later">
+                  <span aria-hidden="true">
+                    <span className="fr-setla-beat" style={{ animationDelay: "0s" }}>Buy</span>{" "}
+                    <span className="fr-setla-beat" style={{ animationDelay: "0.5s" }}>now,</span>
+                    <br />
+                    <span className="fr-setla-beat" style={{ animationDelay: "1s" }}>Pay</span>{" "}
+                    <span className="fr-setla-beat" style={{ animationDelay: "1.5s" }}>Later</span>
+                  </span>
+                </h2>
+                <p className="fr-setla-lead">{setlaLead}</p>
+                <div className="fr-cta-row">
+                  <a className="fr-setla-btn fr-setla-btn-primary" href="https://setla.4regn.com/signup.html" target="_blank" rel="noopener noreferrer">{setlaCtaPrimary} →</a>
+                  <a className="fr-setla-btn fr-setla-btn-secondary" href="https://setla.4regn.com/faq.html" target="_blank" rel="noopener noreferrer">{setlaCtaSecondary}</a>
+                </div>
+                <p className="fr-setla-note">{setlaNote}</p>
+              </div>
+              <div className="fr-setla-plans" aria-label="SETLA payment options">
+                <div className="fr-setla-plan"><div className="fr-setla-plan-num">4</div><div><strong>4 instalments</strong><span>Over 6 weeks</span></div></div>
+                <div className="fr-setla-plan"><div className="fr-setla-plan-num">2</div><div><strong>2 instalments</strong><span>Monthly</span></div></div>
+              </div>
+              <div className="fr-setla-badge"><i />{setlaBadge}</div>
+            </section>
+          </EditSection>
+        )}
+
         {/* ABOUT — "Built for the Culture" brand story, only on landing
             page, directly above the newsletter (matches the real Shopify
             site's section order). */}
@@ -4760,6 +4842,15 @@ function normalizeOversizedTeePromoCopy(text: string) {
     .replace(/R350\s*EACH\s*BUY\s*3\s*FOR\s*2/gi, "BUY 2 FOR R449!");
 }
 
+// Campaign slides only render at card size. Supabase's image-transform
+// endpoint keeps their initial download small without touching the original
+// product photos used on the PDP/gallery.
+function campaignImageUrl(source: string, width = 720) {
+  const match = source.match(/^(https:\/\/[^/]+\.supabase\.co)\/storage\/v1\/object\/public\/(.+)$/);
+  if (!match) return source;
+  return `${match[1]}/storage/v1/render/image/public/${match[2]}?width=${width}&quality=72&resize=contain`;
+}
+
 function DescriptionText({ text, promo = false }: { text: string; promo?: boolean }) {
   const paragraphs = normalizeOversizedTeePromoCopy(text).split(/\n\n+/);
   return (
@@ -4916,12 +5007,16 @@ function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[
                 pointerEvents: depth === 0 ? "auto" : "none",
               }}
             >
-              <Image
-                src={images[imageIndex]}
+              {/* Keep campaign slides off Vercel's image optimiser. Product
+                  photos are already served from Supabase Storage and the
+                  optimiser can return a billing error, leaving a campaign
+                  section blank even though the original photo is available. */}
+              <img
+                src={campaignImageUrl(images[imageIndex], 720)}
                 alt={`Standard Graphic Hoodie look ${imageIndex + 1}`}
-                width={320}
-                height={427}
-                sizes="(max-width: 533px) 60vw, 320px"
+                loading={depth === 0 ? "eager" : "lazy"}
+                fetchPriority={depth === 0 ? "high" : "auto"}
+                decoding="async"
               />
             </a>
           ))}
@@ -4935,7 +5030,27 @@ function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[
   );
 }
 
-function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href: string; speed?: number }) {
+function WinterCoverflow({
+  images,
+  href,
+  speed = 0.6,
+  eyebrow = "Winter Essentials",
+  title = "BUNDLE UP.",
+  deal = "7 YEAR ANNIVERSARY SALE — UP TO 70% OFF!",
+  buttonText = "SHOP WINTER ESSENTIALS",
+  note = "Up to 70% Off · Anniversary Sale · Ships Nationwide",
+  altPrefix = "Winter Essentials",
+}: {
+  images: string[];
+  href: string;
+  speed?: number;
+  eyebrow?: string;
+  title?: string;
+  deal?: string;
+  buttonText?: string;
+  note?: string;
+  altPrefix?: string;
+}) {
   const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const slides = images.length > 0 ? [...images, ...images] : [];
@@ -4995,9 +5110,9 @@ function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href
   return (
     <div className="fr-cef">
       <div className="fr-cef-head">
-        <div className="fr-cef-eyebrow">Winter Essentials</div>
-        <h2 className="fr-cef-title">BUNDLE UP.</h2>
-        <div className="fr-cef-sub">7 YEAR ANNIVERSARY SALE — UP TO 70% OFF!</div>
+        <div className="fr-cef-eyebrow">{eyebrow}</div>
+        <h2 className="fr-cef-title">{title}</h2>
+        <div className="fr-cef-sub">{deal}</div>
       </div>
       <div className="fr-cef-stage" ref={stageRef}>
         <div className="fr-cef-track" ref={trackRef}>
@@ -5011,25 +5126,20 @@ function WinterCoverflow({ images, href, speed = 0.6 }: { images: string[]; href
                   per-slide label in `images` (just raw URLs), so this falls
                   back to the section's own heading context rather than
                   leaving it blank. */}
-              {/* Real PageSpeed trace flagged this whole carousel as the
-                  next-biggest image-payload offender after the footer logo
-                  above -- 14 unique plain <img> slides (doubled for the
-                  seamless-loop track, see slides below), each shipping the
-                  raw ~828-2885px-wide uploaded photo for a card that only
-                  ever renders 220-360px wide (sizeCards() below). next/image
-                  resizes to what's actually on screen and serves WebP/AVIF;
-                  `sizes` mirrors sizeCards()'s own `vw*0.42` clamp(220,360)
-                  so the generated srcset matches the real rendered width. */}
+              {/* These slide images load directly from public storage rather
+                  than through Next/Vercel's optimiser. This keeps the
+                  campaign visible if the optimiser is unavailable or has
+                  reached an account billing limit. */}
               <a className="fr-cef-card" href={href}>
-                <Image src={src} alt={`Winter Essentials look ${i + 1}`} width={360} height={480} sizes="(max-width: 524px) 42vw, (max-width: 857px) 220px, 360px" />
+                <img src={campaignImageUrl(src, 720)} alt={`${altPrefix} look ${(i % images.length) + 1}`} loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : "auto"} decoding="async" />
               </a>
             </div>
           ))}
         </div>
       </div>
       <div className="fr-cef-cta">
-        <a href={href} className="fr-cef-btn">SHOP WINTER ESSENTIALS</a>
-        <div className="fr-cef-note">Up to 70% Off · Anniversary Sale · Ships Nationwide</div>
+        <a href={href} className="fr-cef-btn">{buttonText}</a>
+        <div className="fr-cef-note">{note}</div>
       </div>
     </div>
   );
@@ -5070,7 +5180,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
               <div className="fr-fwm-marquee">
                 {hoodieSlides.map((src, i) => (
                   <a key={i} className="fr-fwm-card" href={hoodieHref}>
-                    <Image src={src} alt={`Hoodie ${(i % hoodieImages.length) + 1}`} width={175} height={233} sizes="(max-width: 699px) 150px, 175px" />
+                    <img src={campaignImageUrl(src, 420)} alt={`Hoodie ${(i % hoodieImages.length) + 1}`} loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                   </a>
                 ))}
               </div>
@@ -5087,7 +5197,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
               <div className="fr-fwm-marquee reverse">
                 {teeSlides.map((src, i) => (
                   <a key={i} className="fr-fwm-card" href={teeHref}>
-                    <Image src={src} alt={`Oversized tee ${(i % teeImages.length) + 1}`} width={175} height={233} sizes="(max-width: 699px) 150px, 175px" />
+                    <img src={campaignImageUrl(src, 420)} alt={`Oversized tee ${(i % teeImages.length) + 1}`} loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                   </a>
                 ))}
               </div>
