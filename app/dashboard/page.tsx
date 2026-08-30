@@ -17,6 +17,7 @@ import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template
 import type { FullAnalytics } from "../../lib/store-analytics";
 import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
 import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
+import { UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../lib/unik-orders";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -2015,13 +2016,10 @@ export default function Dashboard() {
   // activateSetlaPlanAfterPayment runs on confirmed payment (see
   // lib/setla-instalments.ts). Both plan-specific values are kept here
   // too, for any order created before that change.
-  // Must match sweepAbandonedOrders' own gateway list (lib/unik-orders.ts)
-  // -- this filter was missing "stitch" and "float", so an order the sweep
-  // correctly relabelled "abandoned" (or a real Stitch decline via
-  // markUnikOrderFailed) fell straight through to visibleOrders instead of
-  // this tab. On a store where Stitch is the primary card gateway, that
-  // meant nearly every real abandoned/failed checkout was invisible here.
-  const UNRESOLVED_PAYMENT_METHODS = ["payfast", "yoco", "stitch", "float", "setla", "setla_pay_later", "setla_laybuy"];
+  // Shared with the abandoned-cart recovery email cron so both agree on
+  // exactly which orders count as "abandoned" -- see its own comment in
+  // lib/unik-orders.ts for why this used to be a locally-duplicated list.
+  const UNRESOLVED_PAYMENT_METHODS = UNRESOLVED_GATEWAY_PAYMENT_METHODS;
   // Includes "failed" as of this pass -- a real gateway decline
   // (lib/unik-orders.ts's markUnikOrderFailed, fired by the Yoco webhook's
   // payment.failed event) was being written to payment_status correctly,
