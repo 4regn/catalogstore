@@ -16,19 +16,11 @@ import { getStitchPaymentLink } from "./stitch";
 // touch it.
 export const ORDER_ABANDON_MS = 60 * 60 * 1000; // 1 hour
 
-// Gateways with their own real-time payment-confirmation lifecycle -- an
-// order on one of these that never actually got paid for was never a real
-// sale, so it belongs in the seller dashboard's Abandoned Carts tab (and is
-// what the abandoned-cart recovery email cron targets), not the main
-// Orders list. EFT is deliberately excluded: its "awaiting_payment" status
-// is a normal state the seller manually resolves once they see the bank
-// transfer, not an abandoned checkout. Exported (rather than each caller
-// keeping its own copy) after the dashboard's own copy of this list was
-// found to be missing "stitch" and "float" -- silently hiding every
-// abandoned/failed Stitch order (Stitch being 4regn's primary card
-// gateway) from that tab. A single shared list is what keeps that from
-// happening again.
-export const UNRESOLVED_GATEWAY_PAYMENT_METHODS = ["payfast", "yoco", "stitch", "float", "setla", "setla_pay_later", "setla_laybuy"];
+// UNRESOLVED_GATEWAY_PAYMENT_METHODS lives in lib/order-payment-methods.ts,
+// not here -- that module is dependency-free, importable from the
+// dashboard's client-side page. This module is server-only (web-push, via
+// lib/push-notify.ts, isn't safe in a browser bundle), so importing that
+// constant from here instead broke the dashboard's client build.
 
 /* Fallback for a missed Stitch webhook AND a customer who closes the tab
    before the checkout return page can self-heal. Every candidate is checked

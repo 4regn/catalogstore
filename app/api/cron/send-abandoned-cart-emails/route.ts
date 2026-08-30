@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
-import { ORDER_ABANDON_MS, UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../../../lib/unik-orders";
+import { ORDER_ABANDON_MS } from "../../../../lib/unik-orders";
+import { UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../../../lib/order-payment-methods";
 import { isUnsubscribed } from "../../../../lib/marketing-unsubscribe";
 import { sendAbandonedCartRecoveryEmail, type AbandonedCartOrderItem } from "../../../../lib/four-regn-abandoned-cart-email";
 
