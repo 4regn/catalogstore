@@ -19,6 +19,7 @@ type Campaign = {
 
 type Overview = {
   audienceCount: number;
+  planExcludedCount: number;
   genericGreetingCount: number;
   remainingCount: number;
   maxBatchSize: number;
@@ -152,6 +153,7 @@ export default function EmailCampaignPanel() {
             <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} opted-in subscribers eligible</span>
             <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} not sent yet</span>
             {overview.genericGreetingCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.genericGreetingCount.toLocaleString("en-ZA")} receive a generic greeting</span>}
+            {overview.planExcludedCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.planExcludedCount.toLocaleString("en-ZA")} held for the contact limit</span>}
           </div>
         </div>
 

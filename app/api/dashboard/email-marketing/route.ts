@@ -11,6 +11,10 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 const MAX_BATCH_SIZE = 600;
+// Resend's free Marketing plan allows 1,000 contacts. Keep the campaign
+// audience inside that hard limit so a later batch can never fail halfway
+// through contact syncing after an earlier batch has already been sent.
+const MAX_MARKETING_CONTACTS = 1000;
 
 type Settings = {
   seller_id: string;
@@ -68,7 +72,7 @@ async function allRows<T>(loadPage: (from: number, to: number) => PromiseLike<{ 
 
 type AudienceContact = { id: string; email: string; first_name: string | null; last_name: string | null };
 
-async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
+async function allMarketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
   const rows = await allRows<{ id: string; email: string; first_name: string | null; last_name: string | null }>((from, to) => admin.from("customers")
     .select("id, email, first_name, last_name").eq("seller_id", sellerId).eq("accepts_email_marketing", true)
     .not("email", "is", null).order("id", { ascending: true }).range(from, to));
@@ -86,6 +90,10 @@ async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sel
   return [...contactsByEmail.values()].sort((a, b) => Number(!!b.first_name) - Number(!!a.first_name));
 }
 
+async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
+  return (await allMarketingAudienceContacts(admin, sellerId)).slice(0, MAX_MARKETING_CONTACTS);
+}
+
 async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerId: string) {
   const used = await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
     .select("email").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).range(from, to));
@@ -100,17 +108,18 @@ export async function POST(req: NextRequest) {
     const { admin, seller } = await authenticate(accessToken);
 
     if (action === "overview") {
-      const [settings, audience, campaignsResult, usedEmails] = await Promise.all([
+      const [settings, allAudience, campaignsResult, usedEmails] = await Promise.all([
         getSettings(admin, seller.id),
-        marketingAudienceContacts(admin, seller.id),
+        allMarketingAudienceContacts(admin, seller.id),
         admin.from("marketing_email_campaigns")
           .select("id, name, subject, preview_text, resend_broadcast_id, resend_segment_id, batch_number, recipient_count, status, scheduled_at, sent_at, last_error, created_at")
           .eq("seller_id", seller.id).order("created_at", { ascending: false }).limit(20),
         campaignAudienceState(admin, seller.id),
       ]);
       if (campaignsResult.error) throw campaignsResult.error;
+      const audience = allAudience.slice(0, MAX_MARKETING_CONTACTS);
       const genericGreetingCount = audience.filter((contact) => !contact.first_name).length;
-      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, genericGreetingCount, remainingCount: Math.max(0, audience.length - usedEmails.size), campaigns: campaignsResult.data || [], template: FLASH_WEEKEND_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
+      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, planExcludedCount: Math.max(0, allAudience.length - audience.length), genericGreetingCount, remainingCount: Math.max(0, audience.length - usedEmails.size), campaigns: campaignsResult.data || [], template: FLASH_WEEKEND_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
     }
 
     if (action === "sync") {
