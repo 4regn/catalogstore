@@ -110,10 +110,23 @@ export default function EmailCampaignPanel() {
     finally { setBusy(""); }
   };
 
+  const discardCampaign = async (campaign: Campaign) => {
+    if (!window.confirm(`Discard the unsent ${campaign.recipient_count}-subscriber draft? No email will be sent, and you can prepare the corrected batch straight away.`)) return;
+    setBusy(`discard:${campaign.id}`); setError(""); setNotice("");
+    try {
+      await call("discard", { campaign_id: campaign.id });
+      setConfirmation("");
+      setNotice("Unsent draft discarded. You can now prepare the corrected Flash Weekend batch.");
+      await load();
+    } catch (discardError: any) { setError(discardError?.message || "Could not discard the draft."); }
+    finally { setBusy(""); }
+  };
+
   if (!overview && !error) return <div style={{ ...panel, padding: 24, marginBottom: 18, color: "var(--muted-2)", fontSize: 12 }}>Loading email marketing…</div>;
 
   const latestDraft = overview?.campaigns.find((campaign) => campaign.status === "draft");
   const preparingBatch = overview?.campaigns.find((campaign) => campaign.status === "preparing");
+  const unsentBatch = latestDraft || preparingBatch;
 
   return <>
     <section style={{ ...panel, padding: "clamp(16px,3vw,24px)", marginBottom: 18 }}>
@@ -150,6 +163,7 @@ export default function EmailCampaignPanel() {
             <div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 6 }}>{prepareProgress.current.toLocaleString("en-ZA")} / {prepareProgress.total.toLocaleString("en-ZA")}</div>
           </div>}
           <button disabled={!!busy || (overview.remainingCount === 0 && !preparingBatch) || !!latestDraft} onClick={createDraft} style={primaryButton}>{busy === "draft" ? "Preparing batch — keep this page open…" : preparingBatch ? "Resume batch preparation" : latestDraft ? "Draft ready below" : `Prepare ${Math.min(CAMPAIGN_BATCH_SIZE, overview.remainingCount).toLocaleString("en-ZA")} subscribers`}</button>
+          {unsentBatch && <button disabled={!!busy} onClick={() => discardCampaign(unsentBatch)} style={{ ...secondaryButton, width: "100%", marginTop: 8, color: "#ef4444", borderColor: "rgba(239,68,68,.35)" }}>{busy === `discard:${unsentBatch.id}` ? "Discarding…" : "Discard unsent draft"}</button>}
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
