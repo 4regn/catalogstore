@@ -268,6 +268,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === "discard") {
+      const campaignId = typeof body.campaign_id === "string" ? body.campaign_id : "";
+      const { data: campaign, error } = await admin.from("marketing_email_campaigns").select("id, status, resend_broadcast_id, resend_segment_id, template_key")
+        .eq("id", campaignId).eq("seller_id", seller.id).single();
+      if (error || !campaign) return NextResponse.json({ error: "Campaign batch not found" }, { status: 404 });
+      if (campaign.template_key !== FLASH_WEEKEND_CAMPAIGN.key) return NextResponse.json({ error: "Only Flash Weekend drafts can be discarded here" }, { status: 403 });
+      if (!['preparing', 'draft'].includes(campaign.status)) return NextResponse.json({ error: "Only unsent batches can be discarded" }, { status: 409 });
+
+      // Delete the Resend draft first. If this ever fails (for example because
+      // a draft was already sent outside the dashboard), keep the local batch
+      // intact rather than risking a campaign that cannot be audited.
+      if (campaign.resend_broadcast_id) {
+        try {
+          await resendMarketingRequest(`/broadcasts/${campaign.resend_broadcast_id}`, { method: "DELETE" });
+        } catch (discardError: any) {
+          if (discardError?.status !== 404) throw discardError;
+        }
+      }
+      if (campaign.resend_segment_id) {
+        try {
+          await resendMarketingRequest(`/segments/${campaign.resend_segment_id}`, { method: "DELETE" });
+        } catch (discardError: any) {
+          if (discardError?.status !== 404) throw discardError;
+        }
+      }
+      const { error: deleteError } = await admin.from("marketing_email_campaigns").delete().eq("id", campaign.id).eq("seller_id", seller.id);
+      if (deleteError) throw deleteError;
+      return NextResponse.json({ ok: true });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error: any) {
     console.error("Email marketing API error:", error);
