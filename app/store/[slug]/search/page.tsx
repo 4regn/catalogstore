@@ -8,6 +8,7 @@ import { resolveSellerTemplate } from "../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../lib/template-config";
 import { fetchAllRows } from "../../../../lib/fetch-all-rows";
 import { getCachedFourRegnCatalog } from "../../../../lib/four-regn-catalog-cache";
+import { productMatchesQuery } from "../../../../lib/product-search";
 import StoreUnavailable from "../StoreUnavailable";
 
 // force-dynamic, not force-static -- reads ?q/?page/?sort off searchParams
@@ -132,18 +133,16 @@ export default async function SearchPage({
   let discounts: any[] = [];
   let promoBadges: any[] = [];
   if (query) {
-    const qLower = query.toLowerCase();
     const { products: allProducts, discounts: cachedDiscounts, promoBadges: cachedPromoBadges } =
       await getCachedFourRegnCatalog(slug, seller.id);
-    // Same substring match (name or category, case-insensitive) as the
-    // header/mobile search popup's own `searched` filter in
-    // FourRegnStore.tsx -- typing "Kelvin" finds "Kelvin Momo Oversized
-    // Tee" here exactly the way it already does in the popup, so this page
-    // is a strict superset (a real URL for the same results), not a
-    // different search behavior to keep in sync separately.
-    matched = allProducts.filter(
-      (p) => p.name.toLowerCase().includes(qLower) || (p.category || "").toLowerCase().includes(qLower)
-    );
+    // Same multi-word, punctuation-insensitive, typo-tolerant match (see
+    // lib/product-search.ts) as the header/mobile search popup's own
+    // `searched` filter in FourRegnStore.tsx -- typing "Kelvin" finds
+    // "Kelvin Momo Oversized Tee" here exactly the way it already does in
+    // the popup, so this page is a strict superset (a real URL for the
+    // same results), not a different search behavior to keep in sync
+    // separately.
+    matched = allProducts.filter((p) => productMatchesQuery(p, query));
     discounts = cachedDiscounts;
     promoBadges = cachedPromoBadges;
   }

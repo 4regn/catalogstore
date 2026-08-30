@@ -11,6 +11,7 @@ import { trackStorefrontEvent, useLiveVisitorPing } from "../../../lib/use-live-
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../lib/automatic-discounts";
 import { FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM } from "../../../lib/four-regn-shipping";
 import { effectiveProductPrice } from "../../../lib/product-pricing";
+import { productMatchesQuery } from "../../../lib/product-search";
 import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
 import {
   FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_THRESHOLD,
@@ -1645,10 +1646,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // nothing".
   const searchQueryTrimmed = searchQuery.trim().toLowerCase();
   const searched = searchQueryTrimmed
-    ? searchSource.filter((p) =>
-        p.name.toLowerCase().includes(searchQueryTrimmed) ||
-        (p.category || "").toLowerCase().includes(searchQueryTrimmed)
-      )
+    ? searchSource.filter((p) => productMatchesQuery(p, searchQueryTrimmed))
     : null;
   const sortProducts = (list: Product[]) => {
     const out = [...list];
