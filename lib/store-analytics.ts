@@ -58,7 +58,7 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   const [sessionsRes, liveSessionsRes, eventRows, ordersRes] = await Promise.all([
     admin
       .from("store_visitor_sessions")
-      .select("visitor_id, session_date, country, region, city, had_cart, reached_checkout, cart_started_at, checkout_started_at, last_seen_at, last_path, last_status")
+      .select("visitor_id, session_date, country, region, city, had_cart, reached_checkout, cart_started_at, checkout_started_at, last_seen_at, last_path, last_status, customer_name, customer_email")
       .eq("seller_id", sellerId)
       .gte("session_date", windowStart),
     admin
@@ -90,18 +90,35 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   let reachedCheckoutToday = 0;
   const addedToCartActivity: FunnelVisitorActivity[] = [];
   const reachedCheckoutActivity: FunnelVisitorActivity[] = [];
+  // Identity-by-visitor, sourced from store_visitor_sessions -- unlike a
+  // one-time store_visitor_events row (captured the instant an event
+  // fires, almost always before a checkout visitor has typed their name/
+  // email), this session row is updated live as they type (see the
+  // heartbeat route's own comment on sessionUpdate). Used below to
+  // backfill identity onto activity built from either source, instead of
+  // a visitor who filled in their details and then left showing up as a
+  // nameless "random visitor" once they're no longer live.
+  const identityByVisitor = new Map<string, { customerName: string | null; customerEmail: string | null }>();
 
   for (const row of sessionRows) {
     if (dailyCounts.has(row.session_date)) dailyCounts.set(row.session_date, (dailyCounts.get(row.session_date) || 0) + 1);
+    if (row.customer_name || row.customer_email) {
+      // A visitor_id can have one row per day; today's identity (if any)
+      // always wins over an older day's for that same visitor.
+      const existingIdentity = identityByVisitor.get(row.visitor_id);
+      if (!existingIdentity || row.session_date === today) {
+        identityByVisitor.set(row.visitor_id, { customerName: row.customer_name, customerEmail: row.customer_email });
+      }
+    }
     if (row.session_date === today) {
       sessionsToday++;
       if (row.had_cart) {
         addedToCartToday++;
-        addedToCartActivity.push({ visitorId: row.visitor_id, timestamp: row.cart_started_at || row.last_seen_at, path: row.last_path, status: row.last_status, customerName: null, customerEmail: null, cartItemCount: 0, cartValue: 0, cartItems: [] });
+        addedToCartActivity.push({ visitorId: row.visitor_id, timestamp: row.cart_started_at || row.last_seen_at, path: row.last_path, status: row.last_status, customerName: row.customer_name, customerEmail: row.customer_email, cartItemCount: 0, cartValue: 0, cartItems: [] });
       }
       if (row.reached_checkout) {
         reachedCheckoutToday++;
-        reachedCheckoutActivity.push({ visitorId: row.visitor_id, timestamp: row.checkout_started_at || row.last_seen_at, path: row.last_path, status: row.last_status, customerName: null, customerEmail: null, cartItemCount: 0, cartValue: 0, cartItems: [] });
+        reachedCheckoutActivity.push({ visitorId: row.visitor_id, timestamp: row.checkout_started_at || row.last_seen_at, path: row.last_path, status: row.last_status, customerName: row.customer_name, customerEmail: row.customer_email, cartItemCount: 0, cartValue: 0, cartItems: [] });
       }
     }
 
@@ -125,17 +142,20 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
   if (addedToCartToday < liveWithCart) addedToCartToday = liveWithCart;
   if (reachedCheckoutToday < liveAtCheckout) reachedCheckoutToday = liveAtCheckout;
 
-  const eventToActivity = (row: any): FunnelVisitorActivity => ({
-    visitorId: row.visitor_id,
-    timestamp: row.created_at,
-    path: row.path,
-    status: row.event_type,
-    customerName: row.customer_name,
-    customerEmail: row.customer_email,
-    cartItemCount: Number(row.cart_item_count || 0),
-    cartValue: Number(row.cart_value || 0),
-    cartItems: Array.isArray(row.cart_items) ? row.cart_items : [],
-  });
+  const eventToActivity = (row: any): FunnelVisitorActivity => {
+    const identity = identityByVisitor.get(row.visitor_id);
+    return {
+      visitorId: row.visitor_id,
+      timestamp: row.created_at,
+      path: row.path,
+      status: row.event_type,
+      customerName: row.customer_name || identity?.customerName || null,
+      customerEmail: row.customer_email || identity?.customerEmail || null,
+      cartItemCount: Number(row.cart_item_count || 0),
+      cartValue: Number(row.cart_value || 0),
+      cartItems: Array.isArray(row.cart_items) ? row.cart_items : [],
+    };
+  };
   const eventAddedToCart = eventRows.filter((e: any) => e.event_type === "add_to_cart").map(eventToActivity);
   const eventReachedCheckout = eventRows.filter((e: any) => e.event_type === "reached_checkout").map(eventToActivity);
   if (eventAddedToCart.length > 0) addedToCartToday = Math.max(addedToCartToday, new Set(eventAddedToCart.map((e) => e.visitorId)).size);
