@@ -42,6 +42,11 @@ const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: 
 const FourRegnPromoCountdown = dynamic(() => import("./FourRegnPromoCountdown"), { ssr: false });
 const FourRegnTeesSaleCountdown = dynamic(() => import("./FourRegnTeesSaleCountdown"), { ssr: false });
 const TEES_SALE_COLLECTION = "OVERSIZED PREMIUM TEES";
+// Same instant as FourRegnTeesSaleCountdown's own TEES_SALE_END -- kept as
+// a separate constant here (not imported) for the same "clone, don't
+// generalize" reasoning as the countdown component itself, since this is
+// used only to gate analytics tracking for this one-off promo.
+const TEES_SALE_ANALYTICS_END = new Date("2026-09-01T00:00:00+02:00").getTime();
 
 // Cart-state-driven, same "nothing worth rendering server-side" reasoning
 // as the two dynamic imports above.
@@ -884,6 +889,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [flashCapPickerOpen, setFlashCapPickerOpen] = useState(false);
   const flashCapPrevEligibleRef = useRef<number | null>(null);
   const flashCapSeenTrackedRef = useRef(false);
+  const teesSaleProductViewedTrackedRef = useRef("");
   const cartBoosterImpressionRef = useRef("");
   const cartBoosterUnlockedRef = useRef(false);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
@@ -1306,6 +1312,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       if (existing) return prev.map((i) => i === existing ? { ...i, qty: i.qty + qty } : i);
       return [...prev, { product, qty, selectedVariants: variants, ...(giftTag ? { giftTag } : {}) }];
     });
+    if (!giftTag && teesSaleActive && seller?.id && pInCat(product, TEES_SALE_COLLECTION)) {
+      trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_added_to_cart", metadata: { productId: product.id, productName: product.name } });
+    }
   };
   const removeFromCart = (idx: number) => setCart((prev) => prev.filter((_, i) => i !== idx));
   // Claiming a gift replaces any previously-claimed one (only one eligible
@@ -1712,6 +1721,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // needed there this early normally), so it's inlined here rather than
   // moving that whole declaration up just for this.
   const flashCapActive = (seller?.subdomain === "4regn" || seller?.template === "4regn") && isFlashCapActive();
+  const teesSaleActive = (seller?.subdomain === "4regn" || seller?.template === "4regn") && Date.now() < TEES_SALE_ANALYTICS_END;
   const flashCapGiftIndex = cart.findIndex((i) => i.giftTag === FLASH_CAP_GIFT_TAG);
   const flashCapGiftItem = flashCapGiftIndex !== -1 ? cart[flashCapGiftIndex] : null;
   const cartTotal = cart.reduce((s, i) => s + (i.giftTag ? 0 : effectivePrice(i.product, i.selectedVariants) * i.qty), 0);
@@ -1789,6 +1799,25 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flashCapActive, mode, isCollectionView, seller?.id]);
+
+  // Oversized Premium Tees flash sale funnel -- simpler than the flash
+  // cap's since there's no claim/unlock state, just collection/product
+  // views, cart adds, and completed orders.
+  useEffect(() => {
+    if (!teesSaleActive || !seller?.id) return;
+    if (!(isCollectionView && collectionName === TEES_SALE_COLLECTION)) return;
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_collection_visited" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teesSaleActive, isCollectionView, collectionName, seller?.id]);
+
+  useEffect(() => {
+    if (!teesSaleActive || !seller?.id) return;
+    if (mode !== "product" || !initialActiveProduct || !pInCat(initialActiveProduct, TEES_SALE_COLLECTION)) return;
+    if (teesSaleProductViewedTrackedRef.current === initialActiveProduct.id) return;
+    teesSaleProductViewedTrackedRef.current = initialActiveProduct.id;
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_product_viewed", metadata: { productId: initialActiveProduct.id, productName: initialActiveProduct.name } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teesSaleActive, mode, initialActiveProduct?.id, seller?.id]);
 
   useEffect(() => {
     if (!flashCapActive || !flashCapOnTruckerCapsPage || !seller?.id) return;

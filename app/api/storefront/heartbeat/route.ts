@@ -26,6 +26,11 @@ const EVENT_TYPES = new Set([
   // regardless of whether they're signed into a customer account, unlike
   // customer_wishlist_items which only records account holders.
   "wishlist_added", "wishlist_removed",
+  // 4regn Oversized Premium Tees flash sale -- same three-places-in-sync
+  // requirement as the flash cap promo above (this list, StorefrontEventType,
+  // and the DB check constraint).
+  "tees_sale_collection_visited", "tees_sale_product_viewed",
+  "tees_sale_added_to_cart", "tees_sale_order_completed",
 ]);
 
 function safeEventMetadata(value: unknown): Record<string, string | number | boolean | null> {

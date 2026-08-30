@@ -1017,6 +1017,24 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_order_completed", cartItemCount: cart.reduce((s, i) => s + i.qty, 0), cartValue: total });
       }
 
+      // Same best-effort reasoning as the flash cap event above -- fires
+      // whenever this checkout's cart included an Oversized Premium Tees
+      // item while the sale was active. Cart lines only carry id/name, not
+      // category, so this cross-references sellerProducts (already fetched
+      // with category for the automatic-discount eligibility checks above)
+      // the same way those checks do.
+      if (seller?.id && Date.now() < Date.parse("2026-09-01T00:00:00+02:00")) {
+        const productById = new Map(sellerProducts.map((p) => [p.id, p]));
+        const productByName = new Map(sellerProducts.map((p) => [p.name.toLowerCase(), p]));
+        const hasTeesSaleItem = cart.some((i) => {
+          const product = (i.id && productById.get(i.id)) || productByName.get(i.name.toLowerCase());
+          return !!product && (product.category || "").split(",").map((c) => c.trim()).includes("OVERSIZED PREMIUM TEES");
+        });
+        if (hasTeesSaleItem) {
+          trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_order_completed", cartItemCount: cart.reduce((s, i) => s + i.qty, 0), cartValue: total });
+        }
+      }
+
       // Notify seller (non-blocking) -- but not for PayFast/Yoco/Stitch/
       // Float/SETLA orders yet: this row is still payment_status "pending" and
       // the customer hasn't even reached the payment gateway's page (or,

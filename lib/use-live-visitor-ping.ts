@@ -34,7 +34,13 @@ export type StorefrontEventType =
   | "flash_cap_changed" | "flash_cap_qualification_lost"
   | "flash_cap_checkout_warning_seen" | "flash_cap_checkout_without_gift"
   | "flash_cap_order_completed"
-  | "wishlist_added" | "wishlist_removed";
+  | "wishlist_added" | "wishlist_removed"
+  // 4regn Oversized Premium Tees flash sale (R249, was R350, buy 2 for
+  // R449) -- see FourRegnTeesSaleCountdown.tsx. Simpler funnel than the
+  // flash cap's, since this promo has no claim/unlock state machine, just
+  // a discounted price and a bundle deal.
+  | "tees_sale_collection_visited" | "tees_sale_product_viewed"
+  | "tees_sale_added_to_cart" | "tees_sale_order_completed";
 
 export function trackStorefrontEvent(args: {
   sellerId: string;

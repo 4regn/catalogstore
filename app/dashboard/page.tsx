@@ -464,6 +464,8 @@ export default function Dashboard() {
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
   const [flashCapAnalytics, setFlashCapAnalytics] = useState<{ funnel: { type: string; count: number; uniqueVisitors: number }[]; orderValueTotal: number; totalEvents: number } | null>(null);
   const [flashCapAnalyticsLoading, setFlashCapAnalyticsLoading] = useState(false);
+  const [teesSaleAnalytics, setTeesSaleAnalytics] = useState<{ funnel: { type: string; count: number; uniqueVisitors: number }[]; orderValueTotal: number; totalEvents: number } | null>(null);
+  const [teesSaleAnalyticsLoading, setTeesSaleAnalyticsLoading] = useState(false);
   const [wishlistAnalytics, setWishlistAnalytics] = useState<{ totals: { totalSaves: number; uniqueProducts: number; uniqueCustomers: number; allVisitorAdds: number; allVisitorUniqueVisitors: number }; products: { productId: string; name: string; price: number | null; oldPrice: number | null; imageUrl: string | null; handle: string | null; inStock: boolean | null; saveCount: number; uniqueCustomers: number; lastSavedAt: string; savers: { name: string | null; email: string | null; phone: string | null; savedAt: string }[]; allVisitorAdds: number; allVisitorUniqueVisitors: number }[] } | null>(null);
   const [wishlistAnalyticsLoading, setWishlistAnalyticsLoading] = useState(false);
   const [wishlistExpandedProductId, setWishlistExpandedProductId] = useState<string | null>(null);
@@ -1047,6 +1049,23 @@ export default function Dashboard() {
         if (res.ok) setFlashCapAnalytics(data);
       } catch {}
       setFlashCapAnalyticsLoading(false);
+    })();
+  }, [loading, tab, seller?.subdomain, seller?.template]);
+
+  // Same 4regn-only, lazy-on-tab-open pattern as the flash cap analytics
+  // above. See app/api/dashboard/tees-sale-analytics/route.ts.
+  useEffect(() => {
+    if (loading || tab !== "analytics" || !(seller?.subdomain === "4regn" || seller?.template === "4regn")) return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setTeesSaleAnalyticsLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/tees-sale-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setTeesSaleAnalytics(data);
+      } catch {}
+      setTeesSaleAnalyticsLoading(false);
     })();
   }, [loading, tab, seller?.subdomain, seller?.template]);
 
@@ -4789,6 +4808,44 @@ export default function Dashboard() {
                   return (
                     <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
                       {flashCapAnalytics.funnel.filter((f) => f.count > 0 || ["flash_cap_promo_seen", "flash_cap_unlocked", "flash_cap_selected", "flash_cap_order_completed"].includes(f.type)).map((f) => (
+                        <div key={f.type} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ flex: "0 0 190px", fontSize: 12, color: "var(--text)" }}>{labels[f.type] || f.type}</span>
+                          <div style={{ flex: 1, height: 8, borderRadius: 999, background: "var(--panel-2)", overflow: "hidden" }}>
+                            <div style={{ width: `${(f.count / maxCount) * 100}%`, height: "100%", borderRadius: 999, background: G }} />
+                          </div>
+                          <span style={{ flex: "0 0 90px", textAlign: "right" as const, fontSize: 12, fontWeight: 800 }}>{f.count} <span style={{ color: "var(--muted-2)", fontWeight: 600 }}>({f.uniqueVisitors} people)</span></span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {(seller?.subdomain === "4regn" || seller?.template === "4regn") && (
+              <div style={{ marginBottom: 24, padding: 20, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap" as const, gap: 8 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Oversized Premium Tees Flash Sale</h3>
+                  {teesSaleAnalytics && teesSaleAnalytics.orderValueTotal > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>R{Math.round(teesSaleAnalytics.orderValueTotal).toLocaleString("en-ZA")} in orders</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>How shoppers are moving through the R249 (buy 2 for R449) tees sale, from visiting the collection to completing an order. Ends 1 September.</p>
+                {teesSaleAnalyticsLoading && !teesSaleAnalytics ? (
+                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Loading…</p>
+                ) : !teesSaleAnalytics || teesSaleAnalytics.totalEvents === 0 ? (
+                  <p style={{ fontSize: 12, color: "var(--muted)" }}>No activity recorded yet.</p>
+                ) : (() => {
+                  const labels: Record<string, string> = {
+                    tees_sale_collection_visited: "Visited Oversized Premium Tees",
+                    tees_sale_product_viewed: "Viewed a tee",
+                    tees_sale_added_to_cart: "Added a tee to cart",
+                    tees_sale_order_completed: "Completed an order",
+                  };
+                  const maxCount = Math.max(1, ...teesSaleAnalytics.funnel.map((f) => f.count));
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                      {teesSaleAnalytics.funnel.map((f) => (
                         <div key={f.type} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <span style={{ flex: "0 0 190px", fontSize: 12, color: "var(--text)" }}>{labels[f.type] || f.type}</span>
                           <div style={{ flex: 1, height: 8, borderRadius: 999, background: "var(--panel-2)", overflow: "hidden" }}>
