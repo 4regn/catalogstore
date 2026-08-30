@@ -29,6 +29,7 @@ type Overview = {
 };
 
 const panel = { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 18 };
+const CAMPAIGN_BATCH_SIZE = 575;
 
 export default function EmailCampaignPanel() {
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -68,12 +69,12 @@ export default function EmailCampaignPanel() {
   useEffect(() => { void load(); }, [load]);
 
   const createDraft = async () => {
-    setBusy("draft"); setError(""); setNotice(""); setPrepareProgress({ current: 0, total: Math.min(600, overview?.remainingCount || 0) });
+    setBusy("draft"); setError(""); setNotice(""); setPrepareProgress({ current: 0, total: Math.min(CAMPAIGN_BATCH_SIZE, overview?.remainingCount || 0) });
     try {
       const existing = overview?.campaigns.find((campaign) => campaign.status === "preparing");
       const started = existing
         ? { campaign: existing, total: existing.recipient_count }
-        : await call("create_draft", { recipient_limit: Math.min(600, overview?.remainingCount || 600) });
+        : await call("create_draft", { recipient_limit: Math.min(CAMPAIGN_BATCH_SIZE, overview?.remainingCount || CAMPAIGN_BATCH_SIZE) });
       const campaignId = started.campaign.id;
       setPrepareProgress({ current: 0, total: started.total });
       let complete = false;
@@ -143,12 +144,12 @@ export default function EmailCampaignPanel() {
 
         <div style={{ ...innerCard, padding: 18 }}>
           <div style={eyebrow}>1 · Prepare today&apos;s batch</div>
-          <p style={stepCopy}>Selects up to 600 opted-in subscribers with a first name who have not received this campaign, then creates a private Resend segment. Unnamed contacts are skipped and tomorrow automatically starts with the remaining eligible subscribers.</p>
+          <p style={stepCopy}>Selects up to 575 opted-in subscribers with a first name who have not received this campaign, then creates a private Resend segment. Unnamed contacts are skipped and the next batch automatically starts with the remaining eligible subscribers.</p>
           {busy === "draft" && <div style={{ margin: "12px 0" }}>
             <div style={{ height: 6, background: "var(--input-bg)", borderRadius: 99, overflow: "hidden" }}><div style={{ height: "100%", width: `${prepareProgress.total ? Math.round(prepareProgress.current / prepareProgress.total * 100) : 0}%`, background: "#a78bfa" }} /></div>
             <div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 6 }}>{prepareProgress.current.toLocaleString("en-ZA")} / {prepareProgress.total.toLocaleString("en-ZA")}</div>
           </div>}
-          <button disabled={!!busy || (overview.remainingCount === 0 && !preparingBatch) || !!latestDraft} onClick={createDraft} style={primaryButton}>{busy === "draft" ? "Preparing batch — keep this page open…" : preparingBatch ? "Resume batch preparation" : latestDraft ? "Draft ready below" : `Prepare ${Math.min(600, overview.remainingCount).toLocaleString("en-ZA")} subscribers`}</button>
+          <button disabled={!!busy || (overview.remainingCount === 0 && !preparingBatch) || !!latestDraft} onClick={createDraft} style={primaryButton}>{busy === "draft" ? "Preparing batch — keep this page open…" : preparingBatch ? "Resume batch preparation" : latestDraft ? "Draft ready below" : `Prepare ${Math.min(CAMPAIGN_BATCH_SIZE, overview.remainingCount).toLocaleString("en-ZA")} subscribers`}</button>
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
@@ -167,8 +168,8 @@ export default function EmailCampaignPanel() {
         </div>
       </div>}
 
-      {!!overview && overview.audienceCount > 600 && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
-        Sending is locked to a maximum of 600 recipients per batch. Today&apos;s recipients are recorded, so tomorrow&apos;s batch will exclude them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers currently remain for this campaign.
+      {!!overview && overview.audienceCount > CAMPAIGN_BATCH_SIZE && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
+        This campaign is split into batches of up to 575 recipients. Sent recipients are recorded, so the next batch excludes them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers currently remain for this campaign.
       </div>}
 
       {latestDraft && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(244,114,182,.35)" }}>
