@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   const { data: seller, error: sellerErr } = await getAdmin()
     .from("sellers")
-    .select("id, subscription_status, trial_ends_at, checkout_config")
+    .select("id, subscription_status, trial_ends_at, checkout_config, store_config")
     .eq("subdomain", slug)
     .single();
   if (sellerErr || !seller) return NextResponse.json({ error: "Store not found" }, { status: 404 });
@@ -200,7 +200,31 @@ export async function POST(req: NextRequest) {
      the "Combines with Order/Product Discounts" flags Shopify's own
      export showed as true for these. */
   const bxgyRules = await fetchActiveAutomaticBxgyDiscounts(getAdmin(), seller.id);
-  const automaticDiscount = bxgyRules.length ? computeAutomaticBxgyDiscount(bxgyRules, lineItems) : { totalDiscount: 0, applied: [] };
+  const baseAutomaticDiscount = bxgyRules.length ? computeAutomaticBxgyDiscount(bxgyRules, lineItems) : { totalDiscount: 0, applied: [] };
+  const automaticDiscount = { ...baseAutomaticDiscount, applied: [...baseAutomaticDiscount.applied] };
+
+  // Flash Weekend: one customer-selected Trucker Cap is free when the
+  // *other* merchandise in their cart totals at least R499. The cap itself
+  // never counts toward the threshold, and the promotion is deliberately
+  // one unit only even in a large cart. A completed checkout records the
+  // campaign title, which makes the email-level one-per-customer guard
+  // enforceable without relying on browser storage.
+  const flashEndsAt = new Date("2026-08-31T21:59:00.000Z"); // 31 Aug, 23:59 SAST
+  const flashEnabled = slug === "4regn" && (seller.store_config as any)?.show_flash_weekend_campaign === true && new Date() <= flashEndsAt;
+  if (flashEnabled) {
+    const isTruckerCap = (item: typeof lineItems[number]) => (item.category || "").split(",").map((value) => value.trim().toLowerCase()).includes("trucker caps & beanies");
+    const capLine = lineItems.find(isTruckerCap);
+    const nonCapSubtotal = lineItems.filter((item) => !isTruckerCap(item)).reduce((sum, item) => sum + item.price * item.qty, 0);
+    if (capLine && nonCapSubtotal >= 499) {
+      const { data: previousFlashOrder } = await getAdmin().from("orders")
+        .select("id").eq("seller_id", seller.id).eq("customer_email", normalizedCustomerEmail)
+        .eq("automatic_discount_title", "FLASH WEEKEND — Free Trucker Cap").limit(1).maybeSingle();
+      if (!previousFlashOrder) {
+        automaticDiscount.totalDiscount = Math.round((automaticDiscount.totalDiscount + capLine.price) * 100) / 100;
+        automaticDiscount.applied.push({ title: "FLASH WEEKEND — Free Trucker Cap", amount: capLine.price });
+      }
+    }
+  }
 
   const payableMerchandiseSubtotal = Math.max(0, subtotal - automaticDiscount.totalDiscount);
 

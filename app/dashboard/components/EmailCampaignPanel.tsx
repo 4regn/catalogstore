@@ -19,7 +19,7 @@ type Campaign = {
 
 type Overview = {
   audienceCount: number;
-  skippedUnnamedCount: number;
+  genericGreetingCount: number;
   remainingCount: number;
   maxBatchSize: number;
   sellerEmail: string;
@@ -29,6 +29,7 @@ type Overview = {
 };
 
 const panel = { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 18 };
+const CAMPAIGN_BATCH_SIZE = 575;
 
 export default function EmailCampaignPanel() {
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -68,12 +69,12 @@ export default function EmailCampaignPanel() {
   useEffect(() => { void load(); }, [load]);
 
   const createDraft = async () => {
-    setBusy("draft"); setError(""); setNotice(""); setPrepareProgress({ current: 0, total: Math.min(600, overview?.remainingCount || 0) });
+    setBusy("draft"); setError(""); setNotice(""); setPrepareProgress({ current: 0, total: Math.min(CAMPAIGN_BATCH_SIZE, overview?.remainingCount || 0) });
     try {
       const existing = overview?.campaigns.find((campaign) => campaign.status === "preparing");
       const started = existing
         ? { campaign: existing, total: existing.recipient_count }
-        : await call("create_draft", { recipient_limit: Math.min(600, overview?.remainingCount || 600) });
+        : await call("create_draft", { recipient_limit: Math.min(CAMPAIGN_BATCH_SIZE, overview?.remainingCount || CAMPAIGN_BATCH_SIZE) });
       const campaignId = started.campaign.id;
       setPrepareProgress({ current: 0, total: started.total });
       let complete = false;
@@ -103,7 +104,7 @@ export default function EmailCampaignPanel() {
     try {
       await call("send", { campaign_id: campaign.id, confirmation });
       setConfirmation("");
-      setNotice("The Spring Sale Broadcast has been handed to Resend for delivery.");
+      setNotice("The Flash Weekend Broadcast has been handed to Resend for delivery.");
       await load();
     } catch (sendError: any) { setError(sendError?.message || "Campaign send failed."); }
     finally { setBusy(""); }
@@ -119,7 +120,7 @@ export default function EmailCampaignPanel() {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: ".12em", color: "#f472b6", textTransform: "uppercase" }}>4REGN Email Studio</div>
-          <h2 style={{ margin: "7px 0 5px", fontSize: 20, fontWeight: 900, letterSpacing: "-.03em", textTransform: "uppercase" }}>Spring Sale Broadcast</h2>
+          <h2 style={{ margin: "7px 0 5px", fontSize: 20, fontWeight: 900, letterSpacing: "-.03em", textTransform: "uppercase" }}>Flash Weekend Broadcast</h2>
           <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, maxWidth: 680 }}>Consent-safe Resend Broadcast workflow. Preview, test and sync first; sending stays locked behind an exact confirmation phrase.</p>
         </div>
         <button onClick={() => setPreviewOpen(true)} style={secondaryButton}>Preview email</button>
@@ -135,20 +136,20 @@ export default function EmailCampaignPanel() {
           <div style={{ marginTop: 7, color: "var(--muted-2)", fontSize: 11, lineHeight: 1.55 }}>{overview.template.previewText}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 15 }}>
             <span style={statusPill}>From: 4REGN &lt;info@4regn.com&gt;</span>
-            <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} named subscribers eligible</span>
+            <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} opted-in subscribers eligible</span>
             <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} not sent yet</span>
-            {overview.skippedUnnamedCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.skippedUnnamedCount.toLocaleString("en-ZA")} unnamed skipped</span>}
+            {overview.genericGreetingCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.genericGreetingCount.toLocaleString("en-ZA")} receive a generic greeting</span>}
           </div>
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
           <div style={eyebrow}>1 · Prepare today&apos;s batch</div>
-          <p style={stepCopy}>Selects up to 600 opted-in subscribers with a first name who have not received this campaign, then creates a private Resend segment. Unnamed contacts are skipped and tomorrow automatically starts with the remaining eligible subscribers.</p>
+          <p style={stepCopy}>Selects up to 575 opted-in subscribers who have not received this campaign, then creates a private Resend segment. Subscribers without a name receive a neutral greeting, and the next batch automatically starts with the remaining contacts.</p>
           {busy === "draft" && <div style={{ margin: "12px 0" }}>
             <div style={{ height: 6, background: "var(--input-bg)", borderRadius: 99, overflow: "hidden" }}><div style={{ height: "100%", width: `${prepareProgress.total ? Math.round(prepareProgress.current / prepareProgress.total * 100) : 0}%`, background: "#a78bfa" }} /></div>
             <div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 6 }}>{prepareProgress.current.toLocaleString("en-ZA")} / {prepareProgress.total.toLocaleString("en-ZA")}</div>
           </div>}
-          <button disabled={!!busy || (overview.remainingCount === 0 && !preparingBatch) || !!latestDraft} onClick={createDraft} style={primaryButton}>{busy === "draft" ? "Preparing batch — keep this page open…" : preparingBatch ? "Resume batch preparation" : latestDraft ? "Draft ready below" : `Prepare ${Math.min(600, overview.remainingCount).toLocaleString("en-ZA")} subscribers`}</button>
+          <button disabled={!!busy || (overview.remainingCount === 0 && !preparingBatch) || !!latestDraft} onClick={createDraft} style={primaryButton}>{busy === "draft" ? "Preparing batch — keep this page open…" : preparingBatch ? "Resume batch preparation" : latestDraft ? "Draft ready below" : `Prepare ${Math.min(CAMPAIGN_BATCH_SIZE, overview.remainingCount).toLocaleString("en-ZA")} subscribers`}</button>
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
@@ -167,8 +168,8 @@ export default function EmailCampaignPanel() {
         </div>
       </div>}
 
-      {!!overview && overview.audienceCount > 600 && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
-        Sending is locked to a maximum of 600 recipients per batch. Today&apos;s recipients are recorded, so tomorrow&apos;s batch will exclude them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers currently remain for this campaign.
+      {!!overview && overview.audienceCount > CAMPAIGN_BATCH_SIZE && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
+        This campaign is split into batches of up to 575 recipients. Sent recipients are recorded, so the next batch excludes them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers currently remain for this campaign.
       </div>}
 
       {latestDraft && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(244,114,182,.35)" }}>
@@ -194,7 +195,7 @@ export default function EmailCampaignPanel() {
     {previewOpen && <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.82)", padding: "clamp(10px,3vw,28px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "min(760px,100%)", height: "min(900px,92vh)", background: "#fff", borderRadius: 18, overflow: "hidden", position: "relative" }}>
         <button aria-label="Close preview" onClick={() => setPreviewOpen(false)} style={{ position: "absolute", zIndex: 2, right: 12, top: 12, width: 40, height: 40, borderRadius: "50%", border: 0, background: "#111", color: "#fff", fontSize: 22, cursor: "pointer" }}>×</button>
-        <iframe title="Spring Sale email preview" src={overview?.template.previewUrl} style={{ width: "100%", height: "100%", border: 0 }} />
+        <iframe title="Flash Weekend email preview" src={overview?.template.previewUrl} style={{ width: "100%", height: "100%", border: 0 }} />
       </div>
     </div>}
 
