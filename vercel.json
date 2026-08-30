@@ -19,14 +19,6 @@
     {
       "path": "/api/cron/recover-stitch-orders",
       "schedule": "15 4 * * *"
-    },
-    {
-      "path": "/api/cron/send-abandoned-cart-emails",
-      "schedule": "45 4 * * *"
-    },
-    {
-      "path": "/api/cron/send-abandoned-checkout-emails",
-      "schedule": "0 5 * * *"
     }
   ]
 }

@@ -7,8 +7,13 @@ import { sendAbandonedCartRecoveryEmail, type AbandonedCartOrderItem } from "../
 
 export const dynamic = "force-dynamic";
 
-// Runs every 15 minutes (see vercel.json) -- picks up anything that became
-// eligible since the last run. The lower bound (older than
+// Triggered every 15 minutes by .github/workflows/abandoned-cart-cron.yml,
+// NOT Vercel Cron -- Vercel's Hobby plan rejects any cron schedule more
+// frequent than once a day at deploy time (it previously broke every
+// deployment, not just this feature, when this lived in vercel.json).
+// GitHub Actions' own schedule trigger has no such restriction and is free
+// at this volume. Picks up anything that became eligible since the last
+// run. The lower bound (older than
 // ORDER_ABANDON_MS) keeps this from emailing someone who is still mid
 // payment attempt right now; the upper bound (48h) keeps a first deploy
 // from suddenly emailing a backlog of months-old abandoned orders, and

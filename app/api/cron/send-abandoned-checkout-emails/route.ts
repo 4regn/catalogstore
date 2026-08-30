@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 // the heartbeat route's own comment) and store_visitor_events (the actual
 // cart contents, from whichever heartbeat last carried them).
 //
-// Runs every 15 minutes (see vercel.json). "Abandoned" here means no
+// Triggered every 15 minutes by .github/workflows/abandoned-cart-cron.yml,
+// NOT Vercel Cron -- see send-abandoned-cart-emails' own comment for why.
+// "Abandoned" here means no
 // heartbeat in the last CHECKOUT_ABANDON_MS -- the heartbeat pings every
 // ~20s while the tab is open, so a stretch that long with no ping is a
 // reliable signal the visitor is actually gone, not just reading a page

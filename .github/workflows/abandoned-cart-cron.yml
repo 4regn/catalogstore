@@ -1,0 +1,32 @@
+name: Abandoned cart recovery emails
+
+# Vercel's Hobby plan rejects any cron schedule more frequent than once a
+# day at deploy time -- these two jobs used to live in vercel.json and
+# broke every deployment when set to run every 15 minutes. GitHub Actions'
+# schedule trigger has no such restriction and is free at this volume (two
+# tiny HTTP calls every 15 minutes), so it drives the timing instead;
+# vercel.json no longer lists these two routes at all.
+#
+# Requires a repository secret named CRON_SECRET with the same value as
+# the CRON_SECRET environment variable already set in Vercel -- add it
+# under Settings -> Secrets and variables -> Actions in this repo.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send abandoned cart emails (order created, payment never completed)
+        run: |
+          curl -sS -o /dev/null -w "Tier 1 status: %{http_code}\n" --fail-with-body \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://4regn.com/api/cron/send-abandoned-cart-emails
+
+      - name: Send abandoned checkout emails (reached checkout, never placed an order)
+        run: |
+          curl -sS -o /dev/null -w "Tier 2 status: %{http_code}\n" --fail-with-body \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://4regn.com/api/cron/send-abandoned-checkout-emails
