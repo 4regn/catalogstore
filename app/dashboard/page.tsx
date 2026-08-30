@@ -460,6 +460,8 @@ export default function Dashboard() {
   const [fullAnalytics, setFullAnalytics] = useState<FullAnalytics | null>(null);
   const [fullAnalyticsLoading, setFullAnalyticsLoading] = useState(false);
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
+  const [flashCapAnalytics, setFlashCapAnalytics] = useState<{ funnel: { type: string; count: number; uniqueVisitors: number }[]; orderValueTotal: number; totalEvents: number } | null>(null);
+  const [flashCapAnalyticsLoading, setFlashCapAnalyticsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1024,6 +1026,23 @@ export default function Dashboard() {
       setFullAnalyticsLoading(false);
     })();
   }, [loading, tab, analyticsRangeDays]);
+
+  // 4regn-only, same lazy-on-tab-open pattern as the full analytics fetch
+  // above. See app/api/dashboard/flash-cap-analytics/route.ts.
+  useEffect(() => {
+    if (loading || tab !== "analytics" || !(seller?.subdomain === "4regn" || seller?.template === "4regn")) return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setFlashCapAnalyticsLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/flash-cap-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setFlashCapAnalytics(data);
+      } catch {}
+      setFlashCapAnalyticsLoading(false);
+    })();
+  }, [loading, tab, seller?.subdomain, seller?.template]);
 
   const fetchSubscribers = async () => {
     const token = await getAccessToken();
@@ -4664,6 +4683,51 @@ export default function Dashboard() {
               </div>
             </div>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 24 }}>Visitors, conversion, best sellers, and revenue trends -- real order and session data, no estimates.</p>
+
+            {(seller?.subdomain === "4regn" || seller?.template === "4regn") && (
+              <div style={{ marginBottom: 24, padding: 20, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap" as const, gap: 8 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Flash Weekend Free Cap Promo</h3>
+                  {flashCapAnalytics && flashCapAnalytics.orderValueTotal > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>R{Math.round(flashCapAnalytics.orderValueTotal).toLocaleString("en-ZA")} in orders with a claimed gift</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>How shoppers are moving through the promo, from seeing it to completing an order with a free cap. Ends 1 September.</p>
+                {flashCapAnalyticsLoading && !flashCapAnalytics ? (
+                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Loading…</p>
+                ) : !flashCapAnalytics || flashCapAnalytics.totalEvents === 0 ? (
+                  <p style={{ fontSize: 12, color: "var(--muted)" }}>No activity recorded yet.</p>
+                ) : (() => {
+                  const labels: Record<string, string> = {
+                    flash_cap_promo_seen: "Saw the promo",
+                    flash_cap_progress_clicked: "Clicked progress bar",
+                    flash_cap_unlocked: "Unlocked (crossed R499)",
+                    flash_cap_picker_opened: "Opened cap picker",
+                    flash_cap_collection_visited: "Visited Trucker Caps",
+                    flash_cap_selected: "Chose a cap",
+                    flash_cap_changed: "Changed their cap",
+                    flash_cap_qualification_lost: "Dropped below R499 after choosing",
+                    flash_cap_checkout_warning_seen: "Saw checkout reminder",
+                    flash_cap_checkout_without_gift: "Checked out without claiming",
+                    flash_cap_order_completed: "Completed order with gift",
+                  };
+                  const maxCount = Math.max(1, ...flashCapAnalytics.funnel.map((f) => f.count));
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                      {flashCapAnalytics.funnel.filter((f) => f.count > 0 || ["flash_cap_promo_seen", "flash_cap_unlocked", "flash_cap_selected", "flash_cap_order_completed"].includes(f.type)).map((f) => (
+                        <div key={f.type} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ flex: "0 0 190px", fontSize: 12, color: "var(--text)" }}>{labels[f.type] || f.type}</span>
+                          <div style={{ flex: 1, height: 8, borderRadius: 999, background: "var(--panel-2)", overflow: "hidden" }}>
+                            <div style={{ width: `${(f.count / maxCount) * 100}%`, height: "100%", borderRadius: 999, background: G }} />
+                          </div>
+                          <span style={{ flex: "0 0 90px", textAlign: "right" as const, fontSize: 12, fontWeight: 800 }}>{f.count} <span style={{ color: "var(--muted-2)", fontWeight: 600 }}>({f.uniqueVisitors} people)</span></span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             {fullAnalyticsLoading && !fullAnalytics ? (
               <div style={{ textAlign: "center" as const, padding: "60px 20px", color: "var(--muted)" }}><p style={{ fontSize: 13 }}>Crunching your numbers…</p></div>

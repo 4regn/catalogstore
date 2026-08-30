@@ -11,11 +11,27 @@ const EVENT_TYPES = new Set([
   "free_delivery_upsell_impression", "free_delivery_upsell_click",
   "free_delivery_upsell_add", "free_delivery_threshold_reached",
   "checkout_started_after_upsell", "order_completed_after_upsell",
+  // 4regn Flash Weekend free trucker cap promotion -- must stay in sync
+  // with StorefrontEventType (lib/use-live-visitor-ping.ts) and the
+  // store_visitor_events_event_type_check DB constraint (see
+  // supabase/migrations/20260829_flash_cap_analytics_events.sql). Missing
+  // from any ONE of those three is enough to silently drop every one of
+  // these events -- this Set specifically is what was missed originally.
+  "flash_cap_promo_seen", "flash_cap_progress_clicked", "flash_cap_unlocked",
+  "flash_cap_picker_opened", "flash_cap_collection_visited", "flash_cap_selected",
+  "flash_cap_changed", "flash_cap_qualification_lost",
+  "flash_cap_checkout_warning_seen", "flash_cap_checkout_without_gift",
+  "flash_cap_order_completed",
 ]);
 
 function safeEventMetadata(value: unknown): Record<string, string | number | boolean | null> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const allowed = new Set(["cartSubtotalBefore", "gap", "recommendedProductId", "recommendedProductPrice", "resultingSubtotal", "orderId"]);
+  const allowed = new Set([
+    "cartSubtotalBefore", "gap", "recommendedProductId", "recommendedProductPrice", "resultingSubtotal", "orderId",
+    // Flash Weekend free trucker cap event metadata (see FourRegnStore.tsx's
+    // trackStorefrontEvent calls for flash_cap_*).
+    "source", "productId", "productName", "mode", "flashCapState",
+  ]);
   const result: Record<string, string | number | boolean | null> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
     if (!allowed.has(key)) continue;
