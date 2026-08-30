@@ -3259,6 +3259,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__label{margin-top:3px;font-size:6px}
 .regn-flash-countdown[data-variant="product"] .regn-collection-copy{display:none}
 .regn-flash-countdown[data-variant="collection"] .regn-product-copy{display:none}
+/* The Oversized Tees countdown's copy ("OVERSIZED PREMIUM TEES -- R249 or
+   buy 2 for R449") is longer than the free-cap countdown's ("FREE TRUCKER
+   CAP on orders above R499"), which the fixed 240px/nowrap/ellipsis rule
+   above was sized for -- it was cutting this one off mid-sentence on the
+   collection view. Letting it wrap instead (same as the product variant,
+   which was never width-constrained and always displayed fully) rather
+   than widening the shared rule, so the original free-cap countdown's
+   layout is untouched. */
+.regn-tees-countdown[data-variant="collection"] .regn-flash-countdown__copy{max-width:none;overflow:visible;white-space:normal;text-overflow:clip}
 .fr-coll-promo-countdown{max-width:1360px;margin:0 auto;padding:0 40px 28px}
 @media(max-width:480px){.regn-flash-countdown__inner{border-radius:16px}.regn-flash-countdown__end{font-size:7px}.regn-flash-countdown__end strong{font-size:8px}}
 @media(max-width:768px){.fr-coll-promo-countdown{padding:0 20px 22px}}
@@ -4180,8 +4189,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {isCollectionView && (
           <div className="fr-coll-promo-countdown">
-            <FourRegnPromoCountdown variant="collection" />
-            {collectionName === TEES_SALE_COLLECTION && <FourRegnTeesSaleCountdown variant="collection" />}
+            {collectionName === TEES_SALE_COLLECTION ? <FourRegnTeesSaleCountdown variant="collection" /> : <FourRegnPromoCountdown variant="collection" />}
             {flashCapActive && flashCapOnTruckerCapsPage && (flashCapState === "ELIGIBLE_UNCLAIMED" || flashCapState === "ELIGIBLE_CLAIMED") ? (
               <div className="regn-fcap regn-fcap--banner">
                 <span className="regn-fcap__text regn-fcap__text--won">Your Free Cap Is Unlocked &mdash; Choose One</span>
@@ -4311,8 +4319,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
-                    <FourRegnPromoCountdown variant="product" />
-                    {pInCat(p, TEES_SALE_COLLECTION) && <FourRegnTeesSaleCountdown variant="product" />}
+                    {pInCat(p, TEES_SALE_COLLECTION) ? <FourRegnTeesSaleCountdown variant="product" /> : <FourRegnPromoCountdown variant="product" />}
                     {flashCapActive && (
                       <FlashCapProgress
                         state={flashCapState}

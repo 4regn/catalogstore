@@ -47,7 +47,7 @@ export default function FourRegnTeesSaleCountdown({ variant }: { variant: "produ
   const seconds = Math.floor((remaining % 60000) / 1000);
 
   return (
-    <div className="regn-flash-countdown" data-variant={variant} aria-live="polite" aria-label="Oversized Premium Tees Flash Sale countdown">
+    <div className="regn-flash-countdown regn-tees-countdown" data-variant={variant} aria-live="polite" aria-label="Oversized Premium Tees Flash Sale countdown">
       <div className="regn-flash-countdown__inner">
         <div className="regn-flash-countdown__header">
           <div className="regn-flash-countdown__offer">
