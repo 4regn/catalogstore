@@ -95,8 +95,17 @@ async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sel
 }
 
 async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  const used = await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
-    .select("email").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).range(from, to));
+  // A recipient is only consumed once Resend has accepted a sent broadcast.
+  // Keeping failed or discarded draft rows out of this set lets the merchant
+  // correct the underlying Resend issue and safely prepare that same audience.
+  const campaigns = await allRows<{ id: string }>((from, to) => admin.from("marketing_email_campaigns")
+    .select("id").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "sent").range(from, to));
+  const used: Array<{ email: string }> = [];
+  for (let index = 0; index < campaigns.length; index += 100) {
+    const campaignIds = campaigns.slice(index, index + 100).map((campaign) => campaign.id);
+    used.push(...await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
+      .select("email").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).in("campaign_id", campaignIds).range(from, to)));
+  }
   return new Set(used.map((row) => row.email.trim().toLowerCase()));
 }
 
