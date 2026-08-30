@@ -4296,7 +4296,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                         amountAway={flashCapAmountAway}
                         progressPct={flashCapProgressPct}
                         giftName={flashCapGiftItem?.product.name}
-                        onCta={() => goToFlashCapPicker("progress")}
+                        // No CTA here when this exact product already has
+                        // its own "Choose as Free Cap" button just below --
+                        // showing both meant the top one routed a shopper
+                        // away to the collection instead of just using the
+                        // real claim button already on the page they're on.
+                        onCta={isFlashCapClaimMoment(p) ? undefined : () => goToFlashCapPicker("progress")}
                       />
                     )}
                     <FreeShippingPill />
@@ -4909,7 +4914,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               progressPct={flashCapProgressPct}
               giftName={flashCapGiftItem?.product.name}
               compact
-              onCta={() => goToFlashCapPicker("cart")}
+              // Same redundant-CTA fix as the product-page module -- if
+              // we're already sitting on this exact cap's own page, its
+              // "Choose as Free Cap" button is right there; this floating
+              // strip shouldn't offer a second path that bounces away.
+              onCta={mode === "product" && initialActiveProduct && isFlashCapClaimMoment(initialActiveProduct) ? undefined : () => goToFlashCapPicker("cart")}
             />
           </div>
         )}
