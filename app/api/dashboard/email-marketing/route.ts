@@ -314,6 +314,27 @@ export async function POST(req: NextRequest) {
         if (deleteBatchError) throw deleteBatchError;
       }
 
+      // A broadcast that is already sent no longer needs its private segment.
+      // Releasing it does not alter delivery, analytics, or the historical
+      // broadcast; it only gives the Free plan a segment slot for Batch 2.
+      const { data: sentBatches, error: sentBatchesError } = await admin.from("marketing_email_campaigns")
+        .select("id, resend_segment_id")
+        .eq("seller_id", seller.id).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "sent")
+        .not("resend_segment_id", "is", null);
+      if (sentBatchesError) throw sentBatchesError;
+      let releasedSegments = 0;
+      for (const batch of sentBatches || []) {
+        try {
+          await resendMarketingRequest(`/segments/${batch.resend_segment_id}`, { method: "DELETE" });
+          releasedSegments += 1;
+        } catch (error: any) {
+          if (error?.status !== 404) throw error;
+        }
+        const { error: clearSegmentError } = await admin.from("marketing_email_campaigns")
+          .update({ resend_segment_id: null, updated_at: new Date().toISOString() }).eq("id", batch.id).eq("seller_id", seller.id);
+        if (clearSegmentError) throw clearSegmentError;
+      }
+
       // Only the 150 contacts deliberately outside this 1,000-contact
       // campaign audience are deleted from Resend. Their CatalogStore records
       // and marketing-consent history remain untouched and can be re-synced later.
@@ -331,7 +352,7 @@ export async function POST(req: NextRequest) {
         }));
         deleted += results.filter(Boolean).length;
       }
-      return NextResponse.json({ ok: true, deleted, discardedBatches: (failedBatches || []).length });
+      return NextResponse.json({ ok: true, deleted, discardedBatches: (failedBatches || []).length, releasedSegments });
     }
 
     if (action === "discard") {
