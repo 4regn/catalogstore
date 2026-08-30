@@ -2015,7 +2015,13 @@ export default function Dashboard() {
   // activateSetlaPlanAfterPayment runs on confirmed payment (see
   // lib/setla-instalments.ts). Both plan-specific values are kept here
   // too, for any order created before that change.
-  const UNRESOLVED_PAYMENT_METHODS = ["payfast", "yoco", "setla", "setla_pay_later", "setla_laybuy"];
+  // Must match sweepAbandonedOrders' own gateway list (lib/unik-orders.ts)
+  // -- this filter was missing "stitch" and "float", so an order the sweep
+  // correctly relabelled "abandoned" (or a real Stitch decline via
+  // markUnikOrderFailed) fell straight through to visibleOrders instead of
+  // this tab. On a store where Stitch is the primary card gateway, that
+  // meant nearly every real abandoned/failed checkout was invisible here.
+  const UNRESOLVED_PAYMENT_METHODS = ["payfast", "yoco", "stitch", "float", "setla", "setla_pay_later", "setla_laybuy"];
   // Includes "failed" as of this pass -- a real gateway decline
   // (lib/unik-orders.ts's markUnikOrderFailed, fired by the Yoco webhook's
   // payment.failed event) was being written to payment_status correctly,

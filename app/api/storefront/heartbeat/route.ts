@@ -160,6 +160,16 @@ export async function POST(req: NextRequest) {
   };
   if (cartItemCount > 0) sessionUpdate.had_cart = true;
   if (status === "checkout") sessionUpdate.reached_checkout = true;
+  // The day's FIRST heartbeat (the upsert above, ignoreDuplicates: true)
+  // almost always lands before a checkout visitor has typed their name or
+  // email, so without this, that identity was captured live in
+  // store_live_sessions (an ephemeral, overwritten-every-heartbeat table)
+  // but never persisted here -- someone who filled in their details at
+  // checkout and then left without paying was completely unidentifiable
+  // after the fact. Only ever overwrites with a real value, never blanks
+  // one back out if a later heartbeat happens to arrive without it.
+  if (customerName) sessionUpdate.customer_name = customerName;
+  if (customerEmail) sessionUpdate.customer_email = customerEmail;
   const { error: sessionUpdateError } = await admin
     .from("store_visitor_sessions")
     .update(sessionUpdate)
