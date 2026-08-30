@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
+import { revalidateStore } from "../../../actions/revalidate-store";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,16 @@ export async function GET(req: NextRequest) {
       .update({ price: ORIGINAL_PRICE, old_price: null })
       .in("id", eligibleIds);
     if (updateErr) throw updateErr;
+
+    // Collection/product pages read products through a persistent,
+    // seller-scoped cache (lib/four-regn-catalog-cache.ts, up to a
+    // 1-hour revalidate window) that a raw DB write never invalidates
+    // on its own -- without this, the grid would keep showing the
+    // now-reverted R249 sale price (which checkout would no longer
+    // honour) for up to an hour after the sale actually ended. This is
+    // the same gap that made the sale's own price update need a manual
+    // dashboard save to show up on the collection grid immediately.
+    await revalidateStore("4regn").catch(() => {});
 
     return NextResponse.json({ status: "ok", reverted: eligibleIds.length });
   } catch (error: any) {

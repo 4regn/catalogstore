@@ -219,6 +219,21 @@ function renderOfferLine(line: string, keyPrefix: string) {
     return word;
   });
 }
+
+// Compact "ends in" display for the Oversized Tees flash sale's per-card
+// countdown badge -- "1d 04h 12m" once there's more than a day left,
+// "04:12:33" (ticking seconds) once it's down to the final day, which is
+// exactly when a seconds-level countdown starts actually reading as more
+// urgent rather than just noisy.
+function formatTeesSaleCountdownCompact(ms: number): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return days > 0 ? `${days}d ${pad(hours)}h ${pad(minutes)}m` : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
 interface Seller {
   id: string; store_name: string; whatsapp_number: string;
   subdomain: string; template: string; primary_color: string;
@@ -1722,6 +1737,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // moving that whole declaration up just for this.
   const flashCapActive = (seller?.subdomain === "4regn" || seller?.template === "4regn") && isFlashCapActive();
   const teesSaleActive = (seller?.subdomain === "4regn" || seller?.template === "4regn") && Date.now() < TEES_SALE_ANALYTICS_END;
+  // One shared ticking clock for every product card's "FLASH SALE ENDS IN"
+  // badge, rather than each card running its own interval -- a collection
+  // grid can show dozens of these at once.
+  const [teesSaleNowTick, setTeesSaleNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!teesSaleActive) return;
+    const id = window.setInterval(() => setTeesSaleNowTick(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [teesSaleActive]);
+  const teesSaleRemainingMs = Math.max(0, TEES_SALE_ANALYTICS_END - teesSaleNowTick);
   const flashCapGiftIndex = cart.findIndex((i) => i.giftTag === FLASH_CAP_GIFT_TAG);
   const flashCapGiftItem = flashCapGiftIndex !== -1 ? cart[flashCapGiftIndex] : null;
   const cartTotal = cart.reduce((s, i) => s + (i.giftTag ? 0 : effectivePrice(i.product, i.selectedVariants) * i.qty), 0);
@@ -2176,6 +2201,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               </>
             )}
           </div>
+          {teesSaleActive && pInCat(p, TEES_SALE_COLLECTION) && (
+            <div className="fr-pcard-sale-timer">Flash Sale Ends In {formatTeesSaleCountdownCompact(teesSaleRemainingMs)}</div>
+          )}
           <button
             className="fr-pwa"
             type="button"
@@ -2847,6 +2875,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pname{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:8px;line-height:1.3;color:var(--ink)}
 .fr-pprice{font-family:var(--body);font-size:14px;font-weight:700;color:var(--ink)}
 .fr-pprice .was{font-size:12px;color:rgba(46,42,57,0.5);text-decoration:line-through;margin-right:6px;font-weight:400}
+.fr-pcard-sale-timer{margin-top:6px;font-family:var(--body);font-size:10px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent, #d64735);font-variant-numeric:tabular-nums}
 .fr-pwa{margin-top:12px;width:100%;background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);padding:10px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
 .fr-pwa:disabled,.fr-pdp-add:disabled,.fr-pdp-buynow:disabled{opacity:0.4;cursor:default;box-shadow:none}
 
