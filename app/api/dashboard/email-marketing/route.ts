@@ -52,20 +52,7 @@ async function ensureSegment(admin: ReturnType<typeof getAdmin>, sellerId: strin
 }
 
 async function audienceCount(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  return (await personalizedAudienceContacts(admin, sellerId)).length;
-}
-
-async function unnamedAudienceCount(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  const rows = await allRows<{ email: string; first_name: string | null }>((from, to) => admin.from("customers")
-    .select("email, first_name").eq("seller_id", sellerId).eq("accepts_email_marketing", true)
-    .not("email", "is", null).order("id", { ascending: true }).range(from, to));
-  const namesByEmail = new Map<string, boolean>();
-  for (const contact of rows) {
-    const email = contact.email?.trim().toLowerCase();
-    if (!email) continue;
-    namesByEmail.set(email, (namesByEmail.get(email) || false) || !!contact.first_name?.trim());
-  }
-  return [...namesByEmail.values()].filter((hasName) => !hasName).length;
+  return (await marketingAudienceContacts(admin, sellerId)).length;
 }
 
 async function allRows<T>(loadPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>) {
@@ -79,20 +66,24 @@ async function allRows<T>(loadPage: (from: number, to: number) => PromiseLike<{ 
   }
 }
 
-async function personalizedAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
+type AudienceContact = { id: string; email: string; first_name: string | null; last_name: string | null };
+
+async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
   const rows = await allRows<{ id: string; email: string; first_name: string | null; last_name: string | null }>((from, to) => admin.from("customers")
     .select("id, email, first_name, last_name").eq("seller_id", sellerId).eq("accepts_email_marketing", true)
     .not("email", "is", null).order("id", { ascending: true }).range(from, to));
-  const seen = new Set<string>();
-  return rows.filter((contact) => {
+  const contactsByEmail = new Map<string, AudienceContact>();
+  for (const contact of rows) {
     const email = contact.email?.trim().toLowerCase();
-    const firstName = contact.first_name?.trim();
-    if (!email || !firstName || seen.has(email)) return false;
-    contact.email = email;
-    contact.first_name = firstName;
-    seen.add(email);
-    return true;
-  });
+    if (!email) continue;
+    const normalized = { ...contact, email, first_name: contact.first_name?.trim() || null, last_name: contact.last_name?.trim() || null };
+    const existing = contactsByEmail.get(email);
+    // A duplicate customer record with a name should always win over the
+    // anonymous version so that as many subscribers as possible receive a
+    // personalised greeting.
+    if (!existing || (!existing.first_name && normalized.first_name)) contactsByEmail.set(email, normalized);
+  }
+  return [...contactsByEmail.values()].sort((a, b) => Number(!!b.first_name) - Number(!!a.first_name));
 }
 
 async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerId: string) {
@@ -109,28 +100,25 @@ export async function POST(req: NextRequest) {
     const { admin, seller } = await authenticate(accessToken);
 
     if (action === "overview") {
-      const [settings, count, skippedUnnamedCount, campaignsResult, usedEmails] = await Promise.all([
+      const [settings, audience, campaignsResult, usedEmails] = await Promise.all([
         getSettings(admin, seller.id),
-        audienceCount(admin, seller.id),
-        unnamedAudienceCount(admin, seller.id),
+        marketingAudienceContacts(admin, seller.id),
         admin.from("marketing_email_campaigns")
           .select("id, name, subject, preview_text, resend_broadcast_id, resend_segment_id, batch_number, recipient_count, status, scheduled_at, sent_at, last_error, created_at")
           .eq("seller_id", seller.id).order("created_at", { ascending: false }).limit(20),
         campaignAudienceState(admin, seller.id),
       ]);
       if (campaignsResult.error) throw campaignsResult.error;
-      return NextResponse.json({ ok: true, settings, audienceCount: count, skippedUnnamedCount, remainingCount: Math.max(0, count - usedEmails.size), campaigns: campaignsResult.data || [], template: FLASH_WEEKEND_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
+      const genericGreetingCount = audience.filter((contact) => !contact.first_name).length;
+      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, genericGreetingCount, remainingCount: Math.max(0, audience.length - usedEmails.size), campaigns: campaignsResult.data || [], template: FLASH_WEEKEND_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
     }
 
     if (action === "sync") {
       const settings = await ensureSegment(admin, seller.id);
       const offset = Math.max(0, Math.floor(Number(body.offset) || 0));
       const batchSize = 12;
-      const { data: contacts, error } = await admin.from("customers")
-        .select("email, first_name, last_name")
-        .eq("seller_id", seller.id).eq("accepts_email_marketing", true).not("email", "is", null)
-        .order("id", { ascending: true }).range(offset, offset + batchSize - 1);
-      if (error) throw error;
+      const audience = await marketingAudienceContacts(admin, seller.id);
+      const contacts = audience.slice(offset, offset + batchSize);
 
       let synced = 0;
       const failures: string[] = [];
@@ -144,8 +132,8 @@ export async function POST(req: NextRequest) {
       }
 
       const total = await audienceCount(admin, seller.id);
-      const nextOffset = offset + (contacts?.length || 0);
-      const complete = nextOffset >= total;
+      const nextOffset = offset + contacts.length;
+      const complete = nextOffset >= audience.length;
       if (complete) {
         await admin.from("marketing_email_settings").update({ synced_contact_count: total - failures.length, last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("seller_id", seller.id);
       }
@@ -173,7 +161,7 @@ export async function POST(req: NextRequest) {
       if (existingOpen.data) return NextResponse.json({ error: "Finish the existing prepared batch before creating another one." }, { status: 409 });
 
       const [contacts, usedEmails] = await Promise.all([
-        personalizedAudienceContacts(admin, seller.id),
+        marketingAudienceContacts(admin, seller.id),
         campaignAudienceState(admin, seller.id),
       ]);
       const selected = contacts.filter((contact) => !usedEmails.has(contact.email.trim().toLowerCase())).slice(0, limit);
@@ -266,9 +254,6 @@ export async function POST(req: NextRequest) {
       const { data: campaignRecipients, error: campaignRecipientsError } = await admin.from("marketing_email_campaign_recipients")
         .select("first_name").eq("campaign_id", campaign.id);
       if (campaignRecipientsError) throw campaignRecipientsError;
-      if ((campaignRecipients || []).some((recipient) => !recipient.first_name?.trim())) {
-        return NextResponse.json({ error: "This draft contains unnamed recipients and is blocked from sending. Prepare a new named-subscriber batch." }, { status: 409 });
-      }
       if (confirmation !== `SEND ${campaign.recipient_count}`) return NextResponse.json({ error: `Type SEND ${campaign.recipient_count} to confirm` }, { status: 400 });
 
       await admin.from("marketing_email_campaigns").update({ status: "sending", updated_at: new Date().toISOString() }).eq("id", campaign.id);

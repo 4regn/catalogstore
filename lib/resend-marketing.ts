@@ -5,7 +5,7 @@ import { getFourRegnResendFrom } from "./email";
 export const FLASH_WEEKEND_CAMPAIGN = {
   key: "4regn-flash-weekend-trucker-cap-2026",
   name: "4REGN Flash Weekend — Free Trucker Cap",
-  subject: "FLASH WEEKEND: Get a FREE Trucker Cap 🎁",
+  subject: "4REGN FLASH WEEKEND SALE: Get a FREE Trucker Cap 🎁",
   previewText: "Spend R499+ this weekend and choose one FREE trucker cap. Ends 31 August at 23:59 SAST.",
   previewUrl: "/email/4regn-flash-weekend-2026.html",
 };

@@ -19,7 +19,7 @@ type Campaign = {
 
 type Overview = {
   audienceCount: number;
-  skippedUnnamedCount: number;
+  genericGreetingCount: number;
   remainingCount: number;
   maxBatchSize: number;
   sellerEmail: string;
@@ -136,15 +136,15 @@ export default function EmailCampaignPanel() {
           <div style={{ marginTop: 7, color: "var(--muted-2)", fontSize: 11, lineHeight: 1.55 }}>{overview.template.previewText}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 15 }}>
             <span style={statusPill}>From: 4REGN &lt;info@4regn.com&gt;</span>
-            <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} named subscribers eligible</span>
+            <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} opted-in subscribers eligible</span>
             <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} not sent yet</span>
-            {overview.skippedUnnamedCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.skippedUnnamedCount.toLocaleString("en-ZA")} unnamed skipped</span>}
+            {overview.genericGreetingCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.genericGreetingCount.toLocaleString("en-ZA")} receive a generic greeting</span>}
           </div>
         </div>
 
         <div style={{ ...innerCard, padding: 18 }}>
           <div style={eyebrow}>1 · Prepare today&apos;s batch</div>
-          <p style={stepCopy}>Selects up to 575 opted-in subscribers with a first name who have not received this campaign, then creates a private Resend segment. Unnamed contacts are skipped and the next batch automatically starts with the remaining eligible subscribers.</p>
+          <p style={stepCopy}>Selects up to 575 opted-in subscribers who have not received this campaign, then creates a private Resend segment. Subscribers without a name receive a neutral greeting, and the next batch automatically starts with the remaining contacts.</p>
           {busy === "draft" && <div style={{ margin: "12px 0" }}>
             <div style={{ height: 6, background: "var(--input-bg)", borderRadius: 99, overflow: "hidden" }}><div style={{ height: "100%", width: `${prepareProgress.total ? Math.round(prepareProgress.current / prepareProgress.total * 100) : 0}%`, background: "#a78bfa" }} /></div>
             <div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 6 }}>{prepareProgress.current.toLocaleString("en-ZA")} / {prepareProgress.total.toLocaleString("en-ZA")}</div>
