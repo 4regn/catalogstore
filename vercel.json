@@ -22,11 +22,11 @@
     },
     {
       "path": "/api/cron/send-abandoned-cart-emails",
-      "schedule": "45 4 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/send-abandoned-checkout-emails",
-      "schedule": "0 5 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }

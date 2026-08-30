@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
-import { sastToday } from "../../../../lib/sast-time";
 import { isUnsubscribed } from "../../../../lib/marketing-unsubscribe";
 import { sendAbandonedCartRecoveryEmail, type AbandonedCartOrderItem } from "../../../../lib/four-regn-abandoned-cart-email";
 
@@ -14,15 +13,14 @@ export const dynamic = "force-dynamic";
 // the heartbeat route's own comment) and store_visitor_events (the actual
 // cart contents, from whichever heartbeat last carried them).
 //
-// Runs once daily, same cadence reasoning as Tier 1: only ever looks at
-// session_date < today, so a visitor still actively checking out right
-// now is never touched.
-function yesterdayAndBefore(today: string, days: number): string[] {
-  const out: string[] = [];
-  const todayUtcMidnight = new Date(today + "T00:00:00Z").getTime();
-  for (let i = 1; i <= days; i++) out.push(new Date(todayUtcMidnight - i * 86_400_000).toISOString().slice(0, 10));
-  return out;
-}
+// Runs every 15 minutes (see vercel.json). "Abandoned" here means no
+// heartbeat in the last CHECKOUT_ABANDON_MS -- the heartbeat pings every
+// ~20s while the tab is open, so a stretch that long with no ping is a
+// reliable signal the visitor is actually gone, not just reading a page
+// slowly. MAX_AGE_MS is a backstop so a missed run (or this feature's
+// first rollout) never suddenly emails a days-old stale session.
+const CHECKOUT_ABANDON_MS = 30 * 60 * 1000; // 30 minutes
+const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -35,9 +33,7 @@ export async function GET(req: NextRequest) {
     const { data: seller } = await admin.from("sellers").select("id").eq("subdomain", "4regn").maybeSingle();
     if (!seller) return NextResponse.json({ status: "ok", sent: 0, skipped: 0, note: "4regn seller not found" });
 
-    const today = sastToday();
-    const windowDates = yesterdayAndBefore(today, 2); // yesterday + the day before, in case a run was missed
-
+    const now = Date.now();
     const { data: candidates, error } = await admin
       .from("store_visitor_sessions")
       .select("visitor_id, session_date, customer_name, customer_email")
@@ -45,7 +41,8 @@ export async function GET(req: NextRequest) {
       .eq("reached_checkout", true)
       .not("customer_email", "is", null)
       .is("abandoned_checkout_email_sent_at", null)
-      .in("session_date", windowDates);
+      .lt("last_seen_at", new Date(now - CHECKOUT_ABANDON_MS).toISOString())
+      .gt("last_seen_at", new Date(now - MAX_AGE_MS).toISOString());
     if (error) throw error;
 
     let sent = 0;
@@ -88,7 +85,7 @@ export async function GET(req: NextRequest) {
         sent++;
       } catch (sendError) {
         console.error("Abandoned checkout email failed for visitor", session.visitor_id, sendError);
-        continue; // Leave abandoned_checkout_email_sent_at unset -- retried on tomorrow's run.
+        continue; // Leave abandoned_checkout_email_sent_at unset -- retried on the next run.
       }
       await admin
         .from("store_visitor_sessions")

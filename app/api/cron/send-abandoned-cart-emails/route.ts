@@ -7,7 +7,7 @@ import { sendAbandonedCartRecoveryEmail, type AbandonedCartOrderItem } from "../
 
 export const dynamic = "force-dynamic";
 
-// Runs once daily (see vercel.json) -- picks up anything that became
+// Runs every 15 minutes (see vercel.json) -- picks up anything that became
 // eligible since the last run. The lower bound (older than
 // ORDER_ABANDON_MS) keeps this from emailing someone who is still mid
 // payment attempt right now; the upper bound (48h) keeps a first deploy
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         }
       } catch (sendError) {
         console.error("Abandoned cart email failed for order", order.id, sendError);
-        continue; // Leave abandoned_cart_email_sent_at unset -- retried on tomorrow's run.
+        continue; // Leave abandoned_cart_email_sent_at unset -- retried on the next run.
       }
       await admin.from("orders").update({ abandoned_cart_email_sent_at: new Date().toISOString() }).eq("id", order.id);
     }
