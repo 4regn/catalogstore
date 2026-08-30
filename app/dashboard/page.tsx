@@ -227,6 +227,7 @@ interface Order {
   tracking_updated_at?: string | null; estimated_delivery_from_at?: string | null; estimated_delivery_at?: string | null; estimated_delivery_manual_override?: boolean;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
   fulfillment_method: string; shipping_option: string; shipping_cost: number; payment_method: string; notes?: string | null; customer_tracking_note?: string | null;
+  abandoned_cart_email_sent_at?: string | null;
 }
 
 interface LiveVisitor {
@@ -264,7 +265,7 @@ const cleanProductTags = (values: string[]) => Array.from(new Map(values
   .map((value) => value.trim().replace(/\s+/g, " ").slice(0, 80))
   .filter(Boolean)
   .map((value) => [value.toLowerCase(), value])).values()).slice(0, 40);
-const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, estimated_delivery_from_at, estimated_delivery_at, estimated_delivery_manual_override, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes, customer_tracking_note";
+const ORDER_COLUMNS = "id, order_number, external_id, customer_name, customer_phone, customer_email, items, total, status, payment_status, created_at, tracking_updated_at, estimated_delivery_from_at, estimated_delivery_at, estimated_delivery_manual_override, shipping_address, fulfillment_method, shipping_option, shipping_cost, payment_method, notes, customer_tracking_note, abandoned_cart_email_sent_at";
 const PAYMENT_METHOD_KEYS = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const DEFAULT_PAYMENT_METHOD_ORDER = [...PAYMENT_METHOD_KEYS];
 const normalisePaymentMethodOrder = (value: unknown) => {
@@ -466,6 +467,7 @@ export default function Dashboard() {
   const [wishlistAnalytics, setWishlistAnalytics] = useState<{ totals: { totalSaves: number; uniqueProducts: number; uniqueCustomers: number; allVisitorAdds: number; allVisitorUniqueVisitors: number }; products: { productId: string; name: string; price: number | null; oldPrice: number | null; imageUrl: string | null; handle: string | null; inStock: boolean | null; saveCount: number; uniqueCustomers: number; lastSavedAt: string; savers: { name: string | null; email: string | null; phone: string | null; savedAt: string }[]; allVisitorAdds: number; allVisitorUniqueVisitors: number }[] } | null>(null);
   const [wishlistAnalyticsLoading, setWishlistAnalyticsLoading] = useState(false);
   const [wishlistExpandedProductId, setWishlistExpandedProductId] = useState<string | null>(null);
+  const [sendingAbandonedEmailId, setSendingAbandonedEmailId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1065,6 +1067,38 @@ export default function Dashboard() {
       setWishlistAnalyticsLoading(false);
     })();
   }, [loading, tab]);
+
+  // Manual override for the same recovery email the abandoned-cart cron
+  // sends automatically -- see app/api/dashboard/orders/send-abandoned-cart-email/route.ts.
+  // Stamps the same dedup column the cron checks, so this order is never
+  // auto-emailed afterward either.
+  const sendAbandonedCartEmailNow = async (orderId: string) => {
+    const token = await getAccessToken();
+    if (!token) return;
+    setSendingAbandonedEmailId(orderId);
+    try {
+      const res = await fetch("/api/dashboard/orders/send-abandoned-cart-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, orderId }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, abandoned_cart_email_sent_at: data.sentAt } : o)));
+      } else {
+        const reasons: Record<string, string> = {
+          already_sent: "Already sent to this customer.",
+          no_email: "This order has no email address on file.",
+          no_items: "This order has no items to show in the email.",
+          unsubscribed: "This customer unsubscribed from cart-recovery emails.",
+          not_found: "Order not found.",
+        };
+        alert(reasons[data.reason] || data.error || "Could not send the email.");
+        if (data.reason === "already_sent" && data.sentAt) {
+          setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, abandoned_cart_email_sent_at: data.sentAt } : o)));
+        }
+      }
+    } catch {
+      alert("Could not send the email -- check your connection and try again.");
+    }
+    setSendingAbandonedEmailId(null);
+  };
 
   const fetchSubscribers = async () => {
     const token = await getAccessToken();
@@ -4143,6 +4177,21 @@ export default function Dashboard() {
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, fontSize: 11, color: "var(--muted-2)" }}>
                         {(order.items || []).map((item, i) => (<span key={i} style={{ padding: "4px 10px", background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--border)" }}>{item.name} x{item.qty}</span>))}
                         <span style={{ marginLeft: "auto" }}>{new Date(order.created_at).toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                        {order.abandoned_cart_email_sent_at ? (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
+                            Recovery email sent {new Date(order.abandoned_cart_email_sent_at).toLocaleString()}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => sendAbandonedCartEmailNow(order.id)}
+                            disabled={sendingAbandonedEmailId === order.id}
+                            style={{ padding: "9px 16px", borderRadius: 100, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: sendingAbandonedEmailId === order.id ? "default" : "pointer", opacity: sendingAbandonedEmailId === order.id ? 0.6 : 1 }}
+                          >
+                            {sendingAbandonedEmailId === order.id ? "Sending…" : "Send Abandoned Cart Email"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
