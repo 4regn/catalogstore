@@ -22,6 +22,10 @@ const EVENT_TYPES = new Set([
   "flash_cap_changed", "flash_cap_qualification_lost",
   "flash_cap_checkout_warning_seen", "flash_cap_checkout_without_gift",
   "flash_cap_order_completed",
+  // Heart-icon toggles on the storefront -- fired for every visitor
+  // regardless of whether they're signed into a customer account, unlike
+  // customer_wishlist_items which only records account holders.
+  "wishlist_added", "wishlist_removed",
 ]);
 
 function safeEventMetadata(value: unknown): Record<string, string | number | boolean | null> {

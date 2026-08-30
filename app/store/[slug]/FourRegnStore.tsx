@@ -903,6 +903,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const exists = wishlist.some((p) => p.id === product.id);
     setWishlist((prev) => exists ? prev.filter((p) => p.id !== product.id) : [...prev, { id: product.id, name: product.name, price: product.price, old_price: product.old_price, image_url: product.image_url, handle: product.handle, in_stock: product.in_stock, category: product.category }]);
     fetch("/api/customer-account/wishlist", { method: exists ? "DELETE" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: seller?.subdomain, productId: product.id }) }).catch(() => {});
+    // Fires for every visitor regardless of account status, unlike the
+    // customer_wishlist_items write above -- lets the dashboard show total
+    // demand, not just saves from customers who happen to be signed in.
+    if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: exists ? "wishlist_removed" : "wishlist_added", metadata: { productId: product.id, productName: product.name } });
   };
 
   // Each route renders a fresh FourRegnStore instance, so component state

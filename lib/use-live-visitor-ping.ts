@@ -33,7 +33,8 @@ export type StorefrontEventType =
   | "flash_cap_picker_opened" | "flash_cap_collection_visited" | "flash_cap_selected"
   | "flash_cap_changed" | "flash_cap_qualification_lost"
   | "flash_cap_checkout_warning_seen" | "flash_cap_checkout_without_gift"
-  | "flash_cap_order_completed";
+  | "flash_cap_order_completed"
+  | "wishlist_added" | "wishlist_removed";
 
 export function trackStorefrontEvent(args: {
   sellerId: string;

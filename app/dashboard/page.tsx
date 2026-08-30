@@ -462,7 +462,7 @@ export default function Dashboard() {
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
   const [flashCapAnalytics, setFlashCapAnalytics] = useState<{ funnel: { type: string; count: number; uniqueVisitors: number }[]; orderValueTotal: number; totalEvents: number } | null>(null);
   const [flashCapAnalyticsLoading, setFlashCapAnalyticsLoading] = useState(false);
-  const [wishlistAnalytics, setWishlistAnalytics] = useState<{ totals: { totalSaves: number; uniqueProducts: number; uniqueCustomers: number }; products: { productId: string; name: string; price: number | null; oldPrice: number | null; imageUrl: string | null; handle: string | null; inStock: boolean | null; saveCount: number; uniqueCustomers: number; lastSavedAt: string; savers: { name: string | null; email: string | null; phone: string | null; savedAt: string }[] }[] } | null>(null);
+  const [wishlistAnalytics, setWishlistAnalytics] = useState<{ totals: { totalSaves: number; uniqueProducts: number; uniqueCustomers: number; allVisitorAdds: number; allVisitorUniqueVisitors: number }; products: { productId: string; name: string; price: number | null; oldPrice: number | null; imageUrl: string | null; handle: string | null; inStock: boolean | null; saveCount: number; uniqueCustomers: number; lastSavedAt: string; savers: { name: string | null; email: string | null; phone: string | null; savedAt: string }[]; allVisitorAdds: number; allVisitorUniqueVisitors: number }[] } | null>(null);
   const [wishlistAnalyticsLoading, setWishlistAnalyticsLoading] = useState(false);
   const [wishlistExpandedProductId, setWishlistExpandedProductId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -4753,13 +4753,13 @@ export default function Dashboard() {
             <div style={{ marginBottom: 24, padding: 20, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap" as const, gap: 8 }}>
                 <h3 style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Wishlist Saves</h3>
-                {wishlistAnalytics && wishlistAnalytics.totals.totalSaves > 0 && (
+                {wishlistAnalytics && wishlistAnalytics.totals.allVisitorAdds > 0 && (
                   <span style={{ fontSize: 11, fontWeight: 800, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>
-                    {wishlistAnalytics.totals.totalSaves} saves &middot; {wishlistAnalytics.totals.uniqueCustomers} customers
+                    {wishlistAnalytics.totals.allVisitorAdds} heart-taps &middot; {wishlistAnalytics.totals.allVisitorUniqueVisitors} visitors &middot; {wishlistAnalytics.totals.uniqueCustomers} identified
                   </span>
                 )}
               </div>
-              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>What shoppers are saving for later. Click a product to see who saved it, so you can follow up about restocks or price drops.</p>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>What shoppers are saving for later, from every visitor who taps the heart icon. Click a product to see the identified customers behind those saves -- shoppers signed into an account -- so you can follow up about restocks or price drops. Anyone who hasn't created an account is counted above but can't be reached individually.</p>
               {wishlistAnalyticsLoading && !wishlistAnalytics ? (
                 <p style={{ fontSize: 12, color: "var(--muted)" }}>Loading…</p>
               ) : !wishlistAnalytics || wishlistAnalytics.products.length === 0 ? (
@@ -4783,17 +4783,24 @@ export default function Dashboard() {
                             <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{p.name}</div>
                             <div style={{ fontSize: 11, color: "var(--muted-2)" }}>{p.inStock === false ? "Sold out" : p.price != null ? `R${Math.round(p.price).toLocaleString("en-ZA")}` : ""}</div>
                           </div>
-                          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", flexShrink: 0 }}>{p.saveCount} <span style={{ color: "var(--muted-2)", fontWeight: 600 }}>({p.uniqueCustomers} {p.uniqueCustomers === 1 ? "customer" : "customers"})</span></span>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", flexShrink: 0 }}>{p.allVisitorAdds || p.saveCount} <span style={{ color: "var(--muted-2)", fontWeight: 600 }}>({p.allVisitorUniqueVisitors || p.uniqueCustomers} {(p.allVisitorUniqueVisitors || p.uniqueCustomers) === 1 ? "visitor" : "visitors"})</span></span>
                           <span style={{ fontSize: 11, color: "var(--muted-2)", flexShrink: 0 }}>{expanded ? "▲" : "▼"}</span>
                         </button>
                         {expanded && (
                           <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column" as const, gap: 6 }}>
-                            {p.savers.map((s, i) => (
-                              <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
-                                <span style={{ color: "var(--text)" }}>{s.name || s.email || s.phone || "Unknown customer"}</span>
-                                <span style={{ color: "var(--muted-2)", fontSize: 11 }}>{new Date(s.savedAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
-                              </div>
-                            ))}
+                            {p.savers.length === 0 ? (
+                              <span style={{ fontSize: 12, color: "var(--muted-2)" }}>No identified customers yet -- these saves came from visitors who haven't created an account.</span>
+                            ) : (
+                              <>
+                                <span style={{ fontSize: 11, color: "var(--muted-2)", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>{p.uniqueCustomers} identified {p.uniqueCustomers === 1 ? "customer" : "customers"}</span>
+                                {p.savers.map((s, i) => (
+                                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
+                                    <span style={{ color: "var(--text)" }}>{s.name || s.email || s.phone || "Unknown customer"}</span>
+                                    <span style={{ color: "var(--muted-2)", fontSize: 11 }}>{new Date(s.savedAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
