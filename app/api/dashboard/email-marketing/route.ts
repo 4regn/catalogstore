@@ -11,6 +11,10 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 const MAX_BATCH_SIZE = 600;
+// Resend's free Marketing plan allows 1,000 contacts. Keep the campaign
+// audience inside that hard limit so a later batch can never fail halfway
+// through contact syncing after an earlier batch has already been sent.
+const MAX_MARKETING_CONTACTS = 1000;
 
 type Settings = {
   seller_id: string;
@@ -68,7 +72,7 @@ async function allRows<T>(loadPage: (from: number, to: number) => PromiseLike<{ 
 
 type AudienceContact = { id: string; email: string; first_name: string | null; last_name: string | null };
 
-async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
+async function allMarketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
   const rows = await allRows<{ id: string; email: string; first_name: string | null; last_name: string | null }>((from, to) => admin.from("customers")
     .select("id, email, first_name, last_name").eq("seller_id", sellerId).eq("accepts_email_marketing", true)
     .not("email", "is", null).order("id", { ascending: true }).range(from, to));
@@ -86,9 +90,22 @@ async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sel
   return [...contactsByEmail.values()].sort((a, b) => Number(!!b.first_name) - Number(!!a.first_name));
 }
 
+async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
+  return (await allMarketingAudienceContacts(admin, sellerId)).slice(0, MAX_MARKETING_CONTACTS);
+}
+
 async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  const used = await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
-    .select("email").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).range(from, to));
+  // A recipient is only consumed once Resend has accepted a sent broadcast.
+  // Keeping failed or discarded draft rows out of this set lets the merchant
+  // correct the underlying Resend issue and safely prepare that same audience.
+  const campaigns = await allRows<{ id: string }>((from, to) => admin.from("marketing_email_campaigns")
+    .select("id").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "sent").range(from, to));
+  const used: Array<{ email: string }> = [];
+  for (let index = 0; index < campaigns.length; index += 100) {
+    const campaignIds = campaigns.slice(index, index + 100).map((campaign) => campaign.id);
+    used.push(...await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
+      .select("email").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).in("campaign_id", campaignIds).range(from, to)));
+  }
   return new Set(used.map((row) => row.email.trim().toLowerCase()));
 }
 
@@ -100,17 +117,18 @@ export async function POST(req: NextRequest) {
     const { admin, seller } = await authenticate(accessToken);
 
     if (action === "overview") {
-      const [settings, audience, campaignsResult, usedEmails] = await Promise.all([
+      const [settings, allAudience, campaignsResult, usedEmails] = await Promise.all([
         getSettings(admin, seller.id),
-        marketingAudienceContacts(admin, seller.id),
+        allMarketingAudienceContacts(admin, seller.id),
         admin.from("marketing_email_campaigns")
           .select("id, name, subject, preview_text, resend_broadcast_id, resend_segment_id, batch_number, recipient_count, status, scheduled_at, sent_at, last_error, created_at")
           .eq("seller_id", seller.id).order("created_at", { ascending: false }).limit(20),
         campaignAudienceState(admin, seller.id),
       ]);
       if (campaignsResult.error) throw campaignsResult.error;
+      const audience = allAudience.slice(0, MAX_MARKETING_CONTACTS);
       const genericGreetingCount = audience.filter((contact) => !contact.first_name).length;
-      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, genericGreetingCount, remainingCount: Math.max(0, audience.length - usedEmails.size), campaigns: campaignsResult.data || [], template: FLASH_WEEKEND_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
+      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, planExcludedCount: Math.max(0, allAudience.length - audience.length), genericGreetingCount, remainingCount: Math.max(0, audience.length - usedEmails.size), campaigns: campaignsResult.data || [], template: FLASH_WEEKEND_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
     }
 
     if (action === "sync") {
@@ -266,6 +284,54 @@ export async function POST(req: NextRequest) {
         throw sendError;
       }
       return NextResponse.json({ ok: true });
+    }
+
+    if (action === "free_contact_capacity") {
+      const allAudience = await allMarketingAudienceContacts(admin, seller.id);
+      const heldContacts = allAudience.slice(MAX_MARKETING_CONTACTS);
+      const confirmation = typeof body.confirmation === "string" ? body.confirmation.trim() : "";
+      if (confirmation !== `REMOVE ${heldContacts.length}`) {
+        return NextResponse.json({ error: `Type REMOVE ${heldContacts.length} to confirm` }, { status: 400 });
+      }
+      if (heldContacts.length === 0) return NextResponse.json({ ok: true, deleted: 0, discardedBatches: 0 });
+
+      // The quota-failed batch was never delivered. Remove its remote draft
+      // and private segment first so the replacement batch has a segment slot.
+      const { data: failedBatches, error: failedBatchesError } = await admin.from("marketing_email_campaigns")
+        .select("id, resend_broadcast_id, resend_segment_id")
+        .eq("seller_id", seller.id).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "failed");
+      if (failedBatchesError) throw failedBatchesError;
+      for (const batch of failedBatches || []) {
+        if (batch.resend_broadcast_id) {
+          try { await resendMarketingRequest(`/broadcasts/${batch.resend_broadcast_id}`, { method: "DELETE" }); }
+          catch (error: any) { if (error?.status !== 404) throw error; }
+        }
+        if (batch.resend_segment_id) {
+          try { await resendMarketingRequest(`/segments/${batch.resend_segment_id}`, { method: "DELETE" }); }
+          catch (error: any) { if (error?.status !== 404) throw error; }
+        }
+        const { error: deleteBatchError } = await admin.from("marketing_email_campaigns").delete().eq("id", batch.id).eq("seller_id", seller.id);
+        if (deleteBatchError) throw deleteBatchError;
+      }
+
+      // Only the 150 contacts deliberately outside this 1,000-contact
+      // campaign audience are deleted from Resend. Their CatalogStore records
+      // and marketing-consent history remain untouched and can be re-synced later.
+      let deleted = 0;
+      for (let index = 0; index < heldContacts.length; index += 5) {
+        const batch = heldContacts.slice(index, index + 5);
+        const results = await Promise.all(batch.map(async (contact) => {
+          try {
+            await resendMarketingRequest(`/contacts/${encodeURIComponent(contact.email)}`, { method: "DELETE" });
+            return true;
+          } catch (error: any) {
+            if (error?.status === 404) return false;
+            throw error;
+          }
+        }));
+        deleted += results.filter(Boolean).length;
+      }
+      return NextResponse.json({ ok: true, deleted, discardedBatches: (failedBatches || []).length });
     }
 
     if (action === "discard") {

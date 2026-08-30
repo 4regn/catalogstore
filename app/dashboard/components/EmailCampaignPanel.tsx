@@ -19,6 +19,7 @@ type Campaign = {
 
 type Overview = {
   audienceCount: number;
+  planExcludedCount: number;
   genericGreetingCount: number;
   remainingCount: number;
   maxBatchSize: number;
@@ -40,6 +41,7 @@ export default function EmailCampaignPanel() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [prepareProgress, setPrepareProgress] = useState({ current: 0, total: 0 });
   const [confirmation, setConfirmation] = useState("");
+  const [capacityConfirmation, setCapacityConfirmation] = useState("");
 
   const call = useCallback(async (action: string, extra: Record<string, unknown> = {}) => {
     const { data } = await supabase.auth.getSession();
@@ -110,6 +112,18 @@ export default function EmailCampaignPanel() {
     finally { setBusy(""); }
   };
 
+  const freeResendContactCapacity = async () => {
+    const held = overview?.planExcludedCount || 0;
+    setBusy("free-capacity"); setError(""); setNotice("");
+    try {
+      const result = await call("free_contact_capacity", { confirmation: capacityConfirmation });
+      setCapacityConfirmation("");
+      setNotice(`${result.deleted.toLocaleString("en-ZA")} held contacts were removed from Resend. Your CatalogStore customer records were not changed.`);
+      await load();
+    } catch (capacityError: any) { setError(capacityError?.message || "Could not free Resend contact capacity."); }
+    finally { setBusy(""); }
+  };
+
   const discardCampaign = async (campaign: Campaign) => {
     if (!window.confirm(`Discard the unsent ${campaign.recipient_count}-subscriber draft? No email will be sent, and you can prepare the corrected batch straight away.`)) return;
     setBusy(`discard:${campaign.id}`); setError(""); setNotice("");
@@ -152,6 +166,7 @@ export default function EmailCampaignPanel() {
             <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} opted-in subscribers eligible</span>
             <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} not sent yet</span>
             {overview.genericGreetingCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.genericGreetingCount.toLocaleString("en-ZA")} receive a generic greeting</span>}
+            {overview.planExcludedCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.planExcludedCount.toLocaleString("en-ZA")} held for the contact limit</span>}
           </div>
         </div>
 
@@ -184,6 +199,17 @@ export default function EmailCampaignPanel() {
 
       {!!overview && overview.audienceCount > CAMPAIGN_BATCH_SIZE && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
         This campaign is split into batches of up to 575 recipients. Sent recipients are recorded, so the next batch excludes them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers currently remain for this campaign.
+      </div>}
+
+      {!!overview?.planExcludedCount && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(251,191,36,.35)" }}>
+        <div style={eyebrow}>Before the next batch</div>
+        <div style={{ fontSize: 13, fontWeight: 800 }}>Free Resend contact capacity</div>
+        <p style={stepCopy}>Resend is over its 1,000-contact Free-plan limit. This removes only the {overview.planExcludedCount.toLocaleString("en-ZA")} contacts held out of this campaign from Resend. Your CatalogStore customer records and consent history stay safe.</p>
+        <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 7 }}>Type <strong style={{ color: "var(--text)" }}>REMOVE {overview.planExcludedCount}</strong> to confirm.</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input value={capacityConfirmation} onChange={(event) => setCapacityConfirmation(event.target.value)} placeholder={`REMOVE ${overview.planExcludedCount}`} style={inputStyle} />
+          <button disabled={!!busy || capacityConfirmation !== `REMOVE ${overview.planExcludedCount}`} onClick={freeResendContactCapacity} style={{ ...primaryButton, background: "#b45309", marginTop: 0, width: "auto" }}>{busy === "free-capacity" ? "Removing from Resend…" : `Remove ${overview.planExcludedCount} from Resend`}</button>
+        </div>
       </div>}
 
       {latestDraft && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(244,114,182,.35)" }}>
