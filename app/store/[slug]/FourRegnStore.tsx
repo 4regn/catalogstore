@@ -1980,13 +1980,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // not a per-seller-editable link, since it's platform routing, not brand
   // content.
   const showSetlaBanner = config.show_setla_banner ?? true;
-  const flashWeekendImage = config.flash_weekend_campaign_image ?? "";
+  // Swapped from the Flash Weekend free-cap banner to the Oversized Premium
+  // Tees flash sale (R249, was R350, buy 2 for R449) -- same slot, same
+  // on/off flag and end date, just a different promo for the tail end of
+  // the same sale weekend. Hardcoded rather than read from
+  // config.flash_weekend_campaign_image, matching this component's own
+  // "one-off, don't generalize" treatment of flashWeekendEndsAt/
+  // flashWeekendHref just below.
+  const flashWeekendImage = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/26ed726d-b2f2-4d80-9109-13f2e6f8ddf4/1788131397559-0.png";
   // 31 August 23:59 in South African time (SAST is UTC+2). This mirrors the
   // server-side checkout guard, so expired sale artwork can never linger on
   // the homepage after the offer has stopped applying.
   const flashWeekendEndsAt = Date.parse("2026-08-31T21:59:00.000Z");
   const showFlashWeekendCampaign = isHomeView && config.show_flash_weekend_campaign === true && !!flashWeekendImage && flashWeekendNow <= flashWeekendEndsAt;
-  const flashWeekendHref = sp(`/collections/${collectionSlug("TRUCKER CAPS & BEANIES")}`);
+  const flashWeekendHref = sp(`/collections/${collectionSlug(TEES_SALE_COLLECTION)}`);
   const setlaEyebrow = config.setla_eyebrow ?? `Flexible payments on ${seller.store_name}`;
   const setlaLead = config.setla_lead ?? "Eligible customers can shop with SETLA and split selected purchases into interest-free instalments — with your payment plan shown clearly before you commit.";
   const setlaBadge = config.setla_badge ?? "Interest-free SETLA payment options";
@@ -3852,17 +3859,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {showFlashWeekendCampaign && (
           <>
-            <section className="fr-flash-banner" aria-label="Flash Weekend sale">
+            <section className="fr-flash-banner" aria-label="Oversized Premium Tees flash sale">
               <a href={flashWeekendHref}>
-                <img src={flashWeekendImage} alt="Flash Weekend sale — free trucker cap from R499. Shop now." loading="eager" decoding="async" />
+                <img src={flashWeekendImage} alt="Oversized Premium Tees flash sale — R249, was R350. Buy 2 for R449. Shop now." loading="eager" decoding="async" />
               </a>
             </section>
             {flashWeekendOpen && (
-              <div className="fr-flash-popup-backdrop" role="dialog" aria-modal="true" aria-label="Flash Weekend sale">
+              <div className="fr-flash-popup-backdrop" role="dialog" aria-modal="true" aria-label="Oversized Premium Tees flash sale">
                 <div className="fr-flash-popup">
                   <button className="fr-flash-popup-close" onClick={() => setFlashWeekendOpen(false)} aria-label="Close sale popup">×</button>
-                  <a href={flashWeekendHref} aria-label="Shop Flash Weekend trucker caps">
-                    <img src={flashWeekendImage} alt="Flash Weekend sale — Shop now." />
+                  <a href={flashWeekendHref} aria-label="Shop Oversized Premium Tees">
+                    <img src={flashWeekendImage} alt="Oversized Premium Tees flash sale — Shop now." />
                   </a>
                 </div>
               </div>
