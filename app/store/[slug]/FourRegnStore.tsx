@@ -40,6 +40,8 @@ const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: 
 // FourRegnPromoCountdown.tsx), which is itself what prevents any flash of
 // stale/expired content, so there's no SSR markup worth producing here either.
 const FourRegnPromoCountdown = dynamic(() => import("./FourRegnPromoCountdown"), { ssr: false });
+const FourRegnTeesSaleCountdown = dynamic(() => import("./FourRegnTeesSaleCountdown"), { ssr: false });
+const TEES_SALE_COLLECTION = "OVERSIZED PREMIUM TEES";
 
 // Cart-state-driven, same "nothing worth rendering server-side" reasoning
 // as the two dynamic imports above.
@@ -4172,6 +4174,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {isCollectionView && (
           <div className="fr-coll-promo-countdown">
             <FourRegnPromoCountdown variant="collection" />
+            {collectionName === TEES_SALE_COLLECTION && <FourRegnTeesSaleCountdown variant="collection" />}
             {flashCapActive && flashCapOnTruckerCapsPage && (flashCapState === "ELIGIBLE_UNCLAIMED" || flashCapState === "ELIGIBLE_CLAIMED") ? (
               <div className="regn-fcap regn-fcap--banner">
                 <span className="regn-fcap__text regn-fcap__text--won">Your Free Cap Is Unlocked &mdash; Choose One</span>
@@ -4302,6 +4305,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
                     <FourRegnPromoCountdown variant="product" />
+                    {pInCat(p, TEES_SALE_COLLECTION) && <FourRegnTeesSaleCountdown variant="product" />}
                     {flashCapActive && (
                       <FlashCapProgress
                         state={flashCapState}
