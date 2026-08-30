@@ -2411,6 +2411,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-hero-offer{margin:0 0 18px;max-width:640px;font-family:Arial,Helvetica,sans-serif;font-size:clamp(14px,1.8vw,20px);line-height:1.55;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:#fdfbf7;text-shadow:0 2px 18px rgba(0,0,0,0.45)}
 .fr-hero-offer-accent{color:var(--accent)}
 .fr-hero-offer-pulse{color:var(--accent);display:inline-block;animation:fr-heartbeat 1.2s ease-in-out infinite;transform-origin:center}
+.fr-hero-offer-was{text-decoration:line-through;color:rgba(253,251,247,0.55);font-weight:600;margin-right:8px}
 .fr-hero-offer-note{display:block;margin-top:6px;font-family:Arial,Helvetica,sans-serif;font-size:0.72em;font-weight:400;letter-spacing:0.13em;text-transform:uppercase;color:rgba(253,251,247,0.75)}
 @keyframes fr-heartbeat{0%{transform:scale(1)}14%{transform:scale(1.12)}28%{transform:scale(1)}42%{transform:scale(1.14)}70%{transform:scale(1)}100%{transform:scale(1)}}
 .fr-cta-row{display:flex;align-items:center;gap:22px;margin-bottom:36px;flex-wrap:wrap}
@@ -3845,11 +3846,29 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               )}
               <div className="fr-hero-overlay" />
               <div className="fr-hero-inner">
-                {heroUsesSpringSalePill ? (
+                {/* Oversized Tees flash sale overrides the seller's normal
+                    configured hero offer (SPRING SALE! pill / BUY 2 FOR
+                    R449! copy) entirely while it's active, WITHOUT touching
+                    that underlying config -- so once teesSaleActive goes
+                    false, the hero reverts to exactly whatever the seller
+                    had configured before, automatically, no cleanup step
+                    needed. */}
+                {teesSaleActive ? (
+                  <div className="fr-hero-pill">FLASH SALE!</div>
+                ) : heroUsesSpringSalePill ? (
                   <div className="fr-hero-pill">SPRING SALE!</div>
                 ) : showHeroPill ? <div className="fr-hero-pill">{heroPillLabel}</div> : null}
                 {displayHeroLabel && <div className="fr-hero-label">{displayHeroLabel}</div>}
-                {visibleHeroOfferHeadline && (
+                {teesSaleActive ? (
+                  <p className="fr-hero-offer">
+                    <span className="fr-hero-offer-was">R350</span>
+                    <strong className="fr-hero-offer-pulse">R249</strong> EACH!!
+                    <br />
+                    {renderOfferLine("BUY 2 OVERSIZED PREMIUM TEES FOR R449!", "tees-offer")}
+                    <span className="fr-hero-offer-note">Offer ending 31 August 23:59</span>
+                    <span className="fr-hero-offer-note">Discount automatically applied at checkout.</span>
+                  </p>
+                ) : visibleHeroOfferHeadline && (
                   <p className="fr-hero-offer">
                     {visibleHeroOfferHeadline.split("\n").map((line, i, arr) => (
                       <Fragment key={i}>
@@ -3862,6 +3881,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 )}
                 {displayHeroHeadline && <h1 className="fr-hero-h1">{displayHeroHeadline}</h1>}
                 {displayHeroBody && <p className="fr-hero-body">{displayHeroBody}</p>}
+                {teesSaleActive && <FourRegnTeesSaleCountdown variant="collection" />}
                 {(showCtaPrimary || showCtaSecondary) && (
                   <div className="fr-cta-row">
                     {showCtaPrimary && (
