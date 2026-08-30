@@ -286,6 +286,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === "free_contact_capacity") {
+      const allAudience = await allMarketingAudienceContacts(admin, seller.id);
+      const heldContacts = allAudience.slice(MAX_MARKETING_CONTACTS);
+      const confirmation = typeof body.confirmation === "string" ? body.confirmation.trim() : "";
+      if (confirmation !== `REMOVE ${heldContacts.length}`) {
+        return NextResponse.json({ error: `Type REMOVE ${heldContacts.length} to confirm` }, { status: 400 });
+      }
+      if (heldContacts.length === 0) return NextResponse.json({ ok: true, deleted: 0, discardedBatches: 0 });
+
+      // The quota-failed batch was never delivered. Remove its remote draft
+      // and private segment first so the replacement batch has a segment slot.
+      const { data: failedBatches, error: failedBatchesError } = await admin.from("marketing_email_campaigns")
+        .select("id, resend_broadcast_id, resend_segment_id")
+        .eq("seller_id", seller.id).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "failed");
+      if (failedBatchesError) throw failedBatchesError;
+      for (const batch of failedBatches || []) {
+        if (batch.resend_broadcast_id) {
+          try { await resendMarketingRequest(`/broadcasts/${batch.resend_broadcast_id}`, { method: "DELETE" }); }
+          catch (error: any) { if (error?.status !== 404) throw error; }
+        }
+        if (batch.resend_segment_id) {
+          try { await resendMarketingRequest(`/segments/${batch.resend_segment_id}`, { method: "DELETE" }); }
+          catch (error: any) { if (error?.status !== 404) throw error; }
+        }
+        const { error: deleteBatchError } = await admin.from("marketing_email_campaigns").delete().eq("id", batch.id).eq("seller_id", seller.id);
+        if (deleteBatchError) throw deleteBatchError;
+      }
+
+      // Only the 150 contacts deliberately outside this 1,000-contact
+      // campaign audience are deleted from Resend. Their CatalogStore records
+      // and marketing-consent history remain untouched and can be re-synced later.
+      let deleted = 0;
+      for (let index = 0; index < heldContacts.length; index += 5) {
+        const batch = heldContacts.slice(index, index + 5);
+        const results = await Promise.all(batch.map(async (contact) => {
+          try {
+            await resendMarketingRequest(`/contacts/${encodeURIComponent(contact.email)}`, { method: "DELETE" });
+            return true;
+          } catch (error: any) {
+            if (error?.status === 404) return false;
+            throw error;
+          }
+        }));
+        deleted += results.filter(Boolean).length;
+      }
+      return NextResponse.json({ ok: true, deleted, discardedBatches: (failedBatches || []).length });
+    }
+
     if (action === "discard") {
       const campaignId = typeof body.campaign_id === "string" ? body.campaign_id : "";
       const { data: campaign, error } = await admin.from("marketing_email_campaigns").select("id, status, resend_broadcast_id, resend_segment_id, template_key")
