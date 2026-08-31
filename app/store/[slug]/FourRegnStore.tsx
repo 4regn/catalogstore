@@ -2178,9 +2178,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               </>
             )}
           </div>
-          {teesSaleActive && pInCat(p, TEES_SALE_COLLECTION) && (
-            <FourRegnTeesSaleTimerText className="fr-pcard-sale-timer" />
-          )}
+          {/* Tees sale countdown badge temporarily disabled (2026-08-31) --
+              collection pages were failing to load and this was the prime
+              suspect. Re-enable once confirmed safe. */}
           <button
             className="fr-pwa"
             type="button"
@@ -3888,12 +3888,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 )}
                 {displayHeroHeadline && <h1 className="fr-hero-h1">{displayHeroHeadline}</h1>}
                 {displayHeroBody && <p className="fr-hero-body">{displayHeroBody}</p>}
-                {/* Plain text, same "Flash Sale Ends In" wording/red accent
-                    as the product card badge -- replaces the earlier
-                    card-style FourRegnTeesSaleCountdown embed here (still
-                    used as-is on the collection/product pages, just not in
-                    the hero), which is heavier than this section needs. */}
-                {teesSaleActive && <FourRegnTeesSaleTimerText className="fr-hero-sale-timer" />}
+                {/* Tees sale countdown temporarily disabled (2026-08-31) --
+                    collection pages were failing to load and this was the
+                    prime suspect. Re-enable once confirmed safe. */}
                 {(showCtaPrimary || showCtaSecondary) && (
                   <div className="fr-cta-row">
                     {showCtaPrimary && (
@@ -4250,7 +4247,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {isCollectionView && (
           <div className="fr-coll-promo-countdown">
-            {collectionName === TEES_SALE_COLLECTION ? <FourRegnTeesSaleCountdown variant="collection" /> : <FourRegnPromoCountdown variant="collection" />}
+            {/* Tees sale countdown temporarily disabled (2026-08-31) --
+                collection pages were failing to load and this was the prime
+                suspect. Re-enable once confirmed safe. */}
+            {collectionName !== TEES_SALE_COLLECTION && <FourRegnPromoCountdown variant="collection" />}
             {flashCapActive && flashCapOnTruckerCapsPage && (flashCapState === "ELIGIBLE_UNCLAIMED" || flashCapState === "ELIGIBLE_CLAIMED") ? (
               <div className="regn-fcap regn-fcap--banner">
                 <span className="regn-fcap__text regn-fcap__text--won">Your Free Cap Is Unlocked &mdash; Choose One</span>
@@ -4380,7 +4380,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
-                    {pInCat(p, TEES_SALE_COLLECTION) ? <FourRegnTeesSaleCountdown variant="product" /> : <FourRegnPromoCountdown variant="product" />}
+                    {/* Tees sale countdown temporarily disabled (2026-08-31)
+                        -- collection pages were failing to load and this was
+                        the prime suspect. Re-enable once confirmed safe. */}
+                    {!pInCat(p, TEES_SALE_COLLECTION) && <FourRegnPromoCountdown variant="product" />}
                     {flashCapActive && (
                       <FlashCapProgress
                         state={flashCapState}
