@@ -3,17 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>McLovin&rsquo;s Apple Trader — Certified Apple, properly traded</title>
-<meta name="description" content="McLovin's Apple Trader deals in Apple devices worth owning. Sealed stock and certified pre-owned iPhones, inspected against a fixed standard and listed in full detail.">
+<title>iPhone 15 Pro — McLovin&rsquo;s Apple Trader</title>
+<meta name="description" content="iPhone 15 Pro, Natural Titanium. Sealed and certified pre-owned, graded and battery-tested before it reaches the floor.">
 <meta name="theme-color" content="#0A0A0B">
-<meta property="og:title" content="McLovin's Apple Trader">
-<meta property="og:description" content="Apple, properly traded. Sealed stock and certified pre-owned, inspected against a fixed standard.">
-<meta property="og:type" content="website">
-<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+
 /* ─── tokens ────────────────────────────────────────────────────────── */
 :root{
   --ink:#0A0A0B; --ink-2:#101014; --ink-3:#18181E;
@@ -158,13 +155,9 @@ header:not(.stuck) .burger i{background:#fff}
 
 /* floating spec card */
 .spec-float{position:absolute;right:0;bottom:clamp(120px,15vw,190px);z-index:4;width:290px;
-  background:rgba(16,16,20,.6);backdrop-filter:blur(22px);border:1px solid var(--line-i);padding:22px 22px 20px;
-  transition:border-color .35s var(--ease),background .35s var(--ease)}
-.spec-float:hover{border-color:rgba(198,242,39,.5);background:rgba(16,16,20,.78)}
+  background:rgba(16,16,20,.6);backdrop-filter:blur(22px);border:1px solid var(--line-i);padding:22px 22px 20px}
 .spec-float .top{display:flex;justify-content:space-between;align-items:center;gap:12px;
   font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--lime)}
-.spec-float .go-mini{color:rgba(255,255,255,.55);transition:color .35s var(--ease)}
-.spec-float:hover .go-mini{color:var(--lime)}
 .spec-float h4{font-family:var(--display);font-size:27px;font-weight:400;line-height:1.05;margin:16px 0 4px;letter-spacing:-.01em}
 .spec-float .sub-t{font-size:12.5px;color:rgba(255,255,255,.6);margin-bottom:16px}
 .spec-float dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;margin:0;
@@ -273,8 +266,6 @@ thead th{position:relative;padding-top:36px;font-weight:400;vertical-align:botto
 th.rowhead,td.rowhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
   color:rgba(255,255,255,.44);width:170px;padding-left:0;white-space:nowrap}
 thead .model{display:block;font-family:var(--display);font-size:22px;letter-spacing:-.01em;color:#fff;line-height:1.1}
-.model-link{border-bottom:1px solid transparent;transition:border-color .3s var(--ease)}
-.model-link:hover{border-bottom-color:var(--lime)}
 thead .model small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:rgba(255,255,255,.4);margin-top:8px;font-weight:400}
 td{font-size:13.5px;color:rgba(255,255,255,.86)}
 td b{font-weight:500}
@@ -404,6 +395,117 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   .hero-scrim{background:linear-gradient(180deg,rgba(10,10,11,.62) 0%,rgba(10,10,11,.5) 34%,rgba(10,10,11,.9) 100%)}
   .hero-cta .btn{flex:1;justify-content:center}
 }
+/* ─── product page ──────────────────────────────────────────────────── */
+.crumb{padding:22px 0;display:flex;align-items:center;gap:10px;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--smoke)}
+.crumb a{color:var(--smoke);transition:color .3s var(--ease)}
+.crumb a:hover{color:var(--ink)}
+.crumb .sep{color:var(--line)}
+.crumb b{color:var(--ink);font-weight:500}
+
+.pdp-hero{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(32px,4.5vw,72px);
+  padding:clamp(20px,3vw,36px) 0 var(--sec);border-top:1px solid var(--line)}
+.pdp-hero>*{min-width:0}
+
+.gallery{display:grid;grid-template-columns:84px 1fr;gap:16px;min-width:0}
+.gallery-main{aspect-ratio:4/5;overflow:hidden;background:#EDEBE5;position:relative}
+.gallery-main img{width:100%;height:100%;object-fit:cover}
+.gallery-thumbs{display:flex;flex-direction:column;gap:12px;min-width:0}
+.gallery-thumb{aspect-ratio:1;overflow:hidden;background:#EDEBE5;border:1px solid transparent;
+  cursor:pointer;padding:0;min-width:0;transition:border-color .3s var(--ease)}
+.gallery-thumb img{width:100%;height:100%;object-fit:cover;opacity:.55;transition:opacity .3s var(--ease)}
+.gallery-thumb.on{border-color:var(--ink)}
+.gallery-thumb.on img,.gallery-thumb:hover img{opacity:1}
+
+.buy{display:flex;flex-direction:column}
+.buy .lbl{margin-bottom:20px;display:block}
+.buy h1{margin-bottom:10px}
+.buy .sub-t{font-size:14px;color:var(--smoke);margin-bottom:30px}
+.price-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  padding:18px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:32px}
+.price-row .amount{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink)}
+.ask-link{background:none;border:0;padding:0 0 2px;font-size:12.5px;font-weight:500;color:var(--ink);
+  border-bottom:1px solid var(--line);cursor:pointer;transition:border-color .3s var(--ease)}
+.ask-link:hover{border-color:var(--ink)}
+
+.field{margin-bottom:28px}
+.field-label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.field-label span:first-child{font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--smoke)}
+.field-label .val{font-size:12.5px;color:var(--ink);font-weight:500}
+
+.pill-group{display:flex;flex-wrap:wrap;gap:8px}
+.pill-opt{height:40px;padding:0 16px;border:1px solid var(--line);background:none;font-size:12.5px;
+  font-weight:500;color:var(--ink);cursor:pointer;transition:background .3s var(--ease),color .3s var(--ease),border-color .3s var(--ease)}
+.pill-opt.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.pill-opt:hover:not(.on){border-color:var(--ink)}
+
+.swatch-group{display:flex;gap:12px;align-items:center}
+.swatch-opt{width:32px;height:32px;border-radius:50%;border:2px solid transparent;padding:3px;
+  cursor:pointer;background:none}
+.swatch-opt i{display:block;width:100%;height:100%;border-radius:50%;background:var(--sw);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
+.swatch-opt.on{border-color:var(--ink)}
+
+.meter-bar{height:5px;background:var(--line);position:relative;overflow:hidden}
+.meter-bar i{display:block;height:100%;background:var(--lime);width:100%;transition:width .6s var(--ease)}
+.meter-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--smoke);margin-top:9px}
+.meter-row b{color:var(--ink);font-weight:500}
+.grade-desc{font-size:12.5px;line-height:1.6;color:var(--smoke);margin-top:14px;max-width:46ch}
+
+.buy-cta{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.buy-cta .btn{width:100%;justify-content:center}
+
+.trust-row{display:flex;gap:0;margin-top:30px;border-top:1px solid var(--line);padding-top:22px}
+.trust-row div{flex:1;display:flex;flex-direction:column;gap:6px}
+.trust-row b{font-size:12.5px}
+.trust-row span{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--smoke);text-transform:uppercase}
+
+.spec-two{display:grid;grid-template-columns:1fr 1fr;gap:0 56px;margin-top:clamp(36px,4.5vw,64px)}
+
+.tiers{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);
+  margin-top:clamp(40px,5vw,72px)}
+.tier{position:relative;padding:32px 32px 38px;border-right:1px solid var(--line)}
+.tier:first-child{padding-left:0}
+.tier:last-child{border-right:0;padding-right:0}
+.tier::before{content:"";position:absolute;top:-1px;left:0;right:1px;height:3px;background:transparent;transition:background .4s var(--ease)}
+.tier.on::before{background:var(--lime)}
+.tier-badge{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);display:grid;
+  place-items:center;font-family:var(--mono);font-size:13px;font-weight:500;margin-bottom:24px;
+  transition:background .3s var(--ease),color .3s var(--ease),border-color .3s var(--ease)}
+.tier.on .tier-badge{background:var(--ink);border-color:var(--ink);color:var(--lime)}
+.tier h3{font-family:var(--display);font-weight:600;font-size:24px;letter-spacing:-.015em;margin-bottom:11px}
+.tier p{font-size:13.5px;line-height:1.6;color:var(--smoke);max-width:32ch}
+.tier .spec-mini{display:block;margin-top:18px;font-family:var(--mono);font-size:10px;
+  letter-spacing:.1em;color:var(--ink);text-transform:uppercase}
+
+.prods-3{grid-template-columns:repeat(3,1fr)}
+
+@media(max-width:1180px){
+  .pdp-hero{grid-template-columns:1fr}
+  .gallery{grid-template-columns:1fr}
+  .gallery-thumbs{flex-direction:row;order:2}
+  .gallery-thumb{flex:1}
+  .gallery-main{order:1}
+  .tiers{grid-template-columns:1fr 1fr}
+  .tier:nth-child(2n){border-right:0;padding-right:0}
+  .tier:nth-child(-n+2){border-bottom:1px solid var(--line);padding-bottom:32px}
+  .tier:nth-child(3){padding-left:0;margin-top:32px}
+  .prods-3{grid-template-columns:1fr 1fr}
+}
+@media(max-width:820px){
+  .spec-two{grid-template-columns:1fr}
+  .tiers{grid-template-columns:1fr}
+  .tier{border-right:0;padding-inline:0;padding-bottom:30px;border-bottom:1px solid var(--line)}
+  .tier:last-child{border-bottom:0}
+  .tier:nth-child(-n+2){padding-bottom:30px}
+  .tier:nth-child(3){margin-top:0}
+  .prods-3{grid-template-columns:1fr}
+  .trust-row{flex-direction:column;gap:16px}
+  .price-row{flex-direction:column;align-items:flex-start;gap:10px}
+}
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
@@ -454,15 +556,14 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       <path d="M12 0c.9 6.6 4.5 10.2 12 12-7.5 1.8-11.1 5.4-12 12-.9-6.6-4.5-10.2-12-12C7.5 10.2 11.1 6.6 12 0Z" fill="currentColor"/>
     </symbol>
   </defs>
-</svg>
-
+</svg></svg>
 <div class="ann">
   <span>Sealed &amp; certified pre-owned &nbsp;·&nbsp; Every device inspected &nbsp;·&nbsp; <b>McLovin&rsquo;s picks only</b></span>
 </div>
 
 <header id="hdr">
   <div class="wrap nav">
-    <a class="brand" href="#top" aria-label="McLovin's Apple Trader — home">
+    <a class="brand" href="index.html" aria-label="McLovin's Apple Trader — home">
       <svg class="mark" aria-hidden="true"><use href="#mcl-mark"/></svg>
       <span class="brand-type">
         <span class="wordmark">McLovin&rsquo;s<svg class="spark" aria-hidden="true"><use href="#spark"/></svg></span>
@@ -470,203 +571,261 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       </span>
     </a>
     <nav class="navlinks" aria-label="Primary">
-      <a href="#index">The Index</a>
-      <a href="#selected">Selected</a>
-      <a href="#ledger">Compare</a>
-      <a href="#standard">The Standard</a>
+      <a href="index.html#index">The Index</a>
+      <a href="index.html#selected">Selected</a>
+      <a href="index.html#ledger">Compare</a>
+      <a href="index.html#standard">The Standard</a>
     </nav>
     <div class="nav-act">
       <span class="stock-dot"><i></i> In stock now</span>
-      <button class="btn btn-ink btn-sm" data-scroll="#selected">Shop the floor <span class="ar">↗</span></button>
+      <a class="btn btn-ink btn-sm" href="index.html#selected">Shop the floor <span class="ar">↗</span></a>
       <button class="burger" aria-label="Menu" data-toast="Navigation drawer hooks up here"><i></i><i></i></button>
     </div>
   </div>
 </header>
-
 <main id="top">
 
-<!-- 01 ─ hero ─────────────────────────────────────────────────────── -->
-<section class="hero on-ink">
-  <div class="hero-stage" aria-hidden="true">
-    <div class="hero-slide on" style="background-image:url('assets/hero-red-glow.jpg');background-position:66% 42%"></div>
-    <div class="hero-slide" style="background-image:url('assets/hero-titanium-pair.jpg');background-position:70% 34%"></div>
-    <div class="hero-slide" style="background-image:url('assets/hero-purple-portrait.jpg');background-position:64% 40%"></div>
-  </div>
-  <div class="hero-scrim" aria-hidden="true"></div>
-  <div class="grain" aria-hidden="true"></div>
-
-  <div class="wrap hero-inner">
-    <div class="hero-copy">
-      <span class="lbl"><i></i> The floor</span>
-      <h1 class="display h-xl">Apple,<br><em>properly</em> traded.</h1>
-      <p class="lede">McLovin&rsquo;s deals in Apple devices worth owning. Sealed stock and certified
-        pre-owned, checked against one fixed standard, and listed with the detail you actually want before you buy.</p>
-      <div class="hero-cta">
-        <button class="btn btn-lime" data-scroll="#selected">View the floor <span class="ar">↗</span></button>
-        <button class="btn btn-glass" data-scroll="#ledger">Compare models</button>
-      </div>
-    </div>
-
-    <a class="spec-float" href="product.html">
-      <div class="top"><span>On the floor</span><span class="go-mini">View details ↗</span></div>
-      <h4>iPhone 15 Pro</h4>
-      <p class="sub-t">Natural Titanium &middot; A17 Pro</p>
-      <dl>
-        <dt>Storage</dt><dd>128GB &ndash; 1TB</dd>
-        <dt>Condition</dt><dd>Sealed &amp; CPO</dd>
-        <dt>Charging</dt><dd>USB-C</dd>
-      </dl>
-    </a>
-
-    <div class="hero-rail">
-      <div class="rail-slides" role="tablist" aria-label="Featured imagery">
-        <button class="rail-btn on" role="tab" aria-selected="true" aria-label="Studio red" data-slide="0"><span class="bar"></span></button>
-        <button class="rail-btn" role="tab" aria-selected="false" aria-label="Titanium pair" data-slide="1"><span class="bar"></span></button>
-        <button class="rail-btn" role="tab" aria-selected="false" aria-label="Pro in hand" data-slide="2"><span class="bar"></span></button>
-      </div>
-      <div class="rail-count"><b id="slide-n">01</b> / 03</div>
-    </div>
-  </div>
-</section>
-
-<!-- ticker ──────────────────────────────────────────────────────────── -->
-<div class="marquee" aria-hidden="true">
-  <div class="mq-track">
-    <span class="mq-item">iPhone 17 Pro</span><span class="mq-item">iPhone 16</span><span class="mq-item">iPhone 15 Pro Max</span>
-    <span class="mq-item">iPhone 15</span><span class="mq-item">iPhone 14 Plus</span><span class="mq-item">iPhone 13</span>
-    <span class="mq-item">iPhone 12 Mini</span><span class="mq-item">iPhone 11</span><span class="mq-item">Trade-ins welcome</span>
-    <span class="mq-item">iPhone 17 Pro</span><span class="mq-item">iPhone 16</span><span class="mq-item">iPhone 15 Pro Max</span>
-    <span class="mq-item">iPhone 15</span><span class="mq-item">iPhone 14 Plus</span><span class="mq-item">iPhone 13</span>
-    <span class="mq-item">iPhone 12 Mini</span><span class="mq-item">iPhone 11</span><span class="mq-item">Trade-ins welcome</span>
-  </div>
+<div class="wrap crumb">
+  <a href="index.html">Home</a><span class="sep">/</span>
+  <a href="index.html#selected">Selected</a><span class="sep">/</span>
+  <b>iPhone 15 Pro</b>
 </div>
 
+<!-- gallery + buy box ─────────────────────────────────────────────────── -->
+<section class="pdp-hero wrap">
+  <div class="gallery">
+    <div class="gallery-thumbs" role="tablist" aria-label="Product photos">
+      <button class="gallery-thumb on" data-full="assets/hero-titanium-pair.jpg" role="tab" aria-selected="true" aria-label="Full pair, Natural Titanium">
+        <img src="assets/hero-titanium-pair.jpg" alt="" loading="lazy"></button>
+      <button class="gallery-thumb" data-full="assets/pdp-15pro-crop-front.jpg" role="tab" aria-selected="false" aria-label="Camera module, front unit">
+        <img src="assets/pdp-15pro-crop-front.jpg" alt="" loading="lazy"></button>
+      <button class="gallery-thumb" data-full="assets/pdp-15pro-crop-lens.jpg" role="tab" aria-selected="false" aria-label="Lens cluster, macro">
+        <img src="assets/pdp-15pro-crop-lens.jpg" alt="" loading="lazy"></button>
+      <button class="gallery-thumb" data-full="assets/pdp-15pro-crop-top.jpg" role="tab" aria-selected="false" aria-label="Titanium frame detail">
+        <img src="assets/pdp-15pro-crop-top.jpg" alt="" loading="lazy"></button>
+    </div>
+    <div class="gallery-main">
+      <span class="prod-flag">Certified pre-owned</span>
+      <img id="gallery-img" src="assets/hero-titanium-pair.jpg" alt="iPhone 15 Pro in Natural Titanium, camera module detail">
+    </div>
+  </div>
+
+  <div class="buy">
+    <span class="lbl">Certified pre-owned &amp; sealed</span>
+    <h1 class="display h-lg">iPhone 15 <em>Pro</em></h1>
+    <p class="sub-t">Natural Titanium &middot; A17 Pro &middot; 6.1&Prime; ProMotion</p>
+
+    <div class="price-row">
+      <span class="amount">Price on request</span>
+      <button class="ask-link" data-toast="Wire this to your live inventory and pricing">Ask for today&rsquo;s price ↗</button>
+    </div>
+
+    <div class="field">
+      <div class="field-label"><span>Condition</span><span class="val" id="grade-val">Sealed</span></div>
+      <div class="pill-group" data-group="grade" role="radiogroup" aria-label="Condition">
+        <button class="pill-opt on" data-grade="sealed" role="radio" aria-checked="true">Sealed</button>
+        <button class="pill-opt" data-grade="a" role="radio" aria-checked="false">Certified &middot; Grade A</button>
+        <button class="pill-opt" data-grade="b" role="radio" aria-checked="false">Certified &middot; Grade B</button>
+      </div>
+      <p class="grade-desc" id="grade-desc">Brand new, factory sealed. Never activated.</p>
+      <div class="meter-bar"><i id="meter-fill" style="width:100%"></i></div>
+      <div class="meter-row"><span>Battery health</span><b id="meter-val">100%</b></div>
+    </div>
+
+    <div class="field">
+      <div class="field-label"><span>Storage</span><span class="val" id="storage-val">256GB</span></div>
+      <div class="pill-group" data-group="storage" role="radiogroup" aria-label="Storage">
+        <button class="pill-opt" data-storage="128GB" role="radio" aria-checked="false">128GB</button>
+        <button class="pill-opt on" data-storage="256GB" role="radio" aria-checked="true">256GB</button>
+        <button class="pill-opt" data-storage="512GB" role="radio" aria-checked="false">512GB</button>
+        <button class="pill-opt" data-storage="1TB" role="radio" aria-checked="false">1TB</button>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:8px">
+      <div class="field-label"><span>Colour</span><span class="val" id="colour-val">Natural Titanium</span></div>
+      <div class="swatch-group" data-group="colour" role="radiogroup" aria-label="Colour">
+        <button class="swatch-opt on" data-colour="Natural Titanium" style="--sw:#948a7a" role="radio" aria-checked="true" aria-label="Natural Titanium"><i></i></button>
+        <button class="swatch-opt" data-colour="Blue Titanium" style="--sw:#3f4b5c" role="radio" aria-checked="false" aria-label="Blue Titanium"><i></i></button>
+        <button class="swatch-opt" data-colour="White Titanium" style="--sw:#e8e4db" role="radio" aria-checked="false" aria-label="White Titanium"><i></i></button>
+        <button class="swatch-opt" data-colour="Black Titanium" style="--sw:#3a3a3c" role="radio" aria-checked="false" aria-label="Black Titanium"><i></i></button>
+      </div>
+    </div>
+
+    <div class="buy-cta">
+      <button class="btn btn-ink" data-toast="Wire this to checkout or an enquiry flow">Enquire about this unit <span class="ar">↗</span></button>
+      <button class="btn btn-line" data-toast="Connect this to WhatsApp for guided buying">Chat on WhatsApp</button>
+    </div>
+
+    <div class="trust-row">
+      <div><b>Inspected</b><span>40-point check</span></div>
+      <div><b>Warranty</b><span>90 days included</span></div>
+      <div><b>Returns</b><span>14-day window</span></div>
+    </div>
+  </div>
+</section>
+
 <div class="wrap">
-
-<!-- 02 ─ the standard ────────────────────────────────────────────────── -->
-<section class="standard" id="standard">
+<!-- spec sheet ───────────────────────────────────────────────────────── -->
+<section id="spec-sheet">
   <div class="sec-head rv">
     <div>
-      <span class="lbl">The standard</span>
-      <h2 class="display h-lg">Four things we <em>never</em> skip.</h2>
+      <span class="lbl">Specification</span>
+      <h2 class="display h-lg">Everything <em>on paper.</em></h2>
     </div>
-    <p class="lede">Second-hand Apple is a market full of guesswork. McLovin&rsquo;s removes it by
-      grading every device the same way, publishing what we find, and standing behind it afterwards.</p>
+    <p class="lede">No mystery-spec shopping. The same numbers Apple publishes, laid out
+      the way you&rsquo;d actually compare two phones.</p>
   </div>
-  <div class="std-grid">
-    <div class="std-item rv"><span class="n">01</span>
-      <h3>Inspected</h3>
-      <p>Every device goes through the same check before it reaches the floor. No exceptions, no shortcuts.</p></div>
-    <div class="std-item rv"><span class="n">02</span>
-      <h3>Documented</h3>
-      <p>Storage, condition grade and battery health are published on the listing &mdash; before you ask.</p></div>
-    <div class="std-item rv"><span class="n">03</span>
-      <h3>Traded fairly</h3>
-      <p>Bring your current device in. It gets valued on what it is, not on what we can get away with.</p></div>
-    <div class="std-item rv"><span class="n">04</span>
-      <h3>Answered</h3>
-      <p>A real person on the other end of the message, before the sale and long after it.</p></div>
-  </div>
-</section>
-
-<!-- 03 ─ the index ───────────────────────────────────────────────────── -->
-<section class="index-sec" id="index">
-  <div class="sec-head rv">
-    <div>
-      <span class="lbl">The index</span>
-      <h2 class="display h-lg">Shop the <em>generation</em>, not the grid.</h2>
-    </div>
-    <p class="lede">You already know which iPhone you want. Start there instead of scrolling
-      through a thousand identical tiles.</p>
-  </div>
-
-  <div class="idx" id="idx">
-    <a class="idx-row" href="#selected" data-img="assets/stock-boxes-17.jpg">
-      <span class="yr">2025</span>
-      <span class="gen">iPhone 17 Pro<sup>NEW</sup></span>
-      <span class="desc">Titanium body, redesigned camera plateau, the current top of the range.</span>
-      <span class="go">↗</span>
-    </a>
-    <a class="idx-row" href="#selected" data-img="assets/stock-boxes-16.jpg">
-      <span class="yr">2024</span>
-      <span class="gen">iPhone 16</span>
-      <span class="desc">Camera Control, A18, and the widest colour range in sealed stock.</span>
-      <span class="go">↗</span>
-    </a>
-    <a class="idx-row" href="#selected" data-img="assets/macro-camera-pink.jpg">
-      <span class="yr">2023</span>
-      <span class="gen">iPhone 15<sup>SWEET SPOT</sup></span>
-      <span class="desc">USB-C and the 48MP main camera. The one we recommend most often.</span>
-      <span class="go">↗</span>
-    </a>
-    <a class="idx-row" href="#selected" data-img="assets/hero-purple-portrait.jpg">
-      <span class="yr">2022</span>
-      <span class="gen">iPhone 14</span>
-      <span class="desc">Dependable, plentiful, and priced like the sensible choice it is.</span>
-      <span class="go">↗</span>
-    </a>
-    <a class="idx-row" href="#selected" data-img="assets/stock-boxes-13.jpg">
-      <span class="yr">2021</span>
-      <span class="gen">iPhone 13</span>
-      <span class="desc">Still the strongest value-per-rand device on the floor.</span>
-      <span class="go">↗</span>
-    </a>
-    <a class="idx-row" href="#selected" data-img="assets/stock-boxes-11.jpg">
-      <span class="yr">2018&ndash;19</span>
-      <span class="gen">iPhone 11 &amp; Xr</span>
-      <span class="desc">A clean first Apple, or a spare that does not feel like one.</span>
-      <span class="go">↗</span>
-    </a>
-  </div>
-</section>
-
-<!-- 04 ─ the edit ────────────────────────────────────────────────────── -->
-<section class="edit" id="edit">
-  <div class="edit-copy rv">
-    <span class="lbl">The edit</span>
-    <h2 class="display h-lg">Not every upgrade needs to be <em>the newest.</em></h2>
-    <p class="lede">The jump that matters is rarely the one on the billboard. Camera system, battery,
-      charging port and how long you plan to keep it &mdash; those four decide it. We will tell you when
-      last year&rsquo;s model is the better buy, because it usually is.</p>
+  <div class="spec-two rv">
     <dl class="edit-facts">
-      <div><dt>Biggest real jump</dt><dd>12 &rarr; 15 &nbsp;(48MP &amp; USB-C)</dd></div>
-      <div><dt>Best value today</dt><dd>iPhone 13</dd></div>
-      <div><dt>Longest runway</dt><dd>Pro series</dd></div>
+      <div><dt>Display</dt><dd>6.1&Prime; Super Retina XDR, ProMotion</dd></div>
+      <div><dt>Chip</dt><dd>A17 Pro, 3nm</dd></div>
+      <div><dt>Rear camera</dt><dd>48MP + Ultra Wide + 3x Telephoto</dd></div>
+      <div><dt>Front camera</dt><dd>12MP TrueDepth, autofocus</dd></div>
     </dl>
-    <div class="hero-cta" style="margin-top:0">
-      <button class="btn btn-ink" data-scroll="#ledger">Find my iPhone <span class="ar">↗</span></button>
-      <button class="btn btn-line" data-toast="Connect this to WhatsApp for guided buying">Ask McLovin&rsquo;s</button>
-    </div>
-  </div>
-  <div class="edit-media">
-    <img src="assets/macro-camera-pink.jpg" alt="Close-up of an iPhone dual camera system in pink" loading="lazy">
-    <span class="edit-cap">Camera first &mdash; everything else second</span>
+    <dl class="edit-facts">
+      <div><dt>Material</dt><dd>Titanium frame, textured matte glass</dd></div>
+      <div><dt>Charging</dt><dd>USB-C (USB 3) &middot; MagSafe &middot; Qi2</dd></div>
+      <div><dt>Battery</dt><dd>Up to 23 hrs video playback</dd></div>
+      <div><dt>Face ID</dt><dd>Yes</dd></div>
+    </dl>
   </div>
 </section>
 
-<!-- 05 ─ selected ────────────────────────────────────────────────────── -->
-<section class="selected" id="selected">
+<!-- grading tiers ────────────────────────────────────────────────────── -->
+<section id="grading">
   <div class="sec-head rv">
     <div>
-      <span class="lbl">Selected</span>
-      <h2 class="display h-lg">On the floor <em>this week.</em></h2>
+      <span class="lbl">The standard, applied</span>
+      <h2 class="display h-lg">How we <em>grade</em> it.</h2>
     </div>
-    <p class="lede">A rotating selection from current stock. Every listing carries its grade, storage
-      and battery health up front.</p>
+    <p class="lede">Every certified unit is checked against the same criteria before it
+      earns a grade. Sealed stock ships exactly as Apple packaged it.</p>
+  </div>
+  <div class="tiers">
+    <article class="tier on rv" id="tier-sealed">
+      <span class="tier-badge">S</span>
+      <h3>Sealed</h3>
+      <p>Factory sealed, never activated. Full manufacturer warranty eligibility from date of sale.</p>
+      <span class="spec-mini">Battery 100%</span>
+    </article>
+    <article class="tier rv" id="tier-a">
+      <span class="tier-badge">A</span>
+      <h3>Grade A</h3>
+      <p>Cosmetically excellent. Light micro-marks only visible under close inspection. Function-tested.</p>
+      <span class="spec-mini">Battery &ge; 90%</span>
+    </article>
+    <article class="tier rv" id="tier-b">
+      <span class="tier-badge">B</span>
+      <h3>Grade B</h3>
+      <p>Visible light wear consistent with normal use. Screen and body free of cracks. Function-tested.</p>
+      <span class="spec-mini">Battery &ge; 80%</span>
+    </article>
+  </div>
+</section>
+</div>
+
+<!-- compare panel ────────────────────────────────────────────────────── -->
+<section class="ledger on-ink">
+  <span class="glow" aria-hidden="true"></span>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div>
+        <span class="lbl">In context</span>
+        <h2 class="display h-lg">Where it sits <em>in the range.</em></h2>
+      </div>
+      <p class="lede">The 15 Pro against the model just below it and the one just above &mdash;
+        so the jump either way is a real decision, not a guess.</p>
+    </div>
+
+    <div class="tbl-scroll rv">
+      <table>
+        <caption class="lbl" style="text-align:left;padding-bottom:22px;color:rgba(255,255,255,.4)">Neighbouring models</caption>
+        <thead>
+          <tr>
+            <th class="rowhead" scope="col"><span class="visually-hidden">Specification</span></th>
+            <th scope="col"><span class="model">iPhone 14 Pro<small>2022</small></span></th>
+            <th scope="col" class="pick"><span class="pick-tag">This unit</span><span class="model">iPhone 15 Pro<small>2023</small></span></th>
+            <th scope="col"><span class="model">iPhone 15 Pro Max<small>2023</small></span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th class="rowhead" scope="row">Display</th>
+            <td><b>6.1&Prime;</b><small>ProMotion 120Hz</small></td>
+            <td class="pick"><b>6.1&Prime;</b><small>ProMotion 120Hz</small></td>
+            <td><b>6.7&Prime;</b><small>ProMotion 120Hz</small></td></tr>
+          <tr><th class="rowhead" scope="row">Chip</th>
+            <td><b>A16</b><small>Bionic</small></td>
+            <td class="pick"><b>A17 Pro</b><small>3nm</small></td>
+            <td><b>A17 Pro</b><small>3nm</small></td></tr>
+          <tr><th class="rowhead" scope="row">Rear camera</th>
+            <td><b>48MP</b><small>+ Ultra Wide + Telephoto</small></td>
+            <td class="pick"><b>48MP</b><small>+ Ultra Wide + 3x Telephoto</small></td>
+            <td><b>48MP</b><small>+ Ultra Wide + 5x Telephoto</small></td></tr>
+          <tr><th class="rowhead" scope="row">Battery</th>
+            <td>Up to <b>23 hrs</b></td>
+            <td class="pick">Up to <b>23 hrs</b></td>
+            <td>Up to <b>29 hrs</b></td></tr>
+          <tr><th class="rowhead" scope="row">Charging</th>
+            <td><b>USB-C</b><small>USB 2</small></td>
+            <td class="pick"><b>USB-C</b><small>USB 3</small></td>
+            <td><b>USB-C</b><small>USB 3</small></td></tr>
+          <tr><th class="rowhead" scope="row">Storage</th>
+            <td>128GB &ndash; 1TB</td>
+            <td class="pick">128GB &ndash; 1TB</td>
+            <td>256GB &ndash; 1TB</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ledger-foot">
+      <span class="mono-note">All models support 5G and current iOS releases</span>
+      <a class="lnk" href="index.html#ledger">See the full ledger <span class="ar">↗</span></a>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+<!-- related ──────────────────────────────────────────────────────────── -->
+<section id="related">
+  <div class="sec-head rv">
+    <div>
+      <span class="lbl">Also on the floor</span>
+      <h2 class="display h-lg">More from the <em>Pro</em> line.</h2>
+    </div>
+    <p class="lede">Sitting either side of this one, for anyone weighing up the jump.</p>
   </div>
 
-  <div class="prods">
+  <div class="prods prods-3">
     <article class="prod rv">
       <div class="prod-media">
-        <span class="prod-flag">Certified pre-owned</span>
-        <img src="assets/stock-boxes-13.jpg" alt="Boxed iPhone 13 units in blue and midnight" loading="lazy">
+        <span class="prod-flag">A17 Pro</span>
+        <img src="assets/pdp-15pro-crop-top.jpg" alt="iPhone 15 Pro Max titanium frame detail" loading="lazy">
       </div>
-      <h3>iPhone 13</h3>
-      <p class="cat">Blue &middot; Midnight &middot; Starlight</p>
+      <h3>iPhone 15 Pro Max</h3>
+      <p class="cat">Natural &middot; Blue &middot; White &middot; Black Titanium</p>
       <dl>
-        <dt>Storage</dt><dd>128GB</dd>
-        <dt>Grade</dt><dd>A</dd>
-        <dt>Battery</dt><dd>&ge; 85%</dd>
+        <dt>Storage</dt><dd>256GB &ndash; 1TB</dd>
+        <dt>Grade</dt><dd>A / Sealed</dd>
+        <dt>Battery</dt><dd>&ge; 90%</dd>
+        <dt>Warranty</dt><dd>Included</dd>
+      </dl>
+      <div class="foot"><span class="price">Price on request</span>
+        <button class="btn btn-line btn-sm" data-toast="Wire this to your live inventory">Enquire</button></div>
+    </article>
+
+    <article class="prod rv">
+      <div class="prod-media">
+        <span class="prod-flag">A16 Bionic</span>
+        <img src="assets/pdp-15pro-crop-lens.jpg" alt="iPhone 14 Pro lens cluster detail" loading="lazy">
+      </div>
+      <h3>iPhone 14 Pro</h3>
+      <p class="cat">Space Black &middot; Silver &middot; Gold &middot; Purple</p>
+      <dl>
+        <dt>Storage</dt><dd>128GB &ndash; 1TB</dd>
+        <dt>Grade</dt><dd>A / B</dd>
+        <dt>Battery</dt><dd>&ge; 87%</dd>
         <dt>Warranty</dt><dd>Included</dd>
       </dl>
       <div class="foot"><span class="price">Price on request</span>
@@ -676,12 +835,12 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     <article class="prod rv">
       <div class="prod-media">
         <span class="prod-flag lime">Sealed</span>
-        <img src="assets/stock-boxes-16.jpg" alt="Sealed iPhone 16 boxes in four colours on a counter" loading="lazy">
+        <img src="assets/stock-boxes-16.jpg" alt="Sealed iPhone 16 Pro boxes" loading="lazy">
       </div>
-      <h3>iPhone 16</h3>
-      <p class="cat">Black &middot; Ultramarine &middot; Teal &middot; Pink</p>
+      <h3>iPhone 16 Pro</h3>
+      <p class="cat">Camera Control &middot; A18 Pro</p>
       <dl>
-        <dt>Storage</dt><dd>128 &ndash; 512GB</dd>
+        <dt>Storage</dt><dd>128GB &ndash; 1TB</dd>
         <dt>Grade</dt><dd>Sealed</dd>
         <dt>Battery</dt><dd>100%</dd>
         <dt>Warranty</dt><dd>Included</dd>
@@ -689,186 +848,16 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       <div class="foot"><span class="price">Price on request</span>
         <button class="btn btn-line btn-sm" data-toast="Wire this to your live inventory">Enquire</button></div>
     </article>
-
-    <article class="prod rv">
-      <div class="prod-media">
-        <span class="prod-flag">Pro series</span>
-        <img src="assets/hero-titanium-pair.jpg" alt="Two iPhone Pro handsets in natural titanium" loading="lazy" style="object-position:center 28%">
-      </div>
-      <h3>Pro Range</h3>
-      <p class="cat">Natural Titanium &middot; Pro camera system</p>
-      <dl>
-        <dt>Storage</dt><dd>128GB &ndash; 1TB</dd>
-        <dt>Grade</dt><dd>A / Sealed</dd>
-        <dt>Battery</dt><dd>&ge; 88%</dd>
-        <dt>Warranty</dt><dd>Included</dd>
-      </dl>
-      <div class="foot"><span class="price">Price on request</span>
-        <button class="btn btn-line btn-sm" data-toast="Wire this to your live inventory">Enquire</button></div>
-    </article>
-
-    <article class="prod rv">
-      <div class="prod-media">
-        <span class="prod-flag">Entry</span>
-        <img src="assets/stock-boxes-11.jpg" alt="Boxed iPhone 11 units in red, black, green and white" loading="lazy">
-      </div>
-      <h3>iPhone 11</h3>
-      <p class="cat">Product Red &middot; Black &middot; Green &middot; White</p>
-      <dl>
-        <dt>Storage</dt><dd>64 &ndash; 128GB</dd>
-        <dt>Grade</dt><dd>A / B</dd>
-        <dt>Battery</dt><dd>&ge; 82%</dd>
-        <dt>Warranty</dt><dd>Included</dd>
-      </dl>
-      <div class="foot"><span class="price">Price on request</span>
-        <button class="btn btn-line btn-sm" data-toast="Wire this to your live inventory">Enquire</button></div>
-    </article>
-  </div>
-
-  <div class="sel-note">
-    <span class="mono-note">Sample listings &mdash; live inventory replaces this block</span>
-    <a class="mono-note" href="#index" style="color:var(--lav-deep)">Browse the full index ↗</a>
   </div>
 </section>
 </div>
-
-<!-- 06 ─ the ledger ──────────────────────────────────────────────────── -->
-<section class="ledger on-ink" id="ledger">
-  <span class="glow" aria-hidden="true"></span>
-  <div class="grain" aria-hidden="true"></div>
-  <div class="wrap">
-    <div class="sec-head rv">
-      <div>
-        <span class="lbl">The ledger</span>
-        <h2 class="display h-lg">See what <em>actually</em> changes.</h2>
-      </div>
-      <p class="lede">Not a marketing chart. The specifications that decide whether an upgrade is
-        worth your money, laid out plainly.</p>
-    </div>
-
-    <div class="tbl-scroll rv">
-      <table>
-        <caption class="lbl" style="text-align:left;padding-bottom:22px;color:rgba(255,255,255,.4)">iPhone series &mdash; key specifications</caption>
-        <thead>
-          <tr>
-            <th class="rowhead" scope="col"><span class="visually-hidden">Specification</span></th>
-            <th scope="col"><span class="model">iPhone SE<small>2022</small></span></th>
-            <th scope="col"><span class="model">iPhone 12<small>2020</small></span></th>
-            <th scope="col"><span class="model">iPhone 13<small>2021</small></span></th>
-            <th scope="col"><span class="model">iPhone 14<small>2022</small></span></th>
-            <th scope="col" class="pick"><span class="pick-tag">McLovin&rsquo;s pick</span><span class="model">iPhone 15<small>2023</small></span></th>
-            <th scope="col"><a class="model model-link" href="product.html">iPhone 15 Pro<small>2023</small></a></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><th class="rowhead" scope="row">Display</th>
-            <td><b>4.7&Prime;</b><small>Retina HD</small></td>
-            <td><b>6.1&Prime;</b><small>Super Retina XDR</small></td>
-            <td><b>6.1&Prime;</b><small>Super Retina XDR</small></td>
-            <td><b>6.1&Prime;</b><small>Super Retina XDR</small></td>
-            <td class="pick"><b>6.1&Prime;</b><small>Super Retina XDR</small></td>
-            <td><b>6.1&Prime;</b><small>ProMotion 120Hz</small></td></tr>
-          <tr><th class="rowhead" scope="row">Chip</th>
-            <td><b>A15</b><small>Bionic</small></td><td><b>A14</b><small>Bionic</small></td>
-            <td><b>A15</b><small>Bionic</small></td><td><b>A15</b><small>Bionic</small></td>
-            <td class="pick"><b>A16</b><small>Bionic</small></td><td><b>A17 Pro</b><small>3nm</small></td></tr>
-          <tr><th class="rowhead" scope="row">Rear camera</th>
-            <td><b>12MP</b><small>Wide</small></td><td><b>12MP</b><small>Wide + Ultra Wide</small></td>
-            <td><b>12MP</b><small>Wide + Ultra Wide</small></td><td><b>12MP</b><small>Wide + Ultra Wide</small></td>
-            <td class="pick"><b>48MP</b><small>Wide + Ultra Wide</small></td>
-            <td><b>48MP</b><small>+ Ultra Wide + Telephoto</small></td></tr>
-          <tr><th class="rowhead" scope="row">Front camera</th>
-            <td><b>7MP</b><small>FaceTime HD</small></td><td><b>12MP</b><small>TrueDepth</small></td>
-            <td><b>12MP</b><small>TrueDepth</small></td><td><b>12MP</b><small>TrueDepth</small></td>
-            <td class="pick"><b>12MP</b><small>TrueDepth</small></td><td><b>12MP</b><small>TrueDepth AF</small></td></tr>
-          <tr><th class="rowhead" scope="row">Video playback</th>
-            <td>Up to <b>15 hrs</b></td><td>Up to <b>17 hrs</b></td><td>Up to <b>19 hrs</b></td>
-            <td>Up to <b>20 hrs</b></td><td class="pick">Up to <b>20 hrs</b></td><td>Up to <b>23 hrs</b></td></tr>
-          <tr><th class="rowhead" scope="row">Charging</th>
-            <td>Lightning</td><td>Lightning</td><td>Lightning</td><td>Lightning</td>
-            <td class="pick"><b>USB-C</b></td><td><b>USB-C</b><small>USB 3</small></td></tr>
-          <tr><th class="rowhead" scope="row">Material</th>
-            <td>Aluminium &amp; glass</td><td>Aluminium &amp; glass</td><td>Aluminium &amp; glass</td>
-            <td>Aluminium &amp; glass</td><td class="pick">Aluminium &amp; glass</td>
-            <td><b>Titanium</b><small>Textured glass</small></td></tr>
-          <tr><th class="rowhead" scope="row">Face ID</th>
-            <td>No <small>Touch ID</small></td><td>Yes</td><td>Yes</td><td>Yes</td>
-            <td class="pick">Yes</td><td>Yes</td></tr>
-          <tr><th class="rowhead" scope="row">Storage</th>
-            <td>64 / 128 / 256GB</td><td>64 / 128 / 256GB</td><td>128 / 256 / 512GB</td>
-            <td>128 / 256 / 512GB</td><td class="pick">128 / 256 / 512GB</td><td>128GB &ndash; 1TB</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="ledger-foot">
-      <span class="mono-note">All models support 5G and current iOS releases</span>
-      <a class="lnk" href="#selected">Take this to the floor <span class="ar">↗</span></a>
-    </div>
-  </div>
-</section>
-
-<div class="wrap">
-
-<!-- 07 ─ in the wild ─────────────────────────────────────────────────── -->
-<section class="wild" id="wild">
-  <div class="sec-head rv">
-    <div>
-      <span class="lbl">In the wild</span>
-      <h2 class="display h-lg">A phone you actually <em>carry.</em></h2>
-    </div>
-    <p class="lede">Devices photographed the way they get used, not the way they get warehoused.</p>
-  </div>
-  <div class="wild-grid">
-    <article class="plate rv">
-      <img src="assets/hero-purple-portrait.jpg" alt="A person holding up an iPhone Pro against a purple backdrop" loading="lazy" style="object-position:center 62%">
-      <span class="veil" aria-hidden="true"></span><span class="frame" aria-hidden="true"></span>
-      <div class="copy">
-        <span class="lbl">Owned, not just bought</span>
-        <h3 class="display">Your phone is<br>part of the fit.</h3>
-        <p>The device you carry every day says as much as anything else you put on. We stock accordingly.</p>
-      </div>
-    </article>
-    <article class="plate rv">
-      <img src="assets/accessory-case.jpg" alt="A hand holding a bright orange iPhone case" loading="lazy" style="object-position:center 82%">
-      <span class="veil" aria-hidden="true"></span><span class="frame" aria-hidden="true"></span>
-      <div class="copy">
-        <span class="lbl">Accessories</span>
-        <h3 class="display">Finish the setup.</h3>
-        <p>Cases, charging, screen protection &mdash; matched to the device, not thrown in a bin.</p>
-      </div>
-    </article>
-  </div>
-</section>
-</div>
-
-<!-- 08 ─ signal ──────────────────────────────────────────────────────── -->
-<section class="signal on-ink" id="signal">
-  <div class="grain" aria-hidden="true"></div>
-  <div class="wrap">
-    <div class="sig-in rv">
-      <span class="lbl">Signal</span>
-      <h2 class="display h-lg">First look at <em>every</em> drop.</h2>
-      <p class="lede">Restocks, trade-in windows and the devices that move before they reach the floor.
-        Nothing else &mdash; we do not send newsletters.</p>
-      <form class="sig-form" id="sig-form">
-        <label class="sig-field">
-          <span class="visually-hidden">Email or mobile number</span>
-          <input type="text" name="contact" placeholder="Email or mobile number" autocomplete="email" required>
-        </label>
-        <button class="btn btn-lime" type="submit">Notify me <span class="ar">↗</span></button>
-      </form>
-      <p class="mono-note">No spam. Drops and restocks only.</p>
-    </div>
-  </div>
-</section>
 </main>
 
 <footer>
   <div class="wrap">
     <div class="f-grid">
       <div class="f-brand">
-        <a class="brand" href="#top" aria-label="McLovin's Apple Trader — home">
+        <a class="brand" href="index.html" aria-label="McLovin's Apple Trader — home">
           <svg class="mark" aria-hidden="true"><use href="#mcl-mark"/></svg>
           <span class="brand-type">
             <span class="wordmark">McLovin&rsquo;s<svg class="spark" aria-hidden="true"><use href="#spark"/></svg></span>
@@ -878,13 +867,13 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         <p>A sharper, more deliberate way to buy and trade Apple devices.</p>
       </div>
       <div class="f-col"><h4>Shop</h4>
-        <a href="#index">The Index</a><a href="#selected">Selected stock</a>
-        <a href="#ledger">Compare models</a><a href="#wild">Accessories</a></div>
+        <a href="index.html#index">The Index</a><a href="index.html#selected">Selected stock</a>
+        <a href="index.html#ledger">Compare models</a><a href="index.html#wild">Accessories</a></div>
       <div class="f-col"><h4>Help</h4>
         <a href="#">Shipping</a><a href="#">Returns</a>
         <a href="#">Device questions</a><a href="#">Contact</a></div>
       <div class="f-col"><h4>McLovin&rsquo;s</h4>
-        <a href="#standard">The Standard</a><a href="#">Trade-in</a>
+        <a href="index.html#standard">The Standard</a><a href="#">Trade-in</a>
         <a href="#">Instagram</a><a href="#">WhatsApp</a></div>
     </div>
     <div class="legal">
@@ -893,8 +882,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         with, endorsed by or authorised by Apple Inc.</p>
     </div>
   </div>
-</footer>
-
+</footer></footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <style>.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}</style>
@@ -903,28 +891,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 (function(){
   "use strict";
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* ── hero slideshow ─────────────────────────────────────────────── */
-  var slides = [].slice.call(document.querySelectorAll(".hero-slide"));
-  var rails  = [].slice.call(document.querySelectorAll(".rail-btn"));
-  var count  = document.getElementById("slide-n");
-  var idx = 0, timer;
-
-  function go(i){
-    idx = (i + slides.length) % slides.length;
-    slides.forEach(function(s,n){ s.classList.toggle("on", n === idx); });
-    rails.forEach(function(b,n){
-      var on = n === idx;
-      b.classList.remove("on");
-      if (on){ void b.offsetWidth; b.classList.add("on"); }   /* restart bar fill */
-      b.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    count.textContent = String(idx + 1).padStart(2, "0");
-    clearInterval(timer);
-    if (!reduce) timer = setInterval(function(){ go(idx + 1); }, 6400);
-  }
-  rails.forEach(function(b){ b.addEventListener("click", function(){ go(+b.dataset.slide); }); });
-  if (!reduce) timer = setInterval(function(){ go(idx + 1); }, 6400);
 
   /* ── sticky header hairline + scroll progress ───────────────────── */
   var hdr = document.getElementById("hdr"), prog = document.getElementById("prog"), ticking = false;
@@ -957,36 +923,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     rv.forEach(function(el){ io.observe(el); });
   }
 
-  /* ── index list: image follows the cursor ───────────────────────── */
-  var list = document.getElementById("idx");
-  if (list && !reduce && matchMedia("(hover: hover) and (min-width: 1181px)").matches){
-    var float = document.createElement("div");
-    float.className = "idx-float";
-    document.body.appendChild(float);
-    var raf, mx = 0, my = 0;
-    function place(){ float.style.transform = "translate(" + mx + "px," + my + "px) translate(-50%,-50%) " +
-      (float.classList.contains("on") ? "scale(1) rotate(0deg)" : "scale(.92) rotate(-3deg)"); raf = 0; }
-    list.addEventListener("pointermove", function(e){
-      mx = e.clientX + 150; my = e.clientY;
-      if (!raf) raf = requestAnimationFrame(place);
-    });
-    [].slice.call(list.querySelectorAll(".idx-row")).forEach(function(row){
-      row.addEventListener("pointerenter", function(){
-        float.style.backgroundImage = "url('" + row.dataset.img + "')";
-        float.classList.add("on");
-      });
-    });
-    list.addEventListener("pointerleave", function(){ float.classList.remove("on"); });
-  }
-
-  /* ── smooth scroll buttons ──────────────────────────────────────── */
-  document.querySelectorAll("[data-scroll]").forEach(function(b){
-    b.addEventListener("click", function(){
-      var t = document.querySelector(b.dataset.scroll);
-      if (t) t.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block:"start" });
-    });
-  });
-
   /* ── toast ──────────────────────────────────────────────────────── */
   var toast = document.getElementById("toast"), tt;
   function say(msg){
@@ -998,10 +934,66 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   document.querySelectorAll("[data-toast]").forEach(function(b){
     b.addEventListener("click", function(){ say(b.dataset.toast); });
   });
-  document.getElementById("sig-form").addEventListener("submit", function(e){
-    e.preventDefault();
-    say("Connect this form to your list — nothing was sent");
-    e.target.reset();
+
+  /* ── gallery: thumbnail swaps the main image ─────────────────────── */
+  var mainImg = document.getElementById("gallery-img");
+  document.querySelectorAll(".gallery-thumb").forEach(function(t){
+    t.addEventListener("click", function(){
+      document.querySelectorAll(".gallery-thumb").forEach(function(x){
+        x.classList.remove("on"); x.setAttribute("aria-selected","false");
+      });
+      t.classList.add("on"); t.setAttribute("aria-selected","true");
+      mainImg.src = t.dataset.full;
+    });
+  });
+
+  /* ── condition: pill selection drives the battery meter + tier card ── */
+  var GRADES = {
+    sealed: { label:"Sealed",             pct:100, val:"100%", desc:"Brand new, factory sealed. Never activated." },
+    a:      { label:"Certified · Grade A", pct:92,  val:"≥ 90%", desc:"Cosmetically excellent. Light micro-marks only visible under close inspection." },
+    b:      { label:"Certified · Grade B", pct:83,  val:"≥ 80%", desc:"Visible light wear consistent with normal use. Fully function-tested." }
+  };
+  var gradeVal = document.getElementById("grade-val"), gradeDesc = document.getElementById("grade-desc"),
+      meterFill = document.getElementById("meter-fill"), meterVal = document.getElementById("meter-val");
+  document.querySelectorAll('.pill-group[data-group="grade"] .pill-opt').forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll('.pill-group[data-group="grade"] .pill-opt').forEach(function(x){
+        x.classList.remove("on"); x.setAttribute("aria-checked","false");
+      });
+      btn.classList.add("on"); btn.setAttribute("aria-checked","true");
+      var g = GRADES[btn.dataset.grade];
+      gradeVal.textContent = g.label;
+      gradeDesc.textContent = g.desc;
+      meterFill.style.width = g.pct + "%";
+      meterVal.textContent = g.val;
+      ["sealed","a","b"].forEach(function(k){
+        var tier = document.getElementById("tier-" + k);
+        if (tier) tier.classList.toggle("on", k === btn.dataset.grade);
+      });
+    });
+  });
+
+  /* ── storage + colour: simple pill/swatch state ──────────────────── */
+  var storageVal = document.getElementById("storage-val");
+  document.querySelectorAll('.pill-group[data-group="storage"] .pill-opt').forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll('.pill-group[data-group="storage"] .pill-opt').forEach(function(x){
+        x.classList.remove("on"); x.setAttribute("aria-checked","false");
+      });
+      btn.classList.add("on"); btn.setAttribute("aria-checked","true");
+      storageVal.textContent = btn.dataset.storage;
+    });
+  });
+
+  var colourVal = document.getElementById("colour-val");
+  document.querySelectorAll('.swatch-group .swatch-opt').forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll('.swatch-group .swatch-opt').forEach(function(x){
+        x.classList.remove("on"); x.setAttribute("aria-checked","false");
+      });
+      btn.classList.add("on"); btn.setAttribute("aria-checked","true");
+      colourVal.textContent = btn.dataset.colour;
+    });
   });
 })();
 </script>
