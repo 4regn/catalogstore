@@ -12,7 +12,7 @@
 <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..600&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ─── tokens ────────────────────────────────────────────────────────── */
 :root{
@@ -23,7 +23,7 @@
   --line:rgba(10,10,11,.13);
   --line-i:rgba(255,255,255,.14);
   --sans:"Inter Tight",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-  --serif:"Bodoni Moda",Didot,"Times New Roman",serif;
+  --display:"Bricolage Grotesque",-apple-system,"Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
   --sec:clamp(88px,11vw,172px);
   --ease:cubic-bezier(.22,.61,.36,1);
@@ -46,10 +46,8 @@ h1,h2,h3,h4,p{margin:0}
 
 /* ─── shared type ───────────────────────────────────────────────────── */
 .lbl{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;line-height:1}
-.lbl .num{color:var(--lav-deep)}
-.on-ink .lbl .num{color:var(--lime)}
-.display{font-family:var(--serif);font-weight:400;font-variation-settings:"opsz" 96;line-height:.9;letter-spacing:-.015em;text-wrap:balance}
-.display em{font-style:italic;font-weight:500}
+.display{font-family:var(--display);font-weight:530;font-variation-settings:"opsz" 96;line-height:.92;letter-spacing:-.025em;text-wrap:balance}
+.display em{font-style:normal;font-weight:800}
 .h-xl{font-size:clamp(52px,8.4vw,134px)}
 .h-lg{font-size:clamp(40px,5.6vw,86px)}
 .h-md{font-size:clamp(30px,3.4vw,52px)}
@@ -164,7 +162,7 @@ header:not(.stuck) .burger i{background:#fff}
   background:rgba(16,16,20,.6);backdrop-filter:blur(22px);border:1px solid var(--line-i);padding:22px 22px 20px}
 .spec-float .top{display:flex;justify-content:space-between;align-items:center;gap:12px;
   font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--lime)}
-.spec-float h4{font-family:var(--serif);font-size:27px;font-weight:400;line-height:1.05;margin:16px 0 4px;letter-spacing:-.01em}
+.spec-float h4{font-family:var(--display);font-size:27px;font-weight:400;line-height:1.05;margin:16px 0 4px;letter-spacing:-.01em}
 .spec-float .sub-t{font-size:12.5px;color:rgba(255,255,255,.6);margin-bottom:16px}
 .spec-float dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;margin:0;
   font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase}
@@ -187,7 +185,7 @@ header:not(.stuck) .burger i{background:#fff}
 .std-item:first-child{padding-left:0}
 .std-item:last-child{border-right:0;padding-right:0}
 .std-item .n{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--lav-deep);display:block;margin-bottom:26px}
-.std-item h3{font-family:var(--serif);font-size:29px;font-weight:400;letter-spacing:-.015em;margin-bottom:11px}
+.std-item h3{font-family:var(--display);font-size:29px;font-weight:400;letter-spacing:-.015em;margin-bottom:11px}
 .std-item p{font-size:13.5px;line-height:1.6;color:var(--smoke);max-width:30ch}
 
 /* ─── the index (generations) ───────────────────────────────────────── */
@@ -205,7 +203,7 @@ header:not(.stuck) .burger i{background:#fff}
 .idx-row:hover .gen,.idx-row:hover .go{color:#fff}
 .idx-row:hover .go{border-color:rgba(255,255,255,.3)}
 .yr{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--smoke)}
-.gen{font-family:var(--serif);font-size:clamp(26px,3vw,44px);font-weight:400;letter-spacing:-.02em;line-height:1}
+.gen{font-family:var(--display);font-size:clamp(26px,3vw,44px);font-weight:400;letter-spacing:-.02em;line-height:1}
 .gen sup{font-family:var(--mono);font-size:9px;letter-spacing:.12em;vertical-align:super;color:var(--lav-deep);margin-left:9px}
 .idx-row:hover .gen sup{color:var(--lime)}
 .desc{font-size:13.5px;color:var(--smoke);max-width:44ch}
@@ -245,7 +243,7 @@ header:not(.stuck) .burger i{background:#fff}
 .prod-flag{position:absolute;top:0;left:0;background:var(--ink);color:#fff;font-family:var(--mono);font-size:9px;
   letter-spacing:.2em;text-transform:uppercase;padding:8px 12px}
 .prod-flag.lime{background:var(--lime);color:#0A0A0B}
-.prod h3{font-family:var(--serif);font-size:27px;font-weight:400;letter-spacing:-.015em;line-height:1.05;position:relative;
+.prod h3{font-family:var(--display);font-size:27px;font-weight:400;letter-spacing:-.015em;line-height:1.05;position:relative;
   display:inline-block;align-self:flex-start}
 .prod h3::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:1px;background:var(--lime);
   transform:scaleX(0);transform-origin:left;transition:transform .5s var(--ease)}
@@ -271,7 +269,7 @@ th,td{text-align:left;padding:16px 20px;border-bottom:1px solid var(--line-i);ve
 thead th{position:relative;padding-top:36px;font-weight:400;vertical-align:bottom}
 th.rowhead,td.rowhead{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
   color:rgba(255,255,255,.44);width:170px;padding-left:0;white-space:nowrap}
-thead .model{display:block;font-family:var(--serif);font-size:22px;letter-spacing:-.01em;color:#fff;line-height:1.1}
+thead .model{display:block;font-family:var(--display);font-size:22px;letter-spacing:-.01em;color:#fff;line-height:1.1}
 thead .model small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:rgba(255,255,255,.4);margin-top:8px;font-weight:400}
 td{font-size:13.5px;color:rgba(255,255,255,.86)}
 td b{font-weight:500}
@@ -296,7 +294,7 @@ tbody tr:last-child .pick{box-shadow:inset 1px 0 0 rgba(198,242,39,.42),inset -1
 .plate .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,11,.34) 0%,transparent 34%,rgba(10,10,11,.72) 100%)}
 .plate .copy{position:absolute;inset:auto 0 0 0;padding:clamp(28px,3vw,44px);color:#fff}
 .plate .copy .lbl{color:rgba(255,255,255,.66);display:block;margin-bottom:16px}
-.plate h3{font-family:var(--serif);font-weight:400;font-size:clamp(30px,3.4vw,54px);letter-spacing:-.02em;line-height:.98;margin-bottom:12px}
+.plate h3{font-family:var(--display);font-weight:400;font-size:clamp(30px,3.4vw,54px);letter-spacing:-.02em;line-height:.98;margin-bottom:12px}
 .plate p{font-size:13.5px;color:rgba(255,255,255,.7);max-width:42ch}
 .plate .frame{position:absolute;inset:14px;border:1px solid rgba(255,255,255,.16);pointer-events:none}
 
@@ -495,7 +493,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 
   <div class="wrap hero-inner">
     <div class="hero-copy">
-      <span class="lbl"><i></i> 01 &mdash; The floor</span>
+      <span class="lbl"><i></i> The floor</span>
       <h1 class="display h-xl">Apple,<br><em>properly</em> traded.</h1>
       <p class="lede">McLovin&rsquo;s deals in Apple devices worth owning. Sealed stock and certified
         pre-owned, checked against one fixed standard, and listed with the detail you actually want before you buy.</p>
@@ -545,7 +543,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="standard" id="standard">
   <div class="sec-head rv">
     <div>
-      <span class="lbl"><span class="num">02</span> &mdash; The standard</span>
+      <span class="lbl">The standard</span>
       <h2 class="display h-lg">Four things we <em>never</em> skip.</h2>
     </div>
     <p class="lede">Second-hand Apple is a market full of guesswork. McLovin&rsquo;s removes it by
@@ -571,7 +569,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="index-sec" id="index">
   <div class="sec-head rv">
     <div>
-      <span class="lbl"><span class="num">03</span> &mdash; The index</span>
+      <span class="lbl">The index</span>
       <h2 class="display h-lg">Shop the <em>generation</em>, not the grid.</h2>
     </div>
     <p class="lede">You already know which iPhone you want. Start there instead of scrolling
@@ -621,7 +619,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <!-- 04 ─ the edit ────────────────────────────────────────────────────── -->
 <section class="edit" id="edit">
   <div class="edit-copy rv">
-    <span class="lbl"><span class="num">04</span> &mdash; The edit</span>
+    <span class="lbl">The edit</span>
     <h2 class="display h-lg">Not every upgrade needs to be <em>the newest.</em></h2>
     <p class="lede">The jump that matters is rarely the one on the billboard. Camera system, battery,
       charging port and how long you plan to keep it &mdash; those four decide it. We will tell you when
@@ -646,7 +644,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="selected" id="selected">
   <div class="sec-head rv">
     <div>
-      <span class="lbl"><span class="num">05</span> &mdash; Selected</span>
+      <span class="lbl">Selected</span>
       <h2 class="display h-lg">On the floor <em>this week.</em></h2>
     </div>
     <p class="lede">A rotating selection from current stock. Every listing carries its grade, storage
@@ -737,7 +735,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   <div class="wrap">
     <div class="sec-head rv">
       <div>
-        <span class="lbl"><span class="num">06</span> &mdash; The ledger</span>
+        <span class="lbl">The ledger</span>
         <h2 class="display h-lg">See what <em>actually</em> changes.</h2>
       </div>
       <p class="lede">Not a marketing chart. The specifications that decide whether an upgrade is
@@ -812,7 +810,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="wild" id="wild">
   <div class="sec-head rv">
     <div>
-      <span class="lbl"><span class="num">07</span> &mdash; In the wild</span>
+      <span class="lbl">In the wild</span>
       <h2 class="display h-lg">A phone you actually <em>carry.</em></h2>
     </div>
     <p class="lede">Devices photographed the way they get used, not the way they get warehoused.</p>
@@ -845,7 +843,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   <div class="grain" aria-hidden="true"></div>
   <div class="wrap">
     <div class="sig-in rv">
-      <span class="lbl"><span class="num">08</span> &mdash; Signal</span>
+      <span class="lbl">Signal</span>
       <h2 class="display h-lg">First look at <em>every</em> drop.</h2>
       <p class="lede">Restocks, trade-in windows and the devices that move before they reach the floor.
         Nothing else &mdash; we do not send newsletters.</p>
