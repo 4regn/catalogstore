@@ -81,20 +81,23 @@ matching grading-tier card, AND the price and both WhatsApp CTAs. Colour is cosm
 only — the price list doesn't break prices out by colour, so it just relabels the
 config in the WhatsApp message text.
 
-The four gallery images are one photograph (assets/hero-titanium-pair.jpg) plus
-three crops of it (assets/pdp-15pro-crop-*.jpg) standing in for a proper product
-shoot — there's only one real titanium-pair photo in the asset set. The three
-related-product cards reuse that same crop set for the same reason. Swap in real
-per-listing photography before this goes live.
+The four gallery images are the seller's own real iPhone 15 Pro photo
+(assets/products/iphone-15-pro.jpg — front and back together, correct colour) plus
+three crops of that same file (pdp-15pro-front/back/camera.jpg) standing in for a
+full product shoot's worth of angles. Every model referenced anywhere on the site
+now uses its correct, seller-supplied photo from assets/products/ — no more
+off-model or mismatched-colour stand-ins.
 
 collection.html is the full "iPhone Sale 2026" price list — every model the seller
 sent, X through 17 Pro Max, ~90 individual storage/condition price points across
-8 era sections (jump nav at the top). It was generated, not hand-typed: pricedata.py
+8 era sections (jump nav at the top), each row carrying its own real product
+thumbnail from assets/products/. It was generated, not hand-typed: pricedata.py
 holds the source data (RAW, a flat list of model/storage/sealed/price tuples, and
 ERAS, the 8 series groupings) that a one-off script templated into the HTML. That
 script itself wasn't kept — pricedata.py is — so the fastest way to add or correct
 a price is to edit pricedata.py and re-run the same kind of generation (era section
-loop -> one row per model -> one chip per price point, each chip's href a
+loop -> one row per model, thumbnail path lowercase-and-hyphenate the model name
+into assets/products/<slug>.jpg -> one chip per price point, each chip's href a
 wa.me link built from the model/storage/condition/price). Editing collection.html
 directly works too, but the chip's visible text and its wa.me "text=" param both
 encode the price, so a manual edit has to update both or the WhatsApp message will
@@ -143,11 +146,19 @@ PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
   is confirmed, rather than left as unverified claims.
 * The comparison tables use publicly documented Apple specifications for
   iPhone SE/12/13/14/15/15 Pro/15 Pro Max.
-* The photography came with the original concept file and is not McLovin's own.
-  Third-party watermarks and competitor branding ("Photographer by Huamu",
-  "www.pixelstudio.fr", a Nudient case ad) have been cropped out of the JPEGs, but
-  these images are still unlicensed for commercial use. Replace them with your own
-  shoot before this goes live.
+* Per-model product photography (assets/products/, 31 files, one JPEG per iPhone
+  X through 17 Pro Max — front and back on white, correct colour) came from the
+  seller and is used across all three pages: product.html's gallery and related
+  cards, index.html's Selected cards and generation-index hover images, and every
+  thumbnail on collection.html. Converted from PNG to JPEG on the way in (same
+  visual quality, ~39 MB down to ~4 MB) — nothing else was altered.
+* The remaining editorial/lifestyle photography (the hero slideshow, the "In the
+  wild" lookbook plates, the camera macro in "The edit") came with the original
+  concept file and is not McLovin's own. Third-party watermarks and competitor
+  branding ("Photographer by Huamu", "www.pixelstudio.fr", a Nudient case ad) have
+  been cropped out of the JPEGs, but these images are still unlicensed for
+  commercial use. Replace them with your own shoot before this goes live — the
+  per-model catalogue shots above don't need this, only the mood/lifestyle imagery.
 * The only remaining data-toast placeholder on any of the three pages is the mobile
   burger menu (no drawer built yet). Every other button that used to be a placeholder
   is now a real wa.me link (see PRICING) or a real in-page/cross-page anchor. The

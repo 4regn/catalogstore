@@ -429,12 +429,15 @@ section[id^="era-"]{scroll-margin-top:110px}
 .era-head .yr-range{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--smoke);white-space:nowrap}
 
 .pl-list{border-top:1px solid var(--line)}
-.pl-row{display:grid;grid-template-columns:88px 1fr auto;gap:8px 22px;align-items:start;
-  padding:20px 0;border-bottom:1px solid var(--line);transition:background .3s var(--ease)}
+.pl-row{display:grid;grid-template-columns:60px 1fr auto;gap:16px;align-items:start;
+  padding:18px 0;border-bottom:1px solid var(--line);transition:background .3s var(--ease)}
 .pl-row:hover{background:rgba(10,10,11,.03)}
-.pl-yr{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--smoke);padding-top:7px}
+.pl-thumb{width:60px;height:60px;flex:none;overflow:hidden;background:#EDEBE5}
+.pl-thumb img{width:100%;height:100%;object-fit:cover}
 .pl-body{min-width:0}
-.pl-name{font-family:var(--display);font-weight:600;font-size:20px;letter-spacing:-.01em;margin-bottom:12px}
+.pl-body-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.pl-yr{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--smoke)}
+.pl-name{font-family:var(--display);font-weight:600;font-size:20px;letter-spacing:-.01em}
 .pl-chips{display:flex;flex-wrap:wrap;gap:8px}
 .pl-chip{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid var(--line);
   font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink);
@@ -448,11 +451,10 @@ section[id^="era-"]{scroll-margin-top:110px}
   transition:background .3s var(--ease),color .3s var(--ease),border-color .3s var(--ease)}
 .pl-ask:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
 
-@media(max-width:820px){
-  .pl-row{grid-template-columns:1fr auto;row-gap:10px}
-  .pl-row .pl-yr{grid-column:1;grid-row:1}
-  .pl-row .pl-body{grid-column:1/-1;grid-row:2}
-  .pl-row .pl-ask{grid-column:2;grid-row:1;justify-self:end}
+@media(max-width:600px){
+  .pl-row{grid-template-columns:44px 1fr auto;gap:12px}
+  .pl-thumb{width:44px;height:44px}
+  .pl-name{font-size:17px}
   .era-head{flex-direction:column;align-items:flex-start;gap:6px}
 }
 @media(prefers-reduced-motion:reduce){
@@ -572,9 +574,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>X Series</h2><span class="yr-range">2018</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2018</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-x.jpg" alt="iPhone X" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone X</h3>
+        <div class="pl-body-head"><span class="pl-yr">2018</span><h3 class="pl-name">iPhone X</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20X%2C%2064GB%2C%20not%20sealed%20%28R3%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R3,500</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20X%2C%2064GB%2C%20sealed%20%28R3%2C700%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R3,700<span class="tag">Sealed</span></a>
@@ -585,9 +587,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20X.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone X">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2018</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-xr.jpg" alt="iPhone XR" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone XR</h3>
+        <div class="pl-body-head"><span class="pl-yr">2018</span><h3 class="pl-name">iPhone XR</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XR%2C%2064GB%2C%20not%20sealed%20%28R3%2C900%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R3,900</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XR%2C%2064GB%2C%20sealed%20%28R4%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R4,500<span class="tag">Sealed</span></a>
@@ -598,9 +600,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XR.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone XR">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2018</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-xs.jpg" alt="iPhone XS" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone XS</h3>
+        <div class="pl-body-head"><span class="pl-yr">2018</span><h3 class="pl-name">iPhone XS</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XS%2C%2064GB%2C%20not%20sealed%20%28R3%2C900%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R3,900</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XS%2C%2064GB%2C%20sealed%20%28R4%2C300%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R4,300<span class="tag">Sealed</span></a>
@@ -611,9 +613,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XS.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone XS">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2018</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-xs-max.jpg" alt="iPhone XS Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone XS Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2018</span><h3 class="pl-name">iPhone XS Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XS%20Max%2C%2064GB%2C%20not%20sealed%20%28R4%2C300%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R4,300</a>
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%20XS%20Max%2C%20256GB%2C%20not%20sealed%20%28R4%2C800%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R4,800</a>
@@ -630,9 +632,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>11 Series</h2><span class="yr-range">2019</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2019</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-11.jpg" alt="iPhone 11" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 11</h3>
+        <div class="pl-body-head"><span class="pl-yr">2019</span><h3 class="pl-name">iPhone 11</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011%2C%2064GB%2C%20not%20sealed%20%28R5%2C800%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R5,800</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011%2C%2064GB%2C%20sealed%20%28R6%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R6,000<span class="tag">Sealed</span></a>
@@ -643,9 +645,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 11">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2019</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-11-pro.jpg" alt="iPhone 11 Pro" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 11 Pro</h3>
+        <div class="pl-body-head"><span class="pl-yr">2019</span><h3 class="pl-name">iPhone 11 Pro</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011%20Pro%2C%2064GB%2C%20not%20sealed%20%28R6%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R6,200</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011%20Pro%2C%2064GB%2C%20sealed%20%28R6%2C800%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R6,800<span class="tag">Sealed</span></a>
@@ -656,9 +658,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011%20Pro.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 11 Pro">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2019</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-11-pro-max.jpg" alt="iPhone 11 Pro Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 11 Pro Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2019</span><h3 class="pl-name">iPhone 11 Pro Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011%20Pro%20Max%2C%2064GB%2C%20not%20sealed%20%28R6%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R6,200</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2011%20Pro%20Max%2C%2064GB%2C%20sealed%20%28R7%2C100%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R7,100<span class="tag">Sealed</span></a>
@@ -675,9 +677,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>12 Series</h2><span class="yr-range">2020</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2020</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-12.jpg" alt="iPhone 12" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 12</h3>
+        <div class="pl-body-head"><span class="pl-yr">2020</span><h3 class="pl-name">iPhone 12</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%2C%2064GB%2C%20not%20sealed%20%28R6%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R6,000</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%2C%2064GB%2C%20sealed%20%28R6%2C800%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R6,800<span class="tag">Sealed</span></a>
@@ -688,9 +690,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 12">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2020</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-12-mini.jpg" alt="iPhone 12 mini" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 12 mini</h3>
+        <div class="pl-body-head"><span class="pl-yr">2020</span><h3 class="pl-name">iPhone 12 mini</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20mini%2C%2064GB%2C%20not%20sealed%20%28R5%2C400%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">64GB &middot; R5,400</a>
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20mini%2C%20128GB%2C%20not%20sealed%20%28R5%2C900%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R5,900</a>
@@ -699,9 +701,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20mini.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 12 mini">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2020</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-12-pro.jpg" alt="iPhone 12 Pro" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 12 Pro</h3>
+        <div class="pl-body-head"><span class="pl-yr">2020</span><h3 class="pl-name">iPhone 12 Pro</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20Pro%2C%20128GB%2C%20not%20sealed%20%28R6%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R6,500</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20Pro%2C%20128GB%2C%20sealed%20%28R7%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R7,500<span class="tag">Sealed</span></a>
@@ -712,9 +714,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20Pro.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 12 Pro">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2020</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-12-pro-max.jpg" alt="iPhone 12 Pro Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 12 Pro Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2020</span><h3 class="pl-name">iPhone 12 Pro Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20Pro%20Max%2C%20128GB%2C%20not%20sealed%20%28R8%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R8,500</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2012%20Pro%20Max%2C%20128GB%2C%20sealed%20%28R9%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R9,000<span class="tag">Sealed</span></a>
@@ -731,9 +733,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>13 Series</h2><span class="yr-range">2021</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2021</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-13.jpg" alt="iPhone 13" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 13</h3>
+        <div class="pl-body-head"><span class="pl-yr">2021</span><h3 class="pl-name">iPhone 13</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%2C%20128GB%2C%20not%20sealed%20%28R7%2C300%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R7,300</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%2C%20128GB%2C%20sealed%20%28R8%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R8,000<span class="tag">Sealed</span></a>
@@ -744,9 +746,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 13">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2021</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-13-mini.jpg" alt="iPhone 13 mini" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 13 mini</h3>
+        <div class="pl-body-head"><span class="pl-yr">2021</span><h3 class="pl-name">iPhone 13 mini</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%20mini%2C%20128GB%2C%20not%20sealed%20%28R6%2C550%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R6,550</a>
         </div>
@@ -754,9 +756,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%20mini.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 13 mini">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2021</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-13-pro.jpg" alt="iPhone 13 Pro" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 13 Pro</h3>
+        <div class="pl-body-head"><span class="pl-yr">2021</span><h3 class="pl-name">iPhone 13 Pro</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%20Pro%2C%20128GB%2C%20not%20sealed%20%28R9%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R9,200</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%20Pro%2C%20128GB%2C%20sealed%20%28R9%2C700%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R9,700<span class="tag">Sealed</span></a>
@@ -767,9 +769,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%20Pro.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 13 Pro">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2021</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-13-pro-max.jpg" alt="iPhone 13 Pro Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 13 Pro Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2021</span><h3 class="pl-name">iPhone 13 Pro Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%20Pro%20Max%2C%20128GB%2C%20not%20sealed%20%28R9%2C900%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R9,900</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2013%20Pro%20Max%2C%20128GB%2C%20sealed%20%28R11%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R11,000<span class="tag">Sealed</span></a>
@@ -786,9 +788,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>14 Series</h2><span class="yr-range">2022</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2022</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-14.jpg" alt="iPhone 14" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 14</h3>
+        <div class="pl-body-head"><span class="pl-yr">2022</span><h3 class="pl-name">iPhone 14</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%2C%20128GB%2C%20not%20sealed%20%28R7%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R7,500</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%2C%20128GB%2C%20sealed%20%28R8%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R8,500<span class="tag">Sealed</span></a>
@@ -799,9 +801,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 14">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2022</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-14-plus.jpg" alt="iPhone 14 Plus" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 14 Plus</h3>
+        <div class="pl-body-head"><span class="pl-yr">2022</span><h3 class="pl-name">iPhone 14 Plus</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Plus%2C%20128GB%2C%20not%20sealed%20%28R9%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R9,000</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Plus%2C%20128GB%2C%20sealed%20%28R9%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R9,500<span class="tag">Sealed</span></a>
@@ -812,9 +814,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Plus.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 14 Plus">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2022</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-14-pro.jpg" alt="iPhone 14 Pro" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 14 Pro</h3>
+        <div class="pl-body-head"><span class="pl-yr">2022</span><h3 class="pl-name">iPhone 14 Pro</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro%2C%20128GB%2C%20not%20sealed%20%28R11%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R11,200</a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro%2C%20128GB%2C%20sealed%20%28R11%2C800%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R11,800<span class="tag">Sealed</span></a>
@@ -825,9 +827,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 14 Pro">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2022</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-14-pro-max.jpg" alt="iPhone 14 Pro Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 14 Pro Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2022</span><h3 class="pl-name">iPhone 14 Pro Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro%20Max%2C%20128GB%2C%20sealed%20%28R14%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R14,200<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro%20Max%2C%20256GB%2C%20sealed%20%28R14%2C700%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R14,700<span class="tag">Sealed</span></a>
@@ -842,9 +844,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>15 Series</h2><span class="yr-range">2023</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2023</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-15.jpg" alt="iPhone 15" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 15</h3>
+        <div class="pl-body-head"><span class="pl-yr">2023</span><h3 class="pl-name">iPhone 15</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%2C%20128GB%2C%20sealed%20%28R12%2C300%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R12,300<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%2C%20256GB%2C%20sealed%20%28R12%2C700%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R12,700<span class="tag">Sealed</span></a>
@@ -853,9 +855,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 15">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2023</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-15-plus.jpg" alt="iPhone 15 Plus" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 15 Plus</h3>
+        <div class="pl-body-head"><span class="pl-yr">2023</span><h3 class="pl-name">iPhone 15 Plus</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Plus%2C%20128GB%2C%20sealed%20%28R13%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R13,000<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Plus%2C%20256GB%2C%20sealed%20%28R13%2C700%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R13,700<span class="tag">Sealed</span></a>
@@ -864,9 +866,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Plus.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 15 Plus">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2023</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-15-pro.jpg" alt="iPhone 15 Pro" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 15 Pro</h3>
+        <div class="pl-body-head"><span class="pl-yr">2023</span><h3 class="pl-name">iPhone 15 Pro</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro%2C%20128GB%2C%20sealed%20%28R14%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R14,500<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro%2C%20256GB%2C%20sealed%20%28R15%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R15,200<span class="tag">Sealed</span></a>
@@ -875,9 +877,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 15 Pro">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2023</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-15-pro-max.jpg" alt="iPhone 15 Pro Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 15 Pro Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2023</span><h3 class="pl-name">iPhone 15 Pro Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro%20Max%2C%20256GB%2C%20sealed%20%28R17%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R17,000<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro%20Max%2C%20512GB%2C%20sealed%20%28R17%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">512GB &middot; R17,500<span class="tag">Sealed</span></a>
@@ -892,9 +894,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>16 Series</h2><span class="yr-range">2024</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2024</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-16.jpg" alt="iPhone 16" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 16</h3>
+        <div class="pl-body-head"><span class="pl-yr">2024</span><h3 class="pl-name">iPhone 16</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%2C%20128GB%2C%20sealed%20%28R14%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R14,500<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%2C%20256GB%2C%20sealed%20%28R15%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R15,200<span class="tag">Sealed</span></a>
@@ -903,9 +905,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 16">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2024</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-16-plus.jpg" alt="iPhone 16 Plus" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 16 Plus</h3>
+        <div class="pl-body-head"><span class="pl-yr">2024</span><h3 class="pl-name">iPhone 16 Plus</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Plus%2C%20128GB%2C%20sealed%20%28R15%2C700%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R15,700<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Plus%2C%20256GB%2C%20sealed%20%28R16%2C700%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R16,700<span class="tag">Sealed</span></a>
@@ -914,9 +916,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Plus.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 16 Plus">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2024</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-16-pro.jpg" alt="iPhone 16 Pro" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 16 Pro</h3>
+        <div class="pl-body-head"><span class="pl-yr">2024</span><h3 class="pl-name">iPhone 16 Pro</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro%2C%20128GB%2C%20sealed%20%28R17%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">128GB &middot; R17,500<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro%2C%20256GB%2C%20sealed%20%28R18%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R18,000<span class="tag">Sealed</span></a>
@@ -925,9 +927,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 16 Pro">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2024</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-16-pro-max.jpg" alt="iPhone 16 Pro Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 16 Pro Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2024</span><h3 class="pl-name">iPhone 16 Pro Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro%20Max%2C%20256GB%2C%20sealed%20%28R21%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R21,500<span class="tag">Sealed</span></a>
         <a class="pl-chip sealed" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro%20Max%2C%20512GB%2C%20sealed%20%28R22%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">512GB &middot; R22,500<span class="tag">Sealed</span></a>
@@ -942,9 +944,9 @@ section[id^="era-"]{scroll-margin-top:110px}
   <div class="era-head rv"><h2>17 Series</h2><span class="yr-range">2025</span></div>
   <div class="pl-list">
     <article class="pl-row rv">
-      <span class="pl-yr">2025</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-17.jpg" alt="iPhone 17" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 17</h3>
+        <div class="pl-body-head"><span class="pl-yr">2025</span><h3 class="pl-name">iPhone 17</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2017%2C%20256GB%2C%20not%20sealed%20%28R16%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R16,500</a>
         </div>
@@ -952,9 +954,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2017.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 17">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2025</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-17-air.jpg" alt="iPhone 17 Air" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 17 Air</h3>
+        <div class="pl-body-head"><span class="pl-yr">2025</span><h3 class="pl-name">iPhone 17 Air</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2017%20Air%2C%20not%20sealed%20%28R18%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">R18,000</a>
         </div>
@@ -962,9 +964,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2017%20Air.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 17 Air">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2025</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-17-pro.jpg" alt="iPhone 17 Pro" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 17 Pro</h3>
+        <div class="pl-body-head"><span class="pl-yr">2025</span><h3 class="pl-name">iPhone 17 Pro</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2017%20Pro%2C%20256GB%2C%20not%20sealed%20%28R23%2C300%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R23,300</a>
         </div>
@@ -972,9 +974,9 @@ section[id^="era-"]{scroll-margin-top:110px}
       <a class="pl-ask" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2017%20Pro.%20What%20do%20you%20have%20in%20stock%3F" target="_blank" rel="noopener" aria-label="Ask about iPhone 17 Pro">↗</a>
     </article>
     <article class="pl-row rv">
-      <span class="pl-yr">2025</span>
+      <div class="pl-thumb"><img src="assets/products/iphone-17-pro-max.jpg" alt="iPhone 17 Pro Max" loading="lazy"></div>
       <div class="pl-body">
-        <h3 class="pl-name">iPhone 17 Pro Max</h3>
+        <div class="pl-body-head"><span class="pl-yr">2025</span><h3 class="pl-name">iPhone 17 Pro Max</h3></div>
         <div class="pl-chips">
         <a class="pl-chip" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2017%20Pro%20Max%2C%20256GB%2C%20not%20sealed%20%28R26%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">256GB &middot; R26,500</a>
         </div>
