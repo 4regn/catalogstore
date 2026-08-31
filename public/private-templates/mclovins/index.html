@@ -183,10 +183,9 @@ header:not(.stuck) .burger i{background:#fff}
 
 /* ─── the standard ──────────────────────────────────────────────────── */
 .standard{padding:var(--sec) 0 0}
-.std-grid{display:grid;grid-template-columns:repeat(4,1fr);margin-top:clamp(44px,6vw,84px);border-top:1px solid var(--line)}
-.std-item{padding:32px 34px 40px;border-right:1px solid var(--line)}
-.std-item:first-child{padding-left:0}
-.std-item:last-child{border-right:0;padding-right:0}
+.std-grid{display:flex;flex-wrap:wrap;gap:0 clamp(48px,6vw,88px);margin-top:clamp(44px,6vw,84px);border-top:1px solid var(--line)}
+.std-item{flex:0 1 300px;padding:32px 0 40px;border-left:1px solid var(--line);padding-left:clamp(28px,3vw,40px)}
+.std-item:first-child{border-left:0;padding-left:0}
 .std-item .n{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--lav-deep);display:block;margin-bottom:26px}
 .std-item h3{font-family:var(--display);font-size:29px;font-weight:400;letter-spacing:-.015em;margin-bottom:11px}
 .std-item p{font-size:13.5px;line-height:1.6;color:var(--smoke);max-width:30ch}
@@ -354,11 +353,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   .nav{grid-template-columns:1fr auto;height:74px}
   .stock-dot{display:none}
   .burger{display:inline-flex}
-  .std-grid{grid-template-columns:1fr 1fr}
-  .std-item{padding:28px 28px 34px}
-  .std-item:nth-child(2n){border-right:0;padding-right:0}
-  .std-item:nth-child(2n+1){padding-left:0}
-  .std-item:nth-child(-n+2){border-bottom:1px solid var(--line)}
   .prods{grid-template-columns:1fr 1fr}
   .prod{border-bottom:1px solid var(--line);padding-bottom:30px;padding-top:30px}
   .prod:nth-child(2n){border-right:0;padding-right:0}
@@ -370,6 +364,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 @media(max-width:820px){
   .wrap{width:min(1520px,100% - 28px)}
   .sec-head{grid-template-columns:1fr;gap:20px;align-items:start}
+  .std-item{flex-basis:100%;border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:24px}
+  .std-item:first-child{border-top:0;padding-top:0}
   .hero-inner{min-height:auto;padding-top:clamp(70px,16vw,110px)}
   .hero-copy{padding-bottom:44px}
   .hero-rail{grid-template-columns:1fr;align-items:start;gap:16px}
@@ -474,6 +470,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       <a href="#selected">Selected</a>
       <a href="#ledger">Compare</a>
       <a href="#standard">The Standard</a>
+      <a href="collection.html">Price List</a>
     </nav>
     <div class="nav-act">
       <span class="stock-dot"><i></i> In stock now</span>
@@ -497,7 +494,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 
   <div class="wrap hero-inner">
     <div class="hero-copy">
-      <span class="lbl"><i></i> The floor</span>
       <h1 class="display h-xl">Apple,<br><em>properly</em> traded.</h1>
       <p class="lede">McLovin&rsquo;s deals in Apple devices worth owning. Sealed stock and certified
         pre-owned, checked against one fixed standard, and listed with the detail you actually want before you buy.</p>
@@ -547,8 +543,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="standard" id="standard">
   <div class="sec-head rv">
     <div>
-      <span class="lbl">The standard</span>
-      <h2 class="display h-lg">Four things we <em>never</em> skip.</h2>
+      <h2 class="display h-lg">What we <em>never</em> skip.</h2>
     </div>
     <p class="lede">Second-hand Apple is a market full of guesswork. McLovin&rsquo;s removes it by
       grading every device the same way, publishing what we find, and standing behind it afterwards.</p>
@@ -560,12 +555,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     <div class="std-item rv"><span class="n">02</span>
       <h3>Documented</h3>
       <p>Storage, condition grade and battery health are published on the listing &mdash; before you ask.</p></div>
-    <div class="std-item rv"><span class="n">03</span>
-      <h3>Traded fairly</h3>
-      <p>Bring your current device in. It gets valued on what it is, not on what we can get away with.</p></div>
-    <div class="std-item rv"><span class="n">04</span>
-      <h3>Answered</h3>
-      <p>A real person on the other end of the message, before the sale and long after it.</p></div>
   </div>
 </section>
 
@@ -573,7 +562,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="index-sec" id="index">
   <div class="sec-head rv">
     <div>
-      <span class="lbl">The index</span>
       <h2 class="display h-lg">Shop the <em>generation</em>, not the grid.</h2>
     </div>
     <p class="lede">You already know which iPhone you want. Start there instead of scrolling
@@ -623,7 +611,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <!-- 04 ─ the edit ────────────────────────────────────────────────────── -->
 <section class="edit" id="edit">
   <div class="edit-copy rv">
-    <span class="lbl">The edit</span>
     <h2 class="display h-lg">Not every upgrade needs to be <em>the newest.</em></h2>
     <p class="lede">The jump that matters is rarely the one on the billboard. Camera system, battery,
       charging port and how long you plan to keep it &mdash; those four decide it. We will tell you when
@@ -635,7 +622,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     </dl>
     <div class="hero-cta" style="margin-top:0">
       <button class="btn btn-ink" data-scroll="#ledger">Find my iPhone <span class="ar">↗</span></button>
-      <a class="btn btn-line" href="https://wa.me/27748171165?text=Hi%21%20I%20would%20like%20some%20help%20choosing%20the%20right%20iPhone." target="_blank" rel="noopener">Ask McLovin&rsquo;s</a>
     </div>
   </div>
   <div class="edit-media">
@@ -648,7 +634,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="selected" id="selected">
   <div class="sec-head rv">
     <div>
-      <span class="lbl">Selected</span>
       <h2 class="display h-lg">On the floor <em>this week.</em></h2>
     </div>
     <p class="lede">A rotating selection from current stock. Every listing carries its grade, storage
@@ -739,7 +724,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   <div class="wrap">
     <div class="sec-head rv">
       <div>
-        <span class="lbl">The ledger</span>
         <h2 class="display h-lg">See what <em>actually</em> changes.</h2>
       </div>
       <p class="lede">Not a marketing chart. The specifications that decide whether an upgrade is
@@ -814,7 +798,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <section class="wild" id="wild">
   <div class="sec-head rv">
     <div>
-      <span class="lbl">In the wild</span>
       <h2 class="display h-lg">A phone you actually <em>carry.</em></h2>
     </div>
     <p class="lede">Devices photographed the way they get used, not the way they get warehoused.</p>
@@ -847,7 +830,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   <div class="grain" aria-hidden="true"></div>
   <div class="wrap">
     <div class="sig-in rv">
-      <span class="lbl">Signal</span>
       <h2 class="display h-lg">First look at <em>every</em> drop.</h2>
       <p class="lede">Restocks, trade-in windows and the devices that move before they reach the floor.
         Nothing else &mdash; we do not send newsletters.</p>
@@ -879,12 +861,12 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       </div>
       <div class="f-col"><h4>Shop</h4>
         <a href="#index">The Index</a><a href="#selected">Selected stock</a>
-        <a href="#ledger">Compare models</a><a href="#wild">Accessories</a></div>
+        <a href="#ledger">Compare models</a><a href="#wild">Accessories</a>
+        <a href="collection.html">Full price list</a></div>
       <div class="f-col"><h4>Help</h4>
         <a href="#">Shipping</a><a href="#">Returns</a>
         <a href="#">Device questions</a><a href="#">Contact</a></div>
       <div class="f-col"><h4>McLovin&rsquo;s</h4>
-        <a href="#standard">The Standard</a><a href="#">Trade-in</a>
         <a href="#">Instagram</a><a href="https://wa.me/27748171165?text=Hi%21%20I%20have%20a%20question%20about%20McLovin%27s%20Apple%20Trader." target="_blank" rel="noopener">WhatsApp</a></div>
     </div>
     <div class="legal">

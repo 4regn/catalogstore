@@ -1,22 +1,24 @@
 McLOVIN'S APPLE TRADER — concept storefront
 ===========================================
 
-Served at /private-templates/mclovins/index.html and /private-templates/mclovins/product.html
+Served at /private-templates/mclovins/index.html, /private-templates/mclovins/product.html
+and /private-templates/mclovins/collection.html
 
 WHAT THIS IS
 ------------
-Two self-contained pages, no build step, no framework — open either file directly or
+Three self-contained pages, no build step, no framework — open any file directly or
 serve the folder statically. All imagery lives in ./assets as real files (an earlier
 version inlined every photo as base64, which put a single page at 2.5 MB; index.html
 is now ~64 KB of HTML plus ~480 KB of images, loaded lazily below the fold).
 
-  index.html    the storefront landing page
-  product.html  the iPhone 15 Pro product page (see PAGES below)
+  index.html       the storefront landing page
+  product.html     the iPhone 15 Pro product page (see PAGES below)
+  collection.html  the full iPhone Sale 2026 price list, every model (see PAGES below)
 
-Both pages share one design system — tokens, type, buttons, header, footer — copied
-verbatim between the two <style> blocks. There's no shared stylesheet on purpose (no
-build step to resolve one), so a token or component change made in one file needs to
-be repeated in the other to stay in sync.
+All three pages share one design system — tokens, type, buttons, header, footer —
+copied verbatim between their <style> blocks. There's no shared stylesheet on purpose
+(no build step to resolve one), so a token or component change made in one file needs
+to be repeated in the other two to stay in sync.
 
 ART DIRECTION
 -------------
@@ -34,11 +36,12 @@ and drop shadows. Corners are square by default; only buttons are pills.
           Lime is deliberately rationed — a dot, a hairline, one button, one
           table column. It is never a full-bleed panel.
 
-Section kickers (the small mono line above each heading) are plain labels — "The
-standard", "The index" — not numbered. An earlier draft numbered them 01–08; that
-was decorative, not real sequence information, so it was dropped. The one place
-numbering IS kept is product.html's grading tiers (S / A / B), because that order
-is a real, meaningful hierarchy.
+Section kickers (the small mono line that used to sit above each heading — "The
+standard", "The index") are gone entirely now, sitewide. An earlier draft numbered
+them 01–08, then de-numbered them to plain labels; both were decorative, not real
+sequence information, so the whole kicker line was dropped. The one place numbering
+IS kept is product.html's grading tiers (S / A / B), because that order is a real,
+meaningful hierarchy.
 
 LOGO
 ----
@@ -84,6 +87,22 @@ shoot — there's only one real titanium-pair photo in the asset set. The three
 related-product cards reuse that same crop set for the same reason. Swap in real
 per-listing photography before this goes live.
 
+collection.html is the full "iPhone Sale 2026" price list — every model the seller
+sent, X through 17 Pro Max, ~90 individual storage/condition price points across
+8 era sections (jump nav at the top). It was generated, not hand-typed: pricedata.py
+holds the source data (RAW, a flat list of model/storage/sealed/price tuples, and
+ERAS, the 8 series groupings) that a one-off script templated into the HTML. That
+script itself wasn't kept — pricedata.py is — so the fastest way to add or correct
+a price is to edit pricedata.py and re-run the same kind of generation (era section
+loop -> one row per model -> one chip per price point, each chip's href a
+wa.me link built from the model/storage/condition/price). Editing collection.html
+directly works too, but the chip's visible text and its wa.me "text=" param both
+encode the price, so a manual edit has to update both or the WhatsApp message will
+misquote what the chip shows. Every price on the page is its own tappable chip —
+clicking one opens WhatsApp with that exact model, storage, condition and price
+pre-filled. A circular "ask" button on each row covers anything not on the chart
+(a colour, a condition, a config).
+
 PRICING
 -------
 Prices site-wide come from one real price list the seller sent (an "iPhone Sale 2026"
@@ -99,28 +118,29 @@ exact storage tiers) is still illustrative. Two things to know about the source 
   (128GB and 256GB, both sealed only). Pick 512GB, 1TB, or either certified grade
   and the price row correctly falls back to "Contact for price" — there is no real
   number for that combination, so none is shown.
-* The list covers roughly 30 models (iPhone X through 17 Pro Max) — far more than
-  the handful this site currently shows. Only the SKUs already referenced by the
-  page (13, 14, 14 Pro, 15 Pro, 15 Pro Max, 16, 16 Pro, 11, and the Pro Range card)
-  were wired in. The rest of the list exists only in this seller's message, not
-  anywhere in this codebase — building it out into a full catalogue is a separate,
-  larger job (see the session notes / ask before assuming it's wanted).
+* The full list (iPhone X through 17 Pro Max, ~90 price points) lives on
+  collection.html — see PAGES above. index.html and product.html only wire in the
+  handful of SKUs they already reference (13, 14, 14 Pro, 15 Pro, 15 Pro Max, 16,
+  16 Pro, 11, the Pro Range card); they intentionally stay curated rather than
+  trying to surface the whole catalogue inline.
 
-Every "Enquire" / "Chat on WhatsApp" / "Ask McLovin's" control site-wide is a real
+Every "Enquire" / "Chat on WhatsApp" / price-chip / "ask" control site-wide is a real
 link to https://wa.me/27748171165 (the seller's real contact number) with a
 pre-filled message describing what was clicked — not a mailto or a form, an actual
 WhatsApp deep link. There is no CMS or inventory system behind any of this: updating
-a price means editing the PRICES table (product.html) or the relevant card's markup
-(index.html) by hand.
+a price means editing the PRICES table (product.html), the relevant card's markup
+(index.html), or the relevant chip (collection.html) by hand.
 
 PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
 -------------------------------------------
 * Everything about the listings other than price is still illustrative: exact
   colourways offered, which grades are actually in stock, storage beyond what's
   priced. Confirm real availability before launch.
-* Trust copy (inspection, documentation, trade-in, support, the 40-point check and
-  90-day warranty on product.html) describes intended policy, not verified operating
-  practice. Confirm before publishing.
+* Trust copy (inspection and documentation in index.html's "What we never skip",
+  the 40-point check and 90-day warranty on product.html) describes intended
+  policy, not verified operating practice. Confirm before publishing. That section
+  originally also claimed trade-ins and 24/7 support; both were cut since neither
+  is confirmed, rather than left as unverified claims.
 * The comparison tables use publicly documented Apple specifications for
   iPhone SE/12/13/14/15/15 Pro/15 Pro Max.
 * The photography came with the original concept file and is not McLovin's own.
@@ -128,10 +148,10 @@ PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
   "www.pixelstudio.fr", a Nudient case ad) have been cropped out of the JPEGs, but
   these images are still unlicensed for commercial use. Replace them with your own
   shoot before this goes live.
-* The only remaining data-toast placeholder on either page is the mobile burger menu
-  (no drawer built yet). Every other button that used to be a placeholder is now a
-  real wa.me link (see PRICING) or a real in-page/cross-page anchor. The signal form
-  on index.html still does not submit anywhere — wire it to your list.
+* The only remaining data-toast placeholder on any of the three pages is the mobile
+  burger menu (no drawer built yet). Every other button that used to be a placeholder
+  is now a real wa.me link (see PRICING) or a real in-page/cross-page anchor. The
+  signal form on index.html still does not submit anywhere — wire it to your list.
 
 INTERACTION
 -----------
@@ -141,7 +161,12 @@ index.html:
 * The generation index: hovering a row floats its photograph beside the cursor
   (pointer devices at >=1181px only).
 
-Both pages:
+collection.html:
+* A jump-nav row of era chips scrolls to each series section (plain anchor links,
+  no JS — scroll-margin-top on the section keeps the sticky header from covering
+  the target heading).
+
+All three pages:
 * Scroll-progress hairline, sticky masthead that flips from ink to bone, staggered
   IntersectionObserver reveals, hairline-ruled model marquee (index.html only).
 * product.html's gallery thumbnails swap the main image; the condition/storage/
