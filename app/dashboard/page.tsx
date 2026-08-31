@@ -1091,7 +1091,8 @@ export default function Dashboard() {
   // sends automatically -- see app/api/dashboard/orders/send-abandoned-cart-email/route.ts.
   // Stamps the same dedup column the cron checks, so this order is never
   // auto-emailed afterward either.
-  const sendAbandonedCartEmailNow = async (orderId: string) => {
+  const sendAbandonedCartEmailNow = async (orderId: string, isResend: boolean) => {
+    if (isResend && !confirm("This order was already emailed once. Send it again? (e.g. after correcting a wrong email address on the order)")) return;
     const token = await getAccessToken();
     if (!token) return;
     setSendingAbandonedEmailId(orderId);
@@ -1102,16 +1103,12 @@ export default function Dashboard() {
         setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, abandoned_cart_email_sent_at: data.sentAt } : o)));
       } else {
         const reasons: Record<string, string> = {
-          already_sent: "Already sent to this customer.",
           no_email: "This order has no email address on file.",
           no_items: "This order has no items to show in the email.",
           unsubscribed: "This customer unsubscribed from cart-recovery emails.",
           not_found: "Order not found.",
         };
         alert(reasons[data.reason] || data.error || "Could not send the email.");
-        if (data.reason === "already_sent" && data.sentAt) {
-          setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, abandoned_cart_email_sent_at: data.sentAt } : o)));
-        }
       }
     } catch {
       alert("Could not send the email -- check your connection and try again.");
@@ -4197,20 +4194,19 @@ export default function Dashboard() {
                         {(order.items || []).map((item, i) => (<span key={i} style={{ padding: "4px 10px", background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--border)" }}>{item.name} x{item.qty}</span>))}
                         <span style={{ marginLeft: "auto" }}>{new Date(order.created_at).toLocaleString()}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-                        {order.abandoned_cart_email_sent_at ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)", flexWrap: "wrap" as const }}>
+                        {order.abandoned_cart_email_sent_at && (
                           <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
                             Recovery email sent {new Date(order.abandoned_cart_email_sent_at).toLocaleString()}
                           </span>
-                        ) : (
-                          <button
-                            onClick={() => sendAbandonedCartEmailNow(order.id)}
-                            disabled={sendingAbandonedEmailId === order.id}
-                            style={{ padding: "9px 16px", borderRadius: 100, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: sendingAbandonedEmailId === order.id ? "default" : "pointer", opacity: sendingAbandonedEmailId === order.id ? 0.6 : 1 }}
-                          >
-                            {sendingAbandonedEmailId === order.id ? "Sending…" : "Send Abandoned Cart Email"}
-                          </button>
                         )}
+                        <button
+                          onClick={() => sendAbandonedCartEmailNow(order.id, !!order.abandoned_cart_email_sent_at)}
+                          disabled={sendingAbandonedEmailId === order.id}
+                          style={{ padding: "9px 16px", borderRadius: 100, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: sendingAbandonedEmailId === order.id ? "default" : "pointer", opacity: sendingAbandonedEmailId === order.id ? 0.6 : 1 }}
+                        >
+                          {sendingAbandonedEmailId === order.id ? "Sending…" : order.abandoned_cart_email_sent_at ? "Resend Abandoned Cart Email" : "Send Abandoned Cart Email"}
+                        </button>
                       </div>
                     </div>
                   );

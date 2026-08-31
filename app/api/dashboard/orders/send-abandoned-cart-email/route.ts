@@ -11,7 +11,14 @@ export const dynamic = "force-dynamic";
 // without waiting for the cron's own schedule. Stamps the exact same
 // abandoned_cart_email_sent_at column, so a manually-sent order is
 // permanently excluded from the automated cron afterward -- no double send
-// either way this gets triggered.
+// from that side.
+//
+// Unlike the cron, a manual click is allowed to resend even if
+// abandoned_cart_email_sent_at is already set -- a seller might have fixed
+// a typo'd email after the first send and now needs it to actually reach
+// the customer, and that's a deliberate call only the seller should make,
+// not something the dedup guard (built to stop the automated cron from
+// re-sending the same order every run) should block.
 export async function POST(req: NextRequest) {
   try {
     const { access_token, orderId } = await req.json();
@@ -29,7 +36,6 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (orderErr) throw orderErr;
     if (!order) return NextResponse.json({ ok: false, reason: "not_found" }, { status: 404 });
-    if (order.abandoned_cart_email_sent_at) return NextResponse.json({ ok: false, reason: "already_sent", sentAt: order.abandoned_cart_email_sent_at });
     if (!order.customer_email) return NextResponse.json({ ok: false, reason: "no_email" });
     const items = (order.items || []) as AbandonedCartOrderItem[];
     if (!items.length) return NextResponse.json({ ok: false, reason: "no_items" });
