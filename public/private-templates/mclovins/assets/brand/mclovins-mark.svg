@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 136" role="img" aria-label="McLovin's Apple Trader mark">
+  <defs>
+    <linearGradient id="mcl-m" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#A9EC1E"/>
+      <stop offset=".3" stop-color="#D4FF63"/>
+      <stop offset=".55" stop-color="#FFFFFF"/>
+      <stop offset=".78" stop-color="#CBBBFF"/>
+      <stop offset="1" stop-color="#8F6BFF"/>
+    </linearGradient>
+    <linearGradient id="mcl-body" x1=".18" y1="0" x2=".9" y2="1">
+      <stop offset="0" stop-color="#2A2A30"/>
+      <stop offset=".42" stop-color="#0E0E12"/>
+      <stop offset="1" stop-color="#040405"/>
+    </linearGradient>
+    <linearGradient id="mcl-leaf" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#8FD016"/><stop offset="1" stop-color="#C9FF4A"/>
+    </linearGradient>
+    <radialGradient id="mcl-gloss" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="mcl-clip">
+      <path d="M64 46C56 29 40 24 28 29 9 37 2 58 4 80c2 23 14 45 30 53 9 5 16-2 30-2s21 7 30 2c16-8 28-30 30-53 2-22-5-43-24-51-12-5-28 0-36 17Z"/>
+    </clipPath>
+  </defs>
+
+  <path d="M67 46C63 24 76 6 106 0c3 24-11 42-39 46Z" fill="#0B0B0D"/>
+  <path d="M85 8c6-4 13-7 21-8 3 24-11 42-39 46 8-11 14-24 18-38Z" fill="url(#mcl-leaf)"/>
+
+  <path d="M64 46C56 29 40 24 28 29 9 37 2 58 4 80c2 23 14 45 30 53 9 5 16-2 30-2s21 7 30 2c16-8 28-30 30-53 2-22-5-43-24-51-12-5-28 0-36 17Z" fill="url(#mcl-body)" stroke="#FFFFFF" stroke-opacity=".14" stroke-width="1.2"/>
+
+  <g clip-path="url(#mcl-clip)">
+    <ellipse cx="40" cy="44" rx="40" ry="26" fill="url(#mcl-gloss)" opacity=".2"/>
+    <path d="M40 118V52h20l14 40 14-40h20v66H90V80l-11 24h-10L58 80v38Z" fill="url(#mcl-m)"/>
+    <rect x="14" y="58" width="24" height="52" rx="10" fill="#131317" stroke="#A9EC1E" stroke-opacity=".4" stroke-width="1.3"/>
+    <g fill="#050507" stroke="#A9EC1E" stroke-opacity=".6" stroke-width="1.5">
+      <circle cx="26" cy="70" r="5.6"/><circle cx="26" cy="84" r="5.6"/><circle cx="26" cy="98" r="5.6"/>
+    </g>
+    <g fill="#7FAE18">
+      <circle cx="26" cy="70" r="2.2"/><circle cx="26" cy="84" r="2.2"/><circle cx="26" cy="98" r="2.2"/>
+    </g>
+  </g>
+</svg>
