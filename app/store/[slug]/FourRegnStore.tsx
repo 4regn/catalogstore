@@ -2440,6 +2440,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-hero-offer-accent{color:var(--accent)}
 .fr-hero-offer-pulse{color:var(--accent);display:inline-block;animation:fr-heartbeat 1.2s ease-in-out infinite;transform-origin:center}
 .fr-hero-offer-was{text-decoration:line-through;color:rgba(253,251,247,0.55);font-weight:600;margin-right:8px}
+.fr-hero-sale-timer{margin:0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:clamp(15px,2vw,20px);font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);font-variant-numeric:tabular-nums;text-shadow:0 2px 18px rgba(0,0,0,0.45)}
 .fr-hero-offer-note{display:block;margin-top:6px;font-family:Arial,Helvetica,sans-serif;font-size:0.72em;font-weight:400;letter-spacing:0.13em;text-transform:uppercase;color:rgba(253,251,247,0.75)}
 @keyframes fr-heartbeat{0%{transform:scale(1)}14%{transform:scale(1.12)}28%{transform:scale(1)}42%{transform:scale(1.14)}70%{transform:scale(1)}100%{transform:scale(1)}}
 .fr-cta-row{display:flex;align-items:center;gap:22px;margin-bottom:36px;flex-wrap:wrap}
@@ -3910,7 +3911,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 )}
                 {displayHeroHeadline && <h1 className="fr-hero-h1">{displayHeroHeadline}</h1>}
                 {displayHeroBody && <p className="fr-hero-body">{displayHeroBody}</p>}
-                {teesSaleActive && <FourRegnTeesSaleCountdown variant="collection" />}
+                {/* Plain text, same "Flash Sale Ends In" wording/red accent
+                    as the product card badge -- replaces the earlier
+                    card-style FourRegnTeesSaleCountdown embed here (still
+                    used as-is on the collection/product pages, just not in
+                    the hero), which is heavier than this section needs. */}
+                {teesSaleActive && (
+                  <p className="fr-hero-sale-timer">Flash Sale Ends In {formatTeesSaleCountdownCompact(teesSaleRemainingMs)}</p>
+                )}
                 {(showCtaPrimary || showCtaSecondary) && (
                   <div className="fr-cta-row">
                     {showCtaPrimary && (
