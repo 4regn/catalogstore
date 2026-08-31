@@ -14,7 +14,7 @@
 /* ─── tokens ────────────────────────────────────────────────────────── */
 :root{
   --ink:#0A0A0B; --ink-2:#101014; --ink-3:#18181E;
-  --bone:#F2F0EA; --paper:#FAF8F4;
+  --bone:#FFFFFF; --paper:#FAF8F4;
   --lime:#C6F227; --lime-hi:#D9FF5C; --lav:#B8A4FF; --lav-deep:#6E4CFF;
   --smoke:#76746D; --ash:#8E8E97;
   --line:rgba(10,10,11,.13);
@@ -84,7 +84,7 @@ h1,h2,h3,h4,p{margin:0}
 
 header{position:sticky;top:0;z-index:100;background:var(--ink);color:#fff;border-bottom:1px solid transparent;
   transition:border-color .45s var(--ease),background .45s var(--ease),color .45s var(--ease)}
-header.stuck{background:rgba(242,240,234,.88);backdrop-filter:saturate(180%) blur(20px);
+header.stuck{background:rgba(255,255,255,.88);backdrop-filter:saturate(180%) blur(20px);
   color:var(--ink);border-bottom-color:var(--line)}
 header:not(.stuck) .navlinks{color:rgba(255,255,255,.76)}
 header:not(.stuck) .navlinks a::after{background:#fff}
@@ -229,7 +229,7 @@ header:not(.stuck) .burger i{background:#fff}
 .edit-media img{width:100%;height:100%;object-fit:cover;transition:transform 1.2s var(--ease)}
 .edit:hover .edit-media img{transform:scale(1.03)}
 .edit-cap{position:absolute;left:26px;bottom:26px;font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;
-  text-transform:uppercase;color:#4A4944;background:rgba(250,248,244,.82);backdrop-filter:blur(10px);padding:9px 13px}
+  text-transform:uppercase;color:#4A4944;background:rgba(255,255,255,.82);backdrop-filter:blur(10px);padding:9px 13px}
 
 /* ─── selected (products) ───────────────────────────────────────────── */
 .selected{padding:var(--sec) 0 0}
@@ -999,16 +999,15 @@ section[id^="era-"]{scroll-margin-top:110px}
             <span class="sub">APPLE TRADER</span>
           </span>
         </a>
-        <p>A sharper, more deliberate way to buy and trade Apple devices.</p>
+        <p>A sharper, more deliberate way to buy Apple devices.</p>
       </div>
       <div class="f-col"><h4>Shop</h4>
-        <a href="index.html#index">The Index</a><a href="index.html#selected">Selected stock</a>
+        <a href="index.html#selected">Selected stock</a>
         <a href="index.html#ledger">Compare models</a><a href="index.html#wild">Accessories</a></div>
       <div class="f-col"><h4>Help</h4>
         <a href="#">Shipping</a><a href="#">Returns</a>
         <a href="#">Device questions</a><a href="#">Contact</a></div>
       <div class="f-col"><h4>McLovin&rsquo;s</h4>
-        <a href="index.html#standard">The Standard</a><a href="#">Trade-in</a>
         <a href="#">Instagram</a><a href="https://wa.me/27748171165?text=Hi%21%20I%20have%20a%20question%20about%20McLovin%27s%20Apple%20Trader." target="_blank" rel="noopener">WhatsApp</a></div>
     </div>
     <div class="legal">

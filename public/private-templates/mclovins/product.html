@@ -14,7 +14,7 @@
 /* ─── tokens ────────────────────────────────────────────────────────── */
 :root{
   --ink:#0A0A0B; --ink-2:#101014; --ink-3:#18181E;
-  --bone:#F2F0EA; --paper:#FAF8F4;
+  --bone:#FFFFFF; --paper:#FAF8F4;
   --lime:#C6F227; --lime-hi:#D9FF5C; --lav:#B8A4FF; --lav-deep:#6E4CFF;
   --smoke:#76746D; --ash:#8E8E97;
   --line:rgba(10,10,11,.13);
@@ -84,7 +84,7 @@ h1,h2,h3,h4,p{margin:0}
 
 header{position:sticky;top:0;z-index:100;background:var(--ink);color:#fff;border-bottom:1px solid transparent;
   transition:border-color .45s var(--ease),background .45s var(--ease),color .45s var(--ease)}
-header.stuck{background:rgba(242,240,234,.88);backdrop-filter:saturate(180%) blur(20px);
+header.stuck{background:rgba(255,255,255,.88);backdrop-filter:saturate(180%) blur(20px);
   color:var(--ink);border-bottom-color:var(--line)}
 header:not(.stuck) .navlinks{color:rgba(255,255,255,.76)}
 header:not(.stuck) .navlinks a::after{background:#fff}
@@ -225,7 +225,7 @@ header:not(.stuck) .burger i{background:#fff}
 .edit-media img{width:100%;height:100%;object-fit:cover;transition:transform 1.2s var(--ease)}
 .edit:hover .edit-media img{transform:scale(1.03)}
 .edit-cap{position:absolute;left:26px;bottom:26px;font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;
-  text-transform:uppercase;color:#4A4944;background:rgba(250,248,244,.82);backdrop-filter:blur(10px);padding:9px 13px}
+  text-transform:uppercase;color:#4A4944;background:rgba(255,255,255,.82);backdrop-filter:blur(10px);padding:9px 13px}
 
 /* ─── selected (products) ───────────────────────────────────────────── */
 .selected{padding:var(--sec) 0 0}
@@ -233,8 +233,8 @@ header:not(.stuck) .burger i{background:#fff}
 .prod{border-right:1px solid var(--line);padding:0 clamp(16px,1.6vw,26px) 30px;display:flex;flex-direction:column}
 .prod:first-child{padding-left:0}
 .prod:last-child{border-right:0;padding-right:0}
-.prod-media{position:relative;height:clamp(300px,27vw,430px);overflow:hidden;background:#E9E7E1;margin-bottom:22px}
-.prod-media img{width:100%;height:100%;object-fit:cover;transition:transform 1s var(--ease)}
+.prod-media{position:relative;aspect-ratio:4/5;overflow:hidden;background:#FFFFFF;margin-bottom:22px}
+.prod-media img{width:100%;height:100%;object-fit:contain;transition:transform 1s var(--ease)}
 .prod:hover .prod-media img{transform:scale(1.045)}
 .prod-flag{position:absolute;top:0;left:0;background:var(--ink);color:#fff;font-family:var(--mono);font-size:9px;
   letter-spacing:.2em;text-transform:uppercase;padding:8px 12px}
@@ -251,7 +251,7 @@ header:not(.stuck) .burger i{background:#fff}
 .prod dt{color:var(--smoke)}
 .prod dd{margin:0;text-align:right;padding-left:14px}
 .prod .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.prod .price{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink)}
+.prod .price{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-.01em;color:var(--ink)}
 .sel-note{margin-top:26px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
 
 /* ─── the ledger (comparison) ───────────────────────────────────────── */
@@ -377,7 +377,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   .edit-media{order:1;min-height:min(560px,72vh)}
   .prods{grid-template-columns:1fr}
   .prod{border-right:0;padding-inline:0}
-  .prod-media{height:clamp(280px,64vw,420px)}
   .sig-form{flex-direction:column;align-items:stretch;gap:22px}
   .sig-form .btn{justify-content:center}
   .f-grid{grid-template-columns:1fr 1fr;gap:36px 24px}
@@ -421,13 +420,11 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 .buy .lbl{margin-bottom:20px;display:block}
 .buy h1{margin-bottom:10px}
 .buy .sub-t{font-size:14px;color:var(--smoke);margin-bottom:30px}
-.price-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
-  padding:18px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:32px}
-.price-row .amount{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--ink)}
-.ask-link{background:none;border:0;padding:0 0 2px;font-size:12.5px;font-weight:500;color:var(--ink);
-  border-bottom:1px solid var(--line);cursor:pointer;transition:border-color .3s var(--ease)}
-.ask-link:hover{border-color:var(--ink)}
+.price-row{padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:32px}
+.price-row .price-label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--smoke);margin-bottom:8px}
+.price-row .amount{font-family:var(--display);font-weight:700;font-size:clamp(30px,3.4vw,38px);
+  letter-spacing:-.015em;color:var(--ink)}
 
 .field{margin-bottom:28px}
 .field-label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
@@ -504,7 +501,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   .tier:nth-child(3){margin-top:0}
   .prods-3{grid-template-columns:1fr}
   .trust-row{flex-direction:column;gap:16px}
-  .price-row{flex-direction:column;align-items:flex-start;gap:10px}
 }
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
@@ -571,10 +567,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       </span>
     </a>
     <nav class="navlinks" aria-label="Primary">
-      <a href="index.html#index">The Index</a>
       <a href="index.html#selected">Selected</a>
       <a href="index.html#ledger">Compare</a>
-      <a href="index.html#standard">The Standard</a>
       <a href="collection.html">Price List</a>
     </nav>
     <div class="nav-act">
@@ -616,8 +610,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     <p class="sub-t">Natural Titanium &middot; A17 Pro &middot; 6.1&Prime; ProMotion</p>
 
     <div class="price-row">
+      <span class="price-label">Price</span>
       <span class="amount" id="price-amount">R15,200</span>
-      <a class="ask-link" id="price-ask" href="#" target="_blank" rel="noopener">Message to confirm ↗</a>
     </div>
 
     <div class="field">
@@ -653,8 +647,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     </div>
 
     <div class="buy-cta">
-      <a class="btn btn-ink" id="cta-enquire" href="#" target="_blank" rel="noopener">Enquire about this unit <span class="ar">↗</span></a>
-      <a class="btn btn-line" id="cta-whatsapp" href="#" target="_blank" rel="noopener">Chat on WhatsApp</a>
+      <a class="btn btn-ink" id="cta-cart" href="#" target="_blank" rel="noopener">Add to cart <span class="ar">↗</span></a>
+      <a class="btn btn-line" id="cta-buy" href="#" target="_blank" rel="noopener">Buy now</a>
     </div>
 
     <div class="trust-row">
@@ -812,7 +806,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         <dt>Warranty</dt><dd>Included</dd>
       </dl>
       <div class="foot"><span class="price">From R17,000</span>
-        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro%20Max%20%28sealed%2C%20from%20R17%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Enquire</a></div>
+        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro%20Max%20%28sealed%2C%20from%20R17%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Add to cart</a></div>
     </article>
 
     <article class="prod rv">
@@ -829,7 +823,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         <dt>Warranty</dt><dd>Included</dd>
       </dl>
       <div class="foot"><span class="price">From R11,200</span>
-        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro%20%28from%20R11%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Enquire</a></div>
+        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro%20%28from%20R11%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Add to cart</a></div>
     </article>
 
     <article class="prod rv">
@@ -846,7 +840,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         <dt>Warranty</dt><dd>Included</dd>
       </dl>
       <div class="foot"><span class="price">From R17,500</span>
-        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro%20%28sealed%2C%20from%20R17%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Enquire</a></div>
+        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro%20%28sealed%2C%20from%20R17%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Add to cart</a></div>
     </article>
   </div>
 </section>
@@ -864,17 +858,16 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
             <span class="sub">APPLE TRADER</span>
           </span>
         </a>
-        <p>A sharper, more deliberate way to buy and trade Apple devices.</p>
+        <p>A sharper, more deliberate way to buy Apple devices.</p>
       </div>
       <div class="f-col"><h4>Shop</h4>
-        <a href="index.html#index">The Index</a><a href="index.html#selected">Selected stock</a>
+        <a href="index.html#selected">Selected stock</a>
         <a href="index.html#ledger">Compare models</a><a href="index.html#wild">Accessories</a>
         <a href="collection.html">Full price list</a></div>
       <div class="f-col"><h4>Help</h4>
         <a href="#">Shipping</a><a href="#">Returns</a>
         <a href="#">Device questions</a><a href="#">Contact</a></div>
       <div class="f-col"><h4>McLovin&rsquo;s</h4>
-        <a href="index.html#standard">The Standard</a><a href="#">Trade-in</a>
         <a href="#">Instagram</a><a href="https://wa.me/27748171165?text=Hi%21%20I%20have%20a%20question%20about%20McLovin%27s%20Apple%20Trader." target="_blank" rel="noopener">WhatsApp</a></div>
     </div>
     <div class="legal">
@@ -1015,25 +1008,22 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   };
   var commerce = { grade: "sealed", storage: "256GB" };
 
-  var priceAmount = document.getElementById("price-amount"), priceAsk = document.getElementById("price-ask"),
-      ctaEnquire = document.getElementById("cta-enquire"), ctaWhatsapp = document.getElementById("cta-whatsapp");
+  var priceAmount = document.getElementById("price-amount"),
+      ctaCart = document.getElementById("cta-cart"), ctaBuy = document.getElementById("cta-buy");
 
   function updateCommerce(){
     var price = PRICES[commerce.storage][commerce.grade];
     var configText = commerce.storage + ", " + colourVal.textContent + ", " + gradeVal.textContent;
     if (price != null){
       priceAmount.textContent = formatPrice(price);
-      priceAsk.textContent = "Message to confirm ↗";
-      priceAsk.href = waLink("Hi! I'm interested in the iPhone 15 Pro — " + configText + " (" + formatPrice(price) + "). Is it still available?");
-      ctaEnquire.href = waLink("Hi! I'd like to buy the iPhone 15 Pro — " + configText + " (" + formatPrice(price) + "). Is it still available?");
+      ctaCart.href = waLink("Hi! I'd like to order the iPhone 15 Pro — " + configText + " (" + formatPrice(price) + "). Is it still available?");
+      ctaBuy.href = waLink("Hi! I want to buy the iPhone 15 Pro now — " + configText + " (" + formatPrice(price) + "). How do I pay?");
     } else {
       priceAmount.textContent = "Contact for price";
-      priceAsk.textContent = "Ask for price ↗";
-      priceAsk.href = waLink("Hi! Can you quote me on the iPhone 15 Pro — " + configText + "?");
-      ctaEnquire.href = waLink("Hi! I'm interested in the iPhone 15 Pro — " + configText + ". Please could you quote me?");
+      ctaCart.href = waLink("Hi! I'd like to order the iPhone 15 Pro — " + configText + ". Please could you quote me?");
+      ctaBuy.href = waLink("Hi! I want to buy the iPhone 15 Pro now — " + configText + ". Please could you quote me and confirm how to pay?");
     }
   }
-  ctaWhatsapp.href = waLink("Hi! I have a question about the iPhone 15 Pro on McLovin's Apple Trader.");
   updateCommerce();
 })();
 </script>

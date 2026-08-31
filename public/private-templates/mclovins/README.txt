@@ -8,8 +8,9 @@ WHAT THIS IS
 ------------
 Three self-contained pages, no build step, no framework — open any file directly or
 serve the folder statically. All imagery lives in ./assets as real files (an earlier
-version inlined every photo as base64, which put a single page at 2.5 MB; index.html
-is now ~64 KB of HTML plus ~480 KB of images, loaded lazily below the fold).
+version inlined every photo as base64, which put a single page at 2.5 MB). Total
+assets/ is now ~4 MB, almost all of it the 31-file product catalogue (see PAGES);
+every image loads lazily below the fold.
 
   index.html       the storefront landing page
   product.html     the iPhone 15 Pro product page (see PAGES below)
@@ -22,8 +23,8 @@ to be repeated in the other two to stay in sync.
 
 ART DIRECTION
 -------------
-Ink-on-bone editorial catalogue. Near-black plates (hero, ledger, signal, footer)
-alternate with warm bone paper sections, ruled with 1px hairlines instead of cards
+Ink-on-white editorial catalogue. Near-black plates (hero, ledger, signal, footer)
+alternate with pure-white sections, ruled with 1px hairlines instead of cards
 and drop shadows. Corners are square by default; only buttons are pills.
 
   Type    Bricolage Grotesque  display headlines (upright; emphasis is a weight
@@ -31,10 +32,13 @@ and drop shadows. Corners are square by default; only buttons are pills.
           Inter Tight          UI and body
           JetBrains Mono       section labels, all spec/metadata
 
-  Colour  --ink   #0A0A0B     --bone  #F2F0EA
+  Colour  --ink   #0A0A0B     --bone  #FFFFFF
           --lime  #C6F227     --lav-deep #6E4CFF
           Lime is deliberately rationed — a dot, a hairline, one button, one
-          table column. It is never a full-bleed panel.
+          table column. It is never a full-bleed panel. --bone was originally a
+          warm off-white (#F2F0EA); it's pure white now, sitewide, including the
+          sticky header's translucent tint once it's stuck (that was hardcoded to
+          the old value and needed its own fix to stay in sync).
 
 Section kickers (the small mono line that used to sit above each heading — "The
 standard", "The index") are gone entirely now, sitewide. An earlier draft numbered
@@ -42,6 +46,16 @@ them 01–08, then de-numbered them to plain labels; both were decorative, not r
 sequence information, so the whole kicker line was dropped. The one place numbering
 IS kept is product.html's grading tiers (S / A / B), because that order is a real,
 meaningful hierarchy.
+
+Two full homepage sections were later cut outright, not just their kickers: "The
+Standard" (the "what we never skip" trust grid) and "The Index" (the six-row
+shop-by-generation list with the cursor-follow hover image). Early-stage call —
+the business needs to sell, and both sections were reasoned to cost more screen
+space than they earned this early. Their CSS and the index-list's cursor-follow
+JS were removed with them, not just hidden, so there's no dead weight sitting
+behind the scenes. Nothing in the codebase references their old anchors (#standard,
+#index) any more — nav, footers and cross-page links on all three pages were swept
+for both.
 
 LOGO
 ----
@@ -66,9 +80,9 @@ PAGES
 -----
 product.html is a single worked example — iPhone 15 Pro — not a template engine;
 there's no product ID or routing, so a second real listing means copying the file
-and editing it by hand. It links back into index.html by anchor (#index, #selected,
-#ledger, #standard) and index.html links into it from two places: the hero's
-floating spec card ("On the floor") and the ledger's iPhone 15 Pro column header.
+and editing it by hand. It links back into index.html by anchor (#selected,
+#ledger) and index.html links into it from two places: the hero's floating spec
+card ("On the floor") and the ledger's iPhone 15 Pro column header.
 
 Layout: breadcrumb -> gallery + buy box -> full spec sheet -> grading tiers
 (Sealed / Grade A / Grade B) -> a compare panel scoped to the two neighbouring
@@ -77,9 +91,28 @@ models -> three related Pro-line cards -> footer.
 The condition pills, storage pills and colour swatches in the buy box are live UI
 state. Condition and storage now also drive a real price lookup (see PRICING below):
 switching between them updates the battery-health meter, the description text, the
-matching grading-tier card, AND the price and both WhatsApp CTAs. Colour is cosmetic
-only — the price list doesn't break prices out by colour, so it just relabels the
-config in the WhatsApp message text.
+matching grading-tier card, AND the price (now the biggest thing in the buy box —
+a bare "PRICE" mono label over a big display-weight figure, not the small mono
+line it used to be) and both CTA buttons' hrefs. Colour is cosmetic only — the
+price list doesn't break prices out by colour, so it just relabels the config in
+the WhatsApp message text.
+
+The buy box has no "ask for price" link any more, and its two buttons are labelled
+Add to cart / Buy now, not Enquire / Chat on WhatsApp. Nothing behind them changed
+though: both are still wa.me links, not a real cart or checkout — there is no
+payment flow, this is a WhatsApp-commerce pattern (extremely common for solo
+sellers in this market), not an actual e-commerce backend. The labels changed
+because the seller works during the day and can't chat live; a visitor tapping
+"Buy now" gets a pre-filled "I want to buy this now, how do I pay?" message
+instead of an open-ended enquiry, which reads as a completed action on the
+visitor's side even though a human still has to close the loop on WhatsApp. Don't
+mistake the relabelling for a real cart existing — it doesn't, and calling it
+"Add to cart" without that caveat somewhere visible (this file, if nowhere else)
+would be misleading. Every "Enquire" button elsewhere on the site (index.html's
+Selected cards, product.html's related-product cards) was renamed to "Add to
+cart" the same way, for the same reason, even though only the buy box was named
+explicitly — the goal (sell without a live human on the other end) applies
+everywhere a product is shown, not just the one page.
 
 The four gallery images are the seller's own real iPhone 15 Pro photo
 (assets/products/iphone-15-pro.jpg — front and back together, correct colour) plus
@@ -127,11 +160,12 @@ exact storage tiers) is still illustrative. Two things to know about the source 
   16 Pro, 11, the Pro Range card); they intentionally stay curated rather than
   trying to surface the whole catalogue inline.
 
-Every "Enquire" / "Chat on WhatsApp" / price-chip / "ask" control site-wide is a real
+Every "Add to cart" / "Buy now" / price-chip / "ask" control site-wide is a real
 link to https://wa.me/27748171165 (the seller's real contact number) with a
 pre-filled message describing what was clicked — not a mailto or a form, an actual
-WhatsApp deep link. There is no CMS or inventory system behind any of this: updating
-a price means editing the PRICES table (product.html), the relevant card's markup
+WhatsApp deep link, and not a real cart or checkout despite the button labels (see
+PAGES above). There is no CMS or inventory system behind any of this: updating a
+price means editing the PRICES table (product.html), the relevant card's markup
 (index.html), or the relevant chip (collection.html) by hand.
 
 PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
@@ -139,13 +173,29 @@ PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
 * Everything about the listings other than price is still illustrative: exact
   colourways offered, which grades are actually in stock, storage beyond what's
   priced. Confirm real availability before launch.
-* Trust copy (inspection and documentation in index.html's "What we never skip",
-  the 40-point check and 90-day warranty on product.html) describes intended
-  policy, not verified operating practice. Confirm before publishing. That section
-  originally also claimed trade-ins and 24/7 support; both were cut since neither
-  is confirmed, rather than left as unverified claims.
+* Trust copy still on the site (the 40-point check and 90-day warranty on
+  product.html) describes intended policy, not verified operating practice.
+  Confirm before publishing. index.html used to carry a trust-grid section
+  ("What we never skip": Inspected, Documented, Traded fairly, Answered) making
+  four such claims; it's gone now (see ART DIRECTION), and two of its four claims
+  — trade-ins and 24/7 support — were already cut before that, since neither was
+  confirmed and this business doesn't do trade-ins at all (see below).
+* This is a sell-only business — it does not take trade-ins. Every mention of
+  trading in a device (the hero headline, "Trade-ins welcome" in the ticker, a
+  "trade-in windows" phrase in the Signal section, "buy and trade Apple devices"
+  in the footer tagline) has been removed. "McLovin's Apple Trader" and the
+  "APPLE TRADER" sub-brand line stay — that's the shop's actual name, not a claim
+  about trading in devices, and isn't affected by this. The hero headline is now
+  "Apple, properly checked." (was "Apple, properly traded.") for the same reason.
 * The comparison tables use publicly documented Apple specifications for
   iPhone SE/12/13/14/15/15 Pro/15 Pro Max.
+* Product-card images (index.html's Selected cards, product.html's related-product
+  cards — same shared .prod-media CSS in both files) used to crop the top and
+  bottom off every phone: the card had a fixed height while the real photos are
+  4:5, so object-fit:cover cut into them. Fixed by giving the card an aspect-ratio
+  of 4:5 (matching the photos exactly) and switching to object-fit:contain, so the
+  full device shows with no cropping and no letterboxing, on a white background
+  that reads as continuous with the photo's own white studio background.
 * Per-model product photography (assets/products/, 31 files, one JPEG per iPhone
   X through 17 Pro Max — front and back on white, correct colour) came from the
   seller and is used across all three pages: product.html's gallery and related
@@ -169,8 +219,6 @@ INTERACTION
 index.html:
 * Hero: three slides, 6.4s crossfade with a slow scale drift; the rail doubles as a
   progress indicator and a manual control.
-* The generation index: hovering a row floats its photograph beside the cursor
-  (pointer devices at >=1181px only).
 
 collection.html:
 * A jump-nav row of era chips scrolls to each series section (plain anchor links,
