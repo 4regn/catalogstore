@@ -72,11 +72,11 @@ Layout: breadcrumb -> gallery + buy box -> full spec sheet -> grading tiers
 models -> three related Pro-line cards -> footer.
 
 The condition pills, storage pills and colour swatches in the buy box are live UI
-state (click one, the battery-health meter, the description text and the matching
-grading-tier card below all update) but there is nothing behind them — no price
-actually changes, no config is persisted. That's deliberate: faking a price would
-misrepresent what this page can do. "Ask for today's price" and both CTA buttons
-are data-toast placeholders, same convention as the rest of the site.
+state. Condition and storage now also drive a real price lookup (see PRICING below):
+switching between them updates the battery-health meter, the description text, the
+matching grading-tier card, AND the price and both WhatsApp CTAs. Colour is cosmetic
+only — the price list doesn't break prices out by colour, so it just relabels the
+config in the WhatsApp message text.
 
 The four gallery images are one photograph (assets/hero-titanium-pair.jpg) plus
 three crops of it (assets/pdp-15pro-crop-*.jpg) standing in for a proper product
@@ -84,11 +84,40 @@ shoot — there's only one real titanium-pair photo in the asset set. The three
 related-product cards reuse that same crop set for the same reason. Swap in real
 per-listing photography before this goes live.
 
+PRICING
+-------
+Prices site-wide come from one real price list the seller sent (an "iPhone Sale 2026"
+promo, "until further notice") — everything else about the products (colours offered,
+exact storage tiers) is still illustrative. Two things to know about the source data:
+
+* It only ever distinguishes sealed vs not-sealed, never a cosmetic A/B split. So
+  every "From RX" figure on index.html and on product.html's related/compare cards
+  is the lowest price in the list for that model, not tied to a specific grade.
+  product.html's buy box is the one place price is genuinely config-aware: its
+  PRICES table (in the script, search "real pricing + WhatsApp") is keyed by
+  storage x condition, sourced from the two iPhone 15 Pro lines in the list
+  (128GB and 256GB, both sealed only). Pick 512GB, 1TB, or either certified grade
+  and the price row correctly falls back to "Contact for price" — there is no real
+  number for that combination, so none is shown.
+* The list covers roughly 30 models (iPhone X through 17 Pro Max) — far more than
+  the handful this site currently shows. Only the SKUs already referenced by the
+  page (13, 14, 14 Pro, 15 Pro, 15 Pro Max, 16, 16 Pro, 11, and the Pro Range card)
+  were wired in. The rest of the list exists only in this seller's message, not
+  anywhere in this codebase — building it out into a full catalogue is a separate,
+  larger job (see the session notes / ask before assuming it's wanted).
+
+Every "Enquire" / "Chat on WhatsApp" / "Ask McLovin's" control site-wide is a real
+link to https://wa.me/27748171165 (the seller's real contact number) with a
+pre-filled message describing what was clicked — not a mailto or a form, an actual
+WhatsApp deep link. There is no CMS or inventory system behind any of this: updating
+a price means editing the PRICES table (product.html) or the relevant card's markup
+(index.html) by hand.
+
 PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
 -------------------------------------------
-* Product listings in index.html section 05, and the buy box / spec sheet / related
-  cards on product.html, are samples. Storage, grade, battery health and "Price on
-  request" are stand-ins for live inventory.
+* Everything about the listings other than price is still illustrative: exact
+  colourways offered, which grades are actually in stock, storage beyond what's
+  priced. Confirm real availability before launch.
 * Trust copy (inspection, documentation, trade-in, support, the 40-point check and
   90-day warranty on product.html) describes intended policy, not verified operating
   practice. Confirm before publishing.
@@ -99,8 +128,10 @@ PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
   "www.pixelstudio.fr", a Nudient case ad) have been cropped out of the JPEGs, but
   these images are still unlicensed for commercial use. Replace them with your own
   shoot before this goes live.
-* Buttons marked data-toast are inert and show a hint toast. The signal form on
-  index.html does not submit anywhere — wire it to your list.
+* The only remaining data-toast placeholder on either page is the mobile burger menu
+  (no drawer built yet). Every other button that used to be a placeholder is now a
+  real wa.me link (see PRICING) or a real in-page/cross-page anchor. The signal form
+  on index.html still does not submit anywhere — wire it to your list.
 
 INTERACTION
 -----------

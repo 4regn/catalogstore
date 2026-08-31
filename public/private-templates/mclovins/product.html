@@ -558,7 +558,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   </defs>
 </svg></svg>
 <div class="ann">
-  <span>Sealed &amp; certified pre-owned &nbsp;·&nbsp; Every device inspected &nbsp;·&nbsp; <b>McLovin&rsquo;s picks only</b></span>
+  <span><b>iPhone Sale 2026</b> &nbsp;·&nbsp; Sealed &amp; certified pre-owned &nbsp;·&nbsp; Until further notice</span>
 </div>
 
 <header id="hdr">
@@ -616,8 +616,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     <p class="sub-t">Natural Titanium &middot; A17 Pro &middot; 6.1&Prime; ProMotion</p>
 
     <div class="price-row">
-      <span class="amount">Price on request</span>
-      <button class="ask-link" data-toast="Wire this to your live inventory and pricing">Ask for today&rsquo;s price ↗</button>
+      <span class="amount" id="price-amount">R15,200</span>
+      <a class="ask-link" id="price-ask" href="#" target="_blank" rel="noopener">Message to confirm ↗</a>
     </div>
 
     <div class="field">
@@ -653,8 +653,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     </div>
 
     <div class="buy-cta">
-      <button class="btn btn-ink" data-toast="Wire this to checkout or an enquiry flow">Enquire about this unit <span class="ar">↗</span></button>
-      <button class="btn btn-line" data-toast="Connect this to WhatsApp for guided buying">Chat on WhatsApp</button>
+      <a class="btn btn-ink" id="cta-enquire" href="#" target="_blank" rel="noopener">Enquire about this unit <span class="ar">↗</span></a>
+      <a class="btn btn-line" id="cta-whatsapp" href="#" target="_blank" rel="noopener">Chat on WhatsApp</a>
     </div>
 
     <div class="trust-row">
@@ -712,13 +712,13 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     <article class="tier rv" id="tier-a">
       <span class="tier-badge">A</span>
       <h3>Grade A</h3>
-      <p>Cosmetically excellent. Light micro-marks only visible under close inspection. Function-tested.</p>
+      <p>Cosmetically excellent. Light micro-marks only visible under close inspection. Function-tested. Priced per unit &mdash; message for a quote.</p>
       <span class="spec-mini">Battery &ge; 90%</span>
     </article>
     <article class="tier rv" id="tier-b">
       <span class="tier-badge">B</span>
       <h3>Grade B</h3>
-      <p>Visible light wear consistent with normal use. Screen and body free of cracks. Function-tested.</p>
+      <p>Visible light wear consistent with normal use. Screen and body free of cracks. Function-tested. Priced per unit &mdash; message for a quote.</p>
       <span class="spec-mini">Battery &ge; 80%</span>
     </article>
   </div>
@@ -772,9 +772,13 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
             <td class="pick"><b>USB-C</b><small>USB 3</small></td>
             <td><b>USB-C</b><small>USB 3</small></td></tr>
           <tr><th class="rowhead" scope="row">Storage</th>
-            <td>128GB &ndash; 1TB</td>
-            <td class="pick">128GB &ndash; 1TB</td>
-            <td>256GB &ndash; 1TB</td></tr>
+            <td>128GB &ndash; 256GB</td>
+            <td class="pick">128GB &ndash; 256GB</td>
+            <td>256GB &ndash; 512GB</td></tr>
+          <tr><th class="rowhead" scope="row">Starting price</th>
+            <td>From R11,200</td>
+            <td class="pick">From R14,500</td>
+            <td>From R17,000</td></tr>
         </tbody>
       </table>
     </div>
@@ -806,13 +810,13 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       <h3>iPhone 15 Pro Max</h3>
       <p class="cat">Natural &middot; Blue &middot; White &middot; Black Titanium</p>
       <dl>
-        <dt>Storage</dt><dd>256GB &ndash; 1TB</dd>
-        <dt>Grade</dt><dd>A / Sealed</dd>
-        <dt>Battery</dt><dd>&ge; 90%</dd>
+        <dt>Storage</dt><dd>256GB &ndash; 512GB</dd>
+        <dt>Grade</dt><dd>Sealed</dd>
+        <dt>Battery</dt><dd>100%</dd>
         <dt>Warranty</dt><dd>Included</dd>
       </dl>
-      <div class="foot"><span class="price">Price on request</span>
-        <button class="btn btn-line btn-sm" data-toast="Wire this to your live inventory">Enquire</button></div>
+      <div class="foot"><span class="price">From R17,000</span>
+        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2015%20Pro%20Max%20%28sealed%2C%20from%20R17%2C000%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Enquire</a></div>
     </article>
 
     <article class="prod rv">
@@ -823,13 +827,13 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       <h3>iPhone 14 Pro</h3>
       <p class="cat">Space Black &middot; Silver &middot; Gold &middot; Purple</p>
       <dl>
-        <dt>Storage</dt><dd>128GB &ndash; 1TB</dd>
+        <dt>Storage</dt><dd>128GB &ndash; 256GB</dd>
         <dt>Grade</dt><dd>A / B</dd>
         <dt>Battery</dt><dd>&ge; 87%</dd>
         <dt>Warranty</dt><dd>Included</dd>
       </dl>
-      <div class="foot"><span class="price">Price on request</span>
-        <button class="btn btn-line btn-sm" data-toast="Wire this to your live inventory">Enquire</button></div>
+      <div class="foot"><span class="price">From R11,200</span>
+        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2014%20Pro%20%28from%20R11%2C200%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Enquire</a></div>
     </article>
 
     <article class="prod rv">
@@ -840,13 +844,13 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       <h3>iPhone 16 Pro</h3>
       <p class="cat">Camera Control &middot; A18 Pro</p>
       <dl>
-        <dt>Storage</dt><dd>128GB &ndash; 1TB</dd>
+        <dt>Storage</dt><dd>128GB &ndash; 256GB</dd>
         <dt>Grade</dt><dd>Sealed</dd>
         <dt>Battery</dt><dd>100%</dd>
         <dt>Warranty</dt><dd>Included</dd>
       </dl>
-      <div class="foot"><span class="price">Price on request</span>
-        <button class="btn btn-line btn-sm" data-toast="Wire this to your live inventory">Enquire</button></div>
+      <div class="foot"><span class="price">From R17,500</span>
+        <a class="btn btn-line btn-sm" href="https://wa.me/27748171165?text=Hi%21%20I%27m%20interested%20in%20the%20iPhone%2016%20Pro%20%28sealed%2C%20from%20R17%2C500%29.%20Is%20it%20still%20available%3F" target="_blank" rel="noopener">Enquire</a></div>
     </article>
   </div>
 </section>
@@ -874,7 +878,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         <a href="#">Device questions</a><a href="#">Contact</a></div>
       <div class="f-col"><h4>McLovin&rsquo;s</h4>
         <a href="index.html#standard">The Standard</a><a href="#">Trade-in</a>
-        <a href="#">Instagram</a><a href="#">WhatsApp</a></div>
+        <a href="#">Instagram</a><a href="https://wa.me/27748171165?text=Hi%21%20I%20have%20a%20question%20about%20McLovin%27s%20Apple%20Trader." target="_blank" rel="noopener">WhatsApp</a></div>
     </div>
     <div class="legal">
       <span>&copy; 2026 McLovin&rsquo;s Apple Trader &mdash; concept storefront</span>
@@ -970,6 +974,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         var tier = document.getElementById("tier-" + k);
         if (tier) tier.classList.toggle("on", k === btn.dataset.grade);
       });
+      commerce.grade = btn.dataset.grade;
+      updateCommerce();
     });
   });
 
@@ -982,6 +988,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       });
       btn.classList.add("on"); btn.setAttribute("aria-checked","true");
       storageVal.textContent = btn.dataset.storage;
+      commerce.storage = btn.dataset.storage;
+      updateCommerce();
     });
   });
 
@@ -993,8 +1001,43 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
       });
       btn.classList.add("on"); btn.setAttribute("aria-checked","true");
       colourVal.textContent = btn.dataset.colour;
+      updateCommerce();
     });
   });
+
+  /* ── real pricing + WhatsApp — from the seller's iPhone Sale 2026 list ── */
+  var WA_NUMBER = "27748171165";
+  function formatPrice(n){ return "R" + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+  function waLink(text){ return "https://wa.me/" + WA_NUMBER + "?text=" + encodeURIComponent(text); }
+
+  var PRICES = {
+    "128GB": { sealed: 14500, a: null,  b: null },
+    "256GB": { sealed: 15200, a: null,  b: null },
+    "512GB": { sealed: null,  a: null,  b: null },
+    "1TB":   { sealed: null,  a: null,  b: null }
+  };
+  var commerce = { grade: "sealed", storage: "256GB" };
+
+  var priceAmount = document.getElementById("price-amount"), priceAsk = document.getElementById("price-ask"),
+      ctaEnquire = document.getElementById("cta-enquire"), ctaWhatsapp = document.getElementById("cta-whatsapp");
+
+  function updateCommerce(){
+    var price = PRICES[commerce.storage][commerce.grade];
+    var configText = commerce.storage + ", " + colourVal.textContent + ", " + gradeVal.textContent;
+    if (price != null){
+      priceAmount.textContent = formatPrice(price);
+      priceAsk.textContent = "Message to confirm ↗";
+      priceAsk.href = waLink("Hi! I'm interested in the iPhone 15 Pro — " + configText + " (" + formatPrice(price) + "). Is it still available?");
+      ctaEnquire.href = waLink("Hi! I'd like to buy the iPhone 15 Pro — " + configText + " (" + formatPrice(price) + "). Is it still available?");
+    } else {
+      priceAmount.textContent = "Contact for price";
+      priceAsk.textContent = "Ask for price ↗";
+      priceAsk.href = waLink("Hi! Can you quote me on the iPhone 15 Pro — " + configText + "?");
+      ctaEnquire.href = waLink("Hi! I'm interested in the iPhone 15 Pro — " + configText + ". Please could you quote me?");
+    }
+  }
+  ctaWhatsapp.href = waLink("Hi! I have a question about the iPhone 15 Pro on McLovin's Apple Trader.");
+  updateCommerce();
 })();
 </script>
 </body>
