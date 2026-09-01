@@ -290,12 +290,22 @@ index.html:
   here (see PRICING); it's the one icon of the three that actually does
   something.
 
-  Also worth flagging: "iPhone for every version of you." is Apple's own real
-  marketing tagline for iphone, not original copy — it's used here verbatim
-  because that's what the reference file specified, but a reseller's storefront
-  running Apple's own ad copy word-for-word (on top of a hero styled to closely
-  resemble Apple's own product page) is worth a second look before this goes
-  live, alongside the existing trademark disclaimer already in the footer.
+  The headline was later swapped from that literal Apple tagline to "Find your
+  perfect iPhone." (original copy, same otherwise) once it was pointed out — the
+  hero body copy, CTA and layout are unchanged.
+
+* Pay-later banner: a full-width image banner sits between the hero and the
+  ticker marquee (assets/stitch-banner.jpeg, supplied by the seller, converted
+  from PNG the same way the hero photo was — same visual, ~409KB down to
+  ~234KB). It's a single flat image, not recreated in HTML/CSS, per the source
+  file's own instruction not to retrace its text/logos. The whole banner is one
+  link; since the banner's own copy says "available at checkout" / "apply in
+  seconds at checkout" and this site has no real checkout or Stitch
+  integration (same wa.me pattern as everything else — see PRICING), the link
+  goes to a WhatsApp message asking about Stitch Pay Later specifically, not to
+  a dead "#" or a fabricated checkout flow. If Stitch financing is only a
+  planned feature and not live yet, worth confirming that's clear to a
+  customer who taps through expecting to apply right there.
 
 collection.html:
 * A jump-nav row of era chips scrolls to each series section (plain anchor links,
