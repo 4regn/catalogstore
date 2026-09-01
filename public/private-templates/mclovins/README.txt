@@ -55,26 +55,43 @@ space than they earned this early. Their CSS and the index-list's cursor-follow
 JS were removed with them, not just hidden, so there's no dead weight sitting
 behind the scenes. Nothing in the codebase references their old anchors (#standard,
 #index) any more — nav, footers and cross-page links on all three pages were swept
-for both.
+for both (collection.html's own header nav still had live "The Index" / "The
+Standard" links pointing at those removed anchors until this pass caught it —
+index.html and product.html had already been fixed).
 
 LOGO
 ----
-The mark is an SVG rebuild of the supplied McLovin's logo: black apple with the
-split black/lime leaf, the camera module inset on the left, and the M monogram
-carrying the lime -> white -> lavender gradient. It is defined once as an inline
-<symbol id="mcl-mark"> in index.html and referenced with <use> in the header and
-footer, so it stays crisp at any size and reads on both light and dark grounds.
-The wordmark ("McLovin's" + the sparkle + the ruled APPLE TRADER line) is live HTML
-text in Inter Tight, not an image, so it scales and recolours with the theme.
+The header/footer mark is no longer a hand-built SVG — it's the seller's actual
+approved logo artwork, supplied as two horizontal lockups (icon + "McLovin's /
+APPLE TRADER" wordmark, baked into one image each):
 
-  assets/brand/mclovins-mark.svg   standalone copy of the mark (not used by the
-                                   page — kept for decks, socials, print)
-  assets/brand/favicon.svg         flat single-colour variant, wired as the favicon
+  assets/logo-white.png   full-colour-on-transparent, white ink — for dark grounds
+  assets/logo-black.png   same lockup, black ink — for white/light grounds
 
-To swap in the original raster master instead, drop it at
-assets/brand/mclovins-logo.png and replace the <svg class="mark"> element in the
-.brand block with:
-  <img class="mark" src="assets/brand/mclovins-logo.png" alt="McLovin's Apple Trader">
+Every header (index.html, product.html, collection.html) renders both as stacked
+<img> elements inside .brand and swaps which one shows with CSS, keyed off the
+same header.stuck class that already flips the header from ink to bone on scroll:
+
+  .brand .logo-img.dark{display:none}
+  header.stuck .brand .logo-img.light{display:none}
+  header.stuck .brand .logo-img.dark{display:block}
+
+No JS involved — it's the same mechanism the header already used for its
+ink/bone colour flip, just applied to which logo image is visible. Footers sit on
+a permanently dark background, so they only ever use logo-white.png, no swap.
+
+The old inline <symbol id="mcl-mark">, the CSS-built "McLovin's" wordmark text,
+and the sparkle icon are gone from all three pages — dead code removed with them,
+not hidden. assets/brand/mclovins-mark.svg (the earlier hand-built mark) is still
+in the repo but nothing references it now; keep it only if you still want a
+standalone vector for decks/socials/print.
+
+assets/brand/favicon-mark.png is new too — the icon half of logo-black.png,
+cropped tight and re-padded into a square, since the brief was explicit about
+reusing the approved artwork rather than re-tracing it into a new SVG. It
+replaces the old hand-drawn assets/brand/favicon.svg as the <link rel="icon">
+target on all three pages (only index.html had a favicon link before this pass —
+product.html and collection.html now carry one too, for consistency).
 
 PAGES
 -----
@@ -202,13 +219,18 @@ PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
   cards, index.html's Selected cards and generation-index hover images, and every
   thumbnail on collection.html. Converted from PNG to JPEG on the way in (same
   visual quality, ~39 MB down to ~4 MB) — nothing else was altered.
-* The remaining editorial/lifestyle photography (the hero slideshow, the "In the
-  wild" lookbook plates, the camera macro in "The edit") came with the original
-  concept file and is not McLovin's own. Third-party watermarks and competitor
-  branding ("Photographer by Huamu", "www.pixelstudio.fr", a Nudient case ad) have
-  been cropped out of the JPEGs, but these images are still unlicensed for
-  commercial use. Replace them with your own shoot before this goes live — the
-  per-model catalogue shots above don't need this, only the mood/lifestyle imagery.
+* The remaining editorial/lifestyle photography (the "In the wild" lookbook plates,
+  the camera macro in "The edit") came with the original concept file and is not
+  McLovin's own. Third-party watermarks and competitor branding ("Photographer by
+  Huamu", "www.pixelstudio.fr", a Nudient case ad) have been cropped out of the
+  JPEGs, but these images are still unlicensed for commercial use. Replace them
+  with your own shoot before this goes live — the per-model catalogue shots don't
+  need this, only the mood/lifestyle imagery. The hero background (three floating
+  iPhones on a purple gradient, assets/hero/) is separate — it was supplied
+  directly by the seller as the approved hero creative, alongside the logo files,
+  so it's treated here as cleared for use; confirm that's actually the case
+  (in-house render vs. stock/Apple marketing asset) before launch if you're not
+  certain where it originated.
 * The only remaining data-toast placeholder on any of the three pages is the mobile
   burger menu (no drawer built yet). Every other button that used to be a placeholder
   is now a real wa.me link (see PRICING) or a real in-page/cross-page anchor. The
@@ -217,8 +239,14 @@ PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
 INTERACTION
 -----------
 index.html:
-* Hero: three slides, 6.4s crossfade with a slow scale drift; the rail doubles as a
-  progress indicator and a manual control.
+* Hero: rebuilt entirely around a single full-bleed photo (assets/hero/hero-desktop.jpg,
+  assets/hero/hero-mobile.jpg — swapped via a <picture>/<source> breakpoint at 820px,
+  no JS) instead of the old three-slide crossfading slideshow. The three-slide rail,
+  its 6.4s auto-advance timer, and the floating "On the floor / iPhone 15 Pro" spec
+  card that used to sit over the hero are all gone with it — this was a wholesale
+  hero replacement, not a re-skin, matching a pixel-matched reference the seller
+  supplied. Copy and CTAs stayed the same ("Apple, properly checked." / View the
+  floor / Compare models), just re-laid-out against the new image.
 
 collection.html:
 * A jump-nav row of era chips scrolls to each series section (plain anchor links,
@@ -234,5 +262,5 @@ All three pages:
 
 BROWSER NOTES
 -------------
-Fonts load from Google Fonts. Backdrop-filter is used on the stuck masthead and the
-hero spec card; it degrades to a solid tint where unsupported.
+Fonts load from Google Fonts. Backdrop-filter is used on the stuck masthead; it
+degrades to a solid tint where unsupported.

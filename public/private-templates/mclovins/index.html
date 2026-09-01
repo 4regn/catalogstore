@@ -9,7 +9,7 @@
 <meta property="og:title" content="McLovin's Apple Trader">
 <meta property="og:description" content="Apple, properly checked. Sealed stock and certified pre-owned, inspected against a fixed standard.">
 <meta property="og:type" content="website">
-<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/brand/favicon-mark.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -91,9 +91,6 @@ header.stuck{background:rgba(255,255,255,.88);backdrop-filter:saturate(180%) blu
   color:var(--ink);border-bottom-color:var(--line)}
 header:not(.stuck) .navlinks{color:rgba(255,255,255,.76)}
 header:not(.stuck) .navlinks a::after{background:#fff}
-header:not(.stuck) .sub{color:rgba(255,255,255,.52)}
-header:not(.stuck) .sub::before,header:not(.stuck) .sub::after{background:var(--lime)}
-header:not(.stuck) .wordmark .spark{color:var(--lime)}
 header:not(.stuck) .stock-dot{color:rgba(255,255,255,.6)}
 header:not(.stuck) .stock-dot i{background:var(--lime);box-shadow:0 0 0 4px rgba(198,242,39,.16)}
 header:not(.stuck) .btn-ink{background:#fff;color:#0A0A0B}
@@ -101,13 +98,11 @@ header:not(.stuck) .btn-ink:hover{background:var(--lime)}
 header:not(.stuck) .burger{border-color:rgba(255,255,255,.26)}
 header:not(.stuck) .burger i{background:#fff}
 .nav{height:86px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:30px}
-.brand{display:flex;align-items:center;gap:13px}
-.brand .mark{width:34px;height:36px;flex:none}
-.brand-type{display:flex;flex-direction:column;gap:3px}
-.wordmark{display:flex;align-items:flex-start;font-weight:700;font-size:21px;letter-spacing:-.045em;line-height:1}
-.wordmark .spark{width:9px;height:9px;margin:-3px 0 0 2px;flex:none;color:var(--lav-deep)}
-.sub{display:flex;align-items:center;gap:7px;white-space:nowrap;font-family:var(--mono);font-size:7.5px;letter-spacing:.3em;color:var(--smoke)}
-.sub::before,.sub::after{content:"";height:1px;width:13px;background:var(--lime);display:block}
+.brand{display:flex;align-items:center}
+.brand .logo-img{height:32px;width:auto;display:block}
+.brand .logo-img.dark{display:none}
+header.stuck .brand .logo-img.light{display:none}
+header.stuck .brand .logo-img.dark{display:block}
 .navlinks{justify-self:center;display:flex;gap:34px;font-size:13.5px;font-weight:500;color:#3A3A3E;transition:color .45s var(--ease)}
 .navlinks a{position:relative;padding:4px 0}
 .navlinks a::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--ink);
@@ -123,54 +118,20 @@ header:not(.stuck) .burger i{background:#fff}
 .burger i{display:block;width:15px;height:1.5px;background:var(--ink)}
 
 /* ─── hero ──────────────────────────────────────────────────────────── */
-.hero{position:relative;background:var(--ink);color:#fff;overflow:hidden;isolation:isolate}
-.hero-stage{position:absolute;inset:0;z-index:0}
-.hero-slide{position:absolute;inset:0;background-size:cover;opacity:0;transform:scale(1.06);
-  transition:opacity 1.5s var(--ease),transform 9s linear}
-.hero-slide.on{opacity:1;transform:scale(1)}
+.hero{position:relative;background:#241E5C;color:#fff;overflow:hidden;isolation:isolate;min-height:min(880px,92vh)}
+.hero-media{position:absolute;inset:0;z-index:0}
+.hero-media picture,.hero-media img{display:block;width:100%;height:100%}
+.hero-media img{object-fit:cover;object-position:64% 50%}
 .hero-scrim{position:absolute;inset:0;z-index:1;
-  background:linear-gradient(96deg,rgba(10,10,11,.94) 0%,rgba(10,10,11,.82) 32%,rgba(10,10,11,.34) 62%,rgba(10,10,11,.55) 100%),
-             linear-gradient(0deg,rgba(10,10,11,.75) 0%,transparent 42%)}
+  background:linear-gradient(100deg,rgba(9,7,28,.72) 0%,rgba(9,7,28,.4) 36%,rgba(9,7,28,0) 62%),
+             linear-gradient(0deg,rgba(9,7,28,.5) 0%,transparent 38%)}
 .grain{position:absolute;inset:0;z-index:2;pointer-events:none;background-image:var(--grain);opacity:.05;mix-blend-mode:overlay}
-.hero-inner{position:relative;z-index:3;min-height:min(880px,88vh);display:flex;flex-direction:column;justify-content:flex-end;
-  padding:clamp(72px,10vw,140px) 0 0}
-.hero-copy{max-width:900px;padding-bottom:clamp(40px,5vw,68px)}
-.hero-copy .lbl{display:inline-flex;align-items:center;gap:10px;color:rgba(255,255,255,.62)}
-.hero-copy .lbl i{width:6px;height:6px;border-radius:50%;background:var(--lime);flex:none}
+.hero-inner{position:relative;z-index:3;min-height:min(880px,92vh);display:flex;align-items:center}
+.hero-copy{max-width:560px;padding-block:clamp(120px,15vw,190px) clamp(64px,8vw,100px)}
 .hero h1{margin:clamp(22px,3vw,38px) 0 clamp(22px,2.4vw,30px)}
 .hero h1 em{color:#fff}
-.hero-copy .lede{color:rgba(255,255,255,.7);max-width:46ch}
+.hero-copy .lede{color:rgba(255,255,255,.8);max-width:46ch}
 .hero-cta{display:flex;flex-wrap:wrap;gap:11px;margin-top:clamp(28px,3vw,40px)}
-
-/* hero footer rail */
-.hero-rail{position:relative;z-index:3;border-top:1px solid var(--line-i);
-  display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:20px 0 24px}
-.rail-slides{display:flex;gap:26px;align-items:center}
-.rail-btn{background:none;border:0;padding:8px 0;cursor:pointer;text-align:left;display:block;
-  min-width:56px;opacity:.4;transition:opacity .4s var(--ease)}
-.rail-btn.on,.rail-btn:hover{opacity:1}
-.rail-btn .bar{height:1.5px;background:rgba(255,255,255,.28);position:relative;overflow:hidden}
-.rail-btn .bar::after{content:"";position:absolute;inset:0;width:0;background:var(--lime)}
-.rail-btn.on .bar::after{animation:fill 6.4s linear forwards}
-@keyframes fill{to{width:100%}}
-.rail-count{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.55)}
-.rail-count b{color:#fff;font-weight:500}
-
-/* floating spec card */
-.spec-float{position:absolute;right:0;bottom:clamp(120px,15vw,190px);z-index:4;width:290px;
-  background:rgba(16,16,20,.6);backdrop-filter:blur(22px);border:1px solid var(--line-i);padding:22px 22px 20px;
-  transition:border-color .35s var(--ease),background .35s var(--ease)}
-.spec-float:hover{border-color:rgba(198,242,39,.5);background:rgba(16,16,20,.78)}
-.spec-float .top{display:flex;justify-content:space-between;align-items:center;gap:12px;
-  font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--lime)}
-.spec-float .go-mini{color:rgba(255,255,255,.55);transition:color .35s var(--ease)}
-.spec-float:hover .go-mini{color:var(--lime)}
-.spec-float h4{font-family:var(--display);font-size:27px;font-weight:400;line-height:1.05;margin:16px 0 4px;letter-spacing:-.01em}
-.spec-float .sub-t{font-size:12.5px;color:rgba(255,255,255,.6);margin-bottom:16px}
-.spec-float dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;margin:0;
-  font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase}
-.spec-float dt{color:rgba(255,255,255,.44)}
-.spec-float dd{margin:0;text-align:right;color:#fff}
 
 /* ─── marquee ───────────────────────────────────────────────────────── */
 .marquee{background:var(--bone);border-block:1px solid var(--line);overflow:hidden;padding:15px 0}
@@ -287,10 +248,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 .f-grid{display:grid;grid-template-columns:1.5fr repeat(3,1fr);gap:clamp(30px,4vw,64px);
   padding-bottom:clamp(44px,5vw,72px);border-bottom:1px solid var(--line-i)}
 .f-brand .brand{margin-bottom:22px}
-.f-brand .brand .mark{width:42px;height:44px}
-.f-brand .wordmark{color:#fff;font-size:26px}
-.f-brand .wordmark .spark{color:var(--lime)}
-.f-brand .sub{color:rgba(255,255,255,.5)}
+.f-brand .brand .logo-img{height:38px}
 .f-brand p{font-size:13.5px;color:rgba(255,255,255,.55);max-width:34ch;line-height:1.6}
 .f-col h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;
   color:rgba(255,255,255,.42);font-weight:500;margin-bottom:20px}
@@ -322,17 +280,14 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   .prod{border-bottom:1px solid var(--line);padding-bottom:30px;padding-top:30px}
   .prod:nth-child(2n){border-right:0;padding-right:0}
   .prod:nth-child(2n+1){padding-left:0}
-  .spec-float{display:none}
   .wild-grid{grid-template-columns:1fr}
 }
 @media(max-width:820px){
   .wrap{width:min(1520px,100% - 28px)}
   .sec-head{grid-template-columns:1fr;gap:20px;align-items:start}
-  .hero-inner{min-height:auto;padding-top:clamp(70px,16vw,110px)}
-  .hero-copy{padding-bottom:44px}
-  .hero-rail{grid-template-columns:1fr;align-items:start;gap:16px}
-  .rail-slides{gap:14px;width:100%}
-  .rail-btn{min-width:0;flex:1}
+  .hero,.hero-inner{min-height:min(720px,100svh)}
+  .hero-media img{object-position:70% 28%}
+  .hero-copy{max-width:none;padding-block:clamp(90px,26vw,130px) 48px}
   .edit{grid-template-columns:1fr}
   .edit-copy{border-right:0;padding:44px 0 48px;order:2}
   .edit-media{order:1;min-height:min(560px,72vh)}
@@ -350,9 +305,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 @media(max-width:600px){
   .nav{height:66px;gap:12px}
   .nav-act .btn-ink{display:none}
-  .brand .mark{width:30px;height:32px}
-  .wordmark{font-size:18px}
-  .hero-scrim{background:linear-gradient(180deg,rgba(10,10,11,.62) 0%,rgba(10,10,11,.5) 34%,rgba(10,10,11,.9) 100%)}
+  .brand .logo-img{height:26px}
   .hero-cta .btn{flex:1;justify-content:center}
 }
 @media(prefers-reduced-motion:reduce){
@@ -360,52 +313,11 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   .rv{opacity:1;transform:none}
 }
-@media print{.hero-stage,.grain,#prog,.toast{display:none}}
+@media print{.hero-media,.grain,#prog,.toast{display:none}}
 </style>
 </head>
 <body>
 <div id="prog"></div>
-
-<svg width="0" height="0" aria-hidden="true" style="position:absolute">
-  <defs>
-    <linearGradient id="mcl-m" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#A9EC1E"/><stop offset=".3" stop-color="#D4FF63"/>
-      <stop offset=".55" stop-color="#FFFFFF"/><stop offset=".78" stop-color="#CBBBFF"/><stop offset="1" stop-color="#8F6BFF"/>
-    </linearGradient>
-    <linearGradient id="mcl-body" x1=".18" y1="0" x2=".9" y2="1">
-      <stop offset="0" stop-color="#2A2A30"/><stop offset=".42" stop-color="#0E0E12"/><stop offset="1" stop-color="#040405"/>
-    </linearGradient>
-    <linearGradient id="mcl-leaf" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#8FD016"/><stop offset="1" stop-color="#C9FF4A"/>
-    </linearGradient>
-    <radialGradient id="mcl-gloss" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
-    <clipPath id="mcl-clip">
-      <path d="M64 46C56 29 40 24 28 29 9 37 2 58 4 80c2 23 14 45 30 53 9 5 16-2 30-2s21 7 30 2c16-8 28-30 30-53 2-22-5-43-24-51-12-5-28 0-36 17Z"/>
-    </clipPath>
-    <symbol id="mcl-mark" viewBox="0 0 128 136">
-      <path d="M67 46C63 24 76 6 106 0c3 24-11 42-39 46Z" fill="#0B0B0D"/>
-      <path d="M85 8c6-4 13-7 21-8 3 24-11 42-39 46 8-11 14-24 18-38Z" fill="url(#mcl-leaf)"/>
-      <path d="M64 46C56 29 40 24 28 29 9 37 2 58 4 80c2 23 14 45 30 53 9 5 16-2 30-2s21 7 30 2c16-8 28-30 30-53 2-22-5-43-24-51-12-5-28 0-36 17Z"
-            fill="url(#mcl-body)" stroke="#FFFFFF" stroke-opacity=".14" stroke-width="1.2"/>
-      <g clip-path="url(#mcl-clip)">
-        <ellipse cx="40" cy="44" rx="40" ry="26" fill="url(#mcl-gloss)" opacity=".2"/>
-        <path d="M40 118V52h20l14 40 14-40h20v66H90V80l-11 24h-10L58 80v38Z" fill="url(#mcl-m)"/>
-        <rect x="14" y="58" width="24" height="52" rx="10" fill="#131317" stroke="#A9EC1E" stroke-opacity=".4" stroke-width="1.3"/>
-        <g fill="#050507" stroke="#A9EC1E" stroke-opacity=".6" stroke-width="1.5">
-          <circle cx="26" cy="70" r="5.6"/><circle cx="26" cy="84" r="5.6"/><circle cx="26" cy="98" r="5.6"/>
-        </g>
-        <g fill="#7FAE18">
-          <circle cx="26" cy="70" r="2.2"/><circle cx="26" cy="84" r="2.2"/><circle cx="26" cy="98" r="2.2"/>
-        </g>
-      </g>
-    </symbol>
-    <symbol id="spark" viewBox="0 0 24 24">
-      <path d="M12 0c.9 6.6 4.5 10.2 12 12-7.5 1.8-11.1 5.4-12 12-.9-6.6-4.5-10.2-12-12C7.5 10.2 11.1 6.6 12 0Z" fill="currentColor"/>
-    </symbol>
-  </defs>
-</svg>
 
 <div class="ann">
   <span><b>iPhone Sale 2026</b> &nbsp;·&nbsp; Sealed &amp; certified pre-owned &nbsp;·&nbsp; Until further notice</span>
@@ -414,11 +326,8 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 <header id="hdr">
   <div class="wrap nav">
     <a class="brand" href="#top" aria-label="McLovin's Apple Trader — home">
-      <svg class="mark" aria-hidden="true"><use href="#mcl-mark"/></svg>
-      <span class="brand-type">
-        <span class="wordmark">McLovin&rsquo;s<svg class="spark" aria-hidden="true"><use href="#spark"/></svg></span>
-        <span class="sub">APPLE TRADER</span>
-      </span>
+      <img class="logo-img light" src="assets/logo-white.png" alt="McLovin's Apple Trader">
+      <img class="logo-img dark" src="assets/logo-black.png" alt="McLovin's Apple Trader">
     </a>
     <nav class="navlinks" aria-label="Primary">
       <a href="#selected">Selected</a>
@@ -437,13 +346,14 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 
 <!-- 01 ─ hero ─────────────────────────────────────────────────────── -->
 <section class="hero on-ink">
-  <div class="hero-stage" aria-hidden="true">
-    <div class="hero-slide on" style="background-image:url('assets/hero-red-glow.jpg');background-position:66% 42%"></div>
-    <div class="hero-slide" style="background-image:url('assets/hero-titanium-pair.jpg');background-position:70% 34%"></div>
-    <div class="hero-slide" style="background-image:url('assets/hero-purple-portrait.jpg');background-position:64% 40%"></div>
+  <div class="hero-media" aria-hidden="true">
+    <picture>
+      <source media="(max-width:820px)" srcset="assets/hero/hero-mobile.jpg">
+      <img src="assets/hero/hero-desktop.jpg" alt="" loading="eager">
+    </picture>
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
   </div>
-  <div class="hero-scrim" aria-hidden="true"></div>
-  <div class="grain" aria-hidden="true"></div>
 
   <div class="wrap hero-inner">
     <div class="hero-copy">
@@ -454,26 +364,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
         <button class="btn btn-lime" data-scroll="#selected">View the floor <span class="ar">↗</span></button>
         <button class="btn btn-glass" data-scroll="#ledger">Compare models</button>
       </div>
-    </div>
-
-    <a class="spec-float" href="product.html">
-      <div class="top"><span>On the floor</span><span class="go-mini">View details ↗</span></div>
-      <h4>iPhone 15 Pro</h4>
-      <p class="sub-t">Natural Titanium &middot; A17 Pro</p>
-      <dl>
-        <dt>From</dt><dd>R14,500</dd>
-        <dt>Storage</dt><dd>128GB &ndash; 256GB</dd>
-        <dt>Condition</dt><dd>Sealed</dd>
-      </dl>
-    </a>
-
-    <div class="hero-rail">
-      <div class="rail-slides" role="tablist" aria-label="Featured imagery">
-        <button class="rail-btn on" role="tab" aria-selected="true" aria-label="Studio red" data-slide="0"><span class="bar"></span></button>
-        <button class="rail-btn" role="tab" aria-selected="false" aria-label="Titanium pair" data-slide="1"><span class="bar"></span></button>
-        <button class="rail-btn" role="tab" aria-selected="false" aria-label="Pro in hand" data-slide="2"><span class="bar"></span></button>
-      </div>
-      <div class="rail-count"><b id="slide-n">01</b> / 03</div>
     </div>
   </div>
 </section>
@@ -735,11 +625,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
     <div class="f-grid">
       <div class="f-brand">
         <a class="brand" href="#top" aria-label="McLovin's Apple Trader — home">
-          <svg class="mark" aria-hidden="true"><use href="#mcl-mark"/></svg>
-          <span class="brand-type">
-            <span class="wordmark">McLovin&rsquo;s<svg class="spark" aria-hidden="true"><use href="#spark"/></svg></span>
-            <span class="sub">APPLE TRADER</span>
-          </span>
+          <img class="logo-img" src="assets/logo-white.png" alt="McLovin's Apple Trader">
         </a>
         <p>A sharper, more deliberate way to buy Apple devices.</p>
       </div>
@@ -769,28 +655,6 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 (function(){
   "use strict";
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* ── hero slideshow ─────────────────────────────────────────────── */
-  var slides = [].slice.call(document.querySelectorAll(".hero-slide"));
-  var rails  = [].slice.call(document.querySelectorAll(".rail-btn"));
-  var count  = document.getElementById("slide-n");
-  var idx = 0, timer;
-
-  function go(i){
-    idx = (i + slides.length) % slides.length;
-    slides.forEach(function(s,n){ s.classList.toggle("on", n === idx); });
-    rails.forEach(function(b,n){
-      var on = n === idx;
-      b.classList.remove("on");
-      if (on){ void b.offsetWidth; b.classList.add("on"); }   /* restart bar fill */
-      b.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    count.textContent = String(idx + 1).padStart(2, "0");
-    clearInterval(timer);
-    if (!reduce) timer = setInterval(function(){ go(idx + 1); }, 6400);
-  }
-  rails.forEach(function(b){ b.addEventListener("click", function(){ go(+b.dataset.slide); }); });
-  if (!reduce) timer = setInterval(function(){ go(idx + 1); }, 6400);
 
   /* ── sticky header hairline + scroll progress ───────────────────── */
   var hdr = document.getElementById("hdr"), prog = document.getElementById("prog"), ticking = false;
