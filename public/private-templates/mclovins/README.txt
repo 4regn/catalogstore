@@ -318,6 +318,18 @@ All three pages:
 * product.html's gallery thumbnails swap the main image; the condition/storage/
   colour controls update the buy box and (for condition) the grading tiers below.
 * Everything above is disabled under prefers-reduced-motion.
+* The staggered IntersectionObserver reveal (the .rv class — most of the page's
+  content: product grids, the compare table, the price list rows, related
+  cards) now degrades gracefully if its JS never runs. It used to hide that
+  content at opacity:0 unconditionally and rely on the observer to reveal it;
+  if the script errored, was blocked, or just never executed (this bit
+  someone sharing the exported standalone HTML through an in-app file preview
+  that doesn't run scripts — the whole page below the fold read as blank),
+  there was no way for it to ever become visible. Now <html> starts with a
+  no-js class and a synchronous one-line script in <head> flips it to js
+  before anything paints; the CSS that hides .rv elements is scoped to
+  html.js, so with JS running nothing changes, and without it every section
+  is simply visible immediately, no animation, instead of stuck invisible.
 
 BROWSER NOTES
 -------------

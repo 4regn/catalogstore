@@ -1,6 +1,7 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
+<script>document.documentElement.classList.replace("no-js","js");</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>iPhone 15 Pro — McLovin&rsquo;s Apple Trader</title>
@@ -316,7 +317,7 @@ footer{background:var(--ink);color:#fff;padding:clamp(60px,7vw,100px) 0 34px;bor
 .toast.show{transform:translate(-50%,0)}
 
 /* ─── reveal ────────────────────────────────────────────────────────── */
-.rv{opacity:0;transform:translateY(16px);transition:opacity .85s var(--ease),transform .85s var(--ease)}
+html.js .rv{opacity:0;transform:translateY(16px);transition:opacity .85s var(--ease),transform .85s var(--ease)}
 .rv.in{opacity:1;transform:none}
 
 /* ─── responsive ────────────────────────────────────────────────────── */
