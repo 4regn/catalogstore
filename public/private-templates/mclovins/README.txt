@@ -254,16 +254,41 @@ index.html:
   scrim gradient, and the floating "On the floor / iPhone 15 Pro" spec card are
   gone entirely, since none of them exist in the reference.
 
-  One deliberate deviation: the reference file's hero has its own header baked in
-  (logo, an "iPhone / Accessories / New Arrivals / About" nav, and search/account/
-  bag icons, all inert placeholders — even in the source file they're href="#"
-  with no real destination). That's dropped here in favour of the site's existing
-  real header, which already sits in the same place, already overlays the hero
-  visually (solid ink at the top blending into the photo's own dark gradient), and
-  already links to real sections (Selected/Compare/Price List) instead of pages
-  that don't exist on this site. Everything else — the image, the copy, the type,
-  the button, the layout math — is reproduced as sent. If the placeholder nav/icon
-  row was wanted too, that's a quick follow-up, just flag it.
+  The header now actually overlays the hero image too (a follow-up request after
+  the first pixel-match pass): menu icon left, logo centred, search + cart icons
+  right — transparent with white strokes over the photo, flipping to the existing
+  white "stuck" look once you scroll past it. That required changing how the
+  header is positioned, not just how it looks. It used to be position:sticky,
+  which still reserves its own space in normal document flow at the top of the
+  page — sticky only starts behaving like a fixed overlay once you scroll past
+  its natural position, so on load it just pushed the hero down by its own
+  height, wrong the effect being tested for. On index.html only, the
+  announcement bar and the header are now both position:fixed, pinned to the
+  very top of the viewport at all times (a small behaviour change for the
+  announcement bar — it used to scroll away, now it's always visible, which is
+  what let it stack cleanly above the header without hardcoding a height); the
+  header's fixed top offset is the announcement bar's real measured height (a
+  few lines of JS set a --ann-h CSS variable on load and on resize, so it holds
+  up whether that bar wraps to one line or two). With both taken out of the
+  page's normal flow, the hero section is now the first thing in flow and
+  starts at y:0, so it fills the full viewport with the transparent bar
+  floating on top of it, instead of sitting below the bar's reserved space.
+  Anchor targets lower on the page (#selected, #ledger, etc.) got a
+  scroll-margin-top for the same reason — a target could otherwise land
+  underneath the now-permanently-pinned bar instead of below it.
+  product.html and collection.html keep the original position:sticky header
+  (unchanged) — they have no hero to overlay, so there was nothing to fix
+  there; only their header's inner content (the same menu / logo / search+cart
+  icon layout, for consistency) changed, not how it's positioned.
+
+  The menu icon reuses the same inert placeholder pattern the old mobile burger
+  button already had (a toast saying the drawer isn't wired up — no drawer was
+  built, so nothing was lost by dropping the old text nav-links row). Search is
+  the same kind of placeholder (no search feature exists on this site). Cart
+  is real, not decorative — it's a wa.me link with a generic "I'd like to see
+  what's available" message, since that's genuinely how buying already works
+  here (see PRICING); it's the one icon of the three that actually does
+  something.
 
   Also worth flagging: "iPhone for every version of you." is Apple's own real
   marketing tagline for iphone, not original copy — it's used here verbatim
