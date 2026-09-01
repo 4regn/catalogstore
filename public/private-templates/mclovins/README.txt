@@ -239,14 +239,38 @@ PLACEHOLDER CONTENT — REPLACE BEFORE LAUNCH
 INTERACTION
 -----------
 index.html:
-* Hero: rebuilt entirely around a single full-bleed photo (assets/hero/hero-desktop.jpg,
-  assets/hero/hero-mobile.jpg — swapped via a <picture>/<source> breakpoint at 820px,
-  no JS) instead of the old three-slide crossfading slideshow. The three-slide rail,
-  its 6.4s auto-advance timer, and the floating "On the floor / iPhone 15 Pro" spec
-  card that used to sit over the hero are all gone with it — this was a wholesale
-  hero replacement, not a re-skin, matching a pixel-matched reference the seller
-  supplied. Copy and CTAs stayed the same ("Apple, properly checked." / View the
-  floor / Compare models), just re-laid-out against the new image.
+* Hero: rebuilt to be a pixel-exact match of the reference file the seller supplied
+  (mclovins_hero_pixel_matched_v2.html), not a re-skin of it — same full-bleed photo
+  (assets/hero/hero-desktop.jpg, assets/hero/hero-mobile.jpg, swapped via a
+  <picture>/<source> breakpoint, no JS), same aspect-ratio-locked full-viewport
+  height, same copy verbatim ("iPhone for every version of you." / "Find the
+  iPhone that fits how you live, create and connect — from everyday essentials to
+  the latest Pro models." / "Explore iPhones" CTA with an arrow-line SVG, not the
+  text glyph used elsewhere on the site), same thin (300-weight) system-font
+  (-apple-system/SF Pro) typography scoped to just this section — every other
+  heading on the site stays Bricolage Grotesque — and the same absolute left/top
+  percentage positioning as the source file, not the flex-centred layout used
+  before. The old three-slide crossfading rail, its 6.4s auto-advance timer, the
+  scrim gradient, and the floating "On the floor / iPhone 15 Pro" spec card are
+  gone entirely, since none of them exist in the reference.
+
+  One deliberate deviation: the reference file's hero has its own header baked in
+  (logo, an "iPhone / Accessories / New Arrivals / About" nav, and search/account/
+  bag icons, all inert placeholders — even in the source file they're href="#"
+  with no real destination). That's dropped here in favour of the site's existing
+  real header, which already sits in the same place, already overlays the hero
+  visually (solid ink at the top blending into the photo's own dark gradient), and
+  already links to real sections (Selected/Compare/Price List) instead of pages
+  that don't exist on this site. Everything else — the image, the copy, the type,
+  the button, the layout math — is reproduced as sent. If the placeholder nav/icon
+  row was wanted too, that's a quick follow-up, just flag it.
+
+  Also worth flagging: "iPhone for every version of you." is Apple's own real
+  marketing tagline for iphone, not original copy — it's used here verbatim
+  because that's what the reference file specified, but a reseller's storefront
+  running Apple's own ad copy word-for-word (on top of a hero styled to closely
+  resemble Apple's own product page) is worth a second look before this goes
+  live, alongside the existing trademark disclaimer already in the footer.
 
 collection.html:
 * A jump-nav row of era chips scrolls to each series section (plain anchor links,
