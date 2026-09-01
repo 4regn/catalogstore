@@ -470,6 +470,8 @@ export default function Dashboard() {
   const [wishlistAnalyticsLoading, setWishlistAnalyticsLoading] = useState(false);
   const [wishlistExpandedProductId, setWishlistExpandedProductId] = useState<string | null>(null);
   const [sendingAbandonedEmailId, setSendingAbandonedEmailId] = useState<string | null>(null);
+  const [sendingOrderConfirmationId, setSendingOrderConfirmationId] = useState<string | null>(null);
+  const [savingOrderEmailId, setSavingOrderEmailId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productFilter, setProductFilter] = useState<"published" | "draft" | "trashed">("published");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1114,6 +1116,30 @@ export default function Dashboard() {
       alert("Could not send the email -- check your connection and try again.");
     }
     setSendingAbandonedEmailId(null);
+  };
+
+  const resendOrderConfirmationEmailNow = async (orderId: string) => {
+    if (!confirm("Send the order confirmation email again? It'll go to whatever email is currently saved on this order.")) return;
+    const token = await getAccessToken();
+    if (!token) return;
+    setSendingOrderConfirmationId(orderId);
+    try {
+      const res = await fetch("/api/dashboard/orders/resend-order-confirmation-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, orderId }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        alert("Order confirmation email sent.");
+      } else {
+        const reasons: Record<string, string> = {
+          no_email: "This order has no email address on file.",
+          not_paid: "This order hasn't been marked as paid yet.",
+          not_found: "Order not found.",
+        };
+        alert(reasons[data.reason] || data.error || "Could not send the email.");
+      }
+    } catch {
+      alert("Could not send the email -- check your connection and try again.");
+    }
+    setSendingOrderConfirmationId(null);
   };
 
   const fetchSubscribers = async () => {
@@ -3896,9 +3922,43 @@ export default function Dashboard() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div style={{ padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
                     <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 12, color: N }}>Customer</h3>
-                    <div style={{ fontSize: 14, marginBottom: 6, fontWeight: 600 }}>{selectedOrder.customer_name || "N/A"}</div>
-                    {selectedOrder.customer_email && <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>{selectedOrder.customer_email}</div>}
-                    {selectedOrder.customer_phone && <div style={{ fontSize: 13, color: "var(--muted)" }}>{selectedOrder.customer_phone}</div>}
+                    <div style={{ fontSize: 14, marginBottom: 10, fontWeight: 600 }}>{selectedOrder.customer_name || "N/A"}</div>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <input
+                        type="email"
+                        value={selectedOrder.customer_email || ""}
+                        onChange={(event) => { const updated = { ...selectedOrder, customer_email: event.target.value }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === updated.id ? updated : o)); }}
+                        placeholder="Customer email"
+                        style={{ flex: 1, minWidth: 0, padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 13, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }}
+                      />
+                      <button
+                        type="button"
+                        disabled={savingOrderEmailId === selectedOrder.id}
+                        onClick={async () => {
+                          setSavingOrderEmailId(selectedOrder.id);
+                          const email = (selectedOrder.customer_email || "").trim();
+                          const { error } = await supabase.from("orders").update({ customer_email: email }).eq("id", selectedOrder.id);
+                          setSavingOrderEmailId(null);
+                          if (error) { alert("Failed to save: " + error.message); return; }
+                          setOrderSaved(true);
+                          setTimeout(() => setOrderSaved(false), 2000);
+                        }}
+                        style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: savingOrderEmailId === selectedOrder.id ? "default" : "pointer", opacity: savingOrderEmailId === selectedOrder.id ? 0.6 : 1, whiteSpace: "nowrap" as const }}
+                      >
+                        {savingOrderEmailId === selectedOrder.id ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                    {selectedOrder.customer_phone && <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10 }}>{selectedOrder.customer_phone}</div>}
+                    {selectedOrder.payment_status === "paid" && (
+                      <button
+                        type="button"
+                        disabled={sendingOrderConfirmationId === selectedOrder.id}
+                        onClick={() => resendOrderConfirmationEmailNow(selectedOrder.id)}
+                        style={{ padding: "8px 12px", borderRadius: 100, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: sendingOrderConfirmationId === selectedOrder.id ? "default" : "pointer", opacity: sendingOrderConfirmationId === selectedOrder.id ? 0.6 : 1 }}
+                      >
+                        {sendingOrderConfirmationId === selectedOrder.id ? "Sending…" : "Resend Order Confirmation"}
+                      </button>
+                    )}
                   </div>
                   <div style={{ padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
                     <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 12, color: N }}>{selectedOrder.fulfillment_method === "pickup" ? "Pickup" : "Delivery"}</h3>
