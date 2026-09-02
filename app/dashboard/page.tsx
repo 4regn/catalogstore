@@ -222,7 +222,7 @@ function dataUrlToImageFile(dataUrl: string, index: number) {
 interface Order {
   id: string; order_number: number; external_id?: string | null; customer_name: string; customer_phone: string;
   customer_email: string;
-  items: { name: string; qty: number; price: number; variant?: string; image?: string }[]; total: number;
+  items: { name: string; qty: number; price: number; variant?: string; image?: string; customArtwork?: { frontUrl: string; backUrl?: string } }[]; total: number;
   status: string; payment_status: string; created_at: string;
   tracking_updated_at?: string | null; estimated_delivery_from_at?: string | null; estimated_delivery_at?: string | null; estimated_delivery_manual_override?: boolean;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;
@@ -3978,9 +3978,19 @@ export default function Dashboard() {
                   <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: 16, color: N }}>Order Items</h3>
                   {(selectedOrder.items || []).map((item, i) => {
                     const img = item.image || products.find((p) => p.name === item.name)?.image_url;
-                    return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < selectedOrder.items.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < selectedOrder.items.length - 1 ? "1px solid var(--border)" : "none", flexWrap: "wrap" as const }}>
                       {img ? <img src={img} alt="" style={{ width: 44, height: 52, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} /> : <div style={{ width: 44, height: 52, borderRadius: 6, background: "var(--input-bg)", flexShrink: 0 }} />}
-                      <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{item.name}</div>{item.variant && <div style={{ fontSize: 12, color: "var(--muted-2)", marginTop: 2 }}>{item.variant}</div>}<div style={{ fontSize: 12, color: "var(--muted-2)", marginTop: 2 }}>Qty: {item.qty}</div></div>
+                      <div style={{ flex: 1, minWidth: 200 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>{item.name}</div>
+                        {item.variant && <div style={{ fontSize: 12, color: "var(--muted-2)", marginTop: 2 }}>{item.variant}</div>}
+                        <div style={{ fontSize: 12, color: "var(--muted-2)", marginTop: 2 }}>Qty: {item.qty}</div>
+                        {item.customArtwork && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                            <a href={item.customArtwork.frontUrl} target="_blank" rel="noreferrer" style={{ padding: "6px 10px", borderRadius: 100, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", textDecoration: "none" }}>Front Design ↗</a>
+                            {item.customArtwork.backUrl && <a href={item.customArtwork.backUrl} target="_blank" rel="noreferrer" style={{ padding: "6px 10px", borderRadius: 100, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", textDecoration: "none" }}>Back Design ↗</a>}
+                          </div>
+                        )}
+                      </div>
                       <div style={{ fontSize: 15, fontWeight: 800 }}>R{(item.price * item.qty).toFixed(0)}</div>
                     </div>);
                   })}

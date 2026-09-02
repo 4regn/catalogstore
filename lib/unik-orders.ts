@@ -92,6 +92,18 @@ export async function recoverPaidStitchOrders(
    arrives, and a real payment confirmation must always be able to correct
    that label, not silently no-op against it. Calling this twice for the
    same order (webhook AND self-heal both firing) is still safe either way. */
+// Custom Upload Studio products (see CUSTOM_PRINT_FRONT_TAG in
+// FourRegnStore.tsx) carry the customer's uploaded design as a plain URL
+// on the line item -- surfaced in both the seller notification (so they
+// can actually open the file to fulfill/print it) and the customer's own
+// confirmation (a quick "yes, this is what we received" reassurance).
+function customArtworkLinksHtml(item: any): string {
+  if (!item?.customArtwork?.frontUrl) return "";
+  const links = [`<a href="${item.customArtwork.frontUrl}" style="color:#0070f3;">Front design</a>`];
+  if (item.customArtwork.backUrl) links.push(`<a href="${item.customArtwork.backUrl}" style="color:#0070f3;">Back design</a>`);
+  return `<p style="margin:2px 0 4px;font-size:13px;">${links.join(" &middot; ")}</p>`;
+}
+
 export async function markUnikOrderPaid(
   admin: SupabaseClient,
   order: { id: string; seller_id: string; total: number; items: any; customer_name: string; customer_email: string; payment_status: string },
@@ -126,7 +138,7 @@ export async function markUnikOrderPaid(
   }
 
   const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url, subdomain").eq("id", order.seller_id).maybeSingle();
-  const itemsHtml = (order.items || []).map((i: any) => `<p style="margin:0 0 4px">${i.name} x${i.qty} — R${Math.round(i.price * i.qty)}</p>`).join("");
+  const itemsHtml = (order.items || []).map((i: any) => `<p style="margin:0 0 4px">${i.name} x${i.qty} — R${Math.round(i.price * i.qty)}</p>${customArtworkLinksHtml(i)}`).join("");
 
   if (seller?.email) {
     await sendEmail({
@@ -164,7 +176,7 @@ export async function sendOrderConfirmationEmail(
   seller: { email?: string | null; store_name: string; logo_url?: string | null; subdomain?: string | null } | null
 ): Promise<void> {
   if (!order.customer_email) return;
-  const itemsHtml = (order.items || []).map((i: any) => `<p style="margin:0 0 4px">${i.name} x${i.qty} — R${Math.round(i.price * i.qty)}</p>`).join("");
+  const itemsHtml = (order.items || []).map((i: any) => `<p style="margin:0 0 4px">${i.name} x${i.qty} — R${Math.round(i.price * i.qty)}</p>${customArtworkLinksHtml(i)}`).join("");
   const isFourRegn = seller?.subdomain === "4regn";
   const reference = isFourRegn ? fourRegnOrderReference(order) : "";
   const fourRegnTracking = isFourRegn ? `<div style="background:#eef6ef;border:1px solid #d6ead8;border-radius:12px;padding:20px;margin:18px 0;"><h3 style="font-size:12px;color:#177533;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Track your order</h3><p style="margin:0 0 16px;font-size:13px;color:#5f6c61;line-height:1.65;">Your order number is <strong>${reference}</strong>. Track it with the email address or mobile number used at checkout. You can enter the number with or without the # and D.</p><a href="${FOUR_REGN_TRACKING_URL}" style="display:block;text-align:center;padding:15px;background:#111;color:#fff;border-radius:100px;text-decoration:none;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">Track Order</a></div><a href="${FOUR_REGN_ACCOUNT_URL}" style="display:block;text-align:center;padding:14px;border:1px solid #222;color:#222;border-radius:100px;text-decoration:none;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">View My Account</a>` : "";
