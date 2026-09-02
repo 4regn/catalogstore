@@ -222,7 +222,7 @@ function dataUrlToImageFile(dataUrl: string, index: number) {
 interface Order {
   id: string; order_number: number; external_id?: string | null; customer_name: string; customer_phone: string;
   customer_email: string;
-  items: { name: string; qty: number; price: number; variant?: string; image?: string; customArtwork?: { frontUrl: string; backUrl?: string } }[]; total: number;
+  items: { name: string; qty: number; price: number; variant?: string; image?: string; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string } }[]; total: number;
   status: string; payment_status: string; created_at: string;
   tracking_updated_at?: string | null; estimated_delivery_from_at?: string | null; estimated_delivery_at?: string | null; estimated_delivery_manual_override?: boolean;
   shipping_address: { address: string; apartment?: string; city: string; province: string; postal_code: string } | null;

@@ -21,7 +21,7 @@ import { FLASH_CAP_GIFT_TAG, FLASH_CAP_THRESHOLD, isFlashCapActive, isFlashCapEl
      server says it owes
 */
 
-type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string>; giftTag?: string; customArtwork?: { frontUrl?: string; backUrl?: string } };
+type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string>; giftTag?: string; customArtwork?: { frontUrl?: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string } };
 // Custom Upload Studio products -- see CUSTOM_PRINT_FRONT_TAG in
 // FourRegnStore.tsx. Enforced here (not just in the storefront UI) so an
 // order can never be placed for one of these without the actual design
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
   const byNameMap = new Map<string, any>((byName.data || []).map((p) => [p.name.toLowerCase(), p]));
 
   /* Build the line items with server-truth prices */
-  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string; category?: string | null; giftTag?: string; customArtwork?: { frontUrl: string; backUrl?: string } }[] = [];
+  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string; category?: string | null; giftTag?: string; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string } }[] = [];
   // A product tagged "import"/"imports" (singular or plural, case-
   // insensitive) restricts delivery to whichever shipping option(s) the
   // seller marked is_premium -- see the shipping-option validation below.
@@ -148,15 +148,17 @@ export async function POST(req: NextRequest) {
       hasImportProduct = true;
     }
     const productTags: string[] = Array.isArray(product.tags) ? product.tags : [];
-    let customArtwork: { frontUrl: string; backUrl?: string } | undefined;
+    let customArtwork: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string } | undefined;
     if (productTags.includes(CUSTOM_PRINT_FRONT_TAG) || productTags.includes(CUSTOM_PRINT_BOTH_TAG)) {
       const frontUrl = typeof raw.customArtwork?.frontUrl === "string" ? raw.customArtwork.frontUrl.trim() : "";
       const backUrl = typeof raw.customArtwork?.backUrl === "string" ? raw.customArtwork.backUrl.trim() : "";
+      const previewFrontUrl = typeof raw.customArtwork?.previewFrontUrl === "string" ? raw.customArtwork.previewFrontUrl.trim() : "";
+      const previewBackUrl = typeof raw.customArtwork?.previewBackUrl === "string" ? raw.customArtwork.previewBackUrl.trim() : "";
       const needsBack = productTags.includes(CUSTOM_PRINT_BOTH_TAG);
       if (!frontUrl || (needsBack && !backUrl)) {
         return NextResponse.json({ error: `Please upload your design before ordering: ${product.name}` }, { status: 400 });
       }
-      customArtwork = { frontUrl, ...(backUrl ? { backUrl } : {}) };
+      customArtwork = { frontUrl, ...(backUrl ? { backUrl } : {}), ...(previewFrontUrl ? { previewFrontUrl } : {}), ...(previewBackUrl ? { previewBackUrl } : {}) };
     }
 
     const basePrice = Number(product.price) || 0;

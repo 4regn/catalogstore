@@ -50,7 +50,7 @@ export interface Seller {
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string }; }
+interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string }; }
 const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const normalisePaymentOrder = (value: unknown) => {
   const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_ORDER[number] => PAYMENT_METHOD_ORDER.includes(key as typeof PAYMENT_METHOD_ORDER[number])) : [];
@@ -557,7 +557,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
           giftTag: typeof i.giftTag === "string" ? i.giftTag : undefined,
           giftOriginalPrice: Number.isFinite(Number(i.giftOriginalPrice)) ? Number(i.giftOriginalPrice) : undefined,
-          customArtwork: i.customArtwork && typeof i.customArtwork.frontUrl === "string" ? { frontUrl: i.customArtwork.frontUrl, ...(typeof i.customArtwork.backUrl === "string" ? { backUrl: i.customArtwork.backUrl } : {}) } : undefined,
+          customArtwork: i.customArtwork && typeof i.customArtwork.frontUrl === "string" ? {
+            frontUrl: i.customArtwork.frontUrl,
+            ...(typeof i.customArtwork.backUrl === "string" ? { backUrl: i.customArtwork.backUrl } : {}),
+            ...(typeof i.customArtwork.previewFrontUrl === "string" ? { previewFrontUrl: i.customArtwork.previewFrontUrl } : {}),
+            ...(typeof i.customArtwork.previewBackUrl === "string" ? { previewBackUrl: i.customArtwork.previewBackUrl } : {}),
+          } : undefined,
         })).filter((i: CartItem) => i.name);
         if (cleanCart.length) setCart(cleanCart);
       }
@@ -680,7 +685,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
           giftTag: typeof i.giftTag === "string" ? i.giftTag : undefined,
           giftOriginalPrice: Number.isFinite(Number(i.giftOriginalPrice)) ? Number(i.giftOriginalPrice) : undefined,
-          customArtwork: i.customArtwork && typeof i.customArtwork.frontUrl === "string" ? { frontUrl: i.customArtwork.frontUrl, ...(typeof i.customArtwork.backUrl === "string" ? { backUrl: i.customArtwork.backUrl } : {}) } : undefined,
+          customArtwork: i.customArtwork && typeof i.customArtwork.frontUrl === "string" ? {
+            frontUrl: i.customArtwork.frontUrl,
+            ...(typeof i.customArtwork.backUrl === "string" ? { backUrl: i.customArtwork.backUrl } : {}),
+            ...(typeof i.customArtwork.previewFrontUrl === "string" ? { previewFrontUrl: i.customArtwork.previewFrontUrl } : {}),
+            ...(typeof i.customArtwork.previewBackUrl === "string" ? { previewBackUrl: i.customArtwork.previewBackUrl } : {}),
+          } : undefined,
           }))
           .filter((i: any) => i.name);
         if (clean.length > 0) setCart(clean);
