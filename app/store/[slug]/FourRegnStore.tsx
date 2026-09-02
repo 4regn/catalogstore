@@ -3840,14 +3840,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             <section className="fr-hero">
               {displayHeroImage && (
                 <div className="fr-hero-bgimg">
-                  <Image
+                  {/* Plain <img>, not next/image -- same reasoning as the
+                      collection cover image fix (see its own comment
+                      nearby): next/image only proxies hosts whitelisted in
+                      next.config.ts (just *.supabase.co today), and
+                      banner_url can be whatever a seller pasted/uploaded,
+                      including a leftover Shopify CDN URL from the
+                      original migration. next/image failing that check
+                      doesn't error, it just silently renders nothing --
+                      confirmed as the cause of a real "my hero image
+                      isn't showing" report. Plain <img> has no such
+                      restriction. Loses next/image's automatic
+                      resize/format optimization for this one image; worth
+                      it for an image that reliably shows up regardless of
+                      where its URL points. */}
+                  <img
                     src={displayHeroImage}
                     alt=""
-                    fill
-                    priority
-                    sizes="100vw"
-                    quality={75}
-                    style={{ objectFit: "cover", objectPosition: heroImageObjectPosition }}
+                    fetchPriority="high"
+                    decoding="async"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: heroImageObjectPosition }}
                   />
                 </div>
               )}
