@@ -258,8 +258,24 @@ interface CartItem {
   // doesn't need to import the constant just to type the field, matching
   // every other loosely-typed cart/product field in this interface.
   giftTag?: string;
+  // Custom Upload Studio products (see CUSTOM_PRINT_FRONT_TAG/
+  // CUSTOM_PRINT_BOTH_TAG below) -- the customer's own artwork, already
+  // uploaded to storage by the time it lands here (see uploadCustomArtwork),
+  // so this is just the resulting public URL(s), not the file itself.
+  // backUrl only present for a "front + back" product.
+  customArtwork?: { frontUrl: string; backUrl?: string };
 }
 type WishlistItem = Pick<Product, "id" | "name" | "price" | "old_price" | "image_url" | "handle" | "in_stock" | "category">;
+// Marks a product as a Custom Upload Studio print -- ported from UNIK Labs'
+// own 4 SKUs (same prices/colors/images), but as a plain product page here
+// rather than UNIK's multi-step Studio: no account, nothing saved for
+// later, the customer just uploads the file they already have and it
+// travels with the order like any other cart-item detail. "Both" additionally
+// gets the front/back auto-flip card and needs two uploads instead of one.
+const CUSTOM_PRINT_FRONT_TAG = "custom-print-front";
+const CUSTOM_PRINT_BOTH_TAG = "custom-print-both";
+const isCustomPrintProduct = (p: { tags?: string[] }) => (p.tags || []).some((t) => t === CUSTOM_PRINT_FRONT_TAG || t === CUSTOM_PRINT_BOTH_TAG);
+const isCustomPrintBoth = (p: { tags?: string[] }) => (p.tags || []).includes(CUSTOM_PRINT_BOTH_TAG);
 interface PromoDiscount {
   code: string; type: string; value: number; applies_to: string;
   expires_at: string; product_ids: string[]; collection_names: string[];
@@ -871,6 +887,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [activeImageDim, setActiveImageDim] = useState<string | null>(null);
   const [localQty, setLocalQty] = useState(1);
   const [variantError, setVariantError] = useState(false);
+  // Custom Upload Studio print state -- same "one shared block for
+  // whichever product is currently open" pattern as selectedVariants/
+  // localQty above, reset alongside them in openProduct() and the
+  // mode==="product" effect.
+  const [customArtworkFrontUrl, setCustomArtworkFrontUrl] = useState<string | null>(null);
+  const [customArtworkBackUrl, setCustomArtworkBackUrl] = useState<string | null>(null);
+  const [customArtworkUploading, setCustomArtworkUploading] = useState<"front" | "back" | null>(null);
+  const [customArtworkError, setCustomArtworkError] = useState("");
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
   const [sizeChartTab, setSizeChartTab] = useState<"chart" | "body" | "measure">("chart");
 
@@ -1307,12 +1331,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // qty 1, always its own line -- see claimFlashCapGift below) never
   // silently merges into a shopper's own separately-added, fully-paid
   // unit of the same cap/variant.
-  const addToCart = (product: Product, qty: number, variants: { [k: string]: string }, giftTag?: string) => {
+  const addToCart = (product: Product, qty: number, variants: { [k: string]: string }, giftTag?: string, customArtwork?: { frontUrl: string; backUrl?: string }) => {
     setCart((prev) => {
-      const key = product.id + JSON.stringify(variants) + (giftTag || "");
-      const existing = prev.find((i) => i.product.id + JSON.stringify(i.selectedVariants) + (i.giftTag || "") === key);
+      // customArtwork folded into the merge key too -- two customers' (or
+      // even one customer's two) uploaded designs are never the same
+      // order, so they must never merge into one line with a shared qty.
+      const key = product.id + JSON.stringify(variants) + (giftTag || "") + (customArtwork ? JSON.stringify(customArtwork) : "");
+      const existing = prev.find((i) => i.product.id + JSON.stringify(i.selectedVariants) + (i.giftTag || "") + (i.customArtwork ? JSON.stringify(i.customArtwork) : "") === key);
       if (existing) return prev.map((i) => i === existing ? { ...i, qty: i.qty + qty } : i);
-      return [...prev, { product, qty, selectedVariants: variants, ...(giftTag ? { giftTag } : {}) }];
+      return [...prev, { product, qty, selectedVariants: variants, ...(giftTag ? { giftTag } : {}), ...(customArtwork ? { customArtwork } : {}) }];
     });
     if (!giftTag && teesSaleActive && seller?.id && pInCat(product, TEES_SALE_COLLECTION)) {
       trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_added_to_cart", metadata: { productId: product.id, productName: product.name } });
@@ -1376,6 +1403,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     setActiveImageDim(null);
     setLocalQty(1);
     setVariantError(false);
+    setCustomArtworkFrontUrl(null);
+    setCustomArtworkBackUrl(null);
+    setCustomArtworkError("");
   };
   // Every product now gets its own real, shareable, indexable URL. Once a
   // product has a real (Shopify-derived or generated) handle, link straight
@@ -1413,7 +1443,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // floating in the corner of an otherwise-empty card.
   const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     e.currentTarget.style.display = "none";
-    const fallback = e.currentTarget.parentElement?.querySelector<HTMLElement>(".fr-p-mark, .fr-cat-mark");
+    // closest(".fr-pimg")/.fr-pcat, not parentElement -- the flip-card
+    // markup (.fr-pimg-flip > .fr-pimg-flip-inner > .fr-pimg-flip-face >
+    // img) nests the front image two levels deeper than a plain card's
+    // img, so the old direct-parent lookup would silently never find the
+    // fallback mark for a flip card's front image.
+    const container = e.currentTarget.closest(".fr-pimg, .fr-cat-img");
+    const fallback = container?.querySelector<HTMLElement>(".fr-p-mark, .fr-cat-mark");
     if (fallback) fallback.style.display = "flex";
   };
   // Dedicated product-detail page (mode="product") -- resets the same
@@ -1429,8 +1465,39 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setActiveImageDim(null);
       setLocalQty(1);
       setVariantError(false);
+      setCustomArtworkFrontUrl(null);
+      setCustomArtworkBackUrl(null);
+      setCustomArtworkError("");
     }
   }, [mode, initialActiveProduct?.id]);
+  // Uploads the moment a file is chosen (not deferred to Add to Cart) --
+  // matches the "you already have the file on your phone, nothing needs
+  // saving for later" design: by the time Add to Cart is clicked, this is
+  // already just a URL like any other cart-item detail. No account/sign-in
+  // involved, unlike UNIK's own Studio (see CUSTOM_PRINT_FRONT_TAG comment).
+  const uploadCustomArtwork = async (file: File, side: "front" | "back") => {
+    if (!seller?.id) return;
+    if (file.size > 20 * 1024 * 1024) { setCustomArtworkError("That file is too large (max 20MB)."); return; }
+    setCustomArtworkUploading(side);
+    setCustomArtworkError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("sellerId", seller.id);
+      const res = await fetch("/api/store/custom-print-upload", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        setCustomArtworkError(data.error || "Could not upload your design. Please try again.");
+      } else if (side === "front") {
+        setCustomArtworkFrontUrl(data.url);
+      } else {
+        setCustomArtworkBackUrl(data.url);
+      }
+    } catch {
+      setCustomArtworkError("Could not upload your design. Please try again.");
+    }
+    setCustomArtworkUploading(null);
+  };
   // True exactly when this product's own Add to Cart button should become
   // "Choose as Free Cap" instead -- eligible cap, sale genuinely active,
   // and the shopper either hasn't claimed a gift yet or is switching to a
@@ -1447,8 +1514,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setVariantError(true);
       return;
     }
+    if (isCustomPrintProduct(selectedProduct) && (!customArtworkFrontUrl || (isCustomPrintBoth(selectedProduct) && !customArtworkBackUrl))) {
+      setCustomArtworkError("Please upload your design before adding to cart.");
+      return;
+    }
+    const artwork = isCustomPrintProduct(selectedProduct) && customArtworkFrontUrl ? { frontUrl: customArtworkFrontUrl, ...(customArtworkBackUrl ? { backUrl: customArtworkBackUrl } : {}) } : undefined;
     if (isFlashCapClaimMoment(selectedProduct)) claimFlashCapGift(selectedProduct, selectedVariants);
-    else addToCart(selectedProduct, localQty, selectedVariants);
+    else addToCart(selectedProduct, localQty, selectedVariants, undefined, artwork);
     setSelectedProduct(null);
     setCartOpen(true);
   };
@@ -1464,8 +1536,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       setVariantError(true);
       return;
     }
+    if (isCustomPrintProduct(product) && (!customArtworkFrontUrl || (isCustomPrintBoth(product) && !customArtworkBackUrl))) {
+      setCustomArtworkError("Please upload your design before adding to cart.");
+      return;
+    }
+    const artwork = isCustomPrintProduct(product) && customArtworkFrontUrl ? { frontUrl: customArtworkFrontUrl, ...(customArtworkBackUrl ? { backUrl: customArtworkBackUrl } : {}) } : undefined;
     if (isFlashCapClaimMoment(product)) { claimFlashCapGift(product, selectedVariants); setCartOpen(true); return; }
-    addToCart(product, localQty, selectedVariants);
+    addToCart(product, localQty, selectedVariants, undefined, artwork);
     setCartOpen(true);
   };
   // Same Buy Now logic as the slide-over PDP's inline handler further below,
@@ -1508,6 +1585,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       selectedVariants: i.selectedVariants,
       tags: i.product.tags || [],
       ...(i.giftTag ? { giftTag: i.giftTag, giftOriginalPrice: effectivePrice(i.product, i.selectedVariants) } : {}),
+      ...(i.customArtwork ? { customArtwork: i.customArtwork } : {}),
     }));
     const encoded = btoa(JSON.stringify(payload));
     navigate(sp(`/checkout?cart=${encoded}`));
@@ -2140,6 +2218,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     const flashCapCardEligible = flashCapActive && flashCapOnTruckerCapsPage && isFlashCapEligibleProduct(p)
       && (flashCapState === "ELIGIBLE_UNCLAIMED" || flashCapState === "ELIGIBLE_CLAIMED");
     const promo = getProductPromo(p.id);
+    // Custom Upload Studio "front + back" cards get UNIK's own auto-flip
+    // animation (see .fr-pimg-flip below) -- the default color's own
+    // front/back pair, since a grid card has no variant selection of its
+    // own yet. Colour variant images are stored [front, back] per option
+    // (see the product-seed migration), matching what resolveVariantImage
+    // elsewhere already assumes for this same field.
+    const cardColorVariant = p.variants?.find((v) => v.name === "Color");
+    const cardDefaultColor = cardColorVariant?.options?.[0];
+    const cardVariantImgs = cardDefaultColor ? cardColorVariant?.images?.[cardDefaultColor] : undefined;
+    const cardFrontImg = cardVariantImgs?.[0] || p.image_url || undefined;
+    const cardBackImg = isCustomPrintBoth(p) ? cardVariantImgs?.[1] : undefined;
     return (
       <div className="fr-pcard" onClick={() => goToProduct(p)}>
         <div className="fr-pimg">
@@ -2154,9 +2243,21 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               {showHeroPill && (badge || promo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
             </>
           )}
-          {p.image_url ? (
+          {cardBackImg ? (
+            <div className="fr-pimg-flip">
+              <div className="fr-pimg-flip-inner">
+                <div className="fr-pimg-flip-face">
+                  <img src={cardFrontImg} alt={p.name} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={handleImgError} />
+                </div>
+                <div className="fr-pimg-flip-face fr-flip-back">
+                  <img src={cardBackImg} alt={p.name} loading="lazy" decoding="async" />
+                </div>
+              </div>
+              <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
+            </div>
+          ) : cardFrontImg ? (
             <>
-              <img src={p.image_url} alt={p.name} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
+              <img src={cardFrontImg} alt={p.name} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={handleImgError} style={{ width: "100%", height: "auto", display: "block" }} />
               <span className="fr-p-mark" style={{ display: "none" }}>{initials(p.name)}</span>
             </>
           ) : (
@@ -2191,6 +2292,35 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             {p.in_stock === false ? "Sold Out" : flashCapCardEligible ? "Choose as Free Cap" : "Add to Cart"}
           </button>
         </div>
+      </div>
+    );
+  };
+
+  // Custom Upload Studio's PDP piece -- shared by both PDP surfaces (the
+  // slide-over and the dedicated /products/<handle> page), same reasoning
+  // as ProductCard above. Renders nothing for a normal product. Uploads
+  // fire immediately per file (see uploadCustomArtwork), so this is just
+  // showing current state, not holding its own upload logic.
+  const CustomPrintUpload = ({ product }: { product: Product }) => {
+    if (!isCustomPrintProduct(product)) return null;
+    const both = isCustomPrintBoth(product);
+    return (
+      <div className="fr-pdp-section">
+        <div className="fr-pdp-section-lbl">Your Design</div>
+        <div className="fr-custom-upload-row">
+          <label className="fr-custom-upload-btn">
+            {customArtworkUploading === "front" ? "Uploading…" : customArtworkFrontUrl ? "✓ Front uploaded — change" : "Upload front design"}
+            <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCustomArtwork(f, "front"); e.target.value = ""; }} />
+          </label>
+          {both && (
+            <label className="fr-custom-upload-btn">
+              {customArtworkUploading === "back" ? "Uploading…" : customArtworkBackUrl ? "✓ Back uploaded — change" : "Upload back design"}
+              <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCustomArtwork(f, "back"); e.target.value = ""; }} />
+            </label>
+          )}
+        </div>
+        {customArtworkError && <div className="fr-pdp-err">{customArtworkError}</div>}
+        <p className="fr-custom-upload-hint">PNG, JPEG or WEBP, up to 20MB. We print exactly what you upload.</p>
       </div>
     );
   };
@@ -2842,6 +2972,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-pimg{width:100%;overflow:hidden;position:relative;min-height:160px;background:linear-gradient(140deg,#e7e2da,#cfc7bb)}
 .fr-pimg img{transition:transform 0.5s ease}
 .fr-pcard:hover .fr-pimg img{transform:scale(1.06)}
+/* Custom Upload Studio "front + back" card auto-flip -- same CSS 3D
+   transform technique (transform-style:preserve-3d, backface-visibility:
+   hidden, a pre-rotated back face) and exact 3s keyframe timing as UNIK
+   Labs' own upload.html .flip-mini/.fm-face, just scaled to a full-width
+   grid card instead of a fixed 56x84px thumbnail. Front face sits in
+   normal flow (so it sets the card's height from its own image's aspect
+   ratio); back face is absolutely positioned to match. */
+.fr-pimg-flip{position:relative;width:100%;perspective:1200px}
+.fr-pimg-flip-inner{position:relative;width:100%;transform-style:preserve-3d;animation:frFlipCard 3s ease-in-out infinite}
+.fr-pimg-flip-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;width:100%}
+.fr-pimg-flip-face img{width:100%;height:auto;display:block}
+.fr-pimg-flip-face.fr-flip-back{position:absolute;inset:0;transform:rotateY(180deg)}
+@keyframes frFlipCard{0%,33.3%{transform:rotateY(0deg)}50%,83.3%{transform:rotateY(-180deg)}100%{transform:rotateY(-360deg)}}
+@media(prefers-reduced-motion:reduce){.fr-pimg-flip-inner{animation:none}}
 .fr-wish-btn{position:absolute;right:12px;top:12px;z-index:5;width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.92);box-shadow:0 5px 16px rgba(0,0,0,.1);display:grid;place-items:center;cursor:pointer;color:#292735}.fr-wish-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8}.fr-wish-btn.active{background:#292735;color:#fff}.fr-wish-btn.active svg{fill:currentColor}.fr-pdp-main>.fr-wish-btn{left:auto;right:14px;top:14px}
 .fr-wishlist{position:fixed;z-index:1002;top:0;right:0;height:100dvh;width:min(430px,100vw);background:#f6f6f4;box-shadow:-20px 0 50px rgba(0,0,0,.16);transform:translateX(105%);transition:transform .32s ease;display:flex;flex-direction:column}.fr-wishlist.open{transform:translateX(0)}.fr-wishlist-list{padding:15px;overflow:auto;display:grid;gap:10px}.fr-wishlist-item{display:grid;grid-template-columns:76px 1fr auto;gap:13px;align-items:center;padding:10px;background:#fff;border:1px solid #ddd;border-radius:13px;cursor:pointer}.fr-wishlist-item img{width:76px;height:92px;object-fit:cover;border-radius:8px;background:#eee}.fr-wishlist-item strong{font-size:12px;display:block;margin-bottom:7px}.fr-wishlist-item span{font-size:12px}.fr-wishlist-item button{border:0;background:none;font-size:20px;color:#888;cursor:pointer}.fr-wishlist-empty{padding:55px 25px;text-align:center;color:#777;font-size:12px;line-height:1.7}
 .fr-p-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:26px;color:rgba(46,42,57,0.3)}
@@ -3056,6 +3200,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-size-row{display:flex;gap:8px;flex-wrap:wrap}
 .fr-size-btn{min-width:46px;padding:10px 14px;border:1px solid rgba(0,0,0,0.12);border-radius:8px;background:#fff;font-family:var(--body);font-size:12px;font-weight:700;cursor:pointer;color:var(--ink)}
 .fr-size-btn.active{background:#000;color:#fdfbf7;border-color:#000}
+.fr-custom-upload-row{display:flex;gap:8px;flex-wrap:wrap}
+.fr-custom-upload-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border:1px dashed rgba(0,0,0,0.25);border-radius:8px;background:#fafafa;font-family:var(--body);font-size:12px;font-weight:700;cursor:pointer;color:var(--ink);text-align:center}
+.fr-custom-upload-hint{margin-top:8px;font-size:11px;color:rgba(46,42,57,0.5)}
 .fr-pdp-actions{margin-top:auto;padding-top:28px;display:flex;flex-direction:column;gap:10px}
 .fr-pdp-add{background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:var(--btn-radius);box-shadow:var(--btn-shadow);padding:17px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer}
 .fr-pdp-buynow{background:transparent;color:var(--ink);border:1.5px solid #000;border-radius:var(--btn-radius);padding:17px;font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer}
@@ -3673,6 +3820,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </div>
                     ))}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
+                    <CustomPrintUpload product={p} />
                     {p.description && isPromotionalDescription(p) && <DescriptionText text={p.description} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
@@ -4442,6 +4590,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </button>
                     )}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
+                    <CustomPrintUpload product={p} />
                     {displayDescription && isPromotionalDescription(p) && <DescriptionText text={displayDescription} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
@@ -4451,9 +4600,17 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                           <button className="fr-pdp-add" style={isFlashCapClaimMoment(p) ? { background: "#0a6f36", borderColor: "#0a6f36" } : undefined} onClick={() => addProductToCart(p)}>
                             {isFlashCapClaimMoment(p) ? "Choose as Free Cap" : `Add to Cart — ${fmt(effectivePrice(p, selectedVariants) * localQty)}`}
                           </button>
-                          <button className="fr-pdp-buynow" onClick={() => buyNowFor(p)}>
-                            Buy Now
-                          </button>
+                          {/* Custom Upload Studio products skip Buy Now --
+                              it bypasses the cart entirely (a direct
+                              ?cart= checkout link), which would mean
+                              re-plumbing the upload/validation logic a
+                              third time for a shortcut this product type
+                              doesn't need. Add to Cart already covers it. */}
+                          {!isCustomPrintProduct(p) && (
+                            <button className="fr-pdp-buynow" onClick={() => buyNowFor(p)}>
+                              Buy Now
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

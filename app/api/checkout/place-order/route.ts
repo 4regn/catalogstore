@@ -21,7 +21,13 @@ import { FLASH_CAP_GIFT_TAG, FLASH_CAP_THRESHOLD, isFlashCapActive, isFlashCapEl
      server says it owes
 */
 
-type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string>; giftTag?: string };
+type ItemIn = { id?: string; name?: string; qty: number; variant?: string; image?: string; selectedVariants?: Record<string, string>; giftTag?: string; customArtwork?: { frontUrl?: string; backUrl?: string } };
+// Custom Upload Studio products -- see CUSTOM_PRINT_FRONT_TAG in
+// FourRegnStore.tsx. Enforced here (not just in the storefront UI) so an
+// order can never be placed for one of these without the actual design
+// attached -- the seller has nothing to print otherwise.
+const CUSTOM_PRINT_FRONT_TAG = "custom-print-front";
+const CUSTOM_PRINT_BOTH_TAG = "custom-print-both";
 type ApplyTo = "cart" | "product" | "collection" | "shipping";
 const isUuid = (s: unknown): s is string =>
   typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -111,7 +117,7 @@ export async function POST(req: NextRequest) {
   const byNameMap = new Map<string, any>((byName.data || []).map((p) => [p.name.toLowerCase(), p]));
 
   /* Build the line items with server-truth prices */
-  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string; category?: string | null; giftTag?: string }[] = [];
+  const lineItems: { id: string; name: string; price: number; qty: number; variant?: string; image?: string; category?: string | null; giftTag?: string; customArtwork?: { frontUrl: string; backUrl?: string } }[] = [];
   // A product tagged "import"/"imports" (singular or plural, case-
   // insensitive) restricts delivery to whichever shipping option(s) the
   // seller marked is_premium -- see the shipping-option validation below.
@@ -141,6 +147,18 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(product.tags) && product.tags.some((t: string) => IMPORT_TAG_RE.test((t || "").trim()))) {
       hasImportProduct = true;
     }
+    const productTags: string[] = Array.isArray(product.tags) ? product.tags : [];
+    let customArtwork: { frontUrl: string; backUrl?: string } | undefined;
+    if (productTags.includes(CUSTOM_PRINT_FRONT_TAG) || productTags.includes(CUSTOM_PRINT_BOTH_TAG)) {
+      const frontUrl = typeof raw.customArtwork?.frontUrl === "string" ? raw.customArtwork.frontUrl.trim() : "";
+      const backUrl = typeof raw.customArtwork?.backUrl === "string" ? raw.customArtwork.backUrl.trim() : "";
+      const needsBack = productTags.includes(CUSTOM_PRINT_BOTH_TAG);
+      if (!frontUrl || (needsBack && !backUrl)) {
+        return NextResponse.json({ error: `Please upload your design before ordering: ${product.name}` }, { status: 400 });
+      }
+      customArtwork = { frontUrl, ...(backUrl ? { backUrl } : {}) };
+    }
+
     const basePrice = Number(product.price) || 0;
     const delta = variantPriceDelta(product.variants, raw.selectedVariants);
     lineItems.push({
@@ -152,6 +170,7 @@ export async function POST(req: NextRequest) {
       image: typeof raw.image === "string" ? raw.image.slice(0, 500) : "",
       category: product.category ?? null,
       giftTag: typeof raw.giftTag === "string" ? raw.giftTag : undefined,
+      customArtwork,
     });
   }
 
@@ -321,7 +340,7 @@ export async function POST(req: NextRequest) {
     customer_name: `${customer.firstName} ${customer.lastName}`.trim(),
     customer_email: normalizedCustomerEmail,
     customer_phone: customer.phone || null,
-    items: lineItems.map(({ id, name, price, qty, variant, image, giftTag }) => ({ id, name, price, qty, variant, image, ...(giftTag ? { giftTag } : {}) })),
+    items: lineItems.map(({ id, name, price, qty, variant, image, giftTag, customArtwork }) => ({ id, name, price, qty, variant, image, ...(giftTag ? { giftTag } : {}), ...(customArtwork ? { customArtwork } : {}) })),
     total,
     shipping_address: fulfillment === "delivery" ? address : null,
     shipping_cost: shippingCost,

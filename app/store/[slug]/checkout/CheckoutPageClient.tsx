@@ -50,7 +50,7 @@ export interface Seller {
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; }
+interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string }; }
 const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const normalisePaymentOrder = (value: unknown) => {
   const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_ORDER[number] => PAYMENT_METHOD_ORDER.includes(key as typeof PAYMENT_METHOD_ORDER[number])) : [];
@@ -557,6 +557,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
           giftTag: typeof i.giftTag === "string" ? i.giftTag : undefined,
           giftOriginalPrice: Number.isFinite(Number(i.giftOriginalPrice)) ? Number(i.giftOriginalPrice) : undefined,
+          customArtwork: i.customArtwork && typeof i.customArtwork.frontUrl === "string" ? { frontUrl: i.customArtwork.frontUrl, ...(typeof i.customArtwork.backUrl === "string" ? { backUrl: i.customArtwork.backUrl } : {}) } : undefined,
         })).filter((i: CartItem) => i.name);
         if (cleanCart.length) setCart(cleanCart);
       }
@@ -679,6 +680,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             tags: Array.isArray(i.tags) ? i.tags.filter((t: any) => typeof t === "string") : undefined,
           giftTag: typeof i.giftTag === "string" ? i.giftTag : undefined,
           giftOriginalPrice: Number.isFinite(Number(i.giftOriginalPrice)) ? Number(i.giftOriginalPrice) : undefined,
+          customArtwork: i.customArtwork && typeof i.customArtwork.frontUrl === "string" ? { frontUrl: i.customArtwork.frontUrl, ...(typeof i.customArtwork.backUrl === "string" ? { backUrl: i.customArtwork.backUrl } : {}) } : undefined,
           }))
           .filter((i: any) => i.name);
         if (clean.length > 0) setCart(clean);
@@ -985,7 +987,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug,
-          items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image, selectedVariants: i.selectedVariants, ...(i.giftTag ? { giftTag: i.giftTag } : {}) })),
+          items: cart.map((i) => ({ id: i.id, name: i.name, qty: i.qty, variant: i.variant, image: i.image, selectedVariants: i.selectedVariants, ...(i.giftTag ? { giftTag: i.giftTag } : {}), ...(i.customArtwork ? { customArtwork: i.customArtwork } : {}) })),
           customer: { firstName, lastName, email, phone },
           address: fulfillment === "delivery"
             ? { address, apartment, city, province, postal_code: postalCode }
@@ -1650,6 +1652,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                           {isFlashCapGift ? (
                             <div className="product-sale-saving">Flash Weekend Gift</div>
                           ) : saleSaving > 0 && <div className="product-sale-saving">You save R{saleSaving.toLocaleString("en-ZA")}</div>}
+                          {item.customArtwork && <div className="product-meta">✓ Your design is attached{item.customArtwork.backUrl ? " (front + back)" : ""}</div>}
                         </div>
                         {isFlashCapGift ? (
                           <div className="product-price-stack">
