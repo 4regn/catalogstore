@@ -1,23 +1,39 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, forwardRef } from "react";
+import { useImperativeHandle, useRef, useState, forwardRef } from "react";
 
 // Interactive artwork placement tool for 4regn's Custom Upload Studio
-// products -- ported from UNIK Labs' own Step 3 tool (upload.html) as
-// closely as the two platforms' different architecture allows. Same core
-// mechanics: a draggable "design layer" box on top of the garment photo,
-// one bottom-right resize handle (aspect-ratio locked, width-driven),
-// three corner buttons (change/remove/crop), a separate crop modal, and a
-// front/back flip using the identical rotateY 3D-transform technique as
-// the product card's own auto-flip (FourRegnStore.tsx's .fr-pimg-flip).
+// products -- ported from UNIK Labs' own Step 3 tool
+// (public/private-templates/unik-labs/upload.html) as closely as the two
+// platforms' different architecture allows. Same core mechanics: a
+// draggable "design layer" box on top of the garment photo, one
+// bottom-right resize handle (aspect-ratio locked, width-driven), three
+// corner buttons (change/remove/crop), a separate crop modal, and a
+// front/back flip.
 //
-// Deliberately NOT ported: UNIK's per-garment/per-colour calibrated print
-// zone (getZoneRect() -- pixel rects tuned to their exact product photos,
-// data this codebase doesn't have) and the elastic drag-to-flip gesture
-// (UNIK supports both click AND drag-to-flip; this is click-only, same
-// visual result, less interaction surface to get right blind). A single
-// reasonable default zone (roughly the chest area) is used instead of
-// per-product calibration.
+// Two pieces are ported byte-for-byte from upload.html rather than
+// re-derived, because getting them wrong is exactly what broke the first
+// version of this editor:
+//
+// 1. Print zone calibration (PRINT_ZONE below) -- upload.html's
+//    CAL_DEFAULTS_BY_MODE table holds real, hand-calibrated percentages
+//    per garment/side/colour against the exact same photos this file
+//    uses (they were copied byte-for-byte from UNIK's own asset files --
+//    see FourRegnStore.tsx's CUSTOM_PRINT_FRONT_TAG comment). A single
+//    generic zone doesn't line up with the actual chest-print area on
+//    every one of these photos, so artwork could be resized right off
+//    the garment.
+// 2. The flip's counter-rotation -- upload.html's updateStageView()
+//    doesn't just rotate the outer card 0<->180deg, it also snaps the
+//    INNER stage to the opposite rotation the instant the content swaps
+//    (no transition). card(180) + stage(180) = 360deg, which reads
+//    identically to 0deg -- that's what keeps back-view artwork and any
+//    on-garment text un-mirrored. Rotating only the outer card (what the
+//    first version of this editor did) leaves the back view mirrored.
+//
+// Deliberately NOT ported: the elastic drag-to-flip gesture (UNIK
+// supports both click AND drag-to-flip; this is click-only, same visual
+// result once flipped, less interaction surface to get right blind).
 //
 // State (url/x/y/w/h/ar per side) is owned here, not lifted to the
 // parent -- FourRegnStore.tsx only needs a readiness check and a capture()
@@ -26,12 +42,49 @@ import { useEffect, useImperativeHandle, useRef, useState, forwardRef } from "re
 // never continuously while dragging.
 
 type Side = "front" | "back";
+type Garment = "hoodie" | "tee";
 type SideState = { url: string | null; x: number; y: number; w: number; h: number; ar: number };
 const BLANK_SIDE: SideState = { url: null, x: 0, y: 0, w: 0, h: 0, ar: 1 };
 
-// Default print zone as a fraction of the stage box -- roughly a garment's
-// chest area. Not per-garment calibrated (see file comment above).
-const ZONE = { x: 0.26, y: 0.2, w: 0.48, h: 0.42 };
+// Ported verbatim (light theme only -- 4regn only ever uses UNIK's
+// light-mode photo set) from upload.html's CAL_DEFAULTS_BY_MODE, hoodie
+// and tee entries only (the other modes there are UNIK-only variants
+// this catalog doesn't sell -- tee-budget, on-model shoots). wP/hP are
+// the zone's width/height as a fraction of the stage box; cxP is the
+// zone's horizontal center as a fraction of stage width; tP is the
+// zone's top edge as a fraction of stage height.
+type ZoneCal = { wP: number; hP: number; cxP: number; tP: number };
+const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
+  hoodie: {
+    front: {
+      black: { wP: 0.3328, hP: 0.1955, cxP: 0.4957, tP: 0.3477 },
+      white: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3409 },
+      beige: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3193 },
+    },
+    // Same rectangle for every colour -- the back-hoodie photo set shares
+    // one framing/zoom across all three colours (see upload.html comment).
+    back: {
+      black: { wP: 0.4, hP: 0.3, cxP: 0.505, tP: 0.395 },
+      white: { wP: 0.4, hP: 0.3, cxP: 0.505, tP: 0.395 },
+      beige: { wP: 0.4, hP: 0.3, cxP: 0.505, tP: 0.395 },
+    },
+  },
+  tee: {
+    // Black/white use the square (1254x1254) flat-lay; beige is the
+    // original 2:3 portrait photo -- different calibration per upload.html.
+    front: {
+      black: { wP: 0.3754, hP: 0.5, cxP: 0.5123, tP: 0.32 },
+      white: { wP: 0.3754, hP: 0.5, cxP: 0.5123, tP: 0.32 },
+      beige: { wP: 0.3853, hP: 0.352, cxP: 0.5044, tP: 0.4565 },
+    },
+    // Same 2:3 portrait photo for every colour.
+    back: {
+      black: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.415 },
+      white: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.415 },
+      beige: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.415 },
+    },
+  },
+};
 
 export type FourRegnCustomPrintCapture = {
   frontRawDataUrl: string;
@@ -76,11 +129,13 @@ async function compressArtwork(dataUrl: string, mime: string): Promise<string> {
 interface Props {
   frontGarmentImage: string;
   backGarmentImage?: string;
+  garment: Garment;
+  colour?: string;
   onErrorMessage?: (message: string) => void;
 }
 
 const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Props>(function FourRegnCustomPrintEditor(
-  { frontGarmentImage, backGarmentImage, onErrorMessage },
+  { frontGarmentImage, backGarmentImage, garment, colour, onErrorMessage },
   ref
 ) {
   const both = !!backGarmentImage;
@@ -88,6 +143,7 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
   const [flipRot, setFlipRot] = useState(0);
   const [sides, setSides] = useState<{ front: SideState; back: SideState }>({ front: { ...BLANK_SIDE }, back: { ...BLANK_SIDE } });
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [stageAspect, setStageAspect] = useState<{ front: number; back: number }>({ front: 3 / 4, back: 3 / 4 });
   const [cropOpen, setCropOpen] = useState(false);
   const [cropRect, setCropRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
   const cropNaturalRef = useRef({ w: 0, h: 0 });
@@ -101,15 +157,36 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
   const frontInputRef = useRef<HTMLInputElement | null>(null);
   const backInputRef = useRef<HTMLInputElement | null>(null);
 
-  const getZoneRect = () => {
+  const zoneColour = (colour || "black").toLowerCase();
+
+  const getZoneRect = (view: Side) => {
     const stage = stageRef.current;
     const w = stage?.clientWidth || 320;
-    const h = stage?.clientHeight || 400;
-    return { x: ZONE.x * w, y: ZONE.y * h, w: ZONE.w * w, h: ZONE.h * h };
+    const h = stage?.clientHeight || 320;
+    const table = PRINT_ZONE[garment][view];
+    const cfg = table[zoneColour] || table.black;
+    const zw = w * cfg.wP;
+    const zh = h * cfg.hP;
+    const zx = w * cfg.cxP - zw / 2;
+    const zy = h * cfg.tP;
+    return { x: zx, y: zy, w: zw, h: zh };
+  };
+
+  // The calibration percentages above assume the stage box's own aspect
+  // ratio exactly matches the photo (no letterbox/crop) -- upload.html
+  // achieves that by setting the stage's CSS aspect-ratio per photo
+  // (frontAspect()). Same idea here, measured at runtime off the actual
+  // loaded image instead of hardcoded per file, so it's correct
+  // regardless of the exact pixel dimensions of these copied assets.
+  const onGarmentLoad = (view: Side, e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    setStageAspect((prev) => (prev[view] === ratio ? prev : { ...prev, [view]: ratio }));
   };
 
   const fitIntoZone = (view: Side, url: string, ar: number) => {
-    const zone = getZoneRect();
+    const zone = getZoneRect(view);
     let w = zone.w;
     let h = w * ar;
     if (h > zone.h) { h = zone.h; w = h / ar; }
@@ -154,7 +231,7 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
   const onDesignPointerMove = (e: React.PointerEvent) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
-    const zone = getZoneRect();
+    const zone = getZoneRect(curView);
     const s = sides[curView];
     if (drag.mode === "move") {
       let nx = drag.x + (e.clientX - drag.mx);
@@ -250,30 +327,47 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
     setCropOpen(false);
   };
 
-  // ── Front/back flip (click only -- see file comment) ──
+  // ── Front/back flip ──
+  // The outer .fr-cpe-card animates rotateY 0<->180 over the CSS
+  // transition; the inner .fr-cpe-stage-inner snaps (no transition) to
+  // the counter-rotation the instant curView changes. Ported straight
+  // from upload.html's updateStageView() -- see file header comment for
+  // why this specific mechanism (not backface-visibility face-swapping)
+  // is what keeps back-view content readable instead of mirrored.
   const flipTo = (view: Side) => {
+    if (view === curView) return;
     setFlipRot(view === "back" ? 180 : 0);
-    window.setTimeout(() => setCurView(view), 180);
+    window.setTimeout(() => { setCurView(view); setControlsVisible(true); }, 220);
   };
 
   useImperativeHandle(ref, () => ({
     isReady: () => !!sides.front.url && (!both || !!sides.back.url),
-    reset: () => setSides({ front: { ...BLANK_SIDE }, back: { ...BLANK_SIDE } }),
+    reset: () => { setSides({ front: { ...BLANK_SIDE }, back: { ...BLANK_SIDE } }); setCurView("front"); setFlipRot(0); },
     capture: async () => {
       if (!sides.front.url) return null;
       if (both && !sides.back.url) return null;
-      const stage = stageRef.current;
-      const stageW = stage?.clientWidth || 320;
-      const stageH = stage?.clientHeight || 400;
+      // stageW is always the stage box's rendered width -- constant across
+      // front/back since both sit in the same 100%-width container. stageH
+      // is NOT constant: the front and back stage each get their own
+      // aspect-ratio (see stageAspect/onGarmentLoad above), so
+      // stageRef.current.clientHeight only ever reflects whichever view is
+      // currently on screen. sides.front/back's x/y/w/h were each recorded
+      // against their OWN view's height at placement time, so re-deriving
+      // stageH per side from stageAspect (rather than reading whatever
+      // height happens to be rendered right now) is what keeps the
+      // composite's scale factor correct for both sides regardless of
+      // which one the customer is looking at when they hit Add to Cart.
+      const stageW = stageRef.current?.clientWidth || 320;
 
       const compositeSide = async (view: Side, garmentSrc: string): Promise<string> => {
         const s = sides[view];
-        const [garment, design] = await Promise.all([loadImage(garmentSrc), loadImage(s.url!)]);
+        const stageH = stageW / (stageAspect[view] || 1);
+        const [garmentImg, design] = await Promise.all([loadImage(garmentSrc), loadImage(s.url!)]);
         const canvas = document.createElement("canvas");
         canvas.width = 720;
-        canvas.height = Math.round(720 * (garment.naturalHeight / garment.naturalWidth));
+        canvas.height = Math.round(720 * (garmentImg.naturalHeight / garmentImg.naturalWidth));
         const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(garment, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height);
         const sx = canvas.width / stageW;
         const sy = canvas.height / stageH;
         ctx.drawImage(design, s.x * sx, s.y * sy, s.w * sx, s.h * sy);
@@ -290,50 +384,61 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
         backPreviewDataUrl,
       };
     },
-  }), [sides, both, frontGarmentImage, backGarmentImage]);
+  }), [sides, both, frontGarmentImage, backGarmentImage, stageAspect]);
 
   const s = sides[curView];
   const garmentSrc = curView === "front" ? frontGarmentImage : backGarmentImage || frontGarmentImage;
+  const innerCounterRot = curView === "back" ? 180 : 0;
 
   return (
     <div className="fr-cpe">
       <div className="fr-cpe-perspective">
         <div className="fr-cpe-card" style={{ transform: `rotateY(${flipRot}deg)` }}>
           <div
-            className="fr-cpe-stage"
-            ref={stageRef}
-            onClick={(e) => { if (s.url && !(e.target as HTMLElement).closest(".fr-cpe-design-layer")) setControlsVisible(false); }}
+            className="fr-cpe-stage-inner"
+            style={{ transform: `rotateY(${innerCounterRot}deg)`, aspectRatio: String(stageAspect[curView]) }}
           >
-            <img src={garmentSrc} alt="" className="fr-cpe-garment-img" draggable={false} />
-            {!s.url && (
-              <button type="button" className="fr-cpe-empty" onClick={() => openPicker(curView)}>
-                <span className="fr-cpe-plus">+</span>
-                <span>Tap to upload your design</span>
-              </button>
-            )}
-            {s.url && (
-              <div
-                className={"fr-cpe-design-layer" + (controlsVisible ? "" : " fr-cpe-controls-hidden")}
-                style={{ left: s.x, top: s.y, width: s.w, height: s.h }}
-                onPointerDown={(e) => onDesignPointerDown(e, "move")}
-                onPointerMove={onDesignPointerMove}
-                onPointerUp={onDesignPointerUp}
-                onClick={(e) => { e.stopPropagation(); setControlsVisible(true); }}
-              >
-                <img src={s.url} alt="Your design" draggable={false} />
-                <button type="button" className="fr-cpe-btn-change" aria-label="Change upload" onClick={(e) => { e.stopPropagation(); openPicker(curView); }}>+</button>
-                <button type="button" className="fr-cpe-btn-remove" aria-label="Remove upload" onClick={(e) => { e.stopPropagation(); removeDesign(); }}>−</button>
-                <button type="button" className="fr-cpe-btn-crop" aria-label="Crop image" onClick={(e) => { e.stopPropagation(); openCrop(); }}>
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 1v9a2 2 0 0 0 2 2h9" /><path d="M12 15V6a2 2 0 0 0-2-2H1" /></svg>
+            <div
+              className="fr-cpe-stage"
+              ref={stageRef}
+              onClick={(e) => { if (s.url && !(e.target as HTMLElement).closest(".fr-cpe-design-layer")) setControlsVisible(false); }}
+            >
+              <img src={garmentSrc} alt="" className="fr-cpe-garment-img" draggable={false} onLoad={(e) => onGarmentLoad(curView, e)} />
+              {!s.url && (
+                <button
+                  type="button"
+                  className={"fr-cpe-empty" + (zoneColour === "white" ? " fr-cpe-empty-light" : "")}
+                  style={{ left: getZoneRect(curView).x, top: getZoneRect(curView).y, width: getZoneRect(curView).w, height: getZoneRect(curView).h }}
+                  onClick={() => openPicker(curView)}
+                >
+                  <span className="fr-cpe-plus">+</span>
+                  <span className="fr-cpe-empty-hint">Tap to upload</span>
                 </button>
+              )}
+              {s.url && (
                 <div
-                  className="fr-cpe-handle"
-                  onPointerDown={(e) => onDesignPointerDown(e, "resize")}
+                  className={"fr-cpe-design-layer" + (controlsVisible ? "" : " fr-cpe-controls-hidden")}
+                  style={{ left: s.x, top: s.y, width: s.w, height: s.h }}
+                  onPointerDown={(e) => onDesignPointerDown(e, "move")}
                   onPointerMove={onDesignPointerMove}
                   onPointerUp={onDesignPointerUp}
-                />
-              </div>
-            )}
+                  onClick={(e) => { e.stopPropagation(); setControlsVisible(true); }}
+                >
+                  <img src={s.url} alt="Your design" draggable={false} />
+                  <button type="button" className="fr-cpe-btn-change" aria-label="Change upload" onClick={(e) => { e.stopPropagation(); openPicker(curView); }}>+</button>
+                  <button type="button" className="fr-cpe-btn-remove" aria-label="Remove upload" onClick={(e) => { e.stopPropagation(); removeDesign(); }}>−</button>
+                  <button type="button" className="fr-cpe-btn-crop" aria-label="Crop image" onClick={(e) => { e.stopPropagation(); openCrop(); }}>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 1v9a2 2 0 0 0 2 2h9" /><path d="M12 15V6a2 2 0 0 0-2-2H1" /></svg>
+                  </button>
+                  <div
+                    className="fr-cpe-handle"
+                    onPointerDown={(e) => onDesignPointerDown(e, "resize")}
+                    onPointerMove={onDesignPointerMove}
+                    onPointerUp={onDesignPointerUp}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

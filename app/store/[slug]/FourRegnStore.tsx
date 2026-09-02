@@ -682,6 +682,72 @@ function NavigationProgress({ active }: { active: boolean }) {
   return <div className={`fr-progress is-${phase}`} role="progressbar" aria-label="Loading next page" />;
 }
 
+// Derives the interactive editor's inputs (which two garment photos to
+// draw on, and which calibrated print-zone table to use) from the
+// product + whatever colour is currently selected. Shared by
+// CustomPrintStage and the PDP's variant-image logic below.
+function customPrintGarmentImages(product: Product, selectedVariants: { [key: string]: string }) {
+  const both = isCustomPrintBoth(product);
+  const imgs = resolveVariantImages(product, selectedVariants) ?? productBaseImages(product);
+  const frontImg = imgs[0] || product.image_url || "";
+  const backImg = both ? (imgs[1] || product.images?.[0] || frontImg) : undefined;
+  const garment: "hoodie" | "tee" = /HOODIE/i.test(product.category || "") ? "hoodie" : "tee";
+  const colour = selectedVariants["Color"] || "";
+  return { both, frontImg, backImg, garment, colour };
+}
+
+// Custom Upload Studio's interactive placement tool -- shared by both PDP
+// surfaces (the slide-over and the dedicated /products/<handle> page) as
+// the actual gallery for custom-print products, replacing the plain
+// static ProductGallery entirely (not sitting below it -- a customer
+// should never see a plain, un-printed garment photo for one of these
+// products).
+//
+// Declared at module scope, NOT inside FourRegnStore's component body --
+// a component defined inline in a render function gets a brand new
+// function identity every render, which makes React treat it as a
+// different component type and remount its whole subtree (including
+// FourRegnCustomPrintEditor's own state) on every unrelated re-render of
+// the page. That was the actual cause of uploaded artwork silently
+// disappearing "after a while": any state change anywhere on the page
+// (a countdown tick, a cart update, a wishlist toggle) re-rendered
+// FourRegnStore, created a new CustomPrintUpload function, and wiped the
+// editor. Module scope gives it one stable identity for the life of the
+// page, same as ProductGallery below.
+function CustomPrintStage({ product, selectedVariants, editorRef, onErrorMessage }: {
+  product: Product;
+  selectedVariants: { [key: string]: string };
+  editorRef: { current: FourRegnCustomPrintEditorHandle | null };
+  onErrorMessage: (message: string) => void;
+}) {
+  if (!isCustomPrintProduct(product)) return null;
+  const { frontImg, backImg, garment, colour } = customPrintGarmentImages(product, selectedVariants);
+  if (!frontImg) return null;
+  return (
+    <FourRegnCustomPrintEditor
+      ref={editorRef}
+      frontGarmentImage={frontImg}
+      backGarmentImage={backImg}
+      garment={garment}
+      colour={colour}
+      onErrorMessage={onErrorMessage}
+    />
+  );
+}
+
+// The error/processing/hint text that used to sit alongside the editor
+// itself now that the editor lives in the gallery slot instead.
+function CustomPrintHint({ product, error, processing }: { product: Product; error: string; processing: boolean }) {
+  if (!isCustomPrintProduct(product)) return null;
+  return (
+    <div className="fr-pdp-section">
+      {error && <div className="fr-pdp-err">{error}</div>}
+      {processing && <p className="fr-custom-upload-hint">Preparing your design…</p>}
+      <p className="fr-custom-upload-hint">PNG, JPEG or WEBP, up to 20MB. We print exactly what you upload.</p>
+    </div>
+  );
+}
+
 export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount, initialSearchQuery }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
@@ -2331,35 +2397,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     );
   };
 
-  // Custom Upload Studio's PDP piece -- shared by both PDP surfaces (the
-  // slide-over and the dedicated /products/<handle> page), same reasoning
-  // as ProductCard above. Renders nothing for a normal product. The
-  // interactive editor itself lives in FourRegnCustomPrintEditor; this is
-  // just wiring it to the currently-selected color's real garment
-  // photo(s) and surfacing its processing/error state.
-  const CustomPrintUpload = ({ product }: { product: Product }) => {
-    if (!isCustomPrintProduct(product)) return null;
-    const both = isCustomPrintBoth(product);
-    const imgs = resolveVariantImages(product, selectedVariants) ?? productBaseImages(product);
-    const frontImg = imgs[0] || product.image_url || "";
-    const backImg = both ? (imgs[1] || product.images?.[0] || frontImg) : undefined;
-    if (!frontImg) return null;
-    return (
-      <div className="fr-pdp-section">
-        <div className="fr-pdp-section-lbl">Your Design</div>
-        <FourRegnCustomPrintEditor
-          ref={customPrintEditorRef}
-          frontGarmentImage={frontImg}
-          backGarmentImage={backImg}
-          onErrorMessage={setCustomArtworkError}
-        />
-        {customArtworkError && <div className="fr-pdp-err">{customArtworkError}</div>}
-        {customArtworkProcessing && <p className="fr-custom-upload-hint">Preparing your design…</p>}
-        <p className="fr-custom-upload-hint">PNG, JPEG or WEBP, up to 20MB. We print exactly what you upload.</p>
-      </div>
-    );
-  };
-
   /* Shared contact-info list -- rendered on the dedicated Contact page
      (policyKey="contact"). */
   const ContactInfoList = () => (
@@ -3242,10 +3279,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
    wasn't carried over. */
 .fr-cpe-perspective{width:100%;perspective:1800px}
 .fr-cpe-card{position:relative;width:100%;transition:transform .45s cubic-bezier(0.34,1.56,0.64,1)}
-.fr-cpe-stage{position:relative;width:100%;aspect-ratio:3/4;border-radius:14px;overflow:hidden;background:#e0deda}
+/* Counter-rotated inner wrapper -- see FourRegnCustomPrintEditor.tsx's
+   file comment for why this (not backface-visibility face-swapping) is
+   what keeps back-view artwork/text readable instead of mirrored. Its
+   aspect-ratio is set inline per loaded garment photo so the print-zone
+   percentages (also per-photo) line up with what's actually on screen. */
+.fr-cpe-stage-inner{position:relative;width:100%;border-radius:14px;overflow:hidden;transform-style:preserve-3d}
+.fr-cpe-stage{position:absolute;inset:0;background:#e0deda}
 .fr-cpe-garment-img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;user-select:none}
-.fr-cpe-empty{position:absolute;inset:0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,0.55);border:none;cursor:pointer;font-family:var(--body);font-size:12px;font-weight:700;color:var(--ink)}
-.fr-cpe-plus{width:44px;height:44px;border-radius:50%;border:2px dashed rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:300;color:rgba(0,0,0,0.4)}
+.fr-cpe-empty{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:transparent;border:none;cursor:pointer;font-family:var(--body);font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.fr-cpe-empty.fr-cpe-empty-light{color:rgba(0,0,0,.6);text-shadow:none}
+.fr-cpe-empty-hint{text-shadow:inherit}
+.fr-cpe-plus{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:300;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.2);transition:transform .2s}
+.fr-cpe-empty:hover .fr-cpe-plus{transform:scale(1.08)}
 .fr-cpe-design-layer{position:absolute;cursor:move;touch-action:none}
 .fr-cpe-design-layer img{width:100%;height:100%;display:block;pointer-events:none;user-select:none}
 .fr-cpe-handle,.fr-cpe-btn-change,.fr-cpe-btn-remove,.fr-cpe-btn-crop{transition:opacity .18s ease}
@@ -3858,14 +3904,18 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 </div>
                 <div className="fr-pdp-grid">
                   <div className="fr-pdp-gal">
-                    <ProductGallery
-                      imgs={allImgs}
-                      activeIndex={activeImg}
-                      onIndexChange={setActiveImg}
-                      onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
-                      onImgError={handleImgError}
-                      alt={p.name}
-                    />
+                    {isCustomPrintProduct(p) ? (
+                      <CustomPrintStage product={p} selectedVariants={selectedVariants} editorRef={customPrintEditorRef} onErrorMessage={setCustomArtworkError} />
+                    ) : (
+                      <ProductGallery
+                        imgs={allImgs}
+                        activeIndex={activeImg}
+                        onIndexChange={setActiveImg}
+                        onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
+                        onImgError={handleImgError}
+                        alt={p.name}
+                      />
+                    )}
                   </div>
                   <div className="fr-pdp-info">
                     <h2 className="fr-pdp-name">{p.name}</h2>
@@ -3892,7 +3942,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </div>
                     ))}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
-                    <CustomPrintUpload product={p} />
+                    <CustomPrintHint product={p} error={customArtworkError} processing={customArtworkProcessing} />
                     {p.description && isPromotionalDescription(p) && <DescriptionText text={p.description} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
@@ -4584,27 +4634,31 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 </div>
                 <div className="fr-pdp-grid">
                   <div className="fr-pdp-gal">
-                    <ProductGallery
-                      imgs={allImgs}
-                      activeIndex={activeImg}
-                      onIndexChange={setActiveImg}
-                      onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
-                      onImgError={handleImgError}
-                      badges={<>
-                        <button type="button" className={"fr-wish-btn" + (wishlist.some((w) => w.id === p.id) ? " active" : "")} aria-label="Toggle wishlist" onClick={(e) => { e.stopPropagation(); toggleWishlist(p); }}><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></button>
-                        {p.in_stock === false ? (
-                          <span className="fr-ptag soldout">Sold Out</span>
-                        ) : (
-                          <>
-                            {pdpBadge && <span className="fr-ptag sale">{pdpBadge.label}</span>}
-                            {!pdpBadge && pdpPromo && <span className="fr-ptag sale">{pdpPromo.type === "percentage" ? `-${pdpPromo.value}%` : "Sale"}</span>}
-                            {!pdpBadge && !pdpPromo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
-                            {showHeroPill && (pdpBadge || pdpPromo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
-                          </>
-                        )}
-                      </>}
-                      alt={p.name}
-                    />
+                    {isCustomPrintProduct(p) ? (
+                      <CustomPrintStage product={p} selectedVariants={selectedVariants} editorRef={customPrintEditorRef} onErrorMessage={setCustomArtworkError} />
+                    ) : (
+                      <ProductGallery
+                        imgs={allImgs}
+                        activeIndex={activeImg}
+                        onIndexChange={setActiveImg}
+                        onOpenLightbox={() => { if (allImgs.length > 0) setLightbox({ imgs: allImgs, index: activeImg }); }}
+                        onImgError={handleImgError}
+                        badges={<>
+                          <button type="button" className={"fr-wish-btn" + (wishlist.some((w) => w.id === p.id) ? " active" : "")} aria-label="Toggle wishlist" onClick={(e) => { e.stopPropagation(); toggleWishlist(p); }}><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></button>
+                          {p.in_stock === false ? (
+                            <span className="fr-ptag soldout">Sold Out</span>
+                          ) : (
+                            <>
+                              {pdpBadge && <span className="fr-ptag sale">{pdpBadge.label}</span>}
+                              {!pdpBadge && pdpPromo && <span className="fr-ptag sale">{pdpPromo.type === "percentage" ? `-${pdpPromo.value}%` : "Sale"}</span>}
+                              {!pdpBadge && !pdpPromo && onSale && <span className="fr-ptag sale">{`-${salePct}%`}</span>}
+                              {showHeroPill && (pdpBadge || pdpPromo || onSale) && <span className="fr-ptag-anniv">{heroPillLabel}</span>}
+                            </>
+                          )}
+                        </>}
+                        alt={p.name}
+                      />
+                    )}
                   </div>
                   <div className="fr-pdp-info">
                     <h1 className="fr-pdp-name">{p.name}</h1>
@@ -4662,7 +4716,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       </button>
                     )}
                     {variantError && <div className="fr-pdp-err">Please select all options</div>}
-                    <CustomPrintUpload product={p} />
+                    <CustomPrintHint product={p} error={customArtworkError} processing={customArtworkProcessing} />
                     {displayDescription && isPromotionalDescription(p) && <DescriptionText text={displayDescription} promo />}
                     <div className="fr-pdp-actions">
                       {p.in_stock === false ? (
