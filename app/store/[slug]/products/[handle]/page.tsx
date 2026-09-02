@@ -53,7 +53,7 @@ const SELLER_COLUMNS =
 // PDP render (initialActiveProduct) needs everything: description, the full
 // images array, variants (size/option picker), old_price (sale price row).
 const PRODUCT_COLUMNS =
-  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, size_chart_html, sort_order, created_at, status, handle";
+  "id, name, price, old_price, category, image_url, images, variants, in_stock, description, size_chart_html, sort_order, created_at, status, handle, tags";
 // "You Might Also Like" (relatedProducts in FourRegnStore.tsx) no longer
 // has a server-side fetch here at all -- it now reads off the same lazy
 // client-side catalog fetch the header/mobile-dock search overlay already

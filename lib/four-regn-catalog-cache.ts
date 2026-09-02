@@ -3,7 +3,7 @@ import { supabaseAdmin } from "./supabase-admin";
 import { fetchAllRows } from "./fetch-all-rows";
 
 export const FOUR_REGN_CATALOG_COLUMNS =
-  "id, name, price, old_price, category, image_url, handle, created_at, in_stock";
+  "id, name, price, old_price, category, image_url, images, handle, created_at, in_stock, tags";
 
 const DISCOUNT_COLUMNS =
   "code, type, value, applies_to, expires_at, product_ids, collection_names, description";
@@ -37,11 +37,16 @@ export function getCachedFourRegnCatalog(slug: string, sellerId: string) {
         promoBadges: promoBadgesRes.data ?? [],
       };
     },
-    // v3 invalidates the persistent Vercel Data Cache after restoring the
-    // original 4REGN trucker-cap images. This cache survives deployments,
-    // so the key must change when an out-of-band catalog migration is
-    // rolled back.
-    ["four-regn-catalog-v3", slug, sellerId],
+    // v4: FOUR_REGN_CATALOG_COLUMNS gained tags/images (Custom Upload
+    // Studio products need both), and the 4 new product rows themselves
+    // were inserted directly via SQL migration -- an out-of-band catalog
+    // change, same reasoning as the v3 bump's own comment. Without
+    // bumping this, the persistent Vercel Data Cache (survives
+    // deployments) would keep serving the pre-migration snapshot -- the
+    // exact "collection page says 0 products even though they exist"
+    // report that prompted this fix -- for up to its own revalidate
+    // window regardless of this code shipping.
+    ["four-regn-catalog-v4", slug, sellerId],
     { revalidate: 3600, tags: [`storefront:${slug}`] }
   )();
 }
