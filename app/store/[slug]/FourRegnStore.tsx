@@ -2219,16 +2219,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
       && (flashCapState === "ELIGIBLE_UNCLAIMED" || flashCapState === "ELIGIBLE_CLAIMED");
     const promo = getProductPromo(p.id);
     // Custom Upload Studio "front + back" cards get UNIK's own auto-flip
-    // animation (see .fr-pimg-flip below) -- the default color's own
-    // front/back pair, since a grid card has no variant selection of its
-    // own yet. Colour variant images are stored [front, back] per option
-    // (see the product-seed migration), matching what resolveVariantImage
-    // elsewhere already assumes for this same field.
-    const cardColorVariant = p.variants?.find((v) => v.name === "Color");
-    const cardDefaultColor = cardColorVariant?.options?.[0];
-    const cardVariantImgs = cardDefaultColor ? cardColorVariant?.images?.[cardDefaultColor] : undefined;
-    const cardFrontImg = cardVariantImgs?.[0] || p.image_url || undefined;
-    const cardBackImg = isCustomPrintBoth(p) ? cardVariantImgs?.[1] : undefined;
+    // animation (see .fr-pimg-flip below) -- image_url/images (NOT the
+    // per-color variant images, which resolveVariantImage elsewhere
+    // upgrades to once a color is actually picked on the PDP) so the card
+    // shows the smaller, card-optimized crop the product-seed migration
+    // puts there, same as every other product's card image_url already
+    // works, rather than the larger PDP-resolution photo.
+    const cardFrontImg = p.image_url || undefined;
+    const cardBackImg = isCustomPrintBoth(p) ? p.images?.[0] : undefined;
     return (
       <div className="fr-pcard" onClick={() => goToProduct(p)}>
         <div className="fr-pimg">
