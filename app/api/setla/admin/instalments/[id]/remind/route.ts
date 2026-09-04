@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
 import { rateLimit } from "../../../../../../../lib/rate-limit";
-import { sendSetlaEmail } from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, SETLA_APP_ORIGIN } from "../../../../../../../lib/setla-email";
 import { formatInstalmentDueDate } from "../../../../../../../lib/setla-instalments";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     kicker: instalment.status === "overdue" || new Date(instalment.due_at).getTime() < Date.now() ? "Payment overdue" : "Upcoming payment",
     headline: `Instalment ${instalment.sequence_number} of your SETLA plan is ${new Date(instalment.due_at).getTime() < Date.now() ? "overdue" : "coming up"}.`,
     bodyHtml: `A payment of <strong class="setla-fg" style="color:#ffffff">R${Number(instalment.amount).toFixed(2)}</strong> for order <strong class="setla-fg" style="color:#ffffff">${reference}</strong> is due on <strong class="setla-fg" style="color:#ffffff">${dueDate}</strong>.`,
-    ctaLabel: "View payment schedule",
+    // #plans jumps straight to the Payment Plans view on load (see
+    // setla.js's showDashboardView/initialView) instead of landing on the
+    // Overview tab, where reaching the actual "Pay now" button meant
+    // scrolling past the approved-limit hero and clicking through "Manage
+    // payment plan" first. requireAccount() in setla.js preserves this
+    // hash across the login redirect for a signed-out click too.
+    ctaLabel: "Pay now",
+    ctaUrl: `${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`,
   });
   await Promise.all([
     admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "repayment_reminder", title: `Payment reminder — ${reference}`, body: `R${Number(instalment.amount).toFixed(2)} due ${dueDate}`, metadata: { instalmentId: id, orderId: setlaOrder.unik_order_id } }),

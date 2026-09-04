@@ -100,7 +100,12 @@
     if(!dashRes||!dashRes.ok)return null;
     return await dashRes.json().catch(()=>null);
   }
-  function requireAccount(next=location.pathname.split('/').pop()+location.search){if(currentAccount())return true;location.href=`login.html?next=${encodeURIComponent(next)}`;return false}
+  // Includes location.hash -- dashboard.html uses a #plans/#laybuy/etc hash
+  // to jump straight to a specific view on load (see showDashboardView
+  // below). Without the hash here, an unauthenticated visit to a deep link
+  // like dashboard.html#plans would drop it across this redirect and land
+  // back on the generic Overview tab after login instead.
+  function requireAccount(next=location.pathname.split('/').pop()+location.search+location.hash){if(currentAccount())return true;location.href=`login.html?next=${encodeURIComponent(next)}`;return false}
   // Show/hide toggle for every password field -- lets a customer confirm
   // what they actually typed before submitting, especially on mobile
   // keyboards. data-toggle-password points at the input's id.

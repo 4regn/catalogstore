@@ -3,6 +3,7 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { initiateStitchConsentPayment } from "../../../../lib/stitch";
 import { getSellerForSetlaOrder, markSetlaInstalmentPaid } from "../../../../lib/setla-instalments";
 import { sendEmail } from "../../../../lib/email";
+import { SETLA_APP_ORIGIN } from "../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -107,5 +108,11 @@ async function notifyCustomer(admin: ReturnType<typeof getAdmin>, customerId: st
     : `We tried a few times to automatically collect instalment ${sequenceNumber} and it didn't go through. Please pay it manually from your dashboard.`;
   await admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "instalment_paid", title, body });
   const seller = await getSellerForSetlaOrder(admin, setlaOrderId);
-  await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p>` });
+  // #plans (see setla.js's showDashboardView/initialView) jumps straight
+  // to the Payment Plans view -- where the actual "Pay now" button for
+  // this instalment already is -- instead of leaving the customer to find
+  // their own way there from a bare "pay it manually from your dashboard"
+  // sentence with no link at all.
+  const payUrl = `${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`;
+  await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p><p><a href="${payUrl}">Pay now &rarr;</a></p>` });
 }
