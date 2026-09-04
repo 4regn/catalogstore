@@ -230,6 +230,14 @@ interface Order {
   abandoned_cart_email_sent_at?: string | null;
 }
 
+// Internal audit trail only -- does not drive what customers see (see
+// supabase/migrations/20260904_order_tracking_history.sql). Kept separate
+// from Order.status/tracking_updated_at, which remain the single source
+// for the customer-facing tracking page.
+interface OrderTrackingHistoryEntry {
+  id: string; order_id: string; status: string; note: string | null; occurred_at: string; created_at: string;
+}
+
 interface LiveVisitor {
   id: string; visitor_id: string; status: "browsing" | "active_cart" | "checkout"; path: string | null;
   cart_item_count: number; cart_value: number; customer_name: string | null; customer_email: string | null;
@@ -671,6 +679,11 @@ export default function Dashboard() {
   const [newShipPremium, setNewShipPremium] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderSaved, setOrderSaved] = useState(false);
+  const [trackingHistory, setTrackingHistory] = useState<OrderTrackingHistoryEntry[]>([]);
+  const [trackingHistoryLoading, setTrackingHistoryLoading] = useState(false);
+  const [newHistoryStatus, setNewHistoryStatus] = useState("");
+  const [newHistoryAt, setNewHistoryAt] = useState("");
+  const [newHistoryNote, setNewHistoryNote] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
   const [orderPaymentStatusFilter, setOrderPaymentStatusFilter] = useState("all");
   const [orderFulfillmentStatusFilter, setOrderFulfillmentStatusFilter] = useState("all");
@@ -762,6 +775,48 @@ export default function Dashboard() {
     const saved = sessionStorage.getItem("cs_dashboard_pending_tab");
     if (saved) { sessionStorage.removeItem("cs_dashboard_pending_tab"); setTab(saved as TabKey); }
   }, []);
+
+  // Loads the audit-trail history for whichever order is currently open.
+  // Fails quietly (empty list) if the order_tracking_history table/policy
+  // hasn't been created yet in this seller's project -- the rest of the
+  // order view (status buttons, tracking fields) doesn't depend on it.
+  useEffect(() => {
+    if (!selectedOrder?.id) { setTrackingHistory([]); return; }
+    let cancelled = false;
+    setTrackingHistoryLoading(true);
+    supabase.from("order_tracking_history").select("id, order_id, status, note, occurred_at, created_at").eq("order_id", selectedOrder.id).order("occurred_at", { ascending: false }).then(({ data, error }) => {
+      if (cancelled) return;
+      setTrackingHistoryLoading(false);
+      setTrackingHistory(error ? [] : (data as OrderTrackingHistoryEntry[]) || []);
+    });
+    return () => { cancelled = true; };
+  }, [selectedOrder?.id]);
+
+  // Called alongside every status-button click below so the audit trail
+  // builds up going forward -- never blocks or alerts on failure (e.g. the
+  // migration hasn't been run yet), since losing the log entry shouldn't
+  // stop the actual customer-facing status update from saving.
+  const logOrderTrackingHistory = async (orderId: string, status: string, occurredAt: string, note: string | null = null) => {
+    const { data, error } = await supabase.from("order_tracking_history").insert({ order_id: orderId, status, occurred_at: occurredAt, note }).select("id, order_id, status, note, occurred_at, created_at").single();
+    if (!error && data) setTrackingHistory((prev) => [data as OrderTrackingHistoryEntry, ...prev].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()));
+  };
+  const saveTrackingHistoryEntry = async (row: OrderTrackingHistoryEntry) => {
+    const { error } = await supabase.from("order_tracking_history").update({ status: row.status, occurred_at: row.occurred_at, note: row.note }).eq("id", row.id);
+    if (error) { alert("Failed to save: " + error.message); return; }
+    setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000);
+  };
+  const deleteTrackingHistoryEntry = async (id: string) => {
+    if (!confirm("Delete this tracking history entry? This cannot be undone.")) return;
+    const { error } = await supabase.from("order_tracking_history").delete().eq("id", id);
+    if (error) { alert("Failed to delete: " + error.message); return; }
+    setTrackingHistory((prev) => prev.filter((row) => row.id !== id));
+  };
+  const addTrackingHistoryEntry = async () => {
+    if (!selectedOrder || !newHistoryStatus) return;
+    const occurredAt = newHistoryAt ? fromDateTimeLocalValue(newHistoryAt) : new Date().toISOString();
+    await logOrderTrackingHistory(selectedOrder.id, newHistoryStatus, occurredAt, newHistoryNote.trim() || null);
+    setNewHistoryStatus(""); setNewHistoryAt(""); setNewHistoryNote("");
+  };
 
   const switchTab = (t: TabKey) => {
     setTab(t);
@@ -3902,7 +3957,7 @@ export default function Dashboard() {
                     {(seller?.template === "unik-labs" ? UNIK_ORDER_STATUSES : GENERIC_ORDER_STATUSES).map((s) => {
                       const c = orderStatusColors(s);
                       return (
-                      <button key={s} onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ status: s, tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? c.bg : "var(--panel-2)", color: selectedOrder.status === s ? c.fg : "var(--muted-2)" }}>{s.replace(/_/g, " ")}</button>
+                      <button key={s} onClick={async () => { const trackingUpdatedAt = selectedOrder.tracking_updated_at || new Date().toISOString(); const { error } = await supabase.from("orders").update({ status: s, tracking_updated_at: trackingUpdatedAt }).eq("id", selectedOrder.id); if (error) { alert("Failed to save: " + error.message); return; } const updated = { ...selectedOrder, status: s, tracking_updated_at: trackingUpdatedAt }; setSelectedOrder(updated); setOrders(orders.map((o) => o.id === selectedOrder.id ? updated : o)); setOrderSaved(true); setTimeout(() => setOrderSaved(false), 2000); logOrderTrackingHistory(selectedOrder.id, s, trackingUpdatedAt); }} style={{ padding: "7px 14px", borderRadius: 100, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.04em", cursor: "pointer", border: "none", fontFamily: "'Schibsted Grotesk', sans-serif", background: selectedOrder.status === s ? c.bg : "var(--panel-2)", color: selectedOrder.status === s ? c.fg : "var(--muted-2)" }}>{s.replace(/_/g, " ")}</button>
                       );
                     })}
                   </div>
@@ -3918,6 +3973,39 @@ export default function Dashboard() {
                       {tracking.cancelled ? <div style={{ color: "#ff6b35", fontSize: 11, fontWeight: 800 }}>Order cancelled</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(95px,1fr))", gap: 7 }}>{tracking.stages.map((stage) => <div key={stage.key} style={{ padding: "10px 8px", borderRadius: 10, textAlign: "center" as const, background: stage.complete ? "rgba(34,197,94,.12)" : "var(--panel)", border: `1px solid ${stage.complete ? "rgba(34,197,94,.25)" : "var(--border)"}`, color: stage.complete ? "#22c55e" : "var(--muted-2)", fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{stage.complete ? "✓ " : ""}{stage.label}</div>)}</div>}
                     </div>;
                   })()}
+                  <div style={{ marginTop: 16, padding: 16, borderRadius: 14, background: "var(--panel-2)", border: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const, marginBottom: 4 }}><strong style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: ".07em" }}>Tracking history</strong><span style={{ fontSize: 10, color: "var(--muted-2)" }}>{trackingHistoryLoading ? "Loading…" : `${trackingHistory.length} entr${trackingHistory.length === 1 ? "y" : "ies"}`}</span></div>
+                    <p style={{ fontSize: 11, color: "var(--muted-2)", margin: "0 0 12px" }}>Internal record only &mdash; doesn&rsquo;t change what customers see. Every time you click a status pill above, an entry is logged here automatically; you can also add, correct or remove entries below.</p>
+                    {!trackingHistoryLoading && trackingHistory.length === 0 && <p style={{ fontSize: 12, color: "var(--muted-2)", margin: "0 0 12px" }}>No history yet. It will start filling in as you update this order&rsquo;s status.</p>}
+                    {trackingHistory.length > 0 && (
+                      <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+                        {trackingHistory.map((row) => {
+                          const c = orderStatusColors(row.status);
+                          return (
+                            <div key={row.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" as const, padding: "10px 12px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10 }}>
+                              <select value={row.status} onChange={(e) => setTrackingHistory((prev) => prev.map((r) => r.id === row.id ? { ...r, status: e.target.value } : r))} style={{ padding: "7px 8px", borderRadius: 8, border: "none", background: c.bg, color: c.fg, fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.03em", fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+                                {(seller?.template === "unik-labs" ? UNIK_ORDER_STATUSES : GENERIC_ORDER_STATUSES).map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+                              </select>
+                              <input type="datetime-local" value={toDateTimeLocalValue(row.occurred_at)} onChange={(e) => setTrackingHistory((prev) => prev.map((r) => r.id === row.id ? { ...r, occurred_at: fromDateTimeLocalValue(e.target.value) } : r))} style={{ padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 11, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                              <input type="text" value={row.note || ""} onChange={(e) => setTrackingHistory((prev) => prev.map((r) => r.id === row.id ? { ...r, note: e.target.value.slice(0, 300) } : r))} placeholder="Note (optional)" style={{ flex: "1 1 140px", minWidth: 0, padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 11, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                              <button type="button" onClick={() => saveTrackingHistoryEntry(row)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, cursor: "pointer" }}>Save</button>
+                              <button type="button" onClick={() => deleteTrackingHistoryEntry(row.id)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "#ff6b35", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, cursor: "pointer" }}>Delete</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" as const, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                      <select value={newHistoryStatus} onChange={(e) => setNewHistoryStatus(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--input-bg)", color: "var(--text)", fontSize: 11, fontFamily: "'Schibsted Grotesk', sans-serif" }}>
+                        <option value="">+ Add entry: status&hellip;</option>
+                        {(seller?.template === "unik-labs" ? UNIK_ORDER_STATUSES : GENERIC_ORDER_STATUSES).map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+                      </select>
+                      <input type="datetime-local" value={newHistoryAt} onChange={(e) => setNewHistoryAt(e.target.value)} style={{ padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 11, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                      <input type="text" value={newHistoryNote} onChange={(e) => setNewHistoryNote(e.target.value.slice(0, 300))} placeholder="Note (optional)" style={{ flex: "1 1 140px", minWidth: 0, padding: "8px 10px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 11, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
+                      <button type="button" disabled={!newHistoryStatus} onClick={addTrackingHistoryEntry} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: newHistoryStatus ? "var(--text)" : "var(--panel-2)", color: newHistoryStatus ? "var(--panel)" : "var(--muted-2)", fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, cursor: newHistoryStatus ? "pointer" : "default" }}>Add</button>
+                    </div>
+                    <span style={{ display: "block", fontSize: 10, color: "var(--muted-2)", marginTop: 8 }}>Leave the date blank to log it as right now.</span>
+                  </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div style={{ padding: "20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16 }}>
