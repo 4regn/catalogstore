@@ -281,6 +281,15 @@ index.html:
   there; only their header's inner content (the same menu / logo / search+cart
   icon layout, for consistency) changed, not how it's positioned.
 
+  The announcement bar itself ("iPhone Sale 2026 · Sealed & certified
+  pre-owned · Until further notice") was removed from index.html in a later
+  pass, at the seller's request. header is back to a plain top:0 fixed
+  overlay with no offset to compute, and the --ann-h variable and the JS that
+  measured the bar's height are gone with it — there was nothing left to
+  measure. product.html and collection.html still carry their own
+  announcement bar (unchanged, in normal document flow, scrolls away as
+  before) since the removal request was specific to the landing page.
+
   The menu icon reuses the same inert placeholder pattern the old mobile burger
   button already had (a toast saying the drawer isn't wired up — no drawer was
   built, so nothing was lost by dropping the old text nav-links row). Search is

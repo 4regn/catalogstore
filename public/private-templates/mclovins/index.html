@@ -81,13 +81,8 @@ h1,h2,h3,h4,p{margin:0}
 /* ─── scroll progress ───────────────────────────────────────────────── */
 #prog{position:fixed;inset:0 auto auto 0;height:2px;width:0;background:var(--lime);z-index:120;transition:width .1s linear}
 
-/* ─── announcement + header ─────────────────────────────────────────── */
-.ann{position:fixed;top:0;left:0;right:0;z-index:101;background:var(--ink);color:rgba(255,255,255,.72);
-  text-align:center;padding:9px 18px}
-.ann span{font-family:var(--mono);font-size:9.5px;letter-spacing:.26em;text-transform:uppercase}
-.ann b{color:var(--lime);font-weight:500}
-
-header{position:fixed;top:var(--ann-h,34px);left:0;right:0;z-index:100;background:transparent;color:#fff;
+/* ─── header ────────────────────────────────────────────────────────── */
+header{position:fixed;top:0;left:0;right:0;z-index:100;background:transparent;color:#fff;
   border-bottom:1px solid transparent;
   transition:border-color .45s var(--ease),background .45s var(--ease),color .45s var(--ease)}
 header.stuck{background:rgba(255,255,255,.88);backdrop-filter:saturate(180%) blur(20px);
@@ -110,7 +105,7 @@ header.stuck .hdr-icon-btn:hover{background:rgba(10,10,11,.06)}
 
 /* header is fixed now (overlaying the hero) — anchor targets need clearance so
    the always-pinned announcement bar + header don't cover the top of the section */
-#edit,#selected,#ledger,#wild,#signal{scroll-margin-top:calc(var(--ann-h,34px) + 100px)}
+#edit,#selected,#ledger,#wild,#signal{scroll-margin-top:110px}
 
 /* ─── hero (pixel-matched to supplied reference) ───────────────────────── */
 .hero{position:relative;width:100%;color:#fff;overflow:hidden;isolation:isolate;
@@ -336,10 +331,6 @@ html.js .rv{opacity:0;transform:translateY(16px);transition:opacity .85s var(--e
 </head>
 <body>
 <div id="prog"></div>
-
-<div class="ann">
-  <span><b>iPhone Sale 2026</b> &nbsp;·&nbsp; Sealed &amp; certified pre-owned &nbsp;·&nbsp; Until further notice</span>
-</div>
 
 <header id="hdr">
   <div class="wrap nav">
@@ -681,14 +672,6 @@ html.js .rv{opacity:0;transform:translateY(16px);transition:opacity .85s var(--e
 (function(){
   "use strict";
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* ── fixed announcement bar height -> header offset ───────────────── */
-  var ann = document.querySelector(".ann");
-  function syncAnnHeight(){
-    if (ann) document.documentElement.style.setProperty("--ann-h", ann.offsetHeight + "px");
-  }
-  syncAnnHeight();
-  addEventListener("resize", syncAnnHeight);
 
   /* ── sticky header hairline + scroll progress ───────────────────── */
   var hdr = document.getElementById("hdr"), prog = document.getElementById("prog"), ticking = false;
