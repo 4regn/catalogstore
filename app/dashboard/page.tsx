@@ -3970,7 +3970,22 @@ export default function Dashboard() {
                     const tracking = buildFourRegnTracking(selectedOrder);
                     return <div style={{ padding: 16, borderRadius: 14, background: "var(--panel-2)", border: "1px solid var(--border)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" as const, marginBottom: 12 }}><strong style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: ".07em" }}>Customer-facing tracking progress</strong><span style={{ fontSize: 10, color: "var(--muted-2)" }}>{tracking.updatedAt ? `Updated ${new Date(tracking.updatedAt).toLocaleString("en-ZA")}` : "No update time"}</span></div>
-                      {tracking.cancelled ? <div style={{ color: "#ff6b35", fontSize: 11, fontWeight: 800 }}>Order cancelled</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(95px,1fr))", gap: 7 }}>{tracking.stages.map((stage) => <div key={stage.key} style={{ padding: "10px 8px", borderRadius: 10, textAlign: "center" as const, background: stage.complete ? "rgba(34,197,94,.12)" : "var(--panel)", border: `1px solid ${stage.complete ? "rgba(34,197,94,.25)" : "var(--border)"}`, color: stage.complete ? "#22c55e" : "var(--muted-2)", fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>{stage.complete ? "✓ " : ""}{stage.label}</div>)}</div>}
+                      {tracking.cancelled ? <div style={{ color: "#ff6b35", fontSize: 11, fontWeight: 800 }}>Order cancelled</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 7 }}>{tracking.stages.map((stage, index) => {
+                        // Same per-stage date/time a customer sees on the
+                        // tracking page (order_tracking_history above), not
+                        // just this order's single "last updated" line --
+                        // prefers the logged history entry for this exact
+                        // stage when one exists (accurate for updates made
+                        // after that feature shipped), falling back to the
+                        // same current-stage/order-created logic the
+                        // customer-facing page itself uses when it doesn't.
+                        const historyMatch = trackingHistory.find((h) => h.status === stage.key);
+                        const timestamp = historyMatch?.occurred_at || (stage.current ? tracking.updatedAt : index === 0 && stage.complete ? selectedOrder.created_at : null);
+                        return <div key={stage.key} style={{ padding: "10px 8px", borderRadius: 10, textAlign: "center" as const, background: stage.complete ? "rgba(34,197,94,.12)" : "var(--panel)", border: `1px solid ${stage.complete ? "rgba(34,197,94,.25)" : "var(--border)"}`, color: stage.complete ? "#22c55e" : "var(--muted-2)", fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: ".04em" }}>
+                          <div>{stage.complete ? "✓ " : ""}{stage.label}</div>
+                          <div style={{ marginTop: 5, fontSize: 8, fontWeight: 700, letterSpacing: ".02em", opacity: 0.75 }}>{timestamp ? new Date(timestamp).toLocaleDateString("en-ZA", { day: "numeric", month: "short" }) + " · " + new Date(timestamp).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }) : stage.current ? "Updating" : "—"}</div>
+                        </div>;
+                      })}</div>}
                     </div>;
                   })()}
                   <div style={{ marginTop: 16, padding: 16, borderRadius: 14, background: "var(--panel-2)", border: "1px solid var(--border)" }}>
