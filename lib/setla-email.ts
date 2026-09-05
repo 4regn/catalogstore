@@ -153,6 +153,25 @@ export function signupNudgeEmailContent(firstName: string) {
 
 const money = (value: number) => `R${Number(value || 0).toFixed(2)}`;
 
+// "You're approved" (approvedEmailContent/sendApprovedSetlaLimitEmail)
+// fires once, at approval time. This is the separate ongoing nudge for an
+// already-approved customer who still has spending power sitting unused --
+// see limitReminderSmsContent in lib/setla-sms.ts for its SMS counterpart,
+// and the "Limit reminder campaign" tool in the Customers admin panel for
+// where this actually gets sent (targets every approved customer with
+// available_limit > 0).
+export function limitReminderEmailContent(firstName: string, availableLimit: number) {
+  return {
+    firstName,
+    subject: "Your SETLA limit is still available",
+    kicker: "Your limit is waiting",
+    headline: `You still have ${money(availableLimit)} ready to spend.`,
+    bodyHtml: `Your approved SETLA spending limit hasn't been used yet. Shop now at <strong class="setla-fg" style="color:#ffffff">4REGN</strong> and split the cost into easy instalments with SETLA Pay Later &mdash; buy today, pay over time.`,
+    ctaLabel: "Shop 4REGN now",
+    ctaUrl: "https://www.4regn.com",
+  };
+}
+
 // One content-builder per email type, shared between wherever it fires
 // automatically (apply/finish, the decision route, adjust-limit) and the
 // manual send-email tool in Brand Manager -- same reasoning as

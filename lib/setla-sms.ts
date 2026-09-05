@@ -29,3 +29,17 @@ export function approvedLimitSmsContent(firstName: string, approvedLimit: number
 export async function sendApprovedSetlaLimitSms(opts: { to: string; firstName: string; approvedLimit: number; variant?: "standard" | "starter" }) {
   await sendSms({ to: opts.to, message: approvedLimitSmsContent(opts.firstName, opts.approvedLimit, opts.variant) });
 }
+
+// Ongoing "you still haven't used it" nudge for an already-approved
+// customer, distinct from the one-time approvedLimitSmsContent above --
+// see limitReminderEmailContent in lib/setla-email.ts for the email
+// counterpart. Unlike the approval SMS, this one names the actual amount:
+// the whole point is reminding someone of money they're specifically not
+// using, so the number is what makes it worth reading.
+export function limitReminderSmsContent(firstName: string, availableLimit: number): string {
+  return `Hi ${firstName}, you still have R${Math.round(availableLimit).toLocaleString("en-ZA")} SETLA spend limit ready to use! Buy Now, Pay Later on 4REGN: ${SETLA_DASHBOARD_URL}`;
+}
+
+export async function sendLimitReminderSms(opts: { to: string; firstName: string; availableLimit: number }) {
+  await sendSms({ to: opts.to, message: limitReminderSmsContent(opts.firstName, opts.availableLimit) });
+}

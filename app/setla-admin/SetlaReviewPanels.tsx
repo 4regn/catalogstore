@@ -665,6 +665,88 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   );
 }
 
+// The nudge itself lives in lib/setla-email.ts (limitReminderEmailContent)
+// and lib/setla-sms.ts (limitReminderSmsContent) -- this card is just the
+// preview + confirm + trigger UI over app/api/setla/admin/campaigns/
+// limit-reminder, which does the actual targeting (approved customers with
+// available_limit > 0) and sending server-side.
+type LimitReminderAudienceRow = { id: string; name: string; email: string; phone: string; availableLimit: number; recentlyNudged: boolean };
+
+function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [audience, setAudience] = useState<LimitReminderAudienceRow[] | null>(null);
+  const [channel, setChannel] = useState<"email" | "sms" | "both">("email");
+  const [force, setForce] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/setla/admin/campaigns/limit-reminder");
+    const payload = await res.json().catch(() => ({}));
+    setAudience(res.ok ? payload.audience || [] : []);
+  }, [authedFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (!audience) return null;
+
+  const eligibleNow = force ? audience : audience.filter((c) => !c.recentlyNudged);
+  const recentlyNudgedCount = audience.filter((c) => c.recentlyNudged).length;
+  const totalAvailable = eligibleNow.reduce((sum, c) => sum + c.availableLimit, 0);
+  const channelLabel = channel === "both" ? "email + SMS" : channel;
+
+  async function send() {
+    if (!eligibleNow.length) return;
+    if (!window.confirm(`Send this reminder by ${channelLabel} to ${eligibleNow.length} customer${eligibleNow.length === 1 ? "" : "s"} with an available SETLA limit?`)) return;
+    setBusy(true);
+    const res = await authedFetch("/api/setla/admin/campaigns/limit-reminder", {
+      method: "POST",
+      body: JSON.stringify({ channel, force }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { toast(payload.error || "Could not send this campaign"); return; }
+    const parts = [];
+    if (payload.emailsSent) parts.push(`${payload.emailsSent} email${payload.emailsSent === 1 ? "" : "s"}`);
+    if (payload.smsSent) parts.push(`${payload.smsSent} SMS`);
+    toast(parts.length ? `Sent ${parts.join(" & ")}` : "Nothing to send");
+    setForce(false);
+    load();
+  }
+
+  return (
+    <div className="sad-card" style={{ marginBottom: 16 }}>
+      <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Limit reminder campaign</strong>
+      <p className="sad-empty" style={{ marginBottom: 14 }}>Nudges every approved customer who still has spending limit available to use it at 4REGN. Skips anyone already nudged in the last 3 days unless you opt in below.</p>
+      {audience.length === 0 ? (
+        <p className="sad-empty" style={{ margin: 0 }}>No approved customers currently have an available limit.</p>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 160px" }}>
+              Channel
+              <select className="sad-select" value={channel} onChange={(e) => setChannel(e.target.value as "email" | "sms" | "both")}>
+                <option value="email">Email</option>
+                <option value="sms">SMS</option>
+                <option value="both">Email + SMS</option>
+              </select>
+            </label>
+            {recentlyNudgedCount > 0 && (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#9ba29b", flex: "1 1 260px" }}>
+                <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+                Include {recentlyNudgedCount} already nudged in the last 3 days
+              </label>
+            )}
+            <button type="button" className="sad-btn" disabled={busy || eligibleNow.length === 0} onClick={send}>{busy ? "Sending…" : `Send to ${eligibleNow.length}`}</button>
+          </div>
+          <p className="sad-empty" style={{ margin: 0 }}>
+            {eligibleNow.length} customer{eligibleNow.length === 1 ? "" : "s"} targeted &middot; {money(totalAvailable)} in unused limit between them
+            {!force && recentlyNudgedCount > 0 && ` · ${recentlyNudgedCount} excluded (nudged recently)`}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<CustomerRow[] | null>(null);
@@ -682,6 +764,7 @@ export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: str
 
   return (
     <section>
+      <LimitReminderCampaignCard authedFetch={authedFetch} toast={toast} />
       {rows && rows.length > 0 && <SendCustomerEmailCard customers={rows} authedFetch={authedFetch} toast={toast} />}
       <input className="sad-input" placeholder="Search by name, email or ID number…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 16, maxWidth: 360 }} />
       {!rows ? <p className="sad-empty">Loading…</p> : rows.length === 0 ? <p className="sad-empty">No customers found.</p> : (
