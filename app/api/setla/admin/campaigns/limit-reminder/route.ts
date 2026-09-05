@@ -80,6 +80,15 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { body = {}; }
   const channel = body?.channel === "sms" || body?.channel === "both" ? body.channel : "email";
   const force = body?.force === true;
+  // Explicit targeting -- picking one (or a few) specific customers from
+  // the audience list rather than firing the whole campaign. Deliberately
+  // bypasses the recentlyNudged auto-skip below: clicking "Send" on one
+  // named row is a conscious one-off action, not the bulk button, so it
+  // should never silently no-op just because that customer happened to be
+  // nudged a day ago.
+  const customerIds: string[] | null = Array.isArray(body?.customerIds) && body.customerIds.length
+    ? body.customerIds.map((id: unknown) => String(id))
+    : null;
 
   const admin = getAdmin();
   let customers: EligibleCustomer[];
@@ -90,8 +99,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err?.message || "Could not load audience" }, { status: 500 });
   }
 
-  const targets = force ? customers : customers.filter((c) => !recentlyNudgedIds.has(c.id));
-  const skipped = customers.length - targets.length;
+  let targets: EligibleCustomer[];
+  let skipped: number;
+  if (customerIds) {
+    const idSet = new Set(customerIds);
+    targets = customers.filter((c) => idSet.has(c.id));
+    skipped = idSet.size - targets.length; // requested an id that isn't currently eligible (already approved-only + available_limit>0)
+  } else {
+    targets = force ? customers : customers.filter((c) => !recentlyNudgedIds.has(c.id));
+    skipped = customers.length - targets.length;
+  }
 
   let emailsSent = 0, smsSent = 0, smsSkippedBadNumber = 0;
   const failures: string[] = [];
@@ -131,7 +148,7 @@ export async function POST(req: NextRequest) {
     admin_email: auth.admin.email,
     action: "setla_limit_reminder_campaign",
     target_seller_id: null,
-    details: { channel, force, targeted: targets.length, skippedRecentlyNudged: skipped, emailsSent, smsSent, smsSkippedBadNumber, failed: failures.length },
+    details: { channel, force, customerIds: customerIds || undefined, targeted: targets.length, skippedRecentlyNudged: skipped, emailsSent, smsSent, smsSkippedBadNumber, failed: failures.length },
   });
 
   return NextResponse.json({

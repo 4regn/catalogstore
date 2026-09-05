@@ -722,6 +722,7 @@ function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path:
   // a full audience array rewrite on every keystroke.
   const [phoneDrafts, setPhoneDrafts] = useState<Record<string, string>>({});
   const [savingPhoneId, setSavingPhoneId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await authedFetch("/api/setla/admin/campaigns/limit-reminder");
@@ -742,6 +743,26 @@ function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path:
     if (!res.ok) { toast(payload.error || "Could not save this number"); return; }
     setAudience((prev) => prev ? prev.map((c) => (c.id === id ? { ...c, phone: payload.phone } : c)) : prev);
     toast("Phone number updated");
+  }
+
+  // Nudges exactly one customer, bypassing the recentlyNudged auto-skip
+  // (see the route's own comment) -- this is for exactly the case the
+  // all-or-nothing "Send to N" button above can't cover: one specific
+  // person, e.g. after just fixing their phone number.
+  async function sendOne(customer: LimitReminderAudienceRow) {
+    if (!window.confirm(`Send this reminder by ${channelLabel} to ${customer.name}?`)) return;
+    setSendingId(customer.id);
+    const res = await authedFetch("/api/setla/admin/campaigns/limit-reminder", {
+      method: "POST",
+      body: JSON.stringify({ channel, customerIds: [customer.id] }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    setSendingId(null);
+    if (!res.ok) { toast(payload.error || "Could not send this reminder"); return; }
+    const parts = [];
+    if (payload.emailsSent) parts.push(`${payload.emailsSent} email${payload.emailsSent === 1 ? "" : "s"}`);
+    if (payload.smsSent) parts.push(`${payload.smsSent} SMS`);
+    toast(parts.length ? `Sent ${parts.join(" & ")} to ${customer.name}` : `Nothing sent to ${customer.name} -- check their channel and phone number`);
   }
 
   if (!audience) return null;
@@ -804,13 +825,13 @@ function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path:
           <button type="button" className="sad-btn-outline" style={{ marginTop: 12 }} onClick={() => setShowList((v) => !v)}>{showList ? "Hide customers" : "Show customers & fix numbers"}</button>
           {showList && (
             <div className="sad-table" style={{ marginTop: 12 }}>
-              <div className="sad-row sad-row-header" style={{ gridTemplateColumns: "1.2fr 1fr 1.6fr .8fr" }}><span>Name</span><span>Available</span><span>Phone</span><span></span></div>
+              <div className="sad-row sad-row-header" style={{ gridTemplateColumns: "1.1fr .8fr 1.5fr .7fr .8fr" }}><span>Name</span><span>Available</span><span>Phone</span><span></span><span></span></div>
               {audience.map((c) => {
                 const draft = phoneDrafts[c.id] ?? "";
                 const invalid = !SA_PHONE_REGEX.test(c.phone || "");
                 const dirty = draft.trim() !== (c.phone || "");
                 return (
-                  <div key={c.id} className="sad-row" style={{ gridTemplateColumns: "1.2fr 1fr 1.6fr .8fr", alignItems: "center" }}>
+                  <div key={c.id} className="sad-row" style={{ gridTemplateColumns: "1.1fr .8fr 1.5fr .7fr .8fr", alignItems: "center" }}>
                     <span>{c.name}{c.recentlyNudged && <small style={{ display: "block", color: "#9ba29b" }}>Nudged recently</small>}</span>
                     <span>{money(c.availableLimit)}</span>
                     <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -819,6 +840,9 @@ function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path:
                     </span>
                     <button type="button" className="sad-btn-outline" disabled={!dirty || !draft.trim() || savingPhoneId === c.id} onClick={() => savePhone(c.id)} style={{ padding: "6px 10px", fontSize: 11 }}>
                       {savingPhoneId === c.id ? "Saving…" : "Save"}
+                    </button>
+                    <button type="button" className="sad-btn" disabled={sendingId === c.id || (channel === "sms" && invalid)} onClick={() => sendOne(c)} style={{ padding: "6px 10px", fontSize: 11 }}>
+                      {sendingId === c.id ? "Sending…" : "Send"}
                     </button>
                   </div>
                 );
