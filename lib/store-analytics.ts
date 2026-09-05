@@ -230,9 +230,17 @@ export async function getSessionAnalytics(admin: SupabaseClient, sellerId: strin
 export type BestSeller = { id: string; name: string; image: string | null; unitsSold: number; revenue: number };
 export type PaymentBreakdown = { method: string; count: number; revenue: number };
 
+// currentTotal/previousTotal compare the selected range against the
+// immediately preceding period of the same length (e.g. the last 7 days
+// vs the 7 days before that) -- changePct is null when previousTotal is
+// zero, since a percentage change off a zero base is meaningless (the UI
+// shows "New" instead of a number in that case).
+export type PeriodComparison = { currentTotal: number; previousTotal: number; changePct: number | null };
+
 export type FullAnalytics = {
   rangeDays: number;
   totals: { revenue: number; orders: number; sessions: number; addedToCart: number; reachedCheckout: number; conversionRate: number; cartRate: number; checkoutRate: number; averageOrderValue: number };
+  comparison: { revenue: PeriodComparison; orders: PeriodComparison; sessions: PeriodComparison };
   revenueSeries: { date: string; revenue: number }[];
   ordersSeries: { date: string; orders: number }[];
   sessionsSeries: DailySessionPoint[];
@@ -241,6 +249,11 @@ export type FullAnalytics = {
   topLocations: TopLocation[];
   customers: { total: number; returning: number; returningRate: number };
 };
+
+function periodComparison(currentTotal: number, previousTotal: number): PeriodComparison {
+  const changePct = previousTotal > 0 ? Math.round(((currentTotal - previousTotal) / previousTotal) * 1000) / 10 : null;
+  return { currentTotal, previousTotal, changePct };
+}
 
 type FullAnalyticsOrderRow = {
   total: number; payment_status: string; payment_method: string | null; created_at: string;
@@ -278,16 +291,30 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
   const dateStrings = pastNDaysStrings(days, today);
   const rangeStartIso = sastDayStartUtc(dateStrings[0]).toISOString();
 
-  const [orders, sessionsRes] = await Promise.all([
-    fetchOrdersInRange(admin, sellerId, rangeStartIso),
+  // The immediately preceding, equal-length period (e.g. the 7 days
+  // before the selected last-7-days range) -- fetched in the SAME query
+  // as the current period (one wider `gte`, split by date afterward)
+  // rather than a second round trip, purely to power the "vs previous
+  // period" comparison badges below. Doesn't touch any of the existing
+  // current-period bucketing/series/bestSellers/etc, which still only
+  // ever look at rows on or after dateStrings[0].
+  const dayBeforeRangeStr = new Date(new Date(dateStrings[0] + "T00:00:00Z").getTime() - 86_400_000).toISOString().slice(0, 10);
+  const previousDateStrings = pastNDaysStrings(days, dayBeforeRangeStr);
+  const previousRangeStartIso = sastDayStartUtc(previousDateStrings[0]).toISOString();
+
+  const [combinedOrders, sessionsRes] = await Promise.all([
+    fetchOrdersInRange(admin, sellerId, previousRangeStartIso),
     admin
       .from("store_visitor_sessions")
       .select("session_date, country, region, city, had_cart, reached_checkout")
       .eq("seller_id", sellerId)
-      .gte("session_date", dateStrings[0]),
+      .gte("session_date", previousDateStrings[0]),
   ]);
 
+  const orders = combinedOrders.filter((o) => sastDateOf(o.created_at) >= dateStrings[0]);
+  const previousOrders = combinedOrders.filter((o) => sastDateOf(o.created_at) < dateStrings[0]);
   const paid = orders.filter((o) => o.payment_status === "paid");
+  const previousPaid = previousOrders.filter((o) => o.payment_status === "paid");
 
   const revenueByDate = new Map(dateStrings.map((d) => [d, 0]));
   const ordersByDate = new Map(dateStrings.map((d) => [d, 0]));
@@ -322,7 +349,9 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
     }
   }
 
-  const sessionRows = sessionsRes.data || [];
+  const allSessionRows = sessionsRes.data || [];
+  const sessionRows = allSessionRows.filter((r) => r.session_date >= dateStrings[0]);
+  const previousSessionRows = allSessionRows.filter((r) => r.session_date < dateStrings[0]);
   const sessionsByDate = new Map(dateStrings.map((d) => [d, 0]));
   const locationCounts = new Map<string, TopLocation>();
   let addedToCart = 0;
@@ -343,6 +372,9 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
   const totalRevenue = paid.reduce((s, o) => s + Number(o.total || 0), 0);
   const totalOrders = paid.length;
   const totalSessions = sessionRows.length;
+  const previousRevenue = previousPaid.reduce((s, o) => s + Number(o.total || 0), 0);
+  const previousOrdersCount = previousPaid.length;
+  const previousSessionsCount = previousSessionRows.length;
   const returning = Array.from(emailCounts.values()).filter((c) => c > 1).length;
   const rawFullTopLocations = Array.from(locationCounts.values()).sort((a, b) => b.count - a.count);
   const cleanFullTopLocations = rawFullTopLocations.filter((loc) => !isLikelyNoisyLocation(loc));
@@ -359,6 +391,11 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
       cartRate: totalSessions > 0 ? (addedToCart / totalSessions) * 100 : 0,
       checkoutRate: totalSessions > 0 ? (reachedCheckout / totalSessions) * 100 : 0,
       averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    },
+    comparison: {
+      revenue: periodComparison(totalRevenue, previousRevenue),
+      orders: periodComparison(totalOrders, previousOrdersCount),
+      sessions: periodComparison(totalSessions, previousSessionsCount),
     },
     revenueSeries: dateStrings.map((d) => ({ date: d, revenue: Math.round((revenueByDate.get(d) || 0) * 100) / 100 })),
     ordersSeries: dateStrings.map((d) => ({ date: d, orders: ordersByDate.get(d) || 0 })),

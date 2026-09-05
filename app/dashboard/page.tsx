@@ -5097,22 +5097,33 @@ export default function Dashboard() {
               const fa = fullAnalytics;
               const money = (n: number) => "R" + Math.round(n).toLocaleString("en-ZA");
               const paymentMethodLabel: Record<string, string> = { yoco: "Card (Yoco)", stitch: "Card (Stitch)", setla: "SETLA", payfast: "PayFast", eft: "EFT" };
+              // Shared "vs the previous {rangeDays}-day period" indicator --
+              // null changePct means the previous period had zero (nothing
+              // to divide by), shown as "New" rather than a percentage.
+              const ChangeBadge = ({ c }: { c: { currentTotal: number; previousTotal: number; changePct: number | null } }) => {
+                if (c.changePct === null) return c.currentTotal > 0 ? <span style={{ fontSize: 11, fontWeight: 800, color: "#60a5fa" }}>New</span> : null;
+                const up = c.changePct >= 0;
+                return <span style={{ fontSize: 11, fontWeight: 800, color: up ? "#22c55e" : "#ff6b35" }}>{up ? "▲" : "▼"} {Math.abs(c.changePct).toFixed(1)}%</span>;
+              };
               return (
                 <>
                   {/* HERO STATS */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 16 }} className="stats-grid">
                     {[
-                      { label: "Revenue", value: money(fa.totals.revenue), icon: "trend-up" as DashIconName, color: "#22c55e" },
-                      { label: "Orders", value: String(fa.totals.orders), icon: "orders" as DashIconName, color: "#fbbf24" },
-                      { label: "Sessions", value: String(fa.totals.sessions), icon: "eye" as DashIconName, color: "#60a5fa" },
+                      { label: "Revenue", value: money(fa.totals.revenue), icon: "trend-up" as DashIconName, color: "#22c55e", comparison: fa.comparison.revenue },
+                      { label: "Orders", value: String(fa.totals.orders), icon: "orders" as DashIconName, color: "#fbbf24", comparison: fa.comparison.orders },
+                      { label: "Sessions", value: String(fa.totals.sessions), icon: "eye" as DashIconName, color: "#60a5fa", comparison: fa.comparison.sessions },
                       { label: "Added to cart", value: `${fa.totals.addedToCart} (${fa.totals.cartRate.toFixed(0)}%)`, icon: "cart" as DashIconName, color: "#22c55e" },
                       { label: "Reached checkout", value: `${fa.totals.reachedCheckout} (${fa.totals.checkoutRate.toFixed(0)}%)`, icon: "payment" as DashIconName, color: "#a78bfa" },
                       { label: "Conversion rate", value: fa.totals.conversionRate.toFixed(1) + "%", icon: "sparkle" as DashIconName, color: "#60a5fa" },
                       { label: "Avg. order value", value: money(fa.totals.averageOrderValue), icon: "payment" as DashIconName, color: "#ff6b35" },
                     ].map((s) => (
                       <div key={s.label} style={{ padding: "20px 20px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                          <DashIcon name={s.icon} size={15} stroke={1.8} />
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 9, background: s.color + "1f", color: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                            <DashIcon name={s.icon} size={15} stroke={1.8} />
+                          </div>
+                          {s.comparison && <ChangeBadge c={s.comparison} />}
                         </div>
                         <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1 }}>{s.value}</div>
                         <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.05em", fontWeight: 700, marginTop: 6 }}>{s.label}</div>
@@ -5122,9 +5133,9 @@ export default function Dashboard() {
 
                   {/* REVENUE TREND */}
                   <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, flexWrap: "wrap" as const, gap: 8 }}>
                       <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>Revenue &middot; last {fa.rangeDays} days</div>
-                      <div style={{ fontSize: 13, fontWeight: 800 }}>{money(fa.totals.revenue)} total</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}><ChangeBadge c={fa.comparison.revenue} /><div style={{ fontSize: 13, fontWeight: 800 }}>{money(fa.totals.revenue)} total</div></div>
                     </div>
                     <div style={{ display: "flex", alignItems: "flex-end", gap: fa.rangeDays > 30 ? 2 : 5, height: 110 }}>
                       {fa.revenueSeries.map((d) => {
@@ -5142,20 +5153,36 @@ export default function Dashboard() {
                   {/* ORDERS + SESSIONS TREND */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }} className="overview-panels-grid">
                     <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
-                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Orders &middot; last {fa.rangeDays} days</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, flexWrap: "wrap" as const, gap: 8 }}>
+                        <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>Orders &middot; last {fa.rangeDays} days</div>
+                        <ChangeBadge c={fa.comparison.orders} />
+                      </div>
                       <div style={{ display: "flex", alignItems: "flex-end", gap: fa.rangeDays > 30 ? 2 : 5, height: 76 }}>
                         {fa.ordersSeries.map((d) => {
                           const max = Math.max(1, ...fa.ordersSeries.map((x) => x.orders));
-                          return <div key={d.date} title={`${d.date}: ${d.orders} order${d.orders === 1 ? "" : "s"}`} style={{ flex: 1, minWidth: 1, height: Math.max(2, Math.round((d.orders / max) * 68)), background: d.orders > 0 ? "linear-gradient(180deg, #fbbf24, #f59e0b)" : "var(--input-bg)", borderRadius: "3px 3px 1px 1px" }} />;
+                          return (
+                            <div key={d.date} title={`${d.date}: ${d.orders} order${d.orders === 1 ? "" : "s"}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 1 }}>
+                              <div style={{ width: "100%", height: Math.max(2, Math.round((d.orders / max) * 68)), background: d.orders > 0 ? "linear-gradient(180deg, #fbbf24, #f59e0b)" : "var(--input-bg)", borderRadius: "3px 3px 1px 1px" }} />
+                              {fa.rangeDays <= 30 && <span style={{ fontSize: 7, color: "var(--muted-2)" }}>{new Date(d.date + "T00:00:00Z").getUTCDate()}</span>}
+                            </div>
+                          );
                         })}
                       </div>
                     </div>
                     <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)" }}>
-                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Sessions &middot; last {fa.rangeDays} days</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, flexWrap: "wrap" as const, gap: 8 }}>
+                        <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>Sessions &middot; last {fa.rangeDays} days</div>
+                        <ChangeBadge c={fa.comparison.sessions} />
+                      </div>
                       <div style={{ display: "flex", alignItems: "flex-end", gap: fa.rangeDays > 30 ? 2 : 5, height: 76 }}>
                         {fa.sessionsSeries.map((d) => {
                           const max = Math.max(1, ...fa.sessionsSeries.map((x) => x.sessions));
-                          return <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, minWidth: 1, height: Math.max(2, Math.round((d.sessions / max) * 68)), background: d.sessions > 0 ? "linear-gradient(180deg, #7aa2ff, #60a5fa)" : "var(--input-bg)", borderRadius: "3px 3px 1px 1px" }} />;
+                          return (
+                            <div key={d.date} title={`${d.date}: ${d.sessions} session${d.sessions === 1 ? "" : "s"}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 1 }}>
+                              <div style={{ width: "100%", height: Math.max(2, Math.round((d.sessions / max) * 68)), background: d.sessions > 0 ? "linear-gradient(180deg, #7aa2ff, #60a5fa)" : "var(--input-bg)", borderRadius: "3px 3px 1px 1px" }} />
+                              {fa.rangeDays <= 30 && <span style={{ fontSize: 7, color: "var(--muted-2)" }}>{new Date(d.date + "T00:00:00Z").getUTCDate()}</span>}
+                            </div>
+                          );
                         })}
                       </div>
                     </div>
