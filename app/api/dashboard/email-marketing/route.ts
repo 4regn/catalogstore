@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../lib/supabase-admin";
 import {
-  FLASH_WEEKEND_CAMPAIGN,
+  SETLA_PAY_LATER_CAMPAIGN,
   ensureContactInSegment,
   fourRegnMarketingFrom,
   resendMarketingRequest,
-  flashWeekendCampaignHtml,
+  setlaPayLaterCampaignHtml,
 } from "../../../../lib/resend-marketing";
 
 export const dynamic = "force-dynamic";
@@ -99,12 +99,12 @@ async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerI
   // Keeping failed or discarded draft rows out of this set lets the merchant
   // correct the underlying Resend issue and safely prepare that same audience.
   const campaigns = await allRows<{ id: string }>((from, to) => admin.from("marketing_email_campaigns")
-    .select("id").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "sent").range(from, to));
+    .select("id").eq("seller_id", sellerId).eq("template_key", SETLA_PAY_LATER_CAMPAIGN.key).eq("status", "sent").range(from, to));
   const used: Array<{ email: string }> = [];
   for (let index = 0; index < campaigns.length; index += 100) {
     const campaignIds = campaigns.slice(index, index + 100).map((campaign) => campaign.id);
     used.push(...await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
-      .select("email").eq("seller_id", sellerId).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).in("campaign_id", campaignIds).range(from, to)));
+      .select("email").eq("seller_id", sellerId).eq("template_key", SETLA_PAY_LATER_CAMPAIGN.key).in("campaign_id", campaignIds).range(from, to)));
   }
   return new Set(used.map((row) => row.email.trim().toLowerCase()));
 }
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
       if (campaignsResult.error) throw campaignsResult.error;
       const audience = allAudience.slice(0, MAX_MARKETING_CONTACTS);
       const genericGreetingCount = audience.filter((contact) => !contact.first_name).length;
-      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, planExcludedCount: Math.max(0, allAudience.length - audience.length), genericGreetingCount, remainingCount: Math.max(0, audience.length - usedEmails.size), campaigns: campaignsResult.data || [], template: FLASH_WEEKEND_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
+      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, planExcludedCount: Math.max(0, allAudience.length - audience.length), genericGreetingCount, remainingCount: Math.max(0, audience.length - usedEmails.size), campaigns: campaignsResult.data || [], template: SETLA_PAY_LATER_CAMPAIGN, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
     }
 
     if (action === "sync") {
@@ -161,12 +161,12 @@ export async function POST(req: NextRequest) {
     if (action === "test") {
       const to = typeof body.to === "string" ? body.to.trim().toLowerCase() : "";
       if (!/^\S+@\S+\.\S+$/.test(to)) return NextResponse.json({ error: "Enter a valid test email address" }, { status: 400 });
-      const html = (await flashWeekendCampaignHtml())
+      const html = (await setlaPayLaterCampaignHtml())
         .replaceAll("{{{contact.first_name|there}}}", "there")
         .replaceAll("{{{RESEND_UNSUBSCRIBE_URL}}}", "https://4regn.com/");
       const result = await resendMarketingRequest<{ id: string }>("/emails", {
         method: "POST",
-        body: JSON.stringify({ from: fourRegnMarketingFrom(), to: [to], reply_to: "info@4regn.com", subject: `[TEST] ${FLASH_WEEKEND_CAMPAIGN.subject}`, html }),
+        body: JSON.stringify({ from: fourRegnMarketingFrom(), to: [to], reply_to: "info@4regn.com", subject: `[TEST] ${SETLA_PAY_LATER_CAMPAIGN.subject}`, html }),
       });
       return NextResponse.json({ ok: true, emailId: result.id });
     }
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
       const requestedLimit = Math.floor(Number(body.recipient_limit) || MAX_BATCH_SIZE);
       const limit = Math.min(MAX_BATCH_SIZE, Math.max(1, requestedLimit));
       const existingOpen = await admin.from("marketing_email_campaigns").select("id, status")
-        .eq("seller_id", seller.id).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).in("status", ["preparing", "draft"]).limit(1).maybeSingle();
+        .eq("seller_id", seller.id).eq("template_key", SETLA_PAY_LATER_CAMPAIGN.key).in("status", ["preparing", "draft"]).limit(1).maybeSingle();
       if (existingOpen.data) return NextResponse.json({ error: "Finish the existing prepared batch before creating another one." }, { status: 409 });
 
       const [contacts, usedEmails] = await Promise.all([
@@ -186,20 +186,20 @@ export async function POST(req: NextRequest) {
       if (!selected.length) return NextResponse.json({ error: "Every eligible subscriber has already been included in this campaign." }, { status: 409 });
 
       const { data: lastBatch } = await admin.from("marketing_email_campaigns").select("batch_number")
-        .eq("seller_id", seller.id).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).order("batch_number", { ascending: false }).limit(1).maybeSingle();
+        .eq("seller_id", seller.id).eq("template_key", SETLA_PAY_LATER_CAMPAIGN.key).order("batch_number", { ascending: false }).limit(1).maybeSingle();
       const batchNumber = Number(lastBatch?.batch_number || 0) + 1;
       const segment = await resendMarketingRequest<{ id: string }>("/segments", {
         method: "POST",
-        body: JSON.stringify({ name: `4REGN Flash Weekend — Batch ${batchNumber}` }),
+        body: JSON.stringify({ name: `4REGN × SETLA — Batch ${batchNumber}` }),
       });
-      const html = await flashWeekendCampaignHtml();
+      const html = await setlaPayLaterCampaignHtml();
       if (!html.includes("{{{RESEND_UNSUBSCRIBE_URL}}}")) throw new Error("Campaign template is missing its Resend unsubscribe link");
       const { data: campaign, error } = await admin.from("marketing_email_campaigns").insert({
         seller_id: seller.id,
-        name: `${FLASH_WEEKEND_CAMPAIGN.name} — Batch ${batchNumber}`,
-        subject: FLASH_WEEKEND_CAMPAIGN.subject,
-        preview_text: FLASH_WEEKEND_CAMPAIGN.previewText,
-        template_key: FLASH_WEEKEND_CAMPAIGN.key,
+        name: `${SETLA_PAY_LATER_CAMPAIGN.name} — Batch ${batchNumber}`,
+        subject: SETLA_PAY_LATER_CAMPAIGN.subject,
+        preview_text: SETLA_PAY_LATER_CAMPAIGN.previewText,
+        template_key: SETLA_PAY_LATER_CAMPAIGN.key,
         html_snapshot: html,
         resend_segment_id: segment.id,
         batch_number: batchNumber,
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
         campaign_id: campaign.id,
         seller_id: seller.id,
         customer_id: contact.id,
-        template_key: FLASH_WEEKEND_CAMPAIGN.key,
+        template_key: SETLA_PAY_LATER_CAMPAIGN.key,
         email: contact.email.trim().toLowerCase(),
         first_name: contact.first_name,
         last_name: contact.last_name,
@@ -299,7 +299,7 @@ export async function POST(req: NextRequest) {
       // and private segment first so the replacement batch has a segment slot.
       const { data: failedBatches, error: failedBatchesError } = await admin.from("marketing_email_campaigns")
         .select("id, resend_broadcast_id, resend_segment_id")
-        .eq("seller_id", seller.id).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "failed");
+        .eq("seller_id", seller.id).eq("template_key", SETLA_PAY_LATER_CAMPAIGN.key).eq("status", "failed");
       if (failedBatchesError) throw failedBatchesError;
       for (const batch of failedBatches || []) {
         if (batch.resend_broadcast_id) {
@@ -319,7 +319,7 @@ export async function POST(req: NextRequest) {
       // broadcast; it only gives the Free plan a segment slot for Batch 2.
       const { data: sentBatches, error: sentBatchesError } = await admin.from("marketing_email_campaigns")
         .select("id, resend_segment_id")
-        .eq("seller_id", seller.id).eq("template_key", FLASH_WEEKEND_CAMPAIGN.key).eq("status", "sent")
+        .eq("seller_id", seller.id).eq("template_key", SETLA_PAY_LATER_CAMPAIGN.key).eq("status", "sent")
         .not("resend_segment_id", "is", null);
       if (sentBatchesError) throw sentBatchesError;
       let releasedSegments = 0;
@@ -360,7 +360,7 @@ export async function POST(req: NextRequest) {
       const { data: campaign, error } = await admin.from("marketing_email_campaigns").select("id, status, resend_broadcast_id, resend_segment_id, template_key")
         .eq("id", campaignId).eq("seller_id", seller.id).single();
       if (error || !campaign) return NextResponse.json({ error: "Campaign batch not found" }, { status: 404 });
-      if (campaign.template_key !== FLASH_WEEKEND_CAMPAIGN.key) return NextResponse.json({ error: "Only Flash Weekend drafts can be discarded here" }, { status: 403 });
+      if (campaign.template_key !== SETLA_PAY_LATER_CAMPAIGN.key) return NextResponse.json({ error: "Only SETLA Pay Later drafts can be discarded here" }, { status: 403 });
       if (!['preparing', 'draft'].includes(campaign.status)) return NextResponse.json({ error: "Only unsent batches can be discarded" }, { status: 409 });
 
       // Delete the Resend draft first. If this ever fails (for example because
