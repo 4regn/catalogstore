@@ -488,10 +488,19 @@ const SETLA_EMAIL_TYPES: { value: string; label: string; eligibleStatus: string 
   { value: "declined", label: "Declined", eligibleStatus: "declined" },
 ];
 
-function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: CustomerRow[]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+function SendCustomerEmailCard({ customers, authedFetch, toast, onPhoneUpdated }: { customers: CustomerRow[]; authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void; onPhoneUpdated: (id: string, phone: string) => void }) {
   const [emailType, setEmailType] = useState(SETLA_EMAIL_TYPES[0].value);
   const [customerId, setCustomerId] = useState("");
   const [overrideEmail, setOverrideEmail] = useState("");
+  // Editable draft of the selected customer's phone -- lets an admin fix a
+  // wrong number (typo, or a non-SA number like a UK mobile that the SMS
+  // gateway will otherwise reject) right here before sending, instead of
+  // needing a separate "edit customer" screen. send-sms always re-reads
+  // the number from the DB at send time (never a client-supplied value --
+  // see that route's own comment), so saving here is what actually changes
+  // where the SMS goes, not the draft alone.
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [phoneBusy, setPhoneBusy] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [testName, setTestName] = useState("");
   // Standalone-test only (see below) -- a real customer's "approved" resend
@@ -523,6 +532,22 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
   // leaving it picked with a now-invalid email type.
   useEffect(() => { if (customerId && !eligible.some((c) => c.id === customerId)) setCustomerId(""); }, [emailType]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (emailType !== "approved" && channel !== "email") setChannel("email"); }, [emailType]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reset the draft to whatever's actually on file whenever the SELECTED
+  // CUSTOMER changes (not on every keystroke, and not after a save, since
+  // selected.id hasn't changed then and the draft already matches).
+  useEffect(() => { setPhoneDraft(selected?.phone || ""); }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function savePhone() {
+    if (!selected) return;
+    const trimmed = phoneDraft.trim();
+    setPhoneBusy(true);
+    const res = await authedFetch(`/api/setla/admin/customers/${selected.id}/phone`, { method: "PATCH", body: JSON.stringify({ phone: trimmed }) });
+    const payload = await res.json().catch(() => ({}));
+    setPhoneBusy(false);
+    if (!res.ok) { toast(payload.error || "Could not save this number"); return; }
+    onPhoneUpdated(selected.id, trimmed);
+    toast("Phone number updated");
+  }
 
   async function handleSend() {
     setBusy(true);
@@ -621,9 +646,16 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
       {selected ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
           {channel === "sms" ? (
-            <p className="sad-empty" style={{ margin: 0, flex: "1 1 320px" }}>
-              {selected.phone ? `Will send to ${selected.phone}.` : "This customer has no phone number on file -- SMS can't be sent."}
-            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: "1 1 320px" }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#9ba29b" }}>Phone number</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input className="sad-input" type="tel" placeholder="082 123 4567" value={phoneDraft} onChange={(e) => setPhoneDraft(e.target.value)} style={{ flex: 1 }} />
+                <button type="button" className="sad-btn-outline" disabled={phoneBusy || !phoneDraft.trim() || phoneDraft.trim() === (selected.phone || "")} onClick={savePhone}>{phoneBusy ? "Saving…" : "Save"}</button>
+              </div>
+              <span className="sad-empty" style={{ margin: 0 }}>
+                {selected.phone ? `Will send to ${selected.phone}.` : "No phone number on file -- save one above before sending."}
+              </span>
+            </div>
           ) : (
             <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 320px" }}>
               Send to a different address (optional -- e.g. for testing)
@@ -672,19 +704,45 @@ function SendCustomerEmailCard({ customers, authedFetch, toast }: { customers: C
 // available_limit > 0) and sending server-side.
 type LimitReminderAudienceRow = { id: string; name: string; email: string; phone: string; availableLimit: number; recentlyNudged: boolean };
 
+// Same SA-only shape the server enforces (app/api/setla/admin/customers/[id]/phone)
+// and that the SMS gateway itself requires (lib/sms.ts's toSmsPortalDestination)
+// -- used here only to flag a number in the audience list before the admin
+// tries the campaign and it silently fails for that one customer, same as
+// it did for the UK number.
+const SA_PHONE_REGEX = /^(\+27|0)[6-8][0-9]{8}$/;
+
 function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [audience, setAudience] = useState<LimitReminderAudienceRow[] | null>(null);
   const [channel, setChannel] = useState<"email" | "sms" | "both">("email");
   const [force, setForce] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showList, setShowList] = useState(false);
+  // Per-row phone edits, keyed by customer id -- separate from `audience`
+  // itself so typing in one row's field doesn't need to round-trip through
+  // a full audience array rewrite on every keystroke.
+  const [phoneDrafts, setPhoneDrafts] = useState<Record<string, string>>({});
+  const [savingPhoneId, setSavingPhoneId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await authedFetch("/api/setla/admin/campaigns/limit-reminder");
     const payload = await res.json().catch(() => ({}));
-    setAudience(res.ok ? payload.audience || [] : []);
+    const rows: LimitReminderAudienceRow[] = res.ok ? payload.audience || [] : [];
+    setAudience(rows);
+    setPhoneDrafts(Object.fromEntries(rows.map((r) => [r.id, r.phone || ""])));
   }, [authedFetch]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function savePhone(id: string) {
+    const phone = (phoneDrafts[id] || "").trim();
+    setSavingPhoneId(id);
+    const res = await authedFetch(`/api/setla/admin/customers/${id}/phone`, { method: "PATCH", body: JSON.stringify({ phone }) });
+    const payload = await res.json().catch(() => ({}));
+    setSavingPhoneId(null);
+    if (!res.ok) { toast(payload.error || "Could not save this number"); return; }
+    setAudience((prev) => prev ? prev.map((c) => (c.id === id ? { ...c, phone: payload.phone } : c)) : prev);
+    toast("Phone number updated");
+  }
 
   if (!audience) return null;
 
@@ -692,6 +750,7 @@ function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path:
   const recentlyNudgedCount = audience.filter((c) => c.recentlyNudged).length;
   const totalAvailable = eligibleNow.reduce((sum, c) => sum + c.availableLimit, 0);
   const channelLabel = channel === "both" ? "email + SMS" : channel;
+  const invalidPhoneCount = audience.filter((c) => !SA_PHONE_REGEX.test(c.phone || "")).length;
 
   async function send() {
     if (!eligibleNow.length) return;
@@ -740,7 +799,32 @@ function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path:
           <p className="sad-empty" style={{ margin: 0 }}>
             {eligibleNow.length} customer{eligibleNow.length === 1 ? "" : "s"} targeted &middot; {money(totalAvailable)} in unused limit between them
             {!force && recentlyNudgedCount > 0 && ` · ${recentlyNudgedCount} excluded (nudged recently)`}
+            {invalidPhoneCount > 0 && (channel === "sms" || channel === "both") && ` · ${invalidPhoneCount} with a number the SMS gateway will reject`}
           </p>
+          <button type="button" className="sad-btn-outline" style={{ marginTop: 12 }} onClick={() => setShowList((v) => !v)}>{showList ? "Hide customers" : "Show customers & fix numbers"}</button>
+          {showList && (
+            <div className="sad-table" style={{ marginTop: 12 }}>
+              <div className="sad-row sad-row-header" style={{ gridTemplateColumns: "1.2fr 1fr 1.6fr .8fr" }}><span>Name</span><span>Available</span><span>Phone</span><span></span></div>
+              {audience.map((c) => {
+                const draft = phoneDrafts[c.id] ?? "";
+                const invalid = !SA_PHONE_REGEX.test(c.phone || "");
+                const dirty = draft.trim() !== (c.phone || "");
+                return (
+                  <div key={c.id} className="sad-row" style={{ gridTemplateColumns: "1.2fr 1fr 1.6fr .8fr", alignItems: "center" }}>
+                    <span>{c.name}{c.recentlyNudged && <small style={{ display: "block", color: "#9ba29b" }}>Nudged recently</small>}</span>
+                    <span>{money(c.availableLimit)}</span>
+                    <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input className="sad-input" type="tel" value={draft} onChange={(e) => setPhoneDrafts((prev) => ({ ...prev, [c.id]: e.target.value }))} style={{ fontSize: 12 }} />
+                      {invalid && <small style={{ color: "#e0895f" }}>Invalid</small>}
+                    </span>
+                    <button type="button" className="sad-btn-outline" disabled={!dirty || !draft.trim() || savingPhoneId === c.id} onClick={() => savePhone(c.id)} style={{ padding: "6px 10px", fontSize: 11 }}>
+                      {savingPhoneId === c.id ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -760,12 +844,16 @@ export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: str
 
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
 
+  const updateCustomerPhone = (id: string, phone: string) => {
+    setRows((prev) => prev ? prev.map((r) => (r.id === id ? { ...r, phone } : r)) : prev);
+  };
+
   if (selectedId) return <CustomerDetail id={selectedId} authedFetch={authedFetch} toast={toast} onBack={() => setSelectedId(null)} />;
 
   return (
     <section>
       <LimitReminderCampaignCard authedFetch={authedFetch} toast={toast} />
-      {rows && rows.length > 0 && <SendCustomerEmailCard customers={rows} authedFetch={authedFetch} toast={toast} />}
+      {rows && rows.length > 0 && <SendCustomerEmailCard customers={rows} authedFetch={authedFetch} toast={toast} onPhoneUpdated={updateCustomerPhone} />}
       <input className="sad-input" placeholder="Search by name, email or ID number…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 16, maxWidth: 360 }} />
       {!rows ? <p className="sad-empty">Loading…</p> : rows.length === 0 ? <p className="sad-empty">No customers found.</p> : (
         <div className="sad-table">
