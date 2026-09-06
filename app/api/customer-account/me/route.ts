@@ -36,9 +36,25 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(50);
   const visibleOrders = (ordersResult.data || []).filter((order: any) => auth.seller.subdomain !== "4regn" || isNewFourRegnTrackingOrder(order));
+
+  // Per-stage timestamps (see buildFourRegnTracking's own comment) -- one
+  // batched query for every visible order rather than one per order.
+  const historyByOrder = new Map<string, { status: string; occurred_at: string }[]>();
+  if (auth.seller.subdomain === "4regn" && visibleOrders.length) {
+    const { data: historyRows } = await admin
+      .from("order_tracking_history")
+      .select("order_id, status, occurred_at")
+      .in("order_id", visibleOrders.map((o: any) => o.id));
+    for (const row of historyRows || []) {
+      const list = historyByOrder.get(row.order_id) || [];
+      list.push({ status: row.status, occurred_at: row.occurred_at });
+      historyByOrder.set(row.order_id, list);
+    }
+  }
+
   return NextResponse.json({
     customer: customerResult.data,
-    orders: visibleOrders.map((order: any) => ({ ...order, tracking: auth.seller.subdomain === "4regn" ? buildFourRegnTracking(order) : null })),
+    orders: visibleOrders.map((order: any) => ({ ...order, tracking: auth.seller.subdomain === "4regn" ? buildFourRegnTracking(order, historyByOrder.get(order.id) || []) : null })),
     wishlist: (wishlistResult.data || []).map((row: any) => row.products).filter(Boolean),
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

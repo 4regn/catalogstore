@@ -19,11 +19,28 @@ type TrackingOrder = {
   customer_tracking_note?: string | null;
 };
 
-export function buildFourRegnTracking(order: TrackingOrder) {
+type TrackingHistoryEntry = { status: string; occurred_at: string };
+
+export function buildFourRegnTracking(order: TrackingOrder, history: TrackingHistoryEntry[] = []) {
   const rawStatus = String(order.status || "pending").toLowerCase();
   const status = rawStatus === "pending" && order.payment_status === "paid" ? "confirmed" : rawStatus;
   const cancelled = status === "cancelled";
   const currentIndex = FOUR_REGN_TRACKING_STAGES.findIndex((stage) => stage.key === status);
+
+  // orders.tracking_updated_at is a single column -- it only ever holds
+  // the timestamp of whichever status change happened MOST RECENTLY, so
+  // moving from "picked_up" to "in_transit" overwrites picked_up's own
+  // timestamp with in_transit's. order_tracking_history (see
+  // supabase/migrations/20260904_order_tracking_history.sql) is the real,
+  // append-only per-status log that doesn't have this problem -- take the
+  // latest logged occurred_at per stage from there when one exists.
+  const latestByStage = new Map<string, string>();
+  for (const entry of history) {
+    const existing = latestByStage.get(entry.status);
+    if (!existing || new Date(entry.occurred_at).getTime() > new Date(existing).getTime()) {
+      latestByStage.set(entry.status, entry.occurred_at);
+    }
+  }
 
   return {
     status,
@@ -32,11 +49,17 @@ export function buildFourRegnTracking(order: TrackingOrder) {
     updatedAt: order.tracking_updated_at || order.created_at || null,
     shippingOption: order.shipping_option || null,
     customerNote: String(order.customer_tracking_note || "").trim() || null,
-    stages: FOUR_REGN_TRACKING_STAGES.map((stage, index) => ({
-      ...stage,
-      complete: !cancelled && currentIndex >= 0 && index <= currentIndex,
-      current: !cancelled && index === currentIndex,
-    })),
+    stages: FOUR_REGN_TRACKING_STAGES.map((stage, index) => {
+      const complete = !cancelled && currentIndex >= 0 && index <= currentIndex;
+      const current = !cancelled && index === currentIndex;
+      // Falls back to the old single-timestamp behaviour only when no
+      // history row covers this stage yet (an update made before that
+      // table existed, or the table hasn't been migrated in this project) --
+      // same shape the customer tracking page already rendered, so an
+      // order with no history at all looks exactly as it did before.
+      const fallback = current ? order.tracking_updated_at || order.created_at || null : index === 0 && complete ? order.created_at || null : null;
+      return { ...stage, complete, current, occurredAt: latestByStage.get(stage.key) || fallback };
+    }),
   };
 }
 

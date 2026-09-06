@@ -63,6 +63,15 @@ export async function POST(req: NextRequest) {
   const confirmed = isFourRegnOrderTrackable(order);
   if (!confirmed) return NextResponse.json({ error: GENERIC_ERROR }, { status: 404 });
 
+  // Per-stage timestamps (see buildFourRegnTracking's own comment) --
+  // without this, moving from e.g. "picked_up" to "in_transit" would make
+  // picked_up's own real timestamp disappear back to "—" for the customer,
+  // since order.tracking_updated_at only ever holds the latest change.
+  const { data: history } = await admin
+    .from("order_tracking_history")
+    .select("status, occurred_at")
+    .eq("order_id", order.id);
+
   return NextResponse.json({
     order: {
       reference: fourRegnOrderReference(order),
@@ -75,7 +84,7 @@ export async function POST(req: NextRequest) {
       tracking_updated_at: order.tracking_updated_at,
       estimated_delivery_from_at: order.estimated_delivery_from_at,
       estimated_delivery_at: order.estimated_delivery_at,
-      tracking: buildFourRegnTracking(order),
+      tracking: buildFourRegnTracking(order, history || []),
     },
   }, { headers: { "Cache-Control": "private, no-store" } });
 }
