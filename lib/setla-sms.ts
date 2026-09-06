@@ -1,4 +1,5 @@
 import { sendSms } from "./sms";
+import { SETLA_APP_ORIGIN } from "./setla-email";
 
 // setla.4regn.com is the SETLA marketing/customer-facing domain (see
 // middleware.ts's SETLA_MARKETING_HOSTS) -- it rewrites clean paths like
@@ -42,4 +43,21 @@ export function limitReminderSmsContent(firstName: string, availableLimit: numbe
 
 export async function sendLimitReminderSms(opts: { to: string; firstName: string; availableLimit: number }) {
   await sendSms({ to: opts.to, message: limitReminderSmsContent(opts.firstName, opts.availableLimit) });
+}
+
+// SMS companion to the admin "Send reminder" button on an instalment
+// (app/api/setla/admin/instalments/[id]/remind) -- that route previously
+// only ever sent the branded email version. dueLabel is expected to come
+// from formatInstalmentDueDate (lib/setla-instalments.ts), which already
+// renders "Today" for a same-day due date instead of the raw date, so an
+// SMS sent the day something's due reads as urgent rather than generic.
+// Links straight to the Payment Plans view (#plans, same as the email's
+// ctaUrl) so tapping it lands directly on the Pay Now button.
+export function instalmentReminderSmsContent(firstName: string, amount: number, dueLabel: string, reference: string): string {
+  const when = dueLabel === "Today" ? "TODAY" : `on ${dueLabel}`;
+  return `Hi ${firstName}, your SETLA payment of R${Number(amount).toFixed(2)} for ${reference} is due ${when}. Pay now: ${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`;
+}
+
+export async function sendInstalmentReminderSms(opts: { to: string; firstName: string; amount: number; dueLabel: string; reference: string }) {
+  await sendSms({ to: opts.to, message: instalmentReminderSmsContent(opts.firstName, opts.amount, opts.dueLabel, opts.reference) });
 }

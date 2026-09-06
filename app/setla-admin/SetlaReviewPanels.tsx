@@ -998,6 +998,11 @@ export function RepaymentsPanel({ authedFetch, toast }: { authedFetch: (path: st
   const [openId, setOpenId] = useState<string | null>(null);
   const [remindingId, setRemindingId] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  // Per-instalment channel choice, defaulting to email (the button's
+  // original, only behaviour) -- keyed by instalment id since the list can
+  // show several outstanding instalments for several different customers
+  // at once, each needing its own independent choice.
+  const [reminderChannels, setReminderChannels] = useState<Record<string, "email" | "sms" | "both">>({});
 
   const load = useCallback(async () => {
     const response = await authedFetch("/api/setla/admin/repayments", { cache: "no-store" });
@@ -1012,11 +1017,13 @@ export function RepaymentsPanel({ authedFetch, toast }: { authedFetch: (path: st
   }, [load]);
 
   async function sendReminder(instalmentId: string) {
+    const channel = reminderChannels[instalmentId] || "email";
     setRemindingId(instalmentId);
-    const response = await authedFetch(`/api/setla/admin/instalments/${instalmentId}/remind`, { method: "POST" });
+    const response = await authedFetch(`/api/setla/admin/instalments/${instalmentId}/remind`, { method: "POST", body: JSON.stringify({ channel }) });
     const payload = await response.json().catch(() => ({}));
     setRemindingId(null);
     if (!response.ok) { toast(payload.error || "Could not send the reminder"); return; }
+    if (channel !== "email" && !payload.smsSent) { toast(payload.emailSent ? "Email sent -- SMS skipped, no valid phone number on file" : "Could not send -- no valid phone number on file"); return; }
     toast("Payment reminder sent");
   }
 
@@ -1086,7 +1093,16 @@ export function RepaymentsPanel({ authedFetch, toast }: { authedFetch: (path: st
                   return <div key={payment.id} className="sad-repayment-row" style={{ display: "grid", gridTemplateColumns: "minmax(90px,.7fr) minmax(120px,1fr) minmax(90px,.7fr) auto", gap: 10, alignItems: "center", padding: "12px 13px", borderRadius: 12, background: "#0a0c0a", fontSize: 11.5 }}>
                     <strong>{payment.sequenceNumber ? `Instalment ${payment.sequenceNumber}` : payment.isDeposit ? "Deposit" : "Payment"}</strong>
                     <span>{repaymentDate(payment.dueAt)}</span><span style={{ color: settled ? "#4ade80" : overdue ? "#ff8b84" : "#facc15", fontWeight: 800 }}>{money(payment.amount)} · {overdue ? "overdue" : payment.status}</span>
-                    {!settled && payment.sequenceNumber ? <button type="button" className="sad-btn-outline" style={{ padding: "7px 10px", fontSize: 10 }} disabled={remindingId === payment.id} onClick={() => sendReminder(payment.id)}>{remindingId === payment.id ? "Sending…" : "Send reminder"}</button> : <span />}
+                    {!settled && payment.sequenceNumber ? (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <select className="sad-select" value={reminderChannels[payment.id] || "email"} onChange={(e) => setReminderChannels((prev) => ({ ...prev, [payment.id]: e.target.value as "email" | "sms" | "both" }))} style={{ padding: "6px 8px", fontSize: 10 }}>
+                          <option value="email">Email</option>
+                          <option value="sms">SMS</option>
+                          <option value="both">Email + SMS</option>
+                        </select>
+                        <button type="button" className="sad-btn-outline" style={{ padding: "7px 10px", fontSize: 10 }} disabled={remindingId === payment.id} onClick={() => sendReminder(payment.id)}>{remindingId === payment.id ? "Sending…" : "Send reminder"}</button>
+                      </div>
+                    ) : <span />}
                   </div>;
                 })}</div>
               </div>
