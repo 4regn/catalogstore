@@ -2,16 +2,16 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getFourRegnResendFrom } from "./email";
 
-export const FLASH_WEEKEND_CAMPAIGN = {
-  key: "4regn-flash-weekend-trucker-cap-2026",
-  name: "4REGN Flash Weekend — Free Trucker Cap",
-  subject: "4REGN FLASH WEEKEND SALE: Get a FREE Trucker Cap 🎁",
-  previewText: "Spend R499+ this weekend and choose one FREE trucker cap. Ends 31 August at 23:59 SAST.",
-  previewUrl: "/email/4regn-flash-weekend-2026.html",
+export const SETLA_PAY_LATER_CAMPAIGN = {
+  key: "4regn-setla-pay-later-2026",
+  name: "4REGN × SETLA — Your Fit, Your Pace",
+  subject: "Your 4REGN fit. Your pace. Pay with SETLA.",
+  previewText: "Sign up for SETLA, see what you qualify for, then shop 4REGN your way at checkout.",
+  previewUrl: "/email/4regn-setla-pay-later-2026.html",
 };
 
-export async function flashWeekendCampaignHtml() {
-  return readFile(path.join(process.cwd(), "public", "email", "4regn-flash-weekend-2026.html"), "utf8");
+export async function setlaPayLaterCampaignHtml() {
+  return readFile(path.join(process.cwd(), "public", "email", "4regn-setla-pay-later-2026.html"), "utf8");
 }
 
 export function marketingApiKey() {

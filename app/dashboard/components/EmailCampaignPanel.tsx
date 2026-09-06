@@ -106,7 +106,7 @@ export default function EmailCampaignPanel() {
     try {
       await call("send", { campaign_id: campaign.id, confirmation });
       setConfirmation("");
-      setNotice("The Flash Weekend Broadcast has been handed to Resend for delivery.");
+      setNotice("The SETLA Pay Later Broadcast has been handed to Resend for delivery.");
       await load();
     } catch (sendError: any) { setError(sendError?.message || "Campaign send failed."); }
     finally { setBusy(""); }
@@ -130,7 +130,7 @@ export default function EmailCampaignPanel() {
     try {
       await call("discard", { campaign_id: campaign.id });
       setConfirmation("");
-      setNotice("Unsent draft discarded. You can now prepare the corrected Flash Weekend batch.");
+      setNotice("Unsent draft discarded. You can now prepare the corrected SETLA Pay Later batch.");
       await load();
     } catch (discardError: any) { setError(discardError?.message || "Could not discard the draft."); }
     finally { setBusy(""); }
@@ -147,7 +147,7 @@ export default function EmailCampaignPanel() {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: ".12em", color: "#f472b6", textTransform: "uppercase" }}>4REGN Email Studio</div>
-          <h2 style={{ margin: "7px 0 5px", fontSize: 20, fontWeight: 900, letterSpacing: "-.03em", textTransform: "uppercase" }}>Flash Weekend Broadcast</h2>
+          <h2 style={{ margin: "7px 0 5px", fontSize: 20, fontWeight: 900, letterSpacing: "-.03em", textTransform: "uppercase" }}>SETLA Pay Later Broadcast</h2>
           <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, maxWidth: 680 }}>Consent-safe Resend Broadcast workflow. Preview, test and sync first; sending stays locked behind an exact confirmation phrase.</p>
         </div>
         <button onClick={() => setPreviewOpen(true)} style={secondaryButton}>Preview email</button>
@@ -235,7 +235,7 @@ export default function EmailCampaignPanel() {
     {previewOpen && <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.82)", padding: "clamp(10px,3vw,28px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "min(760px,100%)", height: "min(900px,92vh)", background: "#fff", borderRadius: 18, overflow: "hidden", position: "relative" }}>
         <button aria-label="Close preview" onClick={() => setPreviewOpen(false)} style={{ position: "absolute", zIndex: 2, right: 12, top: 12, width: 40, height: 40, borderRadius: "50%", border: 0, background: "#111", color: "#fff", fontSize: 22, cursor: "pointer" }}>×</button>
-        <iframe title="Flash Weekend email preview" src={overview?.template.previewUrl} style={{ width: "100%", height: "100%", border: 0 }} />
+        <iframe title="SETLA Pay Later email preview" src={overview?.template.previewUrl} style={{ width: "100%", height: "100%", border: 0 }} />
       </div>
     </div>}
 
