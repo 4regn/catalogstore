@@ -19,6 +19,18 @@ export const SETLA_RESEND_API_KEY = process.env.SETLA_RESEND_API_KEY;
 // nothing about what actually loads.
 export const SETLA_APP_ORIGIN = "https://uniklabs.co.za";
 
+// setla.4regn.com rewrites clean paths (e.g. /dashboard, /apply) straight
+// to the same /setla/*.html pages SETLA_APP_ORIGIN serves (see
+// middleware.ts's SETLA_MARKETING_HOSTS) -- byte-identical destination,
+// just branded to 4REGN. Use this, not SETLA_APP_ORIGIN, for any link a
+// 4REGN customer will actually click: most of them bought on 4regn.com
+// and have never heard of "uniklabs.co.za", so a link to that domain
+// reads as suspicious/wrong even though it's the same real page.
+// SETLA_APP_ORIGIN stays reserved for things that aren't customer-facing
+// links -- the server-side logo/asset fetches below, and the sender
+// address above, both of which need the real origin regardless.
+export const SETLA_CUSTOMER_ORIGIN = "https://setla.4regn.com";
+
 // Logos as CID attachments instead of remotely-hosted <img src="https://...">
 // -- most mail clients block remote images by default for a sender with no
 // track record yet, so a remote logo may never actually load on open. An
@@ -56,7 +68,7 @@ export async function sendSetlaEmail(opts: {
   ctaUrl?: string;
 }) {
   const ctaLabel = opts.ctaLabel || "View my dashboard";
-  const ctaUrl = opts.ctaUrl || `${SETLA_APP_ORIGIN}/setla/dashboard.html`;
+  const ctaUrl = opts.ctaUrl || `${SETLA_CUSTOMER_ORIGIN}/dashboard`;
 
   // A bare <table> fragment (no <head>) gives clients nothing to signal
   // "this email already has its own dark design, don't auto dark-mode
@@ -147,7 +159,7 @@ export function signupNudgeEmailContent(firstName: string) {
     bodyHtml: `You signed up for SETLA, but your application isn't done yet &mdash; it only takes a few minutes. Approved customers can unlock spending limits of up to <strong class="setla-fg" style="color:#ffffff">R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}</strong>, based on their application.`,
     extraHtml: `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">Your starting limit reflects your application today &mdash; it isn't fixed. Repay on time and your limit grows from there.</p>`,
     ctaLabel: "Complete my application",
-    ctaUrl: `${SETLA_APP_ORIGIN}/setla/apply.html`,
+    ctaUrl: `${SETLA_CUSTOMER_ORIGIN}/apply`,
   };
 }
 
@@ -245,7 +257,7 @@ async function approvedLogoAttachments() {
 export async function sendApprovedSetlaLimitEmail(opts: { to: string; firstName: string; approvedLimit: number; variant?: "standard" | "starter" }) {
   const amount = Math.round(Number(opts.approvedLimit) || 0);
   const amountFormatted = `R${amount.toLocaleString("en-ZA")}`;
-  const dashboardUrl = `${SETLA_APP_ORIGIN}/setla/dashboard.html`;
+  const dashboardUrl = `${SETLA_CUSTOMER_ORIGIN}/dashboard`;
   // The seller's own starter-limit mockup (SETLA_standard_limit_R1000_email.html)
   // included a ".starter-review" style block but never actually used it in
   // the markup -- copy below follows the same "this can grow" language
@@ -355,7 +367,7 @@ export function declinedEmailContent(firstName: string, reason: string | null) {
     kicker: "Application update",
     headline: "Your application wasn't approved this time.",
     bodyHtml: reason || "Your application wasn't approved this time. You're welcome to appeal or re-apply after 30 days.",
-    extraHtml: `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">You can submit an appeal from your <a href="${SETLA_APP_ORIGIN}/setla/dashboard.html" class="setla-green" style="color:#4ade80">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>`,
+    extraHtml: `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">You can submit an appeal from your <a href="${SETLA_CUSTOMER_ORIGIN}/dashboard" class="setla-green" style="color:#4ade80">SETLA dashboard</a> if you believe this decision should be reconsidered.</p>`,
     ctaLabel: "Go to my dashboard",
   };
 }
@@ -369,7 +381,7 @@ export function documentsRequestedEmailContent(firstName: string) {
     bodyHtml: "Your application is still under review, but the bank statement you sent only covers one month &mdash; we need the most recent <strong class=\"setla-fg\" style=\"color:#ffffff\">3 months</strong> to properly assess affordability. One month isn't enough to tell a normal pattern from a one-off.",
     extraHtml: "<p class=\"setla-fg\" style=\"font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0\">Reply to this email with your latest 3-month bank statement (PDF is fine) and we'll pick your review back up as soon as it arrives.</p>",
     ctaLabel: "Message support",
-    ctaUrl: `${SETLA_APP_ORIGIN}/setla/dashboard.html`,
+    ctaUrl: `${SETLA_CUSTOMER_ORIGIN}/dashboard`,
   };
 }
 

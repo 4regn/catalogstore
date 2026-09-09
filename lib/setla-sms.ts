@@ -1,15 +1,13 @@
 import { sendSms } from "./sms";
-import { SETLA_APP_ORIGIN } from "./setla-email";
+import { SETLA_CUSTOMER_ORIGIN } from "./setla-email";
 
 // setla.4regn.com is the SETLA marketing/customer-facing domain (see
 // middleware.ts's SETLA_MARKETING_HOSTS) -- it rewrites clean paths like
 // /dashboard straight to the real /setla/dashboard.html page, so this is
 // the same destination the "official" uniklabs.co.za link points at,
-// just shorter and branded to 4REGN, which is who most of these
-// customers actually know. Kept local to this file rather than pulled
-// from SETLA_APP_ORIGIN in setla-email.ts, since that constant is also
-// used to fetch logo assets and shouldn't be repointed just for this.
-const SETLA_DASHBOARD_URL = "https://setla.4regn.com/dashboard";
+// just branded to 4REGN, which is who most of these customers actually
+// know (they bought there, not on uniklabs.co.za).
+const SETLA_DASHBOARD_URL = `${SETLA_CUSTOMER_ORIGIN}/dashboard`;
 
 // SMS companion to sendApprovedSetlaLimitEmail -- same "standard vs
 // starter" variant split (see that function's own comment for why), kept
@@ -60,7 +58,7 @@ export async function sendLimitReminderSms(opts: { to: string; firstName: string
 // gets stated plainly rather than softened into the same generic wording
 // as a payment that's merely coming up.
 export function instalmentReminderSmsContent(firstName: string, amount: number, dueLabel: string, reference: string, overdue = false, delivered = false): string {
-  const link = `${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`;
+  const link = `${SETLA_DASHBOARD_URL}#plans`;
   if (overdue) {
     const context = delivered ? `Your order ${reference} has been delivered and this payment` : `Your SETLA payment for ${reference}`;
     return `Hi ${firstName}, ${context} of R${Number(amount).toFixed(2)} is OVERDUE (was due ${dueLabel}). Please pay now to settle your account: ${link}`;

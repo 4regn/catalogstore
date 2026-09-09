@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
 import { rateLimit } from "../../../../../../../lib/rate-limit";
-import { sendSetlaEmail, SETLA_APP_ORIGIN } from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, SETLA_CUSTOMER_ORIGIN } from "../../../../../../../lib/setla-email";
 import { sendInstalmentReminderSms } from "../../../../../../../lib/setla-sms";
 import { toSmsPortalDestination } from "../../../../../../../lib/sms";
 import { formatInstalmentDueDate } from "../../../../../../../lib/setla-instalments";
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       // payment plan" first. requireAccount() in setla.js preserves this
       // hash across the login redirect for a signed-out click too.
       ctaLabel: overdue ? "Pay now to settle this" : "Pay now",
-      ctaUrl: `${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`,
+      ctaUrl: `${SETLA_CUSTOMER_ORIGIN}/dashboard#plans`,
     });
     emailSent = true;
   }

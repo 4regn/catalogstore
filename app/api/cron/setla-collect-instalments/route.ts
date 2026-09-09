@@ -3,7 +3,7 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { initiateStitchConsentPayment } from "../../../../lib/stitch";
 import { getSellerForSetlaOrder, markSetlaInstalmentPaid } from "../../../../lib/setla-instalments";
 import { sendEmail } from "../../../../lib/email";
-import { SETLA_APP_ORIGIN } from "../../../../lib/setla-email";
+import { SETLA_CUSTOMER_ORIGIN } from "../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +113,6 @@ async function notifyCustomer(admin: ReturnType<typeof getAdmin>, customerId: st
   // this instalment already is -- instead of leaving the customer to find
   // their own way there from a bare "pay it manually from your dashboard"
   // sentence with no link at all.
-  const payUrl = `${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`;
+  const payUrl = `${SETLA_CUSTOMER_ORIGIN}/dashboard#plans`;
   await sendEmail({ seller, to: customer.email, from: "SETLA Payments <orders@catalogstore.co.za>", subject: title, html: `<p>Hi ${customer.first_name},</p><p>${body}</p><p><a href="${payUrl}">Pay now &rarr;</a></p>` });
 }
