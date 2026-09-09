@@ -53,11 +53,22 @@ export async function sendLimitReminderSms(opts: { to: string; firstName: string
 // SMS sent the day something's due reads as urgent rather than generic.
 // Links straight to the Payment Plans view (#plans, same as the email's
 // ctaUrl) so tapping it lands directly on the Pay Now button.
-export function instalmentReminderSmsContent(firstName: string, amount: number, dueLabel: string, reference: string): string {
+//
+// overdue/delivered noticeably change the tone: an overdue instalment on
+// an order that's already been delivered is the strongest, most factual
+// case there is (the customer already has the goods), so that combination
+// gets stated plainly rather than softened into the same generic wording
+// as a payment that's merely coming up.
+export function instalmentReminderSmsContent(firstName: string, amount: number, dueLabel: string, reference: string, overdue = false, delivered = false): string {
+  const link = `${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`;
+  if (overdue) {
+    const context = delivered ? `Your order ${reference} has been delivered and this payment` : `Your SETLA payment for ${reference}`;
+    return `Hi ${firstName}, ${context} of R${Number(amount).toFixed(2)} is OVERDUE (was due ${dueLabel}). Please pay now to settle your account: ${link}`;
+  }
   const when = dueLabel === "Today" ? "TODAY" : `on ${dueLabel}`;
-  return `Hi ${firstName}, your SETLA payment of R${Number(amount).toFixed(2)} for ${reference} is due ${when}. Pay now: ${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`;
+  return `Hi ${firstName}, your SETLA payment of R${Number(amount).toFixed(2)} for ${reference} is due ${when}. Pay now: ${link}`;
 }
 
-export async function sendInstalmentReminderSms(opts: { to: string; firstName: string; amount: number; dueLabel: string; reference: string }) {
-  await sendSms({ to: opts.to, message: instalmentReminderSmsContent(opts.firstName, opts.amount, opts.dueLabel, opts.reference) });
+export async function sendInstalmentReminderSms(opts: { to: string; firstName: string; amount: number; dueLabel: string; reference: string; overdue?: boolean; delivered?: boolean }) {
+  await sendSms({ to: opts.to, message: instalmentReminderSmsContent(opts.firstName, opts.amount, opts.dueLabel, opts.reference, opts.overdue, opts.delivered) });
 }

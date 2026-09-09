@@ -40,10 +40,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     admin.from("setla_orders").select("unik_order_id").eq("id", plan.order_id).maybeSingle(),
   ]);
   if (!customer || !setlaOrder) return NextResponse.json({ error: "Customer order not found" }, { status: 404 });
-  const { data: order } = await admin.from("orders").select("order_number, external_id").eq("id", setlaOrder.unik_order_id).maybeSingle();
+  const { data: order } = await admin.from("orders").select("order_number, external_id, status").eq("id", setlaOrder.unik_order_id).maybeSingle();
   const reference = order?.external_id || (order?.order_number ? `#${order.order_number}` : "your order");
   const dueDate = formatInstalmentDueDate(instalment.due_at);
   const overdue = instalment.status === "overdue" || new Date(instalment.due_at).getTime() < Date.now();
+  const delivered = order?.status === "delivered";
 
   let emailSent = false, smsSent = false, smsSkippedBadNumber = false;
 
@@ -51,17 +52,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await sendSetlaEmail({
       to: customer.email,
       firstName: customer.first_name,
-      subject: `SETLA payment reminder — ${reference}`,
+      subject: overdue ? `Overdue: SETLA payment for ${reference}` : `SETLA payment reminder — ${reference}`,
       kicker: overdue ? "Payment overdue" : "Upcoming payment",
-      headline: `Instalment ${instalment.sequence_number} of your SETLA plan is ${overdue ? "overdue" : "coming up"}.`,
-      bodyHtml: `A payment of <strong class="setla-fg" style="color:#ffffff">R${Number(instalment.amount).toFixed(2)}</strong> for order <strong class="setla-fg" style="color:#ffffff">${reference}</strong> is due on <strong class="setla-fg" style="color:#ffffff">${dueDate}</strong>.`,
+      headline: overdue ? "Your SETLA payment is overdue." : `Instalment ${instalment.sequence_number} of your SETLA plan is coming up.`,
+      // Explicitly names delivery when it's true -- the customer already has
+      // the goods, so it's the strongest, most factual reason to pay that
+      // exists, not an invented threat. Kept to that one true, verifiable
+      // fact rather than implying consequences (fees, credit reporting,
+      // collections) this system has no actual policy for.
+      bodyHtml: overdue
+        ? `${delivered ? `Your order <strong class="setla-fg" style="color:#ffffff">${reference}</strong> has already been delivered, but instalment` : `Instalment`} ${instalment.sequence_number}${delivered ? "" : ` for order <strong class="setla-fg" style="color:#ffffff">${reference}</strong>`} of <strong class="setla-fg" style="color:#ffffff">R${Number(instalment.amount).toFixed(2)}</strong> was due on <strong class="setla-fg" style="color:#ffffff">${dueDate}</strong> and has not been paid. Please settle this payment as soon as possible.`
+        : `A payment of <strong class="setla-fg" style="color:#ffffff">R${Number(instalment.amount).toFixed(2)}</strong> for order <strong class="setla-fg" style="color:#ffffff">${reference}</strong> is due on <strong class="setla-fg" style="color:#ffffff">${dueDate}</strong>.`,
+      extraHtml: overdue ? `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">Continued non-payment may affect your ability to use SETLA for future purchases.</p>` : undefined,
       // #plans jumps straight to the Payment Plans view on load (see
       // setla.js's showDashboardView/initialView) instead of landing on the
       // Overview tab, where reaching the actual "Pay now" button meant
       // scrolling past the approved-limit hero and clicking through "Manage
       // payment plan" first. requireAccount() in setla.js preserves this
       // hash across the login redirect for a signed-out click too.
-      ctaLabel: "Pay now",
+      ctaLabel: overdue ? "Pay now to settle this" : "Pay now",
       ctaUrl: `${SETLA_APP_ORIGIN}/setla/dashboard.html#plans`,
     });
     emailSent = true;
@@ -69,7 +78,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   if (channel === "sms" || channel === "both") {
     if (customer.phone && toSmsPortalDestination(customer.phone)) {
-      await sendInstalmentReminderSms({ to: customer.phone, firstName: customer.first_name, amount: Number(instalment.amount), dueLabel: dueDate, reference });
+      await sendInstalmentReminderSms({ to: customer.phone, firstName: customer.first_name, amount: Number(instalment.amount), dueLabel: dueDate, reference, overdue, delivered });
       smsSent = true;
     } else {
       smsSkippedBadNumber = true;
