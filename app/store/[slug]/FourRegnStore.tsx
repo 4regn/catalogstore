@@ -14,6 +14,12 @@ import { effectiveProductPrice } from "../../../lib/product-pricing";
 import { productMatchesQuery } from "../../../lib/product-search";
 import type { FourRegnCustomPrintEditorHandle } from "./FourRegnCustomPrintEditor";
 import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
+// Not lazy/ssr:false like the components below -- the hero image is above
+// the fold and drives LCP, so it needs to render on the server like the
+// single <img> it replaces did. Only the rotation itself (interval, fade,
+// Ken Burns) is client-side, inside the "use client" component itself;
+// importing it normally still lets Next SSR its first paint.
+import FourRegnHeroSlideshow, { type FourRegnHeroSlide } from "./FourRegnHeroSlideshow";
 import {
   FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_THRESHOLD,
   isFlashCapActive, isFlashCapEligibleProduct, computeFlashCapState,
@@ -2148,6 +2154,26 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     heroPosRaw === "center" ? "center center" :
     /^[\d.]+%\s+[\d.]+%$/.test(heroPosRaw) ? heroPosRaw :
     "center center";
+  // 4regn-specific 3-slide rotating hero (see FourRegnHeroSlideshow.tsx) --
+  // slide 1 stays the seller's own live banner_url (still editable through
+  // the normal hero-image upload flow, still respects its own focal
+  // point); slides 2/3 are two fixed photos chosen specifically for this
+  // rotation, each with its own crop/focal point rather than reusing
+  // slide 1's. Scoped to the literal 4regn store (not every seller on the
+  // "4regn" template) since these two URLs are this seller's own photos.
+  // Falls back to the single static image (or nothing) exactly as before
+  // for every other seller on this template.
+  const FOUR_REGN_HERO_SLIDE_2 = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/4bb2ed35-56f3-4ebe-a853-668731bb5d9b/1789007633234-0.jpeg";
+  const FOUR_REGN_HERO_SLIDE_3 = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/4bb2ed35-56f3-4ebe-a853-668731bb5d9b/1789007633240-1.png";
+  const heroSlides: FourRegnHeroSlide[] = seller?.subdomain === "4regn" && displayHeroImage
+    ? [
+        { src: displayHeroImage, objectPosition: heroImageObjectPosition },
+        { src: FOUR_REGN_HERO_SLIDE_2, objectPosition: "center center" },
+        { src: FOUR_REGN_HERO_SLIDE_3, objectPosition: "center center" },
+      ]
+    : displayHeroImage
+    ? [{ src: displayHeroImage, objectPosition: heroImageObjectPosition }]
+    : [];
   const displayHeroLabel = liveHeroLabel ?? config.hero_label ?? "";
   // Falls back to tagline/store name so the hero never reads empty even
   // before the seller has typed a dedicated headline.
@@ -2601,6 +2627,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-flash-popup img{display:block;width:100%;height:auto;max-height:88vh;object-fit:contain}
 .fr-flash-popup-close{position:absolute;z-index:2;top:12px;right:12px;width:36px;height:36px;border:0;border-radius:50%;background:rgba(0,0,0,.78);color:#fff;font-size:27px;line-height:32px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.22)}
 .fr-hero-bgimg{position:absolute;inset:0;z-index:0}
+/* Rotating hero slides (FourRegnHeroSlideshow.tsx) -- stacked absolutely,
+   crossfaded via opacity, each with its own continuously-running Ken Burns
+   zoom/pan offset by a negative animation-delay so the visible slide is
+   always showing the correctly-phased portion of one shared timeline. */
+.fr-hero-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition-property:opacity;transition-timing-function:ease;animation-name:fr-hero-kenburns;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform,opacity}
+@keyframes fr-hero-kenburns{0%{transform:scale(1) translate3d(0,0,0)}100%{transform:scale(1.08) translate3d(0,-1.5%,0)}}
+@media (prefers-reduced-motion: reduce){.fr-hero-slide{animation:none}}
 /* Top stop bumped from 0.12 -> 0.32 -- previously nearly clear, which
    worked fine when the top of the hero only ever sat under a solid black
    nav bar, but now the transparent nav (see .fr-nav--transparent) sits
@@ -4108,31 +4141,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         {isHomeView && (
           <EditSection id="hero">
             <section className="fr-hero">
-              {displayHeroImage && (
-                <div className="fr-hero-bgimg">
-                  {/* Plain <img>, not next/image -- same reasoning as the
-                      collection cover image fix (see its own comment
-                      nearby): next/image only proxies hosts whitelisted in
-                      next.config.ts (just *.supabase.co today), and
-                      banner_url can be whatever a seller pasted/uploaded,
-                      including a leftover Shopify CDN URL from the
-                      original migration. next/image failing that check
-                      doesn't error, it just silently renders nothing --
-                      confirmed as the cause of a real "my hero image
-                      isn't showing" report. Plain <img> has no such
-                      restriction. Loses next/image's automatic
-                      resize/format optimization for this one image; worth
-                      it for an image that reliably shows up regardless of
-                      where its URL points. */}
-                  <img
-                    src={displayHeroImage}
-                    alt=""
-                    fetchPriority="high"
-                    decoding="async"
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: heroImageObjectPosition }}
-                  />
-                </div>
-              )}
+              {/* Plain <img> tags inside (not next/image) -- same reasoning
+                  as the collection cover image fix (see its own comment
+                  nearby): next/image only proxies hosts whitelisted in
+                  next.config.ts (just *.supabase.co today), and banner_url
+                  can be whatever a seller pasted/uploaded, including a
+                  leftover Shopify CDN URL from the original migration.
+                  next/image failing that check doesn't error, it just
+                  silently renders nothing -- confirmed as the cause of a
+                  real "my hero image isn't showing" report. Plain <img>
+                  has no such restriction. Loses next/image's automatic
+                  resize/format optimization for these images; worth it for
+                  images that reliably show up regardless of where their
+                  URL points. */}
+              <FourRegnHeroSlideshow slides={heroSlides} />
               <div className="fr-hero-overlay" />
               <div className="fr-hero-inner">
                 {/* Oversized Tees flash sale overrides the seller's normal
