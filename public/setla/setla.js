@@ -125,8 +125,19 @@
 
   document.getElementById('signupForm')?.addEventListener('submit',async event=>{
     event.preventDefault();authError?.classList.remove('show');
-    const data=new FormData(event.currentTarget);
-    const submitBtn=event.currentTarget.querySelector('.auth-submit');
+    // Captured now, not read again later as event.currentTarget -- the DOM
+    // spec nulls an Event's currentTarget out the instant dispatch finishes,
+    // which for an async listener is right after it hits its first await
+    // (the listener yields control back before the fetch below settles).
+    // Reading event.currentTarget again after that point is always null,
+    // which was silently breaking the "reused existing account" branch
+    // below (its whole point -- showing "check your email" -- would throw
+    // instead, same underlying bug just reported separately on
+    // forgotForm, which hits this on every single submit instead of one
+    // rare branch).
+    const form=event.currentTarget;
+    const data=new FormData(form);
+    const submitBtn=form.querySelector('.auth-submit');
     if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Creating account…'}
     try{
       const res=await fetch('/api/setla/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({
@@ -136,7 +147,7 @@
       const payload=await res.json().catch(()=>({}));
       if(!res.ok){showAuthError(payload.error||'Could not create your account');return}
       if(payload.reusedExistingAccount){
-        event.currentTarget.innerHTML=`<div class="confirmation-mark small-mark"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="eyebrow">Almost there</div><h1>Check your email.</h1><p>${escapeHTML(payload.message||"You already had an account under this email -- we've sent a link to set your SETLA password.")}</p><a class="button primary auth-submit" href="login.html">Return to login</a>`;
+        form.innerHTML=`<div class="confirmation-mark small-mark"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="eyebrow">Almost there</div><h1>Check your email.</h1><p>${escapeHTML(payload.message||"You already had an account under this email -- we've sent a link to set your SETLA password.")}</p><a class="button primary auth-submit" href="login.html">Return to login</a>`;
         return;
       }
       if(payload.refreshToken)storeRefreshToken(payload.refreshToken,true);
@@ -176,14 +187,23 @@
 
   document.getElementById('forgotForm')?.addEventListener('submit',async event=>{
     event.preventDefault();authError?.classList.remove('show');
-    const data=new FormData(event.currentTarget);
+    // Captured now, not read again later as event.currentTarget -- see the
+    // matching comment on signupForm above for why. This form hit the bug
+    // on every single submit (its only path reads currentTarget in the
+    // finally block, after the awaited fetch), unlike signup's rarer
+    // "reused existing account" branch -- which is exactly why this was
+    // the one reported as completely broken: clicking "forgot password"
+    // always got stuck on "Sending…" and never showed the confirmation,
+    // even though the actual reset email was still going out server-side.
+    const form=event.currentTarget;
+    const data=new FormData(form);
     const email=String(data.get('email')||'').trim();
-    const submitBtn=event.currentTarget.querySelector('.auth-submit');
+    const submitBtn=form.querySelector('.auth-submit');
     if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Sending…'}
     try{
       await fetch('/api/setla/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}).catch(()=>{});
     }finally{
-      event.currentTarget.innerHTML=`<div class="confirmation-mark small-mark"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="eyebrow">Request received</div><h1>Check your email.</h1><p>If ${escapeHTML(email)} is linked to a SETLA account, recovery instructions are on their way.</p><a class="button primary auth-submit" href="login.html">Return to login</a>`;
+      form.innerHTML=`<div class="confirmation-mark small-mark"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="eyebrow">Request received</div><h1>Check your email.</h1><p>If ${escapeHTML(email)} is linked to a SETLA account, recovery instructions are on their way.</p><a class="button primary auth-submit" href="login.html">Return to login</a>`;
     }
   });
 
