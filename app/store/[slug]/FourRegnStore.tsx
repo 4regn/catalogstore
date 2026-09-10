@@ -668,6 +668,63 @@ const CATALOG_MENU: { label: string; items?: string[] }[] = [
   { label: "MFUDUMALO COMBOS COLLECTION" },
 ];
 
+/* ─── EDIT SECTION WRAPPER (same iframe-postMessage affordance as the
+     other templates -- lets the Online Visual Editor highlight sections) ───
+   Declared at module scope, NOT inside FourRegnStore's component body --
+   same reasoning as ProductGallery/CustomPrintStage elsewhere in this file.
+   A component defined inline in a render function gets a brand new
+   function identity every render, so React treats every <EditSection>
+   element as a different component type across renders and remounts its
+   entire subtree from scratch each time -- including any state living
+   inside whatever it wraps. That was confirmed as the actual cause of the
+   hero slideshow appearing stuck replaying its first slide: FourRegnStore
+   re-renders far more often than every 3 seconds (live-visitor pings,
+   search, cart, etc.), so FourRegnHeroSlideshow was being torn down and
+   its rotation index reset to 0 before it ever got to advance. isEditMode/
+   hoveredSection/setHoveredSection are now explicit props instead of
+   closed-over state, same as every other hoisted component here. */
+function EditSection({ id, isEditMode, hoveredSection, setHoveredSection, children }: {
+  id: string;
+  isEditMode: boolean;
+  hoveredSection: string | null;
+  setHoveredSection: (id: string | null) => void;
+  children: React.ReactNode;
+}) {
+  if (!isEditMode) return <>{children}</>;
+  const isHovered = hoveredSection === id;
+  return (
+    <div
+      onMouseEnter={() => setHoveredSection(id)}
+      onMouseLeave={() => setHoveredSection(null)}
+      onClick={(e) => {
+        e.stopPropagation();
+        window.parent.postMessage({ type: "SECTION_CLICK", section: id }, "*");
+      }}
+      style={{
+        position: "relative",
+        outline: isHovered ? "2px solid #000" : "2px solid transparent",
+        outlineOffset: -2,
+        cursor: "pointer",
+        transition: "outline-color 0.2s",
+      }}
+    >
+      {isHovered && (
+        <div style={{
+          position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
+          background: "#000", color: "#fdfbf7",
+          fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+          padding: "5px 12px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
+          borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6,
+          boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
+        }}>
+          Click to edit
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
 function NavigationProgress({ active }: { active: boolean }) {
   const [phase, setPhase] = useState<"idle" | "loading" | "finishing">("idle");
   const wasActive = useRef(false);
@@ -2472,44 +2529,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     </ul>
   );
 
-  /* ─── EDIT SECTION WRAPPER (same iframe-postMessage affordance as the
-       other templates -- lets the Online Visual Editor highlight sections) ─── */
-  const EditSection = ({ id, children }: { id: string; children: React.ReactNode }) => {
-    if (!isEditMode) return <>{children}</>;
-    const isHovered = hoveredSection === id;
-    return (
-      <div
-        onMouseEnter={() => setHoveredSection(id)}
-        onMouseLeave={() => setHoveredSection(null)}
-        onClick={(e) => {
-          e.stopPropagation();
-          window.parent.postMessage({ type: "SECTION_CLICK", section: id }, "*");
-        }}
-        style={{
-          position: "relative",
-          outline: isHovered ? "2px solid #000" : "2px solid transparent",
-          outlineOffset: -2,
-          cursor: "pointer",
-          transition: "outline-color 0.2s",
-        }}
-      >
-        {isHovered && (
-          <div style={{
-            position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
-            background: "#000", color: "#fdfbf7",
-            fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-            padding: "5px 12px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap",
-            borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6,
-            boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
-          }}>
-            Click to edit
-          </div>
-        )}
-        {children}
-      </div>
-    );
-  };
-
   return (
     <>
       <style>{`
@@ -4139,7 +4158,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {/* HERO — only on landing page */}
         {isHomeView && (
-          <EditSection id="hero">
+          <EditSection id="hero" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-hero">
               {/* Plain <img> tags inside (not next/image) -- same reasoning
                   as the collection cover image fix (see its own comment
@@ -4263,7 +4282,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             matches the real section, which doesn't expose them as settings
             either. */}
         {false && isHomeView && showSetlaBanner && (
-          <EditSection id="setla">
+          <EditSection id="setla" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-setla">
               {setlaPhotoUrl && (
                 <div className="fr-setla-photo">
@@ -4302,7 +4321,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             banner and before the rest of the homepage content, matching
             templates/index.json's real section order on the live store. */}
         {isHomeView && (
-          <EditSection id="stitch-pay-later-banner">
+          <EditSection id="stitch-pay-later-banner" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-stitch-landing-banner" aria-label="Stitch Pay Later available at checkout">
               <a href="/stitch-pay-later" aria-label="Learn how to pay with Stitch Pay Later"><img src="/checkout/stitch-pay-later-banner.jpeg" alt="Stitch Pay Later available at checkout. Buy now, pay later." /></a>
             </section>
@@ -4310,7 +4329,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         )}
 
         {isHomeView && (
-          <EditSection id="ticker-strip">
+          <EditSection id="ticker-strip" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <TickerStrip />
           </EditSection>
         )}
@@ -4349,7 +4368,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           const tee = resolveRow(config.winter_marquee_tee_slides, "OVERSIZED PREMIUM TEES");
           if (hoodie.images.length === 0 && tee.images.length === 0) return null;
           return (
-            <EditSection id="winter-sale-marquee">
+            <EditSection id="winter-sale-marquee" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
               <WinterSaleMarquee hoodieImages={hoodie.images} teeImages={tee.images} hoodieHref={hoodie.href} teeHref={tee.href} />
             </EditSection>
           );
@@ -4385,7 +4404,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           ).slice(0, 16);
           if (images.length === 0) return null;
           return (
-            <EditSection id="winter-essentials">
+            <EditSection id="winter-essentials" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
               <WinterCoverflow
                 images={images}
                 href={sp(`/collections/${collectionSlug("WINTER ESSENTIALS")}`)}
@@ -4413,7 +4432,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             .slice(0, 8);
           if (images.length === 0) return null;
           return (
-            <EditSection id="spring-pants-sale">
+            <EditSection id="spring-pants-sale" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
               <WinterCoverflow
                 images={images}
                 href={sp(`/collections/${collectionSlug(promoCollection)}`)}
@@ -4444,7 +4463,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           ).slice(0, 12);
           if (images.length === 0) return null;
           return (
-            <EditSection id="standard-graphic-hoodies">
+            <EditSection id="standard-graphic-hoodies" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
               <StandardHoodieDeck
                 images={images}
                 href={sp("/collections/standard-graphic-hoodies")}
@@ -4455,7 +4474,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         })()}
 
         {showShopByGenderSection && (
-          <EditSection id="shopbygender">
+          <EditSection id="shopbygender" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-sbd-section">
               <div className="fr-sbd-stack">
                 {sbgHasMen && (
@@ -4489,7 +4508,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         )}
 
         {isHomeView && (
-          <EditSection id="studio-collab">
+          <EditSection id="studio-collab" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-collab">
               <div className="fr-collab-inner">
                 <div>
@@ -4795,7 +4814,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             page's "sort" is a one-time merchant/theme-editor setting, so
             collectionsIndexList above is just fixed A-Z. */}
         {isCollectionsIndexView && (
-          <EditSection id="collections">
+          <EditSection id="collections" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <div className="fr-collgrid-page">
               <h1 className="fr-collgrid-heading">Collections</h1>
               <ul className="fr-collgrid" role="list">
@@ -4877,7 +4896,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             sends a section key the editor doesn't recognize, so nothing
             opens at all, which is exactly what made this un-editable. */}
         {isHomeView && categoryList.length > 0 && (
-          <EditSection id="collections">
+          <EditSection id="collections" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <div className="fr-section" style={{ paddingBottom: 0 }}>
               <div className="fr-section-head">
                 <h2 className="fr-section-title">Shop by Collection</h2>
@@ -4975,7 +4994,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             ) : isSearchView && filtered.length === 0 ? (
               <div className="fr-search-page-empty">No products match "{initialSearchQuery}".</div>
             ) : (
-              <EditSection id="products">
+              <EditSection id="products" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
                 <div className="fr-pgrid">
                   {filtered.map((p, index) => <ProductCard key={p.id} p={p} priority={index < 4} />)}
                 </div>
@@ -5032,7 +5051,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </div>
         ) : (
           <div id="fr-products">
-            <EditSection id="products">
+            <EditSection id="products" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
               {productGroups.map((group, gi) => {
                 const label = group.name ?? (liveProductsHeading ?? config.products_heading ?? "New Arrivals");
                 const isNamedCollection = group.name !== null;
@@ -5067,7 +5086,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             payment option after browsing the product campaigns, then move
             naturally into the 4REGN story. */}
         {isHomeView && showSetlaBanner && (
-          <EditSection id="setla">
+          <EditSection id="setla" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-setla">
               {setlaPhotoUrl && (
                 <div className="fr-setla-photo">
@@ -5106,7 +5125,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             page, directly above the newsletter (matches the real Shopify
             site's section order). */}
         {isHomeView && showAbout && (
-          <EditSection id="about">
+          <EditSection id="about" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-about">
               <div className="fr-about-eyebrow">{aboutEyebrow}</div>
               <div className="fr-about-story">
@@ -5139,7 +5158,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {/* NEWSLETTER — only on landing page */}
         {isHomeView && showNewsletter && (
-          <EditSection id="newsletter">
+          <EditSection id="newsletter" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-newsletter">
               <div className="fr-nl-copy"><div className="fr-nl-lbl">Newsletter</div><h2 className="fr-nl-title">{nlTitle}</h2><p className="fr-nl-sub">{nlSub}</p></div>
               <div className="fr-nl-signup">
@@ -5175,7 +5194,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         )}
 
         {/* FOOTER */}
-        <EditSection id="footer">
+        <EditSection id="footer" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
           <footer className="fr-foot">
             <div className="fr-foot-grid">
               <div>
