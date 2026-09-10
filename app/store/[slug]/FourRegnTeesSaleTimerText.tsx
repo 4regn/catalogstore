@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 
 // Same end instant as FourRegnTeesSaleCountdown/the hero override in
-// FourRegnStore.tsx. Deliberately its own tiny, self-contained ticking
-// component (own useState/useInterval) rather than one shared "now" value
-// lifted into FourRegnStore's own top-level state -- that earlier version
-// forced the ENTIRE storefront component (every product card on a
-// collection page included) to fully re-render once a second just to
-// update this text, which is what made the Oversized Premium Tees
-// collection page (many cards, each redoing their own work every render)
-// feel like it had hung. Each instance of this component re-renders only
-// itself on its own tick, however many of them are on the page at once.
-const TEES_SALE_END = new Date("2026-09-01T00:00:00+02:00").getTime();
+// FourRegnStore.tsx -- bump this alongside those two whenever this
+// campaign runs again at a new date/price. Deliberately its own tiny,
+// self-contained ticking component (own useState/useInterval) rather than
+// one shared "now" value lifted into FourRegnStore's own top-level state
+// -- that earlier version forced the ENTIRE storefront component (every
+// product card on a collection page included) to fully re-render once a
+// second just to update this text, which is what made the Oversized
+// Premium Tees collection page (many cards, each redoing their own work
+// every render) feel like it had hung. Each instance of this component
+// re-renders only itself on its own tick, however many of them are on the
+// page at once.
+const TEES_SALE_END = new Date("2026-09-13T00:00:00+02:00").getTime();
 
 function useTeesSaleRemaining(): number | null {
   const [remaining, setRemaining] = useState<number | null>(null);

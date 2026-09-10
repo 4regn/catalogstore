@@ -4995,7 +4995,7 @@ export default function Dashboard() {
                     <span style={{ fontSize: 11, fontWeight: 800, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>R{Math.round(teesSaleAnalytics.orderValueTotal).toLocaleString("en-ZA")} in orders</span>
                   )}
                 </div>
-                <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>How shoppers are moving through the R249 (buy 2 for R449) tees sale, from visiting the collection to completing an order. Ends 1 September.</p>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>How shoppers are moving through the R229 (buy 2 for R449) tees sale, from visiting the collection to completing an order. Ends 12 September.</p>
                 {teesSaleAnalyticsLoading && !teesSaleAnalytics ? (
                   <p style={{ fontSize: 12, color: "var(--muted)" }}>Loading…</p>
                 ) : !teesSaleAnalytics || teesSaleAnalytics.totalEvents === 0 ? (

@@ -5,16 +5,19 @@ import { revalidateStore } from "../../../actions/revalidate-store";
 export const dynamic = "force-dynamic";
 
 // One-off: reverts Oversized Premium Tees pricing back to R350 (no sale)
-// once the flash sale's cutoff has passed. The sale price (R249) was set
-// directly via supabase/migrations/20260830_oversized_tees_flash_sale.sql,
-// not by this route -- this only ever runs the reverse direction, gated
-// on CUTOFF rather than on today's date, so running it early, late, or
-// more than once a day is always a safe no-op (nothing matches
-// price=SALE_PRICE once it's already been reverted). The "buy 2 for R449"
-// bundle needs no equivalent cleanup here -- it expires on its own via the
-// discount row's own ends_at.
-const CUTOFF = Date.parse("2026-08-31T21:59:00.000Z"); // 31 Aug 23:59 SAST
-const SALE_PRICE = 249;
+// once the flash sale's cutoff has passed. The sale price was set directly
+// via a migration (supabase/migrations/20260910_oversized_tees_flash_sale_r229.sql
+// for this run; 20260830_oversized_tees_flash_sale.sql the first time this
+// campaign ran, at a different price/cutoff), not by this route -- this
+// only ever runs the reverse direction, gated on CUTOFF rather than on
+// today's date, so running it early, late, or more than once a day is
+// always a safe no-op (nothing matches price=SALE_PRICE once it's already
+// been reverted). Reused across repeat runs of this same campaign --
+// just bump CUTOFF/SALE_PRICE here to match whatever the current
+// migration set. The "buy 2 for R449" bundle needs no equivalent cleanup
+// here -- it expires on its own via the discount row's own ends_at.
+const CUTOFF = Date.parse("2026-09-12T21:59:00.000Z"); // 12 Sept 23:59 SAST
+const SALE_PRICE = 229;
 const ORIGINAL_PRICE = 350;
 const COLLECTION = "OVERSIZED PREMIUM TEES";
 
@@ -52,9 +55,9 @@ export async function GET(req: NextRequest) {
     // seller-scoped cache (lib/four-regn-catalog-cache.ts, up to a
     // 1-hour revalidate window) that a raw DB write never invalidates
     // on its own -- without this, the grid would keep showing the
-    // now-reverted R249 sale price (which checkout would no longer
-    // honour) for up to an hour after the sale actually ended. This is
-    // the same gap that made the sale's own price update need a manual
+    // now-reverted sale price (which checkout would no longer honour)
+    // for up to an hour after the sale actually ended. This is the
+    // same gap that made the sale's own price update need a manual
     // dashboard save to show up on the collection grid immediately.
     await revalidateStore("4regn").catch(() => {});
 

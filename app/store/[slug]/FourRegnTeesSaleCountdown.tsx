@@ -2,20 +2,20 @@
 
 import { useEffect, useState } from "react";
 
-/* Oversized Premium Tees Flash Sale -- R249 (was R350), buy 2 for R449,
-   valid through 31 August 2026 23:59 SAST. Same end instant as the Flash
-   Weekend free-cap promo (FourRegnPromoCountdown.tsx) -- 2026-09-01T00:00:00
-   +02:00, not 23:59:59, so the sale stays active for the full final minute.
-   Written as a fixed +02:00 (SAST) instant rather than anything derived
-   from the visitor's own timezone -- comparing it against Date.now() (also
-   an absolute instant) needs no timezone conversion either way.
+/* Oversized Premium Tees Flash Sale (round 2) -- R229 (was R350), buy 2
+   for R449, valid through 12 September 2026 23:59 SAST. End instant is
+   2026-09-13T00:00:00+02:00, not 23:59:59, so the sale stays active for
+   the full final minute. Written as a fixed +02:00 (SAST) instant rather
+   than anything derived from the visitor's own timezone -- comparing it
+   against Date.now() (also an absolute instant) needs no timezone
+   conversion either way.
 
    One-off seasonal promo scoped to the OVERSIZED PREMIUM TEES collection
    (unlike FourRegnPromoCountdown, which is cart-wide and shows on every
-   collection/product page) -- same "clone, don't generalize" treatment as
-   that component, meant to be deleted once the sale ends rather than kept
-   around as a reusable countdown. */
-const TEES_SALE_END = new Date("2026-09-01T00:00:00+02:00").getTime();
+   collection/product page) -- reused across repeat runs of this same
+   campaign rather than cloned into a dated copy each time; just the price/
+   date literals below change between runs. */
+const TEES_SALE_END = new Date("2026-09-13T00:00:00+02:00").getTime();
 
 /* null = not yet evaluated on the client -- same reasoning as
    FourRegnPromoCountdown's own useFlashSaleRemaining: prevents any flash
@@ -55,13 +55,13 @@ export default function FourRegnTeesSaleCountdown({ variant }: { variant: "produ
             <div>
               <div className="regn-flash-countdown__eyebrow">Flash Sale</div>
               <div className="regn-flash-countdown__copy">
-                <strong>OVERSIZED PREMIUM TEES &mdash; R249</strong>
+                <strong>OVERSIZED PREMIUM TEES &mdash; R229</strong>
                 <span className="regn-product-copy"> or buy 2 for R449</span>
                 <span className="regn-collection-copy"> or buy 2 for R449</span>
               </div>
             </div>
           </div>
-          <div className="regn-flash-countdown__end">ENDS<strong>31 AUG &middot; 23:59</strong></div>
+          <div className="regn-flash-countdown__end">ENDS<strong>12 SEP &middot; 23:59</strong></div>
         </div>
         <div className="regn-flash-countdown__timer">
           <div className="regn-flash-countdown__unit"><span className="regn-flash-countdown__number">{pad(days)}</span><span className="regn-flash-countdown__label">Days</span></div>

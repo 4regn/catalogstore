@@ -52,10 +52,11 @@ const FourRegnTeesSaleTimerText = dynamic(() => import("./FourRegnTeesSaleTimerT
 const FourRegnCustomPrintEditor = dynamic(() => import("./FourRegnCustomPrintEditor"), { ssr: false });
 const TEES_SALE_COLLECTION = "OVERSIZED PREMIUM TEES";
 // Same instant as FourRegnTeesSaleCountdown's own TEES_SALE_END -- kept as
-// a separate constant here (not imported) for the same "clone, don't
-// generalize" reasoning as the countdown component itself, since this is
-// used only to gate analytics tracking for this one-off promo.
-const TEES_SALE_ANALYTICS_END = new Date("2026-09-01T00:00:00+02:00").getTime();
+// a separate constant here (not imported) since this is used only to gate
+// analytics tracking for this promo. Bump alongside that component's own
+// constant (and the hero override copy below) whenever this campaign runs
+// again at a new date/price.
+const TEES_SALE_ANALYTICS_END = new Date("2026-09-13T00:00:00+02:00").getTime();
 
 // Cart-state-driven, same "nothing worth rendering server-side" reasoning
 // as the two dynamic imports above.
@@ -3613,7 +3614,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .regn-flash-countdown[data-variant="collection"] .regn-flash-countdown__label{margin-top:3px;font-size:6px}
 .regn-flash-countdown[data-variant="product"] .regn-collection-copy{display:none}
 .regn-flash-countdown[data-variant="collection"] .regn-product-copy{display:none}
-/* The Oversized Tees countdown's copy ("OVERSIZED PREMIUM TEES -- R249 or
+/* The Oversized Tees countdown's copy ("OVERSIZED PREMIUM TEES -- R229 or
    buy 2 for R449") is longer than the free-cap countdown's ("FREE TRUCKER
    CAP on orders above R499"), which the fixed 240px/nowrap/ellipsis rule
    above was sized for -- it was cutting this one off mid-sentence on the
@@ -4192,10 +4193,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 {teesSaleActive ? (
                   <p className="fr-hero-offer">
                     <span className="fr-hero-offer-was">R350</span>
-                    <strong className="fr-hero-offer-pulse">R249</strong> EACH!!
+                    <strong className="fr-hero-offer-pulse">R229</strong> EACH!!
                     <br />
                     {renderOfferLine("BUY 2 OVERSIZED PREMIUM TEES FOR R449!", "tees-offer")}
-                    <span className="fr-hero-offer-note">Offer ending 31 August 23:59</span>
+                    <span className="fr-hero-offer-note">Offer ending 12 September 23:59</span>
                     <span className="fr-hero-offer-note">Discount automatically applied at checkout.</span>
                   </p>
                 ) : visibleHeroOfferHeadline && (
