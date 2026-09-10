@@ -2294,15 +2294,10 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // "one-off, don't generalize" treatment of flashWeekendEndsAt/
   // flashWeekendHref just below. flashWeekendImage (the wide banner) is
   // used below the hero AND is one of the two images the popup can
-  // randomly show; flashWeekendPopupOnlyImage only ever appears in the
-  // popup.
-  // Awaiting the real photos -- both still literal placeholder strings, not
-  // URLs. showFlashWeekendCampaign below explicitly requires an "http" src
-  // before it'll render anything, so this campaign stays off (banner AND
-  // popup) even if config.show_flash_weekend_campaign is already true on
-  // the seller's live row, until these two are swapped for real links.
-  const flashWeekendImage = "TODO_WIDE_BANNER_IMAGE_URL";
-  const flashWeekendPopupOnlyImage = "TODO_TALL_POPUP_ONLY_IMAGE_URL";
+  // randomly show (the "Jhené Aiko" wide artwork); flashWeekendPopupOnlyImage
+  // only ever appears in the popup (the "J. Cole" tall artwork).
+  const flashWeekendImage = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/26ed726d-b2f2-4d80-9109-13f2e6f8ddf4/1789016634356-0.png";
+  const flashWeekendPopupOnlyImage = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/26ed726d-b2f2-4d80-9109-13f2e6f8ddf4/1789016634357-1.png";
   // 12 September 23:59 in South African time (SAST is UTC+2). This mirrors
   // the server-side checkout guard, so expired sale artwork can never
   // linger on the homepage after the offer has stopped applying.
