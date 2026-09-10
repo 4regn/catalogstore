@@ -57,6 +57,12 @@ const TEES_SALE_COLLECTION = "OVERSIZED PREMIUM TEES";
 // constant (and the hero override copy below) whenever this campaign runs
 // again at a new date/price.
 const TEES_SALE_ANALYTICS_END = new Date("2026-09-13T00:00:00+02:00").getTime();
+// sessionStorage, not localStorage -- "once per session" per the ask, not
+// "once ever on this device". Bump the version suffix if this popup's
+// behavior ever changes in a way that should show it again to someone who
+// already saw an earlier version this session (not needed for a plain
+// image/price swap between campaign runs).
+const FLASH_WEEKEND_POPUP_SESSION_KEY = "regn-flash-weekend-popup-seen-v1";
 
 // Cart-state-driven, same "nothing worth rendering server-side" reasoning
 // as the two dynamic imports above.
@@ -961,7 +967,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const [liveHiddenCollections, setLiveHiddenCollections] = useState<string[] | null>(null);
   const [liveCollOrder, setLiveCollOrder] = useState<string[] | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
-  const [flashWeekendOpen, setFlashWeekendOpen] = useState(true);
+  const [flashWeekendOpen, setFlashWeekendOpen] = useState(false);
+  // Which of the 2 sale images the popup happens to be showing this
+  // session -- chosen once, randomly, the moment it actually opens (see the
+  // showFlashWeekendCampaign-gated effect below), not re-rolled on every
+  // render.
+  const [flashWeekendPopupImage, setFlashWeekendPopupImage] = useState<string | null>(null);
   const [flashWeekendNow, setFlashWeekendNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -2276,20 +2287,50 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // not a per-seller-editable link, since it's platform routing, not brand
   // content.
   const showSetlaBanner = config.show_setla_banner ?? true;
-  // Swapped from the Flash Weekend free-cap banner to the Oversized Premium
-  // Tees flash sale (R249, was R350, buy 2 for R449) -- same slot, same
-  // on/off flag and end date, just a different promo for the tail end of
-  // the same sale weekend. Hardcoded rather than read from
+  // Round 2 of the Oversized Premium Tees flash sale (R229, was R350, buy 2
+  // for R449) -- same slot, same on/off flag, new end date and new
+  // artwork. Hardcoded rather than read from
   // config.flash_weekend_campaign_image, matching this component's own
   // "one-off, don't generalize" treatment of flashWeekendEndsAt/
-  // flashWeekendHref just below.
-  const flashWeekendImage = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/26ed726d-b2f2-4d80-9109-13f2e6f8ddf4/1788131397559-0.png";
-  // 31 August 23:59 in South African time (SAST is UTC+2). This mirrors the
-  // server-side checkout guard, so expired sale artwork can never linger on
-  // the homepage after the offer has stopped applying.
-  const flashWeekendEndsAt = Date.parse("2026-08-31T21:59:00.000Z");
-  const showFlashWeekendCampaign = isHomeView && config.show_flash_weekend_campaign === true && !!flashWeekendImage && flashWeekendNow <= flashWeekendEndsAt;
+  // flashWeekendHref just below. flashWeekendImage (the wide banner) is
+  // used below the hero AND is one of the two images the popup can
+  // randomly show; flashWeekendPopupOnlyImage only ever appears in the
+  // popup.
+  // Awaiting the real photos -- both still literal placeholder strings, not
+  // URLs. showFlashWeekendCampaign below explicitly requires an "http" src
+  // before it'll render anything, so this campaign stays off (banner AND
+  // popup) even if config.show_flash_weekend_campaign is already true on
+  // the seller's live row, until these two are swapped for real links.
+  const flashWeekendImage = "TODO_WIDE_BANNER_IMAGE_URL";
+  const flashWeekendPopupOnlyImage = "TODO_TALL_POPUP_ONLY_IMAGE_URL";
+  // 12 September 23:59 in South African time (SAST is UTC+2). This mirrors
+  // the server-side checkout guard, so expired sale artwork can never
+  // linger on the homepage after the offer has stopped applying.
+  const flashWeekendEndsAt = Date.parse("2026-09-12T21:59:00.000Z");
+  const showFlashWeekendCampaign = isHomeView && config.show_flash_weekend_campaign === true && flashWeekendImage.startsWith("http") && flashWeekendNow <= flashWeekendEndsAt;
   const flashWeekendHref = sp(`/collections/${collectionSlug(TEES_SALE_COLLECTION)}`);
+
+  // Opens the flash-sale popup 5s after landing, at most once per browser
+  // session, picking one of the 2 sale images at random. A single one-shot
+  // setTimeout (not a repeating interval), so this can't cause the kind of
+  // whole-page re-render-every-tick issue a ticking value at this level
+  // caused elsewhere in this file -- it fires once, flips two bits of
+  // state, and is done.
+  useEffect(() => {
+    if (!showFlashWeekendCampaign) return;
+    let alreadySeen = false;
+    try { alreadySeen = sessionStorage.getItem(FLASH_WEEKEND_POPUP_SESSION_KEY) === "1"; } catch {}
+    if (alreadySeen) return;
+    const timer = window.setTimeout(() => {
+      const image = Math.random() < 0.5 ? flashWeekendImage : flashWeekendPopupOnlyImage;
+      setFlashWeekendPopupImage(image);
+      setFlashWeekendOpen(true);
+      try { sessionStorage.setItem(FLASH_WEEKEND_POPUP_SESSION_KEY, "1"); } catch {}
+      if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_popup_seen" });
+    }, 5000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFlashWeekendCampaign]);
   const setlaEyebrow = config.setla_eyebrow ?? `Flexible payments on ${seller.store_name}`;
   const setlaLead = config.setla_lead ?? "Eligible customers can shop with SETLA and split selected purchases into interest-free instalments — with your payment plan shown clearly before you commit.";
   const setlaBadge = config.setla_badge ?? "Interest-free SETLA payment options";
@@ -4255,15 +4296,19 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           <>
             <section className="fr-flash-banner" aria-label="Oversized Premium Tees flash sale">
               <a href={flashWeekendHref}>
-                <img src={flashWeekendImage} alt="Oversized Premium Tees flash sale — R249, was R350. Buy 2 for R449. Shop now." loading="eager" decoding="async" />
+                <img src={flashWeekendImage} alt="Oversized Premium Tees flash sale — R229, was R350. Buy 2 for R449. Shop now." loading="eager" decoding="async" />
               </a>
             </section>
-            {flashWeekendOpen && (
+            {flashWeekendOpen && flashWeekendPopupImage && (
               <div className="fr-flash-popup-backdrop" role="dialog" aria-modal="true" aria-label="Oversized Premium Tees flash sale">
                 <div className="fr-flash-popup">
                   <button className="fr-flash-popup-close" onClick={() => setFlashWeekendOpen(false)} aria-label="Close sale popup">×</button>
-                  <a href={flashWeekendHref} aria-label="Shop Oversized Premium Tees">
-                    <img src={flashWeekendImage} alt="Oversized Premium Tees flash sale — Shop now." />
+                  <a
+                    href={flashWeekendHref}
+                    aria-label="Shop Oversized Premium Tees"
+                    onClick={() => { if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_popup_clicked" }); }}
+                  >
+                    <img src={flashWeekendPopupImage} alt="Oversized Premium Tees flash sale — Shop now." />
                   </a>
                 </div>
               </div>

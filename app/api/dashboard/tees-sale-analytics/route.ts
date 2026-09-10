@@ -5,7 +5,11 @@ import { fetchAllRows } from "../../../../lib/fetch-all-rows";
 export const dynamic = "force-dynamic";
 
 // Same auth shape and structure as /api/dashboard/flash-cap-analytics.
+// Popup events listed first -- seeing the popup is upstream of visiting
+// the collection when that's how someone arrived, so the funnel reads
+// top-to-bottom in the order a shopper actually experiences it.
 const TEES_SALE_EVENT_TYPES = [
+  "tees_sale_popup_seen", "tees_sale_popup_clicked",
   "tees_sale_collection_visited", "tees_sale_product_viewed",
   "tees_sale_added_to_cart", "tees_sale_order_completed",
 ] as const;

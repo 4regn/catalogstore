@@ -41,7 +41,12 @@ export type StorefrontEventType =
   // unlock state machine, just
   // a discounted price and a bundle deal.
   | "tees_sale_collection_visited" | "tees_sale_product_viewed"
-  | "tees_sale_added_to_cart" | "tees_sale_order_completed";
+  | "tees_sale_added_to_cart" | "tees_sale_order_completed"
+  // The homepage popup for this same promo (FourRegnStore.tsx's
+  // flashWeekendOpen) -- seen fires once it actually opens (5s after
+  // landing, once per session), clicked fires on tapping through to the
+  // collection from it.
+  | "tees_sale_popup_seen" | "tees_sale_popup_clicked";
 
 export function trackStorefrontEvent(args: {
   sellerId: string;

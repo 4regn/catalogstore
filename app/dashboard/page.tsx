@@ -4995,13 +4995,15 @@ export default function Dashboard() {
                     <span style={{ fontSize: 11, fontWeight: 800, color: "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.03em" }}>R{Math.round(teesSaleAnalytics.orderValueTotal).toLocaleString("en-ZA")} in orders</span>
                   )}
                 </div>
-                <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>How shoppers are moving through the R229 (buy 2 for R449) tees sale, from visiting the collection to completing an order. Ends 12 September.</p>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>How shoppers are moving through the R229 (buy 2 for R449) tees sale, from seeing the popup to completing an order. Ends 12 September.</p>
                 {teesSaleAnalyticsLoading && !teesSaleAnalytics ? (
                   <p style={{ fontSize: 12, color: "var(--muted)" }}>Loading…</p>
                 ) : !teesSaleAnalytics || teesSaleAnalytics.totalEvents === 0 ? (
                   <p style={{ fontSize: 12, color: "var(--muted)" }}>No activity recorded yet.</p>
                 ) : (() => {
                   const labels: Record<string, string> = {
+                    tees_sale_popup_seen: "Saw the popup",
+                    tees_sale_popup_clicked: "Clicked the popup",
                     tees_sale_collection_visited: "Visited Oversized Premium Tees",
                     tees_sale_product_viewed: "Viewed a tee",
                     tees_sale_added_to_cart: "Added a tee to cart",

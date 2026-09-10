@@ -31,6 +31,7 @@ const EVENT_TYPES = new Set([
   // and the DB check constraint).
   "tees_sale_collection_visited", "tees_sale_product_viewed",
   "tees_sale_added_to_cart", "tees_sale_order_completed",
+  "tees_sale_popup_seen", "tees_sale_popup_clicked",
 ]);
 
 function safeEventMetadata(value: unknown): Record<string, string | number | boolean | null> {
