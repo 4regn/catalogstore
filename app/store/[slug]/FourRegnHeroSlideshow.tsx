@@ -92,6 +92,20 @@ export default function FourRegnHeroSlideshow({ slides }: { slides: FourRegnHero
           // fonts/JS/other images and was the actual cause of the stall.
           fetchPriority={i === 0 ? "high" : "auto"}
           decoding="async"
+          // This is server-rendered, so the browser starts fetching every
+          // slide's image the moment it parses the initial HTML -- well
+          // before React finishes hydrating and attaching onLoad below.
+          // A fast-loading image (small file, warm cache, quick CDN) can
+          // easily finish before that happens, firing its native `load`
+          // event into a void with no listener yet attached -- onLoad
+          // then never fires for it at all, and the rotation waits
+          // forever for a slide that's actually already loaded (the
+          // "stuck on slide 1" bug). The ref callback below runs the
+          // instant this element mounts and checks the DOM image's own
+          // .complete flag, which is true regardless of whether that
+          // completion happened before or after a listener existed --
+          // catching exactly the loads that onLoad alone would miss.
+          ref={(el) => { if (el?.complete) markLoaded(i); }}
           onLoad={() => markLoaded(i)}
           // A broken image (404, network failure) should never permanently
           // stall the rotation on the slide before it -- treat "failed" the
