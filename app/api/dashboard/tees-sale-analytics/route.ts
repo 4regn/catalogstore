@@ -14,6 +14,19 @@ const TEES_SALE_EVENT_TYPES = [
   "tees_sale_added_to_cart", "tees_sale_order_completed",
 ] as const;
 
+// This promo has run more than once (R249 through 31 Aug, now R229 from
+// 10 Sept) reusing the exact same event type names each time -- without a
+// start boundary, this panel silently mixes the first run's activity into
+// the second run's numbers, and a shopper freshly testing the current
+// campaign sees stale historical counts instead of anything reflecting
+// their own action. 2026-09-01T00:00:00+02:00 is the first run's own end
+// instant (FourRegnTeesSaleCountdown.tsx's TEES_SALE_END at the time),
+// not an arbitrary date -- there's no campaign active in the gap between
+// runs, so anything at or after it can only belong to this second run.
+// Bump this alongside FourRegnStore.tsx's TEES_SALE_ANALYTICS_END the
+// next time this campaign relaunches at a new date/price.
+const CAMPAIGN_WINDOW_START = "2026-09-01T00:00:00+02:00";
+
 type Row = { event_type: string; visitor_id: string; cart_value: number | null; created_at: string };
 
 export async function POST(req: NextRequest) {
@@ -29,7 +42,7 @@ export async function POST(req: NextRequest) {
       admin,
       "store_visitor_events",
       "event_type, visitor_id, cart_value, created_at",
-      (q) => q.eq("seller_id", userData.user.id).in("event_type", TEES_SALE_EVENT_TYPES as unknown as string[]).order("created_at", { ascending: false })
+      (q) => q.eq("seller_id", userData.user.id).in("event_type", TEES_SALE_EVENT_TYPES as unknown as string[]).gte("created_at", CAMPAIGN_WINDOW_START).order("created_at", { ascending: false })
     );
 
     const counts: Record<string, number> = {};
