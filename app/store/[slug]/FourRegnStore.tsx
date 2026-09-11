@@ -3387,15 +3387,24 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cpe-empty:hover .fr-cpe-plus{transform:scale(1.08)}
 .fr-cpe-design-layer{position:absolute;cursor:move;touch-action:none}
 .fr-cpe-design-layer img{width:100%;height:100%;display:block;pointer-events:none;user-select:none}
-.fr-cpe-handle,.fr-cpe-btn-change,.fr-cpe-btn-remove,.fr-cpe-btn-crop{transition:opacity .18s ease}
-.fr-cpe-controls-hidden .fr-cpe-handle,.fr-cpe-controls-hidden .fr-cpe-btn-change,.fr-cpe-controls-hidden .fr-cpe-btn-remove,.fr-cpe-controls-hidden .fr-cpe-btn-crop{opacity:0;pointer-events:none}
-.fr-cpe-handle{position:absolute;bottom:-9px;right:-9px;width:20px;height:20px;background:#fff;border:2px solid #000;border-radius:5px;cursor:nwse-resize;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.fr-cpe-handle,.fr-cpe-btn-change,.fr-cpe-btn-remove,.fr-cpe-btn-crop,.fr-cpe-tool-label{transition:opacity .18s ease}
+.fr-cpe-controls-hidden .fr-cpe-handle,.fr-cpe-controls-hidden .fr-cpe-btn-change,.fr-cpe-controls-hidden .fr-cpe-btn-remove,.fr-cpe-controls-hidden .fr-cpe-btn-crop,.fr-cpe-controls-hidden .fr-cpe-tool-label{opacity:0;pointer-events:none}
+.fr-cpe-handle{position:absolute;bottom:-9px;right:-9px;width:20px;height:20px;background:#fff;color:#000;border:2px solid #000;border-radius:5px;cursor:nwse-resize;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center}
+.fr-cpe-handle svg{width:12px;height:12px}
 .fr-cpe-btn-change,.fr-cpe-btn-remove,.fr-cpe-btn-crop{position:absolute;width:24px;height:24px;border-radius:50%;background:rgba(10,10,10,.75);color:#fff;border:none;cursor:pointer;font-family:var(--body);padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.25)}
 .fr-cpe-btn-change,.fr-cpe-btn-remove{font-size:17px;font-weight:300;line-height:1}
 .fr-cpe-btn-change{top:-11px;left:-11px}
 .fr-cpe-btn-remove{top:-11px;right:-11px}
 .fr-cpe-btn-crop{bottom:-11px;left:-11px}
 .fr-cpe-btn-crop svg{width:13px;height:13px}
+/* Tiny always-on labels next to each corner control (ADD/DEL/CROP/RESIZE)
+   -- same fade-with-controls behavior as the buttons themselves, each
+   sitting just inward of its own button along the same edge. */
+.fr-cpe-tool-label{position:absolute;font-family:var(--body);font-size:8px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#fff;background:rgba(10,10,10,.75);border-radius:4px;padding:2px 5px;line-height:1;pointer-events:none;white-space:nowrap}
+.fr-cpe-tool-label-add{top:-8px;left:17px}
+.fr-cpe-tool-label-del{top:-8px;right:17px}
+.fr-cpe-tool-label-crop{bottom:-8px;left:17px}
+.fr-cpe-tool-label-resize{bottom:-6px;right:15px}
 .fr-cpe-flip-ctrls{display:flex;gap:8px;margin-top:10px}
 .fr-cpe-flip-ctrls button{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(0,0,0,0.12);background:#fff;font-family:var(--body);font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;color:var(--muted-2,#7a767e)}
 .fr-cpe-flip-ctrls button.active{background:#000;color:#fff;border-color:#000}

@@ -64,7 +64,16 @@ const BLANK_SIDE: SideState = { url: null, x: 0, y: 0, w: 0, h: 0, ar: 1 };
 // the clip shape (rendered relative to the design layer's current
 // position, see getZoneClip/renders below) trims it down to the true
 // panel edge wherever it currently overlaps.
-type ZoneCal = { wP: number; hP: number; cxP: number; tP: number; clip?: { x: number; y: number }[] };
+type ZoneCal = {
+  wP: number; hP: number; cxP: number; tP: number; clip?: { x: number; y: number }[];
+  // Where freshly uploaded art should land by default, in the same
+  // stage-fraction terms as clip -- smaller than clip's own bounding box
+  // on purpose (calibrated with the cap-landing-calibrator tool against
+  // several artwork shapes) so a fresh upload reads as comfortably sized
+  // inside the panel instead of maxed out edge-to-edge. See
+  // getSafeFitRect: drag/resize still range over the full bounding box.
+  landingRect?: { x: number; y: number; w: number; h: number };
+};
 
 // Custom-printed-trucker-cap's arched front panel, traced against the
 // actual product photos with the print-zone-calibrator tool -- shared by
@@ -79,6 +88,7 @@ const CAP_FRONT_ZONE: ZoneCal = {
     { x: 0.2584, y: 0.3725 }, { x: 0.2363, y: 0.4010 }, { x: 0.2353, y: 0.4294 },
     { x: 0.2360, y: 0.4863 },
   ],
+  landingRect: { x: 0.2896, y: 0.3458, w: 0.4389, h: 0.2073 },
 };
 
 const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
@@ -301,6 +311,15 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
   // can still push their art out to the panel's real (curved) edge on
   // purpose; they just don't start there.
   const getSafeFitRect = (view: Side) => {
+    const table = PRINT_ZONE[garment][view];
+    const cfg = table[zoneColour] || table.black;
+    if (cfg.landingRect) {
+      const stage = stageRef.current;
+      const w = stage?.clientWidth || 320;
+      const h = stage?.clientHeight || 320;
+      const r = cfg.landingRect;
+      return { x: r.x * w, y: r.y * h, w: r.w * w, h: r.h * h };
+    }
     const clip = getZoneClip(view);
     if (!clip) return getZoneRect(view);
     return largestInscribedRect(clip) || getZoneRect(view);
@@ -587,16 +606,29 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
                       outline excludes (e.g. beside a cap's arched crown). */}
                   <img src={s.url} alt="Your design" draggable={false} style={clipPathStyle(zoneClip, s.x, s.y)} />
                   <button type="button" className="fr-cpe-btn-change" aria-label="Change upload" onClick={(e) => { e.stopPropagation(); openPicker(curView); }}>+</button>
+                  <span className="fr-cpe-tool-label fr-cpe-tool-label-add" aria-hidden="true">Add</span>
                   <button type="button" className="fr-cpe-btn-remove" aria-label="Remove upload" onClick={(e) => { e.stopPropagation(); removeDesign(); }}>−</button>
+                  <span className="fr-cpe-tool-label fr-cpe-tool-label-del" aria-hidden="true">Del</span>
                   <button type="button" className="fr-cpe-btn-crop" aria-label="Crop image" onClick={(e) => { e.stopPropagation(); openCrop(); }}>
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 1v9a2 2 0 0 0 2 2h9" /><path d="M12 15V6a2 2 0 0 0-2-2H1" /></svg>
                   </button>
+                  <span className="fr-cpe-tool-label fr-cpe-tool-label-crop" aria-hidden="true">Crop</span>
                   <div
                     className="fr-cpe-handle"
                     onPointerDown={(e) => onDesignPointerDown(e, "resize")}
                     onPointerMove={onDesignPointerMove}
                     onPointerUp={onDesignPointerUp}
-                  />
+                  >
+                    {/* Two corner brackets pointing away from each other
+                        (top-left / bottom-right) -- the standard diagonal
+                        "drag to resize" affordance, replacing the plain
+                        filled square which didn't read as a resize control. */}
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 5V1h4" />
+                      <path d="M15 11v4h-4" />
+                    </svg>
+                  </div>
+                  <span className="fr-cpe-tool-label fr-cpe-tool-label-resize" aria-hidden="true">Resize</span>
                 </div>
               )}
             </div>
