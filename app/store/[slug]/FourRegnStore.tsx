@@ -3398,13 +3398,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-cpe-btn-crop{bottom:-11px;left:-11px}
 .fr-cpe-btn-crop svg{width:13px;height:13px}
 /* Tiny always-on labels next to each corner control (ADD/DEL/CROP/RESIZE)
-   -- same fade-with-controls behavior as the buttons themselves, each
-   sitting just inward of its own button along the same edge. */
+   -- same fade-with-controls behavior as the buttons themselves. The top
+   two (Add/Del) sit stacked above their icon, the bottom two (Crop/Resize)
+   stacked below, each centered on its own button. */
 .fr-cpe-tool-label{position:absolute;font-family:var(--body);font-size:8px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#fff;background:rgba(10,10,10,.75);border-radius:4px;padding:2px 5px;line-height:1;pointer-events:none;white-space:nowrap}
-.fr-cpe-tool-label-add{top:-8px;left:17px}
-.fr-cpe-tool-label-del{top:-8px;right:17px}
-.fr-cpe-tool-label-crop{bottom:-8px;left:17px}
-.fr-cpe-tool-label-resize{bottom:-6px;right:15px}
+.fr-cpe-tool-label-add{top:-26px;left:1px;transform:translateX(-50%)}
+.fr-cpe-tool-label-del{top:-26px;right:1px;transform:translateX(50%)}
+.fr-cpe-tool-label-crop{bottom:-26px;left:1px;transform:translateX(-50%)}
+.fr-cpe-tool-label-resize{bottom:-24px;right:1px;transform:translateX(50%)}
 .fr-cpe-flip-ctrls{display:flex;gap:8px;margin-top:10px}
 .fr-cpe-flip-ctrls button{flex:1;padding:9px;border-radius:8px;border:1px solid rgba(0,0,0,0.12);background:#fff;font-family:var(--body);font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;color:var(--muted-2,#7a767e)}
 .fr-cpe-flip-ctrls button.active{background:#000;color:#fff;border-color:#000}
