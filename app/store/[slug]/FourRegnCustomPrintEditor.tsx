@@ -65,6 +65,22 @@ const BLANK_SIDE: SideState = { url: null, x: 0, y: 0, w: 0, h: 0, ar: 1 };
 // position, see getZoneClip/renders below) trims it down to the true
 // panel edge wherever it currently overlaps.
 type ZoneCal = { wP: number; hP: number; cxP: number; tP: number; clip?: { x: number; y: number }[] };
+
+// Custom-printed-trucker-cap's arched front panel, traced against the
+// actual product photos with the print-zone-calibrator tool -- shared by
+// every colour that product sells (see the "cap" entry below).
+const CAP_FRONT_ZONE: ZoneCal = {
+  wP: 0.5359, hP: 0.3115, cxP: 0.5027, tP: 0.2916,
+  clip: [
+    { x: 0.2347, y: 0.6031 }, { x: 0.4829, y: 0.5868 }, { x: 0.7680, y: 0.6021 },
+    { x: 0.7706, y: 0.5232 }, { x: 0.7691, y: 0.4306 }, { x: 0.7262, y: 0.3411 },
+    { x: 0.6159, y: 0.3075 }, { x: 0.5246, y: 0.2937 }, { x: 0.4806, y: 0.2916 },
+    { x: 0.4215, y: 0.2995 }, { x: 0.3755, y: 0.3095 }, { x: 0.2915, y: 0.3442 },
+    { x: 0.2584, y: 0.3725 }, { x: 0.2363, y: 0.4010 }, { x: 0.2353, y: 0.4294 },
+    { x: 0.2360, y: 0.4863 },
+  ],
+};
+
 const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
   hoodie: {
     front: {
@@ -95,41 +111,25 @@ const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
       beige: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.415 },
     },
   },
-  // Traced directly off the actual cap photo with the print-zone-calibrator
-  // tool -- an arched front panel, not a rectangle, so `clip` carries the
-  // real outline (wP/hP/cxP/tP are just its bounding box, kept for the
-  // shared rect-based placement math -- see the ZoneCal comment above).
+  // Traced directly off the actual custom-printed-trucker-cap photos with
+  // the print-zone-calibrator tool -- an arched front panel, not a
+  // rectangle, so `clip` carries the real outline (wP/hP/cxP/tP are just
+  // its bounding box, kept for the shared rect-based placement math -- see
+  // the ZoneCal comment above). One shared rect/clip for every colour --
+  // all seven (black/green/red/yellow/orange/blue/pink) are the exact same
+  // studio shot with only the brim/side/button colour swapped, confirmed
+  // against the actual product photos, same as hoodie's back view above.
   // Caps only ever sell as CUSTOM_PRINT_FRONT_TAG (front only, no flip), so
   // "back" here is never rendered -- it's a copy of "front" purely to
-  // satisfy the Record<Side, ...> shape. Only one colour calibrated so
-  // far; re-run the calibrator per colour if other cap colours' panels
-  // sit differently and add entries here the same way hoodie/tee do.
+  // satisfy the Record<Side, ...> shape.
   cap: {
     front: {
-      black: {
-        wP: 0.5359, hP: 0.3115, cxP: 0.5027, tP: 0.2916,
-        clip: [
-          { x: 0.2347, y: 0.6031 }, { x: 0.4829, y: 0.5868 }, { x: 0.7680, y: 0.6021 },
-          { x: 0.7706, y: 0.5232 }, { x: 0.7691, y: 0.4306 }, { x: 0.7262, y: 0.3411 },
-          { x: 0.6159, y: 0.3075 }, { x: 0.5246, y: 0.2937 }, { x: 0.4806, y: 0.2916 },
-          { x: 0.4215, y: 0.2995 }, { x: 0.3755, y: 0.3095 }, { x: 0.2915, y: 0.3442 },
-          { x: 0.2584, y: 0.3725 }, { x: 0.2363, y: 0.4010 }, { x: 0.2353, y: 0.4294 },
-          { x: 0.2360, y: 0.4863 },
-        ],
-      },
+      black: CAP_FRONT_ZONE, green: CAP_FRONT_ZONE, red: CAP_FRONT_ZONE,
+      yellow: CAP_FRONT_ZONE, orange: CAP_FRONT_ZONE, blue: CAP_FRONT_ZONE, pink: CAP_FRONT_ZONE,
     },
     back: {
-      black: {
-        wP: 0.5359, hP: 0.3115, cxP: 0.5027, tP: 0.2916,
-        clip: [
-          { x: 0.2347, y: 0.6031 }, { x: 0.4829, y: 0.5868 }, { x: 0.7680, y: 0.6021 },
-          { x: 0.7706, y: 0.5232 }, { x: 0.7691, y: 0.4306 }, { x: 0.7262, y: 0.3411 },
-          { x: 0.6159, y: 0.3075 }, { x: 0.5246, y: 0.2937 }, { x: 0.4806, y: 0.2916 },
-          { x: 0.4215, y: 0.2995 }, { x: 0.3755, y: 0.3095 }, { x: 0.2915, y: 0.3442 },
-          { x: 0.2584, y: 0.3725 }, { x: 0.2363, y: 0.4010 }, { x: 0.2353, y: 0.4294 },
-          { x: 0.2360, y: 0.4863 },
-        ],
-      },
+      black: CAP_FRONT_ZONE, green: CAP_FRONT_ZONE, red: CAP_FRONT_ZONE,
+      yellow: CAP_FRONT_ZONE, orange: CAP_FRONT_ZONE, blue: CAP_FRONT_ZONE, pink: CAP_FRONT_ZONE,
     },
   },
 };
