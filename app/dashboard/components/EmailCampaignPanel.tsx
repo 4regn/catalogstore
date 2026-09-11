@@ -29,10 +29,26 @@ type Overview = {
   template: { key: string; name: string; subject: string; previewText: string; previewUrl: string };
 };
 
+import { MARKETING_CAMPAIGNS, R229_FLASH_SALE_CAMPAIGN } from "../../../lib/marketing-campaigns";
+
 const panel = { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 18 };
 const CAMPAIGN_BATCH_SIZE = 575;
 
 export default function EmailCampaignPanel() {
+  const [templateKey, setTemplateKey] = useState(R229_FLASH_SALE_CAMPAIGN.key);
+  const [locked, setLocked] = useState(false);
+  return <>
+    <label style={{ display: "block", marginBottom: 16, fontSize: 14 }}>
+      Campaign
+      <select aria-label="Campaign" disabled={locked} value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} style={{ ...inputStyle, display: "block", marginTop: 8, width: "100%", fontSize: 14 }}>
+        {MARKETING_CAMPAIGNS.map((campaign) => <option key={campaign.key} value={campaign.key}>{campaign.name}</option>)}
+      </select>
+    </label>
+    <CampaignWorkspace key={templateKey} templateKey={templateKey} onBusyChange={setLocked} />
+  </>;
+}
+
+function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string; onBusyChange: (busy: boolean) => void }) {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -43,6 +59,8 @@ export default function EmailCampaignPanel() {
   const [confirmation, setConfirmation] = useState("");
   const [capacityConfirmation, setCapacityConfirmation] = useState("");
 
+  useEffect(() => { onBusyChange(!!busy); }, [busy, onBusyChange]);
+
   const call = useCallback(async (action: string, extra: Record<string, unknown> = {}) => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -50,12 +68,12 @@ export default function EmailCampaignPanel() {
     const response = await fetch("/api/dashboard/email-marketing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: token, action, ...extra }),
+      body: JSON.stringify({ access_token: token, action, ...extra, template_key: templateKey }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Email marketing request failed");
     return result;
-  }, []);
+  }, [templateKey]);
 
   const load = useCallback(async () => {
     setError("");
@@ -106,7 +124,7 @@ export default function EmailCampaignPanel() {
     try {
       await call("send", { campaign_id: campaign.id, confirmation });
       setConfirmation("");
-      setNotice("The SETLA Pay Later Broadcast has been handed to Resend for delivery.");
+      setNotice("The selected campaign has been handed to Resend for delivery.");
       await load();
     } catch (sendError: any) { setError(sendError?.message || "Campaign send failed."); }
     finally { setBusy(""); }
@@ -130,7 +148,7 @@ export default function EmailCampaignPanel() {
     try {
       await call("discard", { campaign_id: campaign.id });
       setConfirmation("");
-      setNotice("Unsent draft discarded. You can now prepare the corrected SETLA Pay Later batch.");
+      setNotice("Unsent draft discarded. You can now prepare a new batch.");
       await load();
     } catch (discardError: any) { setError(discardError?.message || "Could not discard the draft."); }
     finally { setBusy(""); }
@@ -147,7 +165,7 @@ export default function EmailCampaignPanel() {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: ".12em", color: "#f472b6", textTransform: "uppercase" }}>4REGN Email Studio</div>
-          <h2 style={{ margin: "7px 0 5px", fontSize: 20, fontWeight: 900, letterSpacing: "-.03em", textTransform: "uppercase" }}>SETLA Pay Later Broadcast</h2>
+          <h2 style={{ margin: "7px 0 5px", fontSize: 20, fontWeight: 900, letterSpacing: "-.03em", textTransform: "uppercase" }}>{overview?.template.name || "Email campaign"}</h2>
           <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, maxWidth: 680 }}>Consent-safe Resend Broadcast workflow. Preview, test and sync first; sending stays locked behind an exact confirmation phrase.</p>
         </div>
         <button onClick={() => setPreviewOpen(true)} style={secondaryButton}>Preview email</button>
@@ -235,7 +253,7 @@ export default function EmailCampaignPanel() {
     {previewOpen && <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.82)", padding: "clamp(10px,3vw,28px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "min(760px,100%)", height: "min(900px,92vh)", background: "#fff", borderRadius: 18, overflow: "hidden", position: "relative" }}>
         <button aria-label="Close preview" onClick={() => setPreviewOpen(false)} style={{ position: "absolute", zIndex: 2, right: 12, top: 12, width: 40, height: 40, borderRadius: "50%", border: 0, background: "#111", color: "#fff", fontSize: 22, cursor: "pointer" }}>×</button>
-        <iframe title="SETLA Pay Later email preview" src={overview?.template.previewUrl} style={{ width: "100%", height: "100%", border: 0 }} />
+        <iframe title={`${overview?.template.name || "Campaign"} email preview`} src={overview?.template.previewUrl} style={{ width: "100%", height: "100%", border: 0 }} />
       </div>
     </div>}
 

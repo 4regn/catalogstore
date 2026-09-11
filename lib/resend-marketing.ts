@@ -2,16 +2,21 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getFourRegnResendFrom } from "./email";
 
-export const SETLA_PAY_LATER_CAMPAIGN = {
-  key: "4regn-setla-pay-later-2026",
-  name: "4REGN × SETLA — Your Fit, Your Pace",
-  subject: "Your 4REGN fit. Your pace. Pay with SETLA.",
-  previewText: "Sign up for SETLA, see what you qualify for, then shop 4REGN your way at checkout.",
-  previewUrl: "/email/4regn-setla-pay-later-2026.html",
-};
+import { SETLA_PAY_LATER_CAMPAIGN, getMarketingCampaign } from "./marketing-campaigns";
+export { SETLA_PAY_LATER_CAMPAIGN } from "./marketing-campaigns";
+
+export async function marketingCampaignHtml(key: string) {
+  const campaign = getMarketingCampaign(key);
+  if (!campaign) throw new Error("Unknown email campaign");
+  // Literal paths ensure both templates are included in the server deployment.
+  if (campaign.key === SETLA_PAY_LATER_CAMPAIGN.key) {
+    return readFile(path.join(process.cwd(), "public", "email", "4regn-setla-pay-later-2026.html"), "utf8");
+  }
+  return readFile(path.join(process.cwd(), "public", "email", "4regn-r229-flash-sale-2026-09.html"), "utf8");
+}
 
 export async function setlaPayLaterCampaignHtml() {
-  return readFile(path.join(process.cwd(), "public", "email", "4regn-setla-pay-later-2026.html"), "utf8");
+  return marketingCampaignHtml(SETLA_PAY_LATER_CAMPAIGN.key);
 }
 
 export function marketingApiKey() {
