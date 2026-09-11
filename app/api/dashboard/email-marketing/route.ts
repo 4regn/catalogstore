@@ -9,6 +9,7 @@ import {
 } from "../../../../lib/resend-marketing";
 
 import { getMarketingCampaign } from "../../../../lib/marketing-campaigns";
+import { parseMarketingSchedule, todayAtNineSast } from "../../../../lib/marketing-schedule";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -97,18 +98,39 @@ async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sel
 }
 
 async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerId: string, templateKey: string) {
-  // A recipient is only consumed once Resend has accepted a sent broadcast.
-  // Keeping failed or discarded draft rows out of this set lets the merchant
-  // correct the underlying Resend issue and safely prepare that same audience.
-  const campaigns = await allRows<{ id: string }>((from, to) => admin.from("marketing_email_campaigns")
-    .select("id").eq("seller_id", sellerId).eq("template_key", templateKey).eq("status", "sent").range(from, to));
-  const used: Array<{ email: string }> = [];
-  for (let index = 0; index < campaigns.length; index += 100) {
-    const campaignIds = campaigns.slice(index, index + 100).map((campaign) => campaign.id);
-    used.push(...await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
-      .select("email").eq("seller_id", sellerId).eq("template_key", templateKey).in("campaign_id", campaignIds).range(from, to)));
-  }
+  // Reserve recipients as soon as a batch exists, including scheduled batches
+  // and uncertain send outcomes. Discarding an unsent batch cascades these rows.
+  const used = await allRows<{ email: string }>((from, to) => admin.from("marketing_email_campaign_recipients")
+    .select("email").eq("seller_id", sellerId).eq("template_key", templateKey).range(from, to));
   return new Set(used.map((row) => row.email.trim().toLowerCase()));
+}
+
+async function refreshScheduledBatches(admin: ReturnType<typeof getAdmin>, sellerId: string, templateKey: string) {
+  const { data: batches, error } = await admin.from("marketing_email_campaigns")
+    .select("id, status, resend_broadcast_id, updated_at").eq("seller_id", sellerId)
+    .eq("template_key", templateKey).in("status", ["scheduled", "sending"]);
+  if (error) throw error;
+  for (const batch of batches || []) {
+    if (!batch.resend_broadcast_id) continue;
+    // Do not interfere with an in-flight scheduling request.
+    if (batch.status === "sending" && Date.now() - Date.parse(batch.updated_at) < 120000) continue;
+    try {
+      const remote = await resendMarketingRequest<{ status: string; scheduled_at?: string; sent_at?: string }>(`/broadcasts/${batch.resend_broadcast_id}`);
+      if (remote.status !== "scheduled" && remote.status !== "sent") continue;
+      const { error: updateError } = await admin.from("marketing_email_campaigns").update({
+        status: remote.status, scheduled_at: remote.scheduled_at || null,
+        sent_at: remote.sent_at || null, last_error: null, updated_at: new Date().toISOString(),
+      }).eq("id", batch.id).eq("seller_id", sellerId).in("status", ["scheduled", "sending"]);
+      if (updateError) throw updateError;
+      if (remote.status === "sent") {
+        const { error: recipientError } = await admin.from("marketing_email_campaign_recipients")
+          .update({ status: "sent", updated_at: new Date().toISOString() }).eq("campaign_id", batch.id);
+        if (recipientError) throw recipientError;
+      }
+    } catch (refreshError) {
+      console.error("Could not refresh scheduled broadcast", batch.id, refreshError);
+    }
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -121,6 +143,7 @@ export async function POST(req: NextRequest) {
     if (!template) return NextResponse.json({ error: "Unknown email campaign" }, { status: 400 });
 
     if (action === "overview") {
+      await refreshScheduledBatches(admin, seller.id, template.key);
       const [settings, allAudience, campaignsResult, usedEmails] = await Promise.all([
         getSettings(admin, seller.id),
         allMarketingAudienceContacts(admin, seller.id),
@@ -132,7 +155,7 @@ export async function POST(req: NextRequest) {
       if (campaignsResult.error) throw campaignsResult.error;
       const audience = allAudience.slice(0, MAX_MARKETING_CONTACTS);
       const genericGreetingCount = audience.filter((contact) => !contact.first_name).length;
-      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, planExcludedCount: Math.max(0, allAudience.length - audience.length), genericGreetingCount, remainingCount: audience.filter((contact) => !usedEmails.has(contact.email)).length, campaigns: campaignsResult.data || [], template: template, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE });
+      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, planExcludedCount: Math.max(0, allAudience.length - audience.length), genericGreetingCount, remainingCount: audience.filter((contact) => !usedEmails.has(contact.email)).length, campaigns: campaignsResult.data || [], template: template, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE, defaultScheduleLocal: todayAtNineSast() });
     }
 
     if (action === "sync") {
@@ -180,6 +203,7 @@ export async function POST(req: NextRequest) {
       const limit = Math.min(MAX_BATCH_SIZE, Math.max(1, requestedLimit));
       const existingOpen = await admin.from("marketing_email_campaigns").select("id, status")
         .eq("seller_id", seller.id).eq("template_key", template.key).in("status", ["preparing", "draft"]).limit(1).maybeSingle();
+      if (existingOpen.error) throw existingOpen.error;
       if (existingOpen.data) return NextResponse.json({ error: "Finish the existing prepared batch before creating another one." }, { status: 409 });
 
       const [contacts, usedEmails] = await Promise.all([
@@ -267,7 +291,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, campaignId: campaign.id, prepared, total: campaign.recipient_count, complete: true });
     }
 
-    if (action === "send") {
+    if (action === "send" || action === "schedule") {
+      let scheduledAt: string | null = null;
+      if (action === "schedule") {
+        try { scheduledAt = parseMarketingSchedule(body.schedule_local); }
+        catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }); }
+      }
       const campaignId = typeof body.campaign_id === "string" ? body.campaign_id : "";
       const confirmation = typeof body.confirmation === "string" ? body.confirmation.trim() : "";
       const { data: campaign, error } = await admin.from("marketing_email_campaigns").select("*").eq("id", campaignId).eq("seller_id", seller.id).single();
@@ -278,18 +307,43 @@ export async function POST(req: NextRequest) {
       const { data: campaignRecipients, error: campaignRecipientsError } = await admin.from("marketing_email_campaign_recipients")
         .select("first_name").eq("campaign_id", campaign.id);
       if (campaignRecipientsError) throw campaignRecipientsError;
-      if (confirmation !== `SEND ${campaign.recipient_count}`) return NextResponse.json({ error: `Type SEND ${campaign.recipient_count} to confirm` }, { status: 400 });
+      const phrase = `${scheduledAt ? "SCHEDULE" : "SEND"} ${campaign.recipient_count}`;
+      if (confirmation !== phrase) return NextResponse.json({ error: `Type ${phrase} to confirm` }, { status: 400 });
 
-      await admin.from("marketing_email_campaigns").update({ status: "sending", updated_at: new Date().toISOString() }).eq("id", campaign.id);
+      // Atomically claim the draft so double-clicks and parallel tabs cannot send twice.
+      const { data: claimed, error: claimError } = await admin.from("marketing_email_campaigns")
+        .update({ status: "sending", scheduled_at: scheduledAt, last_error: null, updated_at: new Date().toISOString() })
+        .eq("id", campaign.id).eq("seller_id", seller.id).eq("status", "draft").select("id").maybeSingle();
+      if (claimError) throw claimError;
+      if (!claimed) return NextResponse.json({ error: "This batch is already being sent or scheduled. Refresh its status." }, { status: 409 });
+      let accepted = false;
       try {
-        await resendMarketingRequest(`/broadcasts/${campaign.resend_broadcast_id}/send`, { method: "POST", body: "{}" });
-        await admin.from("marketing_email_campaigns").update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString(), last_error: null }).eq("id", campaign.id);
-        await admin.from("marketing_email_campaign_recipients").update({ status: "sent", updated_at: new Date().toISOString() }).eq("campaign_id", campaign.id);
+        await resendMarketingRequest(`/broadcasts/${campaign.resend_broadcast_id}/send`, {
+          method: "POST", body: JSON.stringify(scheduledAt ? { scheduled_at: scheduledAt } : {}),
+        });
+        accepted = true;
+        const { error: saveError } = await admin.from("marketing_email_campaigns").update({
+          status: scheduledAt ? "scheduled" : "sent", scheduled_at: scheduledAt,
+          sent_at: scheduledAt ? null : new Date().toISOString(), updated_at: new Date().toISOString(), last_error: null,
+        }).eq("id", campaign.id);
+        if (saveError) throw saveError;
+        if (!scheduledAt) {
+          const { error: recipientError } = await admin.from("marketing_email_campaign_recipients")
+            .update({ status: "sent", updated_at: new Date().toISOString() }).eq("campaign_id", campaign.id);
+          if (recipientError) throw recipientError;
+        }
       } catch (sendError: any) {
-        await admin.from("marketing_email_campaigns").update({ status: "failed", last_error: sendError?.message || "Send failed", updated_at: new Date().toISOString() }).eq("id", campaign.id);
+        // Only an explicit validation/rate-limit rejection is safe to retry.
+        // A timeout, conflict, or server error may have accepted the broadcast.
+        const rejected = !accepted && [400, 401, 403, 404, 422, 429].includes(sendError?.status);
+        await admin.from("marketing_email_campaigns").update({
+          ...(rejected ? { status: "draft", scheduled_at: null } : {}),
+          last_error: sendError?.message || "Delivery status uncertain. Refresh to check Resend before retrying.",
+          updated_at: new Date().toISOString(),
+        }).eq("id", campaign.id);
         throw sendError;
       }
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, scheduledAt });
     }
 
     if (action === "free_contact_capacity") {

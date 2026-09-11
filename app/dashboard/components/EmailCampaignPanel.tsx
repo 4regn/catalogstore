@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { formatMarketingSchedule, parseMarketingSchedule } from "../../../lib/marketing-schedule";
 
 type Campaign = {
   id: string;
@@ -12,6 +13,7 @@ type Campaign = {
   recipient_count: number;
   status: string;
   sent_at: string | null;
+  scheduled_at: string | null;
   created_at: string;
   last_error: string | null;
   batch_number?: number;
@@ -23,6 +25,7 @@ type Overview = {
   genericGreetingCount: number;
   remainingCount: number;
   maxBatchSize: number;
+  defaultScheduleLocal: string;
   sellerEmail: string;
   settings: null | { resend_segment_id: string | null; synced_contact_count: number; last_synced_at: string | null };
   campaigns: Campaign[];
@@ -58,6 +61,8 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const [prepareProgress, setPrepareProgress] = useState({ current: 0, total: 0 });
   const [confirmation, setConfirmation] = useState("");
   const [capacityConfirmation, setCapacityConfirmation] = useState("");
+  const [deliveryMode, setDeliveryMode] = useState("schedule");
+  const [scheduleLocal, setScheduleLocal] = useState("");
 
   useEffect(() => { onBusyChange(!!busy); }, [busy, onBusyChange]);
 
@@ -80,6 +85,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
     try {
       const result = await call("overview");
       setOverview(result);
+      setScheduleLocal((value) => value || result.defaultScheduleLocal);
       setTestEmail((value) => value || result.sellerEmail || "");
     } catch (loadError: any) {
       setError(loadError?.message || "Could not load email campaigns.");
@@ -122,9 +128,13 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const sendCampaign = async (campaign: Campaign) => {
     setBusy(`send:${campaign.id}`); setError(""); setNotice("");
     try {
-      await call("send", { campaign_id: campaign.id, confirmation });
+      const result = await call(deliveryMode === "schedule" ? "schedule" : "send", {
+        campaign_id: campaign.id, confirmation, schedule_local: scheduleLocal,
+      });
       setConfirmation("");
-      setNotice("The selected campaign has been handed to Resend for delivery.");
+      setNotice(result.scheduledAt
+        ? `Batch ${campaign.batch_number || ""} scheduled for ${formatMarketingSchedule(result.scheduledAt)}. You can now prepare the next batch for the same time.`
+        : "The selected campaign has been handed to Resend for delivery.");
       await load();
     } catch (sendError: any) { setError(sendError?.message || "Campaign send failed."); }
     finally { setBusy(""); }
@@ -159,6 +169,13 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const latestDraft = overview?.campaigns.find((campaign) => campaign.status === "draft");
   const preparingBatch = overview?.campaigns.find((campaign) => campaign.status === "preparing");
   const unsentBatch = latestDraft || preparingBatch;
+  const confirmPhrase = `${deliveryMode === "schedule" ? "SCHEDULE" : "SEND"} ${latestDraft?.recipient_count || 0}`;
+  let scheduleError = "";
+  let scheduleLabel = "";
+  if (deliveryMode === "schedule") {
+    try { scheduleLabel = formatMarketingSchedule(parseMarketingSchedule(scheduleLocal)); }
+    catch (error: any) { scheduleError = error.message; }
+  }
 
   return <>
     <section style={{ ...panel, padding: "clamp(16px,3vw,24px)", marginBottom: 18 }}>
@@ -168,7 +185,10 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
           <h2 style={{ margin: "7px 0 5px", fontSize: 20, fontWeight: 900, letterSpacing: "-.03em", textTransform: "uppercase" }}>{overview?.template.name || "Email campaign"}</h2>
           <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, maxWidth: 680 }}>Consent-safe Resend Broadcast workflow. Preview, test and sync first; sending stays locked behind an exact confirmation phrase.</p>
         </div>
-        <button onClick={() => setPreviewOpen(true)} style={secondaryButton}>Preview email</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button disabled={!!busy} onClick={() => void load()} style={secondaryButton}>Refresh status</button>
+          <button onClick={() => setPreviewOpen(true)} style={secondaryButton}>Preview email</button>
+        </div>
       </div>
 
       {error && <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", color: "#f87171", fontSize: 11 }}>{error}</div>}
@@ -182,7 +202,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 15 }}>
             <span style={statusPill}>From: 4REGN &lt;info@4regn.com&gt;</span>
             <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} opted-in subscribers eligible</span>
-            <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} not sent yet</span>
+            <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} available for the next batch</span>
             {overview.genericGreetingCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.genericGreetingCount.toLocaleString("en-ZA")} receive a generic greeting</span>}
             {overview.planExcludedCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.planExcludedCount.toLocaleString("en-ZA")} held for the contact limit</span>}
           </div>
@@ -190,7 +210,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
 
         <div style={{ ...innerCard, padding: 18 }}>
           <div style={eyebrow}>1 · Prepare today&apos;s batch</div>
-          <p style={stepCopy}>Selects up to 575 opted-in subscribers who have not received this campaign, then creates a private Resend segment. Subscribers without a name receive a neutral greeting, and the next batch automatically starts with the remaining contacts.</p>
+          <p style={stepCopy}>Selects up to 575 opted-in subscribers who are not already in another batch for this campaign. Schedule the first batch, then prepare the remaining subscribers and schedule them for the same time.</p>
           {busy === "draft" && <div style={{ margin: "12px 0" }}>
             <div style={{ height: 6, background: "var(--input-bg)", borderRadius: 99, overflow: "hidden" }}><div style={{ height: "100%", width: `${prepareProgress.total ? Math.round(prepareProgress.current / prepareProgress.total * 100) : 0}%`, background: "#a78bfa" }} /></div>
             <div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 6 }}>{prepareProgress.current.toLocaleString("en-ZA")} / {prepareProgress.total.toLocaleString("en-ZA")}</div>
@@ -216,7 +236,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
       </div>}
 
       {!!overview && overview.audienceCount > CAMPAIGN_BATCH_SIZE && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 10, lineHeight: 1.55 }}>
-        This campaign is split into batches of up to 575 recipients. Sent recipients are recorded, so the next batch excludes them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers currently remain for this campaign.
+        This campaign is split into batches of up to 575 recipients. Prepared, scheduled and sent batches reserve their subscribers, so the next batch excludes them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers are available for the next batch.
       </div>}
 
       {!!overview?.planExcludedCount && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(251,191,36,.35)" }}>
@@ -231,20 +251,36 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
       </div>}
 
       {latestDraft && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(244,114,182,.35)" }}>
-        <div style={eyebrow}>4 · Final send confirmation</div>
+        <div style={eyebrow}>4 · Schedule or send batch {latestDraft.batch_number}</div>
         <div style={{ fontSize: 13, fontWeight: 800 }}>{latestDraft.subject}</div>
-        <p style={stepCopy}>This sends to up to {latestDraft.recipient_count.toLocaleString("en-ZA")} synced contacts. Resend automatically suppresses contacts who unsubscribed.</p>
-        <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 7 }}>Type <strong style={{ color: "var(--text)" }}>SEND {latestDraft.recipient_count}</strong> to unlock sending.</div>
+        <p style={stepCopy}>This batch contains {latestDraft.recipient_count.toLocaleString("en-ZA")} synced contacts. Resend automatically suppresses contacts who unsubscribed.</p>
+        <label style={{ display: "block", fontSize: 14, marginTop: 16 }}>
+          Delivery
+          <select aria-label="Delivery" disabled={!!busy} value={deliveryMode} onChange={(event) => { setDeliveryMode(event.target.value); setConfirmation(""); }} style={{ ...inputStyle, display: "block", marginTop: 6, fontSize: 14 }}>
+            <option value="schedule">Schedule for later</option>
+            <option value="send">Send immediately</option>
+          </select>
+        </label>
+        {deliveryMode === "schedule" && <div style={{ margin: "14px 0" }}>
+          <label style={{ display: "block", fontSize: 14 }}>
+            Date and time — South Africa (SAST, UTC+2)
+            <input aria-label="Scheduled date and time in South Africa" type="datetime-local" disabled={!!busy} value={scheduleLocal} onChange={(event) => { setScheduleLocal(event.target.value); setConfirmation(""); }} style={{ ...inputStyle, display: "block", marginTop: 6, fontSize: 14 }} />
+          </label>
+          <p style={{ fontSize: 14, lineHeight: 1.5, color: scheduleError ? "#f87171" : "var(--muted)", marginBottom: 0 }}>
+            {scheduleError || `Resend will start sending at ${scheduleLabel}. You can close the browser after scheduling.`}
+          </p>
+        </div>}
+        <div style={{ fontSize: 14, color: "var(--muted)", margin: "14px 0 7px" }}>Type <strong style={{ color: "var(--text)" }}>{confirmPhrase}</strong> to confirm {deliveryMode === "schedule" ? "this schedule" : "sending now"}.</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={`SEND ${latestDraft.recipient_count}`} style={inputStyle} />
-          <button disabled={!!busy || confirmation !== `SEND ${latestDraft.recipient_count}`} onClick={() => sendCampaign(latestDraft)} style={{ ...primaryButton, background: "#e11d48" }}>{busy === `send:${latestDraft.id}` ? "Handing to Resend…" : "Send campaign now"}</button>
+          <input aria-label="Batch confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={confirmPhrase} style={inputStyle} />
+          <button disabled={!!busy || confirmation !== confirmPhrase || !!scheduleError} onClick={() => sendCampaign(latestDraft)} style={{ ...primaryButton, background: deliveryMode === "schedule" ? "#7c3aed" : "#e11d48" }}>{busy === `send:${latestDraft.id}` ? "Handing to Resend…" : deliveryMode === "schedule" ? "Schedule batch" : "Send campaign now"}</button>
         </div>
       </div>}
 
       {!!overview?.campaigns.length && <div style={{ marginTop: 18 }}>
         <div style={eyebrow}>Campaign history</div>
         {overview.campaigns.map((campaign) => <div key={campaign.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, padding: "11px 0", borderTop: "1px solid var(--border)" }}>
-          <div><div style={{ fontSize: 11, fontWeight: 800 }}>{campaign.subject}</div><div style={{ fontSize: 9, color: "var(--muted-2)", marginTop: 3 }}>{new Date(campaign.sent_at || campaign.created_at).toLocaleString("en-ZA")} · {campaign.recipient_count.toLocaleString("en-ZA")} contacts{campaign.last_error ? ` · ${campaign.last_error}` : ""}</div></div>
+          <div><div style={{ fontSize: 13, fontWeight: 800 }}>Batch {campaign.batch_number} · {campaign.subject}</div><div style={{ fontSize: 14, color: "var(--muted-2)", marginTop: 3 }}>{campaign.status === "scheduled" && campaign.scheduled_at ? `Scheduled: ${formatMarketingSchedule(campaign.scheduled_at)}` : formatMarketingSchedule(campaign.sent_at || campaign.created_at)} · {campaign.recipient_count.toLocaleString("en-ZA")} contacts{campaign.last_error ? ` · ${campaign.last_error}` : ""}</div></div>
           <span style={{ ...statusPill, alignSelf: "center", textTransform: "uppercase" }}>{campaign.status}</span>
         </div>)}
       </div>}
