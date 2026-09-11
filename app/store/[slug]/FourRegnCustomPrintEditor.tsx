@@ -42,7 +42,7 @@ import { useImperativeHandle, useRef, useState, forwardRef } from "react";
 // never continuously while dragging.
 
 type Side = "front" | "back";
-type Garment = "hoodie" | "tee";
+type Garment = "hoodie" | "tee" | "cap";
 type SideState = { url: string | null; x: number; y: number; w: number; h: number; ar: number };
 const BLANK_SIDE: SideState = { url: null, x: 0, y: 0, w: 0, h: 0, ar: 1 };
 
@@ -53,7 +53,18 @@ const BLANK_SIDE: SideState = { url: null, x: 0, y: 0, w: 0, h: 0, ar: 1 };
 // the zone's width/height as a fraction of the stage box; cxP is the
 // zone's horizontal center as a fraction of stage width; tP is the
 // zone's top edge as a fraction of stage height.
-type ZoneCal = { wP: number; hP: number; cxP: number; tP: number };
+//
+// `clip`, when present, is the print panel's real outline (e.g. a cap's
+// arched front panel) as an ordered list of points in the same
+// stage-fraction terms, traced with the print-zone-calibrator tool. It's
+// what actually masks the uploaded artwork; wP/hP/cxP/tP above are still
+// kept in sync with its bounding box so the existing drag/resize/clamp
+// logic (which only ever deals in rectangles) needs no changes -- the
+// design layer is free to move/resize anywhere in that bounding box, and
+// the clip shape (rendered relative to the design layer's current
+// position, see getZoneClip/renders below) trims it down to the true
+// panel edge wherever it currently overlaps.
+type ZoneCal = { wP: number; hP: number; cxP: number; tP: number; clip?: { x: number; y: number }[] };
 const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
   hoodie: {
     front: {
@@ -82,6 +93,43 @@ const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
       black: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.415 },
       white: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.415 },
       beige: { wP: 0.3735, hP: 0.3833, cxP: 0.4985, tP: 0.415 },
+    },
+  },
+  // Traced directly off the actual cap photo with the print-zone-calibrator
+  // tool -- an arched front panel, not a rectangle, so `clip` carries the
+  // real outline (wP/hP/cxP/tP are just its bounding box, kept for the
+  // shared rect-based placement math -- see the ZoneCal comment above).
+  // Caps only ever sell as CUSTOM_PRINT_FRONT_TAG (front only, no flip), so
+  // "back" here is never rendered -- it's a copy of "front" purely to
+  // satisfy the Record<Side, ...> shape. Only one colour calibrated so
+  // far; re-run the calibrator per colour if other cap colours' panels
+  // sit differently and add entries here the same way hoodie/tee do.
+  cap: {
+    front: {
+      black: {
+        wP: 0.5359, hP: 0.3115, cxP: 0.5027, tP: 0.2916,
+        clip: [
+          { x: 0.2347, y: 0.6031 }, { x: 0.4829, y: 0.5868 }, { x: 0.7680, y: 0.6021 },
+          { x: 0.7706, y: 0.5232 }, { x: 0.7691, y: 0.4306 }, { x: 0.7262, y: 0.3411 },
+          { x: 0.6159, y: 0.3075 }, { x: 0.5246, y: 0.2937 }, { x: 0.4806, y: 0.2916 },
+          { x: 0.4215, y: 0.2995 }, { x: 0.3755, y: 0.3095 }, { x: 0.2915, y: 0.3442 },
+          { x: 0.2584, y: 0.3725 }, { x: 0.2363, y: 0.4010 }, { x: 0.2353, y: 0.4294 },
+          { x: 0.2360, y: 0.4863 },
+        ],
+      },
+    },
+    back: {
+      black: {
+        wP: 0.5359, hP: 0.3115, cxP: 0.5027, tP: 0.2916,
+        clip: [
+          { x: 0.2347, y: 0.6031 }, { x: 0.4829, y: 0.5868 }, { x: 0.7680, y: 0.6021 },
+          { x: 0.7706, y: 0.5232 }, { x: 0.7691, y: 0.4306 }, { x: 0.7262, y: 0.3411 },
+          { x: 0.6159, y: 0.3075 }, { x: 0.5246, y: 0.2937 }, { x: 0.4806, y: 0.2916 },
+          { x: 0.4215, y: 0.2995 }, { x: 0.3755, y: 0.3095 }, { x: 0.2915, y: 0.3442 },
+          { x: 0.2584, y: 0.3725 }, { x: 0.2363, y: 0.4010 }, { x: 0.2353, y: 0.4294 },
+          { x: 0.2360, y: 0.4863 },
+        ],
+      },
     },
   },
 };
@@ -171,6 +219,25 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
     const zy = h * cfg.tP;
     return { x: zx, y: zy, w: zw, h: zh };
   };
+
+  // The zone's true (possibly non-rectangular) outline, in absolute stage
+  // pixels -- null for garments whose print area is just the plain
+  // rectangle from getZoneRect (hoodie/tee). Points stay in stage-absolute
+  // terms here; callers translate them into whatever element's local box
+  // they're clipping (the moving design layer, or the fixed empty-state
+  // button) by subtracting that element's own x/y.
+  const getZoneClip = (view: Side): { x: number; y: number }[] | null => {
+    const stage = stageRef.current;
+    const w = stage?.clientWidth || 320;
+    const h = stage?.clientHeight || 320;
+    const table = PRINT_ZONE[garment][view];
+    const cfg = table[zoneColour] || table.black;
+    if (!cfg.clip) return null;
+    return cfg.clip.map((p) => ({ x: p.x * w, y: p.y * h }));
+  };
+
+  const clipPathStyle = (clip: { x: number; y: number }[] | null, originX: number, originY: number): React.CSSProperties | undefined =>
+    clip ? { clipPath: `polygon(${clip.map((p) => `${(p.x - originX).toFixed(2)}px ${(p.y - originY).toFixed(2)}px`).join(", ")})` } : undefined;
 
   // The calibration percentages above assume the stage box's own aspect
   // ratio exactly matches the photo (no letterbox/crop) -- upload.html
@@ -370,7 +437,27 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
         ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height);
         const sx = canvas.width / stageW;
         const sy = canvas.height / stageH;
+        // cfg.clip's points are already stage-fraction (0-1), the same
+        // fraction the canvas itself represents of the garment photo, so
+        // they map onto canvas.width/height directly -- no sx/sy needed
+        // here, unlike the design placement below (which is in stage px).
+        // Without this the composited preview/print would show artwork
+        // spilling past a non-rectangular panel's true edge (e.g. a cap's
+        // arched crown) even though the live editor clips it correctly.
+        const table = PRINT_ZONE[garment][view];
+        const cfg = table[zoneColour] || table.black;
+        if (cfg.clip) {
+          ctx.save();
+          ctx.beginPath();
+          cfg.clip.forEach((p, i) => {
+            const px = p.x * canvas.width, py = p.y * canvas.height;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          });
+          ctx.closePath();
+          ctx.clip();
+        }
         ctx.drawImage(design, s.x * sx, s.y * sy, s.w * sx, s.h * sy);
+        if (cfg.clip) ctx.restore();
         return canvas.toDataURL("image/jpeg", 0.88);
       };
 
@@ -384,11 +471,13 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
         backPreviewDataUrl,
       };
     },
-  }), [sides, both, frontGarmentImage, backGarmentImage, stageAspect]);
+  }), [sides, both, frontGarmentImage, backGarmentImage, stageAspect, garment, zoneColour]);
 
   const s = sides[curView];
   const garmentSrc = curView === "front" ? frontGarmentImage : backGarmentImage || frontGarmentImage;
   const innerCounterRot = curView === "back" ? 180 : 0;
+  const zone = getZoneRect(curView);
+  const zoneClip = getZoneClip(curView);
 
   return (
     <div className="fr-cpe">
@@ -408,7 +497,7 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
                 <button
                   type="button"
                   className={"fr-cpe-empty" + (zoneColour === "white" ? " fr-cpe-empty-light" : "")}
-                  style={{ left: getZoneRect(curView).x, top: getZoneRect(curView).y, width: getZoneRect(curView).w, height: getZoneRect(curView).h }}
+                  style={{ left: zone.x, top: zone.y, width: zone.w, height: zone.h, ...clipPathStyle(zoneClip, zone.x, zone.y) }}
                   onClick={() => openPicker(curView)}
                 >
                   <span className="fr-cpe-plus">+</span>
@@ -424,7 +513,12 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
                   onPointerUp={onDesignPointerUp}
                   onClick={(e) => { e.stopPropagation(); setControlsVisible(true); }}
                 >
-                  <img src={s.url} alt="Your design" draggable={false} />
+                  {/* Clip lives on the <img> alone, not this whole layer --
+                      the drag handle and corner buttons stay outside it so
+                      they're never accidentally hit-tested out of existence
+                      when they land in a "cut corner" the panel's true
+                      outline excludes (e.g. beside a cap's arched crown). */}
+                  <img src={s.url} alt="Your design" draggable={false} style={clipPathStyle(zoneClip, s.x, s.y)} />
                   <button type="button" className="fr-cpe-btn-change" aria-label="Change upload" onClick={(e) => { e.stopPropagation(); openPicker(curView); }}>+</button>
                   <button type="button" className="fr-cpe-btn-remove" aria-label="Remove upload" onClick={(e) => { e.stopPropagation(); removeDesign(); }}>−</button>
                   <button type="button" className="fr-cpe-btn-crop" aria-label="Crop image" onClick={(e) => { e.stopPropagation(); openCrop(); }}>

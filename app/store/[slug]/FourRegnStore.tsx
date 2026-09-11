@@ -761,7 +761,11 @@ function customPrintGarmentImages(product: Product, selectedVariants: { [key: st
   const imgs = resolveVariantImages(product, selectedVariants) ?? productBaseImages(product);
   const frontImg = imgs[0] || product.image_url || "";
   const backImg = both ? (imgs[1] || product.images?.[0] || frontImg) : undefined;
-  const garment: "hoodie" | "tee" = /HOODIE/i.test(product.category || "") ? "hoodie" : "tee";
+  const garment: "hoodie" | "tee" | "cap" = /HOODIE/i.test(product.category || "")
+    ? "hoodie"
+    : /CAP/i.test(product.category || "")
+    ? "cap"
+    : "tee";
   const colour = selectedVariants["Color"] || "";
   return { both, frontImg, backImg, garment, colour };
 }
