@@ -93,10 +93,13 @@ const CAP_FRONT_ZONE: ZoneCal = {
 
 const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
   hoodie: {
+    // landingRect calibrated with the hoodie-landing-calibrator tool
+    // (same idea as the cap's -- see ZoneCal's comment) so a fresh upload
+    // lands comfortably sized instead of maxed out to the full print zone.
     front: {
-      black: { wP: 0.3328, hP: 0.1955, cxP: 0.4957, tP: 0.3477 },
-      white: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3409 },
-      beige: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3193 },
+      black: { wP: 0.3328, hP: 0.1955, cxP: 0.4957, tP: 0.3477, landingRect: { x: 0.3704, y: 0.3736, w: 0.2411, h: 0.1509 } },
+      white: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3409, landingRect: { x: 0.3825, y: 0.3736, w: 0.2263, h: 0.1391 } },
+      beige: { wP: 0.3328, hP: 0.2045, cxP: 0.4957, tP: 0.3193, landingRect: { x: 0.3543, y: 0.3349, w: 0.2894, h: 0.1752 } },
     },
     // Same rectangle for every colour -- the back-hoodie photo set shares
     // one framing/zoom across all three colours (see upload.html comment).
