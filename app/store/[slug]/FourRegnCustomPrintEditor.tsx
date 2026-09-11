@@ -134,6 +134,59 @@ const PRINT_ZONE: Record<Garment, Record<Side, Record<string, ZoneCal>>> = {
   },
 };
 
+// The largest axis-aligned rectangle that fits entirely inside a
+// (possibly non-rectangular) zone -- used to size freshly uploaded
+// artwork so it starts fully visible instead of landing at the zone's
+// bounding-box size and having its corners immediately cut off by a
+// curved panel's real edge (e.g. a cap's arched crown). Cropping past
+// this "safe" rectangle is still allowed -- see fitIntoZone -- it's just
+// not what a customer sees the instant they upload, before they've
+// chosen to push their art toward an edge themselves.
+//
+// General scanline sweep, no assumption about which side of the shape is
+// widest: samples the polygon's horizontal span at evenly spaced y-levels,
+// then for every (top, bottom) pair of sampled levels takes the width
+// common to every level in between (the intersection of their spans) and
+// keeps whichever pair maximizes width*height. O(samples^2), trivial at
+// the sample counts this needs (a few thousand ops at most).
+function largestInscribedRect(points: { x: number; y: number }[]): { x: number; y: number; w: number; h: number } | null {
+  if (!points || points.length < 3) return null;
+  const ys = points.map((p) => p.y);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  if (maxY <= minY) return null;
+  const STEPS = 48;
+  const levels = Array.from({ length: STEPS + 1 }, (_, i) => minY + ((maxY - minY) * i) / STEPS);
+  const spans = levels.map((y) => {
+    const xs: number[] = [];
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length];
+      if (a.y === b.y) continue;
+      const lo = Math.min(a.y, b.y), hi = Math.max(a.y, b.y);
+      if (y < lo || y > hi) continue;
+      xs.push(a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x));
+    }
+    return xs.length >= 2 ? { xMin: Math.min(...xs), xMax: Math.max(...xs) } : null;
+  });
+
+  let best: { area: number; x: number; y: number; w: number; h: number } | null = null;
+  for (let i = 0; i <= STEPS; i++) {
+    if (!spans[i]) continue;
+    let xMin = -Infinity, xMax = Infinity;
+    for (let j = i; j <= STEPS; j++) {
+      const span = spans[j];
+      if (!span) break;
+      xMin = Math.max(xMin, span.xMin);
+      xMax = Math.min(xMax, span.xMax);
+      const w = xMax - xMin;
+      if (w <= 0) break;
+      const h = levels[j] - levels[i];
+      const area = w * h;
+      if (!best || area > best.area) best = { area, x: xMin, y: levels[i], w, h };
+    }
+  }
+  return best ? { x: best.x, y: best.y, w: best.w, h: best.h } : null;
+}
+
 export type FourRegnCustomPrintCapture = {
   frontRawDataUrl: string;
   backRawDataUrl?: string;
@@ -239,6 +292,20 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
   const clipPathStyle = (clip: { x: number; y: number }[] | null, originX: number, originY: number): React.CSSProperties | undefined =>
     clip ? { clipPath: `polygon(${clip.map((p) => `${(p.x - originX).toFixed(2)}px ${(p.y - originY).toFixed(2)}px`).join(", ")})` } : undefined;
 
+  // Where freshly uploaded art should land: the zone's full bounding
+  // rectangle for a plain rectangular print area (hoodie/tee -- identical
+  // to getZoneRect there, so no behavior change), or the largest rectangle
+  // that fits entirely inside the true panel outline for a clipped one
+  // (cap) -- see largestInscribedRect's comment for why. Drag/resize still
+  // range over the full getZoneRect bounding box either way, so a customer
+  // can still push their art out to the panel's real (curved) edge on
+  // purpose; they just don't start there.
+  const getSafeFitRect = (view: Side) => {
+    const clip = getZoneClip(view);
+    if (!clip) return getZoneRect(view);
+    return largestInscribedRect(clip) || getZoneRect(view);
+  };
+
   // The calibration percentages above assume the stage box's own aspect
   // ratio exactly matches the photo (no letterbox/crop) -- upload.html
   // achieves that by setting the stage's CSS aspect-ratio per photo
@@ -253,7 +320,7 @@ const FourRegnCustomPrintEditor = forwardRef<FourRegnCustomPrintEditorHandle, Pr
   };
 
   const fitIntoZone = (view: Side, url: string, ar: number) => {
-    const zone = getZoneRect(view);
+    const zone = getSafeFitRect(view);
     let w = zone.w;
     let h = w * ar;
     if (h > zone.h) { h = zone.h; w = h / ar; }
