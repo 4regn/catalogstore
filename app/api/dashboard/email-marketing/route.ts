@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
         .replaceAll("{{{RESEND_UNSUBSCRIBE_URL}}}", "https://4regn.com/");
       const result = await resendMarketingRequest<{ id: string }>("/emails", {
         method: "POST",
-        body: JSON.stringify({ from: fourRegnMarketingFrom(), to: [to], reply_to: "info@4regn.com", subject: `[TEST] ${template.subject}`, html }),
+        body: JSON.stringify({ from: fourRegnMarketingFrom(), to: [to], reply_to: "info@4regn.com", subject: template.subject, html }),
       });
       return NextResponse.json({ ok: true, emailId: result.id });
     }
