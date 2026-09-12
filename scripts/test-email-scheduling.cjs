@@ -118,5 +118,16 @@ async function main() {
   requests = []; await post('test', { to: 'owner@example.test' });
   assert.ok(!requests[0].body.subject.includes('[TEST]')); assert.ok(requests[0].body.subject.includes('🛍️ FLASH SALE!!'));
   console.log('PASS immediate sending preserved and test email uses urgent subject without prefix');
+  Object.assign(batch, { status: 'failed', last_error: 'Contact quota reached' });
+  remoteStatus = { status: 'sent' }; requests = [];
+  assert.equal((await post('recover_draft', { campaign_id: batch.id })).status, 409);
+  assert.equal(batch.status, 'failed');
+  remoteStatus = { status: 'draft' };
+  assert.equal((await post('recover_draft', { campaign_id: batch.id })).status, 200);
+  assert.equal(batch.status, 'draft');
+  assert.equal(batch.last_error, 'Contact quota reached');
+  assert.ok(requests.every(r => r.method === 'GET'));
+  assert.equal((await post('recover_draft', { campaign_id: batch.id })).status, 409);
+  console.log('PASS failed-batch recovery verifies Resend draft, preserves quota error, never sends or resets a sent broadcast');
 }
 main().catch(error => { console.error(error); process.exit(1); });

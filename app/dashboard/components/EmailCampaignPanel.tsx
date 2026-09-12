@@ -136,7 +136,21 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
         ? `Batch ${campaign.batch_number || ""} scheduled for ${formatMarketingSchedule(result.scheduledAt)}. You can now prepare the next batch for the same time.`
         : "The selected campaign has been handed to Resend for delivery.");
       await load();
-    } catch (sendError: any) { setError(sendError?.message || "Campaign send failed."); }
+    } catch (sendError: any) {
+      await load();
+      setError(sendError?.message || "Campaign send failed.");
+    }
+    finally { setBusy(""); }
+  };
+
+  const recoverDraft = async (campaign: Campaign) => {
+    setBusy(`recover:${campaign.id}`); setError(""); setNotice("");
+    try {
+      const result = await call("recover_draft", { campaign_id: campaign.id });
+      await load();
+      setDeliveryMode("send"); setConfirmation("");
+      setNotice(`Batch ${campaign.batch_number} restored to draft. Nothing was sent. ${result.previousError ? `Resolve the previous error before retrying: ${result.previousError}` : "Review the batch before sending."}`);
+    } catch (recoverError: any) { setError(recoverError?.message || "Could not recover the draft."); }
     finally { setBusy(""); }
   };
 
@@ -249,6 +263,13 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
           <button disabled={!!busy || capacityConfirmation !== `REMOVE ${overview.planExcludedCount}`} onClick={freeResendContactCapacity} style={{ ...primaryButton, background: "#b45309", marginTop: 0, width: "auto" }}>{busy === "free-capacity" ? "Removing from Resend…" : `Remove ${overview.planExcludedCount} from Resend`}</button>
         </div>
       </div>}
+
+      {overview?.campaigns.filter((campaign) => campaign.status === "failed").map((campaign) => <div key={campaign.id} style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(239,68,68,.35)" }}>
+        <div style={{ fontSize: 15, fontWeight: 800 }}>Batch {campaign.batch_number} · {campaign.recipient_count} contacts · Send failed</div>
+        <p style={{ fontSize: 14, lineHeight: 1.5 }}>{campaign.last_error || "The previous send failed."}</p>
+        <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--muted)" }}>Check the existing broadcast in Resend before retrying. Restoring a draft keeps this batch’s recipients and sends nothing.</p>
+        <button disabled={!!busy} onClick={() => recoverDraft(campaign)} style={secondaryButton}>{busy === `recover:${campaign.id}` ? "Checking Resend…" : "Check Resend and restore draft"}</button>
+      </div>)}
 
       {latestDraft && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(244,114,182,.35)" }}>
         <div style={eyebrow}>4 · Schedule or send batch {latestDraft.batch_number}</div>

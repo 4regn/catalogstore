@@ -291,6 +291,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, campaignId: campaign.id, prepared, total: campaign.recipient_count, complete: true });
     }
 
+    if (action === "recover_draft") {
+      const campaignId = typeof body.campaign_id === "string" ? body.campaign_id : "";
+      const { data: campaign, error } = await admin.from("marketing_email_campaigns").select("*")
+        .eq("id", campaignId).eq("seller_id", seller.id).eq("template_key", template.key).single();
+      if (error || !campaign) return NextResponse.json({ error: "Campaign batch not found" }, { status: 404 });
+      if (campaign.status !== "failed" || !campaign.resend_broadcast_id) {
+        return NextResponse.json({ error: "Only a failed batch with an existing Resend draft can be recovered." }, { status: 409 });
+      }
+      const remote = await resendMarketingRequest<{ status: string }>(`/broadcasts/${campaign.resend_broadcast_id}`);
+      if (remote.status !== "draft") {
+        return NextResponse.json({ error: `Resend reports this broadcast as ${remote.status}. It has not been reset or resent.` }, { status: 409 });
+      }
+      const { data: restored, error: restoreError } = await admin.from("marketing_email_campaigns")
+        .update({ status: "draft", scheduled_at: null, updated_at: new Date().toISOString() })
+        .eq("id", campaign.id).eq("seller_id", seller.id).eq("status", "failed").select("id").maybeSingle();
+      if (restoreError) throw restoreError;
+      if (!restored) return NextResponse.json({ error: "Batch status changed. Refresh before continuing." }, { status: 409 });
+      return NextResponse.json({ ok: true, previousError: campaign.last_error });
+    }
+
     if (action === "send" || action === "schedule") {
       let scheduledAt: string | null = null;
       if (action === "schedule") {
@@ -302,7 +322,9 @@ export async function POST(req: NextRequest) {
       const { data: campaign, error } = await admin.from("marketing_email_campaigns").select("*").eq("id", campaignId).eq("seller_id", seller.id).single();
       if (error || !campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
       if (campaign.template_key !== template.key) return NextResponse.json({ error: "Campaign selection does not match this batch" }, { status: 409 });
-      if (campaign.status !== "draft" || !campaign.resend_broadcast_id) return NextResponse.json({ error: "Only an unsent draft can be sent" }, { status: 409 });
+      if (campaign.status !== "draft" || !campaign.resend_broadcast_id) return NextResponse.json({ error: campaign.status === "failed"
+        ? `This batch's previous send failed: ${campaign.last_error || "Unknown error"}. Refresh status and use Check Resend and restore draft.`
+        : `This batch is ${campaign.status}${!campaign.resend_broadcast_id ? " and has no Resend draft" : ""}. Refresh its status before sending.` }, { status: 409 });
       if (campaign.recipient_count > MAX_BATCH_SIZE) return NextResponse.json({ error: `This batch exceeds the ${MAX_BATCH_SIZE}-recipient safety limit and cannot be sent.` }, { status: 409 });
       const { data: campaignRecipients, error: campaignRecipientsError } = await admin.from("marketing_email_campaign_recipients")
         .select("first_name").eq("campaign_id", campaign.id);
