@@ -14,7 +14,14 @@ export const R229_FLASH_SALE_CAMPAIGN = {
   previewUrl: "/email/4regn-r229-flash-sale-2026-09.html",
 };
 
-export const MARKETING_CAMPAIGNS = [R229_FLASH_SALE_CAMPAIGN, SETLA_PAY_LATER_CAMPAIGN];
+export const R229_REMINDER_CAMPAIGN = {
+  ...R229_FLASH_SALE_CAMPAIGN,
+  key: "4regn-r229-flash-sale-reminder-2026-09-12",
+  name: "4REGN R229 Flash Sale — 3 Hours Left Reminder",
+  subject: "3 HOURS LEFT!! ⏰ 🛍️ FLASH SALE!! ⏰ 🛍️",
+};
+
+export const MARKETING_CAMPAIGNS = [R229_REMINDER_CAMPAIGN, R229_FLASH_SALE_CAMPAIGN, SETLA_PAY_LATER_CAMPAIGN];
 
 export function getMarketingCampaign(key: string) {
   return MARKETING_CAMPAIGNS.find((campaign) => campaign.key === key);

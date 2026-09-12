@@ -32,13 +32,13 @@ type Overview = {
   template: { key: string; name: string; subject: string; previewText: string; previewUrl: string };
 };
 
-import { MARKETING_CAMPAIGNS, R229_FLASH_SALE_CAMPAIGN } from "../../../lib/marketing-campaigns";
+import { MARKETING_CAMPAIGNS, R229_REMINDER_CAMPAIGN } from "../../../lib/marketing-campaigns";
 
 const panel = { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 18 };
 const CAMPAIGN_BATCH_SIZE = 575;
 
 export default function EmailCampaignPanel() {
-  const [templateKey, setTemplateKey] = useState(R229_FLASH_SALE_CAMPAIGN.key);
+  const [templateKey, setTemplateKey] = useState(R229_REMINDER_CAMPAIGN.key);
   const [locked, setLocked] = useState(false);
   return <>
     <label style={{ display: "block", marginBottom: 16, fontSize: 14 }}>
@@ -61,7 +61,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const [prepareProgress, setPrepareProgress] = useState({ current: 0, total: 0 });
   const [confirmation, setConfirmation] = useState("");
   const [capacityConfirmation, setCapacityConfirmation] = useState("");
-  const [deliveryMode, setDeliveryMode] = useState("schedule");
+  const [deliveryMode, setDeliveryMode] = useState("send");
   const [scheduleLocal, setScheduleLocal] = useState("");
 
   useEffect(() => { onBusyChange(!!busy); }, [busy, onBusyChange]);

@@ -73,7 +73,7 @@ async function main() {
   for (const bad of [null, '', '2026-02-30T09:00', '2026-09-12T00:59', '2026-09-12T01:00', '2026-09-12T09:00Z']) assert.throws(() => helper.parseMarketingSchedule(bad));
   console.log('PASS SAST conversion, morning default, invalid/past time validation');
   const api = load('app/api/dashboard/email-marketing/route.ts');
-  const key = '4regn-r229-flash-sale-2026-09';
+  let key = '4regn-r229-flash-sale-2026-09';
   const post = (action, extra = {}) => api.POST({ json: async () => ({ access_token: 'mock', template_key: key, action, ...extra }) });
   reset();
   const first = await post('create_draft', { recipient_limit: 575 });
@@ -129,5 +129,20 @@ async function main() {
   assert.ok(requests.every(r => r.method === 'GET'));
   assert.equal((await post('recover_draft', { campaign_id: batch.id })).status, 409);
   console.log('PASS failed-batch recovery verifies Resend draft, preserves quota error, never sends or resets a sent broadcast');
+  reset();
+  await post('create_draft', { recipient_limit: 575 });
+  db.marketing_email_campaigns[0].status = 'sent';
+  await post('create_draft', { recipient_limit: 425 });
+  db.marketing_email_campaigns[1].status = 'sent';
+  key = '4regn-r229-flash-sale-reminder-2026-09-12';
+  assert.equal((await post('overview')).data.remainingCount, 1000);
+  const reminder = await post('create_draft', { recipient_limit: 575 });
+  assert.equal(reminder.status, 200);
+  assert.equal(reminder.data.total, 575);
+  const saved = db.marketing_email_campaigns[2];
+  assert.equal(saved.subject, '3 HOURS LEFT!! ⏰ 🛍️ FLASH SALE!! ⏰ 🛍️');
+  assert.equal(saved.html_snapshot, db.marketing_email_campaigns[0].html_snapshot);
+  assert.equal((await post('overview')).data.remainingCount, 425);
+  console.log('PASS reminder reuses original content with a separate audience reservation and the requested subject');
 }
 main().catch(error => { console.error(error); process.exit(1); });
