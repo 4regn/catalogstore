@@ -18,10 +18,20 @@ export const dynamic = "force-dynamic";
 // the purchased product's name/image/handle -- never order id, total,
 // email, or phone. This is already a narrower surface than what the
 // original Railway endpoint exposed.
+//
+// The fake-product half used to be hardcoded to exactly two tags
+// ("winter-essentials" and "Wow") -- a leftover from the literal port of
+// the old Shopify theme section, which only ever queried those two
+// collections. That meant every popup a visitor saw was drawn from the
+// same two categories no matter how much of the catalog the store
+// actually carries. This now draws from every published, in-stock,
+// photographed product above the price floor instead, so the popup's
+// variety tracks the real catalog (new collections show up automatically,
+// nothing here needs updating when the seller adds one).
 const MIN_PRICE_ZAR = 351;
 const REAL_ORDER_WINDOW_MS = 60 * 60 * 1000;
 const REAL_ORDER_LIMIT = 20;
-const TAG_PRODUCT_LIMIT = 300;
+const CATALOG_PRODUCT_LIMIT = 400;
 
 function displayName(fullName: string | null): string | null {
   if (!fullName) return null;
@@ -44,22 +54,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   const { data: seller } = await admin.from("sellers").select("id").eq("subdomain", slug).maybeSingle();
   if (!seller) return NextResponse.json({ error: "Store not found" }, { status: 404 });
 
-  const [winterRes, wowRes, ordersRes] = await Promise.all([
+  const [catalogRes, ordersRes] = await Promise.all([
     admin
       .from("products")
       .select("name, handle, image_url")
       .eq("seller_id", seller.id)
       .eq("status", "published")
-      .contains("tags", ["winter-essentials"])
+      .eq("in_stock", true)
+      .not("image_url", "is", null)
       .gt("price", MIN_PRICE_ZAR)
-      .limit(TAG_PRODUCT_LIMIT),
-    admin
-      .from("products")
-      .select("name, handle, image_url")
-      .eq("seller_id", seller.id)
-      .eq("status", "published")
-      .contains("tags", ["Wow"])
-      .limit(TAG_PRODUCT_LIMIT),
+      .limit(CATALOG_PRODUCT_LIMIT),
     admin
       .from("orders")
       .select("customer_name, shipping_address, items, created_at")
@@ -107,8 +111,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   });
 
   return NextResponse.json({
-    winterProducts: (winterRes.data ?? []).map(toProduct),
-    wowProducts: (wowRes.data ?? []).map(toProduct),
+    products: (catalogRes.data ?? []).map(toProduct),
     realOrders,
   });
 }

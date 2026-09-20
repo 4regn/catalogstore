@@ -200,6 +200,11 @@ const ENGLISH_FIRST_NAMES = [
   "Reginald", "Tristan", "Ashleigh", "Clinton", "Donovan",
   "Beverley", "Hilton", "Dale", "Nathaniel", "Mikayla",
   "Geshen", "Promise", "Simon", "Gift", "Lucky",
+  "Deidre", "Trevor", "Ursula", "Wesley", "Bianca",
+  "Devon", "Priscilla", "Marcus", "Yolande", "Jerome",
+  "Charlene", "Desmond", "Michelle", "Franklin", "Roxanne",
+  "Quinton", "Denise", "Ivan", "Sasha-Lee", "Leon",
+  "Charmaine", "Percy", "Melissa", "Godfrey", "Precious",
 ];
 
 const PROVINCE_TOWNS: Record<string, string[]> = {
@@ -378,16 +383,6 @@ export default function FourRegnSalesPopup({ slug, isSubdomain }: { slug: string
       } catch {}
     }
 
-    function makeProductController(winterQueue: ReturnType<typeof makeQueue<PopupItem>>, wowQueue: ReturnType<typeof makeQueue<PopupItem>>) {
-      let step = 0;
-      return {
-        next(): PopupItem {
-          const isWow = step === 2;
-          step = (step + 1) % 3;
-          return isWow ? wowQueue.next() : winterQueue.next();
-        },
-      };
-    }
     function makeHybridController(realOrders: PopupItem[], productCtrl: { next: () => PopupItem }) {
       const real = shuffle(realOrders);
       let realIdx = 0;
@@ -469,25 +464,27 @@ export default function FourRegnSalesPopup({ slug, isSubdomain }: { slug: string
       detectProvince();
       fetch(`/api/store/${slug}/sales-popup`)
         .then((r) => r.json())
-        .then(async (data: { winterProducts: ApiProduct[]; wowProducts: ApiProduct[]; realOrders: ApiRealOrder[] }) => {
+        .then(async (data: { products: ApiProduct[]; realOrders: ApiRealOrder[] }) => {
           if (cancelled) return;
+          // /collections is the generic catalog index -- a safe fallback
+          // link for the rare product missing a handle, now that this pool
+          // spans the whole catalog instead of one specific collection.
           const toPopupItem = (p: ApiProduct): PopupItem => ({
             title: p.name,
             image: p.image,
-            url: p.handle ? sp(`/products/${p.handle}`) : sp("/collections/winter-essentials"),
+            url: p.handle ? sp(`/products/${p.handle}`) : sp("/collections"),
             isReal: false,
             offsetMs: randomOffsetMs(),
           });
-          const winterProducts = (data.winterProducts || []).map(toPopupItem);
-          const wowProducts = (data.wowProducts || []).map(toPopupItem);
-          if (!winterProducts.length && !wowProducts.length) return;
+          const products = (data.products || []).map(toPopupItem);
+          if (!products.length) return;
 
           const realOrders: PopupItem[] = (data.realOrders || [])
             .filter((o) => o.displayName && shouldShowOrder(`${o.displayName}::${o.product}`))
             .map((o) => ({
               title: o.product,
               image: o.image,
-              url: o.handle ? sp(`/products/${o.handle}`) : sp("/collections/winter-essentials"),
+              url: o.handle ? sp(`/products/${o.handle}`) : sp("/collections"),
               isReal: true,
               realName: o.displayName!,
               realCity: o.city,
@@ -495,9 +492,7 @@ export default function FourRegnSalesPopup({ slug, isSubdomain }: { slug: string
               orderKey: `${o.displayName}::${o.product}`,
             }));
 
-          const winterQueue = makeQueue(winterProducts);
-          const wowQueue = makeQueue(wowProducts.length ? wowProducts : winterProducts);
-          const productCtrl = makeProductController(winterQueue, wowQueue);
+          const productCtrl = makeQueue(products);
           controller = makeHybridController(realOrders, productCtrl);
 
           setTimeout(() => {
