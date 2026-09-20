@@ -9,6 +9,14 @@ import { formatInstalmentDueDate } from "../../../../../../../lib/setla-instalme
 
 export const dynamic = "force-dynamic";
 
+// "1" / "1 and 2" / "1, 2 and 3" -- used when a plan has multiple overdue
+// instalments at once and the reminder needs to name all of them together.
+function formatSequenceList(nums: number[]): string {
+  if (nums.length <= 1) return `${nums[0] ?? ""}`;
+  if (nums.length === 2) return `${nums[0]} and ${nums[1]}`;
+  return `${nums.slice(0, -1).join(", ")} and ${nums[nums.length - 1]}`;
+}
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireSetlaAdmin(req);
   if ("response" in auth) return auth.response;
@@ -46,21 +54,49 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const overdue = instalment.status === "overdue" || new Date(instalment.due_at).getTime() < Date.now();
   const delivered = order?.status === "delivered";
 
+  // A customer who misses one instalment can still owe another by the time
+  // it's followed up on -- same "unpaid" + "overdue" filter as the admin
+  // Repayments panel (app/api/setla/admin/repayments/route.ts) applied to
+  // this one plan. When that's 2+, they must clear the whole balance
+  // together: paying just the instalment this reminder was sent for would
+  // leave them still overdue on the other one, so the copy below says so
+  // explicitly instead of describing only the single instalment.
+  const { data: allInstalments } = await admin
+    .from("setla_instalments")
+    .select("sequence_number, amount, due_at, status")
+    .eq("plan_id", plan.id)
+    .order("sequence_number", { ascending: true });
+  const now = Date.now();
+  const overdueInstalments = (allInstalments || []).filter(
+    (row) => !["paid", "waived", "refunded", "failed"].includes(row.status) && (row.status === "overdue" || new Date(row.due_at).getTime() < now)
+  );
+  const overdueCount = overdueInstalments.length;
+  const overdueTotal = overdueInstalments.reduce((sum, row) => sum + Number(row.amount), 0);
+  const combined = overdue && overdueCount >= 2;
+  const seqList = formatSequenceList(overdueInstalments.map((row) => row.sequence_number));
+
   let emailSent = false, smsSent = false, smsSkippedBadNumber = false;
 
   if (channel === "email" || channel === "both") {
     await sendSetlaEmail({
       to: customer.email,
       firstName: customer.first_name,
-      subject: overdue ? `Overdue: SETLA payment for ${reference}` : `SETLA payment reminder — ${reference}`,
+      subject: combined ? `Overdue: ${overdueCount} SETLA payments for ${reference}` : overdue ? `Overdue: SETLA payment for ${reference}` : `SETLA payment reminder — ${reference}`,
       kicker: overdue ? "Payment overdue" : "Upcoming payment",
-      headline: overdue ? "Your SETLA payment is overdue." : `Instalment ${instalment.sequence_number} of your SETLA plan is coming up.`,
+      headline: combined ? `You have ${overdueCount} overdue SETLA payments.` : overdue ? "Your SETLA payment is overdue." : `Instalment ${instalment.sequence_number} of your SETLA plan is coming up.`,
       // Explicitly names delivery when it's true -- the customer already has
       // the goods, so it's the strongest, most factual reason to pay that
       // exists, not an invented threat. Kept to that one true, verifiable
       // fact rather than implying consequences (fees, credit reporting,
       // collections) this system has no actual policy for.
-      bodyHtml: overdue
+      //
+      // combined (2+ instalments overdue on the same plan at once) states
+      // the full outstanding total and says plainly that it's one balance,
+      // not several -- paying just the instalment this reminder names would
+      // still leave the customer overdue on the other one(s).
+      bodyHtml: combined
+        ? `${delivered ? `Your order <strong class="setla-fg" style="color:#ffffff">${reference}</strong> has already been delivered, but instalments` : `Instalments`} ${seqList}${delivered ? "" : ` for order <strong class="setla-fg" style="color:#ffffff">${reference}</strong>`}, totaling <strong class="setla-fg" style="color:#ffffff">R${overdueTotal.toFixed(2)}</strong>, are overdue and have not been paid. These must be paid together to settle your account — paying only one instalment will not clear the outstanding balance. Please settle the full amount as soon as possible.`
+        : overdue
         ? `${delivered ? `Your order <strong class="setla-fg" style="color:#ffffff">${reference}</strong> has already been delivered, but instalment` : `Instalment`} ${instalment.sequence_number}${delivered ? "" : ` for order <strong class="setla-fg" style="color:#ffffff">${reference}</strong>`} of <strong class="setla-fg" style="color:#ffffff">R${Number(instalment.amount).toFixed(2)}</strong> was due on <strong class="setla-fg" style="color:#ffffff">${dueDate}</strong> and has not been paid. Please settle this payment as soon as possible.`
         : `A payment of <strong class="setla-fg" style="color:#ffffff">R${Number(instalment.amount).toFixed(2)}</strong> for order <strong class="setla-fg" style="color:#ffffff">${reference}</strong> is due on <strong class="setla-fg" style="color:#ffffff">${dueDate}</strong>.`,
       extraHtml: overdue ? `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">Continued non-payment may affect your ability to use SETLA for future purchases.</p>` : undefined,
@@ -70,7 +106,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       // scrolling past the approved-limit hero and clicking through "Manage
       // payment plan" first. requireAccount() in setla.js preserves this
       // hash across the login redirect for a signed-out click too.
-      ctaLabel: overdue ? "Pay now to settle this" : "Pay now",
+      ctaLabel: combined ? (overdueCount === 2 ? "Pay now to settle both" : "Pay now to settle all") : overdue ? "Pay now to settle this" : "Pay now",
       ctaUrl: `${SETLA_CUSTOMER_ORIGIN}/dashboard#plans`,
     });
     emailSent = true;
@@ -78,16 +114,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   if (channel === "sms" || channel === "both") {
     if (customer.phone && toSmsPortalDestination(customer.phone)) {
-      await sendInstalmentReminderSms({ to: customer.phone, firstName: customer.first_name, amount: Number(instalment.amount), dueLabel: dueDate, reference, overdue, delivered });
+      await sendInstalmentReminderSms({ to: customer.phone, firstName: customer.first_name, amount: Number(instalment.amount), dueLabel: dueDate, reference, overdue, delivered, overdueCount, overdueTotal });
       smsSent = true;
     } else {
       smsSkippedBadNumber = true;
     }
   }
 
+  const notificationBody = combined ? `R${overdueTotal.toFixed(2)} overdue across ${overdueCount} instalments` : `R${Number(instalment.amount).toFixed(2)} due ${dueDate}`;
   await Promise.all([
-    admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "repayment_reminder", title: `Payment reminder — ${reference}`, body: `R${Number(instalment.amount).toFixed(2)} due ${dueDate}`, metadata: { instalmentId: id, orderId: setlaOrder.unik_order_id, channel } }),
-    admin.from("admin_audit_log").insert({ admin_email: auth.admin.email, action: "setla_repayment_reminder", target_seller_id: null, details: { customerId: customer.id, instalmentId: id, orderId: setlaOrder.unik_order_id, channel, emailSent, smsSent, smsSkippedBadNumber } }),
+    admin.from("setla_notifications").insert({ customer_id: customer.id, notification_type: "repayment_reminder", title: `Payment reminder — ${reference}`, body: notificationBody, metadata: { instalmentId: id, orderId: setlaOrder.unik_order_id, channel, overdueCount, overdueTotal } }),
+    admin.from("admin_audit_log").insert({ admin_email: auth.admin.email, action: "setla_repayment_reminder", target_seller_id: null, details: { customerId: customer.id, instalmentId: id, orderId: setlaOrder.unik_order_id, channel, emailSent, smsSent, smsSkippedBadNumber, overdueCount, overdueTotal } }),
   ]);
   return NextResponse.json({ success: true, emailSent, smsSent, smsSkippedBadNumber });
 }
