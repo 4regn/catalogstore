@@ -9,12 +9,19 @@ export const SETLA_PAY_LATER_CAMPAIGN = {
 export const R229_FLASH_SALE_CAMPAIGN = {
   key: "4regn-r229-flash-sale-2026-09",
   name: "4REGN R229 Weekend Flash Sale",
-  subject: "ENDS AT MIDNIGHT: R229 tees. 2 for R449.",
+  subject: "🛍️ FLASH SALE!! 🛍️ ⏰ R229 PREMIUM OVERSIZED TEES! ENDS AT MIDNIGHT",
   previewText: "Oversized Premium Tees from R350 to R229. Buy 2 for R449. Ends Saturday at 23:59.",
   previewUrl: "/email/4regn-r229-flash-sale-2026-09.html",
 };
 
-export const MARKETING_CAMPAIGNS = [R229_FLASH_SALE_CAMPAIGN, SETLA_PAY_LATER_CAMPAIGN];
+export const R229_REMINDER_CAMPAIGN = {
+  ...R229_FLASH_SALE_CAMPAIGN,
+  key: "4regn-r229-flash-sale-reminder-2026-09-12",
+  name: "4REGN R229 Flash Sale — 3 Hours Left Reminder",
+  subject: "3 HOURS LEFT!! ⏰ 🛍️ FLASH SALE!! ⏰ 🛍️",
+};
+
+export const MARKETING_CAMPAIGNS = [R229_REMINDER_CAMPAIGN, R229_FLASH_SALE_CAMPAIGN, SETLA_PAY_LATER_CAMPAIGN];
 
 export function getMarketingCampaign(key: string) {
   return MARKETING_CAMPAIGNS.find((campaign) => campaign.key === key);
