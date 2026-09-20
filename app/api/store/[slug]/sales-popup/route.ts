@@ -28,10 +28,47 @@ export const dynamic = "force-dynamic";
 // photographed product above the price floor instead, so the popup's
 // variety tracks the real catalog (new collections show up automatically,
 // nothing here needs updating when the seller adds one).
+//
+// Within that wider pool, the seller wants certain lines seen more often:
+// Premium Oversized Tees, front+back printed hoodies, the Custom Upload
+// Studio hoodies/tees, and trucker caps -- especially whichever of those
+// are actually selling. There's no precomputed popularity column on
+// products (checked), so "most purchased" is derived the same way
+// app/api/storefront/cart-booster/route.ts already does it: count qty
+// across each product's appearances in the last 500 paid orders, no new
+// database field needed.
+//
+// Rather than filtering the pool down to just these lines (which would
+// undo the whole-catalog variety fix above) or sorting it (pointless --
+// FourRegnSalesPopup.tsx's makeQueue fully reshuffles whatever array it's
+// handed), priority is expressed as weight: a priority-line product's
+// entry is repeated a few extra times in the array below, and a
+// best-selling product gets a few more on top of that, so both are simply
+// more likely to come up in the shuffle without ever squeezing the rest
+// of the catalog out entirely.
+const PRIORITY_CATEGORIES = [
+  "OVERSIZED PREMIUM TEES",
+  // Two spellings exist in real product data for the same collection --
+  // see the same defensive either/or check in FourRegnStore.tsx's promo
+  // badge logic.
+  "BACK & FRONT PRINTED HOODIES", "FRONT & BACK PRINTED HOODIES",
+  "CUSTOM PRINTED HOODIES", "CUSTOM PRINTED TEES",
+  "TRUCKER CAPS & BEANIES", "PRINTED TRUCKER CAPS", "PLAIN TRUCKER CAPS", "CUSTOM TRUCKER CAPS",
+];
+const PRIORITY_TAGS = ["custom-print-front", "custom-print-both"];
+const PRIORITY_WEIGHT = 3;
+const POPULARITY_WEIGHT_CAP = 4;
 const MIN_PRICE_ZAR = 351;
 const REAL_ORDER_WINDOW_MS = 60 * 60 * 1000;
 const REAL_ORDER_LIMIT = 20;
+const POPULARITY_ORDER_LIMIT = 500;
 const CATALOG_PRODUCT_LIMIT = 400;
+
+function isPriorityProduct(p: { category: string | null; tags: string[] | null }): boolean {
+  const categories = (p.category || "").split(",").map((c) => c.trim().toUpperCase());
+  if (PRIORITY_CATEGORIES.some((c) => categories.includes(c))) return true;
+  return (p.tags || []).some((t) => PRIORITY_TAGS.includes(t));
+}
 
 function displayName(fullName: string | null): string | null {
   if (!fullName) return null;
@@ -54,10 +91,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   const { data: seller } = await admin.from("sellers").select("id").eq("subdomain", slug).maybeSingle();
   if (!seller) return NextResponse.json({ error: "Store not found" }, { status: 404 });
 
-  const [catalogRes, ordersRes] = await Promise.all([
+  const [catalogRes, ordersRes, popularityRes] = await Promise.all([
     admin
       .from("products")
-      .select("name, handle, image_url")
+      .select("id, name, handle, image_url, category, tags")
       .eq("seller_id", seller.id)
       .eq("status", "published")
       .eq("in_stock", true)
@@ -72,7 +109,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       .gte("created_at", new Date(Date.now() - REAL_ORDER_WINDOW_MS).toISOString())
       .order("created_at", { ascending: false })
       .limit(REAL_ORDER_LIMIT),
+    // Same "count qty across recent paid orders" best-seller signal
+    // cart-booster already uses -- see the comment above PRIORITY_CATEGORIES.
+    admin
+      .from("orders")
+      .select("items")
+      .eq("seller_id", seller.id)
+      .eq("payment_status", "paid")
+      .order("created_at", { ascending: false })
+      .limit(POPULARITY_ORDER_LIMIT),
   ]);
+
+  const popularityByProductId = new Map<string, number>();
+  for (const order of popularityRes.data || []) {
+    const items = Array.isArray(order.items) ? order.items : [];
+    for (const item of items as { id?: string; qty?: number }[]) {
+      const id = String(item?.id || "").trim();
+      if (!id) continue;
+      popularityByProductId.set(id, (popularityByProductId.get(id) || 0) + Math.max(1, Number(item?.qty) || 1));
+    }
+  }
 
   const toProduct = (p: { name: string; handle: string | null; image_url: string | null }) => ({
     name: p.name,
@@ -110,8 +166,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     };
   });
 
+  // Weighted repetition, not sorting -- the client's makeQueue fully
+  // reshuffles this array (see the comment on PRIORITY_CATEGORIES above),
+  // so a priority/best-selling product needs to appear as extra copies to
+  // actually show up more often, not just sit earlier in the list.
+  const weightedProducts: ReturnType<typeof toProduct>[] = [];
+  for (const p of catalogRes.data ?? []) {
+    let weight = 1;
+    if (isPriorityProduct(p)) weight += PRIORITY_WEIGHT;
+    weight += Math.min(popularityByProductId.get(p.id) || 0, POPULARITY_WEIGHT_CAP);
+    const item = toProduct(p);
+    for (let i = 0; i < weight; i++) weightedProducts.push(item);
+  }
+
   return NextResponse.json({
-    products: (catalogRes.data ?? []).map(toProduct),
+    products: weightedProducts,
     realOrders,
   });
 }
