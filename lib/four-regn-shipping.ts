@@ -42,7 +42,7 @@ export const FOUR_REGN_PAXI_EXPRESS: CheckoutShippingOption = {
   service_level: "express",
 };
 
-export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["paxi_standard", "aramex", "courier_guy", "paxi_express"] as const;
+export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["paxi_standard", "courier_guy", "aramex", "paxi_express"] as const;
 export type FourRegnDeliveryMethodKey = typeof FOUR_REGN_DELIVERY_METHOD_ORDER[number];
 
 export function normaliseFourRegnDeliveryMethodOrder(value: unknown): FourRegnDeliveryMethodKey[] {
@@ -51,19 +51,35 @@ export function normaliseFourRegnDeliveryMethodOrder(value: unknown): FourRegnDe
     : [];
   const result = [...saved];
   // A key a seller's saved order predates (a newly added delivery method,
-  // e.g. Courier Guy) is inserted right after its immediate predecessor in
-  // the canonical FOUR_REGN_DELIVERY_METHOD_ORDER above, not dumped at the
-  // very end -- so "add method X under method Y" actually lands there for
-  // a seller who has already customized their order via the dashboard's
-  // reorder panel, not just for one with no saved order at all. Iterating
-  // in canonical order guarantees a key's predecessor is already present
-  // in `result` by the time this reaches it, either because it was saved
-  // or because an earlier step in this same loop already inserted it.
+  // e.g. Courier Guy) is inserted right next to its canonical neighbour in
+  // FOUR_REGN_DELIVERY_METHOD_ORDER above, not dumped at the very end --
+  // so "add method X above/under method Y" actually lands there for a
+  // seller who has already customized their order via the dashboard's
+  // reorder panel, not just for one with no saved order at all.
+  //
+  // Anchoring on the immediate *successor* first (insert directly before
+  // it) rather than the predecessor is what makes "above Y" reliable: if
+  // this instead only ever inserted after its canonical predecessor, a
+  // seller whose saved order doesn't happen to have that predecessor
+  // sitting next to Y could end up with the new key nowhere near Y at all
+  // (e.g. Courier Guy's predecessor is PAXI Standard -- if a seller had
+  // already moved PAXI Standard away from Aramex, inserting only after
+  // PAXI Standard would land Courier Guy far from Aramex instead of
+  // directly above it). Falling back to the predecessor keeps the last key
+  // in canonical order anchored (it has no successor to anchor on), and
+  // falling back further to append covers a still-fresh, empty saved
+  // order, reconstructing the full canonical order across the loop.
   FOUR_REGN_DELIVERY_METHOD_ORDER.forEach((key, canonicalIndex) => {
     if (result.includes(key)) return;
+    const successorKey = FOUR_REGN_DELIVERY_METHOD_ORDER[canonicalIndex + 1];
     const precedingKey = FOUR_REGN_DELIVERY_METHOD_ORDER[canonicalIndex - 1];
-    const insertAt = precedingKey ? result.indexOf(precedingKey) + 1 : 0;
-    result.splice(insertAt, 0, key);
+    if (successorKey && result.includes(successorKey)) {
+      result.splice(result.indexOf(successorKey), 0, key);
+    } else if (precedingKey && result.includes(precedingKey)) {
+      result.splice(result.indexOf(precedingKey) + 1, 0, key);
+    } else {
+      result.push(key);
+    }
   });
   return result;
 }

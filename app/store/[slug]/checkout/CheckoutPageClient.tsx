@@ -171,7 +171,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .shipping-provider span{font-size:12.5px;font-weight:800;line-height:1.25}
 .fr-checkout-v2 .shipping-provider.aramex span{color:#e1261c}
 .fr-checkout-v2 .shipping-provider.paxi span{color:#007c89}
-.fr-checkout-v2 .shipping-provider.courierguy span{color:#e70000}
+.fr-checkout-v2 .shipping-provider.courierguy span{color:#599AD7}
 .fr-checkout-v2 .best-value-badge{display:inline-flex;align-items:center;border-radius:999px;background:#111;color:#fff;padding:3px 7px;font-size:9px;font-weight:800;letter-spacing:.06em;line-height:1;vertical-align:middle;margin-left:7px}
 .fr-checkout-v2 .delivery-estimate{margin:8px 0 0 31px;color:#176b37;font-size:11.5px;line-height:1.5}
 .fr-checkout-v2 .delivery-estimate strong{font-weight:700}
