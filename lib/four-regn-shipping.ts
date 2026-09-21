@@ -4,7 +4,7 @@ export type CheckoutShippingOption = {
   estimate?: string;
   is_premium?: boolean;
   compare_at_price?: number;
-  carrier?: "aramex" | "paxi" | "premium" | "other";
+  carrier?: "aramex" | "paxi" | "courierguy" | "premium" | "other";
   service_level?: "standard" | "express" | "premium";
 };
 
@@ -14,6 +14,14 @@ export const FOUR_REGN_AR_MAILER: CheckoutShippingOption = {
   compare_at_price: 90,
   estimate: "2-5 working days",
   carrier: "aramex",
+  service_level: "standard",
+};
+
+export const FOUR_REGN_COURIER_GUY: CheckoutShippingOption = {
+  name: "Courier Guy",
+  price: 149,
+  estimate: "2-3 working days",
+  carrier: "courierguy",
   service_level: "standard",
 };
 
@@ -34,14 +42,30 @@ export const FOUR_REGN_PAXI_EXPRESS: CheckoutShippingOption = {
   service_level: "express",
 };
 
-export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["paxi_standard", "aramex", "paxi_express"] as const;
+export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["paxi_standard", "aramex", "courier_guy", "paxi_express"] as const;
 export type FourRegnDeliveryMethodKey = typeof FOUR_REGN_DELIVERY_METHOD_ORDER[number];
 
 export function normaliseFourRegnDeliveryMethodOrder(value: unknown): FourRegnDeliveryMethodKey[] {
   const saved = Array.isArray(value)
     ? value.filter((key): key is FourRegnDeliveryMethodKey => FOUR_REGN_DELIVERY_METHOD_ORDER.includes(key as FourRegnDeliveryMethodKey))
     : [];
-  return [...saved, ...FOUR_REGN_DELIVERY_METHOD_ORDER.filter((key) => !saved.includes(key))];
+  const result = [...saved];
+  // A key a seller's saved order predates (a newly added delivery method,
+  // e.g. Courier Guy) is inserted right after its immediate predecessor in
+  // the canonical FOUR_REGN_DELIVERY_METHOD_ORDER above, not dumped at the
+  // very end -- so "add method X under method Y" actually lands there for
+  // a seller who has already customized their order via the dashboard's
+  // reorder panel, not just for one with no saved order at all. Iterating
+  // in canonical order guarantees a key's predecessor is already present
+  // in `result` by the time this reaches it, either because it was saved
+  // or because an earlier step in this same loop already inserted it.
+  FOUR_REGN_DELIVERY_METHOD_ORDER.forEach((key, canonicalIndex) => {
+    if (result.includes(key)) return;
+    const precedingKey = FOUR_REGN_DELIVERY_METHOD_ORDER[canonicalIndex - 1];
+    const insertAt = precedingKey ? result.indexOf(precedingKey) + 1 : 0;
+    result.splice(insertAt, 0, key);
+  });
+  return result;
 }
 
 const PREMIUM_SHIPPING_NAME = "PREMIUM PRODUCT SHIPMENT";
@@ -96,6 +120,7 @@ export function buildCheckoutShippingOptions(
   const localDeliveryMethods: Record<FourRegnDeliveryMethodKey, CheckoutShippingOption> = {
     paxi_standard: standardPaxi,
     aramex,
+    courier_guy: FOUR_REGN_COURIER_GUY,
     paxi_express: FOUR_REGN_PAXI_EXPRESS,
   };
   const orderedLocalDeliveryOptions = normaliseFourRegnDeliveryMethodOrder(seller.delivery_method_order)
@@ -169,6 +194,7 @@ export function calculateFourRegnDeliveryEstimate(shippingOption?: string | null
   let min: number; let max: number;
   if (option.includes("paxi standard")) [min, max] = [7, 9];
   else if (option.includes("door-to-door") || option.includes("door to door")) [min, max] = [2, 5];
+  else if (option.includes("courier guy")) [min, max] = [2, 3];
   else if (option.includes("paxi express")) [min, max] = [3, 5];
   else return null;
   return { fromAt: deliveryTimestamp(addSouthAfricanWorkingDays(orderedAt, min)), toAt: deliveryTimestamp(addSouthAfricanWorkingDays(orderedAt, max)), businessDays: { min, max } };

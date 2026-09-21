@@ -171,6 +171,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .shipping-provider span{font-size:12.5px;font-weight:800;line-height:1.25}
 .fr-checkout-v2 .shipping-provider.aramex span{color:#e1261c}
 .fr-checkout-v2 .shipping-provider.paxi span{color:#007c89}
+.fr-checkout-v2 .shipping-provider.courierguy span{color:#e70000}
 .fr-checkout-v2 .best-value-badge{display:inline-flex;align-items:center;border-radius:999px;background:#111;color:#fff;padding:3px 7px;font-size:9px;font-weight:800;letter-spacing:.06em;line-height:1;vertical-align:middle;margin-left:7px}
 .fr-checkout-v2 .delivery-estimate{margin:8px 0 0 31px;color:#176b37;font-size:11.5px;line-height:1.5}
 .fr-checkout-v2 .delivery-estimate strong{font-weight:700}
@@ -871,7 +872,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     ? "/checkout/aramex.png"
     : opt?.carrier === "paxi"
       ? "/checkout/paxi.png"
-      : "";
+      : opt?.carrier === "courierguy"
+        ? "/checkout/courierguy.png"
+        : "";
+  const shippingProviderAlt = (carrier?: CheckoutShippingOption["carrier"]) =>
+    carrier === "aramex" ? "Aramex" : carrier === "courierguy" ? "Courier Guy" : "PAXI";
   const shippingPriceLabel = (opt?: CheckoutShippingOption) => (opt?.price || 0) === 0 ? "Free" : "R" + opt?.price;
   const ShippingPrice = ({ opt, className = "choice-price" }: { opt: CheckoutShippingOption; className?: string }) => {
     const saving = shippingOptionSavings(opt);
@@ -889,7 +894,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     if (!logo) return <>{name}</>;
     return (
       <span className={`shipping-provider ${opt.carrier || ""}`}>
-        <img src={logo} alt={opt.carrier === "aramex" ? "Aramex" : "PAXI"} />
+        <img src={logo} alt={shippingProviderAlt(opt.carrier)} />
         <span>{name}</span>
       </span>
     );
@@ -1457,7 +1462,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>
                           <div className="radio"></div>
-                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} />{opt.carrier === "aramex" && <span className="best-value-badge">BEST VALUE</span>}</div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
+                          <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} />{opt.carrier === "courierguy" && <span className="best-value-badge">BEST VALUE</span>}</div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
                           <ShippingPrice opt={opt} />
                         </div>
                         {shippingOption === i && selectedDeliveryEstimateDates && (
